@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type RefObject,
+} from "react";
 import { useReactFlow } from "@xyflow/react";
 import { useMutation } from "convex/react";
 import { useParams } from "@tanstack/react-router";
@@ -38,6 +44,12 @@ interface UseTitleNodeSizingArgs {
   level: string;
   /** Live text being typed (uncontrolled). When set, measure from this instead of `text`. */
   liveText?: string;
+  /**
+   * When true, measurement still applies dims locally (so the node grows in
+   * sync with typing) but does not persist them to Convex. The caller is
+   * expected to flush via `flushPendingPersist` on save.
+   */
+  isEditing?: boolean;
   /** Padding (px) inside the NodeFrame around the editable element (left + right) */
   paddingX?: number;
   /** Padding (px) inside the NodeFrame around the editable element (top + bottom) */
@@ -62,6 +74,7 @@ export function useTitleNodeSizing({
   text,
   level,
   liveText,
+  isEditing = false,
   paddingX = 16, // matches "px-2" (8 each side)
   paddingY = 8, // matches "p-1" (4 top + 4 bottom)
   borderTotal = 2, // 1px on each side
@@ -107,6 +120,14 @@ export function useTitleNodeSizing({
   const pendingDimensions = useRef<{ width: number; height: number } | null>(
     null,
   );
+  // Snapshot of the latest dims we applied locally. Used by
+  // `flushPendingPersist` so the caller (TitleNode.exitEditAndSave) can persist
+  // the final size at save time, since persistDimensions is skipped while
+  // isEditing is true.
+  const latestAppliedDimsRef = useRef<{
+    width: number;
+    height: number;
+  } | null>(null);
   // Snapshot of the inputs and dimensions we last reconciled. The first
   // hydrated run records these and skips measuring — the persisted dims in
   // Convex are the source of truth on load. After that, we only re-measure
@@ -168,6 +189,7 @@ export function useTitleNodeSizing({
   // Apply locally first so the React Flow node grows in the same frame as the
   // user's input. The optimistic mutation will catch up shortly after.
   const applyLocalDimensions = (width: number, height: number) => {
+    latestAppliedDimsRef.current = { width, height };
     logTitleSizing(nodeId, "apply-local-dimensions", {
       width,
       height,
@@ -185,6 +207,35 @@ export function useTitleNodeSizing({
       ),
     );
   };
+
+  // Flush the latest locally-applied dims to Convex immediately (no debounce).
+  // Called by the caller on save: persistDimensions is skipped while
+  // isEditing is true, and the post-save re-render arrives with text already
+  // synced via Zustand's optimistic update — at which point lastMeasuredRef
+  // matches the new text and the measure block would skip persisting too.
+  const flushPendingPersist = useCallback(() => {
+    const dims = latestAppliedDimsRef.current;
+    if (!dims) {
+      logTitleSizing(nodeId, "flush-skipped-no-dims");
+      return;
+    }
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    pendingDimensions.current = null;
+    pendingAutoSizeIds.delete(nodeId);
+    logTitleSizing(nodeId, "flush-commit-mutation", dims);
+    void updateDimensions({
+      canvasId,
+      nodeChanges: [
+        {
+          id: nodeId,
+          dimensions: dims,
+        },
+      ],
+    });
+  }, [canvasId, nodeId, updateDimensions]);
 
   // Measure & sync whenever the relevant inputs change.
   useLayoutEffect(() => {
@@ -277,9 +328,10 @@ export function useTitleNodeSizing({
           desiredHeight,
           currentWidth,
           currentHeight,
+          isEditing,
         });
         applyLocalDimensions(desiredWidth, desiredHeight);
-        persistDimensions(desiredWidth, desiredHeight);
+        if (!isEditing) persistDimensions(desiredWidth, desiredHeight);
         nextWidth = desiredWidth;
         nextHeight = desiredHeight;
       } else {
@@ -304,9 +356,10 @@ export function useTitleNodeSizing({
           desiredHeight,
           currentHeight,
           innerWidth,
+          isEditing,
         });
         applyLocalDimensions(currentWidth, desiredHeight);
-        persistDimensions(currentWidth, desiredHeight);
+        if (!isEditing) persistDimensions(currentWidth, desiredHeight);
         nextHeight = desiredHeight;
       } else {
         logTitleSizing(nodeId, "measure-manual-noop", {
@@ -342,6 +395,9 @@ export function useTitleNodeSizing({
     currentWidth,
     currentHeight,
     isHydrated,
+    isEditing,
     nodeId,
   ]);
+
+  return { flushPendingPersist };
 }

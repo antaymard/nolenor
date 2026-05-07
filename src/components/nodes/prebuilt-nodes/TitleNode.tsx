@@ -112,7 +112,7 @@ function TitleNode(xyNode: Node) {
     colors[(xyNode.data?.color as colorsEnum) || "default"]?.textColor;
 
   // ── Sizing ──────────────────────────────────────────────────────────────
-  useTitleNodeSizing({
+  const { flushPendingPersist } = useTitleNodeSizing({
     nodeId: xyNode.id,
     ghostRef,
     isHydrated: values !== undefined,
@@ -122,6 +122,7 @@ function TitleNode(xyNode: Node) {
     text,
     level,
     liveText: isEditing ? liveText : text,
+    isEditing,
   });
 
   // ── Edit lifecycle ──────────────────────────────────────────────────────
@@ -139,6 +140,10 @@ function TitleNode(xyNode: Node) {
     if (!isEditing) return;
     const el = editorRef.current;
     const newText = el?.innerText ?? "";
+    // Persist final dims before flipping isEditing: the post-save re-render
+    // arrives with text already synced via Zustand and lastMeasuredRef in the
+    // sizing hook matching, so the measure block would skip persisting.
+    flushPendingPersist();
     setIsEditing(false);
     if (nodeDataId && newText !== text) {
       updateNodeDataValues({
@@ -146,7 +151,7 @@ function TitleNode(xyNode: Node) {
         values: { text: newText },
       });
     }
-  }, [isEditing, nodeDataId, text, updateNodeDataValues]);
+  }, [isEditing, nodeDataId, text, updateNodeDataValues, flushPendingPersist]);
 
   const cancelEdit = useCallback(() => {
     if (!isEditing) return;

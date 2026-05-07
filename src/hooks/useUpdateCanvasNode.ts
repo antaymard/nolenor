@@ -5,6 +5,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { colorsEnum } from "@/types/domain";
+import type { CanvasNode } from "@/types";
 import { toastError } from "@/components/utils/errorUtils";
 
 interface ConvexNodeProps {
@@ -34,9 +35,62 @@ export function useUpdateCanvasNode(): UseUpdateCanvasNodeReturn {
 
   const { getNode, setNodes } = useReactFlow();
 
+  // Mirror the server logic in canvasNodeModels.updateCanvasNodes on the
+  // convex local query so the canvases.readCanvas → setNodes sync in
+  // useCanvasNodes does not briefly bounce data fields back to their
+  // pre-mutation value (e.g. titleSizing snapping back to "auto" right
+  // after a manual resize).
   const updateCanvasNodesMutation = useMutation(
     api.canvasNodes.updateCanvasNodes,
-  );
+  ).withOptimisticUpdate((localStore, { canvasId: targetCanvasId, nodeProps }) => {
+    const existing = localStore.getQuery(api.canvases.readCanvas, {
+      canvasId: targetCanvasId,
+    });
+    if (!existing || !existing.nodes) return;
+    const propsById = new Map<
+      string,
+      {
+        props?: ConvexNodeProps;
+        data?: Record<string, unknown>;
+      }
+    >();
+    for (const item of nodeProps as Array<{
+      id: string;
+      props?: ConvexNodeProps;
+      data?: Record<string, unknown>;
+    }>) {
+      propsById.set(item.id, item);
+    }
+    if (propsById.size === 0) return;
+    localStore.setQuery(
+      api.canvases.readCanvas,
+      { canvasId: targetCanvasId },
+      {
+        ...existing,
+        nodes: existing.nodes.map((node: CanvasNode) => {
+          const update = propsById.get(node.id);
+          if (!update) return node;
+          const next: CanvasNode = { ...node };
+          if (update.props) {
+            if (update.props.locked !== undefined)
+              next.locked = update.props.locked;
+            if (update.props.hidden !== undefined)
+              next.hidden = update.props.hidden;
+            if (update.props.zIndex !== undefined)
+              next.zIndex = update.props.zIndex;
+            if (update.props.color !== undefined)
+              next.color = update.props.color;
+            if (update.props.variant !== undefined)
+              next.variant = update.props.variant;
+          }
+          if (update.data !== undefined) {
+            next.data = { ...(node.data ?? {}), ...update.data };
+          }
+          return next;
+        }),
+      },
+    );
+  });
 
   const snapshotsRef = useRef<Map<string, Node>>(new Map());
   const isUpdatingRef = useRef(false);

@@ -114,8 +114,10 @@ export async function updatePositionOrDimensions(
     updatedAt: Date.now(),
   });
 
+  const changedNodeIds = nodeChanges.map((change) => change.id).join(", ");
+
   console.log(
-    `✅ Updated position/dimensions for ${nodeChanges.length} nodes in canvas ${canvasId}`,
+    `✅ Updated position/dimensions for ${nodeChanges.length} nodes in canvas ${canvasId} (nodeIds: ${changedNodeIds})`,
   );
 
   return true;

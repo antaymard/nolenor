@@ -8,6 +8,16 @@ import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { WindowFrameContext } from "@/components/windows/WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/plate/alert-dialog";
 import DocumentWindow from "@/components/windows/prebuilt/DocumentWindow";
 import EmbedWindow from "@/components/windows/prebuilt/EmbedWindow";
 import ImageWindow from "@/components/windows/prebuilt/ImageWindow";
@@ -44,6 +54,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
   const [refreshHandler, setRefreshHandlerState] = useState<
     (() => void) | null
   >(null);
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
 
   const title = useNodeDataTitle(nodeDataId);
   const nodeData = useNodeData(nodeDataId);
@@ -57,6 +68,41 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
     }
     return () => removeDirtyNode(xyNodeId);
   }, [isDirty, xyNodeId, addDirtyNode, removeDirtyNode]);
+
+  // Push a history entry when the overlay opens so the browser back button
+  // navigates back to the chat instead of leaving the app.
+  useEffect(() => {
+    history.pushState({ mobileNodeOverlay: xyNodeId }, "");
+
+    return () => {
+      // If the overlay is closed programmatically (via the in-app button),
+      // consume the history entry we pushed so the stack stays clean.
+      if (history.state?.mobileNodeOverlay === xyNodeId) {
+        history.back();
+      }
+    };
+  }, [xyNodeId]);
+
+  // Intercept the browser / OS back gesture while this overlay is visible.
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+  const saveHandlerRef = useRef(saveHandler);
+  saveHandlerRef.current = saveHandler;
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isDirtyRef.current) {
+        // Re-push state to cancel the navigation, then ask the user.
+        history.pushState({ mobileNodeOverlay: xyNodeId }, "");
+        setShowBackConfirm(true);
+      } else {
+        closeWindow(xyNodeId);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [xyNodeId, closeWindow]);
 
   const contextValue = useMemo(
     () => ({
@@ -73,6 +119,29 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
 
   return (
     <WindowFrameContext.Provider value={contextValue}>
+      <AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close without saving?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Do you want to close this window?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => closeWindow(xyNodeId)}>
+              Close without saving
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                saveHandlerRef.current?.();
+                closeWindow(xyNodeId);
+              }}
+            >
+              Save and close
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div
         ref={containerRef}
         className="fixed left-0 right-0 top-0 z-40 bg-white animate-in slide-in-from-bottom duration-200"

@@ -1,27 +1,12 @@
 import { z } from "zod";
 import { nodeDataConfig, nodeTypeZodValidator } from "../../config/nodeConfig";
+import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 
 type NodeType = z.infer<typeof nodeTypeZodValidator>;
 
 function formatIssue(issue: z.ZodIssue): string {
   const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
   return `- ${path}: ${issue.message}`;
-}
-
-function getSchemaAsJsonString(schema: z.ZodTypeAny): string {
-  try {
-    const zodWithJson = z as unknown as {
-      toJSONSchema?: (input: z.ZodTypeAny) => unknown;
-    };
-
-    if (typeof zodWithJson.toJSONSchema === "function") {
-      return JSON.stringify(zodWithJson.toJSONSchema(schema), null, 2);
-    }
-  } catch {
-    // Ignore serialization errors and return fallback message below.
-  }
-
-  return "Schema JSON serialization is unavailable.";
 }
 
 /**
@@ -53,15 +38,16 @@ export function validateNodeInputSchemaForLLM({
   }
 
   const incorrectFields = parsed.error.issues.map(formatIssue).join("\n");
-  const schemaJson = getSchemaAsJsonString(schema);
+  const minimap =
+    formatZodSchemaAsMinimap(schema) ?? "Schema serialization is unavailable.";
 
   return [
     "Input validation failed.",
     `Node type: ${nodeType}`,
     "Incorrect fields:",
     incorrectFields || "- (unknown issue)",
-    "Expected global schema (JSON Schema):",
-    schemaJson,
+    "Expected schema:",
+    minimap,
     "Please provide only a JSON object that strictly matches this schema.",
   ].join("\n");
 }

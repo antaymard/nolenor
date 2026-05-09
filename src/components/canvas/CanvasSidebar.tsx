@@ -21,10 +21,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/plate/alert-dialog";
+import { buttonVariants } from "@/components/shadcn/button";
 import { HiDotsVertical } from "react-icons/hi";
 import { TbPlus } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
+import { useState } from "react";
 
 export default function CanvasSidebar({
   children,
@@ -39,10 +51,15 @@ export default function CanvasSidebar({
 
   const currentCanvasName = userCanvases?.find((c) => c._id === canvasId)?.name;
 
-  const handleDeleteCanvas = async (canvasId: Id<"canvases">) => {
-    if (confirm("Delete this workspace?")) {
-      await deleteCanvas({ canvasId });
-    }
+  const [canvasToDelete, setCanvasToDelete] = useState<{
+    id: Id<"canvases">;
+    name: string;
+  } | null>(null);
+
+  const confirmDeleteCanvas = async () => {
+    if (!canvasToDelete) return;
+    await deleteCanvas({ canvasId: canvasToDelete.id });
+    setCanvasToDelete(null);
   };
 
   const handleUpdateCanvasName = async (newName: string) => {
@@ -89,7 +106,9 @@ export default function CanvasSidebar({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
-                    onClick={() => handleDeleteCanvas(c._id)}
+                    onClick={() =>
+                      setCanvasToDelete({ id: c._id, name: c.name })
+                    }
                     className="text-destructive"
                   >
                     Delete
@@ -164,6 +183,33 @@ export default function CanvasSidebar({
         </span>
         {children}
       </SidebarInset>
+
+      <AlertDialog
+        open={canvasToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setCanvasToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {canvasToDelete
+                ? `“${canvasToDelete.name}” will be permanently deleted. This action cannot be undone.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteCanvas}
+              className={buttonVariants({ variant: "destructive" })}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }

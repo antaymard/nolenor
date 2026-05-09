@@ -48,15 +48,6 @@ function RouteComponent() {
             event.preventDefault();
             setIsSubmitting(true);
             const formData = new FormData(event.currentTarget);
-            // For sign up, check invite code before proceeding
-            if (step === "signUp") {
-              const inviteCode = formData.get("inviteCode");
-              if (inviteCode !== "cantwaittothinkwithnole") {
-                toast.error("Invalid invite code. Please ask for an invite.");
-                setIsSubmitting(false);
-                return;
-              }
-            }
             signIn("password", formData)
               .then(() => {
                 toast.success(
@@ -108,17 +99,6 @@ function RouteComponent() {
             minLength={6}
             className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 h-11 focus-visible:ring-0 focus-visible:border-gray-300"
           />
-          {/* Invite code input only for sign up */}
-          {step === "signUp" && (
-            <Input
-              name="inviteCode"
-              placeholder="Invite code"
-              type="text"
-              required
-              disabled={isSubmitting}
-              className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 h-11 focus-visible:ring-0 focus-visible:border-gray-300"
-            />
-          )}
           <input name="flow" type="hidden" value={step} />
 
           <Button

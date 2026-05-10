@@ -8,8 +8,9 @@ const SKILLS_DIR = join(__dirname, "..", "convex", "systemSkills");
 const OUTPUT = join(SKILLS_DIR, "_registry.generated.ts");
 
 function parseFrontmatter(raw) {
-  const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { meta: {}, body: raw.trim() };
+  const normalized = raw.replace(/\r\n/g, "\n");
+  const match = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!match) return { meta: {}, body: normalized.trim() };
   const meta = {};
   for (const line of match[1].split("\n")) {
     const idx = line.indexOf(":");

@@ -1,5 +1,5 @@
 import { useSmoothText, type UIMessage } from "@convex-dev/agent/react";
-import { useState, useMemo } from "react";
+import { memo, useDeferredValue, useState, useMemo } from "react";
 import { MarkdownText } from "@/components/ai/MarkdownText";
 import type { TextPart } from "@/types/domain/message.types";
 import { RiLoaderLine } from "react-icons/ri";
@@ -42,7 +42,11 @@ const markdownComponents: Components = {
   },
 };
 
-export function Message({ message }: { message: UIMessage }) {
+export const Message = memo(function Message({
+  message,
+}: {
+  message: UIMessage;
+}) {
   const isUser = message.role === "user";
   const userText = extractUserMessageForDisplay(message.text ?? "");
 
@@ -130,9 +134,9 @@ export function Message({ message }: { message: UIMessage }) {
       </div>
     </div>
   );
-}
+});
 
-function ReasoningPartRenderer({
+const ReasoningPartRenderer = memo(function ReasoningPartRenderer({
   part,
 }: {
   part: { type: "reasoning"; text: string; state?: "streaming" | "done" };
@@ -142,6 +146,11 @@ function ReasoningPartRenderer({
   const [visibleText] = useSmoothText(part.text ?? "", {
     startStreaming: isStreaming,
   });
+  const deferredText = useDeferredValue(visibleText);
+  const processed = useMemo(
+    () => preprocessTextWithNodeLinks(deferredText || "..."),
+    [deferredText],
+  );
 
   if (!visibleText && !isStreaming) {
     return null;
@@ -171,15 +180,15 @@ function ReasoningPartRenderer({
       {isExpanded ? (
         <div className="border-t border-slate-200 px-2 py-2 whitespace-pre-wrap overflow-x-auto">
           <MarkdownText components={markdownComponents}>
-            {preprocessTextWithNodeLinks(visibleText || "...")}
+            {processed}
           </MarkdownText>
         </div>
       ) : null}
     </div>
   );
-}
+});
 
-function ToolPlaceholder({
+const ToolPlaceholder = memo(function ToolPlaceholder({
   state,
   name,
   error,
@@ -245,7 +254,7 @@ function ToolPlaceholder({
       ) : null}
     </div>
   );
-}
+});
 
 function DebugBlock({ label, value }: { label: string; value: unknown }) {
   if (value === undefined) {
@@ -375,10 +384,19 @@ export function extractUserMessageForDisplay(text: string): string {
   return match[1] ?? text;
 }
 
-export function TextPartRenderer({ part }: { part: TextPart }) {
+export const TextPartRenderer = memo(function TextPartRenderer({
+  part,
+}: {
+  part: TextPart;
+}) {
   const [visibleText] = useSmoothText(part.text ?? "", {
     startStreaming: part.state === "streaming",
   });
+  const deferredText = useDeferredValue(visibleText);
+  const processed = useMemo(
+    () => preprocessTextWithNodeLinks(deferredText),
+    [deferredText],
+  );
 
   if (!visibleText) {
     return null;
@@ -386,9 +404,7 @@ export function TextPartRenderer({ part }: { part: TextPart }) {
 
   return (
     <div className="whitespace-pre-wrap px-1 overflow-x-auto">
-      <MarkdownText components={markdownComponents}>
-        {preprocessTextWithNodeLinks(visibleText)}
-      </MarkdownText>
+      <MarkdownText components={markdownComponents}>{processed}</MarkdownText>
     </div>
   );
-}
+});

@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
-import {
-  optimisticallySendMessage,
-  useUIMessages,
-} from "@convex-dev/agent/react";
-import { useNodes, useViewport } from "@xyflow/react";
+import { optimisticallySendMessage } from "@convex-dev/agent/react";
+import { useReactFlow, useStore } from "@xyflow/react";
 import { useParams } from "@tanstack/react-router";
 import toast from "react-hot-toast";
 import { api } from "@/../convex/_generated/api";
@@ -61,18 +58,10 @@ export function useNoleChat() {
     }
   }, [modelOptions, selectedModel]);
 
-  const { results: lastMessages } = useUIMessages(
-    api.threads.listMessages,
-    threadId ? { threadId } : "skip",
-    { initialNumItems: 1, stream: true },
-  );
-
-  const lastMessage =
-    lastMessages.length > 0 ? lastMessages[lastMessages.length - 1] : null;
-  const isAssistantResponding =
-    lastMessage !== null &&
-    lastMessage.role === "assistant" &&
-    lastMessage.status === "streaming";
+  // isAssistantResponding is lifted from ChatInterface (which already
+  // subscribes to useUIMessages) to avoid a duplicate streaming subscription
+  // re-rendering ChatContainer on every token.
+  const [isAssistantResponding, setIsAssistantResponding] = useState(false);
 
   const sendMessage = useMutation(api.ia.nole.saveMessage).withOptimisticUpdate(
     optimisticallySendMessage(api.threads.listMessages),
@@ -88,14 +77,25 @@ export function useNoleChat() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
   const hasDirtyWindows = dirtyNodeIds.length > 0;
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
-  const { x: viewportX, y: viewportY, zoom: viewportZoom } = useViewport();
+  const reactFlow = useReactFlow();
 
-  const nodes = useNodes();
-  const selectedNodesOnCanvas = nodes.filter((n) => n.selected) as CanvasNode[];
-  const attachedNodeIds = new Set(attachedNodes.map((node) => node.id));
-  const selectableNodes = selectedNodesOnCanvas.filter(
-    (node) => !attachedNodeIds.has(node.id),
+  // Subscribe only to the SET of selected node ids. Selecting a string allows
+  // referential equality to skip re-renders when selection is unchanged
+  // (e.g. on pan/zoom/drag/node-position updates).
+  const selectedNodeIdsKey = useStore((s) =>
+    s.nodes
+      .filter((n) => n.selected)
+      .map((n) => n.id)
+      .join(","),
   );
+  const selectableNodes = useMemo(() => {
+    const attachedNodeIds = new Set(attachedNodes.map((node) => node.id));
+    return (reactFlow.getNodes() as CanvasNode[]).filter(
+      (n) => n.selected && !attachedNodeIds.has(n.id),
+    );
+    // selectedNodeIdsKey is the dependency that drives reactivity here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNodeIdsKey, attachedNodes, reactFlow]);
 
   const sendCurrentMessage = useCallback(async () => {
     if (
@@ -111,8 +111,10 @@ export function useNoleChat() {
     }
 
     const prompt = userInput;
+    const { x: viewportX, y: viewportY, zoom: viewportZoom } =
+      reactFlow.getViewport();
     const messageContext = generateMessageContext({
-      nodes: nodes as CanvasNode[],
+      nodes: reactFlow.getNodes() as CanvasNode[],
       openedNodeIds: openedWindows.map((openedWindow) => openedWindow.xyNodeId),
       attachedNodes,
       attachedPosition,
@@ -157,13 +159,10 @@ export function useNoleChat() {
     isAssistantResponding,
     hasDirtyWindows,
     sttBusy,
-    nodes,
+    reactFlow,
     openedWindows,
     attachedNodes,
     attachedPosition,
-    viewportX,
-    viewportY,
-    viewportZoom,
     nodeDatas,
     sendMessage,
     selectedModel,
@@ -224,6 +223,7 @@ export function useNoleChat() {
     sendCurrentMessage,
     isSending,
     isAssistantResponding,
+    setIsAssistantResponding,
     isCancelling,
     stopAssistantResponse,
     // model

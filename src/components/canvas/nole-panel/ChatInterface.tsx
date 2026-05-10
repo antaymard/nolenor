@@ -1,13 +1,6 @@
 import { useUIMessages, type UIMessage } from "@convex-dev/agent/react";
 import { api } from "@/../convex/_generated/api";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { RiLoaderLine } from "react-icons/ri";
 import { TbAlertCircle, TbCheck } from "react-icons/tb";
 import { cn } from "@/lib/utils";
@@ -16,9 +9,11 @@ import { extractUserMessageForDisplay, Message } from "./Message";
 const ChatInterface = memo(function ChatInterface({
   threadId,
   onRetry,
+  onAssistantRespondingChange,
 }: {
   threadId: string;
   onRetry?: (userMessage: string) => void;
+  onAssistantRespondingChange?: (responding: boolean) => void;
 }) {
   const {
     results: messages,
@@ -44,6 +39,9 @@ const ChatInterface = memo(function ChatInterface({
   const isWaitingForAssistant =
     !!lastMessage && lastMessage.role === "user" && !isAssistantThinking;
   const showThinkingIndicator = isAssistantThinking || isWaitingForAssistant;
+  useEffect(() => {
+    onAssistantRespondingChange?.(showThinkingIndicator);
+  }, [showThinkingIndicator, onAssistantRespondingChange]);
   const isLastMessageFailed =
     !!lastMessage &&
     lastMessage.role === "assistant" &&
@@ -103,29 +101,42 @@ const ChatInterface = memo(function ChatInterface({
     lastScrollTop.current = div.scrollTop;
   }, [checkIsAtBottom]);
 
-  // Auto-scroll quand les messages changent ou que le contenu change
-  useLayoutEffect(() => {
+  // Auto-scroll quand les messages changent ou que le contenu change.
+  // RAF-coalesced so streaming-driven re-renders don't trigger a synchronous
+  // scrollTo per token (which would force layout on every token).
+  const scrollRafRef = useRef<number | null>(null);
+  useEffect(() => {
     const div = scrollViewportRef.current;
     if (!div) return;
 
-    // Verifier si les messages ont vraiment change
     const currentLength = messages.length;
     const lastMessage = messages[messages.length - 1];
     const hasNewMessage = currentLength !== previousMessagesLengthRef.current;
     const lastMessageChanged = lastMessage !== previousLastMessageRef.current;
 
-    // Mettre a jour les refs
     previousMessagesLengthRef.current = currentLength;
     previousLastMessageRef.current = lastMessage;
 
-    // Ne scroller que si les messages ont change
     if (!hasNewMessage && !lastMessageChanged) return;
 
-    if (scrollingToBottomRef.current) {
-      scrollToBottom("auto");
-    } else if (isAtBottom) {
-      scrollToBottom("instant");
+    if (scrollRafRef.current != null) {
+      cancelAnimationFrame(scrollRafRef.current);
     }
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      if (scrollingToBottomRef.current) {
+        scrollToBottom("auto");
+      } else if (isAtBottom) {
+        scrollToBottom("instant");
+      }
+    });
+
+    return () => {
+      if (scrollRafRef.current != null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
   }, [messages, isAtBottom, scrollToBottom]);
 
   // Scroll instantane lors du premier chargement

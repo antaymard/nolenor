@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import RichTextArea from "./RichTextArea";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -53,6 +53,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
     sendCurrentMessage,
     isSending,
     isAssistantResponding,
+    setIsAssistantResponding,
     isCancelling,
     stopAssistantResponse,
     selectThread,
@@ -119,6 +120,11 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
     };
   }, [startSTT, stopSTT]);
 
+  const handleRetry = useCallback(
+    (userMessage: string) => setUserInput(userMessage),
+    [setUserInput],
+  );
+
   const handleSend = () => {
     if (hasDirtyWindows) {
       toast.error(
@@ -182,7 +188,8 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
       <div className="w-full flex-1 min-h-0">
         <ChatInterface
           threadId={threadId}
-          onRetry={(userMessage) => setUserInput(userMessage)}
+          onRetry={handleRetry}
+          onAssistantRespondingChange={setIsAssistantResponding}
         />
       </div>
 

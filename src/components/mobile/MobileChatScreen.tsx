@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { Button } from "@/components/shadcn/button";
 import {
   TbChevronDown,
@@ -19,7 +20,13 @@ export default function MobileChatScreen({
   onOpenLeft,
   onOpenSearch,
 }: MobileChatScreenProps) {
-  const { threadId, isLoading, setUserInput } = useMobileNoleChat();
+  const { threadId, isLoading, setUserInput, setIsAssistantResponding } =
+    useMobileNoleChat();
+
+  const handleRetry = useCallback(
+    (userMessage: string) => setUserInput(userMessage),
+    [setUserInput],
+  );
 
   if (isLoading) {
     return (
@@ -74,7 +81,8 @@ export default function MobileChatScreen({
         <div className="flex-1 min-h-0">
           <ChatInterface
             threadId={threadId}
-            onRetry={(userMessage) => setUserInput(userMessage)}
+            onRetry={handleRetry}
+            onAssistantRespondingChange={setIsAssistantResponding}
           />
         </div>
         {/* Spacer to avoid content going under the fixed input */}

@@ -54,6 +54,9 @@ export const trigger = action({
         userId,
         title: "__automation_thread__ - automation for nodeData " + nodeDataId,
       });
+      const inputNodesContext = await generateInputNodesContext(inputNodeDatas);
+      const currentNodeContext = await makeNodeDataLLMFriendly(currentNodeData);
+
       const response = await automationAgent.generateText(
         {
           ...ctx,
@@ -66,11 +69,9 @@ export const trigger = action({
         { threadId },
         {
           prompt: `Here are the available input data for the current node:
-${generateInputNodesContext(inputNodeDatas)}
-
+${inputNodesContext}
           Here are the current data of the node (entered by the user or by you in a previous execution):
-${makeNodeDataLLMFriendly(currentNodeData)}
-          If relevant, keep this data in mind to produce your response (structure, format, constraints). If the results of your work are very different, prioritize the quality of your response over conformance to previous data.
+${currentNodeContext}
 
           ------
 
@@ -92,10 +93,7 @@ ${makeNodeDataLLMFriendly(currentNodeData)}
 
       // X. Lancer les automations des noeuds suivants (à implémenter)
     } catch (error) {
-      console.error(
-        "Error triggering automation:",
-        error,
-      );
+      console.error("Error triggering automation:", error);
       // En cas d'erreur, passer le statut en error
       await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateStatus, {
         _id: nodeDataId,

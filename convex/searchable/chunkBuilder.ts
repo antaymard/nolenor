@@ -200,7 +200,7 @@ async function buildChunks(
     case "document": {
       const parsed = parseStoredPlateDocument(nodeData.values.doc);
       if (!parsed || parsed.length === 0) return [];
-      const text = plateJsonToMarkdown(parsed);
+      const text = await plateJsonToMarkdown(parsed);
       if (!text.trim()) return [];
       return [{ ...base, chunkType: "node", order: 0, text }];
     }

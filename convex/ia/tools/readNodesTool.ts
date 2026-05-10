@@ -400,7 +400,8 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                   : null;
 
               if (node.type === "table") {
-                const tableValue = (nodeData.values.table ?? {}) as TableValueLite;
+                const tableValue = (nodeData.values.table ??
+                  {}) as TableValueLite;
                 const columns = Array.isArray(tableValue.columns)
                   ? tableValue.columns
                   : [];
@@ -508,7 +509,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               };
             }
 
-            let content = makeNodeDataLLMFriendly(nodeData);
+            let content = await makeNodeDataLLMFriendly(nodeData);
             let pdfBody: string | null = null;
             let pdfTotalPages: number | null = null;
             let tableBody: string | null = null;
@@ -571,8 +572,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                   ? embed.url
                   : null,
               embedIframeUrl:
-                typeof embed?.embedUrl === "string" &&
-                embed.embedUrl.length > 0
+                typeof embed?.embedUrl === "string" && embed.embedUrl.length > 0
                   ? embed.embedUrl
                   : null,
               embedType:

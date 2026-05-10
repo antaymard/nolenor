@@ -95,7 +95,7 @@ export default function documentStringReplaceContentTool({
           return ERROR_INVALID_PLATE_DOC;
         }
 
-        const markdownSource = plateJsonToMarkdown(parsedDoc);
+        const markdownSource = await plateJsonToMarkdown(parsedDoc);
 
         const matches = countExactMatches(markdownSource, old_string);
         console.log(
@@ -116,7 +116,7 @@ export default function documentStringReplaceContentTool({
 
         const updatedMarkdown = markdownSource.replace(old_string, new_string);
 
-        const updatedPlateDocument = markdownToPlateJson(updatedMarkdown);
+        const updatedPlateDocument = await markdownToPlateJson(updatedMarkdown);
         const serializedUpdatedDocument =
           stringifyPlateDocumentForStorage(updatedPlateDocument);
 

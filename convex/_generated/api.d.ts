@@ -30,6 +30,7 @@ import type * as ia_helpers_nodeInputSchemaValidatorForLLM from "../ia/helpers/n
 import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkFormatters.js";
 import type * as ia_helpers_pillMarkdownRules from "../ia/helpers/pillMarkdownRules.js";
 import type * as ia_helpers_plateMarkdownConverter from "../ia/helpers/plateMarkdownConverter.js";
+import type * as ia_helpers_serverDomPolyfills from "../ia/helpers/serverDomPolyfills.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
 import type * as ia_nole from "../ia/nole.js";
 import type * as ia_noleCompletion from "../ia/noleCompletion.js";
@@ -62,6 +63,7 @@ import type * as ia_tools_viewImageTool from "../ia/tools/viewImageTool.js";
 import type * as ia_tools_websearchTool from "../ia/tools/websearchTool.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_getNodeDataTitle from "../lib/getNodeDataTitle.js";
+import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
 import type * as lib_llmId from "../lib/llmId.js";
 import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js";
 import type * as lib_plateDocumentStorage from "../lib/plateDocumentStorage.js";
@@ -137,6 +139,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/pdfChunkFormatters": typeof ia_helpers_pdfChunkFormatters;
   "ia/helpers/pillMarkdownRules": typeof ia_helpers_pillMarkdownRules;
   "ia/helpers/plateMarkdownConverter": typeof ia_helpers_plateMarkdownConverter;
+  "ia/helpers/serverDomPolyfills": typeof ia_helpers_serverDomPolyfills;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
   "ia/nole": typeof ia_nole;
   "ia/noleCompletion": typeof ia_noleCompletion;
@@ -169,6 +172,7 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/websearchTool": typeof ia_tools_websearchTool;
   "lib/auth": typeof lib_auth;
   "lib/getNodeDataTitle": typeof lib_getNodeDataTitle;
+  "lib/jsonSchemaMinimap": typeof lib_jsonSchemaMinimap;
   "lib/llmId": typeof lib_llmId;
   "lib/parseSkillFrontmatter": typeof lib_parseSkillFrontmatter;
   "lib/plateDocumentStorage": typeof lib_plateDocumentStorage;

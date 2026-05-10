@@ -1,0 +1,3 @@
+convex/systemSkills/**/*.md text eol=lf
+convex/systemSkills/_registry.generated.ts text eol=lf linguist-generated=true
+scripts/generateSystemSkillsRegistry.mjs text eol=lf

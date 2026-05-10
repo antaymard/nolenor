@@ -33,13 +33,11 @@ const ATTACHMENT_TYPES: { value: AttachmentType; label: string }[] = [
 type SkillAttachmentsProps = {
   skillId: Id<"skills">;
   attachments: AttachmentSummary[];
-  readOnly: boolean;
 };
 
 export default function SkillAttachments({
   skillId,
   attachments,
-  readOnly,
 }: SkillAttachmentsProps) {
   const addAttachment = useMutation(api.skills.addAttachment);
   const removeAttachment = useMutation(api.skills.removeAttachment);
@@ -98,7 +96,7 @@ export default function SkillAttachments({
         <h3 className="text-sm font-semibold text-gray-700">
           Attachments ({attachments.length})
         </h3>
-        {!readOnly && !showForm && (
+        {!showForm && (
           <Button
             type="button"
             size="sm"
@@ -125,23 +123,21 @@ export default function SkillAttachments({
                 </span>
                 <span className="text-xs text-gray-500">{attachment.type}</span>
               </div>
-              {!readOnly && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="text-red-600 hover:text-red-700"
-                  onClick={() => handleRemove(attachment._id, attachment.name)}
-                >
-                  Remove
-                </Button>
-              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-red-600 hover:text-red-700"
+                onClick={() => handleRemove(attachment._id, attachment.name)}
+              >
+                Remove
+              </Button>
             </li>
           ))}
         </ul>
       )}
 
-      {showForm && !readOnly && (
+      {showForm && (
         <div className="border border-gray-200 rounded-md p-3 bg-gray-50 flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="attachment-name">Name</Label>

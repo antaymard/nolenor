@@ -23,7 +23,7 @@ export default function loadSkillTool({ threadCtx }: { threadCtx: ThreadCtx }) {
     }),
     execute: async (ctx, input): Promise<string> => {
       try {
-        const skill = await ctx.runQuery(
+        const lookup = await ctx.runQuery(
           internal.wrappers.skillWrappers.findByNameForUser,
           {
             userId: threadCtx.authUserId,
@@ -31,7 +31,13 @@ export default function loadSkillTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           },
         );
 
-        if (skill) {
+        if (lookup?.kind === "system") {
+          const { skill } = lookup;
+          return `<skill title="${skill.name}" description="${skill.description}">\n${skill.content}\n</skill>`;
+        }
+
+        if (lookup?.kind === "user") {
+          const { skill } = lookup;
           const attachments = await ctx.runQuery(
             internal.wrappers.skillWrappers.listAttachments,
             { skillId: skill._id },

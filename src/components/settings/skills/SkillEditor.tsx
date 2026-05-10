@@ -86,14 +86,8 @@ export default function SkillEditor({
   const currentSkill =
     skill ||
     (isDraft ? { name: draftName, description: draftDescription } : null);
-  const readOnly =
-    (isExisting && skill && skill.isSystem && !skill.userId) ?? false;
-  const canEdit = isDraft || !readOnly;
 
   const handleSave = async () => {
-    if (!canEdit) return;
-
-    // Validate name
     if (!draftName.trim()) {
       toast.error("Skill name is required.");
       return;
@@ -126,7 +120,7 @@ export default function SkillEditor({
   };
 
   const handleDelete = async () => {
-    if (!canEdit || isDraft) return;
+    if (isDraft) return;
     if (
       !confirm(`Delete skill "${currentSkill?.name}"? This cannot be undone.`)
     ) {
@@ -159,14 +153,8 @@ export default function SkillEditor({
               Draft (unsaved)
             </span>
           )}
-          {readOnly && (
-            <span className="mt-1 inline-block self-start uppercase tracking-wide bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
-              System (read-only)
-            </span>
-          )}
         </div>
-        {canEdit && (
-          <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0">
             {!isDraft && (
               <Button
                 type="button"
@@ -177,11 +165,10 @@ export default function SkillEditor({
                 Delete
               </Button>
             )}
-            <Button type="button" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        )}
+          <Button type="button" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Saving…" : "Save"}
+          </Button>
+        </div>
       </div>
 
       {/* Name Field */}
@@ -194,7 +181,6 @@ export default function SkillEditor({
           type="text"
           value={draftName}
           onChange={(e) => setDraftName(e.target.value)}
-          disabled={readOnly}
           placeholder="e.g. my_skill"
           className="font-mono"
         />
@@ -212,7 +198,6 @@ export default function SkillEditor({
           id="skill-description"
           value={draftDescription}
           onChange={(e) => setDraftDescription(e.target.value)}
-          disabled={readOnly}
           placeholder="Short description used to match this skill"
           className=""
         />
@@ -226,7 +211,6 @@ export default function SkillEditor({
         <textarea
           id="skill-content"
           value={draftContent}
-          readOnly={readOnly}
           onChange={(e) => setDraftContent(e.target.value)}
           placeholder="The full prompt body loaded by Nolë…"
           className="w-full font-mono border rounded-md px-3 py-2 bg-white flex-1 resize-none"
@@ -241,7 +225,6 @@ export default function SkillEditor({
         <SkillAttachments
           skillId={skill._id}
           attachments={skill.attachments}
-          readOnly={readOnly}
         />
       )}
     </div>

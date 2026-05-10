@@ -1,6 +1,6 @@
 ---
 name: app-node-generation-documentation
-description: Documentation for generating AppNodes in the system, including rules, SDK usage, available data, and APIs. Must be loaded before generating or updating any AppNode.
+description: Documentation for generating AppNode in the system, including rules, SDK usage, available data, and APIs. Must be loaded before generating or updating any AppNode.
 ---
 
 # AppNode Generation documentation
@@ -180,11 +180,76 @@ const App = () => {
 
 ---
 
-## Runtime errors
+## Runtime errors — debug loop
 
-The iframe automatically reports runtime errors (uncaught exceptions, unhandled promise rejections, `console.error`, React render errors caught by an injected ErrorBoundary) back to the canvas. They are stored under `values.errors` on the AppNode and exposed when you `read_nodes` it.
+The iframe automatically reports runtime errors back to the canvas. **You do NOT write any error-capture code.** The bridge installs `window.onerror`, `unhandledrejection`, a `console.error` patch, and a React ErrorBoundary.
 
-- **You do NOT need to write any error-capture code.** The bridge installs `window.onerror`, `unhandledrejection`, a `console.error` patch, and an ErrorBoundary automatically.
-- Errors are deduplicated, debounced (~500ms), and capped at the 10 most recent.
-- When the AppNode's `code` is updated (via `set_node_data` or `patch_app_node_code`), `values.errors` is reset to `[]` automatically.
-- After patching the code, you can `read_nodes` again to verify whether new errors appeared.
+Errors are stored on the AppNode under `values.errors` and exposed when you `read_nodes` it. Each error has the shape:
+
+```typescript
+{
+  type: "error" | "unhandledrejection" | "console.error" | "react" | "mount";
+  message: string;     // truncated to 2,000 chars
+  stack?: string;      // truncated to 4,000 chars
+  source?: string;     // filename (uncaught errors only)
+  line?: number;
+  col?: number;
+  timestamp: number;   // Date.now()
+}
+```
+
+- Errors are deduplicated by `(type|message|stack)`, debounced ~500ms, and capped at the 10 most recent.
+- When the AppNode's `code` is mutated (via `set_node_data` or `patch_app_node_code`), `values.errors` is automatically reset to `[]` and stale reports from the previous iframe version are dropped.
+
+**Mandatory debug loop after writing or patching code:**
+
+1. Write or patch the code.
+2. Wait briefly, then `read_nodes` on the AppNode.
+3. Inspect `values.errors`. If non-empty, diagnose from `type` + `message` + `stack` + `line`/`col` and patch again.
+4. Repeat until `values.errors` stays empty across reads.
+
+Don't declare the task done while errors are present.
+
+---
+
+## Editing existing code — `patch_app_node_code`
+
+For **targeted edits** to an existing AppNode (a few lines, a bug fix, a small refactor), use `patch_app_node_code` instead of rewriting the whole file with `set_node_data`. It's far more token-efficient and reduces the risk of regressions.
+
+Use `set_node_data` with `{ code }` only for the **initial generation** or a **full rewrite**.
+
+### Workflow
+
+1. `read_nodes` on the AppNode to get the current `values.code` exactly (whitespace matters).
+2. Build a single-block patch with one or more `@@` hunks.
+3. Call `patch_app_node_code` with `{ nodeId, patch, explanation }` (3-5 words for `explanation`).
+4. Run the debug loop above.
+
+### Patch format
+
+```
+*** Begin Patch
+@@
+ unchanged context line (prefixed with a single space)
+-line to remove (must match exactly)
++line to add
+ more context
+@@
+ context for the next hunk
++pure insertion (no `-` line needed)
+*** End Patch
+```
+
+### Strict rules
+
+- One single `*** Begin Patch` / `*** End Patch` block per call. All hunks live inside it, separated by `@@` lines.
+- Every line inside a hunk MUST start with one of: `' '` (context), `'+'` (added), `'-'` (removed). No bare blank lines — an empty context line must be `" "` (a single space).
+- Each hunk must contain **at least one context line** and **at least one `+` or `-` change**.
+- The context + removed lines of a hunk must match the current code **exactly once** (whitespace and indentation included). If you get "no match", re-read the node — an earlier hunk in the same call may already have changed the region. If you get "multiple matches", add more context lines to disambiguate.
+- Hunks are applied sequentially on the cumulative source. **All-or-nothing**: if any hunk fails (no match, multiple matches, malformed), no change is written and the tool returns a structured error pointing to the offending hunk.
+
+### When patching fails
+
+- Re-`read_nodes` to get fresh code (a previous patch may have shifted things).
+- Increase the context window around your change.
+- If the change spans many disjoint regions or rewrites a large block, fall back to `set_node_data` with the full `{ code }`.

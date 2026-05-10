@@ -1,51 +1,73 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import {
+  SYSTEM_SKILLS,
+  findSystemSkillByName,
+  type SystemSkill,
+} from "../systemSkills/_registry.generated";
 
 type Skill = Doc<"skills">;
 type SkillAttachment = Doc<"skillAttachments">;
 
+export type SkillSummary = {
+  name: string;
+  description: string;
+};
+
+export type SkillLookup =
+  | { kind: "user"; skill: Skill }
+  | { kind: "system"; skill: SystemSkill };
+
 export async function listAvailableForUser(
   ctx: QueryCtx,
   { userId }: { userId: Id<"users"> },
-): Promise<Skill[]> {
-  const [userSkills, systemSkills] = await Promise.all([
-    ctx.db
-      .query("skills")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .collect(),
-    ctx.db
-      .query("skills")
-      .withIndex("by_isSystem", (q) => q.eq("isSystem", true))
-      .collect(),
-  ]);
+): Promise<SkillSummary[]> {
+  const userSkills = await ctx.db
+    .query("skills")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
 
-  const seen = new Set<Id<"skills">>();
-  const merged: Skill[] = [];
-  for (const skill of [...userSkills, ...systemSkills]) {
-    if (seen.has(skill._id)) continue;
-    seen.add(skill._id);
-    merged.push(skill);
+  const seen = new Set<string>();
+  const merged: SkillSummary[] = [];
+  for (const skill of userSkills) {
+    if (seen.has(skill.name)) continue;
+    seen.add(skill.name);
+    merged.push({ name: skill.name, description: skill.description });
+  }
+  for (const skill of SYSTEM_SKILLS) {
+    if (seen.has(skill.name)) continue;
+    seen.add(skill.name);
+    merged.push({ name: skill.name, description: skill.description });
   }
   return merged;
+}
+
+export async function listOwnedByUser(
+  ctx: QueryCtx,
+  { userId }: { userId: Id<"users"> },
+): Promise<Skill[]> {
+  return await ctx.db
+    .query("skills")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
 }
 
 export async function findByNameForUser(
   ctx: QueryCtx,
   { userId, name }: { userId: Id<"users">; name: string },
-): Promise<Skill | null> {
+): Promise<SkillLookup | null> {
   const userMatch = await ctx.db
     .query("skills")
     .withIndex("by_user_and_name", (q) =>
       q.eq("userId", userId).eq("name", name),
     )
     .unique();
-  if (userMatch) return userMatch;
+  if (userMatch) return { kind: "user", skill: userMatch };
 
-  const systemMatches = await ctx.db
-    .query("skills")
-    .withIndex("by_isSystem", (q) => q.eq("isSystem", true))
-    .collect();
-  return systemMatches.find((skill) => skill.name === name) ?? null;
+  const systemMatch = findSystemSkillByName(name);
+  if (systemMatch) return { kind: "system", skill: systemMatch };
+
+  return null;
 }
 
 export async function listAttachments(
@@ -74,8 +96,8 @@ export async function findAttachmentByNameForUser(
   ctx: QueryCtx,
   { userId, name }: { userId: Id<"users">; name: string },
 ): Promise<{ attachment: SkillAttachment; skill: Skill } | null> {
-  const skills = await listAvailableForUser(ctx, { userId });
-  for (const skill of skills) {
+  const userSkills = await listOwnedByUser(ctx, { userId });
+  for (const skill of userSkills) {
     const attachment = await findAttachmentByName(ctx, {
       skillId: skill._id,
       name,

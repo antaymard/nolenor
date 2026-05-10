@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "gen:system-skills": "node scripts/generateSystemSkillsRegistry.mjs",
+    "predev": "node scripts/generateSystemSkillsRegistry.mjs",
+    "prebuild": "node scripts/generateSystemSkillsRegistry.mjs",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",

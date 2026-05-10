@@ -9,15 +9,13 @@ export const list = query({
   args: {},
   handler: async (ctx) => {
     const authUserId = await requireAuth(ctx);
-    const skills = await SkillModels.listAvailableForUser(ctx, {
+    const skills = await SkillModels.listOwnedByUser(ctx, {
       userId: authUserId,
     });
     return skills.map((skill) => ({
       _id: skill._id,
       name: skill.name,
       description: skill.description,
-      isSystem: skill.isSystem,
-      isOwn: skill.userId === authUserId,
     }));
   },
 });
@@ -30,7 +28,7 @@ export const read = query({
     const authUserId = await requireAuth(ctx);
     const skill = await ctx.db.get(skillId);
     if (!skill) return null;
-    if (!skill.isSystem && skill.userId !== authUserId) {
+    if (skill.userId !== authUserId) {
       throw new ConvexError("Skill not accessible.");
     }
 
@@ -63,9 +61,9 @@ export const create = mutation({
       userId: authUserId,
       name: parsed.name,
     });
-    if (existing && existing.userId === authUserId) {
+    if (existing) {
       throw new ConvexError(
-        `A skill named '${parsed.name}' already exists for this user.`,
+        `A skill named '${parsed.name}' already exists.`,
       );
     }
 

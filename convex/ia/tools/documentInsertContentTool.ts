@@ -98,7 +98,7 @@ export default function documentInsertContentTool({
           return ERROR_INVALID_PLATE_DOC;
         }
 
-        const markdownSource = plateJsonToMarkdown(parsedDoc);
+        const markdownSource = await plateJsonToMarkdown(parsedDoc);
 
         let updatedMarkdown: string;
 
@@ -147,7 +147,7 @@ export default function documentInsertContentTool({
           }
         }
 
-        const updatedPlateDocument = markdownToPlateJson(updatedMarkdown);
+        const updatedPlateDocument = await markdownToPlateJson(updatedMarkdown);
         const serializedUpdatedDocument =
           stringifyPlateDocumentForStorage(updatedPlateDocument);
 

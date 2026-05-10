@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { convertChildrenDeserialize } from "@platejs/markdown";
-import type { MdMdxJsxTextElement, MdRules } from "@platejs/markdown";
+
+type ConvertChildrenDeserialize = (
+  children: any,
+  deco: any,
+  options: any,
+) => any;
 
 /**
  * Règles markdown pour le mark custom "pill".
@@ -11,32 +15,36 @@ import type { MdMdxJsxTextElement, MdRules } from "@platejs/markdown";
  * Nécessite remarkMdx dans les remarkPlugins.
  * Fichier dupliqué de src/components/plate/pillMarkdownRules.ts pour le runtime Convex.
  */
-export const pillMarkdownRules: MdRules = {
-  pill: {
-    mark: true,
-    deserialize: (mdastNode: any, deco: any, options: any) => {
-      const colorAttr = mdastNode.attributes?.find(
-        (attr: any) => attr.name === "color",
-      );
-      const color = colorAttr?.value || "default";
-      return convertChildrenDeserialize(
-        mdastNode.children,
-        { pill: color, ...deco },
-        options,
-      ) as any;
+export function buildPillMarkdownRules(
+  convertChildrenDeserialize: ConvertChildrenDeserialize,
+) {
+  return {
+    pill: {
+      mark: true,
+      deserialize: (mdastNode: any, deco: any, options: any) => {
+        const colorAttr = mdastNode.attributes?.find(
+          (attr: any) => attr.name === "color",
+        );
+        const color = colorAttr?.value || "default";
+        return convertChildrenDeserialize(
+          mdastNode.children,
+          { pill: color, ...deco },
+          options,
+        ) as any;
+      },
+      serialize: (slateNode: any) => {
+        const color =
+          typeof slateNode.pill === "string" ? slateNode.pill : "default";
+        return {
+          type: "mdxJsxTextElement",
+          name: "pill",
+          attributes:
+            color !== "default"
+              ? [{ type: "mdxJsxAttribute", name: "color", value: color }]
+              : [],
+          children: [{ type: "text", value: slateNode.text || "" }],
+        };
+      },
     },
-    serialize: (slateNode: any): MdMdxJsxTextElement => {
-      const color =
-        typeof slateNode.pill === "string" ? slateNode.pill : "default";
-      return {
-        type: "mdxJsxTextElement",
-        name: "pill",
-        attributes:
-          color !== "default"
-            ? [{ type: "mdxJsxAttribute", name: "color", value: color }]
-            : [],
-        children: [{ type: "text", value: slateNode.text || "" }],
-      };
-    },
-  },
-};
+  };
+}

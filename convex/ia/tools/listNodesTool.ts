@@ -3,9 +3,9 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
-import { toXmlCdata } from "../../lib/xml";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeDataConfig } from "../../config/nodeConfig";
+import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 import { toolError, ToolConfig } from "./toolHelpers";
 
 export const listNodesToolConfig: ToolConfig = {
@@ -28,20 +28,7 @@ function getExpectedNodeDataSchemaString(nodeType: string): string | null {
   }
 
   const schema = config.toolInputSchema ?? config.dataValuesSchema;
-
-  try {
-    const zodWithJson = z as unknown as {
-      toJSONSchema?: (input: z.ZodTypeAny) => unknown;
-    };
-
-    if (typeof zodWithJson.toJSONSchema === "function") {
-      return JSON.stringify(zodWithJson.toJSONSchema(schema), null, 2);
-    }
-  } catch {
-    // Ignore serialization failures and fallback below.
-  }
-
-  return "Schema JSON serialization is unavailable.";
+  return formatZodSchemaAsMinimap(schema);
 }
 
 // is v1.0
@@ -247,24 +234,24 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           "<nodeDataSchemas>",
           ...uniqueDisplayedNodeTypes.map((nodeType) => {
             if (nodeType === "document") {
-              return '<schema nodeType="document" edition_tools="insert_document_content,string_replace_document_content"></schema>';
+              return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
             }
 
             if (nodeType === "table") {
-              return '<schema nodeType="table" edition_tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows"></schema>';
+              return '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />';
             }
 
-            const editionToolsAttr =
+            const toolsAttr =
               nodeType === "app"
-                ? 'edition_tools="set_node_data,patch_app_node_code"'
-                : 'edition_tool="set_node_data"';
+                ? 'tools="set_node_data,patch_app_node_code"'
+                : 'tool="set_node_data"';
 
             const schema = getExpectedNodeDataSchemaString(nodeType);
             if (!schema) {
-              return `<schema nodeType="${nodeType}" ${editionToolsAttr}>Schema JSON serialization is unavailable.</schema>`;
+              return `<schema type="${nodeType}" ${toolsAttr} />`;
             }
 
-            return `<schema nodeType="${nodeType}" ${editionToolsAttr}>${toXmlCdata(schema)}</schema>`;
+            return `<schema type="${nodeType}" ${toolsAttr}>\n${schema}\n</schema>`;
           }),
           "</nodeDataSchemas>",
           "",

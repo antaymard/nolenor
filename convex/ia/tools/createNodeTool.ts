@@ -40,7 +40,7 @@ const nodeColorValues = [
   "default",
 ] as const;
 
-function applyNodeDataTitle({
+async function applyNodeDataTitle({
   nodeType,
   defaultValues,
   nodeTitle,
@@ -48,7 +48,7 @@ function applyNodeDataTitle({
   nodeType: z.infer<typeof nodeTypeZodValidator>;
   defaultValues: Record<string, unknown>;
   nodeTitle?: string;
-}): { values: Record<string, unknown>; titleApplied: boolean } {
+}): Promise<{ values: Record<string, unknown>; titleApplied: boolean }> {
   const title = nodeTitle?.trim();
   if (!title) {
     return { values: defaultValues, titleApplied: false };
@@ -60,7 +60,7 @@ function applyNodeDataTitle({
         values: {
           ...defaultValues,
           doc: stringifyPlateDocumentForStorage(
-            markdownToPlateJson(`# ${title}`),
+            await markdownToPlateJson(`# ${title}`),
           ),
         },
         titleApplied: true,
@@ -212,11 +212,12 @@ export default function createNodeTool({
         const resolvedDimensions =
           input.dimensions ?? nodeConfig.defaultDimensions;
 
-        const { values: initialValues, titleApplied } = applyNodeDataTitle({
-          nodeType: input.nodeType,
-          defaultValues: defaultValuesRecord,
-          nodeTitle: input.nodeTitle,
-        });
+        const { values: initialValues, titleApplied } =
+          await applyNodeDataTitle({
+            nodeType: input.nodeType,
+            defaultValues: defaultValuesRecord,
+            nodeTitle: input.nodeTitle,
+          });
 
         const nodeDataId = await ctx.runMutation(
           internal.wrappers.nodeDataWrappers.create,
@@ -316,12 +317,16 @@ export default function createNodeTool({
         const currentNodeData =
           input.nodeType === "document"
             ? {
-                doc: input.nodeTitle?.trim() ? `# ${input.nodeTitle.trim()}` : "",
+                doc: input.nodeTitle?.trim()
+                  ? `# ${input.nodeTitle.trim()}`
+                  : "",
               }
             : initialValues;
 
         const titleHint =
-          input.nodeType === "document" && titleApplied && input.nodeTitle?.trim()
+          input.nodeType === "document" &&
+          titleApplied &&
+          input.nodeTitle?.trim()
             ? `The title is already present in the document as "# ${input.nodeTitle.trim()}". Do not repeat it during later edits.`
             : undefined;
 

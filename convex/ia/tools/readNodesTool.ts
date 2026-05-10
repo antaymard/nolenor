@@ -15,6 +15,7 @@ import {
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeDataConfig } from "../../config/nodeConfig";
+import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 import { type ToolConfig, toolError } from "./toolHelpers";
 
 const PDF_HINTS = {
@@ -269,20 +270,7 @@ function getExpectedNodeDataSchemaString(nodeType: string): string | null {
   }
 
   const schema = config.toolInputSchema ?? config.dataValuesSchema;
-
-  try {
-    const zodWithJson = z as unknown as {
-      toJSONSchema?: (input: z.ZodTypeAny) => unknown;
-    };
-
-    if (typeof zodWithJson.toJSONSchema === "function") {
-      return JSON.stringify(zodWithJson.toJSONSchema(schema), null, 2);
-    }
-  } catch {
-    // Ignore serialization failures and fallback below.
-  }
-
-  return "Schema JSON serialization is unavailable.";
+  return formatZodSchemaAsMinimap(schema);
 }
 
 // is v1.0
@@ -412,7 +400,8 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                   : null;
 
               if (node.type === "table") {
-                const tableValue = (nodeData.values.table ?? {}) as TableValueLite;
+                const tableValue = (nodeData.values.table ??
+                  {}) as TableValueLite;
                 const columns = Array.isArray(tableValue.columns)
                   ? tableValue.columns
                   : [];
@@ -520,7 +509,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               };
             }
 
-            let content = makeNodeDataLLMFriendly(nodeData);
+            let content = await makeNodeDataLLMFriendly(nodeData);
             let pdfBody: string | null = null;
             let pdfTotalPages: number | null = null;
             let tableBody: string | null = null;
@@ -583,8 +572,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                   ? embed.url
                   : null,
               embedIframeUrl:
-                typeof embed?.embedUrl === "string" &&
-                embed.embedUrl.length > 0
+                typeof embed?.embedUrl === "string" && embed.embedUrl.length > 0
                   ? embed.embedUrl
                   : null,
               embedType:
@@ -747,24 +735,24 @@ ${toXmlCdata(content)}
               "<nodeDataSchemas>",
               ...uniqueNodeTypes.map((nodeType) => {
                 if (nodeType === "document") {
-                  return '<schema nodeType="document" edition_tools="insert_document_content,string_replace_document_content"></schema>';
+                  return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
                 }
 
                 if (nodeType === "table") {
-                  return '<schema nodeType="table" edition_tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows"></schema>';
+                  return '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />';
                 }
 
-                const editionToolsAttr =
+                const toolsAttr =
                   nodeType === "app"
-                    ? 'edition_tools="set_node_data,patch_app_node_code"'
-                    : 'edition_tool="set_node_data"';
+                    ? 'tools="set_node_data,patch_app_node_code"'
+                    : 'tool="set_node_data"';
 
                 const schema = getExpectedNodeDataSchemaString(nodeType);
                 if (!schema) {
-                  return `<schema nodeType="${nodeType}" ${editionToolsAttr}>Schema JSON serialization is unavailable.</schema>`;
+                  return `<schema type="${nodeType}" ${toolsAttr} />`;
                 }
 
-                return `<schema nodeType="${nodeType}" ${editionToolsAttr}>${toXmlCdata(schema)}</schema>`;
+                return `<schema type="${nodeType}" ${toolsAttr}>\n${schema}\n</schema>`;
               }),
               "</nodeDataSchemas>",
             ];

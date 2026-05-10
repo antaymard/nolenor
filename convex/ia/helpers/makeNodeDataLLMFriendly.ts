@@ -60,10 +60,7 @@ function escapeMarkdownTableCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
 }
 
-function stringifySelectCell(
-  rawValue: unknown,
-  column: TableColumn,
-): string {
+function stringifySelectCell(rawValue: unknown, column: TableColumn): string {
   const ids = Array.isArray(rawValue)
     ? rawValue.filter((id): id is string => typeof id === "string")
     : typeof rawValue === "string" && rawValue.length > 0
@@ -362,7 +359,9 @@ export function makeTableNodeDataLLMFriendly(
  * Formate les values d'un seul nodeData en markdown lisible pour un LLM.
  * Convertit notamment le contenu PlateJS des nodes `document` en markdown.
  */
-export function makeNodeDataLLMFriendly(nodeData: Doc<"nodeDatas">): string {
+export async function makeNodeDataLLMFriendly(
+  nodeData: Doc<"nodeDatas">,
+): Promise<string> {
   const values = nodeData.values;
 
   switch (nodeData.type) {
@@ -370,7 +369,7 @@ export function makeNodeDataLLMFriendly(nodeData: Doc<"nodeDatas">): string {
       const doc = values.doc;
       const parsedDoc = parseStoredPlateDocument(doc);
       if (parsedDoc) {
-        return plateJsonToMarkdown(parsedDoc);
+        return await plateJsonToMarkdown(parsedDoc);
       }
       return typeof doc === "string" ? doc : JSON.stringify(doc);
     }
@@ -437,15 +436,17 @@ export function makeNodeDataLLMFriendly(nodeData: Doc<"nodeDatas">): string {
  * Genere le contexte markdown des input nodes pour le prompt d'une automation.
  * Utilise `makeNodeDataLLMFriendly` pour formater chaque node individuellement.
  */
-export function generateInputNodesContext(
+export async function generateInputNodesContext(
   inputNodeDatas: Doc<"nodeDatas">[],
-): string {
+): Promise<string> {
   if (inputNodeDatas.length === 0) return "(aucun noeud d'entree)";
 
-  return inputNodeDatas
-    .map((nd) => {
-      const content = makeNodeDataLLMFriendly(nd);
+  const sections = await Promise.all(
+    inputNodeDatas.map(async (nd) => {
+      const content = await makeNodeDataLLMFriendly(nd);
       return `### Input: ${nd.type} (ID: ${nd._id})\n${content}`;
-    })
-    .join("\n\n");
+    }),
+  );
+
+  return sections.join("\n\n");
 }

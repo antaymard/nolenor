@@ -22,11 +22,15 @@ import {
   TbCheck,
   TbKeyframeAlignCenter,
   TbPalette,
+  TbPhoto,
 } from "react-icons/tb";
 import { MdOutlineFitScreen } from "react-icons/md";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
+import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
+import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { colors } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
+import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
 export default function SelectionContextMenu({
@@ -38,7 +42,54 @@ export default function SelectionContextMenu({
 }) {
   const { deleteElements, updateNode } = useReactFlow();
   const { updateCanvasNode } = useUpdateCanvasNode();
+  const { updateNodeDataValues } = useUpdateNodeDataValues();
   const availableColors = Object.entries(colors);
+
+  const imageNodes = Array.isArray(elements)
+    ? elements.filter(
+        (n) => n.type === "image" && n.data?.nodeDataId,
+      )
+    : [];
+  const canMergeImages = imageNodes.length >= 2;
+
+  async function mergeImageNodes() {
+    if (!canMergeImages) return;
+
+    const getNodeData = useNodeDataStore.getState().getNodeData;
+
+    // Topmost-leftmost wins (smallest y, then smallest x).
+    const sorted = [...imageNodes].sort((a, b) => {
+      if (a.position.y !== b.position.y) return a.position.y - b.position.y;
+      return a.position.x - b.position.x;
+    });
+    const target = sorted[0];
+    const others = sorted.slice(1);
+
+    const seen = new Set<string>();
+    const mergedImages: Array<Record<string, unknown>> = [];
+    for (const node of sorted) {
+      const nodeDataId = node.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+      if (!nodeDataId) continue;
+      const data = getNodeData(nodeDataId);
+      const images = (data?.values?.images as
+        | Array<Record<string, unknown>>
+        | undefined) ?? [];
+      for (const img of images) {
+        const url = typeof img?.url === "string" ? img.url : undefined;
+        if (!url || seen.has(url)) continue;
+        seen.add(url);
+        mergedImages.push(img);
+      }
+    }
+
+    const targetNodeDataId = target.data?.nodeDataId as Id<"nodeDatas">;
+    await updateNodeDataValues({
+      nodeDataId: targetNodeDataId,
+      values: { images: mergedImages },
+    });
+
+    deleteElements({ nodes: others.map((n) => ({ id: n.id })) });
+  }
 
   async function alignSelectedNodes(
     alignment: "left" | "right" | "top" | "bottom",
@@ -247,6 +298,18 @@ export default function SelectionContextMenu({
           </div>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+
+      {canMergeImages && (
+        <DropdownMenuItem
+          onClick={() => {
+            void mergeImageNodes();
+            closeMenu();
+          }}
+        >
+          <TbPhoto />
+          Merge images ({imageNodes.length})
+        </DropdownMenuItem>
+      )}
 
       {/* Suppression */}
       <DropdownMenuItem

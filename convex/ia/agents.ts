@@ -18,11 +18,11 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Tencent Hy3 Free",
-    value: "tencent/hy3-preview:free",
-    price: "Free",
+    label: "Tencent Hy3",
+    value: "tencent/hy3-preview",
+    price: "0.066_0.26",
     isMultimodal: false,
-    maxContext: 32768,
+    maxContext: 260000,
   },
   {
     label: "DeepSeek V4 Flash",

@@ -1,45 +1,89 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { buildPillMarkdownRules } from "./pillMarkdownRules";
 
+type MarkdownConverter = {
+  api: {
+    markdown: {
+      deserialize(markdown: string): any[];
+      serialize(args: { value: any[] }): string;
+    };
+  };
+};
+
 /**
- * Éditeur headless (sans React/DOM) utilisé uniquement pour la conversion
- * markdown ↔ Plate JSON côté serveur (Convex).
+ * Convex analyse les modules de `convex/**` au déploiement.
  *
- * Configuré avec les mêmes remark plugins que le front-end (markdown-kit.tsx)
- * pour garantir un round-trip cohérent.
+ * Des imports Plate top-level suffisent à faire échouer cette analyse avec
+ * `document is not defined`, même si le même code fonctionne ensuite en Node.
  *
- * BaseListPlugin est nécessaire pour que le MarkdownPlugin utilise le modèle
- * de listes indent-based (listStyleType + indent) au lieu du modèle nested
- * (ul > li > lic) qui n'est pas rendu correctement par l'éditeur.
+ * Le "surcoût" de ce helper est donc volontairement concentré ici :
+ * - premier appel : chargement dynamique des modules Plate/remark + création de l'éditeur
+ * - appels suivants : réutilisation de la même promesse, donc plus de rechargement
  */
-let converterPromise: Promise<any> | null = null;
+let converterPromise: Promise<MarkdownConverter> | null = null;
 
-async function getConverter() {
+function serializeDateToMarkdown(slateNode: any) {
+  if (!slateNode.date) {
+    return { type: "text", value: "[Date non définie]" };
+  }
+
+  const date = new Date(slateNode.date);
+
+  return {
+    type: "text",
+    value: date.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+  };
+}
+
+async function loadConverterDependencies() {
+  const [
+    { createSlateEditor },
+    { MarkdownPlugin, remarkMdx, remarkMention },
+    { BaseListPlugin },
+    { default: remarkGfm },
+    { default: remarkMath },
+    pillMarkdownRules,
+  ] = await Promise.all([
+    import("platejs"),
+    import("@platejs/markdown"),
+    import("@platejs/list"),
+    import("remark-gfm"),
+    import("remark-math"),
+    buildPillMarkdownRules(),
+  ]);
+
+  return {
+    createSlateEditor,
+    MarkdownPlugin,
+    remarkMdx,
+    remarkMention,
+    BaseListPlugin,
+    remarkGfm,
+    remarkMath,
+    pillMarkdownRules,
+  };
+}
+
+async function getConverter(): Promise<MarkdownConverter> {
   if (!converterPromise) {
-    converterPromise = Promise.all([
-      import("platejs"),
-      import("@platejs/markdown"),
-      import("@platejs/list"),
-      import("remark-gfm"),
-      import("remark-math"),
-      buildPillMarkdownRules(),
-    ]).then(
-      ([
-        platejsModule,
-        markdownModule,
-        listModule,
-        remarkGfmModule,
-        remarkMathModule,
+    converterPromise = loadConverterDependencies().then(
+      ({
+        createSlateEditor,
+        MarkdownPlugin,
+        remarkMdx,
+        remarkMention,
+        BaseListPlugin,
+        remarkGfm,
+        remarkMath,
         pillMarkdownRules,
-      ]) => {
-        const { createSlateEditor } = platejsModule;
-        const { MarkdownPlugin, remarkMdx, remarkMention } = markdownModule;
-        const { BaseListPlugin } = listModule;
-        const remarkGfm = remarkGfmModule.default;
-        const remarkMath = remarkMathModule.default;
-
+      }) => {
         return createSlateEditor({
           plugins: [
+            // Garde le même comportement que le front pour le round-trip markdown.
             BaseListPlugin,
             MarkdownPlugin.configure({
               options: {
@@ -51,23 +95,9 @@ async function getConverter() {
                 ],
                 rules: {
                   ...pillMarkdownRules,
-                  // Pour la sérialisation Plate→Markdown (lecture par le LLM) :
-                  // on convertit les éléments `date` en texte lisible plutôt qu'en MDX.
                   date: {
-                    serialize: (slateNode: any) => {
-                      if (!slateNode.date) {
-                        return { type: "text", value: "[Date non définie]" };
-                      }
-                      const d = new Date(slateNode.date);
-                      return {
-                        type: "text",
-                        value: d.toLocaleDateString("fr-FR", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        }),
-                      };
-                    },
+                    // Côté LLM on préfère du texte lisible à un nœud MDX spécifique.
+                    serialize: serializeDateToMarkdown,
                   },
                 },
               },

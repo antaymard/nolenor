@@ -88,6 +88,17 @@ export default function SelectionContextMenu({
       values: { images: mergedImages },
     });
 
+    // Clear images on source nodes before deleting them, otherwise the
+    // cascade-delete (deleteNodeDataWithCascade) would wipe the R2 files
+    // that are now referenced by the target node.
+    await Promise.all(
+      others.map((n) => {
+        const id = n.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+        if (!id) return Promise.resolve();
+        return updateNodeDataValues({ nodeDataId: id, values: { images: [] } });
+      }),
+    );
+
     deleteElements({ nodes: others.map((n) => ({ id: n.id })) });
   }
 

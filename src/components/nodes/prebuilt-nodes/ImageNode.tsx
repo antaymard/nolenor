@@ -250,11 +250,15 @@ function ImageNode(xyNode: Node) {
   );
 
   const hasMultiple = currentValue.length > 1;
+  const safeIndex =
+    currentValue.length === 0
+      ? 0
+      : Math.min(Math.max(currentIndex, 0), currentValue.length - 1);
 
   const handleDownload = useCallback(async () => {
-    const image = currentValue[currentIndex];
+    const image = currentValue[safeIndex];
     if (!image) return;
-    const filename = image.filename ?? `image-${currentIndex + 1}`;
+    const filename = image.filename ?? `image-${safeIndex + 1}`;
     try {
       const response = await fetch(image.url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -278,7 +282,7 @@ function ImageNode(xyNode: Node) {
       link.click();
       link.remove();
     }
-  }, [currentValue, currentIndex]);
+  }, [currentValue, safeIndex]);
 
   return (
     <>
@@ -332,11 +336,11 @@ function ImageNode(xyNode: Node) {
         ) : hasMultiple ? (
           <div className="group/carousel relative h-full w-full">
             <img
-              src={currentValue[currentIndex].url}
+              src={currentValue[safeIndex].url}
               alt="Node Image"
               className="w-full h-full object-contain rounded-[4px]"
             />
-            {currentIndex > 0 && (
+            {safeIndex > 0 && (
               <button
                 className="nodrag absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/carousel:opacity-100 transition-opacity bg-black/50 text-white rounded-full p-0.5"
                 onClick={(e) => {
@@ -347,7 +351,7 @@ function ImageNode(xyNode: Node) {
                 <TbChevronLeft size={14} />
               </button>
             )}
-            {currentIndex < currentValue.length - 1 && (
+            {safeIndex < currentValue.length - 1 && (
               <button
                 className="nodrag absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/carousel:opacity-100 transition-opacity bg-black/50 text-white rounded-full p-0.5"
                 onClick={(e) => {
@@ -364,7 +368,7 @@ function ImageNode(xyNode: Node) {
                   key={i}
                   className={cn(
                     "nodrag pointer-events-auto w-1.5 h-1.5 rounded-full transition-colors",
-                    i === currentIndex ? "bg-white" : "bg-white/40",
+                    i === safeIndex ? "bg-white" : "bg-white/40",
                   )}
                   onClick={(e) => {
                     e.stopPropagation();

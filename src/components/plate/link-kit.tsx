@@ -6,8 +6,9 @@ import { LinkPlugin } from "@platejs/link/react";
 import { LinkElement } from "@/components/plate/link-node";
 import { LinkFloatingToolbar } from "@/components/plate/link-toolbar";
 
+// See basic-blocks-kit.tsx for why .configure() must take a function.
 export const LinkKit = [
-  LinkPlugin.configure({
+  LinkPlugin.configure(() => ({
     inputRules: [
       LinkRules.markdown(),
       LinkRules.autolink({ variant: "paste" }),
@@ -18,5 +19,5 @@ export const LinkKit = [
       node: LinkElement,
       afterEditable: () => <LinkFloatingToolbar />,
     },
-  }),
+  })),
 ];

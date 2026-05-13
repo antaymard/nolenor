@@ -11,9 +11,10 @@ import { KEYS } from "platejs";
 import { IndentKit } from "@/components/plate/indent-kit";
 import { BlockList } from "@/components/plate/block-list";
 
+// See basic-blocks-kit.tsx for why .configure() must take a function.
 export const ListKit = [
   ...IndentKit,
-  ListPlugin.configure({
+  ListPlugin.configure(() => ({
     inputRules: [
       BulletedListRules.markdown({ variant: "*" }),
       BulletedListRules.markdown({ variant: "-" }),
@@ -35,5 +36,5 @@ export const ListKit = [
     render: {
       belowNodes: BlockList,
     },
-  }),
+  })),
 ];

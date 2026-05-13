@@ -16,8 +16,9 @@ import {
 
 const lowlight = createLowlight(all);
 
+// See basic-blocks-kit.tsx for why .configure() must take a function.
 export const CodeBlockKit = [
-  CodeBlockPlugin.configure({
+  CodeBlockPlugin.configure(() => ({
     inputRules: [
       CodeBlockRules.markdown({ on: "match" }),
       CodeBlockRules.markdown({ on: "break" }),
@@ -25,7 +26,7 @@ export const CodeBlockKit = [
     node: { component: CodeBlockElement },
     options: { lowlight },
     shortcuts: { toggle: { keys: "mod+alt+8" } },
-  }),
+  })),
   CodeLinePlugin.withComponent(CodeLineElement),
   CodeSyntaxPlugin.withComponent(CodeSyntaxLeaf),
 ];

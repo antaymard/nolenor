@@ -29,9 +29,14 @@ import {
 import { HrElement } from "@/components/plate/hr-node";
 import { ParagraphElement } from "@/components/plate/paragraph-node";
 
+// Plate v53 mutates the object passed to .configure() on first resolve
+// (it sets configResult.inputRules = void 0 after consuming it), so a
+// shared module-level config object loses its inputRules for every editor
+// instance after the first one. Passing a function returns a fresh object
+// per editor and avoids that aliasing.
 export const BasicBlocksKit = [
   ParagraphPlugin.withComponent(ParagraphElement),
-  H1Plugin.configure({
+  H1Plugin.configure(() => ({
     inputRules: [HeadingRules.markdown()],
     node: {
       component: H1Element,
@@ -40,8 +45,8 @@ export const BasicBlocksKit = [
       break: { empty: "reset" },
     },
     shortcuts: { toggle: { keys: "mod+alt+1" } },
-  }),
-  H2Plugin.configure({
+  })),
+  H2Plugin.configure(() => ({
     inputRules: [HeadingRules.markdown()],
     node: {
       component: H2Element,
@@ -50,8 +55,8 @@ export const BasicBlocksKit = [
       break: { empty: "reset" },
     },
     shortcuts: { toggle: { keys: "mod+alt+2" } },
-  }),
-  H3Plugin.configure({
+  })),
+  H3Plugin.configure(() => ({
     inputRules: [HeadingRules.markdown()],
     node: {
       component: H3Element,
@@ -60,8 +65,8 @@ export const BasicBlocksKit = [
       break: { empty: "reset" },
     },
     shortcuts: { toggle: { keys: "mod+alt+3" } },
-  }),
-  H4Plugin.configure({
+  })),
+  H4Plugin.configure(() => ({
     inputRules: [HeadingRules.markdown()],
     node: {
       component: H4Element,
@@ -70,8 +75,8 @@ export const BasicBlocksKit = [
       break: { empty: "reset" },
     },
     shortcuts: { toggle: { keys: "mod+alt+4" } },
-  }),
-  H5Plugin.configure({
+  })),
+  H5Plugin.configure(() => ({
     inputRules: [HeadingRules.markdown()],
     node: {
       component: H5Element,
@@ -80,8 +85,8 @@ export const BasicBlocksKit = [
       break: { empty: "reset" },
     },
     shortcuts: { toggle: { keys: "mod+alt+5" } },
-  }),
-  H6Plugin.configure({
+  })),
+  H6Plugin.configure(() => ({
     inputRules: [HeadingRules.markdown()],
     node: {
       component: H6Element,
@@ -90,16 +95,16 @@ export const BasicBlocksKit = [
       break: { empty: "reset" },
     },
     shortcuts: { toggle: { keys: "mod+alt+6" } },
-  }),
-  BlockquotePlugin.configure({
+  })),
+  BlockquotePlugin.configure(() => ({
     inputRules: [BlockquoteRules.markdown()],
     node: { component: BlockquoteElement },
     shortcuts: { toggle: { keys: "mod+shift+period" } },
-  }),
-  HorizontalRulePlugin.withComponent(HrElement).configure({
+  })),
+  HorizontalRulePlugin.withComponent(HrElement).configure(() => ({
     inputRules: [
       HorizontalRuleRules.markdown(),
       HorizontalRuleRules.markdown({ variant: "_" }),
     ],
-  }),
+  })),
 ];

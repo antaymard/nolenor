@@ -10,9 +10,14 @@ import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/p
 interface MentionedNodeCardProps {
   nodeId: string;
   inline?: boolean;
+  fallback?: React.ReactNode;
 }
 
-export function MentionedNodeCard({ nodeId, inline }: MentionedNodeCardProps) {
+export function MentionedNodeCard({
+  nodeId,
+  inline,
+  fallback,
+}: MentionedNodeCardProps) {
   const nodes = useStore((state) => state.nodes);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
   const { fitView } = useReactFlow();
@@ -24,19 +29,9 @@ export function MentionedNodeCard({ nodeId, inline }: MentionedNodeCardProps) {
   const nodeData = nodeDataId ? nodeDatas.get(nodeDataId as any) : undefined;
 
   if (!xyNode || !nodeData) {
-    return null;
-    // <span
-    //   className={cn(
-    //     "group flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-400 shadow-sm cursor-not-allowed opacity-80",
-    //     inline
-    //       ? "inline-flex align-middle mx-1 -translate-y-0.5"
-    //       : "w-fit max-w-50",
-    //   )}
-    //   title="Node introuvable ou supprimé"
-    // >
-    //   <TbTrash size={12} className="shrink-0" />
-    //   <span className="truncate max-w-37.5 italic">Node introuvable</span>
-    // </span>
+    // Pas de node correspondant : on tombe en fallback sur le texte d'origine
+    // pour ne pas faire disparaître un faux positif du parseur de node IDs.
+    return fallback !== undefined ? <>{fallback}</> : null;
   }
 
   const title = getNodeDataTitle(nodeData);

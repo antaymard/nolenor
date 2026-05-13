@@ -52,22 +52,25 @@ export function matchesLlmIdFormat(
   const currentRegex = new RegExp(`^${buildLlmIdPattern(chunkCount)}$`);
   if (currentRegex.test(value)) return true;
 
-  // Rétrocompatibilité : check les deux anciennes variantes (000a000a... ou Abc1Def2...)
-  const legacyRegex1 = /^(?:\d{3}[A-Za-z])+$/;
-  const legacyRegex2 = /^(?:[A-Za-z]{3}\d)+$/;
+  // Rétrocompatibilité : minimum 2 chunks pour éviter les faux positifs (ex: "100k", "abc1")
+  const legacyRegex1 = /^(?:\d{3}[A-Za-z]){2,}$/;
+  const legacyRegex2 = /^(?:[A-Za-z]{3}\d){2,}$/;
   return legacyRegex1.test(value) || legacyRegex2.test(value);
+}
+
+// Regex capturant les LLM IDs dans un texte arbitraire. Exporté pour que
+// les composants de rendu utilisent exactement le même filtre que le matcher.
+// Minimum 2 répétitions par alternative pour éviter de matcher "100k", "abc1", etc.
+export function buildLlmIdTextRegex(): RegExp {
+  return /\b((?:\d{3}[A-Za-z]){2,}|(?:[A-Za-z]{3}\d){2,}|[A-Za-z](?:\d{3}[A-Za-z]){2,})\b/g;
 }
 
 export function matchLlmIdsInText(
   text: string,
   chunkCount: number = DEFAULT_CHUNK_COUNT,
 ): string[] {
-  // Regex capturant n'importe laquelle des 3 formes de LLM IDs créées (historiques ou courante)
-  const globalRegex =
-    /\b((?:\d{3}[A-Za-z])+|(?:[A-Za-z]{3}\d)+|[A-Za-z](?:\d{3}[A-Za-z])+)\b/g;
-  const matches = text.match(globalRegex) ?? [];
+  const matches = text.match(buildLlmIdTextRegex()) ?? [];
 
-  // Le filtre matchesLlmIdFormat vérifiera que ça matche bien le format ou la rétrocompatibilité
   return [...new Set(matches)].filter((value) =>
     matchesLlmIdFormat(value, chunkCount),
   );

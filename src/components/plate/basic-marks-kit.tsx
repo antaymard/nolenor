@@ -31,15 +31,16 @@ import { PillPlugin } from "@/components/plate/pill-kit";
 export const BasicMarksKit = [
   BoldPlugin.configure({
     inputRules: [
+      BoldRules.markdown({ variant: "*" }),
+      BoldRules.markdown({ variant: "_" }),
       MarkComboRules.markdown({ variant: "boldItalic" }),
       MarkComboRules.markdown({ variant: "boldUnderline" }),
       MarkComboRules.markdown({ variant: "boldItalicUnderline" }),
-      BoldRules.markdown({ variant: "*" }),
+      MarkComboRules.markdown({ variant: "italicUnderline" }),
     ],
   }),
   ItalicPlugin.configure({
     inputRules: [
-      MarkComboRules.markdown({ variant: "italicUnderline" }),
       ItalicRules.markdown({ variant: "*" }),
       ItalicRules.markdown({ variant: "_" }),
     ],

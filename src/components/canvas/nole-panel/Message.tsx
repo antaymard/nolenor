@@ -5,7 +5,7 @@ import type { TextPart } from "@/types/domain/message.types";
 import { RiLoaderLine } from "react-icons/ri";
 import { cn } from "@/lib/utils";
 import { TbAlertCircle, TbBrain, TbChevronDown, TbTool } from "react-icons/tb";
-import { matchLlmIdsInText } from "@/../convex/lib/llmId";
+import { buildLlmIdTextRegex, matchLlmIdsInText } from "@/../convex/lib/llmId";
 import { MentionedNodeCard } from "@/components/canvas/nole-panel/MentionedNodeCard";
 import type { Components } from "react-markdown";
 
@@ -13,12 +13,10 @@ type ToolPartState = "input-streaming" | "output-available" | "output-error";
 
 function preprocessTextWithNodeLinks(text: string): string {
   if (!text) return "";
-  // Cherche spécifiquement les 3 évolutions des LLM IDs custom :
-  // 1: 000a000a (3 chiffres, 1 lettre répété)
-  // 2: Abc1Def2 (3 lettres, 1 chiffre répété)
-  // 3: a000a000a (1 lettre puis blocs de 3 chiffres, 1 lettre)
+  // Reprend exactement la même regex que matchLlmIdsInText pour garantir
+  // que tout ce qui est transformé en lien correspond à un format de node ID valide.
   return text.replace(
-    /\b((?:\d{3}[A-Za-z])+|(?:[A-Za-z]{3}\d)+|[A-Za-z](?:\d{3}[A-Za-z])+)\b/g,
+    buildLlmIdTextRegex(),
     (match) => `[${match}](#node-${match})`,
   );
 }
@@ -27,7 +25,10 @@ const markdownComponents: Components = {
   a: ({ href, children }) => {
     if (href?.startsWith("#node-")) {
       const nodeId = href.replace("#node-", "");
-      return <MentionedNodeCard nodeId={nodeId} inline />;
+      // children = le texte d'origine, utilisé en fallback si aucun node ne matche.
+      return (
+        <MentionedNodeCard nodeId={nodeId} inline fallback={children} />
+      );
     }
     return (
       <a

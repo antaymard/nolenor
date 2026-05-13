@@ -4,6 +4,7 @@ import {
   TbChevronDown,
   TbLoader,
   TbMenu2,
+  TbPlus,
   TbSearch,
 } from "react-icons/tb";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
@@ -20,7 +21,7 @@ export default function MobileChatScreen({
   onOpenLeft,
   onOpenSearch,
 }: MobileChatScreenProps) {
-  const { threadId, isLoading, setUserInput, setIsAssistantResponding } =
+  const { threadId, isLoading, setUserInput, setIsAssistantResponding, startNewThread } =
     useMobileNoleChat();
 
   const handleRetry = useCallback(
@@ -66,14 +67,24 @@ export default function MobileChatScreen({
           </span>
           <TbChevronDown size={14} className="shrink-0 opacity-70" />
         </button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onOpenSearch}
-          aria-label="Open search"
-        >
-          <TbSearch size={20} />
-        </Button>
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => void startNewThread()}
+            aria-label="New conversation"
+          >
+            <TbPlus size={20} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenSearch}
+            aria-label="Open search"
+          >
+            <TbSearch size={20} />
+          </Button>
+        </div>
       </div>
 
       {/* Chat — leave room for the fixed input below */}

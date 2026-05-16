@@ -3,7 +3,7 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
-import { escapeXmlAttribute, escapeXmlText, toXmlCdata } from "../../lib/xml";
+import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import {
   formatTableMarkdown,
   makeNodeDataLLMFriendly,
@@ -27,6 +27,11 @@ const PDF_HINTS = {
   truncated:
     "Output truncated: too many pages or characters requested. Re-call with fewer pages.",
   notAPdf: "pdfPages was provided for a non-pdf node and was ignored.",
+} as const;
+
+const IMAGE_HINTS = {
+  notIndexed:
+    "Image content not yet indexed. Raw image URLs are listed below; use view_image if needed.",
 } as const;
 
 const TABLE_DEFAULT_ROW_LIMIT = 50;
@@ -73,6 +78,19 @@ type TableRowSliceInput = {
   rowIds?: string[];
 };
 
+type StructuredImageMetadata = {
+  url: string;
+  filename: string;
+  order: number;
+  title: string;
+  imageType: string;
+  summary: string;
+  visibleText: string;
+  keyFacts: string;
+  searchTerms: string[];
+  rawText?: string;
+};
+
 function renderPdfFiles(files: PdfFile[]): string {
   if (files.length === 0) {
     return "<pdfFiles />";
@@ -89,7 +107,7 @@ function renderPdfFiles(files: PdfFile[]): string {
 function renderPdfTocBlock(pageChunks: PdfPageChunk[]): string {
   const toc = buildPdfTocMarkdown(pageChunks);
   const inner = toc.structured
-    ? `\n${toXmlCdata(toc.markdown)}\n`
+    ? `\n${toc.markdown}\n`
     : escapeXmlText(PDF_HINTS.noHeadings);
   return [
     `<pdfToc totalPages="${toc.totalPages}" structured="${toc.structured}">${inner}</pdfToc>`,
@@ -109,7 +127,7 @@ function renderPdfPagesBlock(
       }
       const totalAttr =
         typeof p.totalPages === "number" ? ` totalPages="${p.totalPages}"` : "";
-      return `<pdfPage n="${p.n}"${totalAttr}>\n${toXmlCdata(p.markdown)}\n</pdfPage>`;
+      return `<pdfPage n="${p.n}"${totalAttr}>\n${p.markdown}\n</pdfPage>`;
     })
     .join("\n");
   const truncatedHint = result.truncated
@@ -210,7 +228,7 @@ function buildTableNodeBody(opts: {
   });
 
   const columnsBlock = renderTableColumnsBlock(columns);
-  const rowsBlock = `<tableRows>\n${toXmlCdata(result.markdown)}\n</tableRows>`;
+  const rowsBlock = `<tableRows>\n${result.markdown}\n</tableRows>`;
 
   const displayedCount = result.displayedRowIds.length;
   const hints: string[] = [];
@@ -249,6 +267,99 @@ function buildTableNodeBody(opts: {
   };
 }
 
+function parseStructuredImageMetadata(
+  metadata: unknown,
+): StructuredImageMetadata | null {
+  if (!metadata || typeof metadata !== "object") return null;
+
+  const image = (metadata as { image?: unknown }).image;
+  if (!image || typeof image !== "object") return null;
+
+  const value = image as {
+    url?: unknown;
+    filename?: unknown;
+    order?: unknown;
+    title?: unknown;
+    imageType?: unknown;
+    summary?: unknown;
+    visibleText?: unknown;
+    keyFacts?: unknown;
+    searchTerms?: unknown;
+    rawText?: unknown;
+  };
+
+  if (typeof value.url !== "string" || value.url.length === 0) return null;
+
+  const searchTerms = Array.isArray(value.searchTerms)
+    ? value.searchTerms.filter(
+        (term): term is string => typeof term === "string" && term.length > 0,
+      )
+    : [];
+
+  return {
+    url: value.url,
+    filename:
+      typeof value.filename === "string" && value.filename.length > 0
+        ? value.filename
+        : "image",
+    order: typeof value.order === "number" ? value.order : 0,
+    title: typeof value.title === "string" ? value.title : "UNKNOWN",
+    imageType:
+      typeof value.imageType === "string" ? value.imageType : "UNKNOWN",
+    summary: typeof value.summary === "string" ? value.summary : "UNKNOWN",
+    visibleText:
+      typeof value.visibleText === "string" ? value.visibleText : "UNKNOWN",
+    keyFacts: typeof value.keyFacts === "string" ? value.keyFacts : "UNKNOWN",
+    searchTerms,
+    rawText: typeof value.rawText === "string" ? value.rawText : undefined,
+  };
+}
+
+function formatStructuredImageBlock(image: StructuredImageMetadata): string {
+  const attrs = [
+    `url="${escapeXmlAttribute(image.url)}"`,
+    `filename="${escapeXmlAttribute(image.filename)}"`,
+    `order="${String(image.order)}"`,
+  ].join(" ");
+
+  const searchTerms =
+    image.searchTerms.length > 0 ? image.searchTerms.join(", ") : "NONE";
+
+  const body = [
+    `TITLE: ${escapeXmlText(image.title)}`,
+    `IMAGE_TYPE: ${escapeXmlText(image.imageType)}`,
+    `SUMMARY: ${escapeXmlText(image.summary)}`,
+    `VISIBLE_TEXT: ${escapeXmlText(image.visibleText)}`,
+    `KEY_FACTS: ${escapeXmlText(image.keyFacts)}`,
+    `SEARCH_TERMS: ${escapeXmlText(searchTerms)}`,
+  ].join("\n");
+
+  return `<image ${attrs}>\n${body}\n</image>`;
+}
+
+function buildImageNodeBody(
+  chunks: Array<{
+    order: number;
+    text: string;
+    metadata?: Record<string, unknown>;
+  }>,
+): string | null {
+  const parts = chunks
+    .sort((a, b) => a.order - b.order)
+    .map((chunk) => {
+      const image = parseStructuredImageMetadata(chunk.metadata);
+      if (image) {
+        return formatStructuredImageBlock(image);
+      }
+
+      const trimmedText = chunk.text.trim();
+      return trimmedText.length > 0 ? trimmedText : null;
+    })
+    .filter((part): part is string => part !== null);
+
+  return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
 export const readNodesToolConfig: ToolConfig = {
   name: "read_nodes",
   authorized_agents: [
@@ -280,6 +391,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
       "A tool to read multiple nodes from the current canvas and return their nodeData as LLM-friendly XML. " +
+      "For image nodes, returns indexed textual image descriptions by default when available. " +
       "For pdf nodes, by default returns a paginated table of contents in markdown ('# Heading [pageNumber]') along with the total page count. " +
       "Pass `pdfPages=[{nodeId, pages:[…]}]` to read the full OCR markdown of specific 1-based pages instead. " +
       "PDF chunks come from cached Mistral OCR; nodes not yet indexed are flagged. " +
@@ -516,6 +628,23 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             let tableTotalRows: number | null = null;
             let tableDisplayedRows: number | null = null;
 
+            if (node.type === "image") {
+              const imageChunks = await ctx.runQuery(
+                internal.wrappers.searchableChunkWrappers.listByNodeDataId,
+                { nodeDataId: nodeData._id },
+              );
+
+              const imageBody = buildImageNodeBody(
+                imageChunks.filter((chunk) => chunk.chunkType === "node"),
+              );
+
+              if (imageBody) {
+                content = imageBody;
+              } else {
+                content = `<imageStatus>${escapeXmlText(IMAGE_HINTS.notIndexed)}</imageStatus>\n${content}`;
+              }
+            }
+
             if (node.type === "pdf") {
               const files =
                 (nodeData.values.files as PdfFile[] | undefined) ?? [];
@@ -707,7 +836,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                         ? ` totalPages="${pdfTotalPages}"`
                         : "";
                     return `<node id="${nodeId}" type="pdf" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}"${totalPagesAttr}>
-${error ? `<readError>${toXmlCdata(error)}</readError>\n` : ""}${pdfBody}
+${error ? `<readError>${error}</readError>\n` : ""}${pdfBody}
 </node>`;
                   }
 
@@ -721,13 +850,13 @@ ${error ? `<readError>${toXmlCdata(error)}</readError>\n` : ""}${pdfBody}
                         ? ` displayedRows="${tableDisplayedRows}"`
                         : "";
                     return `<node id="${nodeId}" type="table" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}"${totalRowsAttr}${displayedRowsAttr}>
-${error ? `<readError>${toXmlCdata(error)}</readError>\n` : ""}${tableBody}
+${error ? `<readError>${error}</readError>\n` : ""}${tableBody}
 </node>`;
                   }
 
                   return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}">
-    ${error ? `<readError>${toXmlCdata(error)}</readError>` : ""}
-${toXmlCdata(content)}
+    ${error ? `<readError>${error}</readError>` : ""}
+${content}
 </node>`;
                 },
               ),

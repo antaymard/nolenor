@@ -10,7 +10,3 @@ export function escapeXmlAttribute(value: string): string {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&apos;");
 }
-
-export function toXmlCdata(value: string): string {
-  return `<![CDATA[${value.replaceAll("]]>", "]]]]><![CDATA[>")}]]>`;
-}

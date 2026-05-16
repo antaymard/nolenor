@@ -70,14 +70,15 @@ export const search = query({
       images: Array.from(
         new Map(
           chunks
-            .map((chunk) => {
-              const imageUrl = getImageUrlFromMetadata(chunk.metadata);
-              if (!imageUrl) return null;
-              return [
-                imageUrl,
-                { imageUrl, page: getPageFromMetadata(chunk.metadata) },
-              ] as const;
-            })
+            .flatMap((chunk) =>
+              getImageUrlsFromMetadata(chunk.metadata).map(
+                (imageUrl) =>
+                  [
+                    imageUrl,
+                    { imageUrl, page: getPageFromMetadata(chunk.metadata) },
+                  ] as const,
+              ),
+            )
             .filter(
               (
                 item,
@@ -214,9 +215,30 @@ function getPageFromMetadata(metadata: unknown): number | undefined {
 }
 
 function getImageUrlFromMetadata(metadata: unknown): string | undefined {
-  if (!metadata || typeof metadata !== "object") return undefined;
+  const urls = getImageUrlsFromMetadata(metadata);
+  return urls[0];
+}
+
+function getImageUrlsFromMetadata(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== "object") return [];
+
+  const structuredImage = (metadata as { image?: unknown }).image;
+  if (structuredImage && typeof structuredImage === "object") {
+    const structuredImageUrl = (structuredImage as { url?: unknown }).url;
+    if (typeof structuredImageUrl === "string") {
+      return [structuredImageUrl];
+    }
+  }
+
+  const maybeImageUrls = (metadata as { imageUrls?: unknown }).imageUrls;
+  if (Array.isArray(maybeImageUrls)) {
+    return maybeImageUrls.filter(
+      (value): value is string => typeof value === "string",
+    );
+  }
+
   const maybeImageUrl = (metadata as { imageUrl?: unknown }).imageUrl;
-  return typeof maybeImageUrl === "string" ? maybeImageUrl : undefined;
+  return typeof maybeImageUrl === "string" ? [maybeImageUrl] : [];
 }
 
 function ellipsize(text: string): string {

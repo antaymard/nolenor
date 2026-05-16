@@ -1,7 +1,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { internalAction } from "../_generated/server";
+import { internalAction, type ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { generateText } from "ai";
 import { openrouter } from "@openrouter/ai-sdk-provider";
@@ -44,6 +44,70 @@ const EXPENSIVE_CONTENT_FIELD: Partial<Record<string, string>> = {
   image: "images",
 };
 
+async function rebuildChunksForNodeData(
+  ctx: ActionCtx,
+  {
+    nodeDataId,
+    updatedKeys,
+  }: {
+    nodeDataId: Doc<"nodeDatas">["_id"];
+    updatedKeys?: string[];
+  },
+): Promise<void> {
+  console.log("[chunkBuilder] rebuildChunks:start", {
+    nodeDataId,
+    updatedKeys,
+  });
+
+  const nodeData = await ctx.runQuery(
+    internal.wrappers.nodeDataWrappers.readNodeData,
+    { _id: nodeDataId },
+  );
+  if (!nodeData) {
+    console.log("[chunkBuilder] rebuildChunks:nodeData-not-found", {
+      nodeDataId,
+    });
+    return;
+  }
+
+  const { nodes } = await ctx.runQuery(
+    internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
+    { canvasId: nodeData.canvasId },
+  );
+  const matchingCanvasNode = nodes.find(
+    (node) => node.nodeDataId === nodeDataId,
+  );
+  const nodeId = matchingCanvasNode?.id ?? (nodeDataId as string);
+
+  if (!matchingCanvasNode) {
+    console.warn("[chunkBuilder] rebuildChunks:canvas-node-not-found", {
+      nodeDataId,
+      canvasId: nodeData.canvasId,
+    });
+  }
+
+  const chunks = await buildChunks(nodeData, nodeId, updatedKeys);
+
+  console.log("[chunkBuilder] rebuildChunks:chunks-built", {
+    nodeDataId,
+    nodeType: nodeData.type,
+    chunkCount: chunks.length,
+  });
+
+  await ctx.runMutation(
+    internal.wrappers.searchableChunkWrappers.upsertChunks,
+    {
+      nodeDataId,
+      chunks,
+    },
+  );
+
+  console.log("[chunkBuilder] rebuildChunks:upsert-complete", {
+    nodeDataId,
+    chunkCount: chunks.length,
+  });
+}
+
 export const rebuildChunks = internalAction({
   args: {
     nodeDataId: v.id("nodeDatas"),
@@ -51,58 +115,27 @@ export const rebuildChunks = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, { nodeDataId, updatedKeys }) => {
-    console.log("[chunkBuilder] rebuildChunks:start", {
-      nodeDataId,
-      updatedKeys,
-    });
+    await rebuildChunksForNodeData(ctx, { nodeDataId, updatedKeys });
+    return null;
+  },
+});
 
-    const nodeData = await ctx.runQuery(
-      internal.wrappers.nodeDataWrappers.readNodeData,
-      { _id: nodeDataId },
-    );
-    if (!nodeData) {
-      console.log("[chunkBuilder] rebuildChunks:nodeData-not-found", {
-        nodeDataId,
-      });
-      return null;
+export const rebuildChunksBatch = internalAction({
+  args: {
+    nodeDataIds: v.array(v.id("nodeDatas")),
+  },
+  returns: v.null(),
+  handler: async (ctx, { nodeDataIds }) => {
+    const seenNodeDataIds = new Set<string>();
+
+    for (const nodeDataId of nodeDataIds) {
+      const dedupeKey = String(nodeDataId);
+      if (seenNodeDataIds.has(dedupeKey)) {
+        continue;
+      }
+      seenNodeDataIds.add(dedupeKey);
+      await rebuildChunksForNodeData(ctx, { nodeDataId });
     }
-
-    const { nodes } = await ctx.runQuery(
-      internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
-      { canvasId: nodeData.canvasId },
-    );
-    const matchingCanvasNode = nodes.find(
-      (node) => node.nodeDataId === nodeDataId,
-    );
-    const nodeId = matchingCanvasNode?.id ?? (nodeDataId as string);
-
-    if (!matchingCanvasNode) {
-      console.warn("[chunkBuilder] rebuildChunks:canvas-node-not-found", {
-        nodeDataId,
-        canvasId: nodeData.canvasId,
-      });
-    }
-
-    const chunks = await buildChunks(nodeData, nodeId, updatedKeys);
-
-    console.log("[chunkBuilder] rebuildChunks:chunks-built", {
-      nodeDataId,
-      nodeType: nodeData.type,
-      chunkCount: chunks.length,
-    });
-
-    await ctx.runMutation(
-      internal.wrappers.searchableChunkWrappers.upsertChunks,
-      {
-        nodeDataId,
-        chunks,
-      },
-    );
-
-    console.log("[chunkBuilder] rebuildChunks:upsert-complete", {
-      nodeDataId,
-      chunkCount: chunks.length,
-    });
 
     return null;
   },
@@ -206,9 +239,7 @@ async function buildChunks(
     }
 
     case "image": {
-      const text = await buildImageChunkText(nodeData.values);
-      if (!text) return [];
-      return [{ ...base, chunkType: "node", order: 0, text }];
+      return await buildImageChunks(base, nodeData.values);
     }
 
     case "pdf": {
@@ -222,17 +253,41 @@ async function buildChunks(
 
 // ── Image branch ─────────────────────────────────────────────────────────────
 
-async function buildImageChunkText(
+async function buildImageChunks(
+  base: Omit<ChunkInput, "chunkType" | "order" | "text" | "metadata">,
   values: Record<string, unknown>,
-): Promise<string | null> {
+): Promise<ChunkInput[]> {
   const images = values.images as Array<{ url: string }> | undefined;
   if (!images || images.length === 0) {
     console.log("[chunkBuilder] buildImageChunkText:no-images");
-    return null;
+    return [];
   }
 
-  // Product constraint: images currently contains at most one image.
-  const img = images[0];
+  const chunks = await Promise.all(
+    images.map((img, order) => buildSingleImageChunk(base, img, order)),
+  );
+
+  return chunks.filter((chunk): chunk is ChunkInput => chunk !== null);
+}
+
+type StructuredImageMetadata = {
+  url: string;
+  filename: string;
+  order: number;
+  title: string;
+  imageType: string;
+  summary: string;
+  visibleText: string;
+  keyFacts: string;
+  searchTerms: string[];
+  rawText: string;
+};
+
+async function buildSingleImageChunk(
+  base: Omit<ChunkInput, "chunkType" | "order" | "text" | "metadata">,
+  img: { url: string } | undefined,
+  order: number,
+): Promise<ChunkInput | null> {
   if (!img?.url) {
     console.log("[chunkBuilder] buildImageChunkText:missing-image-url");
     return null;
@@ -246,7 +301,7 @@ async function buildImageChunkText(
 
   try {
     const result = await generateText({
-      model: openrouter("anthropic/claude-haiku-4-5"),
+      model: openrouter("~anthropic/claude-haiku-latest"),
       messages: [
         {
           role: "user",
@@ -254,11 +309,25 @@ async function buildImageChunkText(
             { type: "image", image: img.url },
             {
               type: "text",
-              text: `Give a title and a detailed description of this image. Format your response as:
-TITLE: <concise title>
-DESCRIPTION: <detailed description including visible text, data, and visual content>
+              text: `Analyze this image so that another agent can work from the text alone without ever seeing the image, and so both a human user and Nolë can reliably find it with text search.
 
-Respond in the same language as any visible text, or in French if no text is visible.`,
+Your response must be factual, self-contained, retrieval-oriented, and follow this exact format:
+TITLE: <specific concise title>
+IMAGE_TYPE: <photo, screenshot, chart, diagram, table, poster, document scan, map, UI, artwork, or other>
+SUMMARY: <dense self-contained summary that explains the image well enough for someone who never sees it>
+VISIBLE_TEXT: <verbatim transcription of all legible text, numbers, labels, headings, legend items, axis labels, table headers/cells, UI labels; write NONE if there is no readable text>
+KEY_FACTS: <important entities, objects, actions, relationships, layout, data, trends, values, dates, places, brands, products, measurements, and any other information needed to reason about the image>
+SEARCH_TERMS: <comma-separated keywords, aliases, alternate spellings, abbreviations, named entities, topics, and likely search phrases that should help retrieval>
+
+Rules:
+- Do not hallucinate. If something is uncertain, say UNKNOWN or PROBABLY.
+- Make SUMMARY and KEY_FACTS sufficient for an agent that never sees the image.
+- Preserve visible text verbatim in VISIBLE_TEXT, even if it is partial, noisy, or misspelled.
+- If the image is a chart, table, diagram, map, screenshot, UI, or scanned document, describe its structure and the important data or controls.
+- If the image contains people, places, products, logos, or brands, name them only when clearly visible.
+- Include search terms that a user might type to find this image later. Prefer precise retrieval terms over generic tags.
+- Add French and English search terms when they are clearly useful and you are confident they are correct.
+- Respond in the same language as the main visible text. If there is no visible text or the languages are mixed, write in French, but keep VISIBLE_TEXT verbatim in its original language(s).`,
             },
           ],
         },
@@ -267,17 +336,186 @@ Respond in the same language as any visible text, or in French if no text is vis
 
     console.log("[chunkBuilder] buildImageChunkText:success", {
       imageUrl: img.url,
+      order,
       responseLength: result.text.length,
     });
 
-    return `[${filename}]\n${result.text}`;
+    const imageMetadata = parseImageLlmOutput({
+      url: img.url,
+      filename,
+      order,
+      rawText: result.text,
+    });
+
+    return {
+      ...base,
+      chunkType: "node",
+      order,
+      text: buildImageSearchText(imageMetadata),
+      metadata: {
+        imageUrl: imageMetadata.url,
+        filename: imageMetadata.filename,
+        imageOrder: imageMetadata.order,
+        image: imageMetadata,
+      },
+    };
   } catch (error) {
     console.error("Image chunk generation failed", {
       imageUrl: img.url,
+      order,
       error,
     });
-    return null;
+
+    const fallbackMetadata = buildFallbackImageMetadata({
+      url: img.url,
+      filename,
+      order,
+    });
+
+    return {
+      ...base,
+      chunkType: "node",
+      order,
+      text: buildImageSearchText(fallbackMetadata),
+      metadata: {
+        imageUrl: fallbackMetadata.url,
+        filename: fallbackMetadata.filename,
+        imageOrder: fallbackMetadata.order,
+        image: fallbackMetadata,
+        indexingFallback: true,
+      },
+    };
   }
+}
+
+function buildFallbackImageMetadata({
+  url,
+  filename,
+  order,
+}: {
+  url: string;
+  filename: string;
+  order: number;
+}): StructuredImageMetadata {
+  const title = filename.replace(/\.[^./\\]+$/, "") || filename;
+  const searchTerms = Array.from(
+    new Set([
+      filename,
+      title,
+      ...filename
+        .split(/[^a-zA-Z0-9]+/)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 2),
+    ]),
+  );
+
+  return {
+    url,
+    filename,
+    order,
+    title,
+    imageType: "image",
+    summary:
+      "Vision description unavailable. Indexed from filename and source URL only.",
+    visibleText: "UNKNOWN",
+    keyFacts: `Source image URL: ${url}`,
+    searchTerms,
+    rawText: "",
+  };
+}
+
+function parseImageLlmOutput({
+  url,
+  filename,
+  order,
+  rawText,
+}: {
+  url: string;
+  filename: string;
+  order: number;
+  rawText: string;
+}): StructuredImageMetadata {
+  const normalizedText = rawText.replace(/\r\n/g, "\n").trim();
+  const fields = extractOrderedLabelSections(normalizedText, [
+    "TITLE",
+    "IMAGE_TYPE",
+    "SUMMARY",
+    "VISIBLE_TEXT",
+    "KEY_FACTS",
+    "SEARCH_TERMS",
+  ]);
+
+  return {
+    url,
+    filename,
+    order,
+    title: fields.TITLE ?? "UNKNOWN",
+    imageType: fields.IMAGE_TYPE ?? "UNKNOWN",
+    summary: fields.SUMMARY || normalizedText || "UNKNOWN",
+    visibleText: fields.VISIBLE_TEXT ?? "UNKNOWN",
+    keyFacts: fields.KEY_FACTS || normalizedText || "UNKNOWN",
+    searchTerms: parseSearchTerms(fields.SEARCH_TERMS),
+    rawText: normalizedText,
+  };
+}
+
+function extractOrderedLabelSections(
+  rawText: string,
+  labels: string[],
+): Record<string, string | undefined> {
+  const sections: Record<string, string | undefined> = {};
+
+  let currentLabel: string | null = null;
+  let currentLines: string[] = [];
+
+  const flushCurrentLabel = () => {
+    if (!currentLabel) return;
+    const value = currentLines.join("\n").trim();
+    sections[currentLabel] = value.length > 0 ? value : undefined;
+  };
+
+  for (const line of rawText.split("\n")) {
+    const matchingLabel = labels.find((label) => line.startsWith(`${label}:`));
+
+    if (matchingLabel) {
+      flushCurrentLabel();
+      currentLabel = matchingLabel;
+      currentLines = [line.slice(matchingLabel.length + 1).trimStart()];
+      continue;
+    }
+
+    if (currentLabel) {
+      currentLines.push(line);
+    }
+  }
+
+  flushCurrentLabel();
+
+  return sections;
+}
+
+function parseSearchTerms(rawValue: string | undefined): string[] {
+  if (!rawValue) return [];
+
+  return rawValue
+    .split(",")
+    .map((term) => term.trim())
+    .filter((term) => term.length > 0 && term.toUpperCase() !== "NONE");
+}
+
+function buildImageSearchText(image: StructuredImageMetadata): string {
+  const searchTerms =
+    image.searchTerms.length > 0 ? image.searchTerms.join(", ") : "NONE";
+
+  return [
+    `FILENAME: ${image.filename}`,
+    `TITLE: ${image.title}`,
+    `IMAGE_TYPE: ${image.imageType}`,
+    `SUMMARY: ${image.summary}`,
+    `VISIBLE_TEXT: ${image.visibleText}`,
+    `KEY_FACTS: ${image.keyFacts}`,
+    `SEARCH_TERMS: ${searchTerms}`,
+  ].join("\n");
 }
 
 // ── PDF branch ────────────────────────────────────────────────────────────────

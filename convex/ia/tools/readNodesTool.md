@@ -86,12 +86,12 @@ Le markdown TOC liste toutes les sections par page : `# Titre [n]`, `## Sous-tit
   <pdfFiles>
     - document.pdf | application/pdf | https://…
   </pdfFiles>
-  <pdfToc totalPages="42" structured="true"><![CDATA[
+  <pdfToc totalPages="42" structured="true">
 # Introduction [1]
 ## Background [2]
 # Chapter 1 [5]
 ### Deep section [7]
-  ]]></pdfToc>
+  </pdfToc>
   <pdfHint>Call read_nodes with pdfPages=[{nodeId, pages:[…]}] to read full markdown of specific pages.</pdfHint>
 </node>
 ```
@@ -129,14 +129,14 @@ Appelé par `buildPdfPagesMarkdown(pageChunks, requestedPages)`.
   <pdfFiles>
     - document.pdf | application/pdf | https://…
   </pdfFiles>
-  <pdfPage n="3" totalPages="42"><![CDATA[
+  <pdfPage n="3" totalPages="42">
 ## Section Title
 
 Lorem ipsum OCR text of page 3…
-  ]]></pdfPage>
-  <pdfPage n="7" totalPages="42"><![CDATA[
+  </pdfPage>
+  <pdfPage n="7" totalPages="42">
 …
-  ]]></pdfPage>
+  </pdfPage>
 </node>
 ```
 
@@ -153,7 +153,7 @@ Les pages dépassant la limite sont ignorées silencieusement. Un hint est ajout
 ```xml
 <node id="NODE_ID" type="pdf" …>
   <pdfFiles>…</pdfFiles>
-  <pdfPage n="1" totalPages="42"><![CDATA[…]]></pdfPage>
+  <pdfPage n="1" totalPages="42">…</pdfPage>
   …
   <pdfHint>Output truncated: too many pages or characters requested. Re-call with fewer pages.</pdfHint>
 </node>
@@ -167,9 +167,7 @@ Les pages dépassant la limite sont ignorées silencieusement. Un hint est ajout
 <nodes>
   <!-- Un <node> par nodeId demandé -->
   <node id="…" type="document" sourceNodes="id1 | type | title ; …" targetNodes="…" x="100" y="200" width="300" height="400" title="Mon doc">
-    <![CDATA[
-      … contenu LLM-friendly …
-    ]]>
+    … contenu LLM-friendly …
   </node>
 
   <node id="…" type="pdf" sourceNodes="…" targetNodes="…" totalPages="42" title="Mon PDF">
@@ -182,7 +180,7 @@ Les pages dépassant la limite sont ignorées silencieusement. Un hint est ajout
 <nodeDataSchemas>
   <schema nodeType="document" edition_tools="insert_document_content,string_replace_document_content"></schema>
   <schema nodeType="table" edition_tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows"></schema>
-  <schema nodeType="task" edition_tool="set_node_data"><![CDATA[{ … JSON Schema … }]]></schema>
+  <schema nodeType="task" edition_tool="set_node_data">{ … JSON Schema … }</schema>
 </nodeDataSchemas>
 ```
 

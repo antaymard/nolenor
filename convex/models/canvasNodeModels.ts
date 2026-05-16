@@ -70,6 +70,18 @@ export async function addCanvasNodes(
     updatedAt: Date.now(),
   });
 
+  const nodeDataIds = nodesWithDefaults.flatMap((node) =>
+    node.nodeDataId ? [node.nodeDataId] : [],
+  );
+
+  if (nodeDataIds.length > 0) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.searchable.chunkBuilder.rebuildChunksBatch,
+      { nodeDataIds },
+    );
+  }
+
   console.log(`✅ Added ${canvasNodes.length} nodes to canvas ${canvasId}`);
 
   return true;

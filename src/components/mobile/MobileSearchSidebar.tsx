@@ -15,9 +15,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useWindowsStore } from "@/stores/windowsStore";
-import {
-  canNodeTypeBeOpenedInWindow,
-} from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
+import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import type { NodeType } from "@/types/domain";
 import { Spinner } from "@/components/shadcn/spinner";
@@ -269,6 +267,7 @@ function SearchResultCard({
   const title = useNodeDataTitle(result.nodeDataId);
   const Icon = getNodeIcon(result.type);
   const canOpen = canNodeTypeBeOpenedInWindow(result.type);
+  const previewImages = useMemo(() => result.images, [result.images]);
   const sortedSnippets = useMemo(
     () =>
       [...result.snippets].sort((a, b) => {
@@ -300,6 +299,24 @@ function SearchResultCard({
           {result.type}
         </span>
       </div>
+      {previewImages.length > 0 ? (
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {previewImages.map((image) => (
+            <div key={image.imageUrl} className="relative shrink-0">
+              <img
+                src={image.imageUrl}
+                alt="Apercu"
+                className="h-20 w-20 rounded-md object-cover border"
+              />
+              {typeof image.page === "number" ? (
+                <span className="absolute right-1 bottom-1 text-[10px] text-white bg-black/70 px-1 py-0.5 rounded-full">
+                  p.{image.page}
+                </span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
       {sortedSnippets.slice(0, 2).map((s, i) => (
         <SnippetLine
           key={`${result.nodeId}-${i}`}

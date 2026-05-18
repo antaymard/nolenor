@@ -41,6 +41,7 @@ import { useCanvasNodes } from "@/hooks/useCanvasNodes";
 import { useCanvasEdges } from "@/hooks/useCanvasEdges";
 import { Spinner } from "@/components/shadcn/spinner";
 import NoleCanvasPanel from "@/components/canvas/NoleCanvasPanel";
+import MinimizedWindowsStack from "@/components/windows/MinimizedWindowsStack";
 import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
 import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
 import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanner";
@@ -369,9 +370,14 @@ function CanvasContent({
           <CanvasToolbar canvasId={canvasId} />
         </Panel>
         {isAuthenticated ? (
-          <Panel position="bottom-left">
-            <NoleCanvasPanel />
-          </Panel>
+          <>
+            <Panel position="bottom-left">
+              <NoleCanvasPanel />
+            </Panel>
+            <Panel position="bottom-right">
+              <MinimizedWindowsStack />
+            </Panel>
+          </>
         ) : (
           <Panel position="top-center">
             <AuthUpgradeBanner />

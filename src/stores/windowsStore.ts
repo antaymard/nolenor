@@ -66,6 +66,8 @@ function getDefaultWindowSize(nodeType: NodeType): WindowSize {
   return resolveWindowSize(preset);
 }
 
+export const MAX_MINIMIZED_WINDOWS = 10;
+
 const PLACEMENT_PADDING = 24;
 const PLACEMENT_STEP = 40;
 const SNAP_EDGE_THRESHOLD = 20;
@@ -199,6 +201,7 @@ interface WindowsStore {
   ) => void;
   setWindowState: (xyNodeId: string, state: OpenedWindowState) => void;
   toggleMinimizeWindow: (xyNodeId: string) => void;
+  closeAllMinimizedWindows: () => void;
   snapWindow: (xyNodeId: string, side: SnapSide) => void;
   toggleFullscreenWindow: (xyNodeId: string) => void;
   exitFullscreen: () => void;
@@ -476,6 +479,21 @@ export const useWindowsStore = create<WindowsStore>()(
             windowState: nextWindowState,
           };
           return { openedWindows: nextOpenedWindows };
+        });
+      },
+      closeAllMinimizedWindows: () => {
+        set((store) => {
+          const remaining = store.openedWindows.filter(
+            (w) => w.windowState !== "minimized",
+          );
+          if (remaining.length === store.openedWindows.length) return store;
+          const remainingIds = new Set(remaining.map((w) => w.xyNodeId));
+          return {
+            openedWindows: remaining,
+            dirtyNodeIds: store.dirtyNodeIds.filter((id) =>
+              remainingIds.has(id),
+            ),
+          };
         });
       },
       toggleFullscreenWindow: (xyNodeId: string) => {

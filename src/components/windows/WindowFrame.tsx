@@ -7,7 +7,9 @@ import {
   type SnapSide,
   SNAP_EDGE_THRESHOLD,
   isFullscreenEligible,
+  MAX_MINIMIZED_WINDOWS,
 } from "@/stores/windowsStore";
+import toast from "react-hot-toast";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNodeData } from "@/hooks/useNodeData";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
@@ -454,7 +456,22 @@ export default function WindowFrame({
               data-window-control="true"
               className="shrink-0 rounded p-0.5 opacity-50 hover:bg-black/10 hover:opacity-100 h-full aspect-square flex items-center justify-center"
               onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => toggleMinimizeWindow(xyNodeId)}
+              onClick={() => {
+                if (openedWindow.windowState !== "minimized") {
+                  const minimizedCount = useWindowsStore
+                    .getState()
+                    .openedWindows.filter(
+                      (w) => w.windowState === "minimized",
+                    ).length;
+                  if (minimizedCount >= MAX_MINIMIZED_WINDOWS) {
+                    toast.error(
+                      `Maximum ${MAX_MINIMIZED_WINDOWS} minimized windows reached`,
+                    );
+                    return;
+                  }
+                }
+                toggleMinimizeWindow(xyNodeId);
+              }}
               aria-label="Minimize"
             >
               <Minus size={14} />

@@ -95,7 +95,9 @@ const DocumentEditorField = forwardRef<
 
     applyFrameRef.current = requestAnimationFrame(() => {
       skipNextChangeRef.current = true;
-      editor.tf.setValue(initialValue);
+      editor.tf.withoutSaving(() => {
+        editor.tf.setValue(initialValue);
+      });
       lastAppliedServerSnapshotRef.current = incomingSnapshot;
       onDirtyChange?.(false);
     });

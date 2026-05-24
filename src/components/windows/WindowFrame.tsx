@@ -98,6 +98,7 @@ export default function WindowFrame({
   const nodeData = useNodeData(nodeDataId);
   const NodeIcon = getNodeIcon(nodeData?.type);
 
+  const [isDraggingOrResizing, setIsDraggingOrResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useHotkey(
@@ -144,6 +145,7 @@ export default function WindowFrame({
       }
       e.preventDefault();
       dragRef.current = { startX: e.clientX, startY: e.clientY };
+      setIsDraggingOrResizing(true);
       document.body.style.cursor = "grabbing";
       document.body.style.userSelect = "none";
     },
@@ -173,6 +175,7 @@ export default function WindowFrame({
       e.preventDefault();
       e.stopPropagation();
       resizeRef.current = { startX: e.clientX, startY: e.clientY, direction };
+      setIsDraggingOrResizing(true);
       document.body.style.cursor = RESIZE_CURSOR[direction].replace(
         "cursor-",
         "",
@@ -283,6 +286,7 @@ export default function WindowFrame({
 
       dragRef.current = null;
       resizeRef.current = null;
+      setIsDraggingOrResizing(false);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
@@ -294,7 +298,7 @@ export default function WindowFrame({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [xyNodeId, moveWindow, resizeWindow, snapWindow, updateSnapPreview]);
+  }, [xyNodeId, moveWindow, resizeWindow, snapWindow, updateSnapPreview, setIsDraggingOrResizing]);
 
   const contextValue = useMemo(
     () => ({
@@ -501,8 +505,9 @@ export default function WindowFrame({
           </div>
 
           {/* ── Body (non-draggable) ──────────────────────────────────── */}
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="relative min-h-0 flex-1 overflow-auto">
             <WindowContent openedWindow={openedWindow} />
+            {isDraggingOrResizing && <div className="absolute inset-0 z-10" />}
           </div>
         </div>
       </div>

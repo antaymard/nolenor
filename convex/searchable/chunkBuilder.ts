@@ -9,6 +9,7 @@ import { uploadBuffer } from "../lib/r2";
 import { plateJsonToMarkdown } from "../ia/helpers/plateMarkdownConverter";
 import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
 import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFriendly";
+import { getNodeDataTitle } from "../lib/getNodeDataTitle";
 import type { Doc } from "../_generated/dataModel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -173,6 +174,7 @@ async function buildChunks(
     canvasId: nodeData.canvasId,
     nodeType: nodeData.type,
     templateId: undefined as string | undefined,
+    title: getNodeDataTitle(nodeData),
   };
 
   switch (nodeData.type) {

@@ -30,6 +30,7 @@ type SearchResult = {
   type: string;
   nodeId: string;
   nodeDataId: Id<"nodeDatas">;
+  title?: string;
   images: Array<{ imageUrl: string; page?: number }>;
   snippets: Array<{
     snippet: string;
@@ -264,7 +265,8 @@ function SearchResultCard({
   query: string;
   onClick: () => void;
 }) {
-  const title = useNodeDataTitle(result.nodeDataId);
+  const fallbackTitle = useNodeDataTitle(result.nodeDataId);
+  const title = result.title ?? fallbackTitle;
   const Icon = getNodeIcon(result.type);
   const canOpen = canNodeTypeBeOpenedInWindow(result.type);
   const previewImages = useMemo(() => result.images, [result.images]);

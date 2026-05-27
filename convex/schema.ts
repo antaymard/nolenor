@@ -56,6 +56,10 @@ const schema = defineSchema({
     .searchIndex("search_text", {
       searchField: "text",
       filterFields: ["canvasId", "nodeDataId", "nodeType", "chunkType"],
+    })
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["canvasId", "nodeDataId", "nodeType", "chunkType"],
     }),
 
   wishlistEmails: defineTable(wishlistEmailsValidator).index("by_email", [

@@ -164,6 +164,7 @@ type FullTextSearchHit = {
   chunkType: SearchableChunk["chunkType"];
   order: number;
   text: string;
+  title?: string;
   page?: number;
   sectionTitle?: string;
 };
@@ -232,13 +233,29 @@ export async function fullTextSearch(
   // Read more than we return so post-filtering (nodeIds) still has good recall.
   const scanLimit = Math.min(effectiveLimit * SCAN_MULTIPLIER, MAX_SCAN_CAP);
 
-  // 2) Run indexed full-text search scoped to the canvas.
-  const chunks = await ctx.db
-    .query("searchableChunks")
-    .withSearchIndex("search_text", (q) =>
-      q.search("text", query).eq("canvasId", canvasId),
-    )
-    .take(scanLimit);
+  // 2) Run indexed full-text search scoped to the canvas, on both content and title.
+  const [textChunks, titleChunks] = await Promise.all([
+    ctx.db
+      .query("searchableChunks")
+      .withSearchIndex("search_text", (q) =>
+        q.search("text", query).eq("canvasId", canvasId),
+      )
+      .take(scanLimit),
+    ctx.db
+      .query("searchableChunks")
+      .withSearchIndex("search_title", (q) =>
+        q.search("title", query).eq("canvasId", canvasId),
+      )
+      .take(scanLimit),
+  ]);
+
+  const chunks = Array.from(
+    new Map(
+      [...textChunks, ...titleChunks].map(
+        (chunk) => [chunk._id, chunk] as const,
+      ),
+    ).values(),
+  );
 
   // 3) Apply optional node-level filtering.
   const nodeIdFilter =
@@ -251,9 +268,11 @@ export async function fullTextSearch(
   // 4) Truncate for payload size, then project to the compact response shape.
   const selected = filtered.slice(0, effectiveLimit);
 
-  // If we had more filtered hits than returned OR we hit scan cap, signal truncation.
+  // If we had more filtered hits than returned OR we hit scan cap on either index, signal truncation.
   const truncated =
-    filtered.length > effectiveLimit || chunks.length === scanLimit;
+    filtered.length > effectiveLimit ||
+    textChunks.length === scanLimit ||
+    titleChunks.length === scanLimit;
 
   return {
     hits: selected.map((chunk) => ({
@@ -263,6 +282,7 @@ export async function fullTextSearch(
       chunkType: chunk.chunkType,
       order: chunk.order,
       text: chunk.text,
+      title: chunk.title,
       page: getPage(chunk.metadata),
       sectionTitle: getSectionTitle(chunk.metadata),
     })),

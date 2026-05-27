@@ -18,6 +18,7 @@ const searchableChunksValidator = v.object({
   chunkType: chunkTypeValidator,
   nodeType: nodeTypeValidator,
   templateId: v.optional(v.string()),
+  title: v.optional(v.string()),
   text: v.string(),
   order: v.number(),
   metadata: v.optional(v.record(v.string(), v.any())),

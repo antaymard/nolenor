@@ -1,6 +1,13 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
-import Parallel from "parallel-web";
+import {
+  LinkupAuthenticationError,
+  LinkupClient,
+  LinkupFetchError,
+  LinkupFetchResponseTooLargeError,
+  LinkupFetchUnsupportedContentTypeError,
+  LinkupInvalidRequestError,
+} from "linkup-sdk";
 import { ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames } from "../agentConfig";
 
@@ -14,55 +21,102 @@ export const openWebPageToolConfig: ToolConfig = {
   ],
 };
 
-const client = new Parallel({
-  apiKey: process.env.PARALLEL_API_KEY!,
+const client = new LinkupClient({
+  apiKey: process.env.LINKUP_API_KEY!,
 });
 
 export const openWebPageTool = createTool({
   description:
-    "Convert any public URL into clean, LLM-optimized markdown. It converts any public URL into clean markdown, including JavaScript-heavy pages and PDFs. It returns focused excerpts aligned to the objective, or full page content if requested.",
+    "Fetch one or more public URLs and return clean markdown via Linkup. Handles JavaScript-heavy pages and PDFs natively. Up to 10 URLs per call, fetched in parallel.",
   inputSchema: z.object({
     explanation: z
       .string()
       .describe("3-5 words explaining the research intent."),
     urls: z
       .array(z.string())
+      .max(10)
       .describe(
-        "List of URLs to extract content from. Maximum 10 URLs per request. \nExample: ['https://example.com/article1', 'https://example.com/article2']",
+        "List of URLs to fetch. Maximum 10 per request, processed in parallel.",
       ),
-    objective: z
-      .string()
+    include_raw_html: z
+      .boolean()
+      .default(false)
       .describe(
-        "THIS MUST BE IN ENGLISH. Natural-language description of what information you're looking for, including broader task context. When provided, focuses extracted content on relevant information. Maximum 3000 characters. \nExample: I'm researching React performance optimization. Find best practices for preventing unnecessary re-renders.",
+        "Also include the raw HTML of the page in the response. Defaults to false. Enable only when you need HTML structure beyond what markdown captures (e.g. extracting table layouts or inline attributes).",
       ),
-    search_queries: z
-      .array(z.string())
+    extract_images: z
+      .boolean()
+      .default(false)
       .describe(
-        "THIS MUST BE IN ENGLISH. Optional keyword queries to focus extraction. Use with or without objective to emphasize specific terms. \nExample: ['React.memo', 'useMemo', 'useCallback']",
-      )
-      .optional(),
+        "Also return a list of images found on the page (URLs + alt text). Enable only when image references are actually needed.",
+      ),
   }),
-  execute: async (ctx, { urls, objective, search_queries = [] }) => {
-    console.log(`🔍 Web extract: ${objective}, ${urls.join(", ")}`);
+  execute: async (
+    ctx,
+    { urls, include_raw_html = false, extract_images = false },
+  ) => {
+    console.log(`🔍 Web fetch: ${urls.join(", ")}`);
 
     try {
-      const search = await client.beta.extract({
-        urls,
-        search_queries,
-        excerpts: true,
-        full_content: true,
+      const settled = await Promise.allSettled(
+        urls.map((url) =>
+          client.fetch({
+            url,
+            renderJs: true,
+            includeRawHtml: include_raw_html,
+            extractImages: extract_images,
+          }),
+        ),
+      );
+
+      const results = settled.map((res, i) => {
+        const url = urls[i];
+        if (res.status === "fulfilled") {
+          const value = res.value as {
+            markdown: string;
+            rawHtml?: string;
+            images?: { url: string; alt?: string }[];
+          };
+          return {
+            url,
+            markdown: value.markdown,
+            ...(extract_images && value.images ? { images: value.images } : {}),
+            ...(include_raw_html && value.rawHtml
+              ? { rawHtml: value.rawHtml }
+              : {}),
+          };
+        }
+        const err = res.reason;
+        let message: string;
+        if (err instanceof LinkupFetchResponseTooLargeError) {
+          message = `Page is too large to fetch: ${err.message}`;
+        } else if (err instanceof LinkupFetchUnsupportedContentTypeError) {
+          message = `Unsupported content type: ${err.message}`;
+        } else if (err instanceof LinkupFetchError) {
+          message = `Fetch failed: ${err.message}`;
+        } else if (err instanceof LinkupInvalidRequestError) {
+          message = `Invalid URL: ${err.message}`;
+        } else if (err instanceof LinkupAuthenticationError) {
+          message = `Linkup authentication failed: ${err.message}`;
+        } else {
+          message = err?.message ?? "Unknown error";
+        }
+        return { url, error: message };
       });
 
-      if (!search.results || search.results.length === 0) {
-        return toolError(`No results found for: "${objective}"`);
+      const allFailed = results.every((r) => "error" in r);
+      if (allFailed) {
+        return toolError(
+          `All fetches failed: ${results
+            .map((r) => `${r.url}: ${(r as { error: string }).error}`)
+            .join("; ")}`,
+        );
       }
 
-      return search.results;
+      return results;
     } catch (error: any) {
-      console.error("❌ Extract error:", error);
-      return toolError(
-        `Extraction failed: ${error.message}. Please try rephrasing your query.`,
-      );
+      console.error("❌ Fetch error:", error);
+      return toolError(`Fetch failed: ${error.message ?? "Unknown error"}.`);
     }
   },
 });

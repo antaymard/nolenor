@@ -4,15 +4,15 @@ import ToolCardFrame from "./ToolCardFrame";
 
 interface OpenWebpageInput {
   urls: string[];
-  objective: string;
-  search_queries?: string[];
+  include_raw_html?: boolean;
+  extract_images?: boolean;
 }
 interface OpenWebpageResult {
   url: string;
-  title: string;
-  full_content: string;
-  excerpts: string[];
-  publish_date?: string;
+  markdown?: string;
+  rawHtml?: string;
+  images?: { url: string; alt?: string }[];
+  error?: string;
 }
 type OpenWebpageToolCardProps = ToolCardProps<
   OpenWebpageInput,
@@ -30,6 +30,7 @@ export default function OpenWebpageToolCard({
       name="Web page navigation"
       state={state}
       canBeExpanded={true}
+      detailLabel={`${output?.length ?? input?.urls.length ?? 0} URLs`}
     >
       <div className="flex flex-col divide-y divide-white/20 -mx-2 text-white">
         {output?.map((result, index) => (
@@ -39,11 +40,13 @@ export default function OpenWebpageToolCard({
               target="_blank"
               className="hover:underline underline-offset-2"
             >
-              <p>{result.title}</p>
-            </a>
-            <div className="text-sm leading-tight text-white/60 flex items-center justify-between">
               <p>{new URL(result.url).hostname}</p>
-            </div>
+            </a>
+            {result.error && (
+              <p className="text-sm text-red-300/80 leading-tight mt-1">
+                {result.error}
+              </p>
+            )}
           </div>
         ))}
       </div>

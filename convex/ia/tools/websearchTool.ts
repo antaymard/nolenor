@@ -1,6 +1,14 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
-import Parallel from "parallel-web";
+import {
+  LinkupAuthenticationError,
+  LinkupClient,
+  LinkupInsufficientCreditError,
+  LinkupInvalidRequestError,
+  LinkupNoResultError,
+  LinkupPaymentRequiredError,
+  LinkupTooManyRequestsError,
+} from "linkup-sdk";
 import { ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames } from "../agentConfig";
 
@@ -14,91 +22,125 @@ export const websearchToolConfig: ToolConfig = {
   ],
 };
 
-const client = new Parallel({
-  apiKey: process.env.PARALLEL_API_KEY!,
+const client = new LinkupClient({
+  apiKey: process.env.LINKUP_API_KEY!,
 });
 
 export const websearchTool = createTool({
-  description: "Search the web for relevant information.",
+  description:
+    "Search the web for relevant information via Linkup. Returns a list of relevant pages with titles, URLs, and content excerpts.",
   inputSchema: z.object({
     explanation: z
       .string()
       .describe("3-5 words explaining the research intent."),
-    objective: z
+    query: z
       .string()
       .describe(
-        "Natural-language description of the web research goal, including source or freshness guidance and broader context from the task. Maximum 5000 characters. Choose the right language, depending on the user's language, and the type of info needed. For example, if local or country specific, use the user language. \nExample:  I want to know when the UN was founded. Prefer UN's websites.",
+        "Natural-language search query (Linkup performs agentic search — phrase it as you would phrase a question, not as keywords). Maximum ~5000 chars. Choose the language depending on the user's language and the type of info needed (e.g. use French for France-specific queries). \nExample: 'When was the UN founded? Prefer official UN sources.'",
       ),
-    search_queries: z
+    depth: z
+      .enum(["standard", "deep"])
+      .default("standard")
+      .describe(
+        "Search depth. Use 'standard' for straightforward queries with likely direct answers — facts, definitions, simple explanations — single iteration of agentic search (default, fast and cheap). Use 'deep' for (1) complex queries requiring comprehensive analysis or synthesis, (2) queries with uncommon terms, specialized jargon, or abbreviations, or (3) questions requiring up-to-date or specialized info — several iterations of agentic search, slower and ~10× more expensive.",
+      ),
+    max_results: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        "Max number of results to return. Defaults to 10 if omitted.",
+      ),
+    include_domains: z
       .array(z.string())
+      .optional()
       .describe(
-        "Optional search queries to supplement the objective. Maximum 200 characters per query. Choose the right language, depending on the user's language, and the type of info needed. For example, if local or country specific, use the user language. \nExample: ['Founding year UN', 'Year of founding United Nations']",
-      )
-      .optional(),
-    search_effort: z
-      .enum(["low", "medium", "high"])
-      .default("low")
+        "Restrict results to these domains (e.g. ['un.org', 'who.int']). Use when you know the authoritative sources for the topic.",
+      ),
+    exclude_domains: z
+      .array(z.string())
+      .optional()
       .describe(
-        "Determines the number of search results to retrieve, and the conciseness of the summaries. A high effort is token-intensive, but may yield better results for complex queries. If not specified, defaults to 'low'. For complex, niche or ambiguous queries, consider using 'medium' or 'high'. You can start with 'low' and increase if results are insufficient.",
+        "Exclude these domains from results (e.g. ['reddit.com', 'quora.com'] for high-trust topics).",
+      ),
+    from_date: z
+      .string()
+      .optional()
+      .describe(
+        "Only include results published on or after this date (ISO format YYYY-MM-DD). Use for time-sensitive topics (recent news, current pricing, latest releases).",
+      ),
+    to_date: z
+      .string()
+      .optional()
+      .describe(
+        "Only include results published on or before this date (ISO format YYYY-MM-DD).",
       ),
   }),
   execute: async (
     ctx,
-    { objective, search_queries = [], search_effort = "low" },
+    {
+      query,
+      depth = "standard",
+      max_results,
+      include_domains,
+      exclude_domains,
+      from_date,
+      to_date,
+    },
   ) => {
-    console.log(`🔍 Web search: ${objective} with effort ${search_effort}`);
+    console.log(`🔍 Web search: "${query}" depth=${depth}`);
 
     try {
-      let searchOptions = {};
-      switch (search_effort) {
-        case "low":
-          searchOptions = {
-            max_results: 5,
-            mode: "agentic",
-            excerpts: {
-              max_chars_per_result: 500,
-            },
-          };
-          break;
-        case "medium":
-          searchOptions = {
-            max_results: 10,
-            mode: "one-shot",
-            excerpts: {
-              max_chars_per_result: 2000,
-            },
-          };
-          break;
-        case "high":
-          searchOptions = {
-            max_results: 20,
-            mode: "one-shot",
-            excerpts: {
-              max_chars_per_result: 1000,
-            },
-          };
-          break;
-      }
-
-      const search = await client.beta.search({
-        objective,
-        search_queries,
-        ...searchOptions,
+      const response = await client.search({
+        query,
+        depth,
+        outputType: "searchResults",
+        maxResults: max_results ?? 10,
+        ...(include_domains && include_domains.length > 0
+          ? { includeDomains: include_domains }
+          : {}),
+        ...(exclude_domains && exclude_domains.length > 0
+          ? { excludeDomains: exclude_domains }
+          : {}),
+        ...(from_date ? { fromDate: new Date(from_date) } : {}),
+        ...(to_date ? { toDate: new Date(to_date) } : {}),
       });
 
-      if (!search.results || search.results.length === 0) {
-        return toolError(`No results found for: "${objective}"`);
+      if (!response.results || response.results.length === 0) {
+        return toolError(`No results found for: "${query}"`);
       }
 
       console.log(
-        `✅ Web search complete with ${search.results.length} results.`,
+        `✅ Web search complete with ${response.results.length} results.`,
       );
-
-      return search.results;
+      return response.results;
     } catch (error: any) {
       console.error("❌ Search error:", error);
+      if (error instanceof LinkupNoResultError) {
+        return toolError(`No results found for: "${query}"`);
+      }
+      if (error instanceof LinkupAuthenticationError) {
+        return toolError(`Linkup authentication failed: ${error.message}`);
+      }
+      if (error instanceof LinkupInvalidRequestError) {
+        return toolError(`Invalid search request: ${error.message}`);
+      }
+      if (
+        error instanceof LinkupPaymentRequiredError ||
+        error instanceof LinkupInsufficientCreditError
+      ) {
+        return toolError(
+          `Linkup quota exceeded: ${error.message}. Contact your administrator.`,
+        );
+      }
+      if (error instanceof LinkupTooManyRequestsError) {
+        return toolError(
+          `Rate limit hit: ${error.message}. Please retry shortly.`,
+        );
+      }
       return toolError(
-        `Search failed: ${error.message}. Please try rephrasing your query.`,
+        `Search failed: ${error.message ?? "Unknown error"}. Please try rephrasing your query.`,
       );
     }
   },

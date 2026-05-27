@@ -13,6 +13,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { TbMaximize, TbNews } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
+import { PlateErrorBoundary } from "@/components/plate/PlateErrorBoundary";
 
 function hasTextContent(nodes: unknown[]): boolean {
   for (const node of nodes) {
@@ -125,11 +126,13 @@ function DocumentNode(xyNode: Node) {
                   </div>
                 ) : previewValue ? (
                   <div className="relative h-full min-h-0">
-                    <DocumentStaticField
-                      value={{ doc: previewValue }}
-                      allowDrag={!xyNode.selected}
-                      preview
-                    />
+                    <PlateErrorBoundary resetKey={values?.doc}>
+                      <DocumentStaticField
+                        value={{ doc: previewValue }}
+                        allowDrag={!xyNode.selected}
+                        preview
+                      />
+                    </PlateErrorBoundary>
                   </div>
                 ) : null}
               </>

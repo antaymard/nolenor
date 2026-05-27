@@ -9,6 +9,7 @@ import { uploadBuffer } from "../lib/r2";
 import { plateJsonToMarkdown } from "../ia/helpers/plateMarkdownConverter";
 import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
 import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFriendly";
+import { getNodeDataTitle } from "../lib/getNodeDataTitle";
 import type { Doc } from "../_generated/dataModel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -173,6 +174,7 @@ async function buildChunks(
     canvasId: nodeData.canvasId,
     nodeType: nodeData.type,
     templateId: undefined as string | undefined,
+    title: getNodeDataTitle(nodeData),
   };
 
   switch (nodeData.type) {
@@ -188,7 +190,7 @@ async function buildChunks(
         | undefined;
       if (!link?.href) return [];
       const domain = safeDomain(link.href);
-      const parts = [link.pageTitle, link.href, domain].filter(Boolean);
+      const parts = [link.href, domain].filter(Boolean);
       return [
         { ...base, chunkType: "node", order: 0, text: parts.join(" | ") },
       ];
@@ -199,7 +201,7 @@ async function buildChunks(
         | { value?: unknown; unit?: string; label?: string }
         | undefined;
       if (!val) return [];
-      const parts = [val.label, String(val.value ?? ""), val.unit].filter(
+      const parts = [String(val.value ?? ""), val.unit].filter(
         (p) => p !== undefined && p !== null && String(p).trim() !== "",
       );
       return [
@@ -213,19 +215,14 @@ async function buildChunks(
         | undefined;
       if (!embed?.url) return [];
       const domain = safeDomain(embed.url);
-      const parts = [embed.title, embed.type, embed.url, domain].filter(
-        Boolean,
-      );
+      const parts = [embed.type, embed.url, domain].filter(Boolean);
       return [
         { ...base, chunkType: "node", order: 0, text: parts.join(" | ") },
       ];
     }
 
     case "table": {
-      const text = makeTableNodeDataLLMFriendly(
-        nodeData.values.table,
-        nodeData.values.title,
-      );
+      const text = makeTableNodeDataLLMFriendly(nodeData.values.table);
       if (!text.trim()) return [];
       return [{ ...base, chunkType: "node", order: 0, text }];
     }
@@ -233,7 +230,13 @@ async function buildChunks(
     case "document": {
       const parsed = parseStoredPlateDocument(nodeData.values.doc);
       if (!parsed || parsed.length === 0) return [];
-      const text = await plateJsonToMarkdown(parsed);
+      const firstBlockType = (parsed[0] as { type?: string } | undefined)?.type;
+      const body =
+        firstBlockType === "h1" || firstBlockType === "h2"
+          ? parsed.slice(1)
+          : parsed;
+      if (body.length === 0) return [];
+      const text = await plateJsonToMarkdown(body);
       if (!text.trim()) return [];
       return [{ ...base, chunkType: "node", order: 0, text }];
     }
@@ -508,8 +511,6 @@ function buildImageSearchText(image: StructuredImageMetadata): string {
     image.searchTerms.length > 0 ? image.searchTerms.join(", ") : "NONE";
 
   return [
-    `FILENAME: ${image.filename}`,
-    `TITLE: ${image.title}`,
     `IMAGE_TYPE: ${image.imageType}`,
     `SUMMARY: ${image.summary}`,
     `VISIBLE_TEXT: ${image.visibleText}`,

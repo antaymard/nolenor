@@ -206,6 +206,7 @@ export default function fullTextSearchTool({
               nodeType: hit.nodeType,
               chunkType: hit.chunkType,
               order: hit.order,
+              title: hit.title,
               snippet: hit.snippet,
               page: hit.page,
               sectionTitle: hit.sectionTitle,
@@ -238,6 +239,7 @@ export default function fullTextSearchTool({
           {
             nodeId: string;
             nodeType: string;
+            title?: string;
             hitCount: number;
             candidates: Array<{
               snippet: string;
@@ -252,6 +254,7 @@ export default function fullTextSearchTool({
           const entry = grouped.get(hit.nodeId);
           if (entry) {
             entry.hitCount += 1;
+            if (!entry.title && hit.title) entry.title = hit.title;
             entry.candidates.push({
               snippet: hit.snippet,
               order: hit.order,
@@ -262,6 +265,7 @@ export default function fullTextSearchTool({
             grouped.set(hit.nodeId, {
               nodeId: hit.nodeId,
               nodeType: hit.nodeType,
+              title: hit.title,
               hitCount: 1,
               candidates: [
                 {
@@ -280,24 +284,31 @@ export default function fullTextSearchTool({
         });
 
         const selectedGroups = groupedEntries.slice(0, limit);
+
+        // Fallback: fetch titles only for pre-existing chunks that don't carry one yet.
+        const groupsMissingTitle = selectedGroups.filter(
+          (group) => !group.title,
+        );
         const titlesByNodeId = new Map<string, string>();
 
-        await Promise.all(
-          selectedGroups.map(async (group) => {
-            try {
-              const { nodeData } = await ctx.runQuery(
-                internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
-                {
-                  canvasId: canvasId as Id<"canvases">,
-                  nodeId: group.nodeId,
-                },
-              );
-              titlesByNodeId.set(group.nodeId, getNodeDataTitle(nodeData));
-            } catch {
-              titlesByNodeId.set(group.nodeId, "Untitled");
-            }
-          }),
-        );
+        if (groupsMissingTitle.length > 0) {
+          await Promise.all(
+            groupsMissingTitle.map(async (group) => {
+              try {
+                const { nodeData } = await ctx.runQuery(
+                  internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+                  {
+                    canvasId: canvasId as Id<"canvases">,
+                    nodeId: group.nodeId,
+                  },
+                );
+                titlesByNodeId.set(group.nodeId, getNodeDataTitle(nodeData));
+              } catch {
+                titlesByNodeId.set(group.nodeId, "Untitled");
+              }
+            }),
+          );
+        }
 
         const groupedHits = selectedGroups.map((group) => {
           const uniqueBestCandidates = Array.from(
@@ -313,7 +324,7 @@ export default function fullTextSearchTool({
           return {
             nodeId: group.nodeId,
             nodeType: group.nodeType,
-            title: titlesByNodeId.get(group.nodeId) ?? "Untitled",
+            title: group.title ?? titlesByNodeId.get(group.nodeId) ?? "Untitled",
             hitCount: group.hitCount,
             bestSnippet: best?.snippet,
             bestPage: best?.page,

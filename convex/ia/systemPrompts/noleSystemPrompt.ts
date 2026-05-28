@@ -1,12 +1,8 @@
-import { nodeDataConfig } from "../../config/nodeConfig";
 import { ActionCtx } from "../../_generated/server";
 import { Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
 import { escapeXmlText } from "../../lib/xml";
-
-const nodeTypesContext = nodeDataConfig
-  .map((item) => `- ${item.type} : ${item.llmDescription}`)
-  .join("\n");
+import { nodeTypesPresentation } from "./systemParts";
 
 function formatMemorySnapshot(rawContent?: string | null): string {
   if (!rawContent) {
@@ -92,7 +88,7 @@ Users can have multiple canvases. On those canvases, users can add nodes (blocks
 Each node type has a specific purpose and can be used to represent different kinds of information or ideas. The nodes can be manipulated (added, modified, deleted) by calling tools that interact with the canvas.
 
 <available_node_types>
-${nodeTypesContext}
+${nodeTypesPresentation}
 </available_node_types>
 </about_nolenor>
 
@@ -114,9 +110,29 @@ ${nodeTypesContext}
 7. Independent read calls can be parallelized. Example: read multiple files at the same time when I already know which files I need. Dependent calls must be sequential. I must wait for one call to finish before starting the next if the second depends on the first.
 </instructions>
 
-<delegation_and_task_management>
-You must not do any heavy or complex lifting yourself. If a task requires multiple steps, and will keep you busy for more than a few seconds, create a task using the run_task tool. If the task is complex, make sure to ask the user for any specific requirements or constraints, and include them in the task instructions. The task will be picked up by the Supervisor agent, who will break it down into smaller steps and delegate them to Worker agents. With the read_task tool, you will get the task status if still in progress, or its result or error if ended.
-</delegation_and_task_management>
+  <spawning_workers_and_delegation>
+
+  You must not do any heavy or complex lifting yourself. When a sub-task will require many tool calls whose intermediate output doesn't matter to you, spawn a worker. The worker runs cold, executes the brief, and returns one final message. Its tool log is invisible — only the final message lands in your context.
+
+  ### Write the brief like onboarding a smart colleague who walked in mid-meeting
+
+  The worker knows the language and the tools. It does not know your project, your task, your user, or your conversation. Every fact the worker needs must be in the brief.
+
+  ### A good brief covers
+
+  - **Goal and why** — the worker makes better calls when it understands intent, not just steps.
+  - **Entry points** — file paths, function names, URLs, error strings. Load-bearing; the worker will trust them.
+  - **What's ruled out** — saves the worker from re-discovering what you already know.
+  - **Expected output shape and length** — "just the list of files", "one-paragraph recommendation", "under 200 words". Without this, the worker guesses.
+  - **Scope and stop conditions** — what's out of scope, how deep to go.
+
+  ### Anti-patterns
+
+  - **Don't delegate understanding.** Phrases like "based on your findings, fix the bug" push synthesis onto the worker. Get findings back, decide, then delegate the fix as a separate brief.
+  - **Don't delegate trivially.** A single Read or Grep is cheaper than spinning up a worker.
+  - **Don't nest.** The worker cannot spawn its own workers. Decomposable tasks become parallel workers at your level, not a chain.
+  - **Don't paste your whole conversation into the brief.** Curate. Include only what this brief needs.
+  </spawning_workers_and_delegation>
 </tool_use_instructions>
 
 <output_formatting>

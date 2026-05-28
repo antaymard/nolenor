@@ -116,6 +116,9 @@ export default function fullTextSearchTool({
     description:
       "Search exact tokens in the current canvas using full-text indexed chunks, every node type is searchable (pdf inclduded). Use this for precise lookup (names, acronyms, reference IDs, rare words). Returns compact snippets and metadata to quickly decide what to read next.",
     inputSchema: z.object({
+      explanation: z
+        .string()
+        .describe("3-5 words explaining the research intent."),
       query: z
         .string()
         .describe("The exact token or short phrase to search for."),
@@ -324,7 +327,8 @@ export default function fullTextSearchTool({
           return {
             nodeId: group.nodeId,
             nodeType: group.nodeType,
-            title: group.title ?? titlesByNodeId.get(group.nodeId) ?? "Untitled",
+            title:
+              group.title ?? titlesByNodeId.get(group.nodeId) ?? "Untitled",
             hitCount: group.hitCount,
             bestSnippet: best?.snippet,
             bestPage: best?.page,

@@ -5,6 +5,8 @@ import { RiLoaderLine } from "react-icons/ri";
 import { TbAlertCircle, TbCheck } from "react-icons/tb";
 import { cn } from "./utils";
 
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
+
 export const ChatInterface = memo(function ChatInterface({
   threadId,
   onRetry,
@@ -73,26 +75,40 @@ export const ChatInterface = memo(function ChatInterface({
     div.scrollTo({ top: div.scrollHeight, behavior });
   }, []);
 
+  const getDistanceFromBottom = useCallback(() => {
+    const div = scrollViewportRef.current;
+    if (!div) return 0;
+    return div.scrollHeight - div.scrollTop - div.clientHeight;
+  }, []);
+
   const checkIsAtBottom = useCallback(() => {
     const div = scrollViewportRef.current;
     if (!div) return true;
     return (
-      Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) < 1 ||
+      getDistanceFromBottom() <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX ||
       div.scrollHeight <= div.clientHeight
     );
-  }, []);
+  }, [getDistanceFromBottom]);
 
   const handleScroll = useCallback(() => {
     const div = scrollViewportRef.current;
     if (!div) return;
     const newIsAtBottom = checkIsAtBottom();
-    if (!newIsAtBottom && lastScrollTop.current < div.scrollTop) {
-      return;
-    }
-    if (newIsAtBottom) {
+    const isScrollingUp = div.scrollTop < lastScrollTop.current;
+
+    if (!newIsAtBottom && isScrollingUp) {
       scrollingToBottomRef.current = false;
     }
-    setIsAtBottom(newIsAtBottom);
+
+    if (!newIsAtBottom && lastScrollTop.current < div.scrollTop) {
+      // ignore scroll down
+    } else {
+      if (newIsAtBottom) {
+        scrollingToBottomRef.current = false;
+      }
+      setIsAtBottom(newIsAtBottom);
+    }
+
     lastScrollTop.current = div.scrollTop;
   }, [checkIsAtBottom]);
 
@@ -172,7 +188,9 @@ export const ChatInterface = memo(function ChatInterface({
           {showThinkingIndicator && (
             <div className="flex items-center gap-1.5 text-sm text-slate-400 px-2 py-1">
               <RiLoaderLine size={14} className="animate-spin" />
-              <span>{isAssistantThinking ? "Nole is thinking..." : "Waiting..."}</span>
+              <span>
+                {isAssistantThinking ? "Nole is thinking..." : "Waiting..."}
+              </span>
             </div>
           )}
           {showDone && !showThinkingIndicator && (
@@ -246,7 +264,9 @@ function ChatMessage({ message }: { message: UIMessage }) {
           if (partType === "reasoning") {
             return (
               <details key={idx} className="text-sm text-gray-400 ml-1">
-                <summary className="cursor-pointer">Nole is thinking...</summary>
+                <summary className="cursor-pointer">
+                  Nole is thinking...
+                </summary>
                 <div className="mt-1 pl-2 border-l-2 border-gray-200 text-gray-500 whitespace-pre-wrap">
                   {(part.text as string) || ""}
                 </div>
@@ -273,7 +293,8 @@ function ChatMessage({ message }: { message: UIMessage }) {
                 <div className="mt-1 pl-2 border-l-2 border-gray-200">
                   {part.args && (
                     <div className="text-gray-400 text-xs mb-1">
-                      Input: {JSON.stringify(part.args, null, 0).substring(0, 200)}
+                      Input:{" "}
+                      {JSON.stringify(part.args, null, 0).substring(0, 200)}
                     </div>
                   )}
                   {part.result && (

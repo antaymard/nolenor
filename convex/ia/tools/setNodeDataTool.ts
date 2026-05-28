@@ -18,11 +18,7 @@ export const setNodeDataToolConfig: ToolConfig = {
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value)
-  );
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export default function setNodeDataTool({
@@ -34,8 +30,11 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      "Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`).",
+      "Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document and table nodes, this replaces the validated payload directly. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`).",
     inputSchema: z.object({
+      explanation: z
+        .string()
+        .describe("3-5 words explaining the research intent."),
       nodeType: z
         .enum(nodeTypeValues)
         .describe("Type du node cible (doit correspondre au nodeId fourni)."),
@@ -48,17 +47,17 @@ export default function setNodeDataTool({
     }),
     execute: async (ctx, input): Promise<string> => {
       try {
-        if (input.nodeType === "document") {
-          return toolError(
-            "Cannot set document data: use insert_document_content or string_replace_document_content.",
-          );
-        }
+        // if (input.nodeType === "document") {
+        //   return toolError(
+        //     "Cannot set document data: use insert_document_content or string_replace_document_content.",
+        //   );
+        // }
 
-        if (input.nodeType === "table") {
-          return toolError(
-            "Cannot set table data: use table_insert_rows, table_delete_rows, or table_update_rows.",
-          );
-        }
+        // if (input.nodeType === "table") {
+        //   return toolError(
+        //     "Cannot set table data: use table_insert_rows, table_delete_rows, or table_update_rows.",
+        //   );
+        // }
 
         let parsedData: Record<string, unknown>;
         if (typeof input.data === "string") {

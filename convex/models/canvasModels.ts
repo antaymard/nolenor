@@ -167,13 +167,13 @@ export async function deleteCanvasAndShares(
     );
   }
 
-  const tasks = await ctx.db
-    .query("tasks")
-    .withIndex("by_canvasId_and_status", (q) => q.eq("canvasId", canvasId))
-    .collect();
-  for (const task of tasks) {
-    await ctx.db.delete(task._id);
-  }
+  // const tasks = await ctx.db
+  //   .query("tasks")
+  //   .withIndex("by_canvasId_and_status", (q) => q.eq("canvasId", canvasId))
+  //   .collect();
+  // for (const task of tasks) {
+  //   await ctx.db.delete(task._id);
+  // }
 
   await ctx.db.delete(canvasId);
   return canvasId;

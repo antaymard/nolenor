@@ -43,6 +43,9 @@ export default function memoryToolFactory({
     description:
       "Read or update persistent user or canvas memories. User and canvas memories are already loaded into the system prompt at the beginning of the session as a frozen snapshot. Use this tool to read or modify them so changes stay persisted for future sessions.",
     inputSchema: z.object({
+      explanation: z
+        .string()
+        .describe("3-5 words explaining the research intent."),
       action: z.enum(["add", "remove", "replace", "read"]),
       target: z.enum(["user", "canvas"]),
       content: z.string().optional().describe("Required for add and replace."),

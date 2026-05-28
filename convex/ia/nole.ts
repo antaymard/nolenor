@@ -3,6 +3,7 @@ import { mutation, query } from "../_generated/server";
 import { baseAgent, chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth } from "../lib/auth";
 import { internal } from "../_generated/api";
+import * as MessageMetadataModels from "../models/messageMetadataModels";
 
 export const vMetadata = v.optional(
   v.object({
@@ -37,7 +38,61 @@ export const saveMessage = mutation({
       prompt,
     });
 
-    // 2) Schedule the response generation in background.
+    // 2) Persist user-side metadata (attachments) extracted from messageContext.
+    const messageContext = metadata?.messageContext;
+    if (
+      messageContext &&
+      typeof messageContext === "object" &&
+      !Array.isArray(messageContext)
+    ) {
+      const mc = messageContext as Record<string, unknown>;
+      const attachedNodesRaw = Array.isArray(mc.attachedNodes)
+        ? (mc.attachedNodes as Array<Record<string, unknown>>)
+        : [];
+      const nodes = attachedNodesRaw
+        .filter(
+          (n) =>
+            typeof n.id === "string" &&
+            typeof n.type === "string" &&
+            typeof n.title === "string",
+        )
+        .map((n) => ({
+          id: n.id as string,
+          type: n.type as string,
+          title: n.title as string,
+        }));
+      const position =
+        mc.attachedPosition &&
+        typeof mc.attachedPosition === "object" &&
+        typeof (mc.attachedPosition as Record<string, unknown>).x ===
+          "number" &&
+        typeof (mc.attachedPosition as Record<string, unknown>).y === "number"
+          ? {
+              x: (mc.attachedPosition as { x: number }).x,
+              y: (mc.attachedPosition as { y: number }).y,
+            }
+          : undefined;
+      const pageRaw =
+        mc.attachedPage && typeof mc.attachedPage === "object"
+          ? (mc.attachedPage as Record<string, unknown>)
+          : undefined;
+      const page = pageRaw
+        ? {
+            title:
+              typeof pageRaw.title === "string" ? pageRaw.title : undefined,
+            url: typeof pageRaw.url === "string" ? pageRaw.url : undefined,
+          }
+        : undefined;
+
+      await MessageMetadataModels.recordUserAttachments(ctx, {
+        messageId: messageId,
+        threadId,
+        userId: authUserId,
+        attachments: { nodes, position, page },
+      });
+    }
+
+    // 3) Schedule the response generation in background.
     void ctx.scheduler.runAfter(0, internal.ia.noleCompletion.streamResponse, {
       authUserId: authUserId,
       threadId,

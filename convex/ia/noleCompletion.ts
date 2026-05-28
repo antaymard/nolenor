@@ -45,15 +45,20 @@ export const streamResponse = internalAction({
       ctx,
     });
 
+    // Init composio
     let composioTools = {};
     try {
       const composio = new Composio({ provider: new VercelProvider() });
       const session = await composio.create(authUserId);
       composioTools = sanitizeComposioTools(await session.tools());
     } catch (error) {
-      console.warn("Composio unavailable, continuing without external tools:", error);
+      console.warn(
+        "Composio unavailable, continuing without external tools:",
+        error,
+      );
     }
 
+    // Create agents and give it extra tools
     const noleAgent = createNoleAgent({
       model: metadata?.model ? getChatModel(metadata.model) : undefined,
       threadCtx: {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { optimisticallySendMessage } from "@convex-dev/agent/react";
 import { useReactFlow, useStore } from "@xyflow/react";
@@ -33,7 +33,10 @@ export function useNoleChat() {
   const modelOptions = useQuery(api.ia.nole.listChatModels, {});
 
   const [userInput, setUserInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState<ChatModelValues>();
+  const [manualModelSelection, setManualModelSelection] = useState<{
+    threadId: string;
+    model: ChatModelValues;
+  } | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -56,11 +59,29 @@ export function useNoleChat() {
   const isTranscribing = sttStatus === "transcribing";
   const sttBusy = isRecording || isTranscribing;
 
-  useEffect(() => {
-    if (!selectedModel && modelOptions && modelOptions.length > 0) {
-      setSelectedModel(modelOptions[0]?.value);
+  const threadMessageMetadata = useQuery(
+    api.messageMetadata.getThreadMessageMetadata,
+    threadId ? { threadId } : "skip",
+  );
+
+  const lastUsedModel = useMemo<ChatModelValues | undefined>(() => {
+    return threadMessageMetadata?.lastModelUsed as ChatModelValues | undefined;
+  }, [threadMessageMetadata]);
+
+  const selectedModel: ChatModelValues | undefined = useMemo(() => {
+    if (manualModelSelection && manualModelSelection.threadId === threadId) {
+      return manualModelSelection.model;
     }
-  }, [modelOptions, selectedModel]);
+    return lastUsedModel ?? modelOptions?.[0]?.value;
+  }, [manualModelSelection, threadId, lastUsedModel, modelOptions]);
+
+  const setSelectedModel = useCallback(
+    (model: ChatModelValues) => {
+      if (!threadId) return;
+      setManualModelSelection({ threadId, model });
+    },
+    [threadId],
+  );
 
   // isAssistantResponding is lifted from ChatInterface (which already
   // subscribes to useUIMessages) to avoid a duplicate streaming subscription

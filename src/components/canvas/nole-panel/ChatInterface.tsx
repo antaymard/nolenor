@@ -1,9 +1,11 @@
 import { useUIMessages, type UIMessage } from "@convex-dev/agent/react";
+import { useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RiLoaderLine } from "react-icons/ri";
 import { TbAlertCircle, TbCheck } from "react-icons/tb";
 import { cn } from "@/lib/utils";
+import type { Doc } from "@/../convex/_generated/dataModel";
 import { Message } from "./Message";
 import { extractUserMessageForDisplay } from "./chatHelpers";
 
@@ -27,6 +29,32 @@ const ChatInterface = memo(function ChatInterface({
     { threadId },
     { initialNumItems: 20, stream: true },
   );
+
+  const modelOptions = useQuery(api.ia.nole.listChatModels, {});
+  const messageMetadataList = useQuery(
+    api.messageMetadata.getThreadMessageMetadata,
+    threadId ? { threadId } : "skip",
+  );
+  const metadataByMessageId = useMemo(() => {
+    const map = new Map<string, Doc<"messageMetadata">>();
+    for (const m of messageMetadataList?.messageMetadata ?? []) {
+      map.set(m.messageId, m);
+    }
+    return map;
+  }, [messageMetadataList]);
+
+  const assistantMetadataByKey = useMemo(() => {
+    const assistantMeta = (messageMetadataList?.messageMetadata ?? [])
+      .filter((m) => m.role === "assistant")
+      .sort((a, b) => a._creationTime - b._creationTime);
+    const assistantMessages = messages.filter((m) => m.role === "assistant");
+    const map = new Map<string, Doc<"messageMetadata">>();
+    assistantMessages.forEach((msg, idx) => {
+      const meta = assistantMeta[idx];
+      if (meta) map.set(msg.key, meta);
+    });
+    return map;
+  }, [messages, messageMetadataList]);
 
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -182,7 +210,16 @@ const ChatInterface = memo(function ChatInterface({
               </button>
             )}
             {messages.map((m) => (
-              <Message key={m.key} message={m} />
+              <Message
+                key={m.key}
+                message={m}
+                metadata={
+                  m.role === "user"
+                    ? metadataByMessageId.get(m.id)
+                    : assistantMetadataByKey.get(m.key)
+                }
+                modelOptions={modelOptions}
+              />
             ))}
           </div>
         ) : (

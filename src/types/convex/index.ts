@@ -10,7 +10,7 @@ export * from "./canvas";
 export * from "./nodeData";
 
 // Forward selected shared Convex domain types to the frontend
-export type { ChatModelValues } from "@/../convex/ia/agents";
+export type { ChatModelValues, ChatModelOption } from "@/../convex/ia/agents";
 
 // Also re-export generated Convex types for convenience
 export type { Id, Doc } from "@/../convex/_generated/dataModel";

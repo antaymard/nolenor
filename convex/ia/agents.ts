@@ -9,12 +9,14 @@ import { toolAgentNames, type ThreadCtx } from "./agentConfig";
 import { getToolsForAgent } from "./tools";
 import { generateSupervisorSystemPrompt } from "./systemPrompts/supervisorSystemPrompt";
 
-type RawUsage = {
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-  cachedInputTokens?: number;
-} | undefined;
+type RawUsage =
+  | {
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+      cachedInputTokens?: number;
+    }
+  | undefined;
 
 function normalizeUsage(usage: RawUsage) {
   if (!usage) return undefined;
@@ -29,13 +31,14 @@ function normalizeUsage(usage: RawUsage) {
   };
 }
 
+// MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "OWL Alpha",
-    value: "openrouter/owl-alpha",
-    price: "Free",
+    label: "DeepSeek V4 Flash",
+    value: "deepseek/deepseek-v4-flash",
+    price: "0.14_0.28",
     isMultimodal: false,
-    maxContext: 1000000,
+    maxContext: 131072,
   },
   {
     label: "Tencent Hy3",
@@ -45,20 +48,6 @@ export const chatModelOptions = [
     maxContext: 260000,
   },
   {
-    label: "DeepSeek V4 Flash",
-    value: "deepseek/deepseek-v4-flash",
-    price: "0.14_0.28",
-    isMultimodal: false,
-    maxContext: 131072,
-  },
-  {
-    label: "Mistral Medium 3.5",
-    value: "mistralai/mistral-medium-3-5",
-    price: "1.50_7.50",
-    isMultimodal: true,
-    maxContext: 262144,
-  },
-  {
     label: "Laguna M.1 Free",
     value: "poolside/laguna-m.1:free",
     price: "Free",
@@ -66,17 +55,17 @@ export const chatModelOptions = [
     maxContext: 128000,
   },
   {
-    label: "Qwen 3.6 27B",
-    value: "qwen/qwen3.6-27b",
-    price: "0.32_3.20",
-    isMultimodal: false,
-    maxContext: 262000,
-  },
-  {
     label: "DeepSeek V4 Pro",
     value: "deepseek/deepseek-v4-pro",
     price: "0.435_0.87",
     isMultimodal: false,
+    maxContext: 1000000,
+  },
+  {
+    label: "Gemini 3.5 Flash",
+    value: "google/gemini-3.5-flash",
+    price: "1.50_9.00",
+    isMultimodal: true,
     maxContext: 1000000,
   },
 ] as const;
@@ -109,14 +98,15 @@ const defaultModels = {
   fast: openrouter("mistralai/mistral-small-2603"),
 };
 
+// AGENTS CONF =================================================================
+
+// Minimal agent used for utility operations (e.g. saveMessage) that don't require a specific model.
 export function createBaseAgent({ model }: { model?: LanguageModelV3 } = {}) {
   return new Agent(components.agent, {
     name: "base",
     languageModel: model ?? defaultModels.fast,
   });
 }
-
-// Minimal agent used for utility operations (e.g. saveMessage) that don't require a specific model.
 export const baseAgent = createBaseAgent();
 
 export function createNoleAgent({
@@ -131,7 +121,7 @@ export function createNoleAgent({
   const languageModel = model ?? defaultModels.nole;
   return new Agent(components.agent, {
     name: "Nolë",
-    stopWhen: stepCountIs(20),
+    stopWhen: stepCountIs(25),
     languageModel,
     tools: getToolsForAgent({
       agentName: toolAgentNames.nole,
@@ -168,7 +158,7 @@ export function createCloneAgent({
   const languageModel = model ?? defaultModels.nole;
   return new Agent(components.agent, {
     name: "Clone",
-    stopWhen: stepCountIs(20),
+    stopWhen: stepCountIs(25),
     languageModel,
     tools: getToolsForAgent({
       agentName: toolAgentNames.clone,
@@ -191,7 +181,7 @@ export function createSupervisorAgent({
   const languageModel = model ?? defaultModels.nole;
   return new Agent(components.agent, {
     name: "Supervisor",
-    stopWhen: stepCountIs(20),
+    stopWhen: stepCountIs(25),
     instructions: generateSupervisorSystemPrompt(),
     languageModel,
     tools: getToolsForAgent({
@@ -212,10 +202,10 @@ export function createWorkerAgent({
   extraTools?: ToolSet;
   model?: LanguageModelV3;
 }) {
-  const languageModel = model ?? defaultModels.fast;
+  const languageModel = model ?? defaultModels.nole;
   return new Agent(components.agent, {
     name: "Worker",
-    stopWhen: stepCountIs(20),
+    stopWhen: stepCountIs(15),
     languageModel,
     tools: getToolsForAgent({
       agentName: toolAgentNames.worker,
@@ -226,6 +216,7 @@ export function createWorkerAgent({
   });
 }
 
+// TO DEP
 export function createAutomationAgent({
   model,
   threadCtx,

@@ -158,6 +158,9 @@ export default function createNodeTool({
       "Create an empty node you can then populate with data or manipulate using other tools.",
     inputSchema: z.object({
       nodeType: nodeTypeZodValidator.describe("Type of the node."),
+      explanation: z
+        .string()
+        .describe("3-5 words explaining the research intent."),
       position: z
         .object({
           x: z.number(),

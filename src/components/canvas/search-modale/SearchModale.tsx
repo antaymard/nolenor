@@ -23,6 +23,7 @@ type SearchResult = {
   type: string;
   nodeId: string;
   nodeDataId: Id<"nodeDatas">;
+  title?: string;
   images: Array<{
     imageUrl: string;
     page?: number;
@@ -268,7 +269,8 @@ function ResultCard({
   onOpenWindow: () => void;
   onToggleAttachment: () => void;
 }) {
-  const nodeTitle = useNodeDataTitle(result.nodeDataId);
+  const fallbackTitle = useNodeDataTitle(result.nodeDataId);
+  const nodeTitle = result.title ?? fallbackTitle;
   const closeSearchModal = useCanvasStore((state) => state.closeSearchModal);
   const { fitView } = useReactFlow();
   const isAttachedToNole = useIsNodeAttached(result.nodeId);

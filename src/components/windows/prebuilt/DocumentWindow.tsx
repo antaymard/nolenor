@@ -9,6 +9,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
 import { Spinner } from "@/components/shadcn/spinner";
+import { PlateErrorBoundary } from "@/components/plate/PlateErrorBoundary";
 
 interface DocumentWindowProps {
   xyNodeId: string;
@@ -122,15 +123,17 @@ function DocumentWindow({
 
   return (
     <div className="relative h-full w-full">
-      <DocumentEditorField
-        ref={editorRef}
-        editorId={xyNodeId}
-        value={editorValue}
-        onChange={handleSave}
-        isLocked={isLocked}
-        onDirtyChange={setIsDirty}
-        onDocChange={onDocChange}
-      />
+      <PlateErrorBoundary resetKey={docSource}>
+        <DocumentEditorField
+          ref={editorRef}
+          editorId={xyNodeId}
+          value={editorValue}
+          onChange={handleSave}
+          isLocked={isLocked}
+          onDirtyChange={setIsDirty}
+          onDocChange={onDocChange}
+        />
+      </PlateErrorBoundary>
       {!isEditorReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/65">
           <span className="flex items-center gap-2 text-sm text-slate-500">

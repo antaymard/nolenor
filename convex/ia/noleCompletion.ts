@@ -45,13 +45,14 @@ export const streamResponse = internalAction({
       ctx,
     });
 
-    const composio = new Composio({
-      provider: new VercelProvider(),
-    });
-    const userId = authUserId;
-
-    const session = await composio.create(userId);
-    const composioTools = sanitizeComposioTools(await session.tools());
+    let composioTools = {};
+    try {
+      const composio = new Composio({ provider: new VercelProvider() });
+      const session = await composio.create(authUserId);
+      composioTools = sanitizeComposioTools(await session.tools());
+    } catch (error) {
+      console.warn("Composio unavailable, continuing without external tools:", error);
+    }
 
     const noleAgent = createNoleAgent({
       model: metadata?.model ? getChatModel(metadata.model) : undefined,

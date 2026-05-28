@@ -22,7 +22,6 @@ import memoryToolFactory, { memoryToolConfig } from "./memoryTool";
 import { openWebPageTool, openWebPageToolConfig } from "./openWebPageTool";
 import { viewImageTool, viewImageToolConfig } from "./viewImageTool";
 import readNodesTool, { readNodesToolConfig } from "./readNodesTool";
-import runSubagent, { runSubagentToolConfig } from "./runSubagent";
 import setNodeDataTool, { setNodeDataToolConfig } from "./setNodeDataTool";
 import tableDeleteRowsTool, {
   tableDeleteRowsToolConfig,
@@ -38,8 +37,7 @@ import tableUpdateSchemaTool, {
 } from "./tableUpdateSchemaTool";
 import { type ToolConfig } from "./toolHelpers";
 import { websearchTool, websearchToolConfig } from "./websearchTool";
-import { runTaskTool, runTaskToolConfig } from "./runTaskTool";
-import { readTaskTool, readTaskToolConfig } from "./readTaskTool";
+import executeTaskTool, { executeTaskToolConfig } from "./executeTaskTool";
 
 type AgentTool = ToolSet[string];
 
@@ -87,11 +85,6 @@ const toolRegistry: ToolRegistration[] = [
     factory: () => websearchTool,
   },
   {
-    config: runSubagentToolConfig,
-    factory: ({ agentName, threadCtx }) =>
-      runSubagent({ currentAgent: agentName, threadCtx }),
-  },
-  {
     config: documentStringReplaceContentToolConfig,
     factory: ({ threadCtx }) => documentStringReplaceContentTool({ threadCtx }),
   },
@@ -128,12 +121,8 @@ const toolRegistry: ToolRegistration[] = [
     factory: ({ threadCtx }) => setNodeDataTool({ threadCtx }),
   },
   {
-    config: runTaskToolConfig,
-    factory: ({ threadCtx }) => runTaskTool({ threadCtx }),
-  },
-  {
-    config: readTaskToolConfig,
-    factory: ({ threadCtx }) => readTaskTool({ threadCtx }),
+    config: executeTaskToolConfig,
+    factory: ({ threadCtx }) => executeTaskTool({ threadCtx }),
   },
   {
     config: loadSkillToolConfig,

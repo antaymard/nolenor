@@ -91,6 +91,7 @@ export const fullTextSearch = internalQuery({
         ),
         order: v.number(),
         text: v.string(),
+        title: v.optional(v.string()),
         page: v.optional(v.number()),
         sectionTitle: v.optional(v.string()),
       }),

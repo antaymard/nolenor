@@ -7,7 +7,7 @@ import { sharesValidator } from "./schemas/sharesSchema";
 import { memoriesValidator } from "./schemas/memoriesSchema";
 import { searchableChunksValidator } from "./schemas/searchableChunksSchema";
 import { wishlistEmailsValidator } from "./schemas/wishlistEmailsSchema";
-import { tasksValidator } from "./schemas/tasksSchema";
+import { taskExecutionsValidator } from "./schemas/taskExecutionsSchema";
 import { skillsValidator } from "./schemas/skillsSchema";
 import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
@@ -57,17 +57,19 @@ const schema = defineSchema({
     .searchIndex("search_text", {
       searchField: "text",
       filterFields: ["canvasId", "nodeDataId", "nodeType", "chunkType"],
+    })
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["canvasId", "nodeDataId", "nodeType", "chunkType"],
     }),
 
   wishlistEmails: defineTable(wishlistEmailsValidator).index("by_email", [
     "email",
   ]),
 
-  tasks: defineTable(tasksValidator)
-    .index("by_threadId", ["threadId"])
-    .index("by_canvasId_and_status", ["canvasId", "status"])
-    .index("by_nodeId", ["nodeId"])
-    .index("by_taskId", ["id"]),
+  taskExecutions: defineTable(taskExecutionsValidator).index("by_threadId", [
+    "threadId",
+  ]),
   // ============================================================================
   // SKILLS
   // ============================================================================

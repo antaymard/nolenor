@@ -18,6 +18,7 @@ import type { Components } from "react-markdown";
 import type { Doc } from "@/../convex/_generated/dataModel";
 import type { ChatModelOption } from "@/types/convex";
 import { getModelLabel } from "@/lib/getModelLabel";
+import { extractUserMessageForDisplay } from "./chatHelpers";
 
 type ToolPartState = "input-streaming" | "output-available" | "output-error";
 
@@ -36,9 +37,7 @@ const markdownComponents: Components = {
     if (href?.startsWith("#node-")) {
       const nodeId = href.replace("#node-", "");
       // children = le texte d'origine, utilisé en fallback si aucun node ne matche.
-      return (
-        <MentionedNodeCard nodeId={nodeId} inline fallback={children} />
-      );
+      return <MentionedNodeCard nodeId={nodeId} inline fallback={children} />;
     }
     return (
       <a
@@ -167,7 +166,8 @@ function UserMessageAttachments({
   attachments: NonNullable<Doc<"messageMetadata">["attachments"]>;
 }) {
   const nodes = attachments.nodes ?? [];
-  const hasAny = nodes.length > 0 || !!attachments.position || !!attachments.page;
+  const hasAny =
+    nodes.length > 0 || !!attachments.position || !!attachments.page;
   if (!hasAny) return null;
 
   return (
@@ -177,8 +177,8 @@ function UserMessageAttachments({
       ))}
       {attachments.position ? (
         <span className="inline-flex items-center gap-1 rounded-sm border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600">
-          <LuMousePointerClick size={11} />
-          ({Math.round(attachments.position.x)}, {Math.round(attachments.position.y)})
+          <LuMousePointerClick size={11} />({Math.round(attachments.position.x)}
+          , {Math.round(attachments.position.y)})
         </span>
       ) : null}
       {attachments.page && (attachments.page.title || attachments.page.url) ? (
@@ -239,7 +239,7 @@ const ReasoningPartRenderer = memo(function ReasoningPartRenderer({
   part: { type: "reasoning"; text: string; state?: "streaming" | "done" };
 }) {
   const isStreaming = part.state === "streaming";
-  const [isExpanded, setIsExpanded] = useState(isStreaming);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [visibleText] = useSmoothText(part.text ?? "", {
     startStreaming: isStreaming,
   });
@@ -299,12 +299,16 @@ const ToolPlaceholder = memo(function ToolPlaceholder({
   output?: unknown;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const label =
-    state === "input-streaming"
-      ? "Tool en cours d'execution"
-      : state === "output-error"
-        ? `Tool en erreur: ${name}`
-        : `Tool execute: ${name}`;
+  const explanation = getToolExplanation(input);
+  const primaryLabel = explanation ?? getToolFallbackLabel(state, name);
+  const primaryLabelClassName = cn(
+    "truncate text-sm",
+    state === "output-error" ? "text-red-700" : "text-slate-800",
+  );
+  const secondaryLabelClassName = cn(
+    "font-mono text-[11px]",
+    state === "output-error" ? "text-red-500" : "text-slate-500",
+  );
 
   const hasDebugData = input !== undefined || output !== undefined || !!error;
 
@@ -317,18 +321,27 @@ const ToolPlaceholder = memo(function ToolPlaceholder({
     <div className="py-2 rounded border border-slate-300 bg-slate-50 p-2 text-xs text-slate-700">
       <button
         type="button"
-        className="w-full flex items-center gap-1 text-left"
+        className="w-full flex items-start gap-2 text-left"
         onClick={() => setIsExpanded((prev) => !prev)}
       >
-        <TbTool
-          size={12}
-          className={cn(state === "input-streaming" && "animate-pulse")}
-        />
-        <span>{label}</span>
+        {state === "input-streaming" ? (
+          <RiLoaderLine
+            size={14}
+            className="mt-0.5 shrink-0 animate-spin text-slate-400"
+          />
+        ) : state === "output-error" ? (
+          <TbAlertCircle size={14} className="mt-0.5 shrink-0 text-red-500" />
+        ) : (
+          <TbTool size={14} className="mt-0.5 shrink-0 text-slate-500" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className={primaryLabelClassName}>{primaryLabel}</div>
+          <div className={secondaryLabelClassName}>{name}</div>
+        </div>
         <TbChevronDown
           size={12}
           className={cn(
-            "ml-auto transition-transform",
+            "mt-0.5 ml-auto shrink-0 transition-transform",
             isExpanded && "rotate-180",
           )}
         />
@@ -391,6 +404,27 @@ function ErrorInline({
 function getMessageErrorText(message: UIMessage): string | undefined {
   const candidate = message as unknown as Record<string, unknown>;
   return readErrorLike(candidate.error);
+}
+
+function getToolExplanation(input: unknown): string | undefined {
+  if (!isRecord(input) || typeof input.explanation !== "string") {
+    return undefined;
+  }
+
+  const explanation = input.explanation.trim();
+  return explanation || undefined;
+}
+
+function getToolFallbackLabel(state: ToolPartState, name: string): string {
+  if (state === "input-streaming") {
+    return `Tool en cours: ${name}`;
+  }
+
+  if (state === "output-error") {
+    return `Tool en erreur: ${name}`;
+  }
+
+  return `Tool execute: ${name}`;
 }
 
 function getToolPartErrorText(
@@ -470,15 +504,6 @@ function stringifyForDebug(value: unknown): string {
   } catch {
     return String(value);
   }
-}
-
-export function extractUserMessageForDisplay(text: string): string {
-  const match = /<user_message>\s*([\s\S]*?)\s*<\/user_message>/i.exec(text);
-  if (!match) {
-    return text;
-  }
-
-  return match[1] ?? text;
 }
 
 export const TextPartRenderer = memo(function TextPartRenderer({

@@ -5,8 +5,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RiLoaderLine } from "react-icons/ri";
 import { TbAlertCircle, TbCheck } from "react-icons/tb";
 import { cn } from "@/lib/utils";
-import { extractUserMessageForDisplay, Message } from "./Message";
 import type { Doc } from "@/../convex/_generated/dataModel";
+import { Message } from "./Message";
+import { extractUserMessageForDisplay } from "./chatHelpers";
+
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
 
 const ChatInterface = memo(function ChatInterface({
   threadId,
@@ -88,20 +91,31 @@ const ChatInterface = memo(function ChatInterface({
     div.scrollTo({ top: div.scrollHeight, behavior });
   }, []);
 
+  const getDistanceFromBottom = useCallback(() => {
+    const div = scrollViewportRef.current;
+    if (!div) return 0;
+    return div.scrollHeight - div.scrollTop - div.clientHeight;
+  }, []);
+
   const checkIsAtBottom = useCallback(() => {
     const div = scrollViewportRef.current;
     if (!div) return true;
     return (
-      Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) < 1 ||
+      getDistanceFromBottom() <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX ||
       div.scrollHeight <= div.clientHeight
     );
-  }, []);
+  }, [getDistanceFromBottom]);
 
   const handleScroll = useCallback(() => {
     const div = scrollViewportRef.current;
     if (!div) return;
 
     const newIsAtBottom = checkIsAtBottom();
+    const isScrollingUp = div.scrollTop < lastScrollTop.current;
+
+    if (!newIsAtBottom && isScrollingUp) {
+      scrollingToBottomRef.current = false;
+    }
 
     // Ne pas mettre a jour isAtBottom si on scrolle vers le bas
     if (!newIsAtBottom && lastScrollTop.current < div.scrollTop) {

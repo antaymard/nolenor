@@ -19,6 +19,7 @@ export const search = query({
       type: v.string(),
       nodeId: v.string(),
       nodeDataId: v.id("nodeDatas"),
+      title: v.optional(v.string()),
       images: v.array(
         v.object({
           imageUrl: v.string(),
@@ -45,13 +46,27 @@ export const search = query({
     // Vérifier l'accès au canvas
     await requireCanvasAccess(ctx, args.canvasId, authUserId); // viewer required
 
-    // Rechercher les chunks correspondants
-    const results = await ctx.db
-      .query("searchableChunks")
-      .withSearchIndex("search_text", (q) =>
-        q.search("text", args.query).eq("canvasId", args.canvasId),
-      )
-      .take(MAX_MATCHING_CHUNKS);
+    // Rechercher les chunks correspondants dans le contenu ET dans le titre
+    const [textHits, titleHits] = await Promise.all([
+      ctx.db
+        .query("searchableChunks")
+        .withSearchIndex("search_text", (q) =>
+          q.search("text", args.query).eq("canvasId", args.canvasId),
+        )
+        .take(MAX_MATCHING_CHUNKS),
+      ctx.db
+        .query("searchableChunks")
+        .withSearchIndex("search_title", (q) =>
+          q.search("title", args.query).eq("canvasId", args.canvasId),
+        )
+        .take(MAX_MATCHING_CHUNKS),
+    ]);
+
+    const results = Array.from(
+      new Map(
+        [...textHits, ...titleHits].map((chunk) => [chunk._id, chunk] as const),
+      ).values(),
+    );
 
     const groupedByNodeId = new Map<string, typeof results>();
     for (const chunk of results) {
@@ -67,6 +82,7 @@ export const search = query({
       type: chunks[0].nodeType,
       nodeId,
       nodeDataId: chunks[0].nodeDataId,
+      title: chunks[0].title,
       images: Array.from(
         new Map(
           chunks

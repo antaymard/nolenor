@@ -8,6 +8,8 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { useReactFlow, type Node } from "@xyflow/react";
+import { useMutation } from "convex/react";
+import { useParams } from "@tanstack/react-router";
 
 import {
   RiAlignItemLeftLine,
@@ -23,8 +25,11 @@ import {
   TbKeyframeAlignCenter,
   TbPalette,
   TbPhoto,
+  TbSpaces,
 } from "react-icons/tb";
 import { MdOutlineFitScreen } from "react-icons/md";
+import { api } from "@/../convex/_generated/api";
+import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
@@ -41,8 +46,14 @@ export default function SelectionContextMenu({
   elements: Node[] | object | null;
 }) {
   const { deleteElements, updateNode } = useReactFlow();
-  const { updateCanvasNode } = useUpdateCanvasNode();
+  const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
   const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
+    from: "/canvas/$canvasId",
+  });
+  const updatePositionOrDimensions = useMutation(
+    api.canvasNodes.updatePositionOrDimensions,
+  );
   const availableColors = Object.entries(colors);
 
   const imageNodes = Array.isArray(elements)
@@ -51,6 +62,83 @@ export default function SelectionContextMenu({
       )
     : [];
   const canMergeImages = imageNodes.length >= 2;
+
+  // Variants common to all selected nodes. We match on the user-facing
+  // label, not the raw key: the same appearance ("Preview", "Title") can
+  // live under different keys per type — e.g. it's the `default` key on
+  // document/table but the `preview` key on embed/app.
+  const elementsArray = Array.isArray(elements) ? elements : [];
+  const labelToKeyPerNode = elementsArray.map(
+    (node) =>
+      new Map(
+        Object.entries(
+          prebuiltNodesConfig.find((c) => c.node.type === node.type)
+            ?.variants ?? {},
+        ).map(([key, v]) => [v.label, key]),
+      ),
+  );
+  const commonVariantLabels =
+    labelToKeyPerNode.length === 0
+      ? []
+      : [...labelToKeyPerNode[0].keys()].filter((label) =>
+          labelToKeyPerNode.every((m) => m.has(label)),
+        );
+
+  async function applyVariantToSelection(label: string) {
+    if (!Array.isArray(elements) || elements.length === 0) return;
+
+    // Resolve each node's own variant key (and dimensions) from the label.
+    const changes = elements
+      .map((node) => {
+        const variants = prebuiltNodesConfig.find(
+          (c) => c.node.type === node.type,
+        )?.variants;
+        if (!variants) return null;
+        const entry = Object.entries(variants).find(
+          ([, v]) => v.label === label,
+        );
+        if (!entry) return null;
+        const [variantKey, variantConfig] = entry;
+        return {
+          nodeId: node.id,
+          variantKey,
+          dimensions: {
+            width: variantConfig.defaultWidth,
+            height: variantConfig.defaultHeight,
+          },
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
+
+    if (changes.length === 0) return;
+
+    // Mark resizing locally to shield the new size from the Convex →
+    // ReactFlow sync until the mutation lands (mirrors NodeContextMenu).
+    changes.forEach(({ nodeId, dimensions }) => {
+      updateNode(nodeId, {
+        width: dimensions.width,
+        height: dimensions.height,
+        resizing: true,
+      });
+    });
+
+    void updateCanvasNodes(
+      changes.map(({ nodeId, variantKey }) => ({
+        nodeId,
+        props: { variant: variantKey },
+      })),
+    );
+
+    await updatePositionOrDimensions({
+      canvasId,
+      nodeChanges: changes.map(({ nodeId, dimensions }) => ({
+        id: nodeId,
+        dimensions,
+      })),
+    });
+
+    changes.forEach(({ nodeId }) => updateNode(nodeId, { resizing: false }));
+  }
 
   async function mergeImageNodes() {
     if (!canMergeImages) return;
@@ -276,6 +364,29 @@ export default function SelectionContextMenu({
           </DropdownMenuSubContent>
         </DropdownMenuPortal>
       </DropdownMenuSub> */}
+
+      {/* Variant */}
+      {commonVariantLabels.length > 0 && (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="whitespace-nowrap">
+            <TbSpaces size={16} /> Appearance
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {commonVariantLabels.map((label) => (
+              <DropdownMenuItem
+                className="whitespace-nowrap"
+                key={label}
+                onClick={() => {
+                  void applyVariantToSelection(label);
+                  closeMenu();
+                }}
+              >
+                {label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )}
 
       {/* Couleur */}
       <DropdownMenuSub>

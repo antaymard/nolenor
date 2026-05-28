@@ -82,7 +82,7 @@ export async function addCanvasNodes(
     );
   }
 
-  console.log(`✅ Added ${canvasNodes.length} nodes to canvas ${canvasId}`);
+  // console.log(`✅ Added ${canvasNodes.length} nodes to canvas ${canvasId}`);
 
   return true;
 }
@@ -128,9 +128,9 @@ export async function updatePositionOrDimensions(
 
   const changedNodeIds = nodeChanges.map((change) => change.id).join(", ");
 
-  console.log(
-    `✅ Updated position/dimensions for ${nodeChanges.length} nodes in canvas ${canvasId} (nodeIds: ${changedNodeIds})`,
-  );
+  // console.log(
+  //   `✅ Updated position/dimensions for ${nodeChanges.length} nodes in canvas ${canvasId} (nodeIds: ${changedNodeIds})`,
+  // );
 
   return true;
 }
@@ -191,9 +191,9 @@ export async function updateCanvasNodes(
     updatedAt: Date.now(),
   });
 
-  console.log(
-    `✅ Updated display props for ${nodeProps.length} nodes in canvas ${canvasId}`,
-  );
+  // console.log(
+  //   `✅ Updated display props for ${nodeProps.length} nodes in canvas ${canvasId}`,
+  // );
 
   return true;
 }
@@ -245,9 +245,9 @@ export async function removeCanvasNodes(
     );
   }
 
-  console.log(
-    `✅ Removed ${nodeCanvasIds.length} nodes from canvas ${canvasId}`,
-  );
+  // console.log(
+  //   `✅ Removed ${nodeCanvasIds.length} nodes from canvas ${canvasId}`,
+  // );
 
   return true;
 }
@@ -311,9 +311,9 @@ export async function moveToCanvas(
     });
   }
 
-  console.log(
-    `✅ Moved ${nodeCanvasIds.length} nodes from canvas ${sourceCanvasId} to canvas ${targetCanvasId}`,
-  );
+  // console.log(
+  //   `✅ Moved ${nodeCanvasIds.length} nodes from canvas ${sourceCanvasId} to canvas ${targetCanvasId}`,
+  // );
 
   return true;
 }

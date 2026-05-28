@@ -31,7 +31,9 @@ export default function executeTaskTool({
     
     Brief format: state the goal and why it matters; cite concrete entry points (nodes, symbols, URLs); say what's already known or ruled out; specify the shape and length of the answer expected; specify the output format (node or message); cap scope and depth when relevant.
     
-    Trust but verify: the worker's final message describes what it intended to do, not necessarily what it did. If it wrote or edited files, check the diff before acting on the report.`,
+    Trust but verify: the worker's final message describes what it intended to do, not necessarily what it did. If it wrote or edited files, check the diff before acting on the report.
+    
+    Feel free to call this tool multiple times in parallel with different briefs, when the tasks are independent and can be done in any order. For dependent tasks, break them down and call sequentially with updated briefs based on the previous worker's report.`,
     inputSchema: z.object({
       instructions: z.string().describe("Instructions for the subtask to run."),
     }),

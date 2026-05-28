@@ -398,6 +398,9 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
       `For table nodes, by default returns the first ${TABLE_DEFAULT_ROW_LIMIT} rows along with column definitions (incl. select options and node references). ` +
       "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after full_text_search to read matched rows).",
     inputSchema: z.object({
+      explanation: z
+        .string()
+        .describe("3-5 words explaining the research intent."),
       nodeIds: z
         .array(z.string())
         .min(1)

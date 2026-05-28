@@ -3,6 +3,8 @@ import { internal } from "../../_generated/api";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
+import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
+import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
 import z from "zod";
 import { ToolConfig, toolError } from "./toolHelpers";
 
@@ -30,7 +32,7 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      "Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document and table nodes, this replaces the validated payload directly. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`).",
+      "Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: \"<markdown>\" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.",
     inputSchema: z.object({
       explanation: z
         .string()
@@ -47,17 +49,11 @@ export default function setNodeDataTool({
     }),
     execute: async (ctx, input): Promise<string> => {
       try {
-        // if (input.nodeType === "document") {
-        //   return toolError(
-        //     "Cannot set document data: use insert_document_content or string_replace_document_content.",
-        //   );
-        // }
-
-        // if (input.nodeType === "table") {
-        //   return toolError(
-        //     "Cannot set table data: use table_insert_rows, table_delete_rows, or table_update_rows.",
-        //   );
-        // }
+        if (input.nodeType === "table") {
+          return toolError(
+            "Cannot set table data: use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.",
+          );
+        }
 
         let parsedData: Record<string, unknown>;
         if (typeof input.data === "string") {
@@ -115,6 +111,20 @@ export default function setNodeDataTool({
         });
         if (validationError) {
           return toolError(validationError);
+        }
+
+        // Documents receive markdown in `doc` from the LLM; convert it to the
+        // PlateJS structure and serialize it before saving (same cycle used by
+        // insert_document_content / string_replace_document_content).
+        if (input.nodeType === "document") {
+          const markdown =
+            typeof valuesToWrite.doc === "string" ? valuesToWrite.doc : "";
+          valuesToWrite = {
+            ...valuesToWrite,
+            doc: stringifyPlateDocumentForStorage(
+              await markdownToPlateJson(markdown),
+            ),
+          };
         }
 
         await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {

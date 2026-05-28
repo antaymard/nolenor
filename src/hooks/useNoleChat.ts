@@ -14,12 +14,16 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoleThread } from "@/hooks/useNoleThread";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { getCanvasNodeTitle } from "@/lib/getCanvasNodeTitle";
-import {
-  generateMessageContext,
-} from "@/components/canvas/nole-panel/messageContextGenerator";
+import { generateMessageContext } from "@/components/canvas/nole-panel/messageContextGenerator";
 
 export function useNoleChat() {
-  const { threadId: initialThreadId, isLoading, resetThread } = useNoleThread();
+  const {
+    threadId: initialThreadId,
+    isLoading,
+    resetThread,
+  } = useNoleThread({
+    subscribeToLatestThread: false,
+  });
   const { canvasId } = useParams({ strict: false }) as {
     canvasId?: Id<"canvases">;
   };
@@ -111,8 +115,11 @@ export function useNoleChat() {
     }
 
     const prompt = userInput;
-    const { x: viewportX, y: viewportY, zoom: viewportZoom } =
-      reactFlow.getViewport();
+    const {
+      x: viewportX,
+      y: viewportY,
+      zoom: viewportZoom,
+    } = reactFlow.getViewport();
     const messageContext = generateMessageContext({
       nodes: reactFlow.getNodes() as CanvasNode[],
       openedNodeIds: openedWindows.map((openedWindow) => openedWindow.xyNodeId),

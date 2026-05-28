@@ -1,7 +1,7 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import Parallel from "parallel-web";
-import { ToolConfig, toolError } from "./toolHelpers";
+import { type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames } from "../agentConfig";
 
 export const openWebPageToolConfig: ToolConfig = {

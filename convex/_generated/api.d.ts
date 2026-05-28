@@ -33,14 +33,16 @@ import type * as ia_helpers_plateMarkdownConverter from "../ia/helpers/plateMark
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
 import type * as ia_nole from "../ia/nole.js";
 import type * as ia_noleCompletion from "../ia/noleCompletion.js";
-import type * as ia_subagentRuntime from "../ia/subagentRuntime.js";
 import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/noleSystemPrompt.js";
 import type * as ia_systemPrompts_supervisorSystemPrompt from "../ia/systemPrompts/supervisorSystemPrompt.js";
+import type * as ia_systemPrompts_systemParts from "../ia/systemPrompts/systemParts.js";
+import type * as ia_systemPrompts_workerSystemPrompt from "../ia/systemPrompts/workerSystemPrompt.js";
 import type * as ia_tools__toolTemplate from "../ia/tools/_toolTemplate.js";
 import type * as ia_tools_createConnectionTool from "../ia/tools/createConnectionTool.js";
 import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
 import type * as ia_tools_documentInsertContentTool from "../ia/tools/documentInsertContentTool.js";
 import type * as ia_tools_documentStringReplaceContentTool from "../ia/tools/documentStringReplaceContentTool.js";
+import type * as ia_tools_executeTaskTool from "../ia/tools/executeTaskTool.js";
 import type * as ia_tools_fullTextSearchTool from "../ia/tools/fullTextSearchTool.js";
 import type * as ia_tools_index from "../ia/tools/index.js";
 import type * as ia_tools_listNodesTool from "../ia/tools/listNodesTool.js";
@@ -49,9 +51,6 @@ import type * as ia_tools_memoryTool from "../ia/tools/memoryTool.js";
 import type * as ia_tools_openWebPageTool from "../ia/tools/openWebPageTool.js";
 import type * as ia_tools_patchAppNodeCodeTool from "../ia/tools/patchAppNodeCodeTool.js";
 import type * as ia_tools_readNodesTool from "../ia/tools/readNodesTool.js";
-import type * as ia_tools_readTaskTool from "../ia/tools/readTaskTool.js";
-import type * as ia_tools_runSubagent from "../ia/tools/runSubagent.js";
-import type * as ia_tools_runTaskTool from "../ia/tools/runTaskTool.js";
 import type * as ia_tools_setNodeDataTool from "../ia/tools/setNodeDataTool.js";
 import type * as ia_tools_tableDeleteRowsTools from "../ia/tools/tableDeleteRowsTools.js";
 import type * as ia_tools_tableInsertRowsTool from "../ia/tools/tableInsertRowsTool.js";
@@ -60,6 +59,7 @@ import type * as ia_tools_tableUpdateSchemaTool from "../ia/tools/tableUpdateSch
 import type * as ia_tools_toolHelpers from "../ia/tools/toolHelpers.js";
 import type * as ia_tools_viewImageTool from "../ia/tools/viewImageTool.js";
 import type * as ia_tools_websearchTool from "../ia/tools/websearchTool.js";
+import type * as ia_worker from "../ia/worker.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_getNodeDataTitle from "../lib/getNodeDataTitle.js";
 import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
@@ -78,7 +78,6 @@ import type * as models_memoryModels from "../models/memoryModels.js";
 import type * as models_nodeDataModels from "../models/nodeDataModels.js";
 import type * as models_searchableChunkModels from "../models/searchableChunkModels.js";
 import type * as models_skillModels from "../models/skillModels.js";
-import type * as models_taskModels from "../models/taskModels.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
@@ -89,7 +88,7 @@ import type * as schemas_searchableChunksSchema from "../schemas/searchableChunk
 import type * as schemas_sharesSchema from "../schemas/sharesSchema.js";
 import type * as schemas_skillAttachmentsSchema from "../schemas/skillAttachmentsSchema.js";
 import type * as schemas_skillsSchema from "../schemas/skillsSchema.js";
-import type * as schemas_tasksSchema from "../schemas/tasksSchema.js";
+import type * as schemas_taskExecutionsSchema from "../schemas/taskExecutionsSchema.js";
 import type * as schemas_wishlistEmailsSchema from "../schemas/wishlistEmailsSchema.js";
 import type * as searchableChunks from "../searchableChunks.js";
 import type * as searchable_chunkBuilder from "../searchable/chunkBuilder.js";
@@ -107,7 +106,6 @@ import type * as wrappers_memoryWrappers from "../wrappers/memoryWrappers.js";
 import type * as wrappers_nodeDataWrappers from "../wrappers/nodeDataWrappers.js";
 import type * as wrappers_searchableChunkWrappers from "../wrappers/searchableChunkWrappers.js";
 import type * as wrappers_skillWrappers from "../wrappers/skillWrappers.js";
-import type * as wrappers_taskWrappers from "../wrappers/taskWrappers.js";
 import type * as wrappers_userWrappers from "../wrappers/userWrappers.js";
 
 import type {
@@ -142,14 +140,16 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
   "ia/nole": typeof ia_nole;
   "ia/noleCompletion": typeof ia_noleCompletion;
-  "ia/subagentRuntime": typeof ia_subagentRuntime;
   "ia/systemPrompts/noleSystemPrompt": typeof ia_systemPrompts_noleSystemPrompt;
   "ia/systemPrompts/supervisorSystemPrompt": typeof ia_systemPrompts_supervisorSystemPrompt;
+  "ia/systemPrompts/systemParts": typeof ia_systemPrompts_systemParts;
+  "ia/systemPrompts/workerSystemPrompt": typeof ia_systemPrompts_workerSystemPrompt;
   "ia/tools/_toolTemplate": typeof ia_tools__toolTemplate;
   "ia/tools/createConnectionTool": typeof ia_tools_createConnectionTool;
   "ia/tools/createNodeTool": typeof ia_tools_createNodeTool;
   "ia/tools/documentInsertContentTool": typeof ia_tools_documentInsertContentTool;
   "ia/tools/documentStringReplaceContentTool": typeof ia_tools_documentStringReplaceContentTool;
+  "ia/tools/executeTaskTool": typeof ia_tools_executeTaskTool;
   "ia/tools/fullTextSearchTool": typeof ia_tools_fullTextSearchTool;
   "ia/tools/index": typeof ia_tools_index;
   "ia/tools/listNodesTool": typeof ia_tools_listNodesTool;
@@ -158,9 +158,6 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/openWebPageTool": typeof ia_tools_openWebPageTool;
   "ia/tools/patchAppNodeCodeTool": typeof ia_tools_patchAppNodeCodeTool;
   "ia/tools/readNodesTool": typeof ia_tools_readNodesTool;
-  "ia/tools/readTaskTool": typeof ia_tools_readTaskTool;
-  "ia/tools/runSubagent": typeof ia_tools_runSubagent;
-  "ia/tools/runTaskTool": typeof ia_tools_runTaskTool;
   "ia/tools/setNodeDataTool": typeof ia_tools_setNodeDataTool;
   "ia/tools/tableDeleteRowsTools": typeof ia_tools_tableDeleteRowsTools;
   "ia/tools/tableInsertRowsTool": typeof ia_tools_tableInsertRowsTool;
@@ -169,6 +166,7 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/toolHelpers": typeof ia_tools_toolHelpers;
   "ia/tools/viewImageTool": typeof ia_tools_viewImageTool;
   "ia/tools/websearchTool": typeof ia_tools_websearchTool;
+  "ia/worker": typeof ia_worker;
   "lib/auth": typeof lib_auth;
   "lib/getNodeDataTitle": typeof lib_getNodeDataTitle;
   "lib/jsonSchemaMinimap": typeof lib_jsonSchemaMinimap;
@@ -187,7 +185,6 @@ declare const fullApi: ApiFromModules<{
   "models/nodeDataModels": typeof models_nodeDataModels;
   "models/searchableChunkModels": typeof models_searchableChunkModels;
   "models/skillModels": typeof models_skillModels;
-  "models/taskModels": typeof models_taskModels;
   nodeDatas: typeof nodeDatas;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;
@@ -198,7 +195,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/sharesSchema": typeof schemas_sharesSchema;
   "schemas/skillAttachmentsSchema": typeof schemas_skillAttachmentsSchema;
   "schemas/skillsSchema": typeof schemas_skillsSchema;
-  "schemas/tasksSchema": typeof schemas_tasksSchema;
+  "schemas/taskExecutionsSchema": typeof schemas_taskExecutionsSchema;
   "schemas/wishlistEmailsSchema": typeof schemas_wishlistEmailsSchema;
   searchableChunks: typeof searchableChunks;
   "searchable/chunkBuilder": typeof searchable_chunkBuilder;
@@ -216,7 +213,6 @@ declare const fullApi: ApiFromModules<{
   "wrappers/nodeDataWrappers": typeof wrappers_nodeDataWrappers;
   "wrappers/searchableChunkWrappers": typeof wrappers_searchableChunkWrappers;
   "wrappers/skillWrappers": typeof wrappers_skillWrappers;
-  "wrappers/taskWrappers": typeof wrappers_taskWrappers;
   "wrappers/userWrappers": typeof wrappers_userWrappers;
 }>;
 

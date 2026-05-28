@@ -15,7 +15,7 @@ import { createBaseAgent } from "./ia/agents";
 import errors from "./config/errorsConfig";
 
 function isHiddenThread(title?: string): boolean {
-  return title?.startsWith("__") ?? false;
+  return (title?.startsWith("__") || !title) ?? false;
 }
 
 export const getLatestThread = query({

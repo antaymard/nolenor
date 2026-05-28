@@ -35,6 +35,9 @@ export default function executeTaskTool({
     
     Feel free to call this tool multiple times in parallel with different briefs, when the tasks are independent and can be done in any order. For dependent tasks, break them down and call sequentially with updated briefs based on the previous worker's report.`,
     inputSchema: z.object({
+      explanation: z
+        .string()
+        .describe("3-5 words explaining the research intent."),
       instructions: z.string().describe("Instructions for the subtask to run."),
     }),
     execute: async (ctx, { instructions }) => {

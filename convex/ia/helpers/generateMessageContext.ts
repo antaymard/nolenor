@@ -90,7 +90,11 @@ function formatStructuredMessageContext(context: any): string {
   let attachedPageSection = "";
   const attachedPage = context.attachedPage;
   if (attachedPage && typeof attachedPage === "object") {
-    const { title, url, text } = attachedPage as { title?: string; url?: string; text?: string };
+    const { title, url, text } = attachedPage as {
+      title?: string;
+      url?: string;
+      text?: string;
+    };
     let content = "";
     if (title) content += `<title>${title}</title>\n  `;
     if (url) content += `<url>${url}</url>\n  `;
@@ -128,7 +132,10 @@ function formatStructuredMessageContext(context: any): string {
     visibleNodesSection,
   ].filter(Boolean); // Retire les chaînes vides
 
-  const reminder = `<reminder>\nAlways check if any skills apply to the user's request. If so, read the corresponding skill files. Multiple skill files may be needed for a single request. These files contain best practices built from testing that are needed for high-quality outputs.\n</reminder>`;
+  const reminder = `<reminders>
+  - Always check if any skills apply to the user's request. If so, read the corresponding skill files. Multiple skill files may be needed for a single request. These files contain best practices built from testing that are needed for high-quality outputs.
+  - Use the explanation field when using tools that support it, to provide context on the research intent. This helps guide the worker's approach and focus.
+  </reminders>`;
 
   if (blocks.length === 0) return `<message_context />\n\n${reminder}`;
 

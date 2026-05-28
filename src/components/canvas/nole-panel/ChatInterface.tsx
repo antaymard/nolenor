@@ -4,7 +4,8 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { RiLoaderLine } from "react-icons/ri";
 import { TbAlertCircle, TbCheck } from "react-icons/tb";
 import { cn } from "@/lib/utils";
-import { extractUserMessageForDisplay, Message } from "./Message";
+import { Message } from "./Message";
+import { extractUserMessageForDisplay } from "./chatHelpers";
 
 const ChatInterface = memo(function ChatInterface({
   threadId,

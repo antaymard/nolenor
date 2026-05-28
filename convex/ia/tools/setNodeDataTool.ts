@@ -32,6 +32,9 @@ export default function setNodeDataTool({
     description:
       "Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document and table nodes, this replaces the validated payload directly. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`).",
     inputSchema: z.object({
+      explanation: z
+        .string()
+        .describe("3-5 words explaining the research intent."),
       nodeType: z
         .enum(nodeTypeValues)
         .describe("Type du node cible (doit correspondre au nodeId fourni)."),

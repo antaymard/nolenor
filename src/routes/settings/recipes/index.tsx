@@ -56,7 +56,12 @@ function RouteComponent() {
               <TbQuestionMark />
             </Button>
             <Button
-              onClick={() => navigate({ to: "/settings/recipes/create" })}
+              onClick={() =>
+                navigate({
+                  to: "/settings/recipes/edit/$recipeId",
+                  params: { recipeId: "new" },
+                })
+              }
             >
               Create Recipe
             </Button>

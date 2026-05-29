@@ -16,6 +16,7 @@ interface TextInputProps extends Omit<
   label?: string;
   helperText?: string;
   required?: boolean;
+  inputClassName?: string;
 }
 
 function TextInput({
@@ -25,6 +26,7 @@ function TextInput({
   helperText,
   required = false,
   className,
+  inputClassName,
   ...props
 }: TextInputProps) {
   const generatedId = useId();
@@ -61,7 +63,7 @@ function TextInput({
               value={field.state.value ?? ""}
               onChange={(e) => field.handleChange(e.target.value)}
               onBlur={field.handleBlur}
-              className={cn(hasError && "border-destructive")}
+              className={cn(hasError && "border-destructive", inputClassName)}
               {...props}
             />
             {hasError && (

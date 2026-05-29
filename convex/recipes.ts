@@ -14,14 +14,42 @@ export const listUserRecipes = query({
   },
 });
 
-export const create = mutation({
+export const upsert = mutation({
   args: {
     name: v.string(),
     content: v.string(),
+    recipeId: v.optional(v.id("recipes")),
+    operation: v.union(v.literal("create"), v.literal("update")),
   },
   handler: async (ctx, args) => {
     const authUserId = await requireAuth(ctx);
 
+    // Update existing recipe
+    if (args.operation === "update") {
+      if (!args.recipeId) {
+        throw new Error("Recipe ID is required for update");
+      }
+
+      const recipe = await ctx.db.get(args.recipeId);
+
+      if (!recipe) {
+        throw new Error("Recipe not found");
+      }
+
+      if (recipe.userId !== authUserId) {
+        throw new Error("Unauthorized");
+      }
+
+      await ctx.db.patch(args.recipeId, {
+        name: args.name,
+        content: args.content,
+        updatedAt: Date.now(),
+      });
+
+      return { success: true, recipeId: recipe._id };
+    }
+
+    // Create new recipe
     const recipeId = await ctx.db.insert("recipes", {
       name: args.name,
       content: args.content,
@@ -30,5 +58,28 @@ export const create = mutation({
     });
 
     return { success: true, recipeId };
+  },
+});
+
+export const trash = mutation({
+  args: {
+    recipeId: v.id("recipes"),
+  },
+  handler: async (ctx, args) => {
+    const authUserId = await requireAuth(ctx);
+
+    const recipe = await ctx.db.get(args.recipeId);
+
+    if (!recipe) {
+      throw new Error("Recipe not found");
+    }
+
+    if (recipe.userId !== authUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    await ctx.db.delete(args.recipeId);
+
+    return { success: true };
   },
 });

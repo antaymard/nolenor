@@ -88,6 +88,7 @@ import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
 import type * as schemas_messageMetadataSchema from "../schemas/messageMetadataSchema.js";
 import type * as schemas_nodeDatasSchema from "../schemas/nodeDatasSchema.js";
 import type * as schemas_nodeTypeSchema from "../schemas/nodeTypeSchema.js";
+import type * as schemas_recipesSchema from "../schemas/recipesSchema.js";
 import type * as schemas_scheduledJobsSchema from "../schemas/scheduledJobsSchema.js";
 import type * as schemas_searchableChunksSchema from "../schemas/searchableChunksSchema.js";
 import type * as schemas_sharesSchema from "../schemas/sharesSchema.js";
@@ -201,6 +202,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/messageMetadataSchema": typeof schemas_messageMetadataSchema;
   "schemas/nodeDatasSchema": typeof schemas_nodeDatasSchema;
   "schemas/nodeTypeSchema": typeof schemas_nodeTypeSchema;
+  "schemas/recipesSchema": typeof schemas_recipesSchema;
   "schemas/scheduledJobsSchema": typeof schemas_scheduledJobsSchema;
   "schemas/searchableChunksSchema": typeof schemas_searchableChunksSchema;
   "schemas/sharesSchema": typeof schemas_sharesSchema;

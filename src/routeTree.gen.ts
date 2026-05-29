@@ -13,6 +13,7 @@ import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
+import { Route as SettingsRecipesRouteImport } from './routes/settings/recipes'
 import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
 
 const SigninRoute = SigninRouteImport.update({
@@ -35,6 +36,11 @@ const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsRecipesRoute = SettingsRecipesRouteImport.update({
+  id: '/recipes',
+  path: '/recipes',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const CanvasCanvasIdRoute = CanvasCanvasIdRouteImport.update({
   id: '/canvas/$canvasId',
   path: '/canvas/$canvasId',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/recipes': typeof SettingsRecipesRoute
   '/settings/skills': typeof SettingsSkillsRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/recipes': typeof SettingsRecipesRoute
   '/settings/skills': typeof SettingsSkillsRoute
 }
 export interface FileRoutesById {
@@ -61,6 +69,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/recipes': typeof SettingsRecipesRoute
   '/settings/skills': typeof SettingsSkillsRoute
 }
 export interface FileRouteTypes {
@@ -70,15 +79,23 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/recipes'
     | '/settings/skills'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/signin' | '/canvas/$canvasId' | '/settings/skills'
+  to:
+    | '/'
+    | '/settings'
+    | '/signin'
+    | '/canvas/$canvasId'
+    | '/settings/recipes'
+    | '/settings/skills'
   id:
     | '__root__'
     | '/'
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/recipes'
     | '/settings/skills'
   fileRoutesById: FileRoutesById
 }
@@ -119,6 +136,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSkillsRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/recipes': {
+      id: '/settings/recipes'
+      path: '/recipes'
+      fullPath: '/settings/recipes'
+      preLoaderRoute: typeof SettingsRecipesRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/canvas/$canvasId': {
       id: '/canvas/$canvasId'
       path: '/canvas/$canvasId'
@@ -130,10 +154,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface SettingsRouteRouteChildren {
+  SettingsRecipesRoute: typeof SettingsRecipesRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsRecipesRoute: SettingsRecipesRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
 }
 

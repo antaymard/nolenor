@@ -83,6 +83,7 @@ import type * as models_nodeDataModels from "../models/nodeDataModels.js";
 import type * as models_searchableChunkModels from "../models/searchableChunkModels.js";
 import type * as models_skillModels from "../models/skillModels.js";
 import type * as nodeDatas from "../nodeDatas.js";
+import type * as recipes from "../recipes.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
 import type * as schemas_messageMetadataSchema from "../schemas/messageMetadataSchema.js";
@@ -197,6 +198,7 @@ declare const fullApi: ApiFromModules<{
   "models/searchableChunkModels": typeof models_searchableChunkModels;
   "models/skillModels": typeof models_skillModels;
   nodeDatas: typeof nodeDatas;
+  recipes: typeof recipes;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;
   "schemas/messageMetadataSchema": typeof schemas_messageMetadataSchema;

@@ -1,9 +1,9 @@
 import { useSmoothText } from "@convex-dev/agent/react";
-import { memo, useDeferredValue, useMemo, useState } from "react";
+import { memo, useDeferredValue, useState } from "react";
 import { TbBrain, TbChevronDown } from "react-icons/tb";
 import { MarkdownText } from "@/components/ai/MarkdownText";
 import { cn } from "@/lib/utils";
-import { markdownComponents, preprocessTextWithNodeLinks } from "../nodeLinks";
+import { markdownComponents, remarkNodeMentions } from "../nodeLinks";
 
 type ReasoningPartData = {
   type: "reasoning";
@@ -23,10 +23,6 @@ export const ReasoningPart = memo(function ReasoningPart({
     startStreaming: isStreaming,
   });
   const deferredText = useDeferredValue(visibleText);
-  const processed = useMemo(
-    () => preprocessTextWithNodeLinks(deferredText || "..."),
-    [deferredText],
-  );
 
   if (!visibleText && !isStreaming) return null;
 
@@ -53,7 +49,12 @@ export const ReasoningPart = memo(function ReasoningPart({
 
       {isExpanded ? (
         <div className="border-t border-slate-200 px-2 py-2 whitespace-pre-wrap overflow-x-auto">
-          <MarkdownText components={markdownComponents}>{processed}</MarkdownText>
+          <MarkdownText
+            components={markdownComponents}
+            remarkPlugins={[remarkNodeMentions]}
+          >
+            {deferredText || "..."}
+          </MarkdownText>
         </div>
       ) : null}
     </div>

@@ -1,10 +1,10 @@
 import { useSmoothText } from "@convex-dev/agent/react";
-import { memo, useDeferredValue, useMemo } from "react";
+import { memo, useDeferredValue } from "react";
 import { MarkdownText } from "@/components/ai/MarkdownText";
 import type { TextPart as TextPartType } from "@/types/domain/message.types";
-import { markdownComponents, preprocessTextWithNodeLinks } from "../nodeLinks";
+import { markdownComponents, remarkNodeMentions } from "../nodeLinks";
 
-/** Renders an assistant `text` part as streaming markdown with node links. */
+/** Renders an assistant `text` part as streaming markdown with node pills. */
 export const TextPart = memo(function TextPart({
   part,
 }: {
@@ -14,16 +14,17 @@ export const TextPart = memo(function TextPart({
     startStreaming: part.state === "streaming",
   });
   const deferredText = useDeferredValue(visibleText);
-  const processed = useMemo(
-    () => preprocessTextWithNodeLinks(deferredText),
-    [deferredText],
-  );
 
   if (!visibleText) return null;
 
   return (
     <div className="whitespace-pre-wrap px-1 overflow-x-auto">
-      <MarkdownText components={markdownComponents}>{processed}</MarkdownText>
+      <MarkdownText
+        components={markdownComponents}
+        remarkPlugins={[remarkNodeMentions]}
+      >
+        {deferredText}
+      </MarkdownText>
     </div>
   );
 });

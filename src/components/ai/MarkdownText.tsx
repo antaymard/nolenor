@@ -1,4 +1,4 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { type FC, memo, useState, useEffect, useRef } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
@@ -8,14 +8,23 @@ import { SyntaxHighlighter } from "./shiki-highlighter";
 interface MarkdownTextProps {
   children: string;
   components?: import("react-markdown").Components;
+  /** Extra remark plugins, appended after the always-on `remark-gfm`. */
+  remarkPlugins?: Options["remarkPlugins"];
 }
 
-const MarkdownTextImpl: FC<MarkdownTextProps> = ({ children, components }) => {
+const MarkdownTextImpl: FC<MarkdownTextProps> = ({
+  children,
+  components,
+  remarkPlugins,
+}) => {
   const mergedComponents = { ...defaultComponents, ...components };
 
   return (
     <div className="aui-md min-w-0 flex flex-col gap-2 break-words [overflow-wrap:anywhere]">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mergedComponents}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, ...(remarkPlugins ?? [])]}
+        components={mergedComponents}
+      >
         {children}
       </ReactMarkdown>
     </div>

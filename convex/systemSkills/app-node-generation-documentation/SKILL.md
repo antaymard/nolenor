@@ -18,9 +18,8 @@ You generate a single React component for an AppNode.
 - No "export default"
 - React is global: use "React.useState", "React.useEffect", etc.
 - Tailwind CSS classes are available
-- Chart.js is available as global "Chart" (see "Charts with Chart.js" below)
-- React, ReactDOM, Tailwind and Chart.js are already loaded — never re-import them
-- For any OTHER library (lodash, d3, marked, dayjs, …), declare a CDN import with a `// @import` comment — see "Importing libraries" below
+- Only React, ReactDOM and Tailwind are preloaded — never re-import them
+- For ANY other library (Chart.js, lodash, d3, marked, dayjs, …), declare a CDN import with a `// @import` comment — see "Importing libraries" below
 
 ### Mandatory workflow — ALWAYS follow this order
 
@@ -50,13 +49,14 @@ const App = () => {
 - Format: `// @import <global> <https-url>` — one declaration per line, at the top of the file.
 - `<global>` must be the **real** global the bundle defines — a `<script>` cannot rename it. It's `_` for lodash, `d3` for d3, etc. Use the names in the table below.
 - Only **UMD/global builds** over **HTTPS** from these CDNs are allowed: `jsdelivr.net`, `unpkg.com`, `cdnjs.cloudflare.com`. Any other origin is **rejected** — the tool returns an error and nothing is written. Do **not** use `esm.sh` (it ships ES modules, which don't expose a global).
-- Never `@import` React, ReactDOM, Tailwind or Chart.js — they're already loaded.
+- Never `@import` React, ReactDOM or Tailwind — they're already loaded.
 - If a library fails to load (bad URL, wrong version), the node shows a red error panel and the failure is recorded in `values.errors` — follow the debug loop.
 
 ### Vetted libraries (prefer these exact URLs)
 
 | Library | Global | Use it for | URL |
 |---|---|---|---|
+| Chart.js | `Chart` | bar / line / pie charts | `https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js` |
 | lodash | `_` | data utils (groupBy, sortBy, …) | `https://cdn.jsdelivr.net/npm/lodash@4/lodash.min.js` |
 | Day.js | `dayjs` | dates: format, add, diff | `https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js` |
 | D3 | `d3` | scales, axes, custom dataviz | `https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js` |
@@ -215,13 +215,15 @@ const App = () => {
 
 ## Charts with Chart.js
 
-`Chart` is a global (no `@import` needed). Chart.js draws to a `<canvas>` and is **not** React-aware, so you MUST manage its lifecycle yourself — otherwise it throws "Canvas is already in use" and leaks on every re-render:
+Chart.js is **not** built in — add it with `// @import Chart https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js` at the top of the file. It draws to a `<canvas>` and is **not** React-aware, so you MUST manage its lifecycle yourself — otherwise it throws "Canvas is already in use" and leaks on every re-render:
 
 - Create the chart in a `useEffect` against a `useRef`'d `<canvas>`.
 - Destroy the previous instance in the effect cleanup.
 - Re-run the effect when the data changes.
 
 ```jsx
+// @import Chart https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js
+
 const App = () => {
   const canvasRef = React.useRef(null);
   const chartRef = React.useRef(null);

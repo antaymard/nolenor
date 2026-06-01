@@ -1,0 +1,11 @@
+# Copy to `.dev.vars` for local `wrangler dev` (this file is gitignored).
+# These map to secrets in production (set with `wrangler secret put`).
+
+MISTRAL_API_KEY="your-mistral-api-key"
+GATEWAY_TOKENS="dev-secret-token"
+
+# Optional local overrides (otherwise taken from wrangler.jsonc [vars]):
+# ALLOWED_ORIGINS="*"
+# MISTRAL_MODEL="voxtral-mini-2601"
+# DEFAULT_DELAY_MS="480"
+# DEBUG="true"

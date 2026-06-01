@@ -1,0 +1,19 @@
+{
+  "name": "@entropie/speech-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Edge WebSocket gateway for realtime speech-to-text (Mistral Voxtral), reusable across React apps. TTS support planned.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types",
+    "test:client": "node scripts/test-file.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  }
+}

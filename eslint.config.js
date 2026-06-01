@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // speech-gateway is a standalone Cloudflare Worker with its own tooling.
+  globalIgnores(['dist', 'speech-gateway']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

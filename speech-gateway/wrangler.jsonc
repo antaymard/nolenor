@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "speech-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-01",
+  // nodejs_compat gives us `node:buffer` (base64 encoding of audio frames).
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // Plain (non-secret) configuration. Override per-environment as needed.
+  "vars": {
+    // Comma-separated browser origins allowed to connect. Use "*" for dev only.
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:3000",
+    // Default Mistral realtime transcription model.
+    "MISTRAL_MODEL": "voxtral-mini-2601",
+    "MISTRAL_BASE_URL": "https://api.mistral.ai",
+    // Streaming delay (ms): multiple of 80 in [80, 1200], or 2400. Higher = more accurate, less live.
+    "DEFAULT_DELAY_MS": "480"
+  }
+
+  // Secrets — set with `wrangler secret put <NAME>` (never commit these):
+  //   MISTRAL_API_KEY  Your Mistral API key (used server-side only).
+  //   GATEWAY_TOKENS   Comma-separated client tokens; give one per React app.
+}

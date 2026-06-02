@@ -13,6 +13,7 @@ import type { Id } from "@/types";
 import type { NodeType } from "@/types/domain";
 import { useParams } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
+import { useGoToNode } from "@/hooks/useGoToNode";
 import {
   useCallback,
   useEffect,
@@ -329,7 +330,7 @@ function ResultCard({
   const fallbackTitle = useNodeDataTitle(result.nodeDataId);
   const nodeTitle = result.title ?? fallbackTitle;
   const closeSearchModal = useCanvasStore((state) => state.closeSearchModal);
-  const { fitView } = useReactFlow();
+  const goToNode = useGoToNode();
   const isAttachedToNole = useIsNodeAttached(result.nodeId);
   const canOpenWindow = canNodeTypeBeOpenedInWindow(result.type);
   const sortedSnippets = useMemo(
@@ -338,12 +339,7 @@ function ResultCard({
   );
 
   const handleGoToNode = () => {
-    fitView({
-      nodes: [{ id: result.nodeId }],
-      duration: 500,
-      minZoom: 0.5,
-      maxZoom: 1,
-    });
+    goToNode(result.nodeId);
     closeSearchModal();
   };
 

@@ -474,6 +474,22 @@ export const useWindowsStore = create<WindowsStore>()(
           if (nextWindowState === current.windowState) return store;
 
           const nextOpenedWindows = store.openedWindows.slice();
+
+          // When restoring from minimized, bring the window to the front so it
+          // doesn't reappear behind windows that were focused more recently.
+          if (nextWindowState === "normal") {
+            const nextTopZIndex = store.topZIndex + 1;
+            nextOpenedWindows[index] = {
+              ...current,
+              windowState: nextWindowState,
+              zIndex: nextTopZIndex,
+            };
+            return {
+              openedWindows: nextOpenedWindows,
+              topZIndex: nextTopZIndex,
+            };
+          }
+
           nextOpenedWindows[index] = {
             ...current,
             windowState: nextWindowState,

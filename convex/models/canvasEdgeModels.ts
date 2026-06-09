@@ -21,107 +21,6 @@ async function getCanvas(
   return canvas;
 }
 
-async function syncDependenciesForAddedEdges(
-  ctx: MutationCtx,
-  canvas: Doc<"canvases">,
-  edges: Array<CanvasEdge>,
-): Promise<void> {
-  const nodes = canvas.nodes ?? [];
-
-  for (const edge of edges) {
-    const sourceNode = nodes.find((node) => node.id === edge.source);
-    const targetNode = nodes.find((node) => node.id === edge.target);
-
-    const sourceNodeDataId = sourceNode?.nodeDataId;
-    const targetNodeDataId = targetNode?.nodeDataId;
-
-    if (!sourceNodeDataId || !targetNodeDataId) {
-      continue;
-    }
-
-    const targetNodeData = await ctx.db.get("nodeDatas", targetNodeDataId);
-    if (targetNodeData) {
-      const existingDeps = targetNodeData.dependencies ?? [];
-      const alreadyExists = existingDeps.some(
-        (dep) => dep.nodeDataId === sourceNodeDataId && dep.type === "input",
-      );
-
-      if (!alreadyExists) {
-        await ctx.db.patch("nodeDatas", targetNodeDataId, {
-          dependencies: [
-            ...existingDeps,
-            { nodeDataId: sourceNodeDataId, type: "input" as const },
-          ],
-          updatedAt: Date.now(),
-        });
-      }
-    }
-
-    const sourceNodeData = await ctx.db.get("nodeDatas", sourceNodeDataId);
-    if (sourceNodeData) {
-      const existingDeps = sourceNodeData.dependencies ?? [];
-      const alreadyExists = existingDeps.some(
-        (dep) => dep.nodeDataId === targetNodeDataId && dep.type === "output",
-      );
-
-      if (!alreadyExists) {
-        await ctx.db.patch("nodeDatas", sourceNodeDataId, {
-          dependencies: [
-            ...existingDeps,
-            { nodeDataId: targetNodeDataId, type: "output" as const },
-          ],
-          updatedAt: Date.now(),
-        });
-      }
-    }
-  }
-}
-
-async function syncDependenciesForRemovedEdges(
-  ctx: MutationCtx,
-  canvas: Doc<"canvases">,
-  edgeIds: Array<string>,
-): Promise<void> {
-  const nodes = canvas.nodes ?? [];
-  const edges = canvas.edges ?? [];
-  const edgesToRemove = edges.filter((edge) => edgeIds.includes(edge.id));
-
-  for (const edge of edgesToRemove) {
-    const sourceNode = nodes.find((node) => node.id === edge.source);
-    const targetNode = nodes.find((node) => node.id === edge.target);
-
-    const sourceNodeDataId = sourceNode?.nodeDataId;
-    const targetNodeDataId = targetNode?.nodeDataId;
-
-    if (!sourceNodeDataId || !targetNodeDataId) {
-      continue;
-    }
-
-    const targetNodeData = await ctx.db.get("nodeDatas", targetNodeDataId);
-    if (targetNodeData) {
-      const filteredDeps = (targetNodeData.dependencies ?? []).filter(
-        (dep) => !(dep.nodeDataId === sourceNodeDataId && dep.type === "input"),
-      );
-      await ctx.db.patch("nodeDatas", targetNodeDataId, {
-        dependencies: filteredDeps,
-        updatedAt: Date.now(),
-      });
-    }
-
-    const sourceNodeData = await ctx.db.get("nodeDatas", sourceNodeDataId);
-    if (sourceNodeData) {
-      const filteredDeps = (sourceNodeData.dependencies ?? []).filter(
-        (dep) =>
-          !(dep.nodeDataId === targetNodeDataId && dep.type === "output"),
-      );
-      await ctx.db.patch("nodeDatas", sourceNodeDataId, {
-        dependencies: filteredDeps,
-        updatedAt: Date.now(),
-      });
-    }
-  }
-}
-
 const DEFAULT_MARKER_END = {
   type: "arrow",
   width: 30,
@@ -150,8 +49,6 @@ export async function addCanvasEdges(
     edges: [...(canvas.edges ?? []), ...edgesWithDefaults],
     updatedAt: Date.now(),
   });
-
-  await syncDependenciesForAddedEdges(ctx, canvas, edgesWithDefaults);
 
   console.log(`✅ Added ${edges.length} edges to canvas ${canvasId}`);
   return true;
@@ -202,8 +99,6 @@ export async function removeCanvasEdges(
   },
 ): Promise<boolean> {
   const canvas = await getCanvas(ctx, canvasId);
-
-  await syncDependenciesForRemovedEdges(ctx, canvas, edgeIds);
 
   await ctx.db.patch("canvases", canvasId, {
     edges: (canvas.edges ?? []).filter((edge) => !edgeIds.includes(edge.id)),

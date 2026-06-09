@@ -16,6 +16,7 @@ interface TextInputProps extends Omit<
   label?: string;
   helperText?: string;
   required?: boolean;
+  validators?: object;
 }
 
 function TextInput({

@@ -1,6 +1,7 @@
 import { memo, useEffect, useId, useRef } from "react";
 import { Label } from "@/components/shadcn/label";
 import { cn } from "@/lib/utils";
+import { Textarea } from "../shadcn/textarea";
 
 // Type simplifié pour le form TanStack (les types réels sont très complexes)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,6 +18,7 @@ interface TextAreaProps {
   maxRows?: number;
   className?: string;
   disabled?: boolean;
+  validators?: object;
 }
 
 /**
@@ -116,22 +118,13 @@ function TextArea({
                 {required && <span className="text-destructive">*</span>}
               </Label>
             )}
-            <textarea
+            <Textarea
               id={id}
               ref={textareaRef}
               value={currentValue}
               placeholder={placeholder}
               disabled={disabled}
-              className={cn(
-                "px-3 py-2 placeholder-muted-foreground placeholder:italic",
-                "border rounded-md",
-                "transition-colors",
-                "resize-none",
-                "bg-muted hover:bg-muted/80",
-                "focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-                "disabled:bg-muted disabled:cursor-not-allowed disabled:opacity-50",
-                hasError ? "border-destructive" : "border-input",
-              )}
+              className={cn(hasError ? "border-destructive" : "border-input")}
               style={{
                 minHeight: `${minRows * 1.5}rem`,
               }}

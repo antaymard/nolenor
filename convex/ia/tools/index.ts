@@ -37,7 +37,10 @@ import tableUpdateSchemaTool, {
 } from "./tableUpdateSchemaTool";
 import { type ToolConfig } from "./toolHelpers";
 import { websearchTool, websearchToolConfig } from "./websearchTool";
-import executeTaskTool, { executeTaskToolConfig } from "./executeTaskTool";
+import runSubAgent, { runSubAgentConfig } from "./runSubAgentTool";
+import listUserCanvasesTool, {
+  listUserCanvasesToolConfig,
+} from "./listUserCanvasesTool";
 
 type AgentTool = ToolSet[string];
 
@@ -121,12 +124,16 @@ const toolRegistry: ToolRegistration[] = [
     factory: ({ threadCtx }) => setNodeDataTool({ threadCtx }),
   },
   {
-    config: executeTaskToolConfig,
-    factory: ({ threadCtx }) => executeTaskTool({ threadCtx }),
+    config: runSubAgentConfig,
+    factory: ({ threadCtx }) => runSubAgent({ threadCtx }),
   },
   {
     config: loadSkillToolConfig,
     factory: ({ threadCtx }) => loadSkillTool({ threadCtx }),
+  },
+  {
+    config: listUserCanvasesToolConfig,
+    factory: ({ threadCtx }) => listUserCanvasesTool({ threadCtx }),
   },
 ];
 

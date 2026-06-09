@@ -5,7 +5,6 @@ import { colors } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import type { Id } from "@/../convex/_generated/dataModel";
 import NodeHandles from "./NodeHandles";
-import AutomationIndicator from "./toolbar/AutomationIndicator";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useIsNodeAttached } from "@/stores/noleStore";
@@ -45,7 +44,6 @@ function NodeFrame({
   return (
     <>
       <NodeHandles showSourceHandles={xyNode?.selected} nodeId={xyNode.id} />
-      <AutomationIndicator xyNode={xyNode} />
       <NodeResizer
         isVisible={resizable && xyNode?.selected}
         onResizeStart={() => setIsResizing(true)}

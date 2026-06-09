@@ -14,6 +14,7 @@ export const listNodesToolConfig: ToolConfig = {
     toolAgentNames.nole,
     toolAgentNames.clone,
     toolAgentNames.supervisor,
+    toolAgentNames.worker,
   ],
 };
 

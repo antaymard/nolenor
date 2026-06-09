@@ -9,8 +9,6 @@
  */
 
 import type * as auth from "../auth.js";
-import type * as automation_progressReporter from "../automation/progressReporter.js";
-import type * as automations from "../automations.js";
 import type * as canvasEdges from "../canvasEdges.js";
 import type * as canvasNodes from "../canvasNodes.js";
 import type * as canvases from "../canvases.js";
@@ -38,20 +36,20 @@ import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/nol
 import type * as ia_systemPrompts_supervisorSystemPrompt from "../ia/systemPrompts/supervisorSystemPrompt.js";
 import type * as ia_systemPrompts_systemParts from "../ia/systemPrompts/systemParts.js";
 import type * as ia_systemPrompts_workerSystemPrompt from "../ia/systemPrompts/workerSystemPrompt.js";
-import type * as ia_tools__toolTemplate from "../ia/tools/_toolTemplate.js";
 import type * as ia_tools_createConnectionTool from "../ia/tools/createConnectionTool.js";
 import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
 import type * as ia_tools_documentInsertContentTool from "../ia/tools/documentInsertContentTool.js";
 import type * as ia_tools_documentStringReplaceContentTool from "../ia/tools/documentStringReplaceContentTool.js";
-import type * as ia_tools_executeTaskTool from "../ia/tools/executeTaskTool.js";
 import type * as ia_tools_fullTextSearchTool from "../ia/tools/fullTextSearchTool.js";
 import type * as ia_tools_index from "../ia/tools/index.js";
 import type * as ia_tools_listNodesTool from "../ia/tools/listNodesTool.js";
+import type * as ia_tools_listUserCanvasesTool from "../ia/tools/listUserCanvasesTool.js";
 import type * as ia_tools_loadSkillTool from "../ia/tools/loadSkillTool.js";
 import type * as ia_tools_memoryTool from "../ia/tools/memoryTool.js";
 import type * as ia_tools_openWebPageTool from "../ia/tools/openWebPageTool.js";
 import type * as ia_tools_patchAppNodeCodeTool from "../ia/tools/patchAppNodeCodeTool.js";
 import type * as ia_tools_readNodesTool from "../ia/tools/readNodesTool.js";
+import type * as ia_tools_runSubAgentTool from "../ia/tools/runSubAgentTool.js";
 import type * as ia_tools_setNodeDataTool from "../ia/tools/setNodeDataTool.js";
 import type * as ia_tools_tableDeleteRowsTools from "../ia/tools/tableDeleteRowsTools.js";
 import type * as ia_tools_tableInsertRowsTool from "../ia/tools/tableInsertRowsTool.js";
@@ -69,6 +67,7 @@ import type * as lib_parseModelPrice from "../lib/parseModelPrice.js";
 import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js";
 import type * as lib_plateDocumentStorage from "../lib/plateDocumentStorage.js";
 import type * as lib_r2 from "../lib/r2.js";
+import type * as lib_searchScoring from "../lib/searchScoring.js";
 import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
 import type * as memories from "../memories.js";
@@ -124,8 +123,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
-  "automation/progressReporter": typeof automation_progressReporter;
-  automations: typeof automations;
   canvasEdges: typeof canvasEdges;
   canvasNodes: typeof canvasNodes;
   canvases: typeof canvases;
@@ -153,20 +150,20 @@ declare const fullApi: ApiFromModules<{
   "ia/systemPrompts/supervisorSystemPrompt": typeof ia_systemPrompts_supervisorSystemPrompt;
   "ia/systemPrompts/systemParts": typeof ia_systemPrompts_systemParts;
   "ia/systemPrompts/workerSystemPrompt": typeof ia_systemPrompts_workerSystemPrompt;
-  "ia/tools/_toolTemplate": typeof ia_tools__toolTemplate;
   "ia/tools/createConnectionTool": typeof ia_tools_createConnectionTool;
   "ia/tools/createNodeTool": typeof ia_tools_createNodeTool;
   "ia/tools/documentInsertContentTool": typeof ia_tools_documentInsertContentTool;
   "ia/tools/documentStringReplaceContentTool": typeof ia_tools_documentStringReplaceContentTool;
-  "ia/tools/executeTaskTool": typeof ia_tools_executeTaskTool;
   "ia/tools/fullTextSearchTool": typeof ia_tools_fullTextSearchTool;
   "ia/tools/index": typeof ia_tools_index;
   "ia/tools/listNodesTool": typeof ia_tools_listNodesTool;
+  "ia/tools/listUserCanvasesTool": typeof ia_tools_listUserCanvasesTool;
   "ia/tools/loadSkillTool": typeof ia_tools_loadSkillTool;
   "ia/tools/memoryTool": typeof ia_tools_memoryTool;
   "ia/tools/openWebPageTool": typeof ia_tools_openWebPageTool;
   "ia/tools/patchAppNodeCodeTool": typeof ia_tools_patchAppNodeCodeTool;
   "ia/tools/readNodesTool": typeof ia_tools_readNodesTool;
+  "ia/tools/runSubAgentTool": typeof ia_tools_runSubAgentTool;
   "ia/tools/setNodeDataTool": typeof ia_tools_setNodeDataTool;
   "ia/tools/tableDeleteRowsTools": typeof ia_tools_tableDeleteRowsTools;
   "ia/tools/tableInsertRowsTool": typeof ia_tools_tableInsertRowsTool;
@@ -184,6 +181,7 @@ declare const fullApi: ApiFromModules<{
   "lib/parseSkillFrontmatter": typeof lib_parseSkillFrontmatter;
   "lib/plateDocumentStorage": typeof lib_plateDocumentStorage;
   "lib/r2": typeof lib_r2;
+  "lib/searchScoring": typeof lib_searchScoring;
   "lib/xml": typeof lib_xml;
   links: typeof links;
   memories: typeof memories;

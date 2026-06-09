@@ -22,7 +22,6 @@ type NodeDataConfigItem = {
     resizable?: boolean;
   };
   variants?: Record<string, NodeVariant>;
-  canHaveAutomation: boolean;
   defaultColor?: string;
   dataValuesSchema: z.ZodTypeAny;
   toolInputSchema?: z.ZodTypeAny; // Optional schema specifically for tool inputs, if different from dataValuesSchema
@@ -37,7 +36,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     llmDescription:
       "For sections headings, hubs nodes, parents of related sub nodes. Use this node for titles (for branches in trees of thought), subtitles, or any standalone text that doesn't require rich formatting. If you need rich text formatting (bold, italic, lists, etc.), use the Document node instead. \nThe required data values for this node are 'text' (the content of the label) and 'level' (the heading level, which can be 'h1', 'h2', 'h3', or 'p').",
     defaultDimensions: { width: 220, height: 33, resizable: true },
-    canHaveAutomation: true,
     defaultColor: "transparent",
     dataValuesSchema: z
       .object({
@@ -69,7 +67,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         defaultHeight: 120,
       },
     },
-    canHaveAutomation: true,
 
     dataValuesSchema: z
       .object({
@@ -97,7 +94,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     llmDescription:
       "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe required data value for this node is 'url' (the URL of the image).",
     defaultDimensions: { width: 320, height: 320, resizable: true },
-    canHaveAutomation: true,
     dataValuesSchema: z
       .object({
         images: z
@@ -135,7 +131,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         resizable: false,
       },
     },
-    canHaveAutomation: true,
     dataValuesSchema: z
       .object({
         doc: z.string().default("[]"),
@@ -152,7 +147,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     llmDescription:
       "For storing a value that can be of type text, number, or boolean. Use this node to store and display any discrete piece of data in a dashboard / KPI way. \nThe required data value for this node are 'type' (the type of the value: 'text', 'number', or 'boolean'), 'value' (the actual value stored in the node), and an optional 'unit' (the unit of the value, if applicable) and 'label' (an optional label for the value).",
     defaultDimensions: { width: 220, height: 120, resizable: true },
-    canHaveAutomation: true,
 
     dataValuesSchema: z
       .object({
@@ -206,7 +200,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         resizable: false,
       },
     },
-    canHaveAutomation: false,
 
     dataValuesSchema: z
       .object({
@@ -246,7 +239,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     llmDescription:
       "For storing/displaying uploaded PDF files. The user can read them directly within Nolënor, double-clicking on the file to open it. \nThe required data value are 'url' (the public URL of the uploaded file), 'filename' (the display filename), 'mimeType' (the MIME type of the file), 'size' (the file size in bytes), 'uploadedAt' (the upload timestamp in epoch milliseconds), and 'key' (the storage key/path of the file).",
     defaultDimensions: { width: 220, height: 33, resizable: false },
-    canHaveAutomation: true,
     dataValuesSchema: z
       .object({
         files: z
@@ -287,7 +279,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         defaultHeight: 33,
       },
     },
-    canHaveAutomation: false,
 
     dataValuesSchema: z
       .object({
@@ -353,7 +344,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         resizable: false,
       },
     },
-    canHaveAutomation: false,
     dataValuesSchema: z
       .object({
         code: z.string().default(""),

@@ -5,6 +5,7 @@ import errors from "../config/errorsConfig";
 import { nodeDataConfig } from "../config/nodeConfig";
 import { internal } from "../_generated/api";
 import * as SearchableChunkModels from "./searchableChunkModels";
+import { th } from "zod/v4/locales";
 
 type CanvasNode = NonNullable<Doc<"canvases">["nodes"]>[number];
 
@@ -335,16 +336,23 @@ export async function getNodeWithNodeData(
   const node = (canvas.nodes ?? []).find((item) => item.id === nodeId);
 
   if (!node) {
-    throw new ConvexError(errors.NODE_NOT_FOUND);
+    throw new ConvexError(
+      errors.NODE_NOT_FOUND + ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
+    );
   }
 
   if (!node.nodeDataId) {
-    throw new ConvexError(errors.NODE_DATA_NOT_FOUND_FOR_NODE);
+    throw new ConvexError(
+      errors.NODE_DATA_NOT_FOUND_FOR_NODE +
+        ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
+    );
   }
 
   const nodeData = await ctx.db.get("nodeDatas", node.nodeDataId);
   if (!nodeData) {
-    throw new ConvexError(errors.NODE_DATA_NOT_FOUND);
+    throw new ConvexError(
+      errors.NODE_DATA_NOT_FOUND + ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
+    );
   }
 
   return { node, nodeData };

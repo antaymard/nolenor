@@ -249,30 +249,3 @@ export function createWorkerAgent({
     }),
   });
 }
-
-// TO DEP
-export function createAutomationAgent({
-  model,
-  threadCtx,
-  extraTools = {},
-}: {
-  model?: LanguageModelV3;
-  threadCtx: ThreadCtx;
-  extraTools?: ToolSet;
-}) {
-  const languageModel = model ?? defaultModels.fast;
-  return new Agent(components.agent, {
-    name: toolAgentNames.automation,
-    languageModel,
-    stopWhen: stepCountIs(5),
-    tools: getToolsForAgent({
-      agentName: toolAgentNames.automation,
-      threadCtx,
-      extraTools,
-      isMultimodal: isModelMultimodal(languageModel),
-    }),
-    instructions: `You are an automation agent linked to a node in a canvas-based app similar to Miro. You can use the tools at your disposal to accomplish the requested tasks. The node you are linked to may contain input data from other nodes that you will most often need to use to complete your task. Use the tools available to you to find information.
-    Do not respond to the user as a general chat assistant. Use the standard tools available directly if an action on the canvas or content is necessary.
-    Be as concise, exact, and factual as possible. Do not fabricate information. Do not be verbose.`,
-  });
-}

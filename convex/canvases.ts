@@ -19,12 +19,14 @@ export const getLastModified = query({
 
 export const listUserCanvases = query({
   args: {},
-  returns: v.array(v.object({
-    _id: v.id("canvases"),
-    name: v.string(),
-    shared: v.optional(v.boolean()),
-    permission: v.optional(v.union(v.literal("viewer"), v.literal("editor"))),
-  })),
+  returns: v.array(
+    v.object({
+      _id: v.id("canvases"),
+      name: v.string(),
+      shared: v.optional(v.boolean()),
+      permission: v.optional(v.union(v.literal("viewer"), v.literal("editor"))),
+    }),
+  ),
   handler: async (ctx) => {
     const authUserId = await requireAuth(ctx);
 
@@ -75,14 +77,16 @@ export const togglePublic = mutation({
 export const createCanvas = mutation({
   args: {
     name: v.string(),
+    description: v.optional(v.string()),
   },
   returns: v.id("canvases"),
-  handler: async (ctx, { name }) => {
+  handler: async (ctx, { name, description }) => {
     const authUserId = await requireAuth(ctx);
 
     return await CanvasModels.createCanvasForUser(ctx, {
       authUserId,
       name,
+      description,
     });
   },
 });

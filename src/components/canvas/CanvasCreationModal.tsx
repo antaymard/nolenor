@@ -13,17 +13,21 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/shadcn/button";
+import TextArea from "../ts-form/TextArea";
 
 export default function CanvasCreationModal() {
   const createCanvas = useMutation(api.canvases.createCanvas);
   const navigate = useNavigate();
 
   const form = useForm({
-    defaultValues: { name: "" },
+    defaultValues: { name: "", description: "" },
     onSubmit: async ({ value }) => {
       if (!value.name.trim()) return;
       try {
-        const newCanvasId = await createCanvas({ name: value.name });
+        const newCanvasId = await createCanvas({
+          name: value.name,
+          description: value.description,
+        });
         if (newCanvasId) {
           toast.success(`Workspace "${value.name}" created successfully!`);
           navigate({
@@ -51,12 +55,22 @@ export default function CanvasCreationModal() {
           <DialogTitle>Create a workspace</DialogTitle>
           <DialogDescription>Give this new workspace a name.</DialogDescription>
         </DialogHeader>
-        <div className="my-3">
+        <div className="my-3 space-y-3">
           <TextInput
             form={form}
             name="name"
             label="Workspace name"
-            placeholder=""
+            placeholder="Canvas name"
+            validators={{
+              onChange: ({ value }: { value: string }) =>
+                !value.trim() ? "Name cannot be empty" : undefined,
+            }}
+          />
+          <TextArea
+            form={form}
+            name="description"
+            label="Description"
+            placeholder="Canvas description. Helps the assistant to understand the context of the canvas."
             validators={{
               onChange: ({ value }: { value: string }) =>
                 !value.trim() ? "Name cannot be empty" : undefined,

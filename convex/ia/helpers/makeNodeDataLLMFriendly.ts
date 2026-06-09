@@ -470,22 +470,3 @@ export async function makeNodeDataLLMFriendly(
       return JSON.stringify(values);
   }
 }
-
-/**
- * Genere le contexte markdown des input nodes pour le prompt d'une automation.
- * Utilise `makeNodeDataLLMFriendly` pour formater chaque node individuellement.
- */
-export async function generateInputNodesContext(
-  inputNodeDatas: Doc<"nodeDatas">[],
-): Promise<string> {
-  if (inputNodeDatas.length === 0) return "(aucun noeud d'entree)";
-
-  const sections = await Promise.all(
-    inputNodeDatas.map(async (nd) => {
-      const content = await makeNodeDataLLMFriendly(nd);
-      return `### Input: ${nd.type} (ID: ${nd._id})\n${content}`;
-    }),
-  );
-
-  return sections.join("\n\n");
-}

@@ -35,6 +35,11 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
         route: "/settings/",
       },
       {
+        label: "Recipes",
+        icon: "recipes",
+        route: "/settings/recipes",
+      },
+      {
         label: "Skills",
         icon: "settings",
         route: "/settings/skills",
@@ -61,9 +66,14 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
     label: "Billing",
     buttons: [
       {
-        label: "Billing",
+        label: "AI usage",
+        icon: "usage",
+        route: "/settings/ai-usage",
+      },
+      {
+        label: "Subscription",
         icon: "billing",
-        route: "/settings/billing",
+        route: "/settings/subscription",
       },
     ],
   },

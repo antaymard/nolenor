@@ -101,14 +101,17 @@ export async function createCanvasForUser(
   {
     authUserId,
     name,
+    description,
   }: {
     authUserId: Id<"users">;
     name: string;
+    description?: string;
   },
 ): Promise<Id<"canvases">> {
   return await ctx.db.insert("canvases", {
     creatorId: authUserId,
     name,
+    description,
     nodes: [],
     edges: [],
     updatedAt: Date.now(),

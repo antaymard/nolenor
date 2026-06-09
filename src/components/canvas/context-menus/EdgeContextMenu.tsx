@@ -2,22 +2,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
 } from "@/components/shadcn/dropdown-menu";
 import { useReactFlow, useStore, type Edge } from "@xyflow/react";
-import { HiOutlineTrash } from "react-icons/hi2";
-import {
-  TbPalette,
-  TbLineHeight,
-  TbArrowRight,
-  TbCircle,
-  TbTagOff,
-  TbTrash,
-} from "react-icons/tb";
+import { TbTagOff, TbTrash } from "react-icons/tb";
 import nodeColors from "@/components/nodes/nodeColors";
 import type {
   EdgeCustomData,
@@ -102,7 +89,7 @@ export default function EdgeContextMenu({
   );
 
   return (
-    <>
+    <div className="w-52">
       <DropdownMenuLabel className="whitespace-nowrap">
         Edge actions
       </DropdownMenuLabel>
@@ -246,7 +233,7 @@ export default function EdgeContextMenu({
       >
         <TbTrash className="text-red-500" /> Delete
       </DropdownMenuItem>
-    </>
+    </div>
   );
 }
 
@@ -280,7 +267,10 @@ function EdgeEndpointMenuItem({
         className="whitespace-nowrap"
         onClick={() => onGo(nodeId)}
       >
-        <Icon size={16} /> {title}
+        <Icon size={16} />{" "}
+        <p title={title} className="truncate">
+          {title}
+        </p>
       </DropdownMenuItem>
     </>
   );

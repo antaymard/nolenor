@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { useNodeData, useNodeDataValues } from "@/hooks/useNodeData";
+import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
@@ -24,10 +24,9 @@ import type {
 
 function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const { setDirty, setSaveHandler } = useWindowFrameContext();
-  const nodeData = useNodeData(nodeDataId);
   const nodeDataValues = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
-  const isLocked = nodeData?.status === "working";
+  const isLocked = false;
 
   const [localColumns, setLocalColumns] = useState<TableColumn[]>([]);
   const [localRows, setLocalRows] = useState<TableRowData[]>([]);

@@ -12,6 +12,7 @@ export const fullTextSearchToolConfig: ToolConfig = {
     toolAgentNames.nole,
     toolAgentNames.clone,
     toolAgentNames.supervisor,
+    toolAgentNames.worker,
   ],
 };
 

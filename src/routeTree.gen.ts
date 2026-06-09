@@ -13,7 +13,10 @@ import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
+import { Route as SettingsRouteComponentRouteImport } from './routes/settings/RouteComponent'
 import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
+import { Route as SettingsRecipesIndexRouteImport } from './routes/settings/recipes/index'
+import { Route as SettingsRecipesEditRecipeIdRouteImport } from './routes/settings/recipes/edit.$recipeId'
 
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
@@ -35,25 +38,47 @@ const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsRouteComponentRoute = SettingsRouteComponentRouteImport.update({
+  id: '/RouteComponent',
+  path: '/RouteComponent',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const CanvasCanvasIdRoute = CanvasCanvasIdRouteImport.update({
   id: '/canvas/$canvasId',
   path: '/canvas/$canvasId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRecipesIndexRoute = SettingsRecipesIndexRouteImport.update({
+  id: '/recipes/',
+  path: '/recipes/',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsRecipesEditRecipeIdRoute =
+  SettingsRecipesEditRecipeIdRouteImport.update({
+    id: '/recipes/edit/$recipeId',
+    path: '/recipes/edit/$recipeId',
+    getParentRoute: () => SettingsRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/RouteComponent': typeof SettingsRouteComponentRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/recipes': typeof SettingsRecipesIndexRoute
+  '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/RouteComponent': typeof SettingsRouteComponentRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/recipes': typeof SettingsRecipesIndexRoute
+  '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,7 +86,10 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/RouteComponent': typeof SettingsRouteComponentRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/recipes/': typeof SettingsRecipesIndexRoute
+  '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -70,16 +98,30 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/RouteComponent'
     | '/settings/skills'
+    | '/settings/recipes'
+    | '/settings/recipes/edit/$recipeId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/signin' | '/canvas/$canvasId' | '/settings/skills'
+  to:
+    | '/'
+    | '/settings'
+    | '/signin'
+    | '/canvas/$canvasId'
+    | '/settings/RouteComponent'
+    | '/settings/skills'
+    | '/settings/recipes'
+    | '/settings/recipes/edit/$recipeId'
   id:
     | '__root__'
     | '/'
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/RouteComponent'
     | '/settings/skills'
+    | '/settings/recipes/'
+    | '/settings/recipes/edit/$recipeId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +161,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSkillsRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/RouteComponent': {
+      id: '/settings/RouteComponent'
+      path: '/RouteComponent'
+      fullPath: '/settings/RouteComponent'
+      preLoaderRoute: typeof SettingsRouteComponentRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/canvas/$canvasId': {
       id: '/canvas/$canvasId'
       path: '/canvas/$canvasId'
@@ -126,15 +175,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CanvasCanvasIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/recipes/': {
+      id: '/settings/recipes/'
+      path: '/recipes'
+      fullPath: '/settings/recipes'
+      preLoaderRoute: typeof SettingsRecipesIndexRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/recipes/edit/$recipeId': {
+      id: '/settings/recipes/edit/$recipeId'
+      path: '/recipes/edit/$recipeId'
+      fullPath: '/settings/recipes/edit/$recipeId'
+      preLoaderRoute: typeof SettingsRecipesEditRecipeIdRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
   }
 }
 
 interface SettingsRouteRouteChildren {
+  SettingsRouteComponentRoute: typeof SettingsRouteComponentRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
+  SettingsRecipesIndexRoute: typeof SettingsRecipesIndexRoute
+  SettingsRecipesEditRecipeIdRoute: typeof SettingsRecipesEditRecipeIdRoute
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsRouteComponentRoute: SettingsRouteComponentRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
+  SettingsRecipesIndexRoute: SettingsRecipesIndexRoute,
+  SettingsRecipesEditRecipeIdRoute: SettingsRecipesEditRecipeIdRoute,
 }
 
 const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(

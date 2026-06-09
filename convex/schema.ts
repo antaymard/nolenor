@@ -11,6 +11,7 @@ import { taskExecutionsValidator } from "./schemas/taskExecutionsSchema";
 import { skillsValidator } from "./schemas/skillsSchema";
 import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
+import { recipesValidor } from "./schemas/recipesSchema";
 
 const schema = defineSchema({
   ...authTables,
@@ -81,6 +82,8 @@ const schema = defineSchema({
   skillAttachments: defineTable(skillAttachmentsValidator)
     .index("by_skill", ["skillId"])
     .index("by_skill_and_name", ["skillId", "name"]),
+
+  recipes: defineTable(recipesValidor).index("by_user", ["userId"]),
 
   // ============================================================================
   // MESSAGE METADATA (chat UX: model/usage/cost per assistant message,

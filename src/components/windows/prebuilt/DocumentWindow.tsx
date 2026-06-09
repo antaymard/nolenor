@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DocumentEditorField, {
   type DocumentEditorFieldHandle,
 } from "@/components/fields/document-fields/DocumentEditorField";
-import { useNodeData, useNodeDataValues } from "@/hooks/useNodeData";
+import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
@@ -35,8 +35,7 @@ function DocumentWindow({
   const [editorValue, setEditorValue] = useState<{ doc: Value }>({ doc: [] });
   const { setDirty, setSaveHandler } = useWindowFrameContext();
   const nodeDataValues = useNodeDataValues(nodeDataId);
-  const nodeData = useNodeData(nodeDataId);
-  const isLocked = nodeData?.status === "working";
+  const isLocked = false;
   const { updateNodeDataValues } = useUpdateNodeDataValues();
 
   const handleSaveClick = useCallback(() => {

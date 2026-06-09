@@ -16,7 +16,7 @@ import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsRouteComponentRouteImport } from './routes/settings/RouteComponent'
 import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
 import { Route as SettingsRecipesIndexRouteImport } from './routes/settings/recipes/index'
-import { Route as SettingsRecipesCreateRouteImport } from './routes/settings/recipes/create'
+import { Route as SettingsRecipesEditRecipeIdRouteImport } from './routes/settings/recipes/edit.$recipeId'
 
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
@@ -53,11 +53,12 @@ const SettingsRecipesIndexRoute = SettingsRecipesIndexRouteImport.update({
   path: '/recipes/',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
-const SettingsRecipesCreateRoute = SettingsRecipesCreateRouteImport.update({
-  id: '/recipes/create',
-  path: '/recipes/create',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
+const SettingsRecipesEditRecipeIdRoute =
+  SettingsRecipesEditRecipeIdRouteImport.update({
+    id: '/recipes/edit/$recipeId',
+    path: '/recipes/edit/$recipeId',
+    getParentRoute: () => SettingsRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,8 +67,8 @@ export interface FileRoutesByFullPath {
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/RouteComponent': typeof SettingsRouteComponentRoute
   '/settings/skills': typeof SettingsSkillsRoute
-  '/settings/recipes/create': typeof SettingsRecipesCreateRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
+  '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -76,8 +77,8 @@ export interface FileRoutesByTo {
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/RouteComponent': typeof SettingsRouteComponentRoute
   '/settings/skills': typeof SettingsSkillsRoute
-  '/settings/recipes/create': typeof SettingsRecipesCreateRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
+  '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -87,8 +88,8 @@ export interface FileRoutesById {
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/RouteComponent': typeof SettingsRouteComponentRoute
   '/settings/skills': typeof SettingsSkillsRoute
-  '/settings/recipes/create': typeof SettingsRecipesCreateRoute
   '/settings/recipes/': typeof SettingsRecipesIndexRoute
+  '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -99,8 +100,8 @@ export interface FileRouteTypes {
     | '/canvas/$canvasId'
     | '/settings/RouteComponent'
     | '/settings/skills'
-    | '/settings/recipes/create'
     | '/settings/recipes'
+    | '/settings/recipes/edit/$recipeId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -109,8 +110,8 @@ export interface FileRouteTypes {
     | '/canvas/$canvasId'
     | '/settings/RouteComponent'
     | '/settings/skills'
-    | '/settings/recipes/create'
     | '/settings/recipes'
+    | '/settings/recipes/edit/$recipeId'
   id:
     | '__root__'
     | '/'
@@ -119,8 +120,8 @@ export interface FileRouteTypes {
     | '/canvas/$canvasId'
     | '/settings/RouteComponent'
     | '/settings/skills'
-    | '/settings/recipes/create'
     | '/settings/recipes/'
+    | '/settings/recipes/edit/$recipeId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -181,11 +182,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRecipesIndexRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
-    '/settings/recipes/create': {
-      id: '/settings/recipes/create'
-      path: '/recipes/create'
-      fullPath: '/settings/recipes/create'
-      preLoaderRoute: typeof SettingsRecipesCreateRouteImport
+    '/settings/recipes/edit/$recipeId': {
+      id: '/settings/recipes/edit/$recipeId'
+      path: '/recipes/edit/$recipeId'
+      fullPath: '/settings/recipes/edit/$recipeId'
+      preLoaderRoute: typeof SettingsRecipesEditRecipeIdRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
   }
@@ -194,15 +195,15 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteRouteChildren {
   SettingsRouteComponentRoute: typeof SettingsRouteComponentRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
-  SettingsRecipesCreateRoute: typeof SettingsRecipesCreateRoute
   SettingsRecipesIndexRoute: typeof SettingsRecipesIndexRoute
+  SettingsRecipesEditRecipeIdRoute: typeof SettingsRecipesEditRecipeIdRoute
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsRouteComponentRoute: SettingsRouteComponentRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
-  SettingsRecipesCreateRoute: SettingsRecipesCreateRoute,
   SettingsRecipesIndexRoute: SettingsRecipesIndexRoute,
+  SettingsRecipesEditRecipeIdRoute: SettingsRecipesEditRecipeIdRoute,
 }
 
 const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(

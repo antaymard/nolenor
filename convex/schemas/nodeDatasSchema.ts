@@ -9,15 +9,6 @@ const nodeDatasValidator = v.object({
   updatedAt: v.number(),
   removedFromCanvasAt: v.optional(v.number()),
   values: v.record(v.string(), v.any()),
-
-  // TO DEP
-  status: v.optional(v.any()),
-  automationProgress: v.optional(v.any()),
-
-  agent: v.optional(v.any()),
-  dataProcessing: v.optional(v.any()),
-  automationMode: v.optional(v.any()),
-  dependencies: v.optional(v.any()),
 });
 
 export { nodeDatasValidator };

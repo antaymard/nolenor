@@ -72,7 +72,6 @@ import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
 import type * as memories from "../memories.js";
 import type * as messageMetadata from "../messageMetadata.js";
-import type * as migrations from "../migrations.js";
 import type * as models_canvasEdgeModels from "../models/canvasEdgeModels.js";
 import type * as models_canvasModels from "../models/canvasModels.js";
 import type * as models_canvasNodeModels from "../models/canvasNodeModels.js";
@@ -186,7 +185,6 @@ declare const fullApi: ApiFromModules<{
   links: typeof links;
   memories: typeof memories;
   messageMetadata: typeof messageMetadata;
-  migrations: typeof migrations;
   "models/canvasEdgeModels": typeof models_canvasEdgeModels;
   "models/canvasModels": typeof models_canvasModels;
   "models/canvasNodeModels": typeof models_canvasNodeModels;

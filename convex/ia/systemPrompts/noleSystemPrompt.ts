@@ -163,10 +163,12 @@ ${nodeTypesPresentation}
 5. Be concise in your responses. Don't use 10 words when 3 will do.
 </communication_style>
 
-<canvas_structure>
-<hint>Structural map of the canvas derived from title nodes. 📍 = major section (rank-1 hub), ├─/└─ = children. Use this to navigate without reading every node.</hint>
-${minimapResult.minimapText || "No structure detected."}
-</canvas_structure>
+<current_canvas name="${minimapResult.canvasName}" description="${minimapResult.canvasDescription}">
+  <canvas_structure>
+  <hint>Structural map of the canvas derived from title nodes. 📍 = major section (rank-1 hub), ├─/└─ = children. Use this to navigate without reading every node.</hint>
+  ${minimapResult.minimapText || "No structure detected."}
+  </canvas_structure>
+</current_canvas>
 
 <memory_context>
 This memory is managed by you. Make it your own. Manage it with the memory tool, and use it to keep track of important information that should be persisted across sessions.

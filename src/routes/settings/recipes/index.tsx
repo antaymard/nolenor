@@ -34,7 +34,23 @@ function RouteComponent() {
     return _recipes.map((recipe) => (
       <TableRow key={recipe._id}>
         <TableCell>{recipe.name}</TableCell>
-        <TableCell>{recipe._creationTime}</TableCell>
+        <TableCell>
+          {new Date(recipe._creationTime).toLocaleDateString()}
+        </TableCell>
+        <TableCell>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() =>
+              navigate({
+                to: "/settings/recipes/edit/$recipeId",
+                params: { recipeId: recipe._id },
+              })
+            }
+          >
+            Edit
+          </Button>
+        </TableCell>
       </TableRow>
     ));
   }
@@ -75,6 +91,7 @@ function RouteComponent() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">{renderRecipesTable()}</TableBody>

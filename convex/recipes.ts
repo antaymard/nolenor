@@ -14,6 +14,27 @@ export const listUserRecipes = query({
   },
 });
 
+export const read = query({
+  args: {
+    recipeId: v.id("recipes"),
+  },
+  handler: async (ctx, args) => {
+    const authUserId = await requireAuth(ctx);
+
+    const recipe = await ctx.db.get(args.recipeId);
+
+    if (!recipe) {
+      throw new Error("Recipe not found");
+    }
+
+    if (recipe.userId !== authUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    return recipe;
+  },
+});
+
 export const upsert = mutation({
   args: {
     name: v.string(),

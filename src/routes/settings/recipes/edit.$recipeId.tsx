@@ -13,7 +13,7 @@ import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { Block, BlockNoteEditor, PartialBlock } from "@blocknote/core";
 import "@blocknote/shadcn/style.css";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
 
 export const Route = createFileRoute("/settings/recipes/edit/$recipeId")({
@@ -69,18 +69,25 @@ function RouteComponent() {
     },
   });
 
+  useEffect(() => {
+    if (isSuccess && recipe && recipeId !== "new") {
+      form.setFieldValue("name", recipe.name);
+      form.setFieldValue("content", recipe.content);
+    }
+  }, [recipe, isSuccess, recipeId]);
+
   const editor = useMemo(() => {
     if (recipeId === "new") {
       return BlockNoteEditor.create();
     }
     if (isSuccess && recipe) {
-      form.setFieldValue("name", recipe.name);
-      form.setFieldValue("content", recipe.content);
       return BlockNoteEditor.create({
-        initialContent: JSON.parse(recipe.content) as PartialBlock[],
+        initialContent: recipe.content
+          ? (JSON.parse(recipe.content) as PartialBlock[])
+          : undefined,
       });
     }
-  }, [recipeId, isSuccess]);
+  }, [recipeId, isSuccess, recipe]);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -95,16 +102,25 @@ function RouteComponent() {
           name="name"
           label="Title"
           required
+          validators={{
+            onChange: ({ value }: { value: string }) =>
+              !value.trim() ? "Title cannot be empty" : undefined,
+            onSubmit: ({ value }: { value: string }) =>
+              !value.trim() ? "Title cannot be empty" : undefined,
+          }}
           inputClassName="bg-white"
         />
         {editor ? (
-          <BlockNoteView
-            theme="light"
-            editor={editor}
-            onChange={() => {
-              form.setFieldValue("content", JSON.stringify(editor.document));
-            }}
-          />
+          <>
+            <label className="block mb-2 mt-4 text-sm">Content</label>
+            <BlockNoteView
+              theme="light"
+              editor={editor}
+              onChange={() => {
+                form.setFieldValue("content", JSON.stringify(editor.document));
+              }}
+            />
+          </>
         ) : (
           <div>Loading editor...</div>
         )}

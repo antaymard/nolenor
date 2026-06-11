@@ -16,6 +16,7 @@ interface TextInputProps extends Omit<
   label?: string;
   helperText?: string;
   required?: boolean;
+  validators?: object;
   inputClassName?: string;
 }
 
@@ -25,6 +26,7 @@ function TextInput({
   label,
   helperText,
   required = false,
+  validators,
   className,
   inputClassName,
   ...props
@@ -33,7 +35,7 @@ function TextInput({
   const id = `input-${name}-${generatedId}`;
 
   return (
-    <form.Field name={name}>
+    <form.Field name={name} validators={validators}>
       {(field: {
         state: {
           value: string;

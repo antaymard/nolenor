@@ -79,6 +79,8 @@ export const generate = internalQuery({
 
     return {
       canvasId: canvas._id,
+      canvasName: canvas.name,
+      canvasDescription: canvas.description,
       hubCount: hubs.length,
       minimapText: formatMinimapText(hubs),
     };

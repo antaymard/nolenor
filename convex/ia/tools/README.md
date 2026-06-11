@@ -16,7 +16,7 @@ Ce dossier contient les tools serveur utilisés par les agents IA.
 Il fait 3 choses :
 
 1. Déclare le `toolRegistry` : liste des tools disponibles avec leur config et leur factory.
-2. Filtre les tools selon `agentName` (`nolë`, `automation-agent`, etc.).
+2. Filtre les tools selon `agentName` (`nolë`, `clone`, `supervisor`, etc.).
 3. Instancie les tools avec le bon contexte, notamment `canvasId` pour les tools liés au canvas.
 
 La fonction importante est `getToolsForAgent(...)`.

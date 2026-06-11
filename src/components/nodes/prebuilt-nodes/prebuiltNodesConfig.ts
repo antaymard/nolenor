@@ -82,7 +82,7 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
 
 // Build the prebuilt node config by merging nodeDataConfig with nodeUiConfig.
 // nodeDataConfig is the source of truth for label, dimensions, variants,
-// canHaveAutomation and data schemas. nodeUiConfig adds the React component
+// and data schemas. nodeUiConfig adds the React component
 // and icon for each type.
 const prebuiltNodesConfig: Array<PrebuiltNodeConfig> = nodeDataConfig
   .filter((config) => config.type in nodeUiConfig)

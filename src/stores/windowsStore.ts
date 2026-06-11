@@ -1,10 +1,15 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { useCanvasStore } from "./canvasStore";
+import { isTabletPortrait } from "@/hooks/useTabletMode";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { NodeType } from "@/types/domain/nodeTypes";
 
 const MIN_WINDOW_WIDTH = 320;
+// On a tablet held in portrait, ratio-based windows end up around a third of
+// the screen width, which is cramped. Give them a larger pixel floor so they
+// open at a usable size (still bounded by the available viewport width).
+const MIN_WINDOW_WIDTH_TABLET_PORTRAIT = 560;
 const MIN_WINDOW_HEIGHT = 220;
 const VIEWPORT_SIZE_PADDING = 24;
 
@@ -30,11 +35,16 @@ const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
 };
 
 function resolveWindowSize(preset: WindowSizePreset): WindowSize {
+  const maxWidth = Math.max(
+    MIN_WINDOW_WIDTH,
+    window.innerWidth - VIEWPORT_SIZE_PADDING * 2,
+  );
+  // Bump the minimum width on portrait tablets, but never beyond what fits.
+  const minWidth = isTabletPortrait()
+    ? Math.min(MIN_WINDOW_WIDTH_TABLET_PORTRAIT, maxWidth)
+    : MIN_WINDOW_WIDTH;
+
   if ("widthRatio" in preset && "heightRatio" in preset) {
-    const maxWidth = Math.max(
-      MIN_WINDOW_WIDTH,
-      window.innerWidth - VIEWPORT_SIZE_PADDING * 2,
-    );
     const maxHeight = Math.max(
       MIN_WINDOW_HEIGHT,
       window.innerHeight - VIEWPORT_SIZE_PADDING * 2,
@@ -43,10 +53,7 @@ function resolveWindowSize(preset: WindowSizePreset): WindowSize {
     return {
       width: Math.min(
         maxWidth,
-        Math.max(
-          MIN_WINDOW_WIDTH,
-          Math.round(window.innerWidth * preset.widthRatio),
-        ),
+        Math.max(minWidth, Math.round(window.innerWidth * preset.widthRatio)),
       ),
       height: Math.min(
         maxHeight,
@@ -56,6 +63,12 @@ function resolveWindowSize(preset: WindowSizePreset): WindowSize {
         ),
       ),
     };
+  }
+
+  // Fixed-size preset: keep desktop behaviour untouched, but still honour the
+  // portrait-tablet floor (clamped to the viewport) when applicable.
+  if (minWidth > preset.width) {
+    return { width: Math.min(maxWidth, minWidth), height: preset.height };
   }
 
   return preset;
@@ -474,6 +487,22 @@ export const useWindowsStore = create<WindowsStore>()(
           if (nextWindowState === current.windowState) return store;
 
           const nextOpenedWindows = store.openedWindows.slice();
+
+          // When restoring from minimized, bring the window to the front so it
+          // doesn't reappear behind windows that were focused more recently.
+          if (nextWindowState === "normal") {
+            const nextTopZIndex = store.topZIndex + 1;
+            nextOpenedWindows[index] = {
+              ...current,
+              windowState: nextWindowState,
+              zIndex: nextTopZIndex,
+            };
+            return {
+              openedWindows: nextOpenedWindows,
+              topZIndex: nextTopZIndex,
+            };
+          }
+
           nextOpenedWindows[index] = {
             ...current,
             windowState: nextWindowState,

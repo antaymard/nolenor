@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { api } from "../../convex/_generated/api";
 import { VscGithubProject } from "react-icons/vsc";
 import { useState, useEffect } from "react";
-import CanvasCreationModal from "../components/canvas/CanvasCreationModal";
+import CanvasFormModal from "../components/canvas/CanvasFormModal";
 import { Dialog } from "@/components/shadcn/dialog";
 import { useConvexAuth, useConvex } from "convex/react";
 
@@ -66,7 +66,7 @@ function RouteComponent() {
         </button>
       </div>
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <CanvasCreationModal />
+        <CanvasFormModal mode="create" />
       </Dialog>
     </div>
   );

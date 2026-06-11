@@ -134,7 +134,7 @@ function formatStructuredMessageContext(context: any): string {
 
   const reminder = `<reminders>
   - Always check if any skills apply to the user's request. If so, read the corresponding skill files. Multiple skill files may be needed for a single request. These files contain best practices built from testing that are needed for high-quality outputs.
-  - Use the explanation field when using tools that support it, to provide context on the research intent. This helps guide the worker's approach and focus.
+  - Use the explanation field when using tools that support it, to provide context on your intent. This helps guide the worker's approach and focus.
   </reminders>`;
 
   if (blocks.length === 0) return `<message_context />\n\n${reminder}`;

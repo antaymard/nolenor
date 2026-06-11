@@ -1,27 +1,14 @@
-import { useMutation } from "convex/react";
-import type { Id } from "../../../convex/_generated/dataModel";
-import { api } from "../../../convex/_generated/api";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { Link } from "@tanstack/react-router";
 import { HiOutlineCog } from "react-icons/hi";
 import { TbLayoutSidebarLeftExpand } from "react-icons/tb";
 import { useSidebar } from "../shadcn/sidebar";
-import InlineEditableText from "../form-ui/InlineEditableText";
 import { TbCloudCheck, TbCloudUp, TbCloudX } from "react-icons/tb";
 import { memo } from "react";
 
 function CanvasTopBar() {
   const canvas = useCanvasStore((state) => state.canvas);
   const { setOpen } = useSidebar();
-
-  const updateCanvasDetails = useMutation(api.canvases.updateCanvasDetails);
-
-  const handleUpdateCanvasDetails = async (newName: string) => {
-    await updateCanvasDetails({
-      canvasId: canvas?._id as Id<"canvases">,
-      name: newName,
-    });
-  };
 
   return (
     <>
@@ -43,13 +30,9 @@ function CanvasTopBar() {
             <HiOutlineCog size={18} />
           </Link>
         </div>
-        <InlineEditableText
-          value={canvas?.name || "Untitled"}
-          onSave={handleUpdateCanvasDetails}
-          as="h1"
-          className="font-semibold hover:text-black text-lg"
-          placeholder="Untitled"
-        />
+        <h1 className="font-semibold text-lg">
+          {canvas?.name || "Untitled"}
+        </h1>
         <div>
           <CanvasStatus />
         </div>

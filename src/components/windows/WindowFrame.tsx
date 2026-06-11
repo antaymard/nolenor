@@ -16,6 +16,7 @@ import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { X, Minus, Save, Maximize2 } from "lucide-react";
 import { TbLocation, TbRefresh } from "react-icons/tb";
 import { useReactFlow } from "@xyflow/react";
+import { useGoToNode } from "@/hooks/useGoToNode";
 import DocumentWindow from "./prebuilt/DocumentWindow";
 import EmbedWindow from "./prebuilt/EmbedWindow";
 import ImageWindow from "./prebuilt/ImageWindow";
@@ -92,7 +93,8 @@ export default function WindowFrame({
   const removeDirtyNode = useWindowsStore((s) => s.removeDirtyNode);
   const addAttachments = useNoleStore((s) => s.addAttachments);
   const isAttachedToConversation = useIsNodeAttached(xyNodeId);
-  const { fitView, getNode } = useReactFlow();
+  const { getNode } = useReactFlow();
+  const goToNode = useGoToNode();
 
   const title = useNodeDataTitle(nodeDataId);
   const nodeData = useNodeData(nodeDataId);
@@ -444,14 +446,7 @@ export default function WindowFrame({
               data-window-control="true"
               className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
               onMouseDown={(e) => e.stopPropagation()}
-              onClick={() =>
-                fitView({
-                  nodes: [{ id: xyNodeId }],
-                  duration: 500,
-                  minZoom: 0.5,
-                  maxZoom: 1,
-                })
-              }
+              onClick={() => goToNode(xyNodeId)}
               aria-label="Go to node"
             >
               <TbLocation size={13} />

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "convex/react";
+import { List } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -9,12 +10,18 @@ import { type OpenedWindow } from "@/stores/windowsStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useIsTabletPortrait } from "@/hooks/useTabletMode";
 import type { FileFieldType } from "@/components/fields/file-fields/FileNameField";
 import { api } from "@/../convex/_generated/api";
 import ChatContainer from "@/components/canvas/nole-panel/ChatContainer";
 import NoleIcon from "@/assets/svg-components/NoleIcon";
 import { Button } from "@/components/shadcn/button";
 import { Kbd } from "@/components/shadcn/kbd";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/shadcn/popover";
 import FullscreenWindowFrame from "./FullscreenWindowFrame";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -122,24 +129,64 @@ export default function FullscreenPdfWindow({
     target.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  // On portrait tablets, drop the chat + outline side columns for a focused,
+  // full-width reading mode. The outline moves into a header dropdown.
+  const isTabletPortrait = useIsTabletPortrait();
+  const [outlineOpen, setOutlineOpen] = useState(false);
+
+  const handleOutlineSelect = useCallback(
+    (pageIndex: number) => {
+      scrollToPage(pageIndex);
+      setOutlineOpen(false);
+    },
+    [scrollToPage],
+  );
+
   return (
-    <FullscreenWindowFrame openedWindow={openedWindow}>
+    <FullscreenWindowFrame
+      openedWindow={openedWindow}
+      headerLeftSlot={
+        isTabletPortrait ? (
+          <Popover open={outlineOpen} onOpenChange={setOutlineOpen}>
+            <PopoverTrigger asChild>
+              <button
+                data-window-control="true"
+                className="shrink-0 rounded p-1 opacity-60 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
+                aria-label="Outline"
+                title="Outline"
+              >
+                <List size={16} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="z-[60] w-80 p-0">
+              <PdfOutline
+                entries={displayedOutline}
+                onSelect={handleOutlineSelect}
+                className="max-h-[70vh]"
+              />
+            </PopoverContent>
+          </Popover>
+        ) : undefined
+      }
+    >
       <div className="flex min-h-0 flex-1">
         {/* Left: Nolë chat */}
-        <aside className="relative flex w-95 shrink-0 flex-col border-r bg-white [&>div]:shadow-none!">
-          {isChatOpen ? (
-            <ChatContainer onClose={() => setIsChatOpen(false)} />
-          ) : (
-            <div className="absolute bottom-4 left-4">
-              <div className="canvas-ui-container px-0!">
-                <Button variant="ghost" onClick={() => setIsChatOpen(true)}>
-                  <NoleIcon /> Nolë
-                  <Kbd>N</Kbd>
-                </Button>
+        {!isTabletPortrait && (
+          <aside className="relative flex w-95 shrink-0 flex-col border-r bg-white [&>div]:shadow-none!">
+            {isChatOpen ? (
+              <ChatContainer onClose={() => setIsChatOpen(false)} />
+            ) : (
+              <div className="absolute bottom-4 left-4">
+                <div className="canvas-ui-container px-0!">
+                  <Button variant="ghost" onClick={() => setIsChatOpen(true)}>
+                    <NoleIcon /> Nolë
+                    <Kbd>N</Kbd>
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </aside>
+            )}
+          </aside>
+        )}
 
         {/* Middle: PDF viewer */}
         <main className="flex min-w-0 flex-1 overflow-hidden">
@@ -178,9 +225,15 @@ export default function FullscreenPdfWindow({
         </main>
 
         {/* Right: outline */}
-        <aside className="flex w-95 shrink-0 flex-col border-l bg-white">
-          <PdfOutline entries={displayedOutline} onSelect={scrollToPage} />
-        </aside>
+        {!isTabletPortrait && (
+          <aside className="flex w-95 shrink-0 flex-col border-l bg-white">
+            <PdfOutline
+              entries={displayedOutline}
+              onSelect={scrollToPage}
+              className="h-full"
+            />
+          </aside>
+        )}
       </div>
     </FullscreenWindowFrame>
   );
@@ -189,12 +242,14 @@ export default function FullscreenPdfWindow({
 function PdfOutline({
   entries,
   onSelect,
+  className,
 }: {
   entries: OutlineEntry[];
   onSelect: (pageIndex: number) => void;
+  className?: string;
 }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className={cn("flex flex-col overflow-hidden", className)}>
       <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
         Outline
       </div>

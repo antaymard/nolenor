@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Minimize2, Minus, Save, X } from "lucide-react";
 import { TbLocation, TbRefresh } from "react-icons/tb";
-import { useReactFlow } from "@xyflow/react";
+import { useGoToNode } from "@/hooks/useGoToNode";
 import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
@@ -33,7 +33,7 @@ export default function FullscreenWindowFrame({
   const nodeData = useNodeData(nodeDataId);
   const NodeIcon = getNodeIcon(nodeData?.type);
 
-  const { fitView } = useReactFlow();
+  const goToNode = useGoToNode();
 
   const [isDirty, setDirty] = useState(false);
   const [saveHandler, setSaveHandler] = useState<(() => void) | null>(null);
@@ -118,14 +118,7 @@ export default function FullscreenWindowFrame({
           <button
             data-window-control="true"
             className="shrink-0 rounded p-1 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
-            onClick={() =>
-              fitView({
-                nodes: [{ id: xyNodeId }],
-                duration: 500,
-                minZoom: 0.5,
-                maxZoom: 1,
-              })
-            }
+            onClick={() => goToNode(xyNodeId)}
             aria-label="Go to node"
             title="Go to node"
           >

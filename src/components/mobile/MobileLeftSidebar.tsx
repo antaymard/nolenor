@@ -10,7 +10,7 @@ import {
 } from "@/components/shadcn/sheet";
 import { Button } from "@/components/shadcn/button";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
-import CanvasCreationModal from "@/components/canvas/CanvasCreationModal";
+import CanvasFormModal from "@/components/canvas/CanvasFormModal";
 import { TbPlus, TbTrash } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
@@ -92,7 +92,7 @@ export default function MobileLeftSidebar({
                   <TbPlus size={14} />
                 </Button>
               </DialogTrigger>
-              <CanvasCreationModal />
+              <CanvasFormModal mode="create" />
             </Dialog>
           </div>
 

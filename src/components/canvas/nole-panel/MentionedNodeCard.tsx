@@ -1,5 +1,6 @@
-import { useStore, useReactFlow } from "@xyflow/react";
+import { useStore } from "@xyflow/react";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useGoToNode } from "@/hooks/useGoToNode";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { getNodeDataTitle } from "@/components/utils/nodeDataDisplayUtils";
 import { cn } from "@/lib/utils";
@@ -20,7 +21,7 @@ export function MentionedNodeCard({
 }: MentionedNodeCardProps) {
   const nodes = useStore((state) => state.nodes);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
-  const { fitView } = useReactFlow();
+  const goToNode = useGoToNode();
   const isMobile = useIsMobile();
   const openWindow = useWindowsStore((state) => state.openWindow);
 
@@ -56,12 +57,7 @@ export function MentionedNodeCard({
       }
       return;
     }
-    fitView({
-      nodes: [{ id: nodeId }],
-      duration: 800,
-      minZoom: 0.5,
-      maxZoom: 1.2,
-    });
+    goToNode(nodeId, { duration: 800, maxZoom: 1.2 });
   };
 
   return (

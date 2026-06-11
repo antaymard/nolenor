@@ -14,7 +14,7 @@ import { useMutation, useQuery } from "convex/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Link } from "@tanstack/react-router";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
-import CanvasCreationModal from "./CanvasCreationModal";
+import CanvasFormModal from "./CanvasFormModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +35,6 @@ import { buttonVariants } from "@/components/shadcn/button";
 import { HiDotsVertical } from "react-icons/hi";
 import { TbPlus } from "react-icons/tb";
 import { cn } from "@/lib/utils";
-import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { useState } from "react";
 
 export default function CanvasSidebar({
@@ -46,26 +45,25 @@ export default function CanvasSidebar({
   canvasId: Id<"canvases">;
 }) {
   const deleteCanvas = useMutation(api.canvases.deleteCanvas);
-  const updateCanvasProps = useMutation(api.canvases.updateProps);
   const userCanvases = useQuery(api.canvases.listUserCanvases);
 
-  const currentCanvasName = userCanvases?.find((c) => c._id === canvasId)?.name;
+  const currentCanvas = userCanvases?.find((c) => c._id === canvasId);
 
   const [canvasToDelete, setCanvasToDelete] = useState<{
     id: Id<"canvases">;
     name: string;
   } | null>(null);
 
+  const [canvasToEdit, setCanvasToEdit] = useState<{
+    id: Id<"canvases">;
+    name: string;
+    description: string;
+  } | null>(null);
+
   const confirmDeleteCanvas = async () => {
     if (!canvasToDelete) return;
     await deleteCanvas({ canvasId: canvasToDelete.id });
     setCanvasToDelete(null);
-  };
-
-  const handleUpdateCanvasName = async (newName: string) => {
-    if (newName.trim() && newName !== currentCanvasName) {
-      await updateCanvasProps({ canvasId, name: newName.trim() });
-    }
   };
 
   function renderUserCanvases() {
@@ -105,6 +103,17 @@ export default function CanvasSidebar({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() =>
+                      setCanvasToEdit({
+                        id: c._id,
+                        name: c.name,
+                        description: c.description ?? "",
+                      })
+                    }
+                  >
+                    Edit
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() =>
                       setCanvasToDelete({ id: c._id, name: c.name })
@@ -153,13 +162,9 @@ export default function CanvasSidebar({
       <Sidebar variant="sidebar">
         <SidebarHeader className="flex flex-row items-center justify-between p-4">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <InlineEditableText
-              value={currentCanvasName ?? "..."}
-              onSave={handleUpdateCanvasName}
-              className="font-semibold text-lg truncate"
-              placeholder="Workspace name"
-              as="span"
-            />
+            <span className="font-semibold text-lg truncate">
+              {currentCanvas?.name ?? "..."}
+            </span>
           </div>
           <Dialog>
             <DialogTrigger asChild>
@@ -167,7 +172,7 @@ export default function CanvasSidebar({
                 <TbPlus size={16} />
               </Button>
             </DialogTrigger>
-            <CanvasCreationModal />
+            <CanvasFormModal mode="create" />
           </Dialog>
         </SidebarHeader>
         <SidebarContent className="py-4">
@@ -183,6 +188,28 @@ export default function CanvasSidebar({
         </span>
         {children}
       </SidebarInset>
+
+      <Dialog
+        open={canvasToEdit !== null}
+        onOpenChange={(open) => {
+          if (!open) setCanvasToEdit(null);
+        }}
+      >
+        <CanvasFormModal
+          key={canvasToEdit?.id ?? "none"}
+          mode="edit"
+          canvasId={canvasToEdit?.id}
+          initialValues={
+            canvasToEdit
+              ? {
+                  name: canvasToEdit.name,
+                  description: canvasToEdit.description,
+                }
+              : undefined
+          }
+          onSuccess={() => setCanvasToEdit(null)}
+        />
+      </Dialog>
 
       <AlertDialog
         open={canvasToDelete !== null}

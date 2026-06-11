@@ -4,11 +4,7 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as NodeDataModel from "./models/nodeDataModels";
-import {
-  agentConfigValidator,
-  dataProcessingValidator,
-  nodeDatasValidator,
-} from "./schemas/nodeDatasSchema";
+import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
 export const create = mutation({
   args: nodeDatasValidator,
   handler: async (ctx, args) => {
@@ -204,34 +200,5 @@ export const updateValues = mutation({
     if (!existing) throw new ConvexError("NodeData not found");
     await requireCanvasAccess(ctx, existing.canvasId, authUserId, "editor");
     return NodeDataModel.updateValues(ctx, { _id, values });
-  },
-});
-
-export const updateAutomationSettings = mutation({
-  args: {
-    _id: v.id("nodeDatas"),
-    automationMode: v.optional(
-      v.union(
-        v.literal("agent"),
-        v.literal("dataProcessing"),
-        v.literal("off"),
-      ),
-    ),
-    agent: v.optional(agentConfigValidator),
-    dataProcessing: v.optional(v.array(dataProcessingValidator)),
-  },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    const authUserId = await requireAuth(ctx);
-    const existing = await ctx.db.get(args._id);
-    if (!existing) throw new ConvexError("NodeData not found");
-    await requireCanvasAccess(ctx, existing.canvasId, authUserId, "editor");
-
-    await ctx.db.patch(args._id, {
-      automationMode: args.automationMode,
-      agent: args.agent,
-      dataProcessing: args.dataProcessing,
-    });
-    return true;
   },
 });

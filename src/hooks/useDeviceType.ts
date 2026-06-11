@@ -21,11 +21,14 @@ export function useDeviceType(): DeviceType {
   return deviceType;
 }
 
-function getDeviceType(): DeviceType {
+export function getDeviceType(): DeviceType {
   if (typeof navigator === "undefined") return "desktop";
 
   const userAgent =
-    navigator.userAgent || navigator.vendor || (window as any).opera || "";
+    navigator.userAgent ||
+    navigator.vendor ||
+    (window as Window & { opera?: string }).opera ||
+    "";
   const ua = userAgent.toLowerCase();
 
   // Détection des tablettes
@@ -43,11 +46,11 @@ function getDeviceType(): DeviceType {
     );
 
   // Vérifie aussi via userAgentData si disponible (API moderne)
-  if (
-    "userAgentData" in navigator &&
-    (navigator as any).userAgentData?.mobile !== undefined
-  ) {
-    if ((navigator as any).userAgentData.mobile) return "mobile";
+  const userAgentData = (
+    navigator as Navigator & { userAgentData?: { mobile?: boolean } }
+  ).userAgentData;
+  if (userAgentData?.mobile !== undefined) {
+    if (userAgentData.mobile) return "mobile";
   }
 
   if (isMobile) return "mobile";

@@ -29,7 +29,9 @@ export default defineConfig({
         theme_color: "#475569",
         background_color: "#f8fafc",
         display: "standalone",
-        orientation: "portrait-primary",
+        // Allow both portrait and landscape so large tablets (e.g. Boox Max
+        // 13.3) can rotate. Phones are free to stay in portrait naturally.
+        orientation: "any",
         scope: "/",
         start_url: "/",
         icons: [

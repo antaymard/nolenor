@@ -53,6 +53,7 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useHotspotHotkeys } from "@/hooks/useHotspotHotkeys";
 import MobileCanvas from "@/components/mobile/MobileCanvas";
+import { useIsTouchFirst } from "@/hooks/useTabletMode";
 
 // Additional helper to prevent hotkeys from triggering when typing in inputs, textareas, selects or contenteditable elements
 function isEditableTarget(target: EventTarget | null): target is HTMLElement {
@@ -157,6 +158,10 @@ function CanvasContent({
   } = useContextMenu();
 
   const isMobile = useIsMobile();
+  const isTouchFirst = useIsTouchFirst();
+  // On touch-first devices (phones, tablets like the Boox), dragging on the
+  // pane should pan the canvas instead of drawing a selection rectangle.
+  const panWithFinger = isMobile || isTouchFirst;
   const { screenToFlowPosition, getNodes } = useReactFlow();
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const focus = useCanvasStore((state) => state.focus);
@@ -310,7 +315,7 @@ function CanvasContent({
       <WindowsContainer />
       <ReactFlow
         panOnScroll
-        panOnDrag={isMobile ? true : [1]}
+        panOnDrag={panWithFinger ? true : [1]}
         defaultViewport={{
           x: 0,
           y: 0,
@@ -320,7 +325,7 @@ function CanvasContent({
         maxZoom={4}
         selectNodesOnDrag={false}
         selectionMode={SelectionMode.Partial}
-        selectionOnDrag={!isMobile}
+        selectionOnDrag={!panWithFinger}
         nodeTypes={nodeTypes}
         onPaneClick={onPaneClick}
         onPaneContextMenu={onPaneContextMenu}

@@ -2,7 +2,6 @@ import { Id } from "../_generated/dataModel";
 
 export const toolAgentNames = {
   nole: "nolë",
-  automation: "automation-agent",
   clone: "clone",
   supervisor: "supervisor",
   worker: "worker",

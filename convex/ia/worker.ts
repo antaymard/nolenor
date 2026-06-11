@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { baseAgent, createWorkerAgent } from "./agents";
-import { components } from "../_generated/api";
+import { components, internal } from "../_generated/api";
 import { createThread } from "@convex-dev/agent";
 import generateWorkerSystemPrompt from "./systemPrompts/workerSystemPrompt";
 
@@ -13,6 +13,17 @@ export const startWorkerTask = internalAction({
   },
   handler: async (ctx, { userId, canvasId, instructions }) => {
     try {
+      // Check if the provided canvasId is accessible to the user (only creator for now)
+      const isCanvasCreator = await ctx.runQuery(
+        internal.wrappers.canvasWrappers.checkCanvasAccessForUser,
+        {
+          canvasId,
+          userId,
+        },
+      );
+      if (!isCanvasCreator)
+        throw new Error("User does not have access to this canvas");
+
       const threadId = await createThread(ctx, components.agent, {
         userId,
         title: `__WORKER__`,

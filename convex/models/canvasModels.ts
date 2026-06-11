@@ -7,6 +7,7 @@ import { internal } from "../_generated/api";
 type UserCanvasListItem = {
   _id: Id<"canvases">;
   name: string;
+  description?: string;
   shared?: boolean;
   permission?: "viewer" | "editor";
 };
@@ -64,6 +65,7 @@ export async function listUserCanvasesWithShares(
     ...ownCanvases.map((canvas) => ({
       _id: canvas._id,
       name: canvas.name,
+      description: canvas.description,
     })),
     ...sharedCanvases.filter((canvas) => canvas !== null),
   ];
@@ -101,34 +103,40 @@ export async function createCanvasForUser(
   {
     authUserId,
     name,
+    description,
   }: {
     authUserId: Id<"users">;
     name: string;
+    description?: string;
   },
 ): Promise<Id<"canvases">> {
   return await ctx.db.insert("canvases", {
     creatorId: authUserId,
     name,
+    description,
     nodes: [],
     edges: [],
     updatedAt: Date.now(),
   });
 }
 
-export async function updateCanvasName(
+export async function updateCanvasDetails(
   ctx: MutationCtx,
   {
     canvasId,
     name,
+    description,
   }: {
     canvasId: Id<"canvases">;
     name: string;
+    description?: string;
   },
 ): Promise<Id<"canvases">> {
   await getCanvasOrThrow(ctx, canvasId);
 
   await ctx.db.patch("canvases", canvasId, {
     name,
+    description,
     updatedAt: Date.now(),
   });
 

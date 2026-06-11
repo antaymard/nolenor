@@ -11,12 +11,11 @@ import { api } from "@/../convex/_generated/api";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { HiMiniChevronDown } from "react-icons/hi2";
-import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { LuUndo, LuRedo } from "react-icons/lu";
 import { AiOutlinePlusCircle } from "react-icons/ai";
 import { Link } from "@tanstack/react-router";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
-import CanvasCreationModal from "../CanvasCreationModal";
+import CanvasFormModal from "../CanvasFormModal";
 import { memo } from "react";
 import { useShallow } from "zustand/shallow";
 
@@ -28,7 +27,6 @@ function TopLeftToolbar({
   redo: () => void;
 }) {
   const canvas = useCanvasStore(useShallow((state) => state.canvas));
-  const updateCanvasDetails = useMutation(api.canvases.updateCanvasDetails);
   const deleteCanvas = useMutation(api.canvases.deleteCanvas);
   const { isAuthenticated } = useConvexAuth();
 
@@ -41,13 +39,6 @@ function TopLeftToolbar({
   if (userCanvases === undefined) {
     return null;
   }
-
-  const handleUpdateCanvasDetails = async (newName: string) => {
-    await updateCanvasDetails({
-      canvasId: canvas?._id as Id<"canvases">,
-      name: newName,
-    });
-  };
 
   function renderUserCanvases() {
     return userCanvases.map((c) => (
@@ -83,20 +74,15 @@ function TopLeftToolbar({
                 <DialogTrigger>
                   <AiOutlinePlusCircle size={14} />
                 </DialogTrigger>
-                <CanvasCreationModal />
+                <CanvasFormModal mode="create" />
               </Dialog>
             </DropdownMenuLabel>
             {renderUserCanvases()}
           </DropdownMenuContent>
         </DropdownMenu>
-        <InlineEditableText
-          disabled={!isAuthenticated}
-          value={canvas?.name || "Untitled"}
-          onSave={handleUpdateCanvasDetails}
-          as="h1"
-          className="font-semibold hover:bg-accent p-1 px-2 rounded-sm"
-          placeholder="Untitled"
-        />
+        <h1 className="font-semibold p-1 px-2 rounded-sm">
+          {canvas?.name || "Untitled"}
+        </h1>
       </div>
 
       {isAuthenticated && (

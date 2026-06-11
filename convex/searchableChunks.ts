@@ -3,6 +3,12 @@ import { v } from "convex/values";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import { chunkTypeValidator } from "./schemas/searchableChunksSchema";
 import * as SearchableChunkModels from "./models/searchableChunkModels";
+import {
+  RANKING,
+  extractSearchTerms,
+  normalizedPhrase,
+  scoreNode,
+} from "./lib/searchScoring";
 
 const SNIPPET_RADIUS = 90;
 const MAX_SNIPPETS_PER_CHUNK = 1;
@@ -78,48 +84,83 @@ export const search = query({
       }
     }
 
-    return Array.from(groupedByNodeId.entries()).map(([nodeId, chunks]) => ({
-      type: chunks[0].nodeType,
-      nodeId,
-      nodeDataId: chunks[0].nodeDataId,
-      title: chunks[0].title,
-      images: Array.from(
-        new Map(
-          chunks
+    const terms = extractSearchTerms(args.query);
+    const phrase = normalizedPhrase(args.query);
+
+    const scored = Array.from(groupedByNodeId.entries()).map(
+      ([nodeId, chunks]) => {
+        const result = {
+          type: chunks[0].nodeType,
+          nodeId,
+          nodeDataId: chunks[0].nodeDataId,
+          title: chunks[0].title,
+          images: Array.from(
+            new Map(
+              chunks
+                .flatMap((chunk) =>
+                  getImageUrlsFromMetadata(chunk.metadata).map(
+                    (imageUrl) =>
+                      [
+                        imageUrl,
+                        {
+                          imageUrl,
+                          page: getPageFromMetadata(chunk.metadata),
+                        },
+                      ] as const,
+                  ),
+                )
+                .filter(
+                  (
+                    item,
+                  ): item is readonly [
+                    string,
+                    { imageUrl: string; page: number | undefined },
+                  ] => item !== null,
+                ),
+            ).values(),
+          ),
+          snippets: chunks
             .flatMap((chunk) =>
-              getImageUrlsFromMetadata(chunk.metadata).map(
-                (imageUrl) =>
-                  [
-                    imageUrl,
-                    { imageUrl, page: getPageFromMetadata(chunk.metadata) },
-                  ] as const,
-              ),
+              buildChunkSnippets(chunk.text, args.query).map((match) => ({
+                snippet: match.snippet,
+                chunkType: chunk.chunkType,
+                order: chunk.order,
+                page: getPageFromMetadata(chunk.metadata),
+                imageUrl: getImageUrlFromMetadata(chunk.metadata),
+                matchStart: match.matchStart,
+                matchEnd: match.matchEnd,
+              })),
             )
-            .filter(
-              (
-                item,
-              ): item is readonly [
-                string,
-                { imageUrl: string; page: number | undefined },
-              ] => item !== null,
-            ),
-        ).values(),
-      ),
-      snippets: chunks
-        .flatMap((chunk) =>
-          buildChunkSnippets(chunk.text, args.query).map((match) => ({
-            snippet: match.snippet,
-            chunkType: chunk.chunkType,
-            order: chunk.order,
-            page: getPageFromMetadata(chunk.metadata),
-            imageUrl: getImageUrlFromMetadata(chunk.metadata),
-            matchStart: match.matchStart,
-            matchEnd: match.matchEnd,
-          })),
-        )
-        .slice(0, MAX_SNIPPETS_PER_NODE),
-      chunks,
-    }));
+            .slice(0, MAX_SNIPPETS_PER_NODE),
+          chunks,
+        };
+
+        // Score titre > body, pondéré par couverture + proximité des termes.
+        const score =
+          terms.length === 0
+            ? 0
+            : scoreNode({
+                title: chunks[0].title,
+                texts: chunks.map((chunk) => chunk.text),
+                terms,
+                phrase,
+              });
+
+        return { result, score };
+      },
+    );
+
+    // Départage : score, puis nb de snippets, puis titre alphabétique.
+    if (terms.length > 0) {
+      scored.sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.result.snippets.length - a.result.snippets.length ||
+          (a.result.title ?? "").localeCompare(b.result.title ?? ""),
+      );
+    }
+
+    return scored.map((entry) => entry.result).slice(0, RANKING.MAX_RESULTS);
   },
 });
 

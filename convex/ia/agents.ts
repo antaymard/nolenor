@@ -37,6 +37,13 @@ function normalizeUsage(usage: RawUsage) {
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
+    label: "Laguna M.1 Free",
+    value: "poolside/laguna-m.1:free",
+    price: "Free",
+    isMultimodal: false,
+    maxContext: 128000,
+  },
+  {
     label: "DeepSeek V4 Flash",
     value: "deepseek/deepseek-v4-flash",
     price: "0.10_0.20",
@@ -44,18 +51,11 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Tencent Hy3",
-    value: "tencent/hy3-preview",
-    price: "0.063_0.21",
-    isMultimodal: false,
-    maxContext: 260000,
-  },
-  {
-    label: "Laguna M.1 Free",
-    value: "poolside/laguna-m.1:free",
-    price: "Free",
-    isMultimodal: false,
-    maxContext: 128000,
+    label: "Minimax M3",
+    value: "minimax/minimax-m3",
+    price: "0.30_1.20",
+    isMultimodal: true,
+    maxContext: 1000000,
   },
   {
     label: "DeepSeek V4 Pro",
@@ -65,9 +65,9 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Gemini 3.5 Flash",
-    value: "google/gemini-3.5-flash",
-    price: "1.50_9.00",
+    label: "Claude Opus 4.8",
+    value: "~anthropic/claude-opus-latest",
+    price: "5_25",
     isMultimodal: true,
     maxContext: 1000000,
   },
@@ -247,32 +247,5 @@ export function createWorkerAgent({
       extraTools,
       isMultimodal: isModelMultimodal(languageModel),
     }),
-  });
-}
-
-// TO DEP
-export function createAutomationAgent({
-  model,
-  threadCtx,
-  extraTools = {},
-}: {
-  model?: LanguageModelV3;
-  threadCtx: ThreadCtx;
-  extraTools?: ToolSet;
-}) {
-  const languageModel = model ?? defaultModels.fast;
-  return new Agent(components.agent, {
-    name: toolAgentNames.automation,
-    languageModel,
-    stopWhen: stepCountIs(5),
-    tools: getToolsForAgent({
-      agentName: toolAgentNames.automation,
-      threadCtx,
-      extraTools,
-      isMultimodal: isModelMultimodal(languageModel),
-    }),
-    instructions: `You are an automation agent linked to a node in a canvas-based app similar to Miro. You can use the tools at your disposal to accomplish the requested tasks. The node you are linked to may contain input data from other nodes that you will most often need to use to complete your task. Use the tools available to you to find information.
-    Do not respond to the user as a general chat assistant. Use the standard tools available directly if an action on the canvas or content is necessary.
-    Be as concise, exact, and factual as possible. Do not fabricate information. Do not be verbose.`,
   });
 }

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { baseAgent, createWorkerAgent } from "./agents";
 import { components, internal } from "../_generated/api";
@@ -22,7 +22,7 @@ export const startWorkerTask = internalAction({
         },
       );
       if (!isCanvasCreator)
-        throw new Error("User does not have access to this canvas");
+        throw new ConvexError("User does not have access to this canvas");
 
       const threadId = await createThread(ctx, components.agent, {
         userId,
@@ -63,7 +63,12 @@ export const startWorkerTask = internalAction({
       return result.text;
     } catch (error) {
       console.error("Error in startWorkerTask:", error);
-      throw error;
+      // Plain Error messages get redacted to "Server Error" when they cross the
+      // ctx.runAction boundary; ConvexError.data is preserved, so the parent
+      // tool can surface the real reason the sub-agent failed.
+      if (error instanceof ConvexError) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ConvexError(message);
     }
   },
 });

@@ -58,9 +58,13 @@ export default function runSubAgent({ threadCtx }: { threadCtx: ThreadCtx }) {
         };
       } catch (error: any) {
         console.error("❌ Task execution error:", error);
-        return toolError(
-          `Task execution failed: ${error.message}. Please try again.`,
-        );
+        // ConvexError carries the real failure reason in `data` (the worker
+        // wraps its errors so the message survives the action boundary).
+        const detail =
+          typeof error?.data === "string"
+            ? error.data
+            : (error?.message ?? "Unknown error");
+        return toolError(`Sub-agent task failed: ${detail}`);
       }
     },
   });

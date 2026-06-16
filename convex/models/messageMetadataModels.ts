@@ -79,48 +79,42 @@ export async function recordUserAttachments(
   });
 }
 
+// Called once per assistant turn, after the stream completes, with usage/cost
+// aggregated across the turn's steps and `order` matching the visible message.
 export async function recordAssistantUsage(
   ctx: MutationCtx,
   {
     userId,
     agentName,
     threadId,
+    messageId,
     model,
     provider,
     usage,
+    costUsd,
+    order,
   }: {
     userId: Id<"users">;
     agentName: string;
     threadId: string;
+    messageId: string;
     model?: string;
     provider?: string;
     usage: Usage;
+    costUsd?: number;
+    order?: number;
   },
 ) {
-  // const lastMessagesInThread = await ctx.runQuery(
-  //   components.agent.messages.listMessagesByThreadId,
-  //   {
-  //     threadId,
-  //     order: "desc",
-  //     excludeToolMessages: true,
-  //     paginationOpts: { cursor: null, numItems: 5 },
-  //   },
-  // );
-  // const lastAssistantMessage = lastMessagesInThread.page.find(
-  //   (m: { role?: string; _id: string }) => m.role === "assistant",
-  // );
-  // const lastAssistantMessageId =
-  //   lastAssistantMessage?._id ?? "NO_ASSISTANT_MESSAGE_FOUND";
-
   return await ctx.db.insert("messageMetadata", {
     userId,
     agentName,
     threadId,
     role: "assistant",
+    messageId,
     model,
     provider,
     usage,
-    costUsd: typeof usage?.cost === "number" ? usage.cost : undefined,
-    messageId: "NOT_IMPLEMENTED",
+    costUsd,
+    order,
   });
 }

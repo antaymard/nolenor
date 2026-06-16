@@ -132,6 +132,8 @@ export const streamResponse = internalAction({
 
       // Ensure the stream is fully consumed to completion.
       await result.consumeStream();
+      const totalUsage = await result.totalUsage;
+      console.log("_totalUsage", totalUsage);
     } catch (error) {
       if (isExpectedAbortedStreamError(error)) {
         return null;

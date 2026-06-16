@@ -8,10 +8,7 @@ import { stepCountIs } from "ai";
 import { toolAgentNames, type ThreadCtx } from "./agentConfig";
 import { getToolsForAgent } from "./tools";
 import { generateSupervisorSystemPrompt } from "./systemPrompts/supervisorSystemPrompt";
-import {
-  recordUsageInMessageMetadata,
-  recordUsageInThreadMetadata,
-} from "./helpers/usageHandler";
+import { recordUsageInThreadMetadata } from "./helpers/usageHandler";
 
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
@@ -47,7 +44,7 @@ export const chatModelOptions = [
 
 export const chatModelValues = chatModelOptions.map((model) => model.value);
 
-const defaultChatModelValue = chatModelValues[0];
+export const defaultChatModelValue = chatModelValues[0];
 
 export const vChatModelValues = v.union(
   ...chatModelValues.map((model) => v.literal(model)),
@@ -127,50 +124,9 @@ export function createNoleAgent({
       // Process the response message to get the tools used
     },
     usageHandler: async (ctx, args) => {
-      // the library calls `usageHandler` **once per LLM step**, not once per turn
-      console.log("Agent usage reported:", args);
-      /* Args are
-      {
-        userId: 'jx73vs22b97g3td1ja6gqcd3sn7tber0',
-        threadId: 'm579nvm58s54wg4ws1e8ws2n0d87kv9p',
-        agentName: 'Nolë',
-        model: 'deepseek/deepseek-v4-flash',
-        provider: 'openrouter',
-        usage: {
-          inputTokens: 18506,
-          inputTokenDetails: { noCacheTokens: 18506, cacheReadTokens: 0, cacheWriteTokens: 0 },
-          outputTokens: 80,
-          outputTokenDetails: { textTokens: 50, reasoningTokens: 30 },
-          totalTokens: 18586,
-          raw: {
-            prompt_tokens: 18506,
-            prompt_tokens_details: [Object],
-            completion_tokens: 80,
-            completion_tokens_details: [Object],
-            total_tokens: 18586,
-            cost: 0.002501244,
-            cost_details: [Object],
-            is_byok: false
-          },
-          reasoningTokens: 30,
-          cachedInputTokens: 0
-        },
-        providerMetadata: {
-          openrouter: {
-            usage: [Object],
-            provider: 'Alibaba',
-            reasoning_details: [Array]
-        }
-      }*/
-
-      await recordUsageInMessageMetadata(ctx, {
-        userId: args.userId,
-        agentName: args.agentName,
-        threadId: args.threadId,
-        model: args.model,
-        provider: args.provider,
-        usage: args.usage,
-      });
+      // Called once per LLM step. Per-message metadata (model/usage/cost) is
+      // recorded once per turn after the stream completes (see noleCompletion);
+      // here we only accumulate the thread-level cost across all steps.
       await recordUsageInThreadMetadata(ctx, {
         threadId: args.threadId,
         userId: args.userId,

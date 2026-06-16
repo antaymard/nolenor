@@ -38,11 +38,10 @@ export const create = internalMutation({
   },
 });
 
-export const updateUsageAndTouchedNodeData = internalMutation({
+export const updateUsage = internalMutation({
   args: {
     threadId: v.string(),
-    additionalUsageUsd: v.number(),
-    additionalTouchedNodeData: v.optional(v.array(v.id("nodeDatas"))),
+    additionalUsageUsd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { threadId, additionalUsageUsd } = args;
@@ -57,19 +56,42 @@ export const updateUsageAndTouchedNodeData = internalMutation({
       throw new Error(`Thread metadata not found for threadId: ${threadId}`);
     }
 
+    // Update the threadMetadata with the new totalUsageUsd, lastMessageTime, roundsNb, and unique touchedNodeDataIds
+    await ctx.db.patch("threadMetadata", threadMetadata._id, {
+      totalUsageUsd: threadMetadata.totalUsageUsd + (additionalUsageUsd ?? 0),
+      lastMessageTime: Date.now(),
+      roundsNb: threadMetadata.roundsNb ? threadMetadata.roundsNb + 1 : 1,
+    });
+  },
+});
+
+export const updateTouchNodeData = internalMutation({
+  args: {
+    threadId: v.string(),
+    additionalTouchedNodeDataIds: v.array(v.id("nodeDatas")),
+  },
+  handler: async (ctx, args) => {
+    const { threadId, additionalTouchedNodeDataIds } = args;
+
+    // Query the threadMetadata by threadId using the index
+    const threadMetadata = await ctx.db
+      .query("threadMetadata")
+      .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
+      .unique();
+
+    if (!threadMetadata) {
+      throw new Error(`Thread metadata not found for threadId: ${threadId}`);
+    }
+
     // Create a new set of unique touchedNodeDataIds by combining existing and additional ones
     const existingTouchedNodeDataIds = threadMetadata.touchedNodeDataIds || [];
-    const additionalTouchedNodeDataIds = args.additionalTouchedNodeData || [];
     const uniqueTouchedNodeDataIds = Array.from(
       new Set([...existingTouchedNodeDataIds, ...additionalTouchedNodeDataIds]),
     );
 
-    // Update the threadMetadata with the new totalUsageUsd, lastMessageTime, roundsNb, and unique touchedNodeDataIds
     await ctx.db.patch("threadMetadata", threadMetadata._id, {
-      totalUsageUsd: threadMetadata.totalUsageUsd + additionalUsageUsd,
-      lastMessageTime: Date.now(),
-      roundsNb: threadMetadata.roundsNb ? threadMetadata.roundsNb + 1 : 1,
       touchedNodeDataIds: uniqueTouchedNodeDataIds,
     });
+    return;
   },
 });

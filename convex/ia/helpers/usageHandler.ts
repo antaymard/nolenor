@@ -11,45 +11,6 @@ export type Usage = {
   cost?: number;
 };
 
-export async function recordUsageInMessageMetadata(ctx: any, args: any) {
-  const {
-    userId,
-    threadId,
-    agentName,
-    model,
-    provider,
-    usage,
-    // providerMetadata,
-  } = args;
-
-  // Format the usage data as needed for storage
-  const usageData: Usage = {
-    inputTokens: usage.inputTokens,
-    inputTokenDetails: usage.inputTokenDetails,
-    outputTokens: usage.outputTokens,
-    outputTokenDetails: usage.outputTokenDetails,
-    totalTokens: usage.totalTokens,
-    cachedInputTokens: usage.cachedInputTokens,
-    reasoningTokens: usage.reasoningTokens,
-    cost: usage.raw.cost,
-  };
-
-  //   Create the messageMetadataObject
-  const messageMetadata = {
-    userId,
-    agentName,
-    threadId,
-    model,
-    provider,
-    usage: usageData,
-  };
-
-  await ctx.runMutation(
-    internal.wrappers.messageMetadataWrappers.recordAssistantUsage,
-    messageMetadata,
-  );
-}
-
 export async function recordUsageInThreadMetadata(ctx: any, args: any) {
   const { threadId, usage } = args;
 
@@ -70,12 +31,8 @@ export async function recordUsageInThreadMetadata(ctx: any, args: any) {
   // Get the touchedNodeDataIds from the last message
 
   // Update the total usage in thread metadata
-  await ctx.runMutation(
-    internal.wrappers.threadMetadataWrappers.updateUsageAndTouchedNodeData,
-    {
-      threadId,
-      additionalUsageUsd: usage.raw.cost || 0, // Use the cost from usage data, default to 0 if not available
-      // additionalTouchNodeDataIds: [],
-    },
-  );
+  await ctx.runMutation(internal.wrappers.threadMetadataWrappers.updateUsage, {
+    threadId,
+    additionalUsageUsd: usage.raw.cost || 0, // Use the cost from usage data, default to 0 if not available
+  });
 }

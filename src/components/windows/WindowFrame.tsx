@@ -546,7 +546,7 @@ export default function WindowFrame({
       </div>
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent>
+        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Version history</DialogTitle>
             <DialogDescription>{title ?? "—"}</DialogDescription>

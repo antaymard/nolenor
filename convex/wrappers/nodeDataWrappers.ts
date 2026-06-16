@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
 import { nodeTypeValidator } from "../schemas/nodeTypeSchema";
+import { nodeDataVersionActorValidator } from "../schemas/nodeDataVersionsSchema";
 
 import * as NodeDataModels from "../models/nodeDataModels";
 
@@ -20,6 +21,9 @@ export const updateValues = internalMutation({
   args: {
     _id: v.id("nodeDatas"),
     values: v.record(v.string(), v.any()),
+    // Requis : impose à tous les call sites internes (tools agents) de
+    // s'attribuer leurs écritures pour le versioning.
+    actor: nodeDataVersionActorValidator,
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
@@ -28,10 +32,13 @@ export const updateValues = internalMutation({
 });
 
 export const deleteWithCascade = internalMutation({
-  args: { nodeDataId: v.id("nodeDatas") },
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    actor: v.optional(nodeDataVersionActorValidator),
+  },
   returns: v.null(),
-  handler: async (ctx, { nodeDataId }) => {
-    await NodeDataModels.deleteNodeDataWithCascade(ctx, { nodeDataId });
+  handler: async (ctx, args) => {
+    await NodeDataModels.deleteNodeDataWithCascade(ctx, args);
     return null;
   },
 });

@@ -248,6 +248,11 @@ export default function tableUpdateRowsTool({
               rows: updatedRows,
             },
           },
+          actor: {
+            type: "agent",
+            userId: threadCtx.authUserId,
+            threadId: ctx.threadId,
+          },
         });
 
         console.log(

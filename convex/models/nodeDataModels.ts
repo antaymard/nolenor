@@ -3,6 +3,8 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import * as SearchableChunkModels from "./searchableChunkModels";
+import * as NodeDataVersionModels from "./nodeDataVersionModels";
+import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
 
 export async function readNodeData(
   ctx: QueryCtx,
@@ -35,12 +37,29 @@ export async function createNodeData(
 
 export async function deleteNodeDataWithCascade(
   ctx: MutationCtx,
-  { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
+  {
+    nodeDataId,
+    actor = { type: "system" },
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    actor?: NodeDataVersionActor;
+  },
 ): Promise<void> {
   const nodeData = await ctx.db.get(nodeDataId);
   const r2Keys: string[] = [];
 
   if (nodeData) {
+    // Snapshot final : les versions survivent volontairement au node
+    // (corbeille de fait, purgée par TTL) pour permettre une récupération
+    // après une suppression accidentelle.
+    await NodeDataVersionModels.maybeCheckpoint(ctx, {
+      nodeData,
+      actor,
+      changedKeys: [],
+      trigger: "delete",
+      force: true,
+    });
+
     if (nodeData.type === "pdf") {
       const files = nodeData.values?.files;
       if (Array.isArray(files)) {
@@ -103,9 +122,11 @@ export async function updateValues(
   {
     _id,
     values,
+    actor,
   }: {
     _id: Id<"nodeDatas">;
     values: Record<string, unknown>;
+    actor: NodeDataVersionActor;
   },
 ): Promise<boolean> {
   console.log(`🔄 Updating values for nodeData ${_id}`);
@@ -137,6 +158,16 @@ export async function updateValues(
   // On passe aussi les clés modifiées au rebuild pour que l'action puisse skipper
   // les branches coûteuses quand les champs pertinents n'ont pas changé.
   const changedKeys = Object.keys(changedValues);
+
+  // Checkpoint invisible : snapshot PRÉ-write coalescé par session d'acteur
+  // (cf. nodeDataVersionModels). Doit précéder le patch pour capturer l'état
+  // restaurable.
+  await NodeDataVersionModels.maybeCheckpoint(ctx, {
+    nodeData: existing,
+    actor,
+    changedKeys,
+    trigger: "update",
+  });
 
   const now = Date.now();
   await ctx.db.patch("nodeDatas", _id, {

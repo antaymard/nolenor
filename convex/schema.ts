@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { authTables } from "@convex-dev/auth/server";
 import { canvasesValidator } from "./schemas/canvasesSchema";
 import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
+import { nodeDataVersionsValidator } from "./schemas/nodeDataVersionsSchema";
 import { scheduledJobsValidator } from "./schemas/scheduledJobsSchema";
 import { sharesValidator } from "./schemas/sharesSchema";
 import { memoriesValidator } from "./schemas/memoriesSchema";
@@ -29,6 +30,14 @@ const schema = defineSchema({
     }),
 
   nodeDatas: defineTable(nodeDatasValidator).index("by_canvasId", ["canvasId"]),
+
+  // Checkpoints invisibles des values de nodeDatas (1 snapshot pré-write par
+  // session d'édition d'un acteur). Purgés par cron après 30 jours ; ils
+  // survivent volontairement à la suppression du nodeData (corbeille de fait).
+  nodeDataVersions: defineTable(nodeDataVersionsValidator).index(
+    "by_nodeDataId",
+    ["nodeDataId"],
+  ),
 
   // ============================================================================
   // SHARES

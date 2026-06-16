@@ -14,7 +14,12 @@ import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNodeData } from "@/hooks/useNodeData";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { X, Minus, Save, Maximize2 } from "lucide-react";
-import { TbLocation, TbRefresh } from "react-icons/tb";
+import {
+  TbDotsVertical,
+  TbHistory,
+  TbLocation,
+  TbRefresh,
+} from "react-icons/tb";
 import { useReactFlow } from "@xyflow/react";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import DocumentWindow from "./prebuilt/DocumentWindow";
@@ -27,6 +32,20 @@ import { WindowFrameContext } from "./WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../shadcn/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../shadcn/dialog";
+import VersionHistoryViewer from "./VersionHistoryViewer";
 
 function WindowContent({ openedWindow }: { openedWindow: OpenedWindow }) {
   const { nodeType, xyNodeId, nodeDataId } = openedWindow;
@@ -101,6 +120,7 @@ export default function WindowFrame({
   const NodeIcon = getNodeIcon(nodeData?.type);
 
   const [isDraggingOrResizing, setIsDraggingOrResizing] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useHotkey(
@@ -300,7 +320,14 @@ export default function WindowFrame({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [xyNodeId, moveWindow, resizeWindow, snapWindow, updateSnapPreview, setIsDraggingOrResizing]);
+  }, [
+    xyNodeId,
+    moveWindow,
+    resizeWindow,
+    snapWindow,
+    updateSnapPreview,
+    setIsDraggingOrResizing,
+  ]);
 
   const contextValue = useMemo(
     () => ({
@@ -392,11 +419,7 @@ export default function WindowFrame({
             className="flex cursor-grab select-none items-center gap-2 border-b px-3 py-2 hover:cursor-grab active:cursor-grabbing"
             onMouseDown={handleHeaderMouseDown}
             onDoubleClick={handleHeaderDoubleClick}
-            title={
-              isAttachedToConversation
-                ? "Alt+click to detach from Nole"
-                : "Alt+click to attach to Nole"
-            }
+            title={title}
           >
             {NodeIcon ? (
               <NodeIcon className="size-4 shrink-0 text-slate-600" />
@@ -442,15 +465,30 @@ export default function WindowFrame({
                 <Maximize2 size={13} />
               </button>
             )}
-            <button
-              data-window-control="true"
-              className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => goToNode(xyNodeId)}
-              aria-label="Go to node"
-            >
-              <TbLocation size={13} />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center">
+                  <TbDotsVertical size={13} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  className="flex items-center text-sm"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => goToNode(xyNodeId)}
+                >
+                  <TbLocation size={13} />
+                  Navigate to node
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center text-sm"
+                  onSelect={() => setHistoryOpen(true)}
+                >
+                  <TbHistory size={13} />
+                  History
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <button
               data-window-control="true"
               className="shrink-0 rounded p-0.5 opacity-50 hover:bg-black/10 hover:opacity-100 h-full aspect-square flex items-center justify-center"
@@ -506,6 +544,19 @@ export default function WindowFrame({
           </div>
         </div>
       </div>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Version history</DialogTitle>
+            <DialogDescription>{title ?? "—"}</DialogDescription>
+          </DialogHeader>
+          <VersionHistoryViewer
+            nodeDataId={nodeDataId}
+            onRestored={() => setHistoryOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </WindowFrameContext.Provider>
   );
 }

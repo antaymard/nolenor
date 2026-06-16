@@ -227,6 +227,11 @@ export default function tableInsertRowsTool({
               rows: updatedRows,
             },
           },
+          actor: {
+            type: "agent",
+            userId: threadCtx.authUserId,
+            threadId: ctx.threadId,
+          },
         });
 
         console.log(

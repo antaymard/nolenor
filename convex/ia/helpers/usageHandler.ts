@@ -1,5 +1,4 @@
 import { internal } from "../../_generated/api";
-import { Id } from "../../_generated/dataModel";
 
 export type Usage = {
   inputTokens?: number;
@@ -68,9 +67,15 @@ export async function recordUsageInThreadMetadata(ctx: any, args: any) {
     return;
   }
 
+  // Get the touchedNodeDataIds from the last message
+
   // Update the total usage in thread metadata
-  await ctx.runMutation(internal.wrappers.threadMetadataWrappers.updateUsage, {
-    threadId,
-    additionalUsageUsd: usage.raw.cost || 0, // Use the cost from usage data, default to 0 if not available
-  });
+  await ctx.runMutation(
+    internal.wrappers.threadMetadataWrappers.updateUsageAndTouchedNodeData,
+    {
+      threadId,
+      additionalUsageUsd: usage.raw.cost || 0, // Use the cost from usage data, default to 0 if not available
+      // additionalTouchNodeDataIds: [],
+    },
+  );
 }

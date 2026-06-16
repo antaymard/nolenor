@@ -16,13 +16,6 @@ import {
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "Laguna M.1 Free",
-    value: "poolside/laguna-m.1:free",
-    price: "Free",
-    isMultimodal: false,
-    maxContext: 128000,
-  },
-  {
     label: "DeepSeek V4 Flash",
     value: "deepseek/deepseek-v4-flash",
     price: "0.10_0.20",
@@ -30,11 +23,11 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Minimax M3",
-    value: "minimax/minimax-m3",
-    price: "0.30_1.20",
-    isMultimodal: true,
-    maxContext: 1000000,
+    label: "Nemotron 3 Ultra",
+    value: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    price: "Free",
+    isMultimodal: false,
+    maxContext: 128000,
   },
   {
     label: "DeepSeek V4 Pro",
@@ -112,7 +105,29 @@ export function createNoleAgent({
       extraTools,
       isMultimodal: isModelMultimodal(languageModel),
     }),
+    rawRequestResponseHandler: async (ctx, args) => {
+      const _args = args as any;
+      console.log(_args.response.messages[0].content);
+      // [
+      //   {
+      //     type: 'reasoning',
+      //     text: `The user wants one more "coucou" for testing. They're in a viewport showing several nodes including documents about meditation, exercise, hydration benefits, a Rick Astley embed, and some apps. Let me give them their final coucou.`,
+      //     providerOptions: { openrouter: [Object] }
+      //   },
+      //   {
+      //     type: 'text',
+      //     text: 'Coucou ! 👋\n' +
+      //       '\n' +
+      //       'Test #7 (et probablement dernier). Tout bon de mon côté connexion. \n' +
+      //       '\n' +
+      //       `Je vois que tu regardes la zone "santé" avec les 3 docs bienfaits + l'app météo Morlaix. Tu veux que je lise l'un d'eux ou on arrête les tests là ?`,
+      //     providerOptions: undefined
+      //   }
+
+      // Process the response message to get the tools used
+    },
     usageHandler: async (ctx, args) => {
+      // the library calls `usageHandler` **once per LLM step**, not once per turn
       console.log("Agent usage reported:", args);
       /* Args are
       {

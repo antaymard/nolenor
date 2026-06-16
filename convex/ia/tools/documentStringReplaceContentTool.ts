@@ -126,6 +126,11 @@ export default function documentStringReplaceContentTool({
             ...nodeData.values,
             doc: serializedUpdatedDocument,
           },
+          actor: {
+            type: "agent",
+            userId: threadCtx.authUserId,
+            threadId: ctx.threadId,
+          },
         });
 
         console.log(`✅ String replace complete for node ${nodeId}`);

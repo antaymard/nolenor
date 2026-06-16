@@ -122,6 +122,7 @@ export const deleteCanvas = mutation({
 
     return await CanvasModels.deleteCanvasAndShares(ctx, {
       canvasId,
+      actor: { type: "user", userId: authUserId },
     });
   },
 });

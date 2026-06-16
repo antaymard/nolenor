@@ -26,7 +26,7 @@ import { generateMessageContext } from "@/components/canvas/nole-panel/messageCo
  */
 export function useNoleChat() {
   const { canvasId } = useParams({ strict: false }) as {
-    canvasId?: Id<"canvases">;
+    canvasId: Id<"canvases">;
   };
 
   // Thread (with an in-session override to switch/select threads).
@@ -34,7 +34,7 @@ export function useNoleChat() {
     threadId: initialThreadId,
     isLoading,
     resetThread,
-  } = useNoleThread();
+  } = useNoleThread({ canvasId });
   const [overrideThreadId, setOverrideThreadId] = useState<string | null>(null);
   const threadId = overrideThreadId ?? initialThreadId;
 

@@ -301,6 +301,11 @@ export default function patchAppNodeCodeTool({
             ...nodeData.values,
             code: applied.code,
           },
+          actor: {
+            type: "agent",
+            userId: threadCtx.authUserId,
+            threadId: ctx.threadId,
+          },
         });
 
         console.log(

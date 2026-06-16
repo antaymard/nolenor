@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { useAction, useMutation as useConvexMutation, useQuery as useConvexQuery } from "convex/react";
+import {
+  useAction,
+  useMutation as useConvexMutation,
+  useQuery as useConvexQuery,
+} from "convex/react";
 import { optimisticallySendMessage } from "@convex-dev/agent/react";
 import toast from "react-hot-toast";
 import { api } from "@convex/_generated/api";
@@ -26,7 +30,9 @@ export function useExtensionNoleChat() {
   const attachedPage = useExtensionStore((s) => s.attachedPage);
   const removeAttachedPage = useExtensionStore((s) => s.removeAttachedPage);
 
-  const modelOptions = useConvexQuery(api.ia.nole.listChatModels, {}) as ChatModelOption[] | undefined;
+  const modelOptions = useConvexQuery(api.ia.nole.listChatModels, {}) as
+    | ChatModelOption[]
+    | undefined;
   const [selectedModel, setSelectedModel] = useState<string>();
 
   const latestThread = useConvexQuery(api.threads.getLatestThread);
@@ -49,7 +55,9 @@ export function useExtensionNoleChat() {
           if (latestThread && "threadId" in latestThread) {
             setThreadId(latestThread.threadId);
           } else {
-            const result = await startThreadMutation({});
+            const result = await startThreadMutation({
+              canvasId: selectedCanvasId as Id<"canvases">,
+            });
             setThreadId(result.threadId);
           }
         }
@@ -60,13 +68,13 @@ export function useExtensionNoleChat() {
       }
     };
     void initThread();
-  }, [startThreadMutation, latestThread]);
+  }, [startThreadMutation, latestThread, selectedCanvasId]);
 
   const effectiveThreadId = overrideThreadId ?? threadId;
 
-  const sendMessageMutation = useConvexMutation(api.ia.nole.saveMessage).withOptimisticUpdate(
-    optimisticallySendMessage(api.threads.listMessages),
-  );
+  const sendMessageMutation = useConvexMutation(
+    api.ia.nole.saveMessage,
+  ).withOptimisticUpdate(optimisticallySendMessage(api.threads.listMessages));
   const abortStreamMutation = useConvexMutation(api.threads.abortStream);
   const updateThreadTitleMutation = useAction(api.threads.updateThreadTitle);
 
@@ -96,13 +104,17 @@ export function useExtensionNoleChat() {
         threadId: effectiveThreadId,
         prompt,
         metadata: {
-          messageContext: Object.keys(messageContext).length > 0 ? messageContext : undefined,
+          messageContext:
+            Object.keys(messageContext).length > 0 ? messageContext : undefined,
           model: selectedModel,
         },
         canvasId: selectedCanvasId as Id<"canvases">,
       });
       removeAttachedPage();
-      void updateThreadTitleMutation({ threadId: effectiveThreadId, onlyIfUntitled: true });
+      void updateThreadTitleMutation({
+        threadId: effectiveThreadId,
+        onlyIfUntitled: true,
+      });
     } catch (error) {
       console.error("Error sending message:", error);
       setUserInput(prompt);
@@ -133,7 +145,12 @@ export function useExtensionNoleChat() {
     } finally {
       setIsCancelling(false);
     }
-  }, [effectiveThreadId, isAssistantResponding, isCancelling, abortStreamMutation]);
+  }, [
+    effectiveThreadId,
+    isAssistantResponding,
+    isCancelling,
+    abortStreamMutation,
+  ]);
 
   const startNewThread = useCallback(async () => {
     setOverrideThreadId(null);
@@ -141,14 +158,16 @@ export function useExtensionNoleChat() {
     setIsLoading(true);
     setThreadId(null);
     try {
-      const result = await startThreadMutation({});
+      const result = await startThreadMutation({
+        canvasId: selectedCanvasId as Id<"canvases">,
+      });
       setThreadId(result.threadId);
     } catch (error) {
       console.error("Error starting new thread:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [startThreadMutation]);
+  }, [startThreadMutation, selectedCanvasId]);
 
   const selectThread = useCallback((id: string) => {
     setOverrideThreadId(id);

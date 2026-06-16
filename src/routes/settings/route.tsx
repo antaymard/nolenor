@@ -4,9 +4,9 @@ import {
   Outlet,
   useNavigate,
 } from "@tanstack/react-router";
-import { HiMiniArrowSmallLeft } from "react-icons/hi2";
 import { useAuthActions } from "@convex-dev/auth/react";
 import toast from "react-hot-toast";
+import { TbX } from "react-icons/tb";
 
 export const Route = createFileRoute("/settings")({
   component: RouteComponent,
@@ -137,8 +137,8 @@ function RouteComponent() {
       {/* Sidebar */}
       <div className="flex flex-col gap-4 p-5 border-r border-gray-300">
         <span className="flex items-center gap-2">
-          <Link to="/" className="p-1 rounded-md bg-gray-100 hover:bg-gray-200">
-            <HiMiniArrowSmallLeft size={24} />
+          <Link to="/" className="p-2 rounded-md bg-gray-100 hover:bg-gray-200">
+            <TbX size={16} />
           </Link>
           <h1 className="text-lg font-bold">Settings</h1>
         </span>

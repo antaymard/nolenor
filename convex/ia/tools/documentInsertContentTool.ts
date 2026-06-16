@@ -157,6 +157,11 @@ export default function documentInsertContentTool({
             ...nodeData.values,
             doc: serializedUpdatedDocument,
           },
+          actor: {
+            type: "agent",
+            userId: threadCtx.authUserId,
+            threadId: ctx.threadId,
+          },
         });
 
         console.log(`✅ Insert complete for node ${nodeId}`);

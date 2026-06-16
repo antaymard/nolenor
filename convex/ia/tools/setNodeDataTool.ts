@@ -130,6 +130,11 @@ export default function setNodeDataTool({
         await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {
           _id: nodeLookup.nodeData._id,
           values: valuesToWrite,
+          actor: {
+            type: "agent",
+            userId: threadCtx.authUserId,
+            threadId: ctx.threadId,
+          },
         });
 
         return `Node data updated for nodeId ${input.nodeId}.`;

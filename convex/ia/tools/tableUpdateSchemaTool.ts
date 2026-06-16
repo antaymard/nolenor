@@ -439,6 +439,11 @@ export default function tableUpdateSchemaTool({
                   rows,
                 },
               },
+              actor: {
+                type: "agent",
+                userId: threadCtx.authUserId,
+                threadId: ctx.threadId,
+              },
             },
           );
 
@@ -471,6 +476,11 @@ export default function tableUpdateSchemaTool({
                   columns: nextColumns,
                   rows,
                 },
+              },
+              actor: {
+                type: "agent",
+                userId: threadCtx.authUserId,
+                threadId: ctx.threadId,
               },
             },
           );
@@ -561,6 +571,11 @@ export default function tableUpdateSchemaTool({
                   rows: prunedRows,
                 },
               },
+              actor: {
+                type: "agent",
+                userId: threadCtx.authUserId,
+                threadId: ctx.threadId,
+              },
             },
           );
 
@@ -647,6 +662,11 @@ export default function tableUpdateSchemaTool({
               columns: nextColumns,
               rows: nextRows,
             },
+          },
+          actor: {
+            type: "agent",
+            userId: threadCtx.authUserId,
+            threadId: ctx.threadId,
           },
         });
 

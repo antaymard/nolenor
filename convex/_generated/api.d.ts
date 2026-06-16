@@ -14,6 +14,7 @@ import type * as canvasNodes from "../canvasNodes.js";
 import type * as canvases from "../canvases.js";
 import type * as config_errorsConfig from "../config/errorsConfig.js";
 import type * as config_nodeConfig from "../config/nodeConfig.js";
+import type * as crons from "../crons.js";
 import type * as hotposts from "../hotposts.js";
 import type * as http from "../http.js";
 import type * as ia_agentConfig from "../ia/agentConfig.js";
@@ -29,7 +30,7 @@ import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkForma
 import type * as ia_helpers_pillMarkdownRules from "../ia/helpers/pillMarkdownRules.js";
 import type * as ia_helpers_plateMarkdownConverter from "../ia/helpers/plateMarkdownConverter.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
-import type * as ia_helpers_useHandler from "../ia/helpers/useHandler.js";
+import type * as ia_helpers_usageHandler from "../ia/helpers/usageHandler.js";
 import type * as ia_nole from "../ia/nole.js";
 import type * as ia_noleCompletion from "../ia/noleCompletion.js";
 import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/noleSystemPrompt.js";
@@ -78,13 +79,16 @@ import type * as models_canvasNodeModels from "../models/canvasNodeModels.js";
 import type * as models_memoryModels from "../models/memoryModels.js";
 import type * as models_messageMetadataModels from "../models/messageMetadataModels.js";
 import type * as models_nodeDataModels from "../models/nodeDataModels.js";
+import type * as models_nodeDataVersionModels from "../models/nodeDataVersionModels.js";
 import type * as models_searchableChunkModels from "../models/searchableChunkModels.js";
 import type * as models_skillModels from "../models/skillModels.js";
+import type * as nodeDataVersions from "../nodeDataVersions.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as recipes from "../recipes.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
 import type * as schemas_messageMetadataSchema from "../schemas/messageMetadataSchema.js";
+import type * as schemas_nodeDataVersionsSchema from "../schemas/nodeDataVersionsSchema.js";
 import type * as schemas_nodeDatasSchema from "../schemas/nodeDatasSchema.js";
 import type * as schemas_nodeTypeSchema from "../schemas/nodeTypeSchema.js";
 import type * as schemas_recipesSchema from "../schemas/recipesSchema.js";
@@ -94,6 +98,7 @@ import type * as schemas_sharesSchema from "../schemas/sharesSchema.js";
 import type * as schemas_skillAttachmentsSchema from "../schemas/skillAttachmentsSchema.js";
 import type * as schemas_skillsSchema from "../schemas/skillsSchema.js";
 import type * as schemas_taskExecutionsSchema from "../schemas/taskExecutionsSchema.js";
+import type * as schemas_threadMetadataSchema from "../schemas/threadMetadataSchema.js";
 import type * as schemas_wishlistEmailsSchema from "../schemas/wishlistEmailsSchema.js";
 import type * as searchableChunks from "../searchableChunks.js";
 import type * as searchable_chunkBuilder from "../searchable/chunkBuilder.js";
@@ -112,6 +117,7 @@ import type * as wrappers_messageMetadataWrappers from "../wrappers/messageMetad
 import type * as wrappers_nodeDataWrappers from "../wrappers/nodeDataWrappers.js";
 import type * as wrappers_searchableChunkWrappers from "../wrappers/searchableChunkWrappers.js";
 import type * as wrappers_skillWrappers from "../wrappers/skillWrappers.js";
+import type * as wrappers_threadMetadataWrappers from "../wrappers/threadMetadataWrappers.js";
 import type * as wrappers_userWrappers from "../wrappers/userWrappers.js";
 
 import type {
@@ -127,6 +133,7 @@ declare const fullApi: ApiFromModules<{
   canvases: typeof canvases;
   "config/errorsConfig": typeof config_errorsConfig;
   "config/nodeConfig": typeof config_nodeConfig;
+  crons: typeof crons;
   hotposts: typeof hotposts;
   http: typeof http;
   "ia/agentConfig": typeof ia_agentConfig;
@@ -142,7 +149,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/pillMarkdownRules": typeof ia_helpers_pillMarkdownRules;
   "ia/helpers/plateMarkdownConverter": typeof ia_helpers_plateMarkdownConverter;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
-  "ia/helpers/useHandler": typeof ia_helpers_useHandler;
+  "ia/helpers/usageHandler": typeof ia_helpers_usageHandler;
   "ia/nole": typeof ia_nole;
   "ia/noleCompletion": typeof ia_noleCompletion;
   "ia/systemPrompts/noleSystemPrompt": typeof ia_systemPrompts_noleSystemPrompt;
@@ -191,13 +198,16 @@ declare const fullApi: ApiFromModules<{
   "models/memoryModels": typeof models_memoryModels;
   "models/messageMetadataModels": typeof models_messageMetadataModels;
   "models/nodeDataModels": typeof models_nodeDataModels;
+  "models/nodeDataVersionModels": typeof models_nodeDataVersionModels;
   "models/searchableChunkModels": typeof models_searchableChunkModels;
   "models/skillModels": typeof models_skillModels;
+  nodeDataVersions: typeof nodeDataVersions;
   nodeDatas: typeof nodeDatas;
   recipes: typeof recipes;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;
   "schemas/messageMetadataSchema": typeof schemas_messageMetadataSchema;
+  "schemas/nodeDataVersionsSchema": typeof schemas_nodeDataVersionsSchema;
   "schemas/nodeDatasSchema": typeof schemas_nodeDatasSchema;
   "schemas/nodeTypeSchema": typeof schemas_nodeTypeSchema;
   "schemas/recipesSchema": typeof schemas_recipesSchema;
@@ -207,6 +217,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/skillAttachmentsSchema": typeof schemas_skillAttachmentsSchema;
   "schemas/skillsSchema": typeof schemas_skillsSchema;
   "schemas/taskExecutionsSchema": typeof schemas_taskExecutionsSchema;
+  "schemas/threadMetadataSchema": typeof schemas_threadMetadataSchema;
   "schemas/wishlistEmailsSchema": typeof schemas_wishlistEmailsSchema;
   searchableChunks: typeof searchableChunks;
   "searchable/chunkBuilder": typeof searchable_chunkBuilder;
@@ -225,6 +236,7 @@ declare const fullApi: ApiFromModules<{
   "wrappers/nodeDataWrappers": typeof wrappers_nodeDataWrappers;
   "wrappers/searchableChunkWrappers": typeof wrappers_searchableChunkWrappers;
   "wrappers/skillWrappers": typeof wrappers_skillWrappers;
+  "wrappers/threadMetadataWrappers": typeof wrappers_threadMetadataWrappers;
   "wrappers/userWrappers": typeof wrappers_userWrappers;
 }>;
 

@@ -1,4 +1,5 @@
 import { internal } from "../../_generated/api";
+import { Id } from "../../_generated/dataModel";
 
 export type Usage = {
   inputTokens?: number;
@@ -11,7 +12,7 @@ export type Usage = {
   cost?: number;
 };
 
-export async function recordAssistantUsage(ctx: any, args: any) {
+export async function recordUsageInMessageMetadata(ctx: any, args: any) {
   const {
     userId,
     threadId,
@@ -48,4 +49,28 @@ export async function recordAssistantUsage(ctx: any, args: any) {
     internal.wrappers.messageMetadataWrappers.recordAssistantUsage,
     messageMetadata,
   );
+}
+
+export async function recordUsageInThreadMetadata(ctx: any, args: any) {
+  const { threadId, usage } = args;
+
+  // Get the current thread metadata
+  const threadMetadata = await ctx.runQuery(
+    internal.wrappers.threadMetadataWrappers.read,
+    { threadId },
+  );
+
+  // ThreadMetadata should be created when the thread is created, so if it's not found, we log a warning and skip updating usage
+  if (!threadMetadata) {
+    console.warn(
+      `Thread metadata not found for threadId: ${threadId}. Cannot update usage.`,
+    );
+    return;
+  }
+
+  // Update the total usage in thread metadata
+  await ctx.runMutation(internal.wrappers.threadMetadataWrappers.updateUsage, {
+    threadId,
+    additionalUsageUsd: usage.raw.cost || 0, // Use the cost from usage data, default to 0 if not available
+  });
 }

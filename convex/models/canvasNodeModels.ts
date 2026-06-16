@@ -202,6 +202,7 @@ export async function updateCanvasNodes(
 export async function removeCanvasNodes(
   ctx: MutationCtx,
   {
+    authUserId,
     canvasId,
     nodeCanvasIds,
   }: {
@@ -236,7 +237,7 @@ export async function removeCanvasNodes(
     await ctx.scheduler.runAfter(
       0,
       internal.wrappers.nodeDataWrappers.deleteWithCascade,
-      { nodeDataId },
+      { nodeDataId, actor: { type: "user", userId: authUserId } },
     );
   }
 

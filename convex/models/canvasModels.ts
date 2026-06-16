@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import errors from "../config/errorsConfig";
 import { internal } from "../_generated/api";
+import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
 
 type UserCanvasListItem = {
   _id: Id<"canvases">;
@@ -145,7 +146,14 @@ export async function updateCanvasDetails(
 
 export async function deleteCanvasAndShares(
   ctx: MutationCtx,
-  { canvasId }: { canvasId: Id<"canvases"> },
+  {
+    canvasId,
+    actor,
+  }: {
+    canvasId: Id<"canvases">;
+    // Attribution des snapshots de suppression (versioning) ; system par défaut.
+    actor?: NodeDataVersionActor;
+  },
 ): Promise<Id<"canvases">> {
   await getCanvasOrThrow(ctx, canvasId);
 
@@ -166,7 +174,7 @@ export async function deleteCanvasAndShares(
     await ctx.scheduler.runAfter(
       0,
       internal.wrappers.nodeDataWrappers.deleteWithCascade,
-      { nodeDataId: nodeData._id },
+      { nodeDataId: nodeData._id, actor },
     );
   }
   if (nodeDatas.length > 0) {

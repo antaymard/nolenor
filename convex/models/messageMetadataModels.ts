@@ -1,6 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { type Usage } from "../ia/helpers/useHandler";
+import { type Usage } from "../ia/helpers/usageHandler";
 
 type MessageMetadata = Doc<"messageMetadata">;
 

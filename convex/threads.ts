@@ -1,7 +1,7 @@
 import { action, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAuth } from "./lib/auth";
-import { components } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import { paginationOptsValidator } from "convex/server";
 import {
   createThread,
@@ -47,15 +47,28 @@ export const getLatestThread = query({
   },
 });
 
+// Called when the user clicks the "New Thread" button. It creates a new thread and the corresponding threadMetadata, and returns the threadId to the client.
 export const startThread = mutation({
-  args: {},
+  args: {
+    canvasId: v.id("canvases"),
+  },
   returns: v.object({
     threadId: v.string(),
   }),
-  handler: async (ctx) => {
+  handler: async (ctx, { canvasId }) => {
     const authUserId = await requireAuth(ctx);
+
+    // Create the actual thread
     const threadId = await createThread(ctx, components.agent, {
       userId: authUserId,
+    });
+
+    // Create the threadMetadata
+    await ctx.runMutation(internal.wrappers.threadMetadataWrappers.create, {
+      threadId,
+      canvasId,
+      userId: authUserId,
+      agentName: "Nolë",
     });
     return { threadId };
   },

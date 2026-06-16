@@ -30,7 +30,6 @@ import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkForma
 import type * as ia_helpers_pillMarkdownRules from "../ia/helpers/pillMarkdownRules.js";
 import type * as ia_helpers_plateMarkdownConverter from "../ia/helpers/plateMarkdownConverter.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
-import type * as ia_helpers_usageHandler from "../ia/helpers/usageHandler.js";
 import type * as ia_nole from "../ia/nole.js";
 import type * as ia_noleCompletion from "../ia/noleCompletion.js";
 import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/noleSystemPrompt.js";
@@ -149,7 +148,6 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/pillMarkdownRules": typeof ia_helpers_pillMarkdownRules;
   "ia/helpers/plateMarkdownConverter": typeof ia_helpers_plateMarkdownConverter;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
-  "ia/helpers/usageHandler": typeof ia_helpers_usageHandler;
   "ia/nole": typeof ia_nole;
   "ia/noleCompletion": typeof ia_noleCompletion;
   "ia/systemPrompts/noleSystemPrompt": typeof ia_systemPrompts_noleSystemPrompt;

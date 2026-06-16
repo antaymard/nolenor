@@ -8,7 +8,6 @@ import { stepCountIs } from "ai";
 import { toolAgentNames, type ThreadCtx } from "./agentConfig";
 import { getToolsForAgent } from "./tools";
 import { generateSupervisorSystemPrompt } from "./systemPrompts/supervisorSystemPrompt";
-import { recordUsageInThreadMetadata } from "./helpers/usageHandler";
 
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
@@ -102,37 +101,26 @@ export function createNoleAgent({
       extraTools,
       isMultimodal: isModelMultimodal(languageModel),
     }),
-    rawRequestResponseHandler: async (ctx, args) => {
-      const _args = args as any;
-      console.log(_args.response.messages[0].content);
-      // [
-      //   {
-      //     type: 'reasoning',
-      //     text: `The user wants one more "coucou" for testing. They're in a viewport showing several nodes including documents about meditation, exercise, hydration benefits, a Rick Astley embed, and some apps. Let me give them their final coucou.`,
-      //     providerOptions: { openrouter: [Object] }
-      //   },
-      //   {
-      //     type: 'text',
-      //     text: 'Coucou ! 👋\n' +
-      //       '\n' +
-      //       'Test #7 (et probablement dernier). Tout bon de mon côté connexion. \n' +
-      //       '\n' +
-      //       `Je vois que tu regardes la zone "santé" avec les 3 docs bienfaits + l'app météo Morlaix. Tu veux que je lise l'un d'eux ou on arrête les tests là ?`,
-      //     providerOptions: undefined
-      //   }
-
-      // Process the response message to get the tools used
-    },
     usageHandler: async (ctx, args) => {
       // Called once per LLM step. Per-message metadata (model/usage/cost) is
       // recorded once per turn after the stream completes (see noleCompletion);
       // here we only accumulate the thread-level cost across all steps.
-      await recordUsageInThreadMetadata(ctx, {
-        threadId: args.threadId,
-        userId: args.userId,
-        agentName: args.agentName,
-        usage: args.usage,
-      });
+      if (
+        !args.threadId ||
+        !args.usage ||
+        !args.usage.raw ||
+        typeof args.usage.raw.cost !== "number"
+      ) {
+        console.error(`Cannot update usage. Wrong `);
+        return;
+      }
+      await ctx.runMutation(
+        internal.wrappers.threadMetadataWrappers.updateUsage,
+        {
+          threadId: args.threadId,
+          additionalUsageUsd: args.usage.raw.cost || 0, // Use the cost from usage data, default to 0 if not available
+        },
+      );
     },
   });
 }

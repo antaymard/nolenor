@@ -132,8 +132,23 @@ export const streamResponse = internalAction({
 
       // Ensure the stream is fully consumed to completion.
       await result.consumeStream();
+
+      // From the stream, get message usage + used model and create a MessageMetadata record
       const totalUsage = await result.totalUsage;
-      console.log("_totalUsage", totalUsage);
+      await ctx.runMutation(
+        internal.wrappers.messageMetadataWrappers.recordAssistantUsage,
+        {
+          userId: authUserId,
+          agentName: "nole",
+          threadId,
+          messageId: result.messageId ?? "NOT_SET",
+          model: result.savedMessages?.[0]?.model || "NOT_SET",
+          provider: "openrouter",
+          order: result.order,
+          usage: totalUsage,
+          costUsd: -1, // TODO: Calculate cost based on usage and model pricing
+        },
+      );
     } catch (error) {
       if (isExpectedAbortedStreamError(error)) {
         return null;

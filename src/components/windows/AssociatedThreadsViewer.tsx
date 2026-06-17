@@ -10,9 +10,12 @@ import { useNoleStore } from "@/stores/noleStore";
 export default function AssociatedThreadsViewer({
   nodeDataId,
   closeModale,
+  onOpenThread,
 }: {
   nodeDataId: Id<"nodeDatas">;
   closeModale?: () => void;
+  /** Override how a thread gets opened (e.g. on mobile, where there's no Nolë panel). */
+  onOpenThread?: (threadId: string) => void;
 }) {
   const setActiveThreadId = useNoleStore((state) => state.setActiveThreadId);
   const setPanelLayout = useNoleStore((state) => state.setPanelLayout);
@@ -42,15 +45,19 @@ export default function AssociatedThreadsViewer({
   const handleOpenInNole = () => {
     // Seuls les threads de l'utilisateur sont ouvrables (cf. isOwner).
     if (!selected.isOwner) return;
-    setActiveThreadId(selected._id);
-    setPanelLayout("expanded");
+    if (onOpenThread) {
+      onOpenThread(selected._id);
+    } else {
+      setActiveThreadId(selected._id);
+      setPanelLayout("expanded");
+    }
     closeModale?.();
   };
 
   return (
-    <div className="flex min-h-0 flex-1 gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
       {/* Liste des threads */}
-      <div className="flex w-56 shrink-0 flex-col gap-1 overflow-auto border-r pr-2">
+      <div className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-b pb-2 sm:max-h-none sm:w-56 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-2">
         {data.map((thread) => {
           const isSelected = selected._id === thread._id;
 

@@ -144,9 +144,9 @@ export default function VersionHistoryViewer({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
       {/* Liste des versions */}
-      <div className="flex w-56 shrink-0 flex-col gap-1 overflow-auto border-r pr-2">
+      <div className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-b pb-2 sm:max-h-none sm:w-56 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-2">
         {data.map((version) => {
           const ActorIcon = ACTOR_ICON[version.actor.type];
           const isSelected = selected === version._id;

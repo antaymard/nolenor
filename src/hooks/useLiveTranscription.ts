@@ -69,6 +69,10 @@ export interface UseLiveTranscription {
 
 const PCM_WORKLET_NAME = "nole-pcm-encoder";
 
+// Plafond de trames bufferisées avant le `ready` serveur (~20 s à 100 ms/trame).
+// Filet de sécurité contre une montée mémoire si `ready` n'arrive jamais.
+const MAX_PENDING_FRAMES = 200;
+
 // Worklet inline, chargé via Blob URL : reste self-contained (aucun asset public,
 // aucune config Vite). Capte le Float32 micro, le convertit en PCM s16le et
 // pousse des trames (~100 ms) vers le thread principal.
@@ -151,6 +155,9 @@ export function useLiveTranscription(
   const genRef = useRef(0);
   const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLevelRef = useRef(0);
+  // Trames PCM captées avant le `ready` serveur : bufferisées puis flushées,
+  // pour ne pas perdre la 1re phrase pendant le warm-up.
+  const pendingFramesRef = useRef<ArrayBuffer[]>([]);
 
   // Callbacks tenus à jour sans re-créer start/stop.
   const onSegmentRef = useRef(options.onSegment);
@@ -219,6 +226,7 @@ export function useLiveTranscription(
     }
     readyRef.current = false;
     lastLevelRef.current = 0;
+    pendingFramesRef.current = [];
   }, []);
 
   const finalizeStop = useCallback(() => {
@@ -251,10 +259,18 @@ export function useLiveTranscription(
       if (!type) return;
 
       switch (type) {
-        case "ready":
+        case "ready": {
           readyRef.current = true;
           setStatus("listening");
+          // Flush des trames captées pendant le warm-up (sinon 1re phrase perdue).
+          const ws = wsRef.current;
+          const pending = pendingFramesRef.current;
+          pendingFramesRef.current = [];
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            for (const frame of pending) ws.send(frame);
+          }
           break;
+        }
         case "delta":
           if (typeof msg.text === "string") {
             const chunk = msg.text;
@@ -320,6 +336,7 @@ export function useLiveTranscription(
     const gen = ++genRef.current;
     stoppingRef.current = false;
     readyRef.current = false;
+    pendingFramesRef.current = [];
     setStatus("connecting");
     setTranscript("");
     setPartial("");
@@ -328,20 +345,8 @@ export function useLiveTranscription(
     setLevel(0);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      if (gen !== genRef.current) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      streamRef.current = stream;
-
+      // 1. AudioContext + worklet (rapide, sans micro) : donne le sampleRate et
+      //    prépare le nœud d'encodage avant même l'autorisation micro.
       const Ctor: typeof AudioContext =
         window.AudioContext ??
         (window as unknown as { webkitAudioContext: typeof AudioContext })
@@ -354,6 +359,7 @@ export function useLiveTranscription(
       }
       audioContextRef.current = ctx;
       if (ctx.state === "suspended") await ctx.resume();
+      if (gen !== genRef.current) return;
 
       const blob = new Blob([PCM_WORKLET_SOURCE], {
         type: "application/javascript",
@@ -366,8 +372,6 @@ export function useLiveTranscription(
       const actualRate = Math.round(ctx.sampleRate);
       const frameSamples = Math.max(256, Math.round(ctx.sampleRate * 0.1)); // ~100 ms
 
-      const source = ctx.createMediaStreamSource(stream);
-      sourceRef.current = source;
       const node = new AudioWorkletNode(ctx, PCM_WORKLET_NAME, {
         numberOfInputs: 1,
         numberOfOutputs: 1,
@@ -377,17 +381,10 @@ export function useLiveTranscription(
       workletRef.current = node;
 
       node.port.onmessage = (e: MessageEvent) => {
-        const ws = wsRef.current;
-        if (
-          !ws ||
-          ws.readyState !== WebSocket.OPEN ||
-          !readyRef.current ||
-          stoppingRef.current
-        )
-          return;
+        if (stoppingRef.current) return;
         const data = e.data as ArrayBuffer;
 
-        // Niveau micro (RMS) pour l'UI, calculé sur la trame qu'on s'apprête à envoyer.
+        // Niveau micro (RMS) pour l'UI — calculé même pendant le warm-up.
         const samples = new Int16Array(data);
         let sum = 0;
         for (let i = 0; i < samples.length; i++) {
@@ -396,14 +393,24 @@ export function useLiveTranscription(
         }
         updateLevel(samples.length ? Math.sqrt(sum / samples.length) : 0);
 
-        // Backpressure basique : on saute la trame si le buffer d'envoi enfle.
-        if (ws.bufferedAmount < 1_000_000) ws.send(data);
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN && readyRef.current) {
+          // Backpressure basique : on saute la trame si le buffer d'envoi enfle.
+          if (ws.bufferedAmount < 1_000_000) ws.send(data);
+        } else {
+          // Pas encore prêt : on bufferise pour ne rien perdre (plafonné).
+          const pending = pendingFramesRef.current;
+          pending.push(data);
+          if (pending.length > MAX_PENDING_FRAMES) pending.shift();
+        }
       };
 
-      // source -> worklet -> destination (sortie silencieuse) : pas d'écho.
-      source.connect(node);
+      // Nœud relié à destination (sortie silencieuse) pour garder le graphe
+      // actif ; la source micro est branchée plus bas.
       node.connect(ctx.destination);
 
+      // 2. WebSocket ouvert EN PARALLÈLE de l'acquisition micro (warm-up plus
+      //    court ; `start` est envoyé dès l'ouverture).
       const ws = new WebSocket(buildRealtimeUrl(serverUrl, token));
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
@@ -431,6 +438,26 @@ export function useLiveTranscription(
           failWith(event.reason || "Connexion au voice-server interrompue.");
         }
       };
+
+      // 3. Micro (partie la plus lente, surtout la 1re autorisation) : dès que le
+      //    flux est là, on branche la source. Les trames partent en direct si
+      //    `ready` est déjà arrivé, sinon elles sont bufferisées puis flushées.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      if (gen !== genRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      streamRef.current = stream;
+      const source = ctx.createMediaStreamSource(stream);
+      sourceRef.current = source;
+      source.connect(node);
     } catch (err) {
       if (gen !== genRef.current) return;
       const msg =

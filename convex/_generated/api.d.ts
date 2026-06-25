@@ -108,6 +108,7 @@ import type * as slideshows from "../slideshows.js";
 import type * as speech from "../speech.js";
 import type * as threads from "../threads.js";
 import type * as uploads from "../uploads.js";
+import type * as voice from "../voice.js";
 import type * as wishlist from "../wishlist.js";
 import type * as wrappers_canvasEdgeWrappers from "../wrappers/canvasEdgeWrappers.js";
 import type * as wrappers_canvasNodeWrappers from "../wrappers/canvasNodeWrappers.js";
@@ -227,6 +228,7 @@ declare const fullApi: ApiFromModules<{
   speech: typeof speech;
   threads: typeof threads;
   uploads: typeof uploads;
+  voice: typeof voice;
   wishlist: typeof wishlist;
   "wrappers/canvasEdgeWrappers": typeof wrappers_canvasEdgeWrappers;
   "wrappers/canvasNodeWrappers": typeof wrappers_canvasNodeWrappers;

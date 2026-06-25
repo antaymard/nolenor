@@ -278,6 +278,34 @@
   }
 }
 
+/* Respiration discrète des barres de l'equalizer micro : garde l'indicateur
+   "vivant" même au silence (et en fallback batch, sans niveau réel). Le niveau
+   micro réel pilote la hauteur par-dessus. */
+@keyframes nole-eq-idle {
+  0%,
+  100% {
+    transform: scaleY(0.82);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.nole-eq-bar {
+  animation: nole-eq-idle 1.4s ease-in-out infinite;
+}
+.nole-eq-bar:nth-child(2),
+.nole-eq-bar:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.nole-eq-bar:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nole-eq-bar {
+    animation: none;
+  }
+}
+
 :where(.aui-md[data-status="running"]):empty::after,
 :where(.aui-md[data-status="running"])
   > :where(:not(ol):not(ul):not(pre)):last-child::after,

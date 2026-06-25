@@ -64,8 +64,8 @@ export function useNoleChat() {
       | undefined,
   });
 
-  // Speech-to-text → composer input.
-  const speech = useNoleSpeechInput(setUserInput);
+  // Speech-to-text → composer input (live streaming, fallback batch).
+  const speech = useNoleSpeechInput(userInput, setUserInput);
 
   // Attachments (canvas nodes / position) from the Nolë store.
   const attachedNodes = useNoleStore((state) => state.attachedNodes);

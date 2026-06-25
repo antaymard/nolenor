@@ -44,6 +44,7 @@ export default function MobileChatInput() {
     isRecording,
     isTranscribing,
     sttBusy,
+    micLevel,
     startSTT,
     stopSTT,
     dirtyNodeIds,
@@ -121,7 +122,7 @@ export default function MobileChatInput() {
               {isTranscribing ? (
                 <TbLoader className="animate-spin" size={16} />
               ) : isRecording ? (
-                <SoundWaveAnimation />
+                <SoundWaveAnimation level={micLevel} />
               ) : (
                 <TbMicrophone size={16} />
               )}

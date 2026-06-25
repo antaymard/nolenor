@@ -235,6 +235,7 @@ export function useNoleChat() {
     sttBusy: speech.sttBusy,
     startSTT: speech.startSTT,
     stopSTT: speech.stopSTT,
+    micLevel: speech.micLevel,
     // dirty windows
     dirtyNodeIds,
     hasDirtyWindows,

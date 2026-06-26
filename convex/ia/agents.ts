@@ -19,6 +19,13 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
+    label: "DeepSeek V4 Pro",
+    value: "deepseek/deepseek-v4-pro",
+    price: "0.435 _0.87",
+    isMultimodal: false,
+    maxContext: 1000000,
+  },
+  {
     label: "Z.ai GLM5.2",
     value: "z-ai/glm-5.2",
     price: "0.95_3",

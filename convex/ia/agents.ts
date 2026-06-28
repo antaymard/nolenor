@@ -35,7 +35,7 @@ export const chatModelOptions = [
 
   {
     label: "Claude Haiku 4.5",
-    value: "anthropic/claude-sonnet-4.6",
+    value: "anthropic/claude-haiku-4.5",
     price: "1_5",
     isMultimodal: true,
     maxContext: 1000000,

@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Minimize2, Minus, Save, X } from "lucide-react";
-import { TbLocation, TbRefresh } from "react-icons/tb";
+import {
+  TbDotsVertical,
+  TbHistory,
+  TbLocation,
+  TbMessageSearch,
+  TbRefresh,
+} from "react-icons/tb";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeData } from "@/hooks/useNodeData";
@@ -9,6 +15,21 @@ import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { WindowFrameContext } from "./WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../shadcn/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../shadcn/dialog";
+import VersionHistoryViewer from "./VersionHistoryViewer";
+import AssociatedThreadsViewer from "./AssociatedThreadsViewer";
 
 interface FullscreenWindowFrameProps {
   openedWindow: OpenedWindow;
@@ -40,6 +61,8 @@ export default function FullscreenWindowFrame({
   const [refreshHandler, setRefreshHandler] = useState<(() => void) | null>(
     null,
   );
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -117,15 +140,6 @@ export default function FullscreenWindowFrame({
           )}
           <button
             data-window-control="true"
-            className="shrink-0 rounded p-1 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
-            onClick={() => goToNode(xyNodeId)}
-            aria-label="Go to node"
-            title="Go to node"
-          >
-            <TbLocation size={14} />
-          </button>
-          <button
-            data-window-control="true"
             className="shrink-0 rounded p-1 opacity-60 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
             onClick={() => {
               if (isDirty) saveHandler?.();
@@ -136,6 +150,40 @@ export default function FullscreenWindowFrame({
           >
             <Minimize2 size={14} />
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                data-window-control="true"
+                className="shrink-0 rounded p-1 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
+                aria-label="More options"
+              >
+                <TbDotsVertical size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                className="flex items-center text-sm"
+                onSelect={() => goToNode(xyNodeId)}
+              >
+                <TbLocation size={13} />
+                Navigate to node
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="flex items-center text-sm"
+                onSelect={() => setHistoryOpen(true)}
+              >
+                <TbHistory size={13} />
+                History
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="flex items-center text-sm"
+                onSelect={() => setAssociatedThreadsOpen(true)}
+              >
+                <TbMessageSearch size={13} />
+                Associated threads
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             data-window-control="true"
             className="shrink-0 rounded p-1 opacity-50 hover:bg-black/10 hover:opacity-100"
@@ -175,6 +223,34 @@ export default function FullscreenWindowFrame({
         {/* ── Body ──────────────────────────────────────────────────── */}
         {children}
       </div>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Version history</DialogTitle>
+            <DialogDescription>{title ?? "—"}</DialogDescription>
+          </DialogHeader>
+          <VersionHistoryViewer
+            nodeDataId={nodeDataId}
+            closeModale={() => setHistoryOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={associatedThreadsOpen}
+        onOpenChange={setAssociatedThreadsOpen}
+      >
+        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Associated threads</DialogTitle>
+            <DialogDescription>{title ?? "—"}</DialogDescription>
+          </DialogHeader>
+          <AssociatedThreadsViewer
+            nodeDataId={nodeDataId}
+            closeModale={() => setAssociatedThreadsOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </WindowFrameContext.Provider>
   );
 }

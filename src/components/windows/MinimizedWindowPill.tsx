@@ -2,7 +2,9 @@ import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNodeData } from "@/hooks/useNodeData";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
+import { useGoToNode } from "@/hooks/useGoToNode";
 import { X } from "lucide-react";
+import { TbLocation } from "react-icons/tb";
 
 export default function MinimizedWindowPill({
   window: openedWindow,
@@ -11,6 +13,7 @@ export default function MinimizedWindowPill({
 }) {
   const toggleMinimizeWindow = useWindowsStore((s) => s.toggleMinimizeWindow);
   const closeWindow = useWindowsStore((s) => s.closeWindow);
+  const goToNode = useGoToNode();
 
   const title = useNodeDataTitle(openedWindow.nodeDataId);
   const nodeData = useNodeData(openedWindow.nodeDataId);
@@ -29,13 +32,25 @@ export default function MinimizedWindowPill({
       onClick={() => toggleMinimizeWindow(openedWindow.xyNodeId)}
       onMouseDown={handleMouseDown}
       title={title ?? undefined}
-      className="group pointer-events-auto relative flex h-8 max-w-[280px] items-center gap-2 rounded-md border bg-white pl-2.5 pr-7 text-left text-sm shadow-md transition-colors animate-in fade-in slide-in-from-bottom-2 duration-200 hover:bg-slate-50"
+      className="group pointer-events-auto relative flex h-8 max-w-[280px] items-center gap-2 rounded-md border bg-white pl-2.5 pr-12 text-left text-sm shadow-md transition-colors animate-in fade-in slide-in-from-bottom-2 duration-200 hover:bg-slate-50"
     >
       {NodeIcon ? (
         <NodeIcon className="size-4 shrink-0 text-slate-600" />
       ) : null}
       <span className="min-w-0 flex-1 truncate font-medium text-slate-700">
         {title ?? "—"}
+      </span>
+      <span
+        role="button"
+        aria-label="Go to node"
+        onClick={(e) => {
+          e.stopPropagation();
+          goToNode(openedWindow.xyNodeId);
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="absolute right-6 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-blue-500/15 hover:text-blue-600 group-hover:opacity-100"
+      >
+        <TbLocation size={12} />
       </span>
       <span
         role="button"

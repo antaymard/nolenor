@@ -52,7 +52,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     label: "Link",
     description: "Node for storing a link.",
     llmDescription:
-      "For storing/displaying a link. \nThe required data values for this node are 'href' and 'pageTitle'.",
+      "For storing/displaying a link. \nThe required data value is 'link', an object with 'href' (the URL of the link) and 'pageTitle' (the title of the linked page).",
     defaultDimensions: { width: 220, height: 33, resizable: false },
     variants: {
       default: {
@@ -86,13 +86,35 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .default({ href: "", pageTitle: "" }),
       })
       .default({ link: { href: "", pageTitle: "" } }),
+    toolInputSchema: z
+      .object({
+        link: z
+          .object({
+            href: z.string().describe("The url of the link."),
+            pageTitle: z.string().describe("The title of the linked page."),
+            pageImage: z
+              .string()
+              .optional()
+              .describe("Optional preview image URL for the linked page."),
+            pageDescription: z
+              .string()
+              .optional()
+              .describe("Optional description of the linked page."),
+            siteName: z
+              .string()
+              .optional()
+              .describe("Optional site name of the linked page."),
+          })
+          .strict(),
+      })
+      .strict(),
   },
   {
     type: "image",
     label: "Image",
     description: "Node for storing an image.",
     llmDescription:
-      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe required data value for this node is 'url' (the URL of the image).",
+      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe required data value is 'images', an array of objects each with a 'url' (the URL of the image).",
     defaultDimensions: { width: 320, height: 320, resizable: true },
     dataValuesSchema: z
       .object({
@@ -109,6 +131,19 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .default([]),
       })
       .default({ images: [] }),
+    toolInputSchema: z
+      .object({
+        images: z
+          .array(
+            z
+              .object({
+                url: z.string().describe("The URL of the image."),
+              })
+              .strict(),
+          )
+          .describe("The images to display on the node."),
+      })
+      .strict(),
   },
   {
     type: "document",
@@ -145,7 +180,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     label: "Value",
     description: "Node for storing a value (text, number, boolean).",
     llmDescription:
-      "For storing a value that can be of type text, number, or boolean. Use this node to store and display any discrete piece of data in a dashboard / KPI way. \nThe required data value for this node are 'type' (the type of the value: 'text', 'number', or 'boolean'), 'value' (the actual value stored in the node), and an optional 'unit' (the unit of the value, if applicable) and 'label' (an optional label for the value).",
+      "For storing a value that can be of type text, number, or boolean. Use this node to store and display any discrete piece of data in a dashboard / KPI way. \nThe required data value is 'value', an object with 'type' (the type of the value: 'text', 'number', or 'boolean'), 'value' (the actual value stored in the node), and optional 'unit' (the unit of the value, if applicable) and 'label' (an optional label for the value).",
     defaultDimensions: { width: 220, height: 120, resizable: true },
 
     dataValuesSchema: z
@@ -176,6 +211,32 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .default({ type: "text", value: "" }),
       })
       .default({ value: { type: "text", value: "" } }),
+    toolInputSchema: z
+      .object({
+        value: z
+          .object({
+            type: z
+              .enum(["text", "number", "boolean"])
+              .describe(
+                "The type of the value: 'text', 'number', or 'boolean'.",
+              ),
+            value: z
+              .union([z.string(), z.number(), z.boolean()])
+              .describe("The actual value stored in the node."),
+            unit: z
+              .string()
+              .optional()
+              .describe(
+                "The unit of the value, if applicable (e.g., 'kg', 'm', etc.).",
+              ),
+            label: z
+              .string()
+              .optional()
+              .describe("An optional label for the value."),
+          })
+          .strict(),
+      })
+      .strict(),
   },
   {
     type: "embed",
@@ -183,7 +244,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Node for storing embedded content (YouTube, Google Docs/Sheets/Slides, or generic iframe).",
     llmDescription:
-      "For storing/displaying embedded content such as YouTube videos, Google Docs/Sheets/Slides, or any generic iframe content. Use this node to embed external content directly onto the canvas. \nThe required data value are 'url' (the original URL used to create the embed), 'embedUrl' (the embeddable URL used in the iframe source), 'title' (an optional title for the embedded content), and 'type' (the embed provider/type inferred from the URL, which can be 'youtube', 'google-docs', 'google-sheets', 'google-slides', or 'generic').",
+      "For storing/displaying embedded content such as YouTube videos, Google Docs/Sheets/Slides, or any generic iframe content. Use this node to embed external content directly onto the canvas. \nThe required data value is 'embed', an object with 'url' (the original URL used to create the embed), 'embedUrl' (the embeddable URL used in the iframe source), optional 'title' (a title for the embedded content), and 'type' (the embed provider/type inferred from the URL, which can be 'youtube', 'google-docs', 'google-sheets', 'google-slides', or 'generic').",
     defaultDimensions: { width: 480, height: 320, resizable: true },
     variants: {
       preview: {
@@ -231,6 +292,33 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .default({ url: "", embedUrl: "", type: "generic" }),
       })
       .default({ embed: { url: "", embedUrl: "", type: "generic" } }),
+    toolInputSchema: z
+      .object({
+        embed: z
+          .object({
+            url: z
+              .string()
+              .describe("The original URL or source used to create the embed."),
+            embedUrl: z
+              .string()
+              .describe("The embeddable URL used in the iframe source."),
+            title: z
+              .string()
+              .optional()
+              .describe("An optional title for the embedded content."),
+            type: z
+              .enum([
+                "youtube",
+                "google-docs",
+                "google-sheets",
+                "google-slides",
+                "generic",
+              ])
+              .describe("The embed provider/type inferred from the URL."),
+          })
+          .strict(),
+      })
+      .strict(),
   },
   {
     type: "pdf",

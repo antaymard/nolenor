@@ -52,6 +52,16 @@ export function useNoleSpeechInput(
     }
   }, [live.liveText, live.status, setUserInput]);
 
+  // Réveille le voice-server à l'ouverture du chat et au retour sur l'onglet,
+  // pour absorber le cold start sans garder d'instance allumée en permanence.
+  const prewarm = live.prewarm;
+  useEffect(() => {
+    if (live.configLoading || live.configMissing) return;
+    prewarm();
+    window.addEventListener("focus", prewarm);
+    return () => window.removeEventListener("focus", prewarm);
+  }, [live.configLoading, live.configMissing, prewarm]);
+
   // --- Moteur batch (fallback) -------------------------------------------
   const onBatchTranscript = useCallback(
     (text: string) => setUserInput((prev) => appendText(prev, text)),

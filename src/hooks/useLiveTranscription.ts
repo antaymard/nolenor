@@ -65,6 +65,8 @@ export interface UseLiveTranscription {
   stop: () => void;
   /** Réinitialise transcript/partial/erreur (seulement quand inactif). */
   reset: () => void;
+  /** Réveille le serveur (cold start) sans ouvrir de session. Throttlé. */
+  prewarm: () => void;
 }
 
 const PCM_WORKLET_NAME = "nole-pcm-encoder";
@@ -159,6 +161,8 @@ export function useLiveTranscription(
   // Trames PCM captées avant le `ready` serveur : bufferisées puis flushées,
   // pour ne pas perdre la 1re phrase pendant le warm-up.
   const pendingFramesRef = useRef<ArrayBuffer[]>([]);
+  // Dernier prewarm (ms) — pour throttler les pings /healthz.
+  const lastPrewarmRef = useRef(0);
 
   // Callbacks tenus à jour sans re-créer start/stop.
   const onSegmentRef = useRef(options.onSegment);
@@ -547,6 +551,28 @@ export function useLiveTranscription(
     setStatus("idle");
   }, [status]);
 
+  // Réveille le serveur (cold start Railway) sans ouvrir de session : un simple
+  // ping /healthz. À appeler sur un signal d'intention (ouverture du chat, retour
+  // sur l'onglet) pour que le conteneur soit chaud au moment de parler. Throttlé.
+  const prewarm = useCallback(() => {
+    if (!serverUrl) return;
+    const now = Date.now();
+    if (now - lastPrewarmRef.current < 30_000) return;
+    lastPrewarmRef.current = now;
+    const base = serverUrl
+      .trim()
+      .replace(/\/+$/, "")
+      .replace(/^ws:/i, "http:")
+      .replace(/^wss:/i, "https:");
+    const url = /^https?:/i.test(base) ? base : `https://${base}`;
+    // no-cors : on ne lit pas la réponse, on veut juste sortir le serveur du sommeil.
+    void fetch(`${url}/healthz`, {
+      method: "GET",
+      mode: "no-cors",
+      cache: "no-store",
+    }).catch(() => {});
+  }, [serverUrl]);
+
   // Teardown au démontage.
   useEffect(() => () => teardownAll(), [teardownAll]);
 
@@ -563,5 +589,6 @@ export function useLiveTranscription(
     start,
     stop,
     reset,
+    prewarm,
   };
 }

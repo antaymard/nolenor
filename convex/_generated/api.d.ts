@@ -32,6 +32,7 @@ import type * as ia_helpers_plateMarkdownConverter from "../ia/helpers/plateMark
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
 import type * as ia_nole from "../ia/nole.js";
 import type * as ia_noleCompletion from "../ia/noleCompletion.js";
+import type * as ia_subAgentErrors from "../ia/subAgentErrors.js";
 import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/noleSystemPrompt.js";
 import type * as ia_systemPrompts_supervisorSystemPrompt from "../ia/systemPrompts/supervisorSystemPrompt.js";
 import type * as ia_systemPrompts_systemParts from "../ia/systemPrompts/systemParts.js";
@@ -152,6 +153,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
   "ia/nole": typeof ia_nole;
   "ia/noleCompletion": typeof ia_noleCompletion;
+  "ia/subAgentErrors": typeof ia_subAgentErrors;
   "ia/systemPrompts/noleSystemPrompt": typeof ia_systemPrompts_noleSystemPrompt;
   "ia/systemPrompts/supervisorSystemPrompt": typeof ia_systemPrompts_supervisorSystemPrompt;
   "ia/systemPrompts/systemParts": typeof ia_systemPrompts_systemParts;

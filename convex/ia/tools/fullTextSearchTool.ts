@@ -14,6 +14,7 @@ export const fullTextSearchToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "viewer" },
 };
 
 type SearchStatus =

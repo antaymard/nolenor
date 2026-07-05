@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as apiKeys from "../apiKeys.js";
 import type * as auth from "../auth.js";
 import type * as canvasEdges from "../canvasEdges.js";
 import type * as canvasNodes from "../canvasNodes.js";
@@ -70,6 +71,8 @@ import type * as lib_r2 from "../lib/r2.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
 import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
+import type * as mcp_registry from "../mcp/registry.js";
+import type * as mcp_server from "../mcp/server.js";
 import type * as memories from "../memories.js";
 import type * as messageMetadata from "../messageMetadata.js";
 import type * as models_canvasEdgeModels from "../models/canvasEdgeModels.js";
@@ -85,6 +88,7 @@ import type * as models_threadMetadataModels from "../models/threadMetadataModel
 import type * as nodeDataVersions from "../nodeDataVersions.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as recipes from "../recipes.js";
+import type * as schemas_apiKeysSchema from "../schemas/apiKeysSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
 import type * as schemas_messageMetadataSchema from "../schemas/messageMetadataSchema.js";
@@ -128,6 +132,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  apiKeys: typeof apiKeys;
   auth: typeof auth;
   canvasEdges: typeof canvasEdges;
   canvasNodes: typeof canvasNodes;
@@ -190,6 +195,8 @@ declare const fullApi: ApiFromModules<{
   "lib/searchScoring": typeof lib_searchScoring;
   "lib/xml": typeof lib_xml;
   links: typeof links;
+  "mcp/registry": typeof mcp_registry;
+  "mcp/server": typeof mcp_server;
   memories: typeof memories;
   messageMetadata: typeof messageMetadata;
   "models/canvasEdgeModels": typeof models_canvasEdgeModels;
@@ -205,6 +212,7 @@ declare const fullApi: ApiFromModules<{
   nodeDataVersions: typeof nodeDataVersions;
   nodeDatas: typeof nodeDatas;
   recipes: typeof recipes;
+  "schemas/apiKeysSchema": typeof schemas_apiKeysSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;
   "schemas/messageMetadataSchema": typeof schemas_messageMetadataSchema;

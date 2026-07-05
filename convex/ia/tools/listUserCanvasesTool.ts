@@ -12,6 +12,7 @@ export const listUserCanvasesToolConfig: ToolConfig = {
     toolAgentNames.clone,
     toolAgentNames.supervisor,
   ],
+  mcp: { access: "viewer" },
 };
 
 export default function listUserCanvasesTool({

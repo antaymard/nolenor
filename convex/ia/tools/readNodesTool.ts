@@ -368,6 +368,7 @@ export const readNodesToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "viewer" },
 };
 
 function getExpectedNodeDataSchemaString(nodeType: string): string | null {

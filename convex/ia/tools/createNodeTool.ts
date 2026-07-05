@@ -26,6 +26,7 @@ export const createNodeToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "editor" },
 };
 
 const nodeColorValues = [

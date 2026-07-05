@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
+import { mcpMethodNotAllowed, mcpPost } from "./mcp/server";
 
 const http = httpRouter();
 
@@ -150,6 +151,25 @@ http.route({
   path: "/wishlist/subscribe",
   method: "OPTIONS",
   handler: wishlistOptions,
+});
+
+// Serveur MCP pour assistants tiers (Claude Code, Claude Desktop…).
+http.route({
+  path: "/mcp",
+  method: "POST",
+  handler: mcpPost,
+});
+
+http.route({
+  path: "/mcp",
+  method: "GET",
+  handler: mcpMethodNotAllowed,
+});
+
+http.route({
+  path: "/mcp",
+  method: "DELETE",
+  handler: mcpMethodNotAllowed,
 });
 
 export default http;

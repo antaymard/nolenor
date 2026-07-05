@@ -14,6 +14,7 @@ export const tableUpdateSchemaToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "editor" },
 };
 
 const SELECT_COLORS = [

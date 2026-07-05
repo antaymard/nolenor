@@ -14,6 +14,7 @@ import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
 import { recipesValidor } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
+import { apiKeysValidator } from "./schemas/apiKeysSchema";
 
 const schema = defineSchema({
   ...authTables,
@@ -105,6 +106,13 @@ const schema = defineSchema({
   threadMetadata: defineTable(threadMetadataValidator)
     .index("by_threadId", ["threadId"])
     .index("by_userId", ["userId"]),
+
+  // ============================================================================
+  // API KEYS (accès MCP pour assistants tiers)
+  // ============================================================================
+  apiKeys: defineTable(apiKeysValidator)
+    .index("by_keyHash", ["keyHash"])
+    .index("by_user", ["userId"]),
 });
 
 export default schema;

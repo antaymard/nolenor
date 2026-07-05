@@ -27,7 +27,7 @@ export const ReasoningPart = memo(function ReasoningPart({
   if (!visibleText && !isStreaming) return null;
 
   return (
-    <div className="rounded border border-slate-300 bg-slate-50 text-xs text-slate-700">
+    <div className="rounded border border-border bg-muted/50 text-xs text-foreground">
       <button
         type="button"
         className="w-full flex items-center gap-1 px-2 py-1.5 text-left"
@@ -48,7 +48,7 @@ export const ReasoningPart = memo(function ReasoningPart({
       </button>
 
       {isExpanded ? (
-        <div className="border-t border-slate-200 px-2 py-2 whitespace-pre-wrap overflow-x-auto">
+        <div className="border-t border-border px-2 py-2 whitespace-pre-wrap overflow-x-auto">
           <MarkdownText
             components={markdownComponents}
             remarkPlugins={[remarkNodeMentions]}

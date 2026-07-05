@@ -31,7 +31,7 @@ export default function MobileChatScreen({
 
   if (isLoading) {
     return (
-      <div className="h-dvh flex items-center justify-center text-slate-500">
+      <div className="h-dvh flex items-center justify-center text-muted-foreground">
         <TbLoader className="h-5 w-5 animate-spin" />
       </div>
     );
@@ -39,14 +39,14 @@ export default function MobileChatScreen({
 
   if (!threadId) {
     return (
-      <div className="h-dvh flex items-center justify-center text-slate-500">
+      <div className="h-dvh flex items-center justify-center text-muted-foreground">
         Error loading chat
       </div>
     );
   }
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-white">
+    <div className="absolute inset-0 flex flex-col bg-background">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 border-b px-2 py-2 shrink-0">
         <Button
@@ -59,7 +59,7 @@ export default function MobileChatScreen({
         </Button>
         <button
           type="button"
-          className="flex items-center gap-1 truncate text-sm font-medium px-2 py-1 rounded hover:bg-slate-100"
+          className="flex items-center gap-1 truncate text-sm font-medium px-2 py-1 rounded hover:bg-accent/60"
           onClick={onOpenLeft}
         >
           <span className="truncate max-w-[55vw]">

@@ -65,15 +65,15 @@ export function MentionedNodeCard({
       type="button"
       onClick={handleClick}
       className={cn(
-        "group flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors",
+        "group flex items-center gap-1.5 rounded border bg-card px-2 py-0.5 text-xs text-foreground transition-colors",
         inline
           ? "inline-flex align-middle mx-1 -translate-y-0.5"
           : "flex w-fit max-w-50",
-        "hover:border-slate-300 hover:bg-slate-50 cursor-pointer",
+        "hover:border-border hover:bg-accent/60 cursor-pointer",
       )}
       title={title || "Node"}
     >
-      <Icon size={12} className="shrink-0 text-slate-500" />
+      <Icon size={12} className="shrink-0 text-muted-foreground" />
       <span className="truncate max-w-37.5 font-medium">
         {title || nodeData.type}
       </span>

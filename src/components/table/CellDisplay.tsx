@@ -138,7 +138,7 @@ export function CellDisplay({ type, value, options }: CellDisplayProps) {
               href={linkVal.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-500 hover:underline truncate"
+              className="text-(--brand) hover:underline truncate"
               onClick={(e) => e.stopPropagation()}
             >
               {displayLabel}

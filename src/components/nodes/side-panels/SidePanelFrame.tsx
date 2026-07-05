@@ -17,14 +17,14 @@ export default function SidePanelFrame({
   return (
     <div
       className={
-        "space-y-2 rounded border border-gray-300 bg-white mb-2 shadow-xl ring-2 " +
+        "space-y-2 rounded border bg-card mb-2 shadow-xl ring-2 " +
         className
       }
     >
       <div className="flex items-center justify-between p-2 pb-0 gap-5">
         <h3 className="font-semibold">{title}</h3>
         <button
-          className="hover:bg-white/70 rounded-xs aspect-square"
+          className="hover:bg-accent/60 rounded-xs aspect-square"
           type="button"
           onClick={() => closeSidePanel(id)}
         >

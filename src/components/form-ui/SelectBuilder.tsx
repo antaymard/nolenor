@@ -194,8 +194,8 @@ const OptionRow = memo(
                     "w-8 h-8 rounded border-2 transition-all hover:scale-110",
                     colors[colorKey].plain,
                     option.color === colorKey
-                      ? "border-gray-800 ring-2 ring-gray-300"
-                      : "border-gray-200"
+                      ? "border-foreground ring-2 ring-ring"
+                      : "border-border"
                   )}
                   title={colors[colorKey].label}
                 />

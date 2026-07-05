@@ -153,7 +153,7 @@ export default function RichTextArea({
             return (
               <div
                 className={cn(
-                  focused && "bg-slate-100",
+                  focused && "bg-muted",
                   "p-2 flex items-center gap-2",
                 )}
               >

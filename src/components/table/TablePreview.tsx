@@ -20,7 +20,7 @@ export function TablePreview({ columns, rows, className }: TablePreviewProps) {
   if (columns.length === 0) return null;
   return (
     <Table className={cn(className)}>
-      <TableHeader className="sticky top-0 z-10 bg-white border-b border-slate-300">
+      <TableHeader className="sticky top-0 z-10 bg-card border-b">
         <TableRow>
           {columns.map((col) => (
             <TableHead

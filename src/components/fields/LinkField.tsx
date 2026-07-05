@@ -96,7 +96,7 @@ function LinkField({ value, className = "", componentProps }: LinkFieldProps) {
   return (
     <div
       className={cn(
-        "relative bg-slate-100 hover:bg-slate-200 h-8 rounded-md flex items-center group/linkfield px-2 gap-2 min-w-0 ",
+        "relative bg-muted hover:bg-accent h-8 rounded-md flex items-center group/linkfield px-2 gap-2 min-w-0 ",
         iconOnly ? "w-8" : "flex-1 w-full",
         className,
       )}

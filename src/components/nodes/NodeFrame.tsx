@@ -68,8 +68,8 @@ function NodeFrame({
             "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[8px] after:border-2 after:border-dashed after:border-violet-500/90",
           !canDrag && "nodrag",
           xyNode.selected
-            ? "ring-2 ring-blue-500/70"
-            : "hover:ring-1 hover:ring-blue-400/60",
+            ? "ring-2 ring-ring/70"
+            : "hover:ring-1 hover:ring-ring/50",
         )}
         onDoubleClick={handleDoubleClick}
       >
@@ -78,7 +78,7 @@ function NodeFrame({
             "h-full rounded-[4px] relative",
             xyNode.data.color === "transparent"
               ? "bg-transparent"
-              : "bg-white/80",
+              : "bg-card/80",
           )}
         >
           {hasDragAndResizeLatencyBug && (isResizing || xyNode.dragging) && (

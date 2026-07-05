@@ -349,8 +349,8 @@ export function SettingsDialog() {
           {/* AI Settings Group */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="size-8 rounded-full bg-purple-100 p-2 dark:bg-purple-900">
-                <Wand2Icon className="size-4 text-purple-600 dark:text-purple-400" />
+              <div className="size-8 rounded-full bg-[var(--tag-purple-soft)] p-2">
+                <Wand2Icon className="size-4 text-[var(--tag-purple-text)]" />
               </div>
               <h4 className="font-semibold">AI</h4>
             </div>

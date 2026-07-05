@@ -36,7 +36,7 @@ export function AssistantMessage({
       <div
         className={cn(
           "whitespace-pre-wrap flex flex-col gap-2 p-2 py-3 w-full",
-          isFailed && "bg-red-100",
+          isFailed && "bg-destructive/10",
         )}
       >
         {(message.parts ?? []).map((part, index) => (
@@ -45,7 +45,10 @@ export function AssistantMessage({
 
         {isProcessing && (
           <div className="flex items-center py-1 px-1">
-            <RiLoaderLine size={15} className="animate-spin text-slate-400" />
+            <RiLoaderLine
+              size={15}
+              className="animate-spin text-muted-foreground"
+            />
           </div>
         )}
 

@@ -167,7 +167,7 @@ export const ChatInterface = memo(function ChatInterface({
             {status === "CanLoadMore" && (
               <button
                 onClick={() => loadMore(10)}
-                className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-sm hover:bg-gray-200 transition mx-auto"
+                className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-sm hover:bg-accent transition mx-auto"
               >
                 Load more
               </button>
@@ -177,7 +177,7 @@ export const ChatInterface = memo(function ChatInterface({
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm">
             Start a conversation...
           </div>
         )}
@@ -186,7 +186,7 @@ export const ChatInterface = memo(function ChatInterface({
       {(showThinkingIndicator || showDone || isLastMessageFailed) && (
         <div className="absolute left-0 right-0 bottom-0 flex justify-center z-20 pb-2">
           {showThinkingIndicator && (
-            <div className="flex items-center gap-1.5 text-sm text-slate-400 px-2 py-1">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground px-2 py-1">
               <RiLoaderLine size={14} className="animate-spin" />
               <span>
                 {isAssistantThinking ? "Nole is thinking..." : "Waiting..."}
@@ -194,7 +194,7 @@ export const ChatInterface = memo(function ChatInterface({
             </div>
           )}
           {showDone && !showThinkingIndicator && (
-            <div className="flex items-center gap-1.5 text-sm text-green-600 px-2 py-1">
+            <div className="flex items-center gap-1.5 text-sm text-emerald-600 px-2 py-1">
               <TbCheck size={14} />
               <span>Done</span>
             </div>
@@ -224,7 +224,7 @@ function ChatMessage({ message }: { message: UIMessage }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] bg-[oklch(0.623_0.214_259.815)] text-white rounded-2xl rounded-br-md px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words">
+        <div className="max-w-[85%] bg-brand text-white rounded-2xl rounded-br-md px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words">
           {message.text}
         </div>
       </div>
@@ -237,7 +237,7 @@ function ChatMessage({ message }: { message: UIMessage }) {
     if (parts.length === 0) {
       return (
         <div className="flex justify-start">
-          <div className="max-w-[85%] bg-gray-100 text-gray-700 rounded-2xl rounded-bl-md px-3 py-2 text-sm leading-relaxed break-words">
+          <div className="max-w-[85%] bg-muted text-foreground rounded-2xl rounded-bl-md px-3 py-2 text-sm leading-relaxed break-words">
             {message.text || ""}
           </div>
         </div>
@@ -254,7 +254,7 @@ function ChatMessage({ message }: { message: UIMessage }) {
             if (!text.trim()) return null;
             return (
               <div key={idx} className="flex justify-start">
-                <div className="max-w-[85%] bg-gray-100 text-gray-700 rounded-2xl rounded-bl-md px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap">
+                <div className="max-w-[85%] bg-muted text-foreground rounded-2xl rounded-bl-md px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap">
                   {text}
                 </div>
               </div>
@@ -263,11 +263,11 @@ function ChatMessage({ message }: { message: UIMessage }) {
 
           if (partType === "reasoning") {
             return (
-              <details key={idx} className="text-sm text-gray-400 ml-1">
+              <details key={idx} className="text-sm text-muted-foreground ml-1">
                 <summary className="cursor-pointer">
                   Nole is thinking...
                 </summary>
-                <div className="mt-1 pl-2 border-l-2 border-gray-200 text-gray-500 whitespace-pre-wrap">
+                <div className="mt-1 pl-2 border-l-2 text-muted-foreground whitespace-pre-wrap">
                   {(part.text as string) || ""}
                 </div>
               </details>
@@ -277,28 +277,28 @@ function ChatMessage({ message }: { message: UIMessage }) {
           if (partType?.startsWith("tool-")) {
             const toolName = partType.replace("tool-", "");
             return (
-              <details key={idx} className="text-sm text-gray-400 ml-1">
+              <details key={idx} className="text-sm text-muted-foreground ml-1">
                 <summary className="cursor-pointer inline-flex items-center gap-1">
-                  <span className="text-gray-500">Used tool: {toolName}</span>
+                  <span className="text-muted-foreground">Used tool: {toolName}</span>
                   {(part.state as string) === "running" && (
                     <RiLoaderLine size={12} className="animate-spin" />
                   )}
                   {(part.state as string) === "done" && (
-                    <TbCheck size={12} className="text-green-500" />
+                    <TbCheck size={12} className="text-emerald-500" />
                   )}
                   {(part.state as string) === "error" && (
                     <TbAlertCircle size={12} className="text-red-500" />
                   )}
                 </summary>
-                <div className="mt-1 pl-2 border-l-2 border-gray-200">
+                <div className="mt-1 pl-2 border-l-2">
                   {part.args && (
-                    <div className="text-gray-400 text-xs mb-1">
+                    <div className="text-muted-foreground text-xs mb-1">
                       Input:{" "}
                       {JSON.stringify(part.args, null, 0).substring(0, 200)}
                     </div>
                   )}
                   {part.result && (
-                    <div className="text-gray-500 text-xs whitespace-pre-wrap">
+                    <div className="text-muted-foreground text-xs whitespace-pre-wrap">
                       {typeof part.result === "string"
                         ? part.result.substring(0, 500)
                         : JSON.stringify(part.result).substring(0, 500)}

@@ -169,7 +169,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
       </AlertDialog>
       <div
         ref={containerRef}
-        className="fixed left-0 right-0 top-0 z-40 bg-white animate-in slide-in-from-bottom duration-200"
+        className="fixed left-0 right-0 top-0 z-40 bg-background animate-in slide-in-from-bottom duration-200"
         style={{ bottom: "var(--mobile-chat-input-h, 0px)" }}
       >
         <div className="flex flex-col h-full">
@@ -198,7 +198,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
             </ConfirmableButton>
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {NodeIcon ? (
-                <NodeIcon className="size-4 shrink-0 text-slate-600" />
+                <NodeIcon className="size-4 shrink-0 text-muted-foreground" />
               ) : null}
               <span className="truncate text-sm font-medium">
                 {title || nodeType}
@@ -221,7 +221,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
                 size="sm"
                 disabled={!isDirty}
                 onClick={saveHandler}
-                className={cn(!isDirty && "text-slate-400")}
+                className={cn(!isDirty && "text-muted-foreground/70")}
               >
                 <Save size={14} />
                 Save

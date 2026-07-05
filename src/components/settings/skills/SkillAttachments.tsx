@@ -93,7 +93,7 @@ export default function SkillAttachments({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-sm font-semibold text-foreground">
           Attachments ({attachments.length})
         </h3>
         {!showForm && (
@@ -109,9 +109,9 @@ export default function SkillAttachments({
       </div>
 
       {attachments.length === 0 ? (
-        <p className="text-sm text-gray-500 italic">No attachments.</p>
+        <p className="text-sm text-muted-foreground italic">No attachments.</p>
       ) : (
-        <ul className="divide-y divide-gray-200 border border-gray-200 rounded-md bg-white">
+        <ul className="divide-y divide-border border rounded-md bg-card">
           {attachments.map((attachment) => (
             <li
               key={attachment._id}
@@ -121,13 +121,13 @@ export default function SkillAttachments({
                 <span className="font-medium text-sm truncate">
                   {attachment.name}
                 </span>
-                <span className="text-xs text-gray-500">{attachment.type}</span>
+                <span className="text-xs text-muted-foreground">{attachment.type}</span>
               </div>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="text-red-600 hover:text-red-700"
+                className="text-destructive hover:text-destructive/80"
                 onClick={() => handleRemove(attachment._id, attachment.name)}
               >
                 Remove
@@ -138,7 +138,7 @@ export default function SkillAttachments({
       )}
 
       {showForm && (
-        <div className="border border-gray-200 rounded-md p-3 bg-gray-50 flex flex-col gap-3">
+        <div className="border rounded-md p-3 bg-muted/50 flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="attachment-name">Name</Label>
             <Input
@@ -175,7 +175,7 @@ export default function SkillAttachments({
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
               placeholder="Paste the attachment content here…"
-              className="w-full font-mono border rounded-md px-3 py-2 bg-white min-h-40"
+              className="w-full font-mono border rounded-md px-3 py-2 bg-card min-h-40"
             />
           </div>
 

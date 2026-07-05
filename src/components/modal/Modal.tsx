@@ -25,7 +25,7 @@ export default function Modal({
       onClick={() => clickOutsideToClose && close?.()}
     >
       <div
-        className="bg-white rounded border border-gray-300 flex flex-col min-w-96 "
+        className="bg-card rounded border flex flex-col min-w-96 "
         onClick={(e) => e.stopPropagation()}
         style={modalStyle}
       >
@@ -36,7 +36,7 @@ export default function Modal({
             <button
               type="button"
               onClick={() => close?.()}
-              className="rounded-md aspect-square p-1 bg-gray-100 hover:bg-gray-200"
+              className="rounded-md aspect-square p-1 bg-muted hover:bg-accent"
             >
               <HiMiniXMark size={24} />
             </button>

@@ -74,8 +74,8 @@ export default function MobileChatInput() {
     <div ref={containerRef} className="fixed bottom-0 left-0 right-0 z-50 p-2 pt-0">
       <div
         className={cn(
-          "bg-slate-100 border shadow-md rounded-lg flex flex-col gap-2",
-          hasDirtyWindows ? "border-red-300" : "border-slate-300",
+          "bg-muted border shadow-md rounded-lg flex flex-col gap-2",
+          hasDirtyWindows ? "border-destructive" : "border",
         )}
       >
         <AttachmentRow
@@ -111,7 +111,7 @@ export default function MobileChatInput() {
               disabled={isTranscribing || isSending}
               className={cn(
                 "h-9 w-9 select-none touch-none",
-                isRecording && "bg-red-500 text-white hover:bg-red-500/90",
+                isRecording && "bg-destructive text-white hover:bg-destructive/90",
               )}
               onPointerDown={mic.onPointerDown}
               onPointerUp={mic.onPointerUp}
@@ -133,7 +133,7 @@ export default function MobileChatInput() {
             {hasDirtyWindows && (
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <span className="rounded flex gap-1 bg-white/50 px-2 py-1 text-red-400">
+                  <span className="rounded flex gap-1 bg-card/50 px-2 py-1 text-destructive/70">
                     <TbCloudExclamation size={16} className="stroke-2" />
                     {dirtyNodeIds.length}
                   </span>

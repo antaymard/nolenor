@@ -195,7 +195,7 @@ function CanvasRow({
         onClick={onSelect}
         className={cn(
           "flex-1 min-w-0 text-left text-sm font-medium px-2 py-2 rounded-md truncate",
-          active ? "bg-slate-200" : "hover:bg-slate-100",
+          active ? "bg-accent" : "hover:bg-accent/60",
         )}
       >
         {name}
@@ -204,7 +204,7 @@ function CanvasRow({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 opacity-50 hover:opacity-100 hover:text-red-500"
+          className="h-7 w-7 opacity-50 hover:opacity-100 hover:text-destructive"
           onClick={onDelete}
           aria-label="Delete workspace"
         >
@@ -233,7 +233,7 @@ function ThreadRow({
         onClick={onSelect}
         className={cn(
           "flex-1 min-w-0 text-left text-sm px-2 py-2 rounded-md truncate",
-          active ? "bg-slate-200 font-medium" : "hover:bg-slate-100",
+          active ? "bg-accent font-medium" : "hover:bg-accent/60",
         )}
       >
         {title || "Untitled"}
@@ -241,7 +241,7 @@ function ThreadRow({
       <Button
         variant="ghost"
         size="icon"
-        className="h-7 w-7 opacity-50 hover:opacity-100 hover:text-red-500"
+        className="h-7 w-7 opacity-50 hover:opacity-100 hover:text-destructive"
         onClick={() => void onDelete()}
         aria-label="Delete thread"
       >

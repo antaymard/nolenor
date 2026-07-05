@@ -36,7 +36,7 @@ export default function ThreadStatsBadge({
   return (
     <Tooltip delayDuration={200}>
       <TooltipTrigger asChild>
-        <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 px-1.5 py-0.5 rounded-sm hover:bg-slate-100 cursor-default">
+        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground px-1.5 py-0.5 rounded-sm hover:bg-accent cursor-default">
           <TbDatabase size={10} />
           {percentLabel ? <span>{percentLabel}</span> : null}
           {stats.totalCostUsd > 0 ? (
@@ -52,14 +52,14 @@ export default function ThreadStatsBadge({
               {stats.perModel.map((m) => (
                 <div key={m.model} className="flex justify-between gap-2">
                   <span>{getModelLabel(m.model, modelOptions)}</span>
-                  <span className="text-slate-300">
+                  <span className="text-background/70">
                     {formatTokens(m.totalTokens)} tk
                   </span>
                 </div>
               ))}
             </div>
           ) : null}
-          <p className="text-slate-300 mt-1">
+          <p className="text-background/70 mt-1">
             Contexte actuel : {formatTokens(stats.contextWindowUsed)} tk
             {stats.maxContext ? ` / ${formatTokens(stats.maxContext)} tk` : ""}
           </p>

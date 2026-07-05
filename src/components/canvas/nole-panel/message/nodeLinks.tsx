@@ -54,7 +54,7 @@ export const markdownComponents: Components = {
         href={href}
         target="_blank"
         rel="noreferrer"
-        className="text-blue-500 hover:underline"
+        className="text-(--brand) hover:underline"
       >
         {children}
       </a>

@@ -47,7 +47,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
 
   if (isLoading) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-slate-500">
+      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
         <TbLoader className="h-5 w-5 animate-spin" />
       </div>
     );
@@ -55,7 +55,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
 
   if (!threadId) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-slate-500">
+      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
         Error loading chat
       </div>
     );

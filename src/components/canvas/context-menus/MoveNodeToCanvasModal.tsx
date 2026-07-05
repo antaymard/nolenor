@@ -97,8 +97,8 @@ export default function MoveNodeToCanvasModal({
                   className={cn(
                     "w-full rounded-sm border px-3 py-2 text-left transition-colors",
                     selectedCanvasId === canvas._id
-                      ? "border-slate-400 bg-slate-100"
-                      : "border-transparent hover:bg-slate-50",
+                      ? "border-border bg-muted"
+                      : "border-transparent hover:bg-accent/60",
                   )}
                 >
                   <div className="truncate text-sm font-medium">

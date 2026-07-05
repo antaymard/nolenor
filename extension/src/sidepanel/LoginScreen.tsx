@@ -8,13 +8,13 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
-    <div className="h-full flex flex-col items-center justify-center px-6 bg-[#f7f7f8]">
+    <div className="h-full flex flex-col items-center justify-center px-6 bg-background">
       <div className="w-full flex flex-col items-center gap-6">
         <div className="text-center flex flex-col gap-1">
-          <h1 className="text-xl font-semibold text-gray-900">
+          <h1 className="text-xl font-semibold text-foreground">
             {step === "signIn" ? "Welcome back" : "Create an account"}
           </h1>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-foreground">
             {step === "signIn"
               ? "Sign in to your Nolenor account"
               : "Sign up to get started"}
@@ -61,7 +61,7 @@ export default function LoginScreen() {
             type="email"
             required
             disabled={isSubmitting}
-            className="w-full h-10 px-3 rounded-lg bg-white border border-gray-200 text-base text-gray-900 placeholder:text-gray-300 outline-none focus:border-gray-300 disabled:opacity-50"
+            className="w-full h-10 px-3 rounded-lg bg-background border border-border text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-(--brand) disabled:opacity-50"
           />
           <input
             name="password"
@@ -70,15 +70,14 @@ export default function LoginScreen() {
             required
             disabled={isSubmitting}
             minLength={6}
-            className="w-full h-10 px-3 rounded-lg bg-white border border-gray-200 text-base text-gray-900 placeholder:text-gray-300 outline-none focus:border-gray-300 disabled:opacity-50"
+            className="w-full h-10 px-3 rounded-lg bg-background border border-border text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-(--brand) disabled:opacity-50"
           />
           <input name="flow" type="hidden" value={step} />
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-10 mt-1 rounded-lg font-medium text-base text-white transition-opacity disabled:opacity-50"
-            style={{ backgroundColor: "oklch(0.623 0.214 259.815)" }}
+            className="w-full h-10 mt-1 rounded-lg font-medium text-base text-white bg-(--brand) transition-all active:scale-[0.98] hover:opacity-90 disabled:opacity-50"
           >
             {isSubmitting ? (
               <span className="inline-block h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -90,13 +89,13 @@ export default function LoginScreen() {
           </button>
         </form>
 
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-muted-foreground">
           {step === "signIn" ? (
             <>
               Don&apos;t have an account?{" "}
               <button
                 type="button"
-                className="text-gray-600 underline underline-offset-2 hover:text-gray-900"
+                className="text-foreground/70 underline underline-offset-2 hover:text-foreground"
                 onClick={() => setStep("signUp")}
                 disabled={isSubmitting}
               >
@@ -108,7 +107,7 @@ export default function LoginScreen() {
               Already have an account?{" "}
               <button
                 type="button"
-                className="text-gray-600 underline underline-offset-2 hover:text-gray-900"
+                className="text-foreground/70 underline underline-offset-2 hover:text-foreground"
                 onClick={() => setStep("signIn")}
                 disabled={isSubmitting}
               >
@@ -119,7 +118,7 @@ export default function LoginScreen() {
         </p>
       </div>
 
-      <div className="mt-auto pb-4 text-sm text-gray-300">
+      <div className="mt-auto pb-4 text-sm text-muted-foreground/70">
         Nolenor Extension
       </div>
     </div>

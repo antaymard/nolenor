@@ -23,7 +23,7 @@ export default function ImageField({
   if (!value || value.length === 0) {
     return (
       <div className="aspect-video border-2 border-dashed flex items-center justify-center rounded-md">
-        <p className="text-gray-500">Ajouter une image</p>
+        <p className="text-muted-foreground">Ajouter une image</p>
       </div>
     );
   }

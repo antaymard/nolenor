@@ -49,7 +49,7 @@ export default function MinimizedWindow({ window }: { window: OpenedWindow }) {
             {Icon && <Icon size={20} />}
           </Button>
           <button
-            className="hidden group-hover:flex h-4 w-4 rounded-full p-0 m-0 aspect-square items-center justify-center absolute bg-red-100 text-red-400 hover:bg-red-400 hover:text-white -top-1 -right-1"
+            className="hidden group-hover:flex h-4 w-4 rounded-full p-0 m-0 aspect-square items-center justify-center absolute bg-destructive/10 text-destructive hover:bg-destructive hover:text-white -top-1 -right-1"
             onClick={() => closeWindow(window.xyNodeId)}
           >
             <HiMiniXMark size={12} />

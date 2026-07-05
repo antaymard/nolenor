@@ -131,14 +131,14 @@ export default function SlideshowEditor({
             {slides.map((slide, index) => (
               <div
                 key={`${slide.name}-${index}`}
-                className="group rounded-md border border-transparent p-1.5 transition hover:border-slate-200 hover:bg-slate-50"
+                className="group rounded-md border border-transparent p-1.5 transition hover:border-border hover:bg-accent/60"
               >
                 <InlineEditableText
                   value={slide.name}
                   onSave={(newName) => renameSlide(index, newName)}
                   as="span"
-                  className="max-w-40 truncate text-xs font-medium text-slate-900"
-                  inputClassName="text-xs font-medium text-slate-900"
+                  className="max-w-40 truncate text-xs font-medium text-foreground"
+                  inputClassName="text-xs font-medium text-foreground"
                   placeholder="Untitled slide"
                 />
                 <div className="mt-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">

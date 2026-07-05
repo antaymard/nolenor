@@ -61,7 +61,7 @@ export default function WindowsContainer() {
       {/* Snap preview overlay */}
       {snapPreview && (
         <div
-          className="pointer-events-none absolute z-100 rounded-lg border-2 border-blue-400/60 bg-blue-400/15 transition-all duration-150"
+          className="pointer-events-none absolute z-100 rounded-lg border-2 border-(--brand)/60 bg-(--brand)/15 transition-all duration-150"
           style={
             snapPreview === "top"
               ? { top: 10, bottom: 10, left: 10, right: 10 }

@@ -113,7 +113,7 @@ function DateField({
             <PopoverTrigger asChild>
               <div
                 className={cn(
-                  "relative bg-slate-100 hover:bg-slate-200 h-8 rounded-md flex items-center group/datefield px-2 gap-2 min-w-0",
+                  "relative bg-muted hover:bg-accent h-8 rounded-md flex items-center group/datefield px-2 gap-2 min-w-0",
                   className
                 )}
               >
@@ -149,7 +149,7 @@ function DateField({
             <PopoverTrigger asChild>
               <div
                 className={cn(
-                  "relative bg-slate-100 hover:bg-slate-200 h-8 rounded-md flex items-center group/datefield px-2 gap-2 min-w-0",
+                  "relative bg-muted hover:bg-accent h-8 rounded-md flex items-center group/datefield px-2 gap-2 min-w-0",
                   className
                 )}
               >

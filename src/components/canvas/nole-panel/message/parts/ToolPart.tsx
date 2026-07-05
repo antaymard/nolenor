@@ -43,7 +43,7 @@ export const ToolPart = memo(function ToolPart({
   }, [input, output]);
 
   return (
-    <div className="py-2 rounded border border-slate-300 bg-slate-50 p-2 text-xs text-slate-700">
+    <div className="py-2 rounded border border-border bg-muted/50 p-2 text-xs text-foreground">
       <button
         type="button"
         className="w-full flex items-start gap-2 text-left"
@@ -54,7 +54,7 @@ export const ToolPart = memo(function ToolPart({
           <div
             className={cn(
               "truncate text-sm",
-              isError ? "text-red-700" : "text-slate-800",
+              isError ? "text-destructive" : "text-foreground",
             )}
           >
             {primaryLabel}
@@ -62,7 +62,7 @@ export const ToolPart = memo(function ToolPart({
           <div
             className={cn(
               "font-mono text-[11px]",
-              isError ? "text-red-500" : "text-slate-500",
+              isError ? "text-destructive" : "text-muted-foreground",
             )}
           >
             {name}
@@ -99,13 +99,13 @@ export const ToolPart = memo(function ToolPart({
 function ToolStatusIcon({ state }: { state: ToolPartState }) {
   if (state === "input-streaming") {
     return (
-      <RiLoaderLine size={14} className="mt-0.5 shrink-0 animate-spin text-slate-400" />
+      <RiLoaderLine size={14} className="mt-0.5 shrink-0 animate-spin text-muted-foreground/70" />
     );
   }
   if (state === "output-error") {
-    return <TbAlertCircle size={14} className="mt-0.5 shrink-0 text-red-500" />;
+    return <TbAlertCircle size={14} className="mt-0.5 shrink-0 text-destructive" />;
   }
-  return <TbTool size={14} className="mt-0.5 shrink-0 text-slate-500" />;
+  return <TbTool size={14} className="mt-0.5 shrink-0 text-muted-foreground" />;
 }
 
 function DebugBlock({ label, value }: { label: string; value: unknown }) {
@@ -113,8 +113,8 @@ function DebugBlock({ label, value }: { label: string; value: unknown }) {
 
   return (
     <div>
-      <p className="mb-1 font-medium text-slate-800">{label}</p>
-      <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-white p-2 text-[11px] text-slate-700 border border-slate-200">
+      <p className="mb-1 font-medium text-foreground">{label}</p>
+      <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-card p-2 text-[11px] text-foreground border border-border">
         {stringifyForDebug(value)}
       </pre>
     </div>

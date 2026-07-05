@@ -118,9 +118,9 @@ function ValueNode(xyNode: Node) {
   const renderValue = () => {
     if (valueData.type === "boolean") {
       return valueData.value ? (
-        <TbCheck className="text-green-500" size={32} />
+        <TbCheck className="text-emerald-500" size={32} />
       ) : (
-        <TbX className="text-red-500" size={32} />
+        <TbX className="text-destructive" size={32} />
       );
     }
     return <span className="text-2xl font-bold">{valueData.value}</span>;

@@ -9,7 +9,7 @@ export default function App() {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <TbLoader className="h-5 w-5 animate-spin text-slate-400" />
+        <TbLoader className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
   }

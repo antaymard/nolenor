@@ -32,27 +32,27 @@ export default function TextInput({
           className="text-sm font-medium flex items-center gap-1"
         >
           {label}
-          {required && <span className="text-red-500">*</span>}
+          {required && <span className="text-destructive">*</span>}
         </FieldLabel>
       )}
       <Input
         id={name}
         type="text"
         className={`
-          
-          ${errorMessage ? "border-pink-500" : "border-gray-300"}
+
+          ${errorMessage ? "border-destructive" : "border-border"}
           ${className}
         `}
         {...field}
         {...props}
       />
       {errorMessage && (
-        <FieldError className="text-sm text-pink-500">
+        <FieldError className="text-sm text-destructive">
           {errorMessage}
         </FieldError>
       )}
       {!errorMessage && helperText && (
-        <span className="text-sm text-gray-500">{helperText}</span>
+        <span className="text-sm text-muted-foreground">{helperText}</span>
       )}
     </div>
   );

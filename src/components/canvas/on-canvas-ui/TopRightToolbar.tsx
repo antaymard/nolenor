@@ -38,20 +38,20 @@ function CanvasStatus() {
     case "idle":
     case "saved":
       return (
-        <span className="text-green-500" title="Synced">
+        <span className="text-emerald-500" title="Synced">
           <TbCloudCheck size={size} />
         </span>
       );
     case "unsynced":
     case "saving":
       return (
-        <span className="text-yellow-500" title="Saving...">
+        <span className="text-amber-500" title="Saving...">
           <TbCloudUp size={size} />
         </span>
       );
     case "error":
       return (
-        <span className="text-red-500" title="Sync error">
+        <span className="text-destructive" title="Sync error">
           <TbCloudX size={size} />
         </span>
       );

@@ -24,7 +24,7 @@ function TextField({ field, value, onChange, visualSettings }: BaseFieldProps) {
   return (
     <div className="space-y-1">
       {showLabel && (
-        <label className="text-xs font-medium text-gray-600">
+        <label className="text-xs font-medium text-muted-foreground">
           {field.name}
         </label>
       )}
@@ -33,7 +33,7 @@ function TextField({ field, value, onChange, visualSettings }: BaseFieldProps) {
         onSave={handleSave}
         placeholder={placeholder}
         className={cn(
-          "w-full border border-transparent hover:border-gray-300 rounded-sm py-1",
+          "w-full border border-transparent hover:border-border rounded-sm py-1",
           getTextClassName(displayAs)
         )}
         inputClassName="hover:ring-1 focus:ring-2 focus:ring-accent-foreground rounded-xs w-full"

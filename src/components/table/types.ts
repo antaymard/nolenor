@@ -134,10 +134,10 @@ export const SELECT_COLOR_CLASSES: Record<
   { bg: string; text: string; ring: string; swatch: string }
 > = {
   gray: {
-    bg: "bg-gray-200 dark:bg-gray-700/60",
-    text: "text-gray-800 dark:text-gray-100",
-    ring: "ring-gray-400",
-    swatch: "bg-gray-400",
+    bg: "bg-muted",
+    text: "text-foreground",
+    ring: "ring-border",
+    swatch: "bg-muted-foreground",
   },
   red: {
     bg: "bg-red-200 dark:bg-red-900/50",

@@ -112,7 +112,7 @@ function DocumentWindow({
   if (!shouldMountEditor) {
     return (
       <div className="h-full w-full flex items-center justify-center">
-        <span className="flex items-center gap-2 text-sm text-slate-500">
+        <span className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner className="size-4" />
           Chargement de l'editeur...
         </span>
@@ -134,8 +134,8 @@ function DocumentWindow({
         />
       </PlateErrorBoundary>
       {!isEditorReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/65">
-          <span className="flex items-center gap-2 text-sm text-slate-500">
+        <div className="absolute inset-0 flex items-center justify-center bg-card/65">
+          <span className="flex items-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-4" />
             Chargement de l'editeur...
           </span>

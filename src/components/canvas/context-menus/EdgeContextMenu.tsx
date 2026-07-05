@@ -231,7 +231,7 @@ export default function EdgeContextMenu({
           closeMenu();
         }}
       >
-        <TbTrash className="text-red-500" /> Delete
+        <TbTrash className="text-destructive" /> Delete
       </DropdownMenuItem>
     </div>
   );

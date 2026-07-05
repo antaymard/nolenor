@@ -55,7 +55,7 @@ function TopLeftToolbar({
 
   return (
     <div className="h-12 flex items-center gap-2">
-      <div className="bg-white p-2 rounded h-full border border-gray-300 flex items-center">
+      <div className="bg-card p-2 rounded h-full border flex items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -86,7 +86,7 @@ function TopLeftToolbar({
       </div>
 
       {isAuthenticated && (
-        <div className="bg-white p-2 rounded h-full border border-gray-300 flex items-center">
+        <div className="bg-card p-2 rounded h-full border flex items-center">
           <Button variant="ghost" onClick={undo}>
             <LuUndo />
           </Button>

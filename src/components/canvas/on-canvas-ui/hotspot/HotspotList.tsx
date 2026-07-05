@@ -148,16 +148,16 @@ export default function HotspotList({
             {hotspots.map((hotspot, index) => (
               <div
                 key={hotspot.id}
-                className="group rounded-md border border-transparent p-1.5 transition hover:border-slate-200 hover:bg-slate-50"
+                className="group rounded-md border border-transparent p-1.5 transition hover:border-border hover:bg-accent/60"
               >
                 <div className="flex items-center gap-2">
-                  <MapPin className="size-3.5 shrink-0 text-slate-400" />
+                  <MapPin className="size-3.5 shrink-0 text-muted-foreground/70" />
                   <InlineEditableText
                     value={hotspot.name}
                     onSave={(newName) => renameHotspot(hotspot.id, newName)}
                     as="span"
-                    className="min-w-0 flex-1 truncate text-xs font-medium text-slate-900"
-                    inputClassName="text-xs font-medium text-slate-900"
+                    className="min-w-0 flex-1 truncate text-xs font-medium text-foreground"
+                    inputClassName="text-xs font-medium text-foreground"
                     placeholder="Untitled hotspot"
                   />
                   {index < 9 && (

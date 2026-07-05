@@ -43,7 +43,7 @@ export default function FileNameField({
   return (
     <div
       className={
-        "relative bg-slate-100 hover:bg-slate-200 h-8 rounded-md flex items-center group/linkfield w-full px-2 gap-2 min-w-0 flex-1" +
+        "relative bg-muted hover:bg-accent h-8 rounded-md flex items-center group/linkfield w-full px-2 gap-2 min-w-0 flex-1" +
         className
       }
     >
@@ -52,7 +52,7 @@ export default function FileNameField({
         {value && value.length > 0 ? (
           <p className="truncate">{value[0].filename}</p>
         ) : (
-          <p className="text-gray-500">Aucun fichier</p>
+          <p className="text-muted-foreground">Aucun fichier</p>
         )}
       </span>
       <span className="absolute right-2 cursor-default flex gap-1 bg-inherit">

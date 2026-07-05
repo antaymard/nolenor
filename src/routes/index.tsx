@@ -42,21 +42,21 @@ function RouteComponent() {
   // Afficher un loader pendant le chargement ou si une redirection est en cours
   if (isLoading || !isAuthenticated || isGettingLastCanvas) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-gray-100">
+      <div className="h-screen w-screen flex items-center justify-center bg-background text-muted-foreground">
         <div>Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen w-screen bg-gray-100">
+    <div className="h-screen w-screen bg-background">
       <div className="flex flex-col items-center justify-center h-full gap-5">
-        <p className="text-gray-500">
+        <p className="text-muted-foreground">
           No workspace found. Create a new one!
         </p>
         <button
           type="button"
-          className="flex items-center gap-2 bg-violet-500 px-3 py-2 rounded-md text-white hover:bg-violet-600"
+          className="flex items-center gap-2 bg-primary px-3 py-2 rounded-md text-primary-foreground transition-all active:scale-[0.98] hover:bg-primary/90"
           onClick={() => {
             setIsModalOpen(true);
           }}

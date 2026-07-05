@@ -61,7 +61,7 @@ export default function SkillEditor({
 
   if (isExisting && skill === undefined) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center h-full text-muted-foreground">
         Loading…
       </div>
     );
@@ -69,7 +69,7 @@ export default function SkillEditor({
 
   if (isExisting && skill === null) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center h-full text-muted-foreground">
         Skill not found.
       </div>
     );
@@ -77,7 +77,7 @@ export default function SkillEditor({
 
   if (!isDraft && !isExisting) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         Select a skill on the left, or create a new one.
       </div>
     );
@@ -140,16 +140,16 @@ export default function SkillEditor({
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto pr-2">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-200">
+      <div className="flex items-start justify-between gap-3 pb-3 border-b border-border">
         <div className="flex flex-col">
           <h2 className="text-xl font-bold">
             {currentSkill?.name || "New skill"}
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             {currentSkill?.description || "No description yet"}
           </p>
           {isDraft && (
-            <span className="mt-1 inline-block self-start uppercase tracking-wide bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+            <span className="mt-1 inline-block self-start uppercase tracking-wide bg-(--brand)/10 text-(--brand) px-2 py-0.5 rounded">
               Draft (unsaved)
             </span>
           )}
@@ -159,7 +159,7 @@ export default function SkillEditor({
               <Button
                 type="button"
                 variant="outline"
-                className="text-red-600 hover:text-red-700"
+                className="text-destructive hover:text-destructive/80"
                 onClick={handleDelete}
               >
                 Delete
@@ -173,7 +173,7 @@ export default function SkillEditor({
 
       {/* Name Field */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="skill-name" className="font-semibold text-gray-700">
+        <label htmlFor="skill-name" className="font-semibold text-foreground">
           Name
         </label>
         <Input
@@ -190,7 +190,7 @@ export default function SkillEditor({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor="skill-description"
-          className="font-semibold text-gray-700"
+          className="font-semibold text-foreground"
         >
           Description
         </label>
@@ -205,7 +205,7 @@ export default function SkillEditor({
 
       {/* Content Field */}
       <div className="flex flex-col gap-1.5 flex-1 min-h-0">
-        <label htmlFor="skill-content" className="font-semibold text-gray-700">
+        <label htmlFor="skill-content" className="font-semibold text-foreground">
           Content
         </label>
         <textarea
@@ -213,9 +213,9 @@ export default function SkillEditor({
           value={draftContent}
           onChange={(e) => setDraftContent(e.target.value)}
           placeholder="The full prompt body loaded by Nolë…"
-          className="w-full font-mono border rounded-md px-3 py-2 bg-white flex-1 resize-none"
+          className="w-full font-mono border rounded-md px-3 py-2 bg-card flex-1 resize-none"
         />
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted-foreground">
           The body is the full prompt loaded by Nolë. Markdown format supported.
         </p>
       </div>

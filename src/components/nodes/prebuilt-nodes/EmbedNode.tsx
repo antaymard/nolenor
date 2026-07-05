@@ -235,7 +235,7 @@ function EmbedNode(xyNode: Node) {
                 {embedValue.title ?? "Embed"}
               </p>
               <button
-                className="shrink-0 text-slate-500 hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-accent/60"
                 onClick={(e) => {
                   e.stopPropagation();
                   setRefreshKey((k) => k + 1);

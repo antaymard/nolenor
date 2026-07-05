@@ -68,16 +68,16 @@ export default function AssociatedThreadsViewer({
               onClick={() => setSelectedId(thread._id)}
               className={cn(
                 "flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm",
-                isSelected ? "bg-slate-100" : "hover:bg-slate-50",
+                isSelected ? "bg-muted" : "hover:bg-muted/50",
               )}
             >
-              <TbMessage className="size-4 shrink-0 text-slate-500" />
+              <TbMessage className="size-4 shrink-0 text-muted-foreground" />
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate">
                   {thread.title ?? "Untitled thread"}
                 </span>
                 <span
-                  className="truncate text-xs text-slate-400"
+                  className="truncate text-xs text-muted-foreground/70"
                   title={new Date(thread._creationTime).toLocaleString()}
                 >
                   {formatDistanceToNow(new Date(thread._creationTime), {
@@ -91,14 +91,14 @@ export default function AssociatedThreadsViewer({
       </div>
 
       {/* Infos du thread sélectionné */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto rounded border bg-white p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto rounded border bg-card p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-col gap-1">
-            <h3 className="truncate text-base font-medium text-slate-800">
+            <h3 className="truncate text-base font-medium text-foreground">
               {selected.title ?? "Untitled thread"}
             </h3>
             <span
-              className="text-xs text-slate-400"
+              className="text-xs text-muted-foreground/70"
               title={new Date(selected._creationTime).toLocaleString()}
             >
               Created{" "}
@@ -116,7 +116,7 @@ export default function AssociatedThreadsViewer({
                 ? "Open this thread in the Nolë panel"
                 : "This thread belongs to another user"
             }
-            className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-sm text-muted-foreground hover:bg-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <TbExternalLink className="size-4" />
             Open in Nolë
@@ -124,11 +124,11 @@ export default function AssociatedThreadsViewer({
         </div>
 
         {selected.summary ? (
-          <p className="whitespace-pre-wrap text-sm text-slate-600">
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
             {selected.summary}
           </p>
         ) : (
-          <p className="text-sm text-slate-400">No summary available.</p>
+          <p className="text-sm text-muted-foreground/70">No summary available.</p>
         )}
       </div>
     </div>

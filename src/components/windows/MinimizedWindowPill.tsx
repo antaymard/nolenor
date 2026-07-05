@@ -32,12 +32,12 @@ export default function MinimizedWindowPill({
       onClick={() => toggleMinimizeWindow(openedWindow.xyNodeId)}
       onMouseDown={handleMouseDown}
       title={title ?? undefined}
-      className="group pointer-events-auto relative flex h-8 max-w-[280px] items-center gap-2 rounded-md border bg-white pl-2.5 pr-12 text-left text-sm shadow-md transition-colors animate-in fade-in slide-in-from-bottom-2 duration-200 hover:bg-slate-50"
+      className="group pointer-events-auto relative flex h-8 max-w-[280px] items-center gap-2 rounded-md border bg-card pl-2.5 pr-12 text-left text-sm shadow-md transition-colors animate-in fade-in slide-in-from-bottom-2 duration-200 hover:bg-accent/60"
     >
       {NodeIcon ? (
-        <NodeIcon className="size-4 shrink-0 text-slate-600" />
+        <NodeIcon className="size-4 shrink-0 text-muted-foreground" />
       ) : null}
-      <span className="min-w-0 flex-1 truncate font-medium text-slate-700">
+      <span className="min-w-0 flex-1 truncate font-medium text-foreground">
         {title ?? "—"}
       </span>
       <span
@@ -48,7 +48,7 @@ export default function MinimizedWindowPill({
           goToNode(openedWindow.xyNodeId);
         }}
         onMouseDown={(e) => e.stopPropagation()}
-        className="absolute right-6 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-blue-500/15 hover:text-blue-600 group-hover:opacity-100"
+        className="absolute right-6 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-(--brand)/15 hover:text-(--brand) group-hover:opacity-100"
       >
         <TbLocation size={12} />
       </span>
@@ -60,7 +60,7 @@ export default function MinimizedWindowPill({
           closeWindow(openedWindow.xyNodeId);
         }}
         onMouseDown={(e) => e.stopPropagation()}
-        className="absolute right-1 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-red-500/15 hover:text-red-600 group-hover:opacity-100"
+        className="absolute right-1 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100"
       >
         <X size={12} />
       </span>

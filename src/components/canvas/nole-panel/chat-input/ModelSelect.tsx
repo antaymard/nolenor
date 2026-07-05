@@ -40,7 +40,7 @@ export default function ModelSelect({
           variant="ghost"
           size="icon"
           disabled={disabled || hasNoModels}
-          className={cn("text-slate-500", triggerClassName)}
+          className={cn("text-muted-foreground", triggerClassName)}
         >
           <TbBrain size={iconSize} />
         </Button>
@@ -58,10 +58,10 @@ export default function ModelSelect({
             <span className="flex items-center gap-1.5">
               <p>{model.label}</p>
               {model.isMultimodal && (
-                <TbPhoto size={8} className="text-slate-400" />
+                <TbPhoto size={8} className="text-muted-foreground/70" />
               )}
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground/70">
               {model.price.replace("_", " - ")}
             </span>
             {selectedModel === model.value && <TbCheck />}

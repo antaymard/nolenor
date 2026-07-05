@@ -22,7 +22,7 @@ export function MessageAttachments({
         <MentionedNodeCard key={n.id} nodeId={n.id} fallback={n.title} />
       ))}
       {position ? (
-        <span className="inline-flex items-center gap-1 rounded-sm border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600">
+        <span className="inline-flex items-center gap-1 rounded-sm border bg-card px-2 py-0.5 text-xs text-muted-foreground">
           <LuMousePointerClick size={11} />({Math.round(position.x)},{" "}
           {Math.round(position.y)})
         </span>
@@ -32,7 +32,7 @@ export function MessageAttachments({
           href={page.url ?? "#"}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 rounded-sm border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50 max-w-55"
+          className="inline-flex items-center gap-1 rounded-sm border bg-card px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent/60 max-w-55"
         >
           <TbLink size={11} className="shrink-0" />
           <span className="truncate">{page.title ?? page.url}</span>

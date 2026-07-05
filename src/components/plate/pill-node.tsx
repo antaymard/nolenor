@@ -24,7 +24,7 @@ export function PillLeaf(props: PlateLeafProps) {
         "inline-flex items-center rounded-sm border px-2 py-0.5 text-sm font-medium",
         colorKey !== "default" && colorKey !== "transparent"
           ? "text-white"
-          : "text-slate-800",
+          : "text-foreground",
         colorClasses.accentBg,
         // colorClasses.textColor,
         // colorClasses.nodeBorder,

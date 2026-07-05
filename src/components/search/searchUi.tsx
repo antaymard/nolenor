@@ -49,7 +49,7 @@ export function HighlightedText({
         index % 2 === 1 ? (
           <mark
             key={index}
-            className="rounded-sm bg-yellow-200 px-0.5 text-yellow-950 dark:bg-yellow-400/30 dark:text-yellow-100"
+            className="rounded-sm bg-highlight/30 px-0.5 text-inherit"
           >
             {part}
           </mark>

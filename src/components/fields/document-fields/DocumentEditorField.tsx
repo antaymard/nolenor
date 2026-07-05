@@ -135,7 +135,7 @@ const DocumentEditorField = forwardRef<
           variant="default"
           className={cn(
             "nodrag h-full overflow-auto",
-            visualType === "window" && "border border-slate-300",
+            visualType === "window" && "border border-border",
           )}
         >
           <Editor
@@ -148,8 +148,8 @@ const DocumentEditorField = forwardRef<
         </EditorContainer>
       </Plate>
       {isLocked && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded">
-          <span className="flex items-center gap-2 text-sm text-slate-500">
+        <div className="absolute inset-0 flex items-center justify-center bg-card/60 rounded">
+          <span className="flex items-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-4" />
             IA en cours...
           </span>

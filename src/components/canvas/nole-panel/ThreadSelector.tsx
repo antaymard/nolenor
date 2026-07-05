@@ -31,7 +31,7 @@ export default function ThreadSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="text-slate-400">
+        <Button variant="ghost" size="icon-sm" className="text-muted-foreground/70">
           <TbMessageSearch size={16} />
         </Button>
       </DropdownMenuTrigger>
@@ -61,7 +61,7 @@ export default function ThreadSelector({
             {thread._id !== currentThreadId && (
               <button
                 type="button"
-                className="p-1 rounded hover:text-red-500 shrink-0"
+                className="p-1 rounded hover:text-destructive shrink-0"
                 onClick={async (e) => {
                   e.stopPropagation();
                   try {

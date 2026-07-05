@@ -104,23 +104,12 @@ const CustomEdge = memo(function CustomEdge({
   const colorConfig = nodeColors[color];
   const strokeColor = colorConfig?.plain.replace("bg-", "");
 
-  // Convert Tailwind color to CSS
+  // Convert a Tailwind bg-[var(--x)] fragment to a plain CSS color value
   const getCSSColor = (tailwindClass: string): string => {
     if (tailwindClass.startsWith("[") && tailwindClass.endsWith("]")) {
       return tailwindClass.slice(1, -1);
     }
-    // Default colors mapping
-    const colorMap: Record<string, string> = {
-      "slate-600": "#475569",
-      "red-600": "#dc2626",
-      "orange-600": "#ea580c",
-      "yellow-600": "#ca8a04",
-      "green-600": "#16a34a",
-      "blue-600": "#2563eb",
-      "purple-600": "#9333ea",
-      "pink-600": "#db2777",
-    };
-    return colorMap[strokeColor] || "#475569";
+    return "var(--muted-foreground)";
   };
 
   const edgeColor = getCSSColor(strokeColor);
@@ -211,10 +200,10 @@ const CustomEdge = memo(function CustomEdge({
                 onChange={handleLabelChange}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
-                className="px-2 py-1 bg-white border-2 border-blue-500 rounded text-xs shadow-sm outline-none min-w-[80px]"
+                className="px-2 py-1 bg-card border-2 border-(--brand) rounded text-xs shadow-sm outline-none min-w-[80px]"
               />
             ) : (
-              <div className="px-2 py-1 bg-white border border-gray-300 rounded text-xs shadow-sm cursor-pointer hover:border-blue-400 transition-colors">
+              <div className="px-2 py-1 bg-card border rounded text-xs shadow-sm cursor-pointer hover:border-(--brand)/70 transition-colors">
                 {label}
               </div>
             )}

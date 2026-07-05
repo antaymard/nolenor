@@ -32,11 +32,11 @@ const suggestionVariants = cva(
       },
       remove: {
         false: "",
-        true: "bg-red-100 text-red-700",
+        true: "bg-destructive/10 text-destructive",
       },
       removeActive: {
         false: "",
-        true: "bg-red-200/80 no-underline",
+        true: "bg-destructive/20 no-underline",
       },
     },
   }

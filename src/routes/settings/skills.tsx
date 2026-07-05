@@ -48,13 +48,13 @@ function SkillsSettingsPage() {
             <TbPlus />
           </Button>
         </div>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-muted-foreground">
           Skills are reusable prompt modules Nolë can load on demand. Define the
           name, description, and body for discovery and usage.
         </p>
         <div className="overflow-y-auto pr-1 flex-1">
           {skills === undefined ? (
-            <p className="text-sm text-gray-500 italic px-2">Loading…</p>
+            <p className="text-sm text-muted-foreground italic px-2">Loading…</p>
           ) : (
             <SkillsList
               skills={skills}
@@ -65,13 +65,13 @@ function SkillsSettingsPage() {
         </div>
       </div>
 
-      <div className="border-l border-gray-200 pl-6 min-h-0">
+      <div className="border-l border-border pl-6 min-h-0">
         {draftSkill ? (
           <SkillEditor draftSkill={draftSkill} onCreated={handleCreated} />
         ) : selectedId ? (
           <SkillEditor skillId={selectedId} onDeleted={handleDeleted} />
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Select a skill on the left, or create a new one.
           </div>
         )}

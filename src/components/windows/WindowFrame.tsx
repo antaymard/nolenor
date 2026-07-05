@@ -353,35 +353,35 @@ export default function WindowFrame({
       >
         <div
           ref={containerRef}
-          className="relative flex h-full w-full flex-col overflow-hidden rounded-lg border bg-white shadow-2xl/10"
+          className="relative flex h-full w-full flex-col overflow-hidden rounded-lg border bg-card shadow-2xl/10"
         >
           {/* ── Resize handles ───────────────────────────────────────── */}
 
           {/* Corners (12×12, priority z-20) */}
           <div
             className={cn(
-              "absolute -left-1 -top-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
+              "absolute -left-1 -top-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-(--brand)/50",
               RESIZE_CURSOR.nw,
             )}
             onMouseDown={(e) => handleResizeMouseDown(e, "nw")}
           />
           <div
             className={cn(
-              "absolute -right-1 -top-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
+              "absolute -right-1 -top-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-(--brand)/50",
               RESIZE_CURSOR.ne,
             )}
             onMouseDown={(e) => handleResizeMouseDown(e, "ne")}
           />
           <div
             className={cn(
-              "absolute -bottom-1 -left-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
+              "absolute -bottom-1 -left-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-(--brand)/50",
               RESIZE_CURSOR.sw,
             )}
             onMouseDown={(e) => handleResizeMouseDown(e, "sw")}
           />
           <div
             className={cn(
-              "absolute -bottom-1 -right-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
+              "absolute -bottom-1 -right-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-(--brand)/50",
               RESIZE_CURSOR.se,
             )}
             onMouseDown={(e) => handleResizeMouseDown(e, "se")}
@@ -390,28 +390,28 @@ export default function WindowFrame({
           {/* Edges (z-10, inset slightly so corners win) */}
           <div
             className={cn(
-              "absolute -top-1 left-2 right-2 z-10 h-2 transition-colors hover:bg-blue-400/30",
+              "absolute -top-1 left-2 right-2 z-10 h-2 transition-colors hover:bg-(--brand)/30",
               RESIZE_CURSOR.n,
             )}
             onMouseDown={(e) => handleResizeMouseDown(e, "n")}
           />
           <div
             className={cn(
-              "absolute -bottom-1 left-2 right-2 z-10 h-2 transition-colors hover:bg-blue-400/30",
+              "absolute -bottom-1 left-2 right-2 z-10 h-2 transition-colors hover:bg-(--brand)/30",
               RESIZE_CURSOR.s,
             )}
             onMouseDown={(e) => handleResizeMouseDown(e, "s")}
           />
           <div
             className={cn(
-              "absolute -left-1 bottom-2 top-2 z-10 w-2 transition-colors hover:bg-blue-400/30",
+              "absolute -left-1 bottom-2 top-2 z-10 w-2 transition-colors hover:bg-(--brand)/30",
               RESIZE_CURSOR.w,
             )}
             onMouseDown={(e) => handleResizeMouseDown(e, "w")}
           />
           <div
             className={cn(
-              "absolute -right-1 bottom-2 top-2 z-10 w-2 transition-colors hover:bg-blue-400/30",
+              "absolute -right-1 bottom-2 top-2 z-10 w-2 transition-colors hover:bg-(--brand)/30",
               RESIZE_CURSOR.e,
             )}
             onMouseDown={(e) => handleResizeMouseDown(e, "e")}
@@ -425,7 +425,7 @@ export default function WindowFrame({
             title={title}
           >
             {NodeIcon ? (
-              <NodeIcon className="size-4 shrink-0 text-slate-600" />
+              <NodeIcon className="size-4 shrink-0 text-muted-foreground" />
             ) : null}
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {title ?? "—"}
@@ -433,7 +433,7 @@ export default function WindowFrame({
             {refreshHandler && (
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
+                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-(--brand)/15 hover:text-(--brand) hover:opacity-100 h-full aspect-square flex items-center justify-center"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={refreshHandler}
                 title="Refresh window"
@@ -444,7 +444,7 @@ export default function WindowFrame({
             {saveHandler && (
               <button
                 data-window-control="true"
-                className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-green-100 hover:text-green-800 disabled:pointer-events-none disabled:opacity-30 h-full"
+                className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-500 disabled:pointer-events-none disabled:opacity-30 h-full"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={saveHandler}
                 disabled={!isDirty}
@@ -456,7 +456,7 @@ export default function WindowFrame({
             {fullscreenEligible && (
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
+                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-(--brand)/15 hover:text-(--brand) hover:opacity-100 h-full aspect-square flex items-center justify-center"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   if (isDirty) saveHandler?.();
@@ -470,7 +470,7 @@ export default function WindowFrame({
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center">
+                <button className="shrink-0 rounded p-0.5 opacity-50 hover:bg-(--brand)/15 hover:text-(--brand) hover:opacity-100 h-full aspect-square flex items-center justify-center">
                   <TbDotsVertical size={13} />
                 </button>
               </DropdownMenuTrigger>
@@ -538,7 +538,7 @@ export default function WindowFrame({
             >
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-red-500/15 hover:text-red-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
+                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-destructive/15 hover:text-destructive hover:opacity-100 h-full aspect-square flex items-center justify-center"
                 onMouseDown={(e) => e.stopPropagation()}
                 aria-label="Close"
               >

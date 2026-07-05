@@ -78,12 +78,12 @@ function PositionAttachment({
   onRemove: () => void;
 }) {
   return (
-    <div className="group relative flex items-center gap-1 rounded-sm border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 max-w-55">
+    <div className="group relative flex items-center gap-1 rounded-sm border bg-card px-2 py-1 text-sm text-foreground max-w-55">
       <button
         type="button"
         onClick={onRemove}
         aria-label="Retirer la position jointe"
-        className="text-slate-500 hover:text-red-500"
+        className="text-muted-foreground hover:text-destructive"
       >
         <HiMiniXMark size={14} />
       </button>
@@ -115,15 +115,15 @@ function NodeAttachment({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-1 rounded-sm border px-2 py-1 text-sm text-slate-700 max-w-55",
-        isAttached ? "border-slate-300 bg-white" : "italic opacity-70",
+        "group relative flex items-center gap-1 rounded-sm border px-2 py-1 text-sm text-foreground max-w-55",
+        isAttached ? "border-border bg-card" : "italic opacity-70",
       )}
     >
       <button
         type="button"
         className={cn(
-          "text-slate-500",
-          isAttached ? "hover:text-red-500" : "hover:text-green-500",
+          "text-muted-foreground",
+          isAttached ? "hover:text-destructive" : "hover:text-emerald-500",
         )}
         onClick={() => (isAttached ? onRemove(node.id) : onAttach(node))}
         aria-label={isAttached ? "Retirer la piece jointe" : "Attacher le node"}

@@ -94,7 +94,7 @@ function RouteComponent() {
         <Button onClick={() => form.handleSubmit()}>Save</Button>
       </div>
 
-      <div className="mt-8 bg-slate-50 rounded p-2 space-y-2 ">
+      <div className="mt-8 bg-muted/50 rounded p-2 space-y-2 ">
         <TextInput
           form={form}
           name="name"
@@ -106,7 +106,7 @@ function RouteComponent() {
             onSubmit: ({ value }: { value: string }) =>
               !value.trim() ? "Title cannot be empty" : undefined,
           }}
-          inputClassName="bg-white"
+          inputClassName="bg-card"
         />
         {editor ? (
           <form.Field

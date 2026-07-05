@@ -61,7 +61,7 @@ const ChatInterface = memo(function ChatInterface({
             {status === "CanLoadMore" && (
               <button
                 onClick={() => loadMore(10)}
-                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition font-medium mx-auto"
+                className="px-4 py-2 rounded-lg bg-muted text-foreground hover:bg-accent transition font-medium mx-auto"
               >
                 Load more messages
               </button>
@@ -76,7 +76,7 @@ const ChatInterface = memo(function ChatInterface({
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             Start a conversation...
           </div>
         )}

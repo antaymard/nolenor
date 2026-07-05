@@ -24,17 +24,17 @@ function RouteComponent() {
   }, [isAuthenticated, isLoading, navigate]);
 
   return (
-    <div className="min-h-screen w-screen bg-[#f7f7f8] flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen w-screen bg-background flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-[360px] flex flex-col items-center gap-8">
         {/* Logo */}
         <img src="/favicon.svg" alt="Nolenor" className="h-16 w-16" />
 
         {/* Header */}
         <div className="text-center flex flex-col gap-2">
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-foreground">
             {step === "signIn" ? "Welcome back" : "Create an account"}
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             {step === "signIn"
               ? "Sign in to your account to continue"
               : "Sign up to get started for free"}
@@ -88,7 +88,7 @@ function RouteComponent() {
             type="email"
             required
             disabled={isSubmitting}
-            className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 h-11 focus-visible:ring-0 focus-visible:border-gray-300"
+            className="bg-card border-border text-foreground placeholder:text-muted-foreground h-11 focus-visible:ring-0 focus-visible:border-border"
           />
           <Input
             name="password"
@@ -97,14 +97,14 @@ function RouteComponent() {
             required
             disabled={isSubmitting}
             minLength={6}
-            className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 h-11 focus-visible:ring-0 focus-visible:border-gray-300"
+            className="bg-card border-border text-foreground placeholder:text-muted-foreground h-11 focus-visible:ring-0 focus-visible:border-border"
           />
           <input name="flow" type="hidden" value={step} />
 
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="h-11 mt-1 bg-(--brand) hover:opacity-90 text-white font-medium border-0"
+            className="h-11 mt-1 bg-(--brand) hover:bg-(--brand) hover:opacity-90 text-white font-medium border-0"
           >
             {isSubmitting ? (
               <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -117,13 +117,13 @@ function RouteComponent() {
         </form>
 
         {/* Toggle */}
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-muted-foreground/70">
           {step === "signIn" ? (
             <>
               Don&apos;t have an account?{" "}
               <button
                 type="button"
-                className="text-gray-600 underline underline-offset-2 hover:text-gray-900 transition-colors"
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
                 onClick={() => setStep("signUp")}
                 disabled={isSubmitting}
               >
@@ -135,7 +135,7 @@ function RouteComponent() {
               Already have an account?{" "}
               <button
                 type="button"
-                className="text-gray-600 underline underline-offset-2 hover:text-gray-900 transition-colors"
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
                 onClick={() => setStep("signIn")}
                 disabled={isSubmitting}
               >
@@ -148,20 +148,20 @@ function RouteComponent() {
 
       {/* Footer */}
       <footer className="absolute bottom-8 flex flex-col items-center gap-2">
-        <div className="flex items-center gap-3 text-xs text-gray-400">
-          <a href="#" className="hover:text-gray-500 transition-colors">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground/70">
+          <a href="#" className="hover:text-muted-foreground transition-colors">
             Terms
           </a>
           <span>|</span>
-          <a href="#" className="hover:text-gray-500 transition-colors">
+          <a href="#" className="hover:text-muted-foreground transition-colors">
             Privacy
           </a>
           <span>|</span>
-          <a href="#" className="hover:text-gray-500 transition-colors">
+          <a href="#" className="hover:text-muted-foreground transition-colors">
             Feedback
           </a>
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-muted-foreground/70">
           © 2026 Nolënor. All rights reserved.
         </p>
       </footer>

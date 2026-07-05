@@ -69,20 +69,20 @@ export default function TextArea({
           className="text-sm font-medium  flex items-center gap-1"
         >
           {label}
-          {required && <span className="text-red-500">*</span>}
+          {required && <span className="text-destructive">*</span>}
         </label>
       )}
       <textarea
         id={name}
         className={`
-            px-3 py-2 placeholder-gray-400 placeholder:italic
-            border rounded-md 
+            px-3 py-2 placeholder-muted-foreground placeholder:italic
+            border rounded-md
             transition-colors
             resize-none
-            bg-gray-100 hover:bg-gray-200
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-            disabled:bg-gray-100 disabled:cursor-not-allowed
-            ${errorMessage ? "border-red-500" : "border-gray-300"}
+            bg-muted hover:bg-accent
+            focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
+            disabled:bg-muted disabled:cursor-not-allowed
+            ${errorMessage ? "border-destructive" : "border-border"}
             ${className}
           `}
         {...field}
@@ -102,10 +102,10 @@ export default function TextArea({
         {...props}
       />
       {errorMessage && (
-        <span className="text-sm text-red-500">{errorMessage}</span>
+        <span className="text-sm text-destructive">{errorMessage}</span>
       )}
       {!errorMessage && helperText && (
-        <span className="text-sm text-gray-500">{helperText}</span>
+        <span className="text-sm text-muted-foreground">{helperText}</span>
       )}
     </div>
   );

@@ -102,7 +102,7 @@ export default function FullscreenDocumentWindow({
             <PopoverTrigger asChild>
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-1 opacity-60 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
+                className="shrink-0 rounded p-1 opacity-60 hover:bg-(--brand)/15 hover:text-(--brand) hover:opacity-100"
                 aria-label="Outline"
                 title="Outline"
               >
@@ -123,7 +123,7 @@ export default function FullscreenDocumentWindow({
       <div className="flex min-h-0 flex-1">
         {/* Left: Nolë chat (always reserved to keep content centered) */}
         {!isTabletPortrait && (
-          <aside className="relative flex w-95 shrink-0 flex-col border-r bg-white [&>div]:shadow-none!">
+          <aside className="relative flex w-95 shrink-0 flex-col border-r bg-card [&>div]:shadow-none!">
             {isChatOpen ? (
               <ChatContainer onClose={() => setIsChatOpen(false)} />
             ) : (
@@ -152,7 +152,7 @@ export default function FullscreenDocumentWindow({
 
         {/* Right: outline */}
         {!isTabletPortrait && (
-          <aside className="flex w-95 shrink-0 flex-col border-l bg-white">
+          <aside className="flex w-95 shrink-0 flex-col border-l bg-card">
             <DocumentOutline
               headings={headings}
               onSelect={scrollToHeading}
@@ -176,12 +176,12 @@ function DocumentOutline({
 }) {
   return (
     <div className={cn("flex flex-col overflow-hidden", className)}>
-      <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Outline
       </div>
       <div className="flex-1 overflow-auto p-2">
         {headings.length === 0 ? (
-          <div className="px-2 py-4 text-sm text-slate-400">
+          <div className="px-2 py-4 text-sm text-muted-foreground/70">
             Ajoutez des titres (h1, h2, h3) pour générer le sommaire.
           </div>
         ) : (
@@ -192,12 +192,12 @@ function DocumentOutline({
                   type="button"
                   onClick={() => onSelect(index)}
                   className={cn(
-                    "block w-full truncate rounded px-2 py-1 text-left text-sm text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900",
-                    heading.depth === 1 && "font-semibold text-slate-700",
+                    "block w-full truncate rounded px-2 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                    heading.depth === 1 && "font-semibold text-foreground",
                     heading.depth === 2 && "pl-4",
-                    heading.depth === 3 && "pl-6 text-slate-500",
+                    heading.depth === 3 && "pl-6 text-muted-foreground",
                     heading.depth >= 4 &&
-                      "pl-8 text-xs text-slate-500",
+                      "pl-8 text-xs text-muted-foreground",
                   )}
                   title={heading.title}
                 >

@@ -55,7 +55,7 @@ const CodeHeader: FC<{ language?: string; code: string }> = ({
         aria-label="Copy code"
       >
         {!isCopied && <CopyIcon className="w-3 h-3" />}
-        {isCopied && <CheckIcon className="w-3 h-3 text-green-500" />}
+        {isCopied && <CheckIcon className="w-3 h-3 text-emerald-500" />}
       </button>
     </div>
   );

@@ -144,7 +144,7 @@ export default function ChatScreen() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center text-slate-400">
+      <div className="h-full flex items-center justify-center text-muted-foreground">
         <TbLoader className="h-5 w-5 animate-spin" />
       </div>
     );
@@ -152,7 +152,7 @@ export default function ChatScreen() {
 
   if (!threadId) {
     return (
-      <div className="h-full flex items-center justify-center text-slate-400">Loading chat...</div>
+      <div className="h-full flex items-center justify-center text-muted-foreground">Loading chat...</div>
     );
   }
 
@@ -172,7 +172,7 @@ export default function ChatScreen() {
           <button
             type="button"
             onClick={() => void startNewThread()}
-            className="p-1.5 rounded-md hover:bg-gray-100 text-slate-400 hover:text-slate-600"
+            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
             title="New conversation"
           >
             <TbPlus size={15} />
@@ -192,7 +192,7 @@ export default function ChatScreen() {
 
       {/* Input */}
       <div className="shrink-0 p-2 pt-0">
-        <div className="bg-gray-100 border border-gray-300 shadow rounded-lg flex flex-col gap-2 mt-2">
+        <div className="bg-muted border shadow-sm rounded-lg flex flex-col gap-2 mt-2">
           {attachedPage && (
             <div className="p-2 pb-0 flex flex-wrap gap-1">
               <PageAttachment page={attachedPage} onRemove={removeAttachedPage} />
@@ -207,7 +207,7 @@ export default function ChatScreen() {
               placeholder="Message Nolê..."
               disabled={isSending || isAssistantResponding}
               rows={1}
-              className="w-full resize-none bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none min-h-6"
+              className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none min-h-6"
             />
           </div>
           <div className="flex items-center justify-between gap-2 pr-2 pb-2">
@@ -216,7 +216,7 @@ export default function ChatScreen() {
                 type="button"
                 onClick={handleAttachPage}
                 disabled={isSending || isAssistantResponding}
-                className="p-1 rounded hover:bg-gray-200 text-slate-400 hover:text-slate-600 disabled:opacity-30"
+                className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-30"
                 title="Attach current page"
               >
                 <TbGlobe size={14} />
@@ -232,14 +232,14 @@ export default function ChatScreen() {
                       isAssistantResponding ||
                       (modelOptions?.length ?? 0) === 0
                     }
-                    className="p-1 rounded hover:bg-gray-200 text-slate-500 text-xs disabled:opacity-30"
+                    className="p-1 rounded hover:bg-accent text-muted-foreground text-xs disabled:opacity-30"
                   >
                     <TbBrain size={14} />
                   </button>
                   {modelOpen && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setModelOpen(false)} />
-                      <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-white border rounded-lg shadow-lg py-1 max-h-60 overflow-y-auto">
+                      <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-background border rounded-lg shadow-lg py-1 max-h-60 overflow-y-auto">
                         {(modelOptions ?? []).map((model) => (
                           <button
                             key={model.value}
@@ -249,21 +249,21 @@ export default function ChatScreen() {
                               setModelOpen(false);
                             }}
                             className={cn(
-                              "w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between",
-                              selectedModel === model.value && "font-medium bg-gray-50",
+                              "w-full text-left px-3 py-1.5 text-sm hover:bg-accent flex items-center justify-between",
+                              selectedModel === model.value && "font-medium bg-accent",
                             )}
                           >
                             <span className="flex items-center gap-1.5">
                               <span>{model.label}</span>
                               {model.isMultimodal && (
-                                <TbPhoto size={10} className="text-slate-400" />
+                                <TbPhoto size={10} className="text-muted-foreground" />
                               )}
                             </span>
-                            <span className="text-xs text-slate-400 ml-2 shrink-0">
+                            <span className="text-xs text-muted-foreground ml-2 shrink-0">
                               {model.price.replace("_", " - ")}
                             </span>
                             {selectedModel === model.value && (
-                              <TbCheck size={12} className="shrink-0 text-green-500 ml-1" />
+                              <TbCheck size={12} className="shrink-0 text-emerald-500 ml-1" />
                             )}
                           </button>
                         ))}
@@ -280,7 +280,7 @@ export default function ChatScreen() {
                   type="button"
                   disabled={isCancelling}
                   onClick={() => void stopAssistantResponse()}
-                  className="flex items-center gap-1 px-2.5 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  className="flex items-center gap-1 px-2.5 py-1 text-sm rounded-md border bg-background text-muted-foreground hover:bg-accent disabled:opacity-50"
                 >
                   Stop
                   {isCancelling ? (
@@ -299,8 +299,7 @@ export default function ChatScreen() {
                   isSending ||
                   !selectedCanvasId
                 }
-                className="flex items-center gap-1 px-2.5 py-1 text-sm rounded-md text-white disabled:opacity-30"
-                style={{ backgroundColor: "oklch(0.623 0.214 259.815)" }}
+                className="flex items-center gap-1 px-2.5 py-1 text-sm rounded-md text-white bg-brand transition-all active:scale-[0.98] hover:opacity-90 disabled:opacity-30"
               >
                 Send
                 {isSending ? (
@@ -337,15 +336,15 @@ function CanvasSelector({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 text-sm text-slate-600 font-medium hover:text-slate-800 truncate max-w-[160px]"
+        className="flex items-center gap-1 text-sm text-foreground/80 font-medium hover:text-foreground truncate max-w-[160px]"
       >
         <span className="truncate">{selectedName || canvases[0]?.name || "Canvas"}</span>
-        <TbSelector size={12} className="shrink-0 text-slate-400" />
+        <TbSelector size={12} className="shrink-0 text-muted-foreground" />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 z-20 w-48 bg-white border rounded-lg shadow-lg py-1 max-h-60 overflow-y-auto">
+          <div className="absolute top-full left-0 mt-1 z-20 w-48 bg-background border rounded-lg shadow-lg py-1 max-h-60 overflow-y-auto">
             {canvases.map((c) => (
               <button
                 key={c._id}
@@ -355,12 +354,12 @@ function CanvasSelector({
                   setOpen(false);
                 }}
                 className={cn(
-                  "w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between",
-                  c._id === selectedId && "font-medium text-gray-900",
+                  "w-full text-left px-3 py-1.5 text-sm hover:bg-accent flex items-center justify-between",
+                  c._id === selectedId && "font-medium text-foreground",
                 )}
               >
                 <span className="truncate">{c.name}</span>
-                {c._id === selectedId && <TbCheck size={12} className="shrink-0 text-green-500" />}
+                {c._id === selectedId && <TbCheck size={12} className="shrink-0 text-emerald-500" />}
               </button>
             ))}
           </div>
@@ -393,7 +392,7 @@ function ThreadSelector({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="p-1.5 rounded-md hover:bg-gray-100 text-slate-400"
+        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground"
         title="Previous conversations"
       >
         <TbHistory size={15} />
@@ -401,16 +400,16 @@ function ThreadSelector({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full right-0 mt-1 z-20 w-56 bg-white border rounded-lg shadow-lg py-1 max-h-72 overflow-y-auto">
+          <div className="absolute top-full right-0 mt-1 z-20 w-56 bg-background border rounded-lg shadow-lg py-1 max-h-72 overflow-y-auto">
             {threads.length === 0 && (
-              <div className="px-3 py-2 text-sm text-gray-400 text-center">No conversations yet</div>
+              <div className="px-3 py-2 text-sm text-muted-foreground text-center">No conversations yet</div>
             )}
             {threads.map((thread) => (
               <div
                 key={thread._id}
                 className={cn(
-                  "flex items-center justify-between px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer",
-                  thread._id === currentThreadId && "bg-gray-50 font-medium",
+                  "flex items-center justify-between px-3 py-1.5 text-sm hover:bg-accent cursor-pointer",
+                  thread._id === currentThreadId && "bg-accent font-medium",
                 )}
                 onClick={() => {
                   onSelectThread(thread._id);
@@ -419,7 +418,7 @@ function ThreadSelector({
               >
                 <div className="flex-1 min-w-0 mr-2">
                   <div className="truncate">{thread.title || "Untitled"}</div>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-xs text-muted-foreground">
                     {new Date(thread._creationTime).toLocaleDateString()}
                   </div>
                 </div>
@@ -456,15 +455,15 @@ function PageAttachment({
   onRemove: () => void;
 }) {
   return (
-    <div className="group flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-600 max-w-full">
+    <div className="group flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-sm text-muted-foreground max-w-full">
       <button
         type="button"
         onClick={onRemove}
-        className="text-slate-400 hover:text-red-500 shrink-0"
+        className="text-muted-foreground hover:text-red-500 shrink-0"
       >
         <HiMiniXMark size={13} />
       </button>
-      <TbGlobe size={12} className="shrink-0 text-slate-400" />
+      <TbGlobe size={12} className="shrink-0 text-muted-foreground" />
       <span className="truncate">
         {page.title || page.url || "Current page"}
       </span>

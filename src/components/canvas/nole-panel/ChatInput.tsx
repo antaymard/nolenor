@@ -79,8 +79,8 @@ export default function ChatInput({
     <div className="p-2 pt-0">
       <div
         className={cn(
-          "bg-slate-200 border shadow-lg rounded-lg flex flex-col gap-2 mt-2",
-          hasDirtyWindows ? "border-red-300" : "border-slate-400",
+          "bg-accent border shadow-lg rounded-lg flex flex-col gap-2 mt-2",
+          hasDirtyWindows ? "border-destructive/40" : "border-border",
         )}
       >
         <AttachmentRow
@@ -157,7 +157,7 @@ function MicStatus({
 }) {
   if (isRecording) {
     return (
-      <div className="flex items-center gap-1.5 text-red-500 text-xs">
+      <div className="flex items-center gap-1.5 text-destructive text-xs">
         <SoundWaveAnimation level={level} />
         <span>Écoute...</span>
       </div>
@@ -165,14 +165,14 @@ function MicStatus({
   }
   if (isTranscribing) {
     return (
-      <div className="flex items-center gap-1.5 text-slate-500 text-xs">
+      <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
         <TbLoader className="animate-spin" size={14} />
         <span>Transcription...</span>
       </div>
     );
   }
   return (
-    <span className="text-slate-500 text-xs">
+    <span className="text-muted-foreground text-xs">
       <TbMicrophone size={14} className="inline-block mr-1" />
       <Kbd>Alt + Ctrl</Kbd>
     </span>
@@ -183,7 +183,7 @@ function DirtyWindowsBadge({ count }: { count: number }) {
   return (
     <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>
-        <span className="rounded flex gap-1 bg-white/50 h-full px-2 py-1 text-red-400">
+        <span className="rounded flex gap-1 bg-card/50 h-full px-2 py-1 text-destructive/80">
           <TbCloudExclamation size={16} className="stroke-2" />
           {count}
         </span>

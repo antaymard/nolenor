@@ -127,15 +127,15 @@ export default function SlideshowList({
             {slideshows.map((slideshow) => (
               <div
                 key={slideshow.id}
-                className="flex items-center justify-between rounded-md border border-transparent transition hover:border-slate-200 hover:bg-slate-50"
+                className="flex items-center justify-between rounded-md border border-transparent transition hover:border-border hover:bg-accent/60"
               >
                 <div
                   className="w-full p-2 text-left"
                   onClick={() => setLayout(slideshow.id)}
                 >
                   <div className="flex items-center gap-2">
-                    <Presentation className="size-4 text-slate-500" />
-                    <span className="line-clamp-1 text-sm font-medium text-slate-900">
+                    <Presentation className="size-4 text-muted-foreground" />
+                    <span className="line-clamp-1 text-sm font-medium text-foreground">
                       {slideshow.name}
                     </span>
                   </div>

@@ -98,11 +98,11 @@ export default function FullscreenWindowFrame({
     <WindowFrameContext.Provider value={contextValue}>
       <div
         ref={containerRef}
-        className="fixed inset-0 z-50 flex flex-col bg-white"
+        className="fixed inset-0 z-50 flex flex-col bg-background"
       >
         {/* ── Header ────────────────────────────────────────────────── */}
         <div
-          className="flex select-none items-center gap-2 border-b bg-white px-4 py-2"
+          className="flex select-none items-center gap-2 border-b bg-background px-4 py-2"
           onDoubleClick={(e) => {
             if ((e.target as HTMLElement).closest('[data-window-control="true"]'))
               return;
@@ -112,7 +112,7 @@ export default function FullscreenWindowFrame({
         >
           {headerLeftSlot}
           {NodeIcon ? (
-            <NodeIcon className="size-4 shrink-0 text-slate-600" />
+            <NodeIcon className="size-4 shrink-0 text-muted-foreground" />
           ) : null}
           <span className="min-w-0 flex-1 truncate text-sm font-medium">
             {title ?? "—"}
@@ -120,7 +120,7 @@ export default function FullscreenWindowFrame({
           {refreshHandler && (
             <button
               data-window-control="true"
-              className="shrink-0 rounded p-1 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
+              className="shrink-0 rounded p-1 opacity-50 hover:bg-(--brand)/15 hover:text-(--brand) hover:opacity-100"
               onClick={refreshHandler}
               title="Refresh"
             >
@@ -130,7 +130,7 @@ export default function FullscreenWindowFrame({
           {saveHandler && (
             <button
               data-window-control="true"
-              className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-green-100 hover:text-green-800 disabled:pointer-events-none disabled:opacity-30"
+              className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-500 disabled:pointer-events-none disabled:opacity-30"
               onClick={saveHandler}
               disabled={!isDirty}
             >
@@ -140,7 +140,7 @@ export default function FullscreenWindowFrame({
           )}
           <button
             data-window-control="true"
-            className="shrink-0 rounded p-1 opacity-60 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
+            className="shrink-0 rounded p-1 opacity-60 hover:bg-(--brand)/15 hover:text-(--brand) hover:opacity-100"
             onClick={() => {
               if (isDirty) saveHandler?.();
               exitFullscreen();
@@ -154,7 +154,7 @@ export default function FullscreenWindowFrame({
             <DropdownMenuTrigger asChild>
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-1 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
+                className="shrink-0 rounded p-1 opacity-50 hover:bg-(--brand)/15 hover:text-(--brand) hover:opacity-100"
                 aria-label="More options"
               >
                 <TbDotsVertical size={14} />
@@ -211,7 +211,7 @@ export default function FullscreenWindowFrame({
           >
             <button
               data-window-control="true"
-              className="shrink-0 rounded p-1 opacity-50 hover:bg-red-500/15 hover:text-red-600 hover:opacity-100"
+              className="shrink-0 rounded p-1 opacity-50 hover:bg-destructive/15 hover:text-destructive hover:opacity-100"
               aria-label="Close"
               title="Close"
             >

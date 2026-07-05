@@ -38,7 +38,7 @@ export default function SelectField({
   return (
     <div
       className={
-        "relative border border-transparent hover:border-slate-300 h-8 rounded-md flex items-center group/linkfield w-full px-2 gap-2 min-w-0 flex-1" +
+        "relative border border-transparent hover:border-border h-8 rounded-md flex items-center group/linkfield w-full px-2 gap-2 min-w-0 flex-1" +
         className
       }
       onClick={() =>
@@ -136,7 +136,7 @@ function SelectSidePanel({
                 onClick={() => handleOptionClick(choice.value)}
                 className={cn(
                   "flex items-center gap-2 px-3 py-2 rounded-md text-left transition-all",
-                  "hover:bg-slate-100",
+                  "hover:bg-accent/60",
                   isSelected && colorConfig.transparentBg
                 )}
               >
@@ -158,7 +158,7 @@ function SelectSidePanel({
         </div>
 
         {(!choices || choices.length === 0) && (
-          <p className="text-sm text-gray-500 text-center py-2">
+          <p className="text-sm text-muted-foreground text-center py-2">
             Aucune option disponible
           </p>
         )}
@@ -185,13 +185,13 @@ function SelectedOptionsRenderer({
   }[];
 }) {
   if (selectedOptions.length === 0) {
-    return <p className="text-gray-500">-</p>;
+    return <p className="text-muted-foreground">-</p>;
   }
 
   // Single select : prend toute la place, pas arrondi
   if (!isMultipleSelect) {
     const choice = choices?.find((c) => c.value === selectedOptions[0]);
-    if (!choice) return <p className="text-gray-500">-</p>;
+    if (!choice) return <p className="text-muted-foreground">-</p>;
     const colorKey = (choice.color as colorsEnum) || "default";
     const colorConfig = colors[colorKey] || colors.default;
 

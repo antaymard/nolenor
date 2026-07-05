@@ -46,7 +46,7 @@ function VersionContentPreview({
 
   if (isPending) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-slate-400">
+      <div className="flex h-full items-center justify-center text-xs text-muted-foreground/70">
         Loading…
       </div>
     );
@@ -54,7 +54,7 @@ function VersionContentPreview({
 
   if (!isSuccess || !data) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-slate-400">
+      <div className="flex h-full items-center justify-center text-xs text-muted-foreground/70">
         Preview unavailable.
       </div>
     );
@@ -65,7 +65,7 @@ function VersionContentPreview({
       const parsed = parseStoredPlateDocument(data.values.doc);
       if (!parsed || parsed.length === 0) {
         return (
-          <div className="flex h-full items-center justify-center text-xs text-slate-400">
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground/70">
             Empty document.
           </div>
         );
@@ -90,7 +90,7 @@ function VersionContentPreview({
     }
     default:
       return (
-        <div className="flex h-full items-center justify-center text-xs text-slate-400">
+        <div className="flex h-full items-center justify-center text-xs text-muted-foreground/70">
           No preview available for this type.
         </div>
       );
@@ -158,17 +158,17 @@ export default function VersionHistoryViewer({
               onClick={() => setSelectedId(version._id)}
               className={cn(
                 "flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm",
-                isSelected ? "bg-slate-100" : "hover:bg-slate-50",
+                isSelected ? "bg-muted" : "hover:bg-muted/50",
               )}
             >
-              <ActorIcon className="size-4 shrink-0 text-slate-500" />
+              <ActorIcon className="size-4 shrink-0 text-muted-foreground" />
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate">
                   {ACTOR_LABEL[version.actor.type]} ·{" "}
                   {TRIGGER_LABEL[version.trigger]}
                 </span>
                 <span
-                  className="truncate text-xs text-slate-400"
+                  className="truncate text-xs text-muted-foreground/70"
                   title={new Date(version._creationTime).toLocaleString()}
                 >
                   {formatDistanceToNow(new Date(version._creationTime), {
@@ -182,7 +182,7 @@ export default function VersionHistoryViewer({
       </div>
 
       {/* Aperçu de la version sélectionnée */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded border bg-white">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded border bg-card">
         <div className="flex shrink-0 items-center justify-end border-b px-2 py-1.5">
           <ConfirmableButton
             title="Restore this version"
@@ -193,7 +193,7 @@ export default function VersionHistoryViewer({
             <button
               type="button"
               disabled={isRestoring}
-              className="flex items-center gap-1.5 rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded px-2 py-1 text-sm text-muted-foreground hover:bg-accent/60 disabled:opacity-50"
             >
               <TbRestore className="size-4" />
               {isRestoring ? "Restoring…" : "Restore"}

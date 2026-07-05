@@ -12,10 +12,10 @@ function CanvasTopBar() {
 
   return (
     <>
-      <div className="h-15 flex items-center justify-between px-4 border-b border-gray-300 bg-white ">
-        <div className="rounded-sm border border-gray-300 flex divide-x divide-gray-300">
+      <div className="h-15 flex items-center justify-between px-4 border-b bg-background">
+        <div className="rounded-md border flex divide-x">
           <button
-            className="hover:bg-gray-200 p-2 flex items-center rounded-xs"
+            className="hover:bg-accent p-2 flex items-center rounded-l-md transition-colors"
             title="Workspaces"
             type="button"
             onClick={() => setOpen(true)}
@@ -24,13 +24,13 @@ function CanvasTopBar() {
           </button>
           <Link
             to="/settings"
-            className="hover:bg-gray-200 p-2 flex items-center rounded-xs"
+            className="hover:bg-accent p-2 flex items-center rounded-r-md transition-colors"
             title="Settings"
           >
             <HiOutlineCog size={18} />
           </Link>
         </div>
-        <h1 className="font-semibold text-lg">
+        <h1 className="font-semibold text-lg text-foreground">
           {canvas?.name || "Untitled"}
         </h1>
         <div>
@@ -48,31 +48,31 @@ function CanvasStatus() {
   switch (status) {
     case "idle":
       return (
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-muted-foreground">
           <TbCloudCheck size={size} />
         </span>
       );
     case "unsynced":
       return (
-        <span className="text-sm text-yellow-500">
+        <span className="text-sm text-amber-500">
           <TbCloudUp size={size} />
         </span>
       );
     case "saving":
       return (
-        <span className="text-sm text-blue-500">
+        <span className="text-sm text-(--brand)">
           <TbCloudUp size={size} />
         </span>
       );
     case "saved":
       return (
-        <span className="text-sm text-green-500">
+        <span className="text-sm text-emerald-500">
           <TbCloudCheck size={size} />
         </span>
       );
     case "error":
       return (
-        <span className="text-sm text-red-500">
+        <span className="text-sm text-destructive">
           <TbCloudX size={size} />
         </span>
       );

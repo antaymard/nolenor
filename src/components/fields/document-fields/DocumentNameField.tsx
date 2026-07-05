@@ -8,7 +8,7 @@ interface DocumentNameFieldProps extends BaseFieldProps<{ doc: Value }> {
 
 export default function DocumentNameField({ field }: DocumentNameFieldProps) {
   return (
-    <div className="flex h-8 gap-2 items-center p-2 rounded-md bg-slate-100 hover:bg-slate-200">
+    <div className="flex h-8 gap-2 items-center p-2 rounded-md bg-muted hover:bg-accent">
       <RiFileList3Line size={16} />
       {field?.name || "Document"}
     </div>

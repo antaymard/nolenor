@@ -94,6 +94,11 @@ export interface ToolConfig {
   requireMultiModal?: boolean;
   compactionForSuccessResult?: CompactionConfig;
   compactionForFailureResult?: CompactionConfig;
+  /**
+   * Expose ce tool via le serveur MCP (assistants tiers : Claude Code/Desktop…).
+   * `access` = permission canvas minimale exigée pour l'appeler.
+   */
+  mcp?: { access: "viewer" | "editor" };
 }
 
 const defaultCompactionConfig: CompactionConfig = {

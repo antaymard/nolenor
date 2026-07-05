@@ -13,6 +13,7 @@ export const tableDeleteRowsToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "editor" },
 };
 
 type TableRow = {

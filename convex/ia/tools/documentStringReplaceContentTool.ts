@@ -21,6 +21,7 @@ export const documentStringReplaceContentToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "editor" },
 };
 
 const ERROR_TARGET_NOT_DOCUMENT = toolError("Target node must be a document.");

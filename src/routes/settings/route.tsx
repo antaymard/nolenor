@@ -44,6 +44,11 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
         icon: "settings",
         route: "/settings/skills",
       },
+      {
+        label: "MCP connections",
+        icon: "settings",
+        route: "/settings/connections",
+      },
     ],
   },
   {

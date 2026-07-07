@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  describeMicrophoneError,
+  describeVoiceServerClose,
+  describeVoiceServerError,
+} from "@/lib/speechErrors";
 
 /**
  * Hook de transcription LIVE (streaming) via le voice-server.
@@ -20,6 +25,27 @@ export type LiveTranscriptionStatus =
   | "stopping"
   | "error";
 
+/**
+ * Catégorie d'erreur, pour que le caller puisse adapter sa réaction (ex. :
+ * basculer sur le STT batch après un `connect_failed`, mais pas après un
+ * `mic_error` — le batch a besoin du micro aussi).
+ */
+export type LiveTranscriptionErrorCode =
+  /** URL ou token du voice-server manquant. */
+  | "config_missing"
+  /** Micro refusé/absent, ou échec du setup audio local. */
+  | "mic_error"
+  /** Serveur injoignable ou n'ayant jamais répondu `ready`. */
+  | "connect_failed"
+  /** Erreur renvoyée par le serveur ou coupure en cours de session. */
+  | "server_error";
+
+export interface LiveTranscriptionError {
+  code: LiveTranscriptionErrorCode;
+  /** Message affichable tel quel à l'utilisateur (FR). */
+  message: string;
+}
+
 export interface TranscriptSegment {
   text: string;
   start: number;
@@ -39,8 +65,8 @@ export interface UseLiveTranscriptionOptions {
   onSegment?: (segment: TranscriptSegment) => void;
   /** Appelé quand le flux est finalisé (transcript complet). */
   onDone?: (result: { text: string; language: string | null }) => void;
-  /** Appelé en cas d'erreur. */
-  onError?: (message: string) => void;
+  /** Appelé en cas d'erreur, avec un message affichable et un code. */
+  onError?: (error: LiveTranscriptionError) => void;
 }
 
 export interface UseLiveTranscription {
@@ -74,6 +100,11 @@ const PCM_WORKLET_NAME = "nole-pcm-encoder";
 // Plafond de trames bufferisées avant le `ready` serveur (~20 s à 100 ms/trame).
 // Filet de sécurité contre une montée mémoire si `ready` n'arrive jamais.
 const MAX_PENDING_FRAMES = 200;
+
+// Si le serveur n'a pas envoyé `ready` dans ce délai, on abandonne avec une
+// erreur explicite plutôt que de rester en "connecting" indéfiniment (couvre
+// le cold start qui échoue, un proxy qui accepte le WS sans backend, etc.).
+const READY_TIMEOUT_MS = 20_000;
 
 // Worklet inline, chargé via Blob URL : reste self-contained (aucun asset public,
 // aucune config Vite). Capte le Float32 micro, le convertit en PCM s16le et
@@ -157,7 +188,22 @@ export function useLiveTranscription(
   const stopRequestedRef = useRef(false);
   const genRef = useRef(0);
   const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLevelRef = useRef(0);
+  // Miroirs des états transcript/partial/language, pour livrer un best-effort
+  // depuis les timers de secours sans dépendre d'une closure périmée.
+  const transcriptRef = useRef("");
+  const partialRef = useRef("");
+  const languageRef = useRef<string | null>(null);
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
+  useEffect(() => {
+    partialRef.current = partial;
+  }, [partial]);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
   // Trames PCM captées avant le `ready` serveur : bufferisées puis flushées,
   // pour ne pas perdre la 1re phrase pendant le warm-up.
   const pendingFramesRef = useRef<ArrayBuffer[]>([]);
@@ -189,6 +235,10 @@ export function useLiveTranscription(
     if (doneTimerRef.current) {
       clearTimeout(doneTimerRef.current);
       doneTimerRef.current = null;
+    }
+    if (readyTimerRef.current) {
+      clearTimeout(readyTimerRef.current);
+      readyTimerRef.current = null;
     }
     const ws = wsRef.current;
     wsRef.current = null;
@@ -242,12 +292,12 @@ export function useLiveTranscription(
   }, [teardownAll]);
 
   const failWith = useCallback(
-    (message: string) => {
+    (code: LiveTranscriptionErrorCode, message: string) => {
       teardownAll();
       setStatus("error");
       setLevel(0);
       setError(message);
-      onErrorRef.current?.(message);
+      onErrorRef.current?.({ code, message });
     },
     [teardownAll],
   );
@@ -264,11 +314,24 @@ export function useLiveTranscription(
         /* noop */
       }
       if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
-      doneTimerRef.current = setTimeout(() => finalizeStop(), 5000);
+      // `done` jamais reçu : on livre le texte déjà transcrit plutôt que de
+      // jeter la dictée, et on signale l'échec si on n'a rien du tout.
+      doneTimerRef.current = setTimeout(() => {
+        const text = joinText(transcriptRef.current, partialRef.current).trim();
+        if (text) {
+          onDoneRef.current?.({ text, language: languageRef.current });
+          finalizeStop();
+        } else {
+          failWith(
+            "server_error",
+            "Le serveur vocal n'a pas renvoyé de transcription. Réessayez.",
+          );
+        }
+      }, 5000);
     } else {
       finalizeStop();
     }
-  }, [finalizeStop]);
+  }, [finalizeStop, failWith]);
 
   const handleServerMessage = useCallback(
     (ev: MessageEvent) => {
@@ -285,6 +348,10 @@ export function useLiveTranscription(
       switch (type) {
         case "ready": {
           readyRef.current = true;
+          if (readyTimerRef.current) {
+            clearTimeout(readyTimerRef.current);
+            readyTimerRef.current = null;
+          }
           // Flush des trames captées pendant le warm-up (sinon 1re phrase perdue).
           const ws = wsRef.current;
           const pending = pendingFramesRef.current;
@@ -335,11 +402,10 @@ export function useLiveTranscription(
           break;
         }
         case "error": {
-          const message =
-            (typeof msg.message === "string" && msg.message) ||
-            (typeof msg.code === "string" && msg.code) ||
-            "Erreur du voice-server.";
-          failWith(message);
+          const code = typeof msg.code === "string" ? msg.code : null;
+          const raw = typeof msg.message === "string" ? msg.message : null;
+          console.error("Voice-server error event:", code, raw);
+          failWith("server_error", describeVoiceServerError(code, raw));
           break;
         }
         default:
@@ -356,10 +422,10 @@ export function useLiveTranscription(
     setError(null);
 
     if (!serverUrl || !token) {
-      const msg = "Voice-server non configuré (URL ou token manquant).";
+      const msg = "La dictée vocale n'est pas configurée.";
       setStatus("error");
       setError(msg);
-      onErrorRef.current?.(msg);
+      onErrorRef.current?.({ code: "config_missing", message: msg });
       return;
     }
 
@@ -374,6 +440,15 @@ export function useLiveTranscription(
     setSegments([]);
     setLanguage(null);
     setLevel(0);
+
+    // Filet de sécurité : pas de `ready` dans les temps => erreur explicite
+    // (annulé à la réception du `ready`, ou par tout teardown).
+    readyTimerRef.current = setTimeout(() => {
+      failWith(
+        "connect_failed",
+        "Le serveur vocal ne répond pas. Réessayez dans quelques secondes.",
+      );
+    }, READY_TIMEOUT_MS);
 
     try {
       // 1. AudioContext + worklet (rapide, sans micro) : donne le sampleRate et
@@ -461,12 +536,26 @@ export function useLiveTranscription(
       };
       ws.onerror = () => {
         if (gen !== genRef.current) return;
-        failWith("Connexion au voice-server échouée.");
+        // NB : un upgrade rejeté par le serveur (token invalide, origine non
+        // allowlistée, limite de sessions) arrive ici en échec opaque — la
+        // cause exacte n'est visible que dans les logs du voice-server.
+        failWith(
+          readyRef.current ? "server_error" : "connect_failed",
+          readyRef.current
+            ? "La connexion au serveur vocal a été interrompue."
+            : "Impossible de joindre le serveur vocal. Réessayez dans quelques secondes.",
+        );
       };
       ws.onclose = (event) => {
         if (gen !== genRef.current) return;
         if (!stoppingRef.current) {
-          failWith(event.reason || "Connexion au voice-server interrompue.");
+          const fallback = readyRef.current
+            ? "La connexion au serveur vocal a été interrompue."
+            : "Impossible de joindre le serveur vocal. Réessayez dans quelques secondes.";
+          failWith(
+            readyRef.current ? "server_error" : "connect_failed",
+            describeVoiceServerClose(event.code, event.reason, fallback),
+          );
         }
       };
 
@@ -491,11 +580,8 @@ export function useLiveTranscription(
       source.connect(node);
     } catch (err) {
       if (gen !== genRef.current) return;
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Impossible d'accéder au micro ou au voice-server.";
-      failWith(msg);
+      console.error("Live transcription setup failed:", err);
+      failWith("mic_error", describeMicrophoneError(err));
     }
   }, [
     status,
@@ -525,15 +611,23 @@ export function useLiveTranscription(
       requestServerStop();
     } else {
       // Warm-up pas terminé : on diffère le stop jusqu'au `ready`, qui flushera
-      // l'audio capté avant de finaliser. Filet de sécurité si `ready` n'arrive
-      // jamais (serveur injoignable).
+      // l'audio capté avant de finaliser. Si `ready` n'arrive jamais (serveur
+      // injoignable), on le signale : la dictée est perdue, l'utilisateur doit
+      // le savoir au lieu d'un retour silencieux à l'idle.
       stopRequestedRef.current = true;
       setStatus("stopping");
       setLevel(0);
       if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
-      doneTimerRef.current = setTimeout(() => finalizeStop(), 6000);
+      doneTimerRef.current = setTimeout(
+        () =>
+          failWith(
+            "connect_failed",
+            "Le serveur vocal n'a pas répondu, la dictée n'a pas pu être transcrite.",
+          ),
+        6000,
+      );
     }
-  }, [status, requestServerStop, finalizeStop]);
+  }, [status, requestServerStop, failWith]);
 
   const reset = useCallback(() => {
     if (

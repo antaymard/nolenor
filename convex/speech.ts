@@ -19,6 +19,9 @@ const segmentValidator = v.object({
 export const transcribe = action({
   args: {
     audio: v.bytes(),
+    // Type MIME réel de l'enregistrement (Safari produit de l'audio/mp4, pas
+    // du webm). Défaut audio/webm pour compat avec les anciens clients.
+    mimeType: v.optional(v.string()),
   },
   returns: v.object({
     text: v.string(),
@@ -34,9 +37,15 @@ export const transcribe = action({
     }
 
     // Build FormData for Mistral audio transcription API
-    const audioBlob = new Blob([args.audio], { type: "audio/webm" });
+    const mimeType = (args.mimeType ?? "audio/webm").split(";")[0].trim();
+    const extension = mimeType.includes("mp4")
+      ? "m4a"
+      : mimeType.includes("ogg")
+        ? "ogg"
+        : "webm";
+    const audioBlob = new Blob([args.audio], { type: mimeType });
     const formData = new FormData();
-    formData.append("file", audioBlob, "recording.webm");
+    formData.append("file", audioBlob, `recording.${extension}`);
     formData.append("model", "voxtral-mini-latest");
     // Note: timestamp_granularities is NOT compatible with language param
     formData.append("timestamp_granularities", "word");

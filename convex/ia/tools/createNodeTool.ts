@@ -1,12 +1,21 @@
-import {createTool} from "@convex-dev/agent";
-import {z} from "zod";
-import {internal} from "../../_generated/api";
-import {toolAgentNames, type ThreadCtx} from "../agentConfig";
-import {generateLlmId} from "../../lib/llmId";
-import {markdownToPlateJson} from "../helpers/plateMarkdownConverter";
-import {stringifyPlateDocumentForStorage} from "../../lib/plateDocumentStorage";
-import {getDefaultNodeDataValues, nodeDataConfig, nodeTypeZodValidator} from "../../config/nodeConfig";
-import {getClosestHandlesForDirectedEdge, type NodeRect, type ToolConfig, toolError} from "./toolHelpers";
+import { createTool } from "@convex-dev/agent";
+import { z } from "zod";
+import { internal } from "../../_generated/api";
+import { toolAgentNames, type ThreadCtx } from "../agentConfig";
+import { generateLlmId } from "../../lib/llmId";
+import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
+import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
+import {
+  getDefaultNodeDataValues,
+  nodeDataConfig,
+  nodeTypeZodValidator,
+} from "../../config/nodeConfig";
+import {
+  getClosestHandlesForDirectedEdge,
+  type NodeRect,
+  type ToolConfig,
+  toolError,
+} from "./toolHelpers";
 
 // Tool compaction config
 export const createNodeToolConfig: ToolConfig = {

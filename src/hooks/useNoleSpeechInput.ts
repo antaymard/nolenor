@@ -2,9 +2,11 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type Dispatch,
   type SetStateAction,
 } from "react";
+import toast from "react-hot-toast";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { useNoleLiveTranscription } from "@/hooks/useNoleLiveTranscription";
 
@@ -16,14 +18,25 @@ function appendText(base: string, addition: string): string {
   return /\s$/.test(base) ? base + add : base + " " + add;
 }
 
+const TOAST_POSITION = { position: "bottom-left" as const };
+
+// Après une panne du voice-server (connexion impossible, erreur serveur), les
+// dictées suivantes passent par le STT batch pendant ce délai, au lieu de
+// re-échouer à chaque appui.
+const LIVE_COOLDOWN_MS = 60_000;
+
 /**
  * Speech-to-text du composer Nolë.
  *
  * Utilise la transcription LIVE (streaming via le voice-server) dès que la
  * config est disponible : le texte apparaît dans le composer au fil de la parole
  * et est finalisé au relâchement. Si le voice-server n'est pas configuré (ou
- * user non authentifié), on retombe automatiquement sur le STT batch existant
- * (Convex + Mistral) → aucune régression.
+ * user non authentifié), ou s'il vient d'échouer (cooldown), on retombe
+ * automatiquement sur le STT batch existant (Convex + Mistral).
+ *
+ * Toutes les erreurs (micro refusé, serveur injoignable, transcription en
+ * échec, aucune parole détectée) sont remontées à l'utilisateur via toast —
+ * plus d'échec silencieux.
  *
  * `startSTT` / `stopSTT` ont une identité STABLE (le statut live évolue en cours
  * de session, mais on ne veut pas re-binder `usePushToTalk` en plein appui).
@@ -34,12 +47,20 @@ export function useNoleSpeechInput(
 ) {
   // --- Moteur live (streaming) -------------------------------------------
   const baseRef = useRef("");
+  const liveDisabledUntilRef = useRef(0);
   const live = useNoleLiveTranscription({
     onDone: ({ text }) => {
       if (text) setUserInput(appendText(baseRef.current, text));
+      else toast("Aucune parole détectée.", TOAST_POSITION);
     },
-    onError: (message) => {
-      console.error("Live transcription error:", message);
+    onError: (error) => {
+      console.error("Live transcription error:", error.code, error.message);
+      toast.error(error.message, TOAST_POSITION);
+      // Panne côté serveur/réseau : on bascule sur le batch pour un temps.
+      // (Pas pour mic_error : le batch a besoin du micro aussi.)
+      if (error.code === "connect_failed" || error.code === "server_error") {
+        liveDisabledUntilRef.current = Date.now() + LIVE_COOLDOWN_MS;
+      }
     },
   });
 
@@ -64,13 +85,24 @@ export function useNoleSpeechInput(
 
   // --- Moteur batch (fallback) -------------------------------------------
   const onBatchTranscript = useCallback(
-    (text: string) => setUserInput((prev) => appendText(prev, text)),
+    (text: string) => {
+      if (text) setUserInput((prev) => appendText(prev, text));
+      else toast("Aucune parole détectée.", TOAST_POSITION);
+    },
     [setUserInput],
   );
-  const batch = useSpeechToText(onBatchTranscript);
+  const onBatchError = useCallback((message: string) => {
+    toast.error(message, TOAST_POSITION);
+  }, []);
+  const batch = useSpeechToText(onBatchTranscript, onBatchError);
 
   // On préfère le live dès que la config voice-server est confirmée présente.
   const useLive = !live.configLoading && !live.configMissing;
+
+  // Moteur effectivement utilisé par la session en cours (le cooldown après
+  // panne peut forcer le batch même quand la config live est présente).
+  const [activeEngine, setActiveEngine] = useState<"live" | "batch">("live");
+  const activeEngineRef = useRef<"live" | "batch">("live");
 
   // Refs "latest" : startSTT/stopSTT restent stables tout en appelant la version
   // courante des moteurs.
@@ -88,7 +120,13 @@ export function useNoleSpeechInput(
   batchStopRef.current = batch.stop;
 
   const startSTT = useCallback(async () => {
-    if (useLiveRef.current) {
+    const engine =
+      useLiveRef.current && Date.now() >= liveDisabledUntilRef.current
+        ? "live"
+        : "batch";
+    activeEngineRef.current = engine;
+    setActiveEngine(engine);
+    if (engine === "live") {
       baseRef.current = userInputRef.current;
       await liveStartRef.current();
     } else {
@@ -97,20 +135,21 @@ export function useNoleSpeechInput(
   }, []);
 
   const stopSTT = useCallback(() => {
-    if (useLiveRef.current) liveStopRef.current();
+    if (activeEngineRef.current === "live") liveStopRef.current();
     else batchStopRef.current();
   }, []);
 
   // --- Statut unifié -----------------------------------------------------
-  const isRecording = useLive
+  const liveActive = useLive && activeEngine === "live";
+  const isRecording = liveActive
     ? live.status === "connecting" || live.status === "listening"
     : batch.status === "recording";
-  const isTranscribing = useLive
+  const isTranscribing = liveActive
     ? live.status === "stopping"
     : batch.status === "transcribing";
 
   return {
-    sttStatus: useLive ? live.status : batch.status,
+    sttStatus: liveActive ? live.status : batch.status,
     isRecording,
     isTranscribing,
     sttBusy: isRecording || isTranscribing,

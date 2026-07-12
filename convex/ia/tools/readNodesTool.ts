@@ -1,16 +1,22 @@
-import {createTool} from "@convex-dev/agent";
-import {z} from "zod";
-import {internal} from "../../_generated/api";
-import {type Id} from "../../_generated/dataModel";
-import {getNodeDataTitle} from "../../lib/getNodeDataTitle";
-import {escapeXmlAttribute, escapeXmlText} from "../../lib/xml";
-import {formatTableMarkdown, makeNodeDataLLMFriendly} from "../helpers/makeNodeDataLLMFriendly";
-import {buildPdfPagesMarkdown, buildPdfTocMarkdown} from "../helpers/pdfChunkFormatters";
+import { createTool } from "@convex-dev/agent";
+import { z } from "zod";
+import { internal } from "../../_generated/api";
+import { type Id } from "../../_generated/dataModel";
+import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
+import {
+  formatTableMarkdown,
+  makeNodeDataLLMFriendly,
+} from "../helpers/makeNodeDataLLMFriendly";
+import {
+  buildPdfPagesMarkdown,
+  buildPdfTocMarkdown,
+} from "../helpers/pdfChunkFormatters";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
-import {toolAgentNames, type ThreadCtx} from "../agentConfig";
-import {nodeDataConfig} from "../../config/nodeConfig";
-import {formatZodSchemaAsMinimap} from "../../lib/jsonSchemaMinimap";
-import {type ToolConfig, toolError} from "./toolHelpers";
+import { toolAgentNames, type ThreadCtx } from "../agentConfig";
+import { nodeDataConfig } from "../../config/nodeConfig";
+import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
+import { type ToolConfig, toolError } from "./toolHelpers";
 
 const PDF_HINTS = {
   toc: "Call read_nodes with pdfPages=[{nodeId, pages:[…]}] to read full markdown of specific pages.",

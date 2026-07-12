@@ -78,8 +78,12 @@ export default function CanvasSidebar({
 
     return (
       <SidebarMenu>
-        {ownCanvases.map((c) => (
-          <div key={c._id}>
+        {ownCanvases.map((c, index) => (
+          <div
+            key={c._id}
+            className="animate-appear-up"
+            style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
+          >
             <div className="flex items-center justify-between w-full group px-2">
               <Link
                 to="/canvas/$canvasId"
@@ -133,8 +137,14 @@ export default function CanvasSidebar({
             <h4 className="px-4 pt-4 text-xs text-muted-foreground uppercase tracking-wider">
               Shared with me
             </h4>
-            {sharedCanvases.map((c) => (
-              <div key={c._id}>
+            {sharedCanvases.map((c, index) => (
+              <div
+                key={c._id}
+                className="animate-appear-up"
+                style={{
+                  animationDelay: `${Math.min(ownCanvases.length + index, 10) * 30}ms`,
+                }}
+              >
                 <div className="flex items-center justify-between w-full group px-2">
                   <Link
                     to="/canvas/$canvasId"
@@ -183,7 +193,7 @@ export default function CanvasSidebar({
       </Sidebar>
 
       <SidebarInset className="flex-1">
-        <span className="absolute top-2 left-2 z-10">
+        <span className="absolute top-2 left-2 z-10 animate-appear">
           <SidebarTrigger />
         </span>
         {children}

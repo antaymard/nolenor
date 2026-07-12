@@ -1,10 +1,10 @@
-import {createTool} from "@convex-dev/agent";
-import {z} from "zod";
-import {internal} from "../../_generated/api";
-import {type Id} from "../../_generated/dataModel";
-import {getNodeDataTitle} from "../../lib/getNodeDataTitle";
-import {type ThreadCtx, toolAgentNames} from "../agentConfig";
-import {type ToolConfig} from "./toolHelpers";
+import { createTool } from "@convex-dev/agent";
+import { z } from "zod";
+import { internal } from "../../_generated/api";
+import { type Id } from "../../_generated/dataModel";
+import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import { type ThreadCtx, toolAgentNames } from "../agentConfig";
+import { type ToolConfig } from "./toolHelpers";
 
 export const fullTextSearchToolConfig: ToolConfig = {
   name: "full_text_search",

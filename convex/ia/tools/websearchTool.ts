@@ -1,8 +1,8 @@
-import {createTool} from "@convex-dev/agent";
-import {z} from "zod";
+import { createTool } from "@convex-dev/agent";
+import { z } from "zod";
 import Parallel from "parallel-web";
-import {type ToolConfig, toolError} from "./toolHelpers";
-import {toolAgentNames} from "../agentConfig";
+import { type ToolConfig, toolError } from "./toolHelpers";
+import { toolAgentNames } from "../agentConfig";
 
 export const websearchToolConfig: ToolConfig = {
   name: "websearch",

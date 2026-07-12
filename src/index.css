@@ -11,12 +11,81 @@
 @theme {
   --radius: 15px;
   --animate-shake: shake 0.5s ease-in-out;
+  --animate-appear: appear 0.35s ease-out both;
+  --animate-appear-up: appear-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-appear-down: appear-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-appear-zoom: appear-zoom 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-node-appear: node-appear 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
   --font-sans: "Poppins", sans-serif;
   --color-text: #475569;
   --text-base: 13px;
   --text-sm: 11px;
   --text-xs: 9px;
   --text-lg: 17px;
+}
+
+/* Animations d'apparition (affichages initiaux) */
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes appear-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes appear-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes appear-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes node-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-appear,
+  .animate-appear-up,
+  .animate-appear-down,
+  .animate-appear-zoom,
+  .animate-node-appear {
+    animation: none !important;
+  }
 }
 
 @layer base {

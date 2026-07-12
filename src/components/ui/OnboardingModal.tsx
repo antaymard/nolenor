@@ -77,19 +77,20 @@ export default function OnboardingModal() {
         </DialogHeader>
 
         <div className="flex flex-col gap-6">
-          {/* Image */}
-          <div className="flex justify-center">
-            <img
-              src={slides[currentSlide].image}
-              alt={`Slide ${currentSlide + 1}`}
-              className="max-w-full h-auto rounded-lg"
-            />
-          </div>
+          {/* Image + title, re-animated on each slide change */}
+          <div key={currentSlide} className="contents">
+            <div className="flex justify-center animate-appear">
+              <img
+                src={slides[currentSlide].image}
+                alt={`Slide ${currentSlide + 1}`}
+                className="max-w-full h-auto rounded-lg"
+              />
+            </div>
 
-          {/* Slide Title */}
-          <h3 className="text-center text-lg font-semibold">
-            {slides[currentSlide].title}
-          </h3>
+            <h3 className="text-center text-lg font-semibold animate-appear-up">
+              {slides[currentSlide].title}
+            </h3>
+          </div>
 
           {/* Progress indicator */}
           <div className="flex justify-center gap-1">

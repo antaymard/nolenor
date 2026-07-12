@@ -12,7 +12,7 @@ function TopRightToolbar() {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="canvas-ui-container">
+    <div className="canvas-ui-container animate-appear-down">
       <div className="px-2">
         <CanvasStatus />
       </div>

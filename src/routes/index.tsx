@@ -43,14 +43,14 @@ function RouteComponent() {
   if (isLoading || !isAuthenticated || isGettingLastCanvas) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-gray-100">
-        <div>Loading...</div>
+        <div className="animate-appear">Loading...</div>
       </div>
     );
   }
 
   return (
     <div className="h-screen w-screen bg-gray-100">
-      <div className="flex flex-col items-center justify-center h-full gap-5">
+      <div className="flex flex-col items-center justify-center h-full gap-5 animate-appear-up">
         <p className="text-gray-500">
           No workspace found. Create a new one!
         </p>

@@ -159,7 +159,7 @@ const defaultComponents = {
       {...props}
     />
   ),
-  br: (props: React.HTMLAttributes<HTMLDivElement>) => (
+  br: (props: React.HTMLAttributes<HTMLBRElement>) => (
     <span className="aui-md-br h-0 -my-5 block" {...props} />
   ),
   a: ({
@@ -173,6 +173,7 @@ const defaultComponents = {
       )}
       {...props}
       target="_blank"
+      rel="noopener noreferrer"
     />
   ),
   blockquote: ({
@@ -267,12 +268,16 @@ const defaultComponents = {
       {...props}
     />
   ),
-  code: ({ className, inline, children, ...props }: any) => {
+  code: ({
+    className,
+    children,
+    ...props
+  }: React.HTMLAttributes<HTMLElement>) => {
     const match = /language-(\w+)/.exec(className || "");
     const language = match ? match[1] : "";
     const code = String(children).replace(/\n$/, "");
 
-    if (!inline && language) {
+    if (language) {
       return (
         <div className="my-4">
           <CodeHeader language={language} code={code} />
@@ -288,8 +293,7 @@ const defaultComponents = {
     return (
       <code
         className={cn(
-          inline &&
-            "aui-md-inline-code rounded border bg-muted font-semibold px-1",
+          "aui-md-inline-code rounded border bg-muted font-semibold px-1",
           className,
         )}
         {...props}

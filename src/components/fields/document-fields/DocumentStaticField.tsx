@@ -58,7 +58,8 @@ function DocumentStaticField({
   const isValidDoc = Array.isArray(value?.doc) && value.doc.length > 0;
 
   const plugins = preview ? BasePreviewKit : BaseEditorKit;
-  const blocks = value?.doc ?? [];
+  const doc = value?.doc;
+  const blocks = useMemo(() => doc ?? [], [doc]);
   const [isExpanded, setIsExpanded] = useState(false);
   const shouldVirtualize =
     preview && isValidDoc && blocks.length > PREVIEW_VIRTUALIZE_THRESHOLD && !isExpanded;

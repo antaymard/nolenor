@@ -1,5 +1,3 @@
-import * as React from 'react';
-
 import type { TCodeBlockElement } from 'platejs';
 
 import {

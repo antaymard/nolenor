@@ -6,7 +6,7 @@ import { generateLlmId } from "../../lib/llmId";
 import {
   getClosestHandlesForDirectedEdge,
   type NodeRect,
-  ToolConfig,
+  type ToolConfig,
   toolError,
 } from "./toolHelpers";
 

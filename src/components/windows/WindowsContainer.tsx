@@ -1,11 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { useWindowsStore, type SnapSide } from "@/stores/windowsStore";
 import { useStore } from "@xyflow/react";
 import WindowFrame from "./WindowFrame";
-import FullscreenDocumentWindow from "./FullscreenDocumentWindow";
-import FullscreenTableWindow from "./FullscreenTableWindow";
-import FullscreenPdfWindow from "./FullscreenPdfWindow";
+
+// Fullscreen windows share the heavy editor dependencies of their windowed
+// counterparts; load them on demand instead of with the canvas chunk.
+const FullscreenDocumentWindow = lazy(
+  () => import("./FullscreenDocumentWindow"),
+);
+const FullscreenTableWindow = lazy(() => import("./FullscreenTableWindow"));
+const FullscreenPdfWindow = lazy(() => import("./FullscreenPdfWindow"));
 
 export default function WindowsContainer() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
@@ -48,13 +53,15 @@ export default function WindowsContainer() {
       {fullscreenWindow &&
         existingNodeIds.includes(fullscreenWindow.xyNodeId) && (
           <div className="pointer-events-auto">
-            {fullscreenWindow.nodeType === "document" ? (
-              <FullscreenDocumentWindow openedWindow={fullscreenWindow} />
-            ) : fullscreenWindow.nodeType === "table" ? (
-              <FullscreenTableWindow openedWindow={fullscreenWindow} />
-            ) : fullscreenWindow.nodeType === "pdf" ? (
-              <FullscreenPdfWindow openedWindow={fullscreenWindow} />
-            ) : null}
+            <Suspense fallback={null}>
+              {fullscreenWindow.nodeType === "document" ? (
+                <FullscreenDocumentWindow openedWindow={fullscreenWindow} />
+              ) : fullscreenWindow.nodeType === "table" ? (
+                <FullscreenTableWindow openedWindow={fullscreenWindow} />
+              ) : fullscreenWindow.nodeType === "pdf" ? (
+                <FullscreenPdfWindow openedWindow={fullscreenWindow} />
+              ) : null}
+            </Suspense>
           </div>
         )}
 

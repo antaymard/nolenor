@@ -2,13 +2,13 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
-import { Id } from "../../_generated/dataModel";
+import { type Id } from "../../_generated/dataModel";
 import {
   cellValueSchema,
   normalizeCellValueForColumn,
   type TableColumn,
 } from "../helpers/tableCellValidation";
-import { toolError, ToolConfig } from "./toolHelpers";
+import { toolError, type ToolConfig } from "./toolHelpers";
 
 // Tool compaction config
 export const tableUpdateRowsToolConfig: ToolConfig = {

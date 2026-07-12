@@ -1,7 +1,7 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import Parallel from "parallel-web";
-import { ToolConfig, toolError } from "./toolHelpers";
+import { type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames } from "../agentConfig";
 
 export const websearchToolConfig: ToolConfig = {
@@ -43,7 +43,7 @@ export const websearchTool = createTool({
       ),
   }),
   execute: async (
-    ctx,
+    _ctx,
     { objective, search_queries = [], search_effort = "low" },
   ) => {
     console.log(`🔍 Web search: ${objective} with effort ${search_effort}`);
@@ -95,10 +95,11 @@ export const websearchTool = createTool({
       );
 
       return search.results;
-    } catch (error: any) {
+    } catch (error) {
       console.error("❌ Search error:", error);
+      const message = error instanceof Error ? error.message : String(error);
       return toolError(
-        `Search failed: ${error.message}. Please try rephrasing your query.`,
+        `Search failed: ${message}. Please try rephrasing your query.`,
       );
     }
   },

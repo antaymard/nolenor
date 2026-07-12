@@ -20,7 +20,7 @@ import {
   useTableMergeState,
 } from "@platejs/table/react";
 import { PopoverAnchor } from "@radix-ui/react-popover";
-import { cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import {
   ArrowDown,
   ArrowLeft,
@@ -105,11 +105,8 @@ export const TableElement = withHOC(
       "isSelectionAreaVisible"
     );
     const hasControls = !readOnly && !isSelectionAreaVisible;
-    const {
-      isSelectingCell,
-      marginLeft,
-      props: tableProps,
-    } = useTableElement();
+    const { marginLeft, props: tableProps } = useTableElement();
+    const isSelectingCell = usePluginOption(TablePlugin, "isSelectingCell");
 
     const isSelectingTable = useBlockSelected(props.element.id as string);
 
@@ -477,7 +474,7 @@ export function TableRowElement({
   );
 }
 
-function RowDragHandle({ dragRef }: { dragRef: React.Ref<any> }) {
+function RowDragHandle({ dragRef }: { dragRef: React.Ref<HTMLButtonElement> }) {
   const editor = useEditorRef();
   const element = useElement();
 
@@ -609,7 +606,11 @@ export function TableCellElement({
                 className={cn(
                   "absolute top-0 z-30 hidden h-full w-1 bg-ring",
                   "right-[-1.5px]",
-                  columnResizeVariants({ colIndex: colIndex as any })
+                  columnResizeVariants({
+                    colIndex: colIndex as VariantProps<
+                      typeof columnResizeVariants
+                    >["colIndex"],
+                  })
                 )}
               />
               {colIndex === 0 && (

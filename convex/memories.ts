@@ -7,7 +7,7 @@ export const listNodeDataMemories = query({
     nodeDataId: v.id("nodeDatas"),
   },
   returns: v.any(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, _args) => {
     const authUserId = await requireAuth(ctx);
     if (!authUserId) return null;
 

@@ -4,7 +4,7 @@ import { ConvexError } from "convex/values";
 import { type ToolConfig } from "./toolHelpers";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
-import { Id } from "../../_generated/dataModel";
+import { type Id } from "../../_generated/dataModel";
 import {
   asSubAgentErrorData,
   subAgentToolError,

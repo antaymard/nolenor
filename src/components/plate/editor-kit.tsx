@@ -22,7 +22,6 @@ import { DocxKit } from "@/components/plate/docx-kit";
 import { StripFontOnPastePlugin } from "@/components/plate/strip-font-on-paste-plugin";
 import { ExitBreakKit } from "@/components/plate/exit-break-kit";
 import { FixedToolbarKit } from "@/components/plate/fixed-toolbar-kit";
-import { FloatingToolbarKit } from "@/components/plate/floating-toolbar-kit";
 import { FontKit } from "@/components/plate/font-kit";
 import { LineHeightKit } from "@/components/plate/line-height-kit";
 import { LinkKit } from "@/components/plate/link-kit";

@@ -190,7 +190,7 @@ export function useNoleChat() {
     setUserInput("");
     resetAttachments();
     await resetThread();
-  }, [resetAttachments, resetThread]);
+  }, [resetAttachments, resetThread, setOverrideThreadId]);
 
   const selectThread = useCallback(
     (selectedThreadId: string | null) => {
@@ -198,7 +198,7 @@ export function useNoleChat() {
       setUserInput("");
       resetAttachments();
     },
-    [resetAttachments],
+    [resetAttachments, setOverrideThreadId],
   );
 
   return {

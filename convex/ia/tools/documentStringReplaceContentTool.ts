@@ -10,7 +10,7 @@ import {
   parseStoredPlateDocument,
   stringifyPlateDocumentForStorage,
 } from "../../lib/plateDocumentStorage";
-import { toolError, ToolConfig } from "./toolHelpers";
+import { toolError, type ToolConfig } from "./toolHelpers";
 
 // Tool compaction config
 export const documentStringReplaceContentToolConfig: ToolConfig = {

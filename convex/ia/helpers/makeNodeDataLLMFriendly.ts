@@ -1,6 +1,6 @@
-import { Doc } from "../../_generated/dataModel";
-import { plateJsonToMarkdown } from "./plateMarkdownConverter";
-import { parseStoredPlateDocument } from "../../lib/plateDocumentStorage";
+import {type Doc} from "../../_generated/dataModel";
+import {plateJsonToMarkdown} from "./plateMarkdownConverter";
+import {parseStoredPlateDocument} from "../../lib/plateDocumentStorage";
 
 type SelectOption = {
   id: string;

@@ -13,7 +13,7 @@ import {
 import {
   getClosestHandlesForDirectedEdge,
   type NodeRect,
-  ToolConfig,
+  type ToolConfig,
   toolError,
 } from "./toolHelpers";
 

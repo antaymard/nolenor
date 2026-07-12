@@ -9,9 +9,8 @@ import { useNavigate } from "@tanstack/react-router";
 import TextInput from "@/components/ts-form/TextInput";
 
 import "@blocknote/core/fonts/inter.css";
-import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
-import { Block, BlockNoteEditor, PartialBlock } from "@blocknote/core";
+import { BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 import "@blocknote/shadcn/style.css";
 import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
@@ -63,7 +62,6 @@ function RouteComponent() {
       } catch {
         toast.error("Failed to save recipe");
       }
-      console.log(value);
     },
   });
 
@@ -72,7 +70,7 @@ function RouteComponent() {
       form.setFieldValue("name", recipe.name);
       form.setFieldValue("content", recipe.content);
     }
-  }, [recipe, isSuccess, recipeId]);
+  }, [recipe, isSuccess, recipeId, form]);
 
   const editor = useMemo(() => {
     if (recipeId === "new") {

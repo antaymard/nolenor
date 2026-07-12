@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Save } from "lucide-react";
 import {
   TbArrowLeft,
@@ -8,6 +8,7 @@ import {
   TbMessageSearch,
 } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
+import { Spinner } from "@/components/shadcn/spinner";
 import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
@@ -39,12 +40,22 @@ import {
 } from "@/components/shadcn/dialog";
 import VersionHistoryViewer from "@/components/windows/VersionHistoryViewer";
 import AssociatedThreadsViewer from "@/components/windows/AssociatedThreadsViewer";
-import DocumentWindow from "@/components/windows/prebuilt/DocumentWindow";
-import EmbedWindow from "@/components/windows/prebuilt/EmbedWindow";
-import ImageWindow from "@/components/windows/prebuilt/ImageWindow";
-import PdfWindow from "@/components/windows/prebuilt/PdfWindow";
-import TableWindow from "@/components/windows/prebuilt/TableWindow";
-import AppWindow from "@/components/windows/prebuilt/AppWindow";
+// Same lazy boundaries as WindowFrame: keep the heavy editors out of the
+// canvas chunk on mobile too.
+const DocumentWindow = lazy(
+  () => import("@/components/windows/prebuilt/DocumentWindow"),
+);
+const EmbedWindow = lazy(
+  () => import("@/components/windows/prebuilt/EmbedWindow"),
+);
+const ImageWindow = lazy(
+  () => import("@/components/windows/prebuilt/ImageWindow"),
+);
+const PdfWindow = lazy(() => import("@/components/windows/prebuilt/PdfWindow"));
+const TableWindow = lazy(
+  () => import("@/components/windows/prebuilt/TableWindow"),
+);
+const AppWindow = lazy(() => import("@/components/windows/prebuilt/AppWindow"));
 import { cn } from "@/lib/utils";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
 
@@ -300,7 +311,21 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
   );
 }
 
-function NodeContent({
+function NodeContent(props: Pick<OpenedWindow, "xyNodeId" | "nodeDataId" | "nodeType">) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Spinner className="size-5 text-muted-foreground" />
+        </div>
+      }
+    >
+      <NodeContentBody {...props} />
+    </Suspense>
+  );
+}
+
+function NodeContentBody({
   xyNodeId,
   nodeDataId,
   nodeType,

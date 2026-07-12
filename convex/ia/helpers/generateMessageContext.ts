@@ -42,7 +42,29 @@ function valueToXml(tagName: string, value: unknown, indent = 0): string {
   return `${prefix}<${safeTagName}>${String(value)}</${safeTagName}>`;
 }
 
-function formatStructuredMessageContext(context: any): string {
+type ContextNodeRef = {
+  id: string;
+  type?: string;
+  title?: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+};
+
+type StructuredMessageContext = {
+  viewport?: {
+    bounds?: { x1: number; y1: number; x2: number; y2: number };
+    visibleNodes?: Array<string | ContextNodeRef>;
+    visibleNodeIds?: Array<string | ContextNodeRef>;
+  };
+  openNodes?: ContextNodeRef[];
+  attachedPosition?: { x: number; y: number };
+  attachedNodes?: ContextNodeRef[];
+  attachedPage?: { title?: string; url?: string; text?: string };
+};
+
+function formatStructuredMessageContext(
+  context: StructuredMessageContext,
+): string {
   let viewportTag = "";
   const viewport = context.viewport;
   if (viewport?.bounds) {
@@ -163,7 +185,9 @@ export function generateMessageContext({
       !Array.isArray(messageContext) &&
       ("viewport" in messageContext || "attachedPage" in messageContext)
     ) {
-      runtimeParts.push(formatStructuredMessageContext(messageContext));
+      runtimeParts.push(
+        formatStructuredMessageContext(messageContext as StructuredMessageContext),
+      );
     } else {
       runtimeParts.push(valueToXml("message_context", messageContext));
     }

@@ -27,10 +27,17 @@ function RouteComponent() {
     <div className="min-h-screen w-screen bg-[#f7f7f8] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-[360px] flex flex-col items-center gap-8">
         {/* Logo */}
-        <img src="/favicon.svg" alt="Nolenor" className="h-16 w-16" />
+        <img
+          src="/favicon.svg"
+          alt="Nolenor"
+          className="h-16 w-16 animate-appear-zoom"
+        />
 
         {/* Header */}
-        <div className="text-center flex flex-col gap-2">
+        <div
+          className="text-center flex flex-col gap-2 animate-appear-up"
+          style={{ animationDelay: "80ms" }}
+        >
           <h1 className="text-2xl font-bold text-gray-900">
             {step === "signIn" ? "Welcome back" : "Create an account"}
           </h1>
@@ -43,7 +50,8 @@ function RouteComponent() {
 
         {/* Form */}
         <form
-          className="w-full flex flex-col gap-3"
+          className="w-full flex flex-col gap-3 animate-appear-up"
+          style={{ animationDelay: "160ms" }}
           onSubmit={(event) => {
             event.preventDefault();
             setIsSubmitting(true);
@@ -117,7 +125,10 @@ function RouteComponent() {
         </form>
 
         {/* Toggle */}
-        <p className="text-sm text-gray-400">
+        <p
+          className="text-sm text-gray-400 animate-appear"
+          style={{ animationDelay: "240ms" }}
+        >
           {step === "signIn" ? (
             <>
               Don&apos;t have an account?{" "}
@@ -147,7 +158,10 @@ function RouteComponent() {
       </div>
 
       {/* Footer */}
-      <footer className="absolute bottom-8 flex flex-col items-center gap-2">
+      <footer
+        className="absolute bottom-8 flex flex-col items-center gap-2 animate-appear"
+        style={{ animationDelay: "320ms" }}
+      >
         <div className="flex items-center gap-3 text-xs text-gray-400">
           <a href="#" className="hover:text-gray-500 transition-colors">
             Terms

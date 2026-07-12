@@ -61,7 +61,7 @@ function NodeFrame({
       <div
         className={cn(
           "relative rounded-[5px] text-card-foreground",
-          "group h-full flex flex-col duration-150 border",
+          "group h-full flex flex-col duration-150 border animate-node-appear",
           nodeColor.nodeBg,
           nodeColor.nodeBorder,
           isAttachedToNole &&

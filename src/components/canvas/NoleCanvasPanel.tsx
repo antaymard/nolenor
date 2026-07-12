@@ -15,11 +15,11 @@ export default function NoleCanvasPanel() {
   return (
     <div className="relative">
       {layout === "expanded" && (
-        <div className="absolute bottom-10 canvas-ui-container p-0! w-95 h-[calc(100dvh-6rem)]">
+        <div className="absolute bottom-10 canvas-ui-container p-0! w-95 h-[calc(100dvh-6rem)] animate-appear-zoom origin-bottom-left">
           <ChatContainer onClose={() => setPanelLayout("minimized")} />
         </div>
       )}
-      <div className="canvas-ui-container px-0!">
+      <div className="canvas-ui-container px-0! animate-appear-up">
         <Button variant="ghost" onClick={() => togglePanelLayout()}>
           <NoleIcon /> Nolë
           <Kbd>N</Kbd>

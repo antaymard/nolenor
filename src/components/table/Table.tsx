@@ -23,8 +23,8 @@ import {
   useSensors,
   type DraggableAttributes,
   type DragEndEvent,
-  type SyntheticListenerMap,
 } from "@dnd-kit/core";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import {
   restrictToHorizontalAxis,
   restrictToVerticalAxis,
@@ -298,7 +298,7 @@ export function Table({
               size: 32,
               enableSorting: false,
               enableGlobalFilter: false,
-              enableColumnResizing: false,
+              enableResizing: false,
               header: () => null,
               cell: () => null,
             } satisfies ColumnDef<TableRowData>,
@@ -306,7 +306,7 @@ export function Table({
         : []),
       ...tableColumns.map(
         (col): ColumnDef<TableRowData> => ({
-          enableColumnResizing: true,
+          enableResizing: true,
           id: col.id,
           accessorFn: (row) => row.cells[col.id],
           header: ({ column: tanstackCol }) => (
@@ -372,7 +372,7 @@ export function Table({
               size: 32,
               enableSorting: false,
               enableGlobalFilter: false,
-              enableColumnResizing: false,
+              enableResizing: false,
               header: () => (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

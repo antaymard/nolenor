@@ -1,5 +1,3 @@
-import * as React from 'react';
-
 import { type SlateElementProps, SlateElement } from 'platejs/static';
 
 export function BlockquoteElementStatic(props: SlateElementProps) {

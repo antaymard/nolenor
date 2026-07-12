@@ -3,7 +3,7 @@ import type {
   ContextMenuState,
   ContextMenuType,
   ContextMenuHandlers,
-} from "@/types/context-menu.types";
+} from "@/types/ui/context-menu.types";
 
 export function useContextMenu() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({

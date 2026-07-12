@@ -43,7 +43,7 @@ export const openWebPageTool = createTool({
       )
       .optional(),
   }),
-  execute: async (ctx, { urls, objective, search_queries = [] }) => {
+  execute: async (_ctx, { urls, objective, search_queries = [] }) => {
     console.log(`🔍 Web extract: ${objective}, ${urls.join(", ")}`);
 
     try {
@@ -59,10 +59,11 @@ export const openWebPageTool = createTool({
       }
 
       return search.results;
-    } catch (error: any) {
+    } catch (error) {
       console.error("❌ Extract error:", error);
+      const message = error instanceof Error ? error.message : String(error);
       return toolError(
-        `Extraction failed: ${error.message}. Please try rephrasing your query.`,
+        `Extraction failed: ${message}. Please try rephrasing your query.`,
       );
     }
   },

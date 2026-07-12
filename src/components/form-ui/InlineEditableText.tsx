@@ -7,8 +7,6 @@ import {
   type JSX,
 } from "react";
 import { cn } from "@/lib/utils";
-import get from "lodash/get";
-import { useFormikContextSafe } from "@/hooks/useFormikContextSafe";
 
 interface InlineEditableTextProps {
   /**
@@ -18,14 +16,9 @@ interface InlineEditableTextProps {
   disabled?: boolean;
 
   /**
-   * Callback appelé lors de la sauvegarde (uniquement en mode non-Formik)
+   * Callback appelé lors de la sauvegarde
    */
   onSave?: (value: string) => void;
-
-  /**
-   * Nom du champ Formik (si utilisé dans un contexte Formik)
-   */
-  name?: string;
 
   /**
    * Classes CSS pour le wrapper
@@ -71,14 +64,8 @@ interface InlineEditableTextProps {
  * - Enter pour sauvegarder
  * - Echap pour annuler
  * - Clic ailleurs pour sauvegarder (configurable avec saveOnBlur)
- * - Fonctionne avec ou sans Formik
  *
  * @example
- * // Avec Formik
- * <InlineEditableText name="nodeName" />
- *
- * @example
- * // Sans Formik
  * <InlineEditableText
  *   value={name}
  *   onSave={(newValue) => setName(newValue)}
@@ -87,7 +74,6 @@ interface InlineEditableTextProps {
 function InlineEditableText({
   value: externalValue,
   onSave,
-  name,
   className,
   inputClassName,
   placeholder = "Click to edit...",
@@ -101,15 +87,7 @@ function InlineEditableText({
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Récupérer le contexte Formik de manière sûre (undefined si pas dans un contexte Formik)
-  // NOTE: On appelle toujours le hook, respectant ainsi la règle des hooks React
-  const formikContext = useFormikContextSafe<Record<string, unknown>>();
-
-  // Déterminer la valeur actuelle (Formik ou externe)
-  const currentValue =
-    name && formikContext
-      ? (get(formikContext.values, name) as string) || ""
-      : externalValue || "";
+  const currentValue = externalValue || "";
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -126,18 +104,10 @@ function InlineEditableText({
 
   const handleSave = useCallback(() => {
     if (editValue !== currentValue) {
-      // Si on utilise Formik
-      if (name && formikContext) {
-        // Utiliser setFieldValue au lieu de setValues pour forcer la mise à jour
-        formikContext.setFieldValue(name, editValue);
-      }
-      // Sinon on appelle le callback externe
-      else if (onSave) {
-        onSave(editValue);
-      }
+      onSave?.(editValue);
     }
     setIsEditing(false);
-  }, [editValue, currentValue, name, formikContext, onSave]);
+  }, [editValue, currentValue, onSave]);
 
   const handleCancel = useCallback(() => {
     setIsEditing(false);

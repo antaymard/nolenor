@@ -14,7 +14,7 @@ function NodeFrame({
   children,
   resizable = true,
 }: {
-  xyNode: Node<any>;
+  xyNode: Node;
   children: React.ReactNode;
   resizable?: boolean;
 }) {
@@ -32,7 +32,7 @@ function NodeFrame({
       openWindow({
         xyNodeId: xyNode.id,
         nodeDataId,
-        nodeType: nodeType as any,
+        nodeType,
       });
     }
   }, [xyNode.data?.nodeDataId, xyNode.id, nodeType, openWindow]);

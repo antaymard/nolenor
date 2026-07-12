@@ -1,9 +1,9 @@
-import { createTool } from "@convex-dev/agent";
-import { z } from "zod";
-import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { internal } from "../../_generated/api";
-import { generateLlmId } from "../../lib/llmId";
-import { ToolConfig, toolError } from "./toolHelpers";
+import {createTool} from "@convex-dev/agent";
+import {z} from "zod";
+import {toolAgentNames, type ThreadCtx} from "../agentConfig";
+import {internal} from "../../_generated/api";
+import {generateLlmId} from "../../lib/llmId";
+import {type ToolConfig, toolError} from "./toolHelpers";
 
 // Tool compaction config
 export const tableUpdateSchemaToolConfig: ToolConfig = {

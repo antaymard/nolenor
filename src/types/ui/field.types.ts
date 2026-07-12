@@ -1,5 +1,5 @@
 // Props communes à tous les field components
-export interface BaseFieldProps<T = any> {
+export interface BaseFieldProps<T = unknown> {
   field?: import("../domain/nodeTypes").NodeField;
   value?: T;
   visualType?: "node" | "window";

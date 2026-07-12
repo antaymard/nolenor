@@ -1,11 +1,11 @@
-import { v, ConvexError } from "convex/values";
-import { internalAction } from "../_generated/server";
-import { baseAgent, createWorkerAgent } from "./agents";
-import { components, internal } from "../_generated/api";
-import { createThread } from "@convex-dev/agent";
+import {v, ConvexError} from "convex/values";
+import {internalAction} from "../_generated/server";
+import {baseAgent, createWorkerAgent} from "./agents";
+import {components, internal} from "../_generated/api";
+import {createThread} from "@convex-dev/agent";
 import generateWorkerSystemPrompt from "./systemPrompts/workerSystemPrompt";
-import { Id } from "../_generated/dataModel";
-import { asSubAgentErrorData, subAgentConvexError } from "./subAgentErrors";
+import {type Id} from "../_generated/dataModel";
+import {asSubAgentErrorData, subAgentConvexError} from "./subAgentErrors";
 
 export const startWorkerTask = internalAction({
   args: {

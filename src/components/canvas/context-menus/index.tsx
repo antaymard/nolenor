@@ -9,7 +9,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import SelectionContextMenu from "./SelectionContextMenu";
 
-import type { ContextMenuState } from "@/types/context-menu.types";
+import type { ContextMenuState } from "@/types/ui/context-menu.types";
 
 export default function ContextMenuWrapper({
   contextMenu,
@@ -84,15 +84,14 @@ export default function ContextMenuWrapper({
         );
       case "edge":
         return (
-          <EdgeContextMenu
-            closeMenu={handleClose}
-            position={position}
-            xyEdge={element as Edge}
-          />
+          <EdgeContextMenu closeMenu={handleClose} xyEdge={element as Edge} />
         );
       case "selection":
         return (
-          <SelectionContextMenu closeMenu={handleClose} elements={element} />
+          <SelectionContextMenu
+            closeMenu={handleClose}
+            elements={element as Node[] | null}
+          />
         );
       default:
         return null;

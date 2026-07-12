@@ -106,13 +106,11 @@ function SortableImageItem({
 }
 
 function ImageEditDialog({
-  nodeDataId,
   currentValue,
   onUploadComplete,
   onDelete,
   onReorder,
 }: {
-  nodeDataId: Id<"nodeDatas">;
   currentValue: Value;
   onUploadComplete: (fileData: {
     url: string;
@@ -317,7 +315,6 @@ function ImageNode(xyNode: Node) {
             </DialogHeader>
             {nodeDataId && (
               <ImageEditDialog
-                nodeDataId={nodeDataId}
                 currentValue={currentValue}
                 onUploadComplete={handleUploadComplete}
                 onDelete={handleDelete}

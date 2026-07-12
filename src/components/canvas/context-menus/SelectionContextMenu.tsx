@@ -1,7 +1,6 @@
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -11,23 +10,8 @@ import { useReactFlow, type Node } from "@xyflow/react";
 import { useMutation } from "convex/react";
 import { useParams } from "@tanstack/react-router";
 
-import {
-  RiAlignItemLeftLine,
-  RiAlignItemRightLine,
-  RiAlignItemTopLine,
-  RiAlignItemBottomLine,
-} from "react-icons/ri";
 import { HiOutlineTrash } from "react-icons/hi";
-import {
-  TbArrowAutofitHeight,
-  TbArrowAutofitWidth,
-  TbCheck,
-  TbKeyframeAlignCenter,
-  TbPalette,
-  TbPhoto,
-  TbSpaces,
-} from "react-icons/tb";
-import { MdOutlineFitScreen } from "react-icons/md";
+import { TbPalette, TbPhoto, TbSpaces } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
@@ -190,180 +174,12 @@ export default function SelectionContextMenu({
     deleteElements({ nodes: others.map((n) => ({ id: n.id })) });
   }
 
-  async function alignSelectedNodes(
-    alignment: "left" | "right" | "top" | "bottom",
-  ) {
-    if (!Array.isArray(elements)) return;
-
-    let targetValue: number;
-
-    switch (alignment) {
-      case "left":
-        // Trouve le x le plus petit (le plus à gauche)
-        targetValue = Math.min(...elements.map((node) => node.position.x));
-        elements.forEach((node) => {
-          updateNode(node.id, {
-            position: { ...node.position, x: targetValue },
-          });
-        });
-        break;
-
-      case "bottom":
-        // Trouve le y + hauteur le plus grand (le plus en bas)
-        targetValue = Math.max(
-          ...elements.map((node) => {
-            const height = node.measured?.height || node.height || 0;
-            return node.position.y + height;
-          }),
-        );
-        elements.forEach((node) => {
-          const height = node.measured?.height || node.height || 0;
-          updateNode(node.id, {
-            position: { ...node.position, y: targetValue - height },
-          });
-        });
-        break;
-
-      case "right":
-        // Trouve le x + largeur le plus grand (le plus à droite)
-        targetValue = Math.max(
-          ...elements.map((node) => {
-            const width = node.measured?.width || node.width || 0;
-            return node.position.x + width;
-          }),
-        );
-        elements.forEach((node) => {
-          const width = node.measured?.width || node.width || 0;
-          updateNode(node.id, {
-            position: { ...node.position, x: targetValue - width },
-          });
-        });
-        break;
-
-      case "top":
-        // Trouve le y le plus petit (le plus en haut)
-        targetValue = Math.min(...elements.map((node) => node.position.y));
-        elements.forEach((node) => {
-          updateNode(node.id, {
-            position: { ...node.position, y: targetValue },
-          });
-        });
-        break;
-    }
-  }
-
-  async function uniformizeSelectedNodes(axis: "width" | "height") {
-    // Récupère la plus grande largeur ou hauteur et la donne à tous les noeuds
-    if (!Array.isArray(elements)) return;
-
-    let targetValue: number;
-    switch (axis) {
-      case "width":
-        targetValue = Math.max(
-          ...elements.map((node) => node.measured?.width || node.width || 0),
-        );
-        break;
-      case "height":
-        targetValue = Math.max(
-          ...elements.map((node) => node.measured?.height || node.height || 0),
-        );
-        break;
-    }
-    elements.forEach((node) => {
-      updateNode(
-        node.id,
-        axis === "width" ? { width: targetValue } : { height: targetValue },
-      );
-    });
-  }
-
-  const alignements = [
-    {
-      label: "Top",
-      icon: RiAlignItemTopLine,
-      onClick: () => alignSelectedNodes("top"),
-    },
-    {
-      label: "Right",
-      icon: RiAlignItemRightLine,
-      onClick: () => alignSelectedNodes("right"),
-    },
-    {
-      label: "Bottom",
-      icon: RiAlignItemBottomLine,
-      onClick: () => alignSelectedNodes("bottom"),
-    },
-    {
-      label: "Left",
-      icon: RiAlignItemLeftLine,
-      onClick: () => alignSelectedNodes("left"),
-    },
-  ];
-
-  const uniformizations = [
-    {
-      label: "Same width",
-      icon: TbArrowAutofitWidth,
-      onClick: () => uniformizeSelectedNodes("width"),
-    },
-    {
-      label: "Same height",
-      icon: TbArrowAutofitHeight,
-      onClick: () => uniformizeSelectedNodes("height"),
-    },
-  ];
-
   return (
     <>
       <DropdownMenuLabel className="whitespace-nowrap">
         Selection actions
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-
-      {/* Alignement
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <TbKeyframeAlignCenter /> Aligner
-        </DropdownMenuSubTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuSubContent>
-            {alignements.map(({ label, icon: Icon, onClick }, i) => (
-              <DropdownMenuItem
-                key={i}
-                onClick={() => {
-                  onClick();
-                  closeMenu();
-                }}
-              >
-                <Icon className="mr-2" />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuPortal>
-      </DropdownMenuSub>
-
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <MdOutlineFitScreen /> Uniformiser
-        </DropdownMenuSubTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuSubContent>
-            {uniformizations.map(({ label, icon: Icon, onClick }, i) => (
-              <DropdownMenuItem
-                key={i}
-                onClick={() => {
-                  onClick();
-                  closeMenu();
-                }}
-              >
-                <Icon className="mr-2" />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuPortal>
-      </DropdownMenuSub> */}
 
       {/* Variant */}
       {commonVariantLabels.length > 0 && (

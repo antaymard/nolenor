@@ -1,12 +1,12 @@
-import { createTool } from "@convex-dev/agent";
-import { internal } from "../../_generated/api";
-import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
-import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
-import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
-import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
+import {createTool} from "@convex-dev/agent";
+import {internal} from "../../_generated/api";
+import {toolAgentNames, type ThreadCtx} from "../agentConfig";
+import {nodeTypeValues} from "../../schemas/nodeTypeSchema";
+import {validateNodeInputSchemaForLLM} from "../helpers/nodeInputSchemaValidatorForLLM";
+import {markdownToPlateJson} from "../helpers/plateMarkdownConverter";
+import {stringifyPlateDocumentForStorage} from "../../lib/plateDocumentStorage";
 import z from "zod";
-import { ToolConfig, toolError } from "./toolHelpers";
+import {type ToolConfig, toolError} from "./toolHelpers";
 
 // Tool compaction config
 export const setNodeDataToolConfig: ToolConfig = {

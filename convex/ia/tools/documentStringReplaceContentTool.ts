@@ -1,16 +1,10 @@
-import { createTool } from "@convex-dev/agent";
-import { z } from "zod";
-import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { internal } from "../../_generated/api";
-import {
-  markdownToPlateJson,
-  plateJsonToMarkdown,
-} from "../helpers/plateMarkdownConverter";
-import {
-  parseStoredPlateDocument,
-  stringifyPlateDocumentForStorage,
-} from "../../lib/plateDocumentStorage";
-import { toolError, ToolConfig } from "./toolHelpers";
+import {createTool} from "@convex-dev/agent";
+import {z} from "zod";
+import {toolAgentNames, type ThreadCtx} from "../agentConfig";
+import {internal} from "../../_generated/api";
+import {markdownToPlateJson, plateJsonToMarkdown} from "../helpers/plateMarkdownConverter";
+import {parseStoredPlateDocument, stringifyPlateDocumentForStorage} from "../../lib/plateDocumentStorage";
+import {toolError, type ToolConfig} from "./toolHelpers";
 
 // Tool compaction config
 export const documentStringReplaceContentToolConfig: ToolConfig = {

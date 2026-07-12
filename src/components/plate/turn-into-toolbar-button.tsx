@@ -16,7 +16,6 @@ import {
   Heading3Icon,
   Heading4Icon,
   Heading5Icon,
-  Heading6Icon,
   ListIcon,
   ListOrderedIcon,
   PilcrowIcon,

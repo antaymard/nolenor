@@ -14,7 +14,7 @@ export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
   return {
     id: xyNode.id,
     ...(nodeDataId && { nodeDataId }),
-    type: xyNode.type ?? "default",
+    type: (xyNode.type ?? "default") as CanvasNode["type"],
     position: xyNode.position,
     width: xyNode.measured?.width ?? xyNode.width ?? 0,
     height: xyNode.measured?.height ?? xyNode.height ?? 0,

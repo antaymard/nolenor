@@ -1,8 +1,8 @@
-import { ActionCtx } from "../../_generated/server";
-import { Id } from "../../_generated/dataModel";
-import { internal } from "../../_generated/api";
-import { escapeXmlText } from "../../lib/xml";
-import { nodeTypesPresentation } from "./systemParts";
+import {type ActionCtx} from "../../_generated/server";
+import {type Id} from "../../_generated/dataModel";
+import {internal} from "../../_generated/api";
+import {escapeXmlText} from "../../lib/xml";
+import {nodeTypesPresentation} from "./systemParts";
 
 function formatMemorySnapshot(rawContent?: string | null): string {
   if (!rawContent) {

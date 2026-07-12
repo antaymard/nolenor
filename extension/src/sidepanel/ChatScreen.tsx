@@ -27,7 +27,6 @@ const INPUT_MAX_HEIGHT_PX = 182;
 export default function ChatScreen() {
   const {
     threadId,
-    threadInfo,
     isLoading,
     userInput,
     setUserInput,
@@ -122,10 +121,10 @@ export default function ChatScreen() {
     }
   }, [attachPage]);
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (isAssistantResponding || isSending || !userInput.trim() || !selectedCanvasId) return;
     void sendCurrentMessage();
-  };
+  }, [isAssistantResponding, isSending, userInput, selectedCanvasId, sendCurrentMessage]);
 
   const handleRetry = useCallback(
     (userMessage: string) => setUserInput(userMessage),

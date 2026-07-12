@@ -1,8 +1,8 @@
-import { createTool } from "@convex-dev/agent";
-import { internal } from "../../_generated/api";
-import { z } from "zod";
-import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { ToolConfig, toolError } from "./toolHelpers";
+import {createTool} from "@convex-dev/agent";
+import {internal} from "../../_generated/api";
+import {z} from "zod";
+import {toolAgentNames, type ThreadCtx} from "../agentConfig";
+import {type ToolConfig, toolError} from "./toolHelpers";
 
 const MAX_USER_MEMORY_CHARS = 1300;
 const MAX_CANVAS_MEMORY_CHARS = 2500;

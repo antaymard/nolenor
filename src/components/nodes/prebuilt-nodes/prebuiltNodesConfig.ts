@@ -113,7 +113,9 @@ const openableNodeTypes = new Set<NodeType>(
 /**
  * Checks if a node type can be opened in a window
  */
-function canNodeTypeBeOpenedInWindow(nodeType: string | undefined): boolean {
+function canNodeTypeBeOpenedInWindow(
+  nodeType: string | undefined,
+): nodeType is NodeType {
   return nodeType ? openableNodeTypes.has(nodeType as NodeType) : false;
 }
 

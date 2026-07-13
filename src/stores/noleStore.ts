@@ -9,12 +9,15 @@ export type NolePanelLayout = "minimized" | "expanded";
 interface NoleStore {
   canvas: Omit<Canvas, "nodes" | "edges"> | null;
   panelLayout: NolePanelLayout;
+  activeThreadId: string | null;
   attachedNodes: CanvasNode[];
   attachedPosition: { x: number; y: number } | null;
 
   setCanvas: (canvas: Canvas) => void;
   setPanelLayout: (layout: NolePanelLayout) => void;
   togglePanelLayout: () => void;
+  // null → on retombe sur le thread initial résolu par useNoleThread.
+  setActiveThreadId: (id: string | null) => void;
   addAttachments: (
     attachments: { nodes?: CanvasNode[]; position?: { x: number; y: number } },
     removeIfPresent?: boolean,
@@ -33,6 +36,7 @@ export const useNoleStore = create<NoleStore>()(
     (set, get) => ({
       canvas: null,
       panelLayout: "minimized",
+      activeThreadId: null,
       attachedNodes: [],
       attachedPosition: null,
 
@@ -42,6 +46,10 @@ export const useNoleStore = create<NoleStore>()(
 
       setPanelLayout: (layout: NolePanelLayout) => {
         set({ panelLayout: layout });
+      },
+
+      setActiveThreadId: (id: string | null) => {
+        set({ activeThreadId: id });
       },
 
       togglePanelLayout: () => {

@@ -24,6 +24,8 @@ import { Button } from "@/components/shadcn/button";
 import ContextMenu from "@/components/canvas/context-menus";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -52,7 +54,8 @@ import SearchModale from "@/components/canvas/search-modale/SearchModale";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useHotspotHotkeys } from "@/hooks/useHotspotHotkeys";
-import MobileCanvas from "@/components/mobile/MobileCanvas";
+// Mobile-only surface: don't ship it to desktop sessions.
+const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
 import { useIsTouchFirst } from "@/hooks/useTabletMode";
 
 // Additional helper to prevent hotkeys from triggering when typing in inputs, textareas, selects or contenteditable elements
@@ -79,7 +82,15 @@ function RouteComponent() {
     return (
       <div className="bg-white">
         <OnboardingModal />
-        <MobileCanvas canvasId={canvasId} />
+        <Suspense
+          fallback={
+            <div className="flex h-screen items-center justify-center">
+              <Spinner className="size-6 text-muted-foreground" />
+            </div>
+          }
+        >
+          <MobileCanvas canvasId={canvasId} />
+        </Suspense>
       </div>
     );
   }
@@ -303,7 +314,7 @@ function CanvasContent({
 
   if (!canvas) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full animate-appear">
         <Spinner className="size-6 text-muted-foreground" />
       </div>
     );

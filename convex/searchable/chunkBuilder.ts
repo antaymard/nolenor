@@ -55,10 +55,10 @@ async function rebuildChunksForNodeData(
     updatedKeys?: string[];
   },
 ): Promise<void> {
-  console.log("[chunkBuilder] rebuildChunks:start", {
-    nodeDataId,
-    updatedKeys,
-  });
+  // console.log("[chunkBuilder] rebuildChunks:start", {
+  //   nodeDataId,
+  //   updatedKeys,
+  // });
 
   const nodeData = await ctx.runQuery(
     internal.wrappers.nodeDataWrappers.readNodeData,
@@ -89,11 +89,11 @@ async function rebuildChunksForNodeData(
 
   const chunks = await buildChunks(nodeData, nodeId, updatedKeys);
 
-  console.log("[chunkBuilder] rebuildChunks:chunks-built", {
-    nodeDataId,
-    nodeType: nodeData.type,
-    chunkCount: chunks.length,
-  });
+  // console.log("[chunkBuilder] rebuildChunks:chunks-built", {
+  //   nodeDataId,
+  //   nodeType: nodeData.type,
+  //   chunkCount: chunks.length,
+  // });
 
   await ctx.runMutation(
     internal.wrappers.searchableChunkWrappers.upsertChunks,
@@ -103,10 +103,10 @@ async function rebuildChunksForNodeData(
     },
   );
 
-  console.log("[chunkBuilder] rebuildChunks:upsert-complete", {
-    nodeDataId,
-    chunkCount: chunks.length,
-  });
+  // console.log("[chunkBuilder] rebuildChunks:upsert-complete", {
+  //   nodeDataId,
+  //   chunkCount: chunks.length,
+  // });
 }
 
 export const rebuildChunks = internalAction({
@@ -149,11 +149,11 @@ async function buildChunks(
   nodeId: string,
   updatedKeys?: string[],
 ): Promise<ChunkInput[]> {
-  console.log("[chunkBuilder] buildChunks:start", {
-    nodeDataId: nodeData._id,
-    nodeType: nodeData.type,
-    updatedKeys,
-  });
+  // console.log("[chunkBuilder] buildChunks:start", {
+  //   nodeDataId: nodeData._id,
+  //   nodeType: nodeData.type,
+  //   updatedKeys,
+  // });
 
   // Guard: for expensive branches (LLM/OCR), skip if the content field wasn't updated
   if (updatedKeys) {

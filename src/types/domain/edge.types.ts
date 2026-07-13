@@ -15,5 +15,5 @@ export interface EdgeCustomData {
   strokeWidth?: EdgeStrokeWidth;
   markerStart?: EdgeMarker;
   markerEnd?: EdgeMarker;
-  [key: string]: any;
+  [key: string]: unknown;
 }

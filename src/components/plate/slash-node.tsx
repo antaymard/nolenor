@@ -15,7 +15,6 @@ import {
   LightbulbIcon,
   ListIcon,
   ListOrdered,
-  PenToolIcon,
   PilcrowIcon,
   Quote,
   RadicalIcon,

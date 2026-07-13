@@ -4,7 +4,7 @@ import * as React from 'react';
 
 import { PlaceholderPlugin, UploadErrorCode } from '@platejs/media/react';
 import { usePluginOption } from 'platejs/react';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 
 export function MediaUploadToast() {
   useUploadErrorToast();

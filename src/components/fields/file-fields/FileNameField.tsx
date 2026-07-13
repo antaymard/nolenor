@@ -22,18 +22,14 @@ interface FileNameFieldProps extends BaseFieldProps<FileFieldType[]> {
 }
 
 export default function FileNameField({
-  field,
   value,
   onChange,
-  visualSettings,
   className = "",
 }: FileNameFieldProps) {
   const { closeSidePanel, openSidePanel } = useNodeSidePanel();
-  const fileUrl = value && value.length > 0 ? value[0].url : "";
 
   const handleSave = useCallback(
     (newValue: FileFieldType) => {
-      console.log("Saved file:", newValue);
       onChange?.([newValue]);
       closeSidePanel(sidePanelId);
     },
@@ -71,11 +67,7 @@ export default function FileNameField({
           onClick={() =>
             openSidePanel(
               sidePanelId,
-              <FileUploaderSidePanel
-                initialValue={fileUrl}
-                onSave={handleSave}
-                onClose={() => closeSidePanel(sidePanelId)}
-              />
+              <FileUploaderSidePanel onSave={handleSave} />
             )
           }
           className=" hover:bg-black/5 rounded-sm items-center justify-center h-6 w-6 shrink-0 group-hover/linkfield:flex hidden"
@@ -87,11 +79,11 @@ export default function FileNameField({
   );
 }
 
-function FileUploaderSidePanel({ initialValue, onSave, onClose }) {
-  const handleUploadComplete = (fileData: FileFieldType) => {
-    onSave(fileData);
-  };
-
+function FileUploaderSidePanel({
+  onSave,
+}: {
+  onSave: (fileData: FileFieldType) => void;
+}) {
   return (
     <SidePanelFrame
       id={sidePanelId}
@@ -99,7 +91,7 @@ function FileUploaderSidePanel({ initialValue, onSave, onClose }) {
       className="w-64"
     >
       <UploadFile
-        onUploadComplete={handleUploadComplete}
+        onUploadComplete={onSave}
         accept="application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.presentationml.presentation, text/plain, text/csv, text/markdown, application/json, application/xml, application/zip, application/x-rar-compressed, application/x-7z-compressed, audio/mpeg, audio/wav, audio/ogg, video/mp4, video/webm"
       />
     </SidePanelFrame>

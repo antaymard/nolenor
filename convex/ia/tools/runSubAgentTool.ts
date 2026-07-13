@@ -1,9 +1,15 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { ConvexError } from "convex/values";
+import { type ToolConfig } from "./toolHelpers";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
-import { Id } from "../../_generated/dataModel";
+import { type Id } from "../../_generated/dataModel";
+import {
+  asSubAgentErrorData,
+  subAgentToolError,
+  type SubAgentErrorKind,
+} from "../subAgentErrors";
 
 // Worker cannot run subtasks itself.
 export const runSubAgentConfig: ToolConfig = {
@@ -14,6 +20,29 @@ export const runSubAgentConfig: ToolConfig = {
     toolAgentNames.supervisor,
   ],
 };
+
+/**
+ * Turn whatever the worker action threw into a `{ kind, message }` pair.
+ * Classified errors arrive as `ConvexError.data`; everything else (redacted
+ * server errors, network failures) is treated as transient infrastructure.
+ */
+function classifySubAgentError(error: unknown): {
+  kind: SubAgentErrorKind;
+  message: string;
+} {
+  if (error instanceof ConvexError) {
+    const data = asSubAgentErrorData(error.data);
+    if (data) {
+      return { kind: data.kind, message: data.message };
+    }
+    // Older-style ConvexError that only carried a string message.
+    if (typeof error.data === "string" && error.data.length > 0) {
+      return { kind: "worker_execution", message: error.data };
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return { kind: "infrastructure", message };
+}
 
 export default function runSubAgent({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
@@ -29,7 +58,9 @@ export default function runSubAgent({ threadCtx }: { threadCtx: ThreadCtx }) {
 
     Trust but verify: the worker's final message describes what it intended to do, not necessarily what it did. If it wrote or edited files, check the diff before acting on the report.
 
-    Feel free to call this tool multiple times in parallel with different briefs, when the tasks are independent and can be done in any order. For dependent tasks, break them down and call sequentially with updated briefs based on the previous worker's report.`,
+    Feel free to call this tool multiple times in parallel with different briefs, when the tasks are independent and can be done in any order. For dependent tasks, break them down and call sequentially with updated briefs based on the previous worker's report.
+
+    On failure this tool returns { success: false, errorKind, message, guidance }. errorKind tells you what happened: "invalid_arguments" (fix your input), "access_denied" (pick another canvasId or omit it), "worker_execution" (the worker ran but failed — retryable), "infrastructure" (transient backend error — retry shortly).`,
     inputSchema: z.object({
       explanation: z
         .string()
@@ -43,28 +74,44 @@ export default function runSubAgent({ threadCtx }: { threadCtx: ThreadCtx }) {
           ),
       ),
     }),
-    execute: async (ctx, { instructions, canvasId }) => {
+    execute: async (ctx, { explanation, instructions, canvasId }) => {
+      // Validate args here so the model gets a precise "fix your input" message
+      // instead of a generic failure surfacing from deep inside the worker.
+      const brief = instructions?.trim() ?? "";
+      if (brief.length === 0) {
+        console.warn("[run_subAgent] rejected: empty instructions", {
+          explanation,
+        });
+        return subAgentToolError(
+          "invalid_arguments",
+          "`instructions` is required and cannot be empty. Pass the full brief the worker should execute.",
+        );
+      }
+
+      // A blank/whitespace canvasId is not an error: fall back to the caller's
+      // own canvas (the main agent's) rather than throwing.
+      const targetCanvasId = canvasId?.trim() || threadCtx.canvasId;
+
       try {
-        const _canvasId = canvasId || threadCtx.canvasId;
         const result = await ctx.runAction(internal.ia.worker.startWorkerTask, {
           userId: threadCtx.authUserId,
-          canvasId: _canvasId as Id<"canvases">,
-          instructions,
+          canvasId: targetCanvasId as Id<"canvases">,
+          instructions: brief,
         });
 
         return {
           success: true,
           result,
         };
-      } catch (error: any) {
-        console.error("❌ Task execution error:", error);
-        // ConvexError carries the real failure reason in `data` (the worker
-        // wraps its errors so the message survives the action boundary).
-        const detail =
-          typeof error?.data === "string"
-            ? error.data
-            : (error?.message ?? "Unknown error");
-        return toolError(`Sub-agent task failed: ${detail}`);
+      } catch (error) {
+        const { kind, message } = classifySubAgentError(error);
+        console.error("[run_subAgent] failed", {
+          explanation,
+          canvasId: targetCanvasId,
+          kind,
+          message,
+        });
+        return subAgentToolError(kind, message);
       }
     },
   });

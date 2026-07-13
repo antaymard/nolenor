@@ -70,13 +70,7 @@ export function useAppNodeRunner(
       if (!sourceNodeDataId) continue;
       const nodeData = useNodeDataStore.getState().getNodeData(sourceNodeDataId);
       if (!nodeData) continue;
-      result[sourceNode.id] = resolveSourceNode(
-        nodeData as Record<string, unknown> & {
-          type: string;
-          values?: Record<string, unknown>;
-        },
-        sourceNode.id,
-      );
+      result[sourceNode.id] = resolveSourceNode(nodeData, sourceNode.id);
     }
     return result;
   }, [rfStore, xyNodeId]);

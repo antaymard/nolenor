@@ -3,7 +3,7 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { ToolConfig, toolError } from "./toolHelpers";
+import { type ToolConfig, toolError } from "./toolHelpers";
 
 export const loadSkillToolConfig: ToolConfig = {
   name: "load_skill",

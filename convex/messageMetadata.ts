@@ -4,6 +4,7 @@ import { requireAuth } from "./lib/auth";
 import { components } from "./_generated/api";
 import { getThreadMetadata } from "@convex-dev/agent";
 import * as MessageMetadataModels from "./models/messageMetadataModels";
+import * as ThreadMetadataModels from "./models/threadMetadataModels";
 import errors from "./config/errorsConfig";
 
 export const getThreadMessageMetadata = query({
@@ -22,7 +23,15 @@ export const getThreadMessageMetadata = query({
       threadId,
     });
 
-    // Prepare
+    // Thread-level cost is accumulated in threadMetadata (agent usageHandler),
+    // not derived per message.
+    const threadMetadata = await ThreadMetadataModels.findByThreadId(ctx, {
+      threadId,
+    });
+    const totalCostUsd = threadMetadata?.totalUsageUsd ?? 0;
+
+    // Per-message usage/model come from messageMetadata. Derive last model used
+    // and the current context window from the latest assistant row.
     const assistantMessageMetadatas = messageMetadata.filter(
       (m) => m.role === "assistant",
     );
@@ -31,38 +40,9 @@ export const getThreadMessageMetadata = query({
         ? assistantMessageMetadatas[assistantMessageMetadatas.length - 1]
         : null;
 
-    let totalCostUsd: number;
-    let lastModelUsed: string | null | undefined;
-    let contextWindowUsed: number | null;
-
-    // Calculate costs and context
-    if (!lastAssistantMessageMetadata) {
-      totalCostUsd = 0;
-      lastModelUsed = null;
-      contextWindowUsed = null;
-    } else {
-      // Calculate total cost for the thread (only from assistant metadata)
-      totalCostUsd = assistantMessageMetadatas.reduce(
-        (sum, m) => sum + (m.costUsd ?? 0),
-        0,
-      );
-
-      // Get the last model used
-      lastModelUsed = lastAssistantMessageMetadata
-        ? lastAssistantMessageMetadata.model
-        : null;
-
-      // Get the used context window
-      contextWindowUsed = lastAssistantMessageMetadata
-        ? lastAssistantMessageMetadata.usage?.totalTokens
-        : null;
-    }
-
-    console.log({
-      totalCostUsd,
-      lastModelUsed,
-      contextWindowUsed,
-    });
+    const lastModelUsed = lastAssistantMessageMetadata?.model ?? null;
+    const contextWindowUsed =
+      lastAssistantMessageMetadata?.usage?.totalTokens ?? null;
 
     return {
       totalCostUsd,

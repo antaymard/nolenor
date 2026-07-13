@@ -1,13 +1,13 @@
 "use client";
 
-import type { ExtendConfig, Path } from "platejs";
+import type { ExtendConfig, Path, WithAnyKey } from "platejs";
 
 import {
   type BaseSuggestionConfig,
   BaseSuggestionPlugin,
 } from "@platejs/suggestion";
 import { isSlateEditor, isSlateString } from "platejs";
-import { toTPlatePlugin } from "platejs/react";
+import { toTPlatePlugin, type RenderNodeWrapper } from "platejs/react";
 
 import {
   SuggestionLeaf,
@@ -82,7 +82,9 @@ export const suggestionPlugin = toTPlatePlugin<SuggestionConfig>(
     },
   },
   render: {
-    belowNodes: SuggestionLineBreak as any,
+    belowNodes: SuggestionLineBreak as unknown as RenderNodeWrapper<
+      WithAnyKey<SuggestionConfig>
+    >,
     node: SuggestionLeaf,
   },
 });

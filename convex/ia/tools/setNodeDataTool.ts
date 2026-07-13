@@ -6,7 +6,7 @@ import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidat
 import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
 import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
 import z from "zod";
-import { ToolConfig, toolError } from "./toolHelpers";
+import { type ToolConfig, toolError } from "./toolHelpers";
 
 // Tool compaction config
 export const setNodeDataToolConfig: ToolConfig = {
@@ -32,7 +32,7 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      "Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: \"<markdown>\" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.",
+      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
     inputSchema: z.object({
       explanation: z
         .string()

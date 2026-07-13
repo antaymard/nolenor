@@ -1,4 +1,5 @@
 import { useStore } from "@xyflow/react";
+import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
@@ -26,8 +27,8 @@ export function MentionedNodeCard({
   const openWindow = useWindowsStore((state) => state.openWindow);
 
   const xyNode = nodes.find((n) => n.id === nodeId);
-  const nodeDataId = xyNode?.data?.nodeDataId as string | undefined;
-  const nodeData = nodeDataId ? nodeDatas.get(nodeDataId as any) : undefined;
+  const nodeDataId = xyNode?.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+  const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
 
   if (!xyNode || !nodeData) {
     // Pas de node correspondant : on tombe en fallback sur le texte d'origine

@@ -132,6 +132,43 @@ export const streamResponse = internalAction({
 
       // Ensure the stream is fully consumed to completion.
       await result.consumeStream();
+
+      // From the stream, record per-message usage + model in messageMetadata.
+      // Thread-level cost lives in threadMetadata (see usageHandler), so no
+      // per-message cost is stored here. Failures must not fail a turn whose
+      // response already streamed.
+      try {
+        // savedMessages can contain several docs across tool steps; the source
+        // of truth for this turn is the last assistant message.
+        const savedMessages = result.savedMessages ?? [];
+        const assistantMessages = savedMessages.filter(
+          (m) => m.message?.role === "assistant",
+        );
+        const assistantMessage =
+          assistantMessages[assistantMessages.length - 1] ??
+          savedMessages[savedMessages.length - 1];
+
+        if (assistantMessage) {
+          await ctx.runMutation(
+            internal.wrappers.messageMetadataWrappers.recordAssistantUsage,
+            {
+              userId: authUserId,
+              agentName: assistantMessage.agentName ?? "Nolë",
+              threadId,
+              messageId: assistantMessage._id,
+              model: assistantMessage.model,
+              provider: assistantMessage.provider ?? "openrouter",
+              order: result.order,
+              usage: await result.totalUsage,
+            },
+          );
+        }
+      } catch (metadataError) {
+        console.error(
+          "Failed to record assistant message metadata:",
+          metadataError,
+        );
+      }
     } catch (error) {
       if (isExpectedAbortedStreamError(error)) {
         return null;

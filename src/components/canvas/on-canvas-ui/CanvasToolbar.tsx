@@ -48,7 +48,7 @@ export default function CanvasToolbar({
   }
 
   return (
-    <div className="flex flex-col-reverse items-center gap-3">
+    <div className="flex flex-col-reverse items-center gap-3 animate-appear-up">
       <div className="canvas-ui-container px-0!">
         <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
           <DropdownMenuTrigger asChild>

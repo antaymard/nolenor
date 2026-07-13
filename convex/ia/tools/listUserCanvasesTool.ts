@@ -32,10 +32,11 @@ export default function listUserCanvasesTool({
           },
         );
         return canvases;
-      } catch (error: any) {
+      } catch (error) {
         console.error("🔧 ListUserCanvases error:", error);
+        const message = error instanceof Error ? error.message : String(error);
         return toolError(
-          `Error listing user canvases: ${error.message}. Please try again.`,
+          `Error listing user canvases: ${message}. Please try again.`,
         );
       }
     },

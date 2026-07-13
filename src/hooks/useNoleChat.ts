@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { optimisticallySendMessage } from "@convex-dev/agent/react";
 import { useReactFlow } from "@xyflow/react";
@@ -29,14 +29,23 @@ export function useNoleChat() {
     canvasId: Id<"canvases">;
   };
 
-  // Thread (with an in-session override to switch/select threads).
+  // Thread (with an in-session override to switch/select threads). The override
+  // lives in the Nolë store so any surface (incl. the AssociatedThreads modal)
+  // can open a thread in the panel; null falls back to the resolved initial.
   const {
     threadId: initialThreadId,
     isLoading,
     resetThread,
   } = useNoleThread({ canvasId });
-  const [overrideThreadId, setOverrideThreadId] = useState<string | null>(null);
+  const overrideThreadId = useNoleStore((state) => state.activeThreadId);
+  const setOverrideThreadId = useNoleStore((state) => state.setActiveThreadId);
   const threadId = overrideThreadId ?? initialThreadId;
+
+  // Le store survit au démontage du panel : on réinitialise l'override au
+  // changement de canvas pour ne pas garder actif un thread d'un autre canvas.
+  useEffect(() => {
+    setOverrideThreadId(null);
+  }, [canvasId, setOverrideThreadId]);
 
   // Composer input.
   const [userInput, setUserInput] = useState("");
@@ -55,8 +64,8 @@ export function useNoleChat() {
       | undefined,
   });
 
-  // Speech-to-text → composer input.
-  const speech = useNoleSpeechInput(setUserInput);
+  // Speech-to-text → composer input (live streaming, fallback batch).
+  const speech = useNoleSpeechInput(userInput, setUserInput);
 
   // Attachments (canvas nodes / position) from the Nolë store.
   const attachedNodes = useNoleStore((state) => state.attachedNodes);
@@ -181,7 +190,7 @@ export function useNoleChat() {
     setUserInput("");
     resetAttachments();
     await resetThread();
-  }, [resetAttachments, resetThread]);
+  }, [resetAttachments, resetThread, setOverrideThreadId]);
 
   const selectThread = useCallback(
     (selectedThreadId: string | null) => {
@@ -189,7 +198,7 @@ export function useNoleChat() {
       setUserInput("");
       resetAttachments();
     },
-    [resetAttachments],
+    [resetAttachments, setOverrideThreadId],
   );
 
   return {
@@ -226,6 +235,7 @@ export function useNoleChat() {
     sttBusy: speech.sttBusy,
     startSTT: speech.startSTT,
     stopSTT: speech.stopSTT,
+    micLevel: speech.micLevel,
     // dirty windows
     dirtyNodeIds,
     hasDirtyWindows,

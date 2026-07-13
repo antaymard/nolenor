@@ -1,7 +1,6 @@
 import { mutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
-import errors from "./config/errorsConfig";
 import { slideshowsValidator } from "./schemas/canvasesSchema";
 
 export const create = mutation({

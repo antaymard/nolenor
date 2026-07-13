@@ -26,3 +26,6 @@ dist-ssr
 .yarn/*
 !.yarn/releases
 !.yarn/plugins
+
+# PWA dev output (vite-plugin-pwa devOptions)
+dev-dist

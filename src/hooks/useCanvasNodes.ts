@@ -21,7 +21,10 @@ import type { CanvasNode } from "@/types";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { pendingAutoSizeIds } from "@/components/nodes/prebuilt-nodes/useTitleNodeSizing";
 
+const DEBUG_TITLE_SIZING = false;
+
 function logTitleSizing(event: string, payload?: unknown) {
+  if (!DEBUG_TITLE_SIZING) return;
   if (payload !== undefined) {
     console.log(`[CanvasNodes][TitleSizing] ${event}`, payload);
     return;

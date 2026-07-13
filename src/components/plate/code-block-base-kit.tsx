@@ -3,7 +3,9 @@ import {
   BaseCodeLinePlugin,
   BaseCodeSyntaxPlugin,
 } from "@platejs/code-block";
-import { all, createLowlight } from "lowlight";
+// `common` (~37 languages) instead of `all` (~190): saves ~1 MB of
+// highlight.js grammars in the bundle; unknown languages render as plain text.
+import { common, createLowlight } from "lowlight";
 
 import {
   CodeBlockElementStatic,
@@ -11,7 +13,7 @@ import {
   CodeSyntaxLeafStatic,
 } from "@/components/plate/code-block-node-static";
 
-const lowlight = createLowlight(all);
+const lowlight = createLowlight(common);
 
 export const BaseCodeBlockKit = [
   BaseCodeBlockPlugin.configure({

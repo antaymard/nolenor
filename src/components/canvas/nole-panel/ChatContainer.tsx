@@ -125,6 +125,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
         isRecording={chat.isRecording}
         isTranscribing={chat.isTranscribing}
         sttBusy={chat.sttBusy}
+        micLevel={chat.micLevel}
         dirtyNodeIds={chat.dirtyNodeIds}
         hasDirtyWindows={chat.hasDirtyWindows}
       />

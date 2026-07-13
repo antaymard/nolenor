@@ -54,7 +54,6 @@ export default function ThreadStatsBadge({
                   <span>{getModelLabel(m.model, modelOptions)}</span>
                   <span className="text-slate-300">
                     {formatTokens(m.totalTokens)} tk
-                    {m.costUsd > 0 ? ` · ${formatCost(m.costUsd)}` : ""}
                   </span>
                 </div>
               ))}

@@ -1,4 +1,12 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import {
+  useEffect,
+  useRef,
+  useCallback,
+  useState,
+  useMemo,
+  lazy,
+  Suspense,
+} from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { cn } from "@/lib/utils";
 import {
@@ -14,20 +22,24 @@ import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNodeData } from "@/hooks/useNodeData";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { X, Minus, Save, Maximize2 } from "lucide-react";
+import { Spinner } from "@/components/shadcn/spinner";
 import {
   TbDotsVertical,
   TbHistory,
   TbLocation,
+  TbMessageSearch,
   TbRefresh,
 } from "react-icons/tb";
 import { useReactFlow } from "@xyflow/react";
 import { useGoToNode } from "@/hooks/useGoToNode";
-import DocumentWindow from "./prebuilt/DocumentWindow";
-import EmbedWindow from "./prebuilt/EmbedWindow";
-import ImageWindow from "./prebuilt/ImageWindow";
-import PdfWindow from "./prebuilt/PdfWindow";
-import TableWindow from "./prebuilt/TableWindow";
-import AppWindow from "./prebuilt/AppWindow";
+// Window bodies are lazy-loaded: they pull heavy dependencies (full Plate
+// editor, pdfjs, tanstack-table…) that shouldn't weigh down the canvas chunk.
+const DocumentWindow = lazy(() => import("./prebuilt/DocumentWindow"));
+const EmbedWindow = lazy(() => import("./prebuilt/EmbedWindow"));
+const ImageWindow = lazy(() => import("./prebuilt/ImageWindow"));
+const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
+const TableWindow = lazy(() => import("./prebuilt/TableWindow"));
+const AppWindow = lazy(() => import("./prebuilt/AppWindow"));
 import { WindowFrameContext } from "./WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
@@ -46,10 +58,33 @@ import {
   DialogDescription,
 } from "../shadcn/dialog";
 import VersionHistoryViewer from "./VersionHistoryViewer";
+import AssociatedThreadsViewer from "./AssociatedThreadsViewer";
 
 function WindowContent({ openedWindow }: { openedWindow: OpenedWindow }) {
   const { nodeType, xyNodeId, nodeDataId } = openedWindow;
 
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Spinner className="size-5 text-muted-foreground" />
+        </div>
+      }
+    >
+      <WindowBody
+        nodeType={nodeType}
+        xyNodeId={xyNodeId}
+        nodeDataId={nodeDataId}
+      />
+    </Suspense>
+  );
+}
+
+function WindowBody({
+  nodeType,
+  xyNodeId,
+  nodeDataId,
+}: Pick<OpenedWindow, "nodeType" | "xyNodeId" | "nodeDataId">) {
   switch (nodeType) {
     case "document":
       return <DocumentWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
@@ -121,6 +156,7 @@ export default function WindowFrame({
 
   const [isDraggingOrResizing, setIsDraggingOrResizing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useHotkey(
@@ -487,6 +523,13 @@ export default function WindowFrame({
                   <TbHistory size={13} />
                   History
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center text-sm"
+                  onSelect={() => setAssociatedThreadsOpen(true)}
+                >
+                  <TbMessageSearch size={13} />
+                  Associated threads
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <button
@@ -553,7 +596,22 @@ export default function WindowFrame({
           </DialogHeader>
           <VersionHistoryViewer
             nodeDataId={nodeDataId}
-            onRestored={() => setHistoryOpen(false)}
+            closeModale={() => setHistoryOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={associatedThreadsOpen}
+        onOpenChange={setAssociatedThreadsOpen}
+      >
+        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Associated threads</DialogTitle>
+            <DialogDescription>{title ?? "—"}</DialogDescription>
+          </DialogHeader>
+          <AssociatedThreadsViewer
+            nodeDataId={nodeDataId}
+            closeModale={() => setAssociatedThreadsOpen(false)}
           />
         </DialogContent>
       </Dialog>

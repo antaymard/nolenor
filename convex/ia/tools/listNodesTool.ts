@@ -1,12 +1,12 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../_generated/api";
-import { Id } from "../../_generated/dataModel";
+import { type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeDataConfig } from "../../config/nodeConfig";
 import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
-import { toolError, ToolConfig } from "./toolHelpers";
+import { toolError, type ToolConfig } from "./toolHelpers";
 
 export const listNodesToolConfig: ToolConfig = {
   name: "list_nodes",

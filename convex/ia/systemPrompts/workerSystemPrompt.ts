@@ -1,14 +1,13 @@
 // Bien demander de retourner les moyens utilisés pour faire les actions, et pas seulement les résultats. Par exemple, si tu dois créer un rectangle rouge, dis "J'utilise l'outil de dessin pour créer un rectangle rouge" au lieu de simplement "J'ai créé un rectangle rouge". Cela permettra à l'utilisateur de comprendre comment tu as accompli la tâche et d'apprendre de tes actions.
 
-import { ActionCtx } from "../../_generated/server";
-import { Id } from "../../_generated/dataModel";
-import { internal } from "../../_generated/api";
-import { nodeTypesPresentation } from "./systemParts";
+import {type ActionCtx} from "../../_generated/server";
+import {type Id} from "../../_generated/dataModel";
+import {internal} from "../../_generated/api";
+import {nodeTypesPresentation} from "./systemParts";
 
 export default async function generateWorkerSystemPrompt({
   ctx,
   canvasId,
-  userId,
 }: {
   ctx: ActionCtx;
   canvasId: Id<"canvases">;

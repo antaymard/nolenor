@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { components, internal } from "./_generated/api";
+import { getThreadMetadata } from "@convex-dev/agent";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as NodeDataModels from "./models/nodeDataModels";
 import * as NodeDataVersionModels from "./models/nodeDataVersionModels";
@@ -108,5 +109,77 @@ export const pruneExpired = internalMutation({
       );
     }
     return null;
+  },
+});
+
+export const getThreadsThatCreatedVersions = query({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+  },
+  handler: async (ctx, { nodeDataId }) => {
+    const authUserId = await optionalAuth(ctx);
+
+    // Accès aligné sur listByNodeDataId : fallback sur le canvas de la dernière
+    // version si le node a été supprimé (les versions lui survivent).
+    const nodeData = await ctx.db.get(nodeDataId);
+    let canvasId = nodeData?.canvasId;
+    if (!canvasId) {
+      const latest = await ctx.db
+        .query("nodeDataVersions")
+        .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+        .order("desc")
+        .first();
+      if (!latest) return [];
+      canvasId = latest.canvasId;
+    }
+    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer", {
+      allowPublic: true,
+    });
+
+    const versions = await NodeDataVersionModels.listByNodeDataId(ctx, {
+      nodeDataId,
+    });
+
+    if (!versions || !versions.length) return [];
+
+    // threadIds uniques des versions créées par un agent. flatMap (et non
+    // filter().map()) pour que TS narrow le variant `agent` : `threadId`
+    // n'existe pas sur les variants `user`/`system` de l'union actor.
+    const threadIds = [
+      ...new Set(
+        versions.flatMap((version) =>
+          version.actor.type === "agent" && version.actor.threadId
+            ? [version.actor.threadId]
+            : [],
+        ),
+      ),
+    ];
+
+    if (!threadIds.length) return [];
+
+    const threads = await Promise.all(
+      threadIds.map((threadId) =>
+        getThreadMetadata(ctx, components.agent, { threadId }),
+      ),
+    );
+
+    // Pas de filtrage par propriétaire du thread : sur un canvas partagé, un
+    // viewer doit voir tous les threads IA ayant modifié le node. On écarte
+    // seulement les threads supprimés (null).
+    return threads.flatMap((thread) =>
+      thread === null
+        ? []
+        : [
+            {
+              _id: thread._id,
+              _creationTime: thread._creationTime,
+              title: thread.title ?? null,
+              summary: thread.summary ?? null,
+              // Seuls les threads de l'utilisateur courant sont réellement
+              // ouvrables (listMessages/getThreadInfo exigent l'appartenance).
+              isOwner: authUserId !== null && thread.userId === authUserId,
+            },
+          ],
+    );
   },
 });

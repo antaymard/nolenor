@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { TbHistory, TbTrash } from "react-icons/tb";
+import { TbMessageSearch, TbTrash } from "react-icons/tb";
 import { toastError } from "@/components/utils/errorUtils";
 
 interface ThreadSelectorProps {
@@ -32,7 +32,7 @@ export default function ThreadSelector({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon-sm" className="text-slate-400">
-          <TbHistory size={16} />
+          <TbMessageSearch size={16} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

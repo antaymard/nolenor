@@ -14,7 +14,10 @@ import type { Id } from "@/../convex/_generated/dataModel";
 const MIN_DELTA = 0.5;
 const PERSIST_DEBOUNCE_MS = 120;
 
+const DEBUG_TITLE_SIZING = false;
+
 function logTitleSizing(nodeId: string, event: string, payload?: unknown) {
+  if (!DEBUG_TITLE_SIZING) return;
   if (payload !== undefined) {
     console.log(`[TitleNodeSizing][${nodeId}] ${event}`, payload);
     return;

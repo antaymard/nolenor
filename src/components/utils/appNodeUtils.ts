@@ -1,6 +1,7 @@
 import { getNodeDataTitle } from "@/components/utils/nodeDataDisplayUtils";
 import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
 import { plateJsonToMarkdown } from "@/lib/plateMarkdownConverter";
+import type { NodeData } from "@/types/convex";
 
 export type SourceNode = {
   id: string;
@@ -28,19 +29,11 @@ export type SourceNode = {
 };
 
 export function resolveSourceNode(
-  nodeData: Record<string, unknown> & {
-    type: string;
-    values?: Record<string, unknown>;
-  },
+  nodeData: NodeData,
   nodeId: string,
 ): SourceNode {
   const type = nodeData.type;
-  const name = getNodeDataTitle(
-    nodeData as Record<string, unknown> & {
-      type: string;
-      values?: Record<string, unknown>;
-    },
-  );
+  const name = getNodeDataTitle(nodeData);
   const base: SourceNode = { id: nodeId, type, name };
 
   switch (type) {

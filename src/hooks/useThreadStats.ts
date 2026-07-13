@@ -15,7 +15,6 @@ export type ThreadStats = {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
-    costUsd: number;
   }[];
 };
 
@@ -43,7 +42,6 @@ export function useThreadStats({
         inputTokens: number;
         outputTokens: number;
         totalTokens: number;
-        costUsd: number;
       }
     >();
 
@@ -55,13 +53,11 @@ export function useThreadStats({
         inputTokens: 0,
         outputTokens: 0,
         totalTokens: 0,
-        costUsd: 0,
       };
       perModelMap.set(modelKey, {
         inputTokens: prev.inputTokens + row.usage.inputTokens,
         outputTokens: prev.outputTokens + row.usage.outputTokens,
         totalTokens: prev.totalTokens + row.usage.totalTokens,
-        costUsd: prev.costUsd + (row.costUsd ?? 0),
       });
     }
 

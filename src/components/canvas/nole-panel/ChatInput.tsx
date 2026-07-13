@@ -44,6 +44,7 @@ type ChatInputProps = {
   isRecording: boolean;
   isTranscribing: boolean;
   sttBusy: boolean;
+  micLevel: number;
   dirtyNodeIds: readonly string[];
   hasDirtyWindows: boolean;
 };
@@ -67,6 +68,7 @@ export default function ChatInput({
   isRecording,
   isTranscribing,
   sttBusy,
+  micLevel,
   dirtyNodeIds,
   hasDirtyWindows,
 }: ChatInputProps) {
@@ -108,7 +110,11 @@ export default function ChatInput({
               triggerClassName="h-8 px-2 text-xs gap-1"
               iconSize={10}
             />
-            <MicStatus isRecording={isRecording} isTranscribing={isTranscribing} />
+            <MicStatus
+              isRecording={isRecording}
+              isTranscribing={isTranscribing}
+              level={micLevel}
+            />
           </div>
 
           <div className="flex items-center gap-2">
@@ -143,14 +149,16 @@ export default function ChatInput({
 function MicStatus({
   isRecording,
   isTranscribing,
+  level,
 }: {
   isRecording: boolean;
   isTranscribing: boolean;
+  level: number;
 }) {
   if (isRecording) {
     return (
       <div className="flex items-center gap-1.5 text-red-500 text-xs">
-        <SoundWaveAnimation />
+        <SoundWaveAnimation level={level} />
         <span>Écoute...</span>
       </div>
     );

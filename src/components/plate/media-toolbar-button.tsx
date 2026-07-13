@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { isUrl, KEYS } from "platejs";
 import { useEditorRef } from "platejs/react";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 import { useFilePicker } from "use-file-picker";
 
 import {

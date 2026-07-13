@@ -14,7 +14,7 @@ function NodeFrame({
   children,
   resizable = true,
 }: {
-  xyNode: Node<any>;
+  xyNode: Node;
   children: React.ReactNode;
   resizable?: boolean;
 }) {
@@ -32,7 +32,7 @@ function NodeFrame({
       openWindow({
         xyNodeId: xyNode.id,
         nodeDataId,
-        nodeType: nodeType as any,
+        nodeType,
       });
     }
   }, [xyNode.data?.nodeDataId, xyNode.id, nodeType, openWindow]);
@@ -61,7 +61,7 @@ function NodeFrame({
       <div
         className={cn(
           "relative rounded-[5px] text-card-foreground",
-          "group h-full flex flex-col duration-150 border",
+          "group h-full flex flex-col duration-150 border animate-node-appear",
           nodeColor.nodeBg,
           nodeColor.nodeBorder,
           isAttachedToNole &&

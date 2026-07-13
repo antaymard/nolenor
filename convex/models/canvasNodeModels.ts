@@ -5,7 +5,6 @@ import errors from "../config/errorsConfig";
 import { nodeDataConfig } from "../config/nodeConfig";
 import { internal } from "../_generated/api";
 import * as SearchableChunkModels from "./searchableChunkModels";
-import { th } from "zod/v4/locales";
 
 type CanvasNode = NonNullable<Doc<"canvases">["nodes"]>[number];
 
@@ -126,12 +125,6 @@ export async function updatePositionOrDimensions(
     nodes: updatedNodes,
     updatedAt: Date.now(),
   });
-
-  const changedNodeIds = nodeChanges.map((change) => change.id).join(", ");
-
-  // console.log(
-  //   `✅ Updated position/dimensions for ${nodeChanges.length} nodes in canvas ${canvasId} (nodeIds: ${changedNodeIds})`,
-  // );
 
   return true;
 }

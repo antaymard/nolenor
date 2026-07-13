@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Save } from "lucide-react";
-import { TbArrowLeft, TbRefresh } from "react-icons/tb";
+import {
+  TbArrowLeft,
+  TbRefresh,
+  TbDotsVertical,
+  TbHistory,
+  TbMessageSearch,
+} from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
+import { Spinner } from "@/components/shadcn/spinner";
 import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
@@ -18,13 +25,39 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/plate/alert-dialog";
-import DocumentWindow from "@/components/windows/prebuilt/DocumentWindow";
-import EmbedWindow from "@/components/windows/prebuilt/EmbedWindow";
-import ImageWindow from "@/components/windows/prebuilt/ImageWindow";
-import PdfWindow from "@/components/windows/prebuilt/PdfWindow";
-import TableWindow from "@/components/windows/prebuilt/TableWindow";
-import AppWindow from "@/components/windows/prebuilt/AppWindow";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/shadcn/dialog";
+import VersionHistoryViewer from "@/components/windows/VersionHistoryViewer";
+import AssociatedThreadsViewer from "@/components/windows/AssociatedThreadsViewer";
+// Same lazy boundaries as WindowFrame: keep the heavy editors out of the
+// canvas chunk on mobile too.
+const DocumentWindow = lazy(
+  () => import("@/components/windows/prebuilt/DocumentWindow"),
+);
+const EmbedWindow = lazy(
+  () => import("@/components/windows/prebuilt/EmbedWindow"),
+);
+const ImageWindow = lazy(
+  () => import("@/components/windows/prebuilt/ImageWindow"),
+);
+const PdfWindow = lazy(() => import("@/components/windows/prebuilt/PdfWindow"));
+const TableWindow = lazy(
+  () => import("@/components/windows/prebuilt/TableWindow"),
+);
+const AppWindow = lazy(() => import("@/components/windows/prebuilt/AppWindow"));
 import { cn } from "@/lib/utils";
+import { useMobileNoleChat } from "./mobileNoleContextValue";
 
 export default function MobileNodeOverlay() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
@@ -46,6 +79,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
   const closeWindow = useWindowsStore((s) => s.closeWindow);
   const addDirtyNode = useWindowsStore((s) => s.addDirtyNode);
   const removeDirtyNode = useWindowsStore((s) => s.removeDirtyNode);
+  const { selectThread } = useMobileNoleChat();
 
   const [isDirty, setDirty] = useState(false);
   const [saveHandler, setSaveHandlerState] = useState<(() => void) | null>(
@@ -55,6 +89,8 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
     (() => void) | null
   >(null);
   const [showBackConfirm, setShowBackConfirm] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
 
   const title = useNodeDataTitle(nodeDataId);
   const nodeData = useNodeData(nodeDataId);
@@ -202,6 +238,34 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
                 Save
               </Button>
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="More options"
+                  className="h-10 w-10"
+                >
+                  <TbDotsVertical size={18} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  className="flex items-center text-sm"
+                  onSelect={() => setHistoryOpen(true)}
+                >
+                  <TbHistory size={13} />
+                  History
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center text-sm"
+                  onSelect={() => setAssociatedThreadsOpen(true)}
+                >
+                  <TbMessageSearch size={13} />
+                  Associated threads
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <NodeContent
@@ -212,11 +276,56 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
           </div>
         </div>
       </div>
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="flex h-[80vh] max-h-175 flex-col">
+          <DialogHeader>
+            <DialogTitle>Version history</DialogTitle>
+            <DialogDescription>{title ?? "—"}</DialogDescription>
+          </DialogHeader>
+          <VersionHistoryViewer
+            nodeDataId={nodeDataId}
+            closeModale={() => setHistoryOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={associatedThreadsOpen}
+        onOpenChange={setAssociatedThreadsOpen}
+      >
+        <DialogContent className="flex h-[80vh] max-h-175 flex-col">
+          <DialogHeader>
+            <DialogTitle>Associated threads</DialogTitle>
+            <DialogDescription>{title ?? "—"}</DialogDescription>
+          </DialogHeader>
+          <AssociatedThreadsViewer
+            nodeDataId={nodeDataId}
+            closeModale={() => setAssociatedThreadsOpen(false)}
+            onOpenThread={(threadId) => {
+              selectThread(threadId);
+              closeWindow(xyNodeId);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </WindowFrameContext.Provider>
   );
 }
 
-function NodeContent({
+function NodeContent(props: Pick<OpenedWindow, "xyNodeId" | "nodeDataId" | "nodeType">) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Spinner className="size-5 text-muted-foreground" />
+        </div>
+      }
+    >
+      <NodeContentBody {...props} />
+    </Suspense>
+  );
+}
+
+function NodeContentBody({
   xyNodeId,
   nodeDataId,
   nodeType,

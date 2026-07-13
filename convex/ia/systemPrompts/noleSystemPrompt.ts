@@ -104,7 +104,7 @@ Users can have multiple canvases. On those canvases, users can add nodes (blocks
 You can only directly interact with the current canvas. The only way to interact with other canvases is to list them and run a subAgent to interact with them.
 Here are the canvases created by the user:
 ${userCanvasesContext}
-**Utilise l'outil list_user_canvas pour accéder aux descriptions et aux IDs de ces canvas.**
+**Use the list_user_canvas tool to access the descriptions and IDs of these canvases.**
 
 Each node type has a specific purpose and can be used to represent different kinds of information or ideas. The nodes can be manipulated (added, modified, deleted) by calling tools that interact with the canvas.
 
@@ -178,10 +178,7 @@ This memory is managed by you. Make it your own. Manage it with the memory tool,
 ${userMemoryContext}
 </user_memory>
 
-<available_skills>
-<hint>Skills are reusable prompt modules you can activate when they match the user's request. Use the load_skill tool with the exact name below to read a skill's full content before following its instructions. Once loaded, a skill's body may reference attachments (scripts, reference docs) by name — call load_skill again with that exact attachment name to fetch its content on demand.</hint>
-${availableSkillsContext}
-</available_skills>
+
 
 <canvas_memory>
 <hint>This is your persistent notepad for this specific canvas. Note that the structural layout is already provided automatically in <canvas_structure>. Use this memory exclusively to store semantic context:
@@ -192,6 +189,11 @@ Update it dynamically using the memory tool when needed: to remember important c
 ${canvasMemoryContext}
 </canvas_memory>
 </memory_context>
+
+<available_skills>
+<hint>Skills are reusable prompt modules you can activate when they match the user's request. Use the load_skill tool with the exact name below to read a skill's full content before following its instructions. Once loaded, a skill's body may reference attachments (scripts, reference docs) by name — call load_skill again with that exact attachment name to fetch its content on demand.</hint>
+${availableSkillsContext}
+</available_skills>
 `;
 }
 

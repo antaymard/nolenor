@@ -34,6 +34,8 @@ import {
 } from "react";
 import type { CanvasNode } from "@/types/convex";
 import { nodeTypes } from "@/components/nodes/nodeTypes";
+import { edgeTypes } from "@/components/edges/edgeTypes";
+import { useEdgeEditorStore } from "@/stores/edgeEditorStore";
 import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
 import WindowsContainer from "@/components/windows/WindowsContainer";
 import "@xyflow/react/dist/style.css";
@@ -241,6 +243,15 @@ function CanvasContent({
   // Canvas edges management
   const { edges, handleEdgeChange } = useCanvasEdges(canvasId, canvas?.edges);
 
+  // Double-click an edge → enter label edit mode (handled inside CustomEdge
+  // via the edgeEditorStore).
+  const onEdgeDoubleClick = useCallback(
+    (_e: MouseEvent, edge: { id: string }) => {
+      useEdgeEditorStore.getState().setEditingEdgeId(edge.id);
+    },
+    [],
+  );
+
   // ======= Put canvas in store, if it changes (besides nodes and edges)
   // Keep only non-flow fields in canvas store (no nodes/edges)
   const canvasForStore = useMemo(() => {
@@ -338,12 +349,14 @@ function CanvasContent({
         selectionMode={SelectionMode.Partial}
         selectionOnDrag={!panWithFinger}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onPaneClick={onPaneClick}
         onPaneContextMenu={onPaneContextMenu}
         onNodeContextMenu={onNodeContextMenu}
         onNodeClick={onNodeClick}
         onSelectionContextMenu={onSelectionContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
+        onEdgeDoubleClick={onEdgeDoubleClick}
         deleteKeyCode={null}
         nodes={nodes}
         edges={edges}

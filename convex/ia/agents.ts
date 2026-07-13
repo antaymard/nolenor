@@ -12,11 +12,11 @@ import { generateSupervisorSystemPrompt } from "./systemPrompts/supervisorSystem
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "DeepSeek V4 Flash",
-    value: "deepseek/deepseek-v4-flash",
-    price: "0.10_0.20",
+    label: "Tencent Hy3",
+    value: "tencent/hy3",
+    price: "0.14_0.58",
     isMultimodal: false,
-    maxContext: 1000000,
+    maxContext: 256000,
   },
   {
     label: "DeepSeek V4 Pro",
@@ -32,7 +32,6 @@ export const chatModelOptions = [
     isMultimodal: false,
     maxContext: 1000000,
   },
-
   {
     label: "Claude Haiku 4.5",
     value: "anthropic/claude-haiku-4.5",
@@ -41,22 +40,15 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Claude Sonnet 4.6",
-    value: "anthropic/claude-sonnet-4.6",
-    price: "3_15",
+    label: "Claude Sonnet 5",
+    value: "anthropic/claude-sonnet-5",
+    price: "2_10",
     isMultimodal: true,
     maxContext: 1000000,
   },
   {
-    label: "Claude Opus 4.8",
-    value: "~anthropic/claude-opus-latest",
-    price: "5_25",
-    isMultimodal: true,
-    maxContext: 1000000,
-  },
-  {
-    label: "Fugu Ultra",
-    value: "sakana/fugu-ultra",
+    label: "GPT-5.6 Sol Pro",
+    value: "openai/gpt-5.6-sol-pro",
     price: "5_30",
     isMultimodal: true,
     maxContext: 1000000,
@@ -88,7 +80,7 @@ export function isModelMultimodal(model: LanguageModelV3): boolean {
 
 const defaultModels = {
   nole: getChatModel(defaultChatModelValue),
-  worker: getChatModel("deepseek/deepseek-v4-flash"),
+  worker: getChatModel("deepseek/deepseek-v4-pro"),
   fast: openrouter("mistralai/mistral-small-2603"),
 };
 

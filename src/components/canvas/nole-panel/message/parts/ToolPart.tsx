@@ -1,10 +1,10 @@
 import { memo, useMemo, useState } from "react";
 import { RiLoaderLine } from "react-icons/ri";
 import { TbAlertCircle, TbChevronDown, TbTool } from "react-icons/tb";
-import { matchLlmIdsInText } from "@/../convex/lib/llmId";
 import { MentionedNodeCard } from "@/components/canvas/nole-panel/MentionedNodeCard";
 import { cn } from "@/lib/utils";
 import {
+  extractToolNodeIds,
   getToolExplanation,
   getToolFallbackLabel,
   stringifyForDebug,
@@ -37,10 +37,10 @@ export const ToolPart = memo(function ToolPart({
   const isError = state === "output-error";
   const hasDebugData = input !== undefined || output !== undefined || !!error;
 
-  const referencedNodeIds = useMemo(() => {
-    const text = `${JSON.stringify(input ?? {})} ${JSON.stringify(output ?? {})}`;
-    return matchLlmIdsInText(text);
-  }, [input, output]);
+  const referencedNodeIds = useMemo(
+    () => extractToolNodeIds(name, input, output),
+    [name, input, output],
+  );
 
   return (
     <div className="py-2 rounded border border-slate-300 bg-slate-50 p-2 text-xs text-slate-700">

@@ -33,13 +33,6 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Claude Haiku 4.5",
-    value: "anthropic/claude-haiku-4.5",
-    price: "1_5",
-    isMultimodal: true,
-    maxContext: 1000000,
-  },
-  {
     label: "Claude Sonnet 5",
     value: "anthropic/claude-sonnet-5",
     price: "2_10",

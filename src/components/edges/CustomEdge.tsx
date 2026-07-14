@@ -73,6 +73,7 @@ function CustomEdge({
   targetPosition,
   markerStart,
   markerEnd,
+  selected,
 }: EdgeProps) {
   const edgeData = (data ?? {}) as EdgeCustomData;
   const { setEdges, getEdge } = useReactFlow();
@@ -212,15 +213,19 @@ function CustomEdge({
           )
         )}
 
-        {bendPoints.map((bp) => (
-          <EdgeBendHandle
-            key={bp.id}
-            bendPoint={bp}
-            onDrag={(x, y) => handleBendDrag(bp.id, x, y)}
-            onDragEnd={handleBendDragEnd}
-            onRemove={() => handleBendRemove(bp.id)}
-          />
-        ))}
+        {selected && bendPoints.length > 0 && (
+          <>
+            {bendPoints.map((bp) => (
+              <EdgeBendHandle
+                key={bp.id}
+                bendPoint={bp}
+                onDrag={(x, y) => handleBendDrag(bp.id, x, y)}
+                onDragEnd={handleBendDragEnd}
+                onRemove={() => handleBendRemove(bp.id)}
+              />
+            ))}
+          </>
+        )}
       </EdgeLabelRenderer>
     </>
   );

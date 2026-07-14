@@ -81,7 +81,7 @@ export default function EdgeBendHandle({
           cursor: "grab",
           touchAction: "none",
         }}
-        className="nodrag nopan hover:scale-125 active:cursor-grabbing transition-transform"
+        className="nodrag nopan hover:border-blue-600 hover:bg-blue-50 hover:shadow-md active:cursor-grabbing transition-colors"
         title="Drag to reshape · Right-click to remove"
       />
 

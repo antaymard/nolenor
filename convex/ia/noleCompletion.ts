@@ -45,18 +45,18 @@ export const streamResponse = internalAction({
       ctx,
     });
 
-    // Init composio
-    let composioTools = {};
-    try {
-      const composio = new Composio({ provider: new VercelProvider() });
-      const session = await composio.create(authUserId);
-      composioTools = sanitizeComposioTools(await session.tools());
-    } catch (error) {
-      console.warn(
-        "Composio unavailable, continuing without external tools:",
-        error,
-      );
-    }
+    // // Init composio
+    // let composioTools = {};
+    // try {
+    //   const composio = new Composio({ provider: new VercelProvider() });
+    //   const session = await composio.create(authUserId);
+    //   composioTools = sanitizeComposioTools(await session.tools());
+    // } catch (error) {
+    //   console.warn(
+    //     "Composio unavailable, continuing without external tools:",
+    //     error,
+    //   );
+    // }
 
     // Create agents and give it extra tools
     const noleAgent = createNoleAgent({
@@ -65,7 +65,7 @@ export const streamResponse = internalAction({
         authUserId,
         canvasId,
       },
-      extraTools: composioTools,
+      // extraTools: composioTools,
     });
 
     // B) Retrieve the immediately previous message in the thread.

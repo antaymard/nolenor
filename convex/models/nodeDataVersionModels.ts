@@ -7,7 +7,7 @@ import type {
 
 // Un même acteur qui édite en continu ne produit au plus qu'un checkpoint par
 // fenêtre : les versions matérialisent des sessions d'édition, pas des writes.
-export const COALESCE_WINDOW_MS = 3 * 60 * 1000; // 3 min
+export const COALESCE_WINDOW_MS = 15 * 60 * 1000; // 3 min
 
 // App nodes uniquement :
 // - NOISE_KEYS : clés opérationnelles (bump de version d'iframe, erreurs

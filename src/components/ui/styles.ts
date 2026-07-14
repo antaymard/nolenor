@@ -6,6 +6,7 @@ const colors = {
     nodeBorder: "border-blue-600",
     accentBg: "bg-blue-500",
     textColor: "text-blue-600",
+    hex: "#3b82f6",
   },
   red: {
     label: "Red",
@@ -14,6 +15,7 @@ const colors = {
     accentBg: "bg-red-500",
     nodeBorder: "border-red-600",
     textColor: "text-red-600",
+    hex: "#ef4444",
   },
   yellow: {
     label: "Yellow",
@@ -22,6 +24,7 @@ const colors = {
     accentBg: "bg-yellow-500",
     nodeBorder: "border-yellow-600",
     textColor: "text-yellow-600",
+    hex: "#eab308",
   },
   green: {
     label: "Green",
@@ -30,6 +33,7 @@ const colors = {
     nodeBorder: "border-green-600",
     accentBg: "bg-green-500",
     textColor: "text-green-600",
+    hex: "#22c55e",
   },
   pink: {
     label: "Pink",
@@ -38,6 +42,7 @@ const colors = {
     nodeBorder: "border-pink-600",
     accentBg: "bg-pink-500",
     textColor: "text-pink-600",
+    hex: "#ec4899",
   },
   orange: {
     label: "Orange",
@@ -46,6 +51,7 @@ const colors = {
     nodeBorder: "border-orange-600",
     accentBg: "bg-orange-500",
     textColor: "text-orange-600",
+    hex: "#f97316",
   },
   purple: {
     label: "Purple",
@@ -54,6 +60,7 @@ const colors = {
     nodeBorder: "border-purple-600",
     accentBg: "bg-purple-500",
     textColor: "text-purple-600",
+    hex: "#a855f7",
   },
   default: {
     label: "Default",
@@ -62,6 +69,7 @@ const colors = {
     nodeBorder: "border-slate-200",
     accentBg: "bg-slate-500",
     textColor: "text-slate-600",
+    hex: "#94a3b8",
   },
   transparent: {
     label: "Transparent",
@@ -70,6 +78,7 @@ const colors = {
     nodeBorder: "border-transparent",
     textColor: "text-slate-600",
     accentBg: "bg-transparent",
+    hex: "#cbd5e1",
   },
 } as const;
 

@@ -4,6 +4,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { api } from "@/../convex/_generated/api";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { fromCanvasNodesToXyNodes } from "@/lib/node-types-converter";
+import { injectMarkerColor } from "@/components/edges/edgeStyleUtils";
 import type { CanvasNode } from "@/types";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useCanvasStore } from "@/stores/canvasStore";
@@ -75,9 +76,9 @@ function MobileCanvasContent({ canvasId }: { canvasId: Id<"canvases"> }) {
       : [];
     const state = flowStore.getState();
     state.setNodes(xyNodes);
-    const edges = (canvas?.edges ?? []) as Parameters<
-      typeof state.setEdges
-    >[0];
+    const edges = injectMarkerColor(
+      (canvas?.edges ?? []) as Parameters<typeof state.setEdges>[0],
+    );
     state.setEdges(edges);
   }, [canvas?.nodes, canvas?.edges, flowStore]);
 

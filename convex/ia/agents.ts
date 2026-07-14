@@ -12,11 +12,11 @@ import { generateSupervisorSystemPrompt } from "./systemPrompts/supervisorSystem
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "Tencent Hy3",
-    value: "tencent/hy3",
-    price: "0.14_0.58",
+    label: "Deepseek v4 Flash",
+    value: "deepseek/deepseek-v4-flash",
+    price: "0.09_0.18",
     isMultimodal: false,
-    maxContext: 256000,
+    maxContext: 1000000,
   },
   {
     label: "DeepSeek V4 Pro",

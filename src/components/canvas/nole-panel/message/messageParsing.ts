@@ -1,4 +1,5 @@
 import type { UIMessage } from "@convex-dev/agent/react";
+import { matchesLlmIdFormat } from "@/../convex/lib/llmId";
 
 /** Lifecycle state of a `tool-*` message part. */
 export type ToolPartState =
@@ -88,4 +89,39 @@ export function stringifyForDebug(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+/**
+ * Extracts node IDs from a tool call's input args and (for `create_node`)
+ * its output, so the UI can render node pills. Only known nodeId-bearing
+ * fields are inspected — no regex sweep over the full JSON — to avoid
+ * false positives from titles, content, or JSON keys.
+ */
+export function extractToolNodeIds(
+  name: string,
+  input: unknown,
+  output: unknown,
+): string[] {
+  const ids = new Set<string>();
+
+  const pushIfValid = (value: unknown) => {
+    if (typeof value === "string" && value && matchesLlmIdFormat(value)) {
+      ids.add(value);
+    }
+  };
+
+  if (isRecord(input)) {
+    pushIfValid(input.nodeId);
+    if (Array.isArray(input.nodeIds)) {
+      input.nodeIds.forEach(pushIfValid);
+    }
+    pushIfValid(input.sourceNodeId);
+    pushIfValid(input.targetNodeId);
+  }
+
+  if (name === "create_node" && isRecord(output)) {
+    pushIfValid(output.nodeId);
+  }
+
+  return [...ids];
 }

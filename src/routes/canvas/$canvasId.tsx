@@ -43,6 +43,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import CanvasSidebar from "@/components/canvas/CanvasSidebar";
 import { useCanvasNodes } from "@/hooks/useCanvasNodes";
 import { useCanvasEdges } from "@/hooks/useCanvasEdges";
+import { injectMarkerColor } from "@/components/edges/edgeStyleUtils";
 import { Spinner } from "@/components/shadcn/spinner";
 import NoleCanvasPanel from "@/components/canvas/NoleCanvasPanel";
 import MinimizedWindowsStack from "@/components/windows/MinimizedWindowsStack";
@@ -243,6 +244,12 @@ function CanvasContent({
   // Canvas edges management
   const { edges, handleEdgeChange } = useCanvasEdges(canvasId, canvas?.edges);
 
+  // Inject edge color into marker objects so React Flow renders colored arrows
+  const edgesWithColoredMarkers = useMemo(
+    () => injectMarkerColor(edges),
+    [edges],
+  );
+
   // Double-click an edge → enter label edit mode (handled inside CustomEdge
   // via the edgeEditorStore).
   const onEdgeDoubleClick = useCallback(
@@ -359,7 +366,7 @@ function CanvasContent({
         onEdgeDoubleClick={onEdgeDoubleClick}
         deleteKeyCode={null}
         nodes={nodes}
-        edges={edges}
+        edges={edgesWithColoredMarkers}
         onEdgesChange={handleEdgeChange}
         onNodesChange={handleNodeChange}
         onConnect={(params) => {

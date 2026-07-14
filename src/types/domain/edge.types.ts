@@ -3,7 +3,7 @@ import type { colorsEnum } from "./style.types";
 /**
  * Edge visual types
  */
-export type EdgeStrokeWidth = "thin" | "regular" | "thick";
+export type EdgeStrokeWidth = "thin" | "thick";
 export type EdgeStrokeStyle = "solid" | "dashed" | "dotted";
 export type EdgeMarker = "none" | "arrow";
 

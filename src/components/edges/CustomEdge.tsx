@@ -86,7 +86,7 @@ function CustomEdge({
     edgeData.strokeStyle ?? DEFAULT_EDGE_STROKE_STYLE;
   const hex = getEdgeHexColor(edgeData.color);
   const { svgWidth, labelFontSize } =
-    edgeStrokeWidthMap[strokeWidthKey];
+    edgeStrokeWidthMap[strokeWidthKey] ?? edgeStrokeWidthMap.thin;
   const dashArray = edgeDashArrayMap[strokeStyleKey];
 
   const bendPoints = edgeData.bendPoints ?? [];

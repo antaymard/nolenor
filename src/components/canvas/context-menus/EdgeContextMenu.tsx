@@ -38,7 +38,6 @@ import { generateLlmId } from "@/../convex/lib/llmId";
 
 const STROKE_WIDTH_OPTIONS: { key: EdgeStrokeWidth; label: string }[] = [
   { key: "thin", label: "Thin" },
-  { key: "regular", label: "Regular" },
   { key: "thick", label: "Thick" },
 ];
 
@@ -64,7 +63,7 @@ export default function EdgeContextMenu({
   const edgeData = (xyEdge.data ?? {}) as EdgeCustomData;
   const availableColors = Object.entries(colors);
   const currentColor = (edgeData.color as colorsEnum) ?? "default";
-  const currentStrokeWidth = edgeData.strokeWidth ?? "regular";
+  const currentStrokeWidth = edgeData.strokeWidth ?? "thin";
   const currentStrokeStyle = edgeData.strokeStyle ?? "solid";
   const bendPointCount = edgeData.bendPoints?.length ?? 0;
 

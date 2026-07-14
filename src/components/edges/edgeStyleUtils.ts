@@ -3,6 +3,7 @@ import type {
   EdgeStrokeStyle,
   colorsEnum,
 } from "@/types/domain";
+import type { Edge, EdgeMarker } from "@xyflow/react";
 import { colors } from "@/components/ui/styles";
 
 /**
@@ -16,8 +17,7 @@ export const edgeStrokeWidthMap: Record<
   { svgWidth: number; labelFontSize: number }
 > = {
   thin: { svgWidth: 1, labelFontSize: 10 },
-  regular: { svgWidth: 2, labelFontSize: 12 },
-  thick: { svgWidth: 4, labelFontSize: 16 },
+  thick: { svgWidth: 2, labelFontSize: 16 },
 };
 
 /**
@@ -31,7 +31,7 @@ export const edgeDashArrayMap: Record<EdgeStrokeStyle, string | undefined> = {
 };
 
 export const DEFAULT_EDGE_COLOR: colorsEnum = "default";
-export const DEFAULT_EDGE_STROKE_WIDTH: EdgeStrokeWidth = "regular";
+export const DEFAULT_EDGE_STROKE_WIDTH: EdgeStrokeWidth = "thin";
 export const DEFAULT_EDGE_STROKE_STYLE: EdgeStrokeStyle = "solid";
 
 /** Maximum number of bend points allowed on a single edge. */
@@ -43,4 +43,27 @@ export const MAX_BEND_POINTS = 3;
  */
 export function getEdgeHexColor(color: colorsEnum | undefined): string {
   return colors[color ?? DEFAULT_EDGE_COLOR].hex;
+}
+
+/**
+ * Injects the edge's hex color into its `markerStart` / `markerEnd` objects so
+ * that React Flow's `MarkerDefinitions` renders arrows in the edge's color
+ * instead of the default grey.
+ *
+ * Markers passed as strings (custom marker ids) are left untouched.
+ */
+export function injectMarkerColor<T extends Edge>(edges: T[]): T[] {
+  return edges.map((edge) => {
+    const data = (edge.data ?? {}) as { color?: colorsEnum };
+    const hex = getEdgeHexColor(data.color);
+    const withColor = (marker: T["markerEnd"]): T["markerEnd"] =>
+      marker && typeof marker === "object"
+        ? ({ ...(marker as EdgeMarker), color: hex } as EdgeMarker)
+        : marker;
+    return {
+      ...edge,
+      markerStart: withColor(edge.markerStart),
+      markerEnd: withColor(edge.markerEnd),
+    };
+  });
 }

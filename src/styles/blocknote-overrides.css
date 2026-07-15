@@ -34,9 +34,13 @@
   line-height: 1.2;
 }
 
+/* Remove paddings on all headings*/
+.bn-readonly-container [data-content-type="heading"] {
+  padding-top: 0px;
+}
+
 .bn-readonly-container h1 {
-  margin-top: 0.5em;
-  font-size: 1em;
+  font-size: 2rem;
   font-weight: 600;
 }
 .bn-readonly-container h1:first-child {
@@ -44,26 +48,26 @@
 }
 
 .bn-readonly-container h2 {
-  margin-top: 0.5em;
-  font-size: 0.85em;
-  font-weight: 500;
+  padding-top: 8px;
+  font-size: 1.7rem;
+  font-weight: 600;
 }
 .bn-readonly-container h2:first-child {
   margin-top: 0;
 }
 
 .bn-readonly-container h3 {
-  margin-top: 0.5em;
-  font-size: 1.35em;
-  font-weight: 500;
+  padding-top: 8px;
+  font-size: 1.35rem;
+  font-weight: 600;
 }
 .bn-readonly-container h3:first-child {
   margin-top: 0;
 }
 
 .bn-readonly-container h4 {
-  margin-top: 0.5em;
-  font-size: 1.1em;
+  padding-top: 8px;
+  font-size: 1.2rem;
   font-weight: 600;
 }
 .bn-readonly-container h4:first-child {
@@ -71,8 +75,8 @@
 }
 
 .bn-readonly-container h5 {
-  margin-top: 0.5em;
-  font-size: 0.9rem;
+  padding-top: 8px;
+  font-size: 1.1rem;
   font-weight: 600;
 }
 .bn-readonly-container h5:first-child {
@@ -80,8 +84,9 @@
 }
 
 .bn-readonly-container h6 {
-  margin-top: 0.5em;
-  font-size: 0.8rem;
+  padding-top: 8px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
   font-weight: 600;
 }
 .bn-readonly-container h6:first-child {
@@ -135,37 +140,65 @@
  * ------------------------------------------------------------------------- */
 
 /* Headings — override BlockNote's --level variable and font-weight per level. */
-.bn-editor [data-content-type="heading"] {
-  --level: 2em;
-  padding-top: 0.5em;
+.bn-editor [data-content-type="heading"][data-level="1"] {
+  font-size: 1.7rem;
+  padding-top: 0.5rem;
   font-weight: 600;
 }
+
+.bn-editor [data-content-type="heading"][data-level="1"]:first-child {
+  padding-top: 0;
+}
+
 .bn-editor [data-content-type="heading"][data-level="2"] {
-  --level: 1.65em;
+  font-size: 1.35rem;
   font-weight: 500;
 }
+.bn-editor [data-content-type="heading"][data-level="2"]:first-child {
+  padding-top: 0;
+}
+
+
 .bn-editor [data-content-type="heading"][data-level="3"] {
-  --level: 1.35em;
+  font-size: 1.35rem;
   font-weight: 500;
 }
+.bn-editor [data-content-type="heading"][data-level="3"]:first-child {
+  padding-top: 0;
+}
+
+
 .bn-editor [data-content-type="heading"][data-level="4"] {
-  --level: 1.1em;
+  font-size: 1.2rem;
   font-weight: 600;
 }
+.bn-editor [data-content-type="heading"][data-level="4"]:first-child {
+  padding-top: 0;
+}
+
 .bn-editor [data-content-type="heading"][data-level="5"] {
-  --level: 0.9rem;
+  font-size: 1.1rem;
   font-weight: 600;
 }
+.bn-editor [data-content-type="heading"][data-level="5"]:first-child {
+  padding-top: 0;
+}
+
 .bn-editor [data-content-type="heading"][data-level="6"] {
-  --level: 0.8rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
   font-weight: 600;
 }
+.bn-editor [data-content-type="heading"][data-level="6"]:first-child {
+  padding-top: 0;
+}
+
 
 /* The first heading in the editor should not have top padding. */
 .bn-editor .bn-block-outer:first-child
   > .bn-block
   > .bn-block-content[data-content-type="heading"] {
-  padding-top: 0;
+  padding-top: 1rem;
 }
 
 /* Inline content — match Plate's whitespace + break-words. */

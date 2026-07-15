@@ -9,6 +9,7 @@ import {
   normalizedPhrase,
   scoreNode,
 } from "./lib/searchScoring";
+import { stripLoneSurrogates } from "./lib/textSanitize";
 
 const SNIPPET_RADIUS = 90;
 const MAX_SNIPPETS_PER_CHUNK = 1;
@@ -43,7 +44,6 @@ export const search = query({
           matchEnd: v.number(),
         }),
       ),
-      chunks: v.array(v.any()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -93,7 +93,9 @@ export const search = query({
           type: chunks[0].nodeType,
           nodeId,
           nodeDataId: chunks[0].nodeDataId,
-          title: chunks[0].title,
+          title: chunks[0].title
+            ? stripLoneSurrogates(chunks[0].title)
+            : chunks[0].title,
           images: Array.from(
             new Map(
               chunks
@@ -122,7 +124,7 @@ export const search = query({
           snippets: chunks
             .flatMap((chunk) =>
               buildChunkSnippets(chunk.text, args.query).map((match) => ({
-                snippet: match.snippet,
+                snippet: stripLoneSurrogates(match.snippet),
                 chunkType: chunk.chunkType,
                 order: chunk.order,
                 page: getPageFromMetadata(chunk.metadata),
@@ -132,7 +134,6 @@ export const search = query({
               })),
             )
             .slice(0, MAX_SNIPPETS_PER_NODE),
-          chunks,
         };
 
         // Score titre > body, pondéré par couverture + proximité des termes.

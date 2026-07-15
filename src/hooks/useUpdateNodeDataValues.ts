@@ -78,6 +78,14 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
         ([key, nextValue]) => !Object.is(nodeData?.values?.[key], nextValue),
       );
 
+      console.log("[useUpdateNodeDataValues]", {
+        type: nodeData?.type,
+        hasChanges,
+        prevDoc: nodeData?.values?.doc,
+        nextDoc: valuesForMutation.doc,
+        nodeDataId,
+      });
+
       if (!hasChanges) {
         return;
       }

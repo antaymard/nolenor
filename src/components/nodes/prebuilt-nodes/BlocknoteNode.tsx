@@ -164,7 +164,7 @@ function BlocknoteNode(xyNode: Node) {
                   </div>
                 ) : html ? (
                   <div
-                    className={`h-full min-h-0 overflow-y-auto p-4 select-none bn-readonly-container${xyNode.selected ? " nodrag nowheel" : ""}`}
+                    className="h-full min-h-0 overflow-y-auto p-4 select-none bn-readonly-container nowheel"
                     dangerouslySetInnerHTML={{ __html: html }}
                   />
                 ) : null}

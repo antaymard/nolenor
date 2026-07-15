@@ -4,6 +4,7 @@ import { BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
+import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
 import type { Id } from "@/../convex/_generated/dataModel";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import NodeFrame from "../NodeFrame";
@@ -125,9 +126,18 @@ function BlocknoteNode(xyNode: Node) {
   const [isVisible, setIsVisible] = useState(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
+  // Ref for the always-rendered container (non-title variant). The wheel hook
+  // attaches its listener to this element so plain wheel scrolls the content
+  // locally while Ctrl/Meta+wheel bubbles to React Flow for canvas zoom.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useNoWheelUnlessZoom(scrollRef);
+
   const setContainerRef = useCallback((el: HTMLDivElement | null) => {
     observerRef.current?.disconnect();
     observerRef.current = null;
+    // Keep scrollRef in sync: callback refs fire during commit, before passive
+    // effects, so the value is set before useNoWheelUnlessZoom's useEffect runs.
+    scrollRef.current = el;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => setIsVisible(entry.isIntersecting),
@@ -164,7 +174,7 @@ function BlocknoteNode(xyNode: Node) {
                   </div>
                 ) : html ? (
                   <div
-                    className="h-full min-h-0 overflow-y-auto p-4 select-none bn-readonly-container nowheel"
+                    className="h-full min-h-0 overflow-y-auto p-4 select-none bn-readonly-container"
                     dangerouslySetInnerHTML={{ __html: html }}
                   />
                 ) : null}

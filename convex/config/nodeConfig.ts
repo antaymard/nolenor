@@ -176,6 +176,34 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     }),
   },
   {
+    type: "blocknote",
+    label: "Blocknote",
+    description:
+      "Node for storing a rich text document (BlockNote editor).",
+    llmDescription:
+      "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, etc.). \nThe required data value for this node is 'doc' (a JSON string of the BlockNote document).",
+    defaultDimensions: { width: 320, height: 320, resizable: true },
+    variants: {
+      default: {
+        label: "Preview",
+        defaultWidth: 320,
+        defaultHeight: 320,
+        isDefault: true,
+      },
+      title: {
+        label: "Title",
+        defaultWidth: 220,
+        defaultHeight: 33,
+        resizable: false,
+      },
+    },
+    dataValuesSchema: z
+      .object({
+        doc: z.string().default("[]"),
+      })
+      .default({ doc: "[]" }),
+  },
+  {
     type: "value",
     label: "Value",
     description: "Node for storing a value (text, number, boolean).",

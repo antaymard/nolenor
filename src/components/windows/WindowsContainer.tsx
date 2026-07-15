@@ -9,6 +9,9 @@ import WindowFrame from "./WindowFrame";
 const FullscreenDocumentWindow = lazy(
   () => import("./FullscreenDocumentWindow"),
 );
+const FullscreenBlocknoteWindow = lazy(
+  () => import("./FullscreenBlocknoteWindow"),
+);
 const FullscreenTableWindow = lazy(() => import("./FullscreenTableWindow"));
 const FullscreenPdfWindow = lazy(() => import("./FullscreenPdfWindow"));
 
@@ -56,6 +59,8 @@ export default function WindowsContainer() {
             <Suspense fallback={null}>
               {fullscreenWindow.nodeType === "document" ? (
                 <FullscreenDocumentWindow openedWindow={fullscreenWindow} />
+              ) : fullscreenWindow.nodeType === "blocknote" ? (
+                <FullscreenBlocknoteWindow openedWindow={fullscreenWindow} />
               ) : fullscreenWindow.nodeType === "table" ? (
                 <FullscreenTableWindow openedWindow={fullscreenWindow} />
               ) : fullscreenWindow.nodeType === "pdf" ? (

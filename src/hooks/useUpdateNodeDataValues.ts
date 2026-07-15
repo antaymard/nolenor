@@ -67,7 +67,12 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
               ...values,
               doc: stringifyPlateDocumentForStorage(values.doc),
             }
-          : values;
+          : nodeData?.type === "blocknote"
+            ? {
+                ...values,
+                doc: JSON.stringify(values.doc),
+              }
+            : values;
 
       const hasChanges = Object.entries(valuesForMutation).some(
         ([key, nextValue]) => !Object.is(nodeData?.values?.[key], nextValue),

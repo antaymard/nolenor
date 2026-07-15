@@ -6,6 +6,7 @@ import { nodeDataConfig } from "@/../convex/config/nodeConfig";
 import type { NodeDataConfigItem } from "@/../convex/config/nodeConfig";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 import DocumentNode from "./DocumentNode";
+import BlocknoteNode from "./BlocknoteNode";
 import TitleNode from "./TitleNode";
 import ImageNode from "./ImageNode";
 import LinkNode from "./LinkNode";
@@ -45,6 +46,11 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
   document: {
     nodeComponent: DocumentNode,
     nodeIcon: NODE_TYPE_ICON_MAP.document,
+    canBeOpenInWindow: true,
+  },
+  blocknote: {
+    nodeComponent: BlocknoteNode,
+    nodeIcon: NODE_TYPE_ICON_MAP.blocknote,
     canBeOpenInWindow: true,
   },
   value: {

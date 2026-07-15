@@ -16,8 +16,8 @@ export const edgeStrokeWidthMap: Record<
   EdgeStrokeWidth,
   { svgWidth: number; labelFontSize: number }
 > = {
-  thin: { svgWidth: 1, labelFontSize: 10 },
-  thick: { svgWidth: 2, labelFontSize: 16 },
+  thin: { svgWidth: 1, labelFontSize: 14 },
+  thick: { svgWidth: 2, labelFontSize: 18 },
 };
 
 /**

@@ -42,7 +42,6 @@ function BlocknoteWindow({
 
   const handleSaveClick = useCallback(() => {
     const doc = latestDocRef.current ?? editorRef.current?.document;
-    console.log("[BlocknoteWindow] handleSaveClick fired, latestDoc:", latestDocRef.current, "editorDoc:", editorRef.current?.document);
     if (!doc) return;
     updateNodeDataValues({
       nodeDataId,
@@ -57,7 +56,6 @@ function BlocknoteWindow({
   }, [handleSaveClick, setSaveHandler]);
 
   useEffect(() => {
-    console.log("[BlocknoteWindow] setDirty effect", isDirty, isLocked);
     setDirty(isDirty && !isLocked);
   }, [isDirty, isLocked, setDirty]);
 
@@ -87,8 +85,6 @@ function BlocknoteWindow({
     ) {
       return;
     }
-
-    console.log("[BlocknoteWindow] re-hydration effect firing", { hasHydratedOnce: hasHydratedOnceRef.current, docSource });
 
     if (!hasHydratedOnceRef.current) {
       setIsEditorReady(false);
@@ -144,7 +140,6 @@ function BlocknoteWindow({
 
   const handleChange = useCallback(() => {
     latestDocRef.current = editor.document;
-    console.log("[BlocknoteWindow] onChange fired, skipNext?", skipNextChangeRef.current, "doc:", editor.document);
     onDocChange?.(editor.document);
     if (skipNextChangeRef.current) {
       skipNextChangeRef.current = false;

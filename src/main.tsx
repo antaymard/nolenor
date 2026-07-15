@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
+import "@/styles/blocknote-overrides.css";
 import { ConvexReactClient } from "convex/react";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { RouterProvider, createRouter } from "@tanstack/react-router";

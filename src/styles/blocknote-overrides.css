@@ -1,0 +1,230 @@
+/*
+ * BlockNote CSS overrides — align text appearance with the Plate.js document node.
+ *
+ * Two surfaces are styled:
+ *   1. Canvas node preview (`.bn-readonly-container`) — renders semantic HTML
+ *      (`<h1>`, `<p>`, `<blockquote>`, `<pre><code>`, `<ul>/<ol>`).
+ *   2. Live editor window (`.bn-editor`) — renders BlockNote's internal DOM with
+ *      `[data-content-type="…"][data-level="…"]` attributes.
+ *
+ * Values mirror Plate's typography:
+ *   - Headings  → src/index.css `.slate-h1..h5` (lines 279-313)
+ *   - Editor    → src/components/plate/editor.tsx (cva: selection, strong, placeholder)
+ *   - Blockquote→ src/components/plate/blockquote-node.tsx (my-1 border-l-2 pl-6 italic)
+ *   - Code block→ src/components/plate/code-block-node.tsx (bg-muted/50, font-mono, text-sm)
+ *
+ * Loaded after `@blocknote/shadcn/style.css` in main.tsx so equal-specificity
+ * selectors win by source order.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Font family — use the app font (Poppins) instead of BlockNote's Inter.
+ * ------------------------------------------------------------------------- */
+.bn-root {
+  font-family: var(--font-sans);
+}
+
+/* ---------------------------------------------------------------------------
+ * 1. Canvas node preview (readonly semantic HTML)
+ *    Targeted via `.bn-readonly-container` — the wrapper in BlocknoteNode.tsx.
+ *    Tailwind preflight resets all headings to inherit, so we must re-apply.
+ * ------------------------------------------------------------------------- */
+.bn-readonly-container {
+  color: var(--foreground);
+  line-height: 1.2;
+}
+
+.bn-readonly-container h1 {
+  margin-top: 0.5em;
+  font-size: 1em;
+  font-weight: 600;
+}
+.bn-readonly-container h1:first-child {
+  margin-top: 0;
+}
+
+.bn-readonly-container h2 {
+  margin-top: 0.5em;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+.bn-readonly-container h2:first-child {
+  margin-top: 0;
+}
+
+.bn-readonly-container h3 {
+  margin-top: 0.5em;
+  font-size: 1.35em;
+  font-weight: 500;
+}
+.bn-readonly-container h3:first-child {
+  margin-top: 0;
+}
+
+.bn-readonly-container h4 {
+  margin-top: 0.5em;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+.bn-readonly-container h4:first-child {
+  margin-top: 0;
+}
+
+.bn-readonly-container h5 {
+  margin-top: 0.5em;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.bn-readonly-container h5:first-child {
+  margin-top: 0;
+}
+
+.bn-readonly-container h6 {
+  margin-top: 0.5em;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.bn-readonly-container h6:first-child {
+  margin-top: 0;
+}
+
+.bn-readonly-container strong {
+  font-weight: 700;
+}
+
+.bn-readonly-container blockquote {
+  margin: 0.25rem 0;
+  border-left: 2px solid var(--border);
+  padding-left: 1.5rem;
+  font-style: italic;
+}
+
+.bn-readonly-container pre {
+  overflow-x: auto;
+  margin: 0.25rem 0;
+  padding: 2rem 1rem 2rem 2rem;
+  border-radius: calc(var(--radius) - 2px);
+  background-color: color-mix(in oklch, var(--muted) 50%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875rem;
+  line-height: normal;
+  tab-size: 2;
+}
+.bn-readonly-container pre code {
+  font-family: inherit;
+}
+
+.bn-readonly-container ul,
+.bn-readonly-container ol {
+  margin: 0.25em 0;
+  padding-left: 1.5em;
+}
+.bn-readonly-container li {
+  margin: 0.125em 0;
+}
+.bn-readonly-container li > p {
+  margin: 0;
+}
+
+.bn-readonly-container ::selection {
+  background-color: color-mix(in oklch, var(--brand) 25%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. Live editor window (`.bn-editor` + `[data-content-type]` structure)
+ * ------------------------------------------------------------------------- */
+
+/* Headings — override BlockNote's --level variable and font-weight per level. */
+.bn-editor [data-content-type="heading"] {
+  --level: 2em;
+  padding-top: 0.5em;
+  font-weight: 600;
+}
+.bn-editor [data-content-type="heading"][data-level="2"] {
+  --level: 1.65em;
+  font-weight: 500;
+}
+.bn-editor [data-content-type="heading"][data-level="3"] {
+  --level: 1.35em;
+  font-weight: 500;
+}
+.bn-editor [data-content-type="heading"][data-level="4"] {
+  --level: 1.1em;
+  font-weight: 600;
+}
+.bn-editor [data-content-type="heading"][data-level="5"] {
+  --level: 0.9rem;
+  font-weight: 600;
+}
+.bn-editor [data-content-type="heading"][data-level="6"] {
+  --level: 0.8rem;
+  font-weight: 600;
+}
+
+/* The first heading in the editor should not have top padding. */
+.bn-editor .bn-block-outer:first-child
+  > .bn-block
+  > .bn-block-content[data-content-type="heading"] {
+  padding-top: 0;
+}
+
+/* Inline content — match Plate's whitespace + break-words. */
+.bn-editor .bn-inline-content {
+  overflow-wrap: break-word;
+}
+
+/* Strong — match Plate's [&_strong]:font-bold. */
+.bn-editor .bn-inline-content strong {
+  font-weight: 700;
+}
+
+/* Selection — match Plate's selection:bg-brand/25. */
+.bn-editor ::selection {
+  background-color: color-mix(in oklch, var(--brand) 25%, transparent);
+}
+
+/* Placeholder — match Plate's placeholder:text-muted-foreground/80. */
+.bn-editor .bn-block-content:has(.ProseMirror-trailing-break:only-child)::after {
+  color: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
+}
+
+/* Blockquote — match Plate's my-1 border-l-2 pl-6 italic. */
+.bn-editor [data-content-type="quote"] blockquote {
+  margin: 0.25rem 0;
+  border-left: 2px solid var(--border);
+  color: inherit;
+  padding-left: 1.5rem;
+  font-style: italic;
+}
+
+/* Code block — match Plate's bg-muted/50 + font-mono + text-sm. */
+.bn-editor .bn-block-content[data-content-type="codeBlock"] {
+  background-color: color-mix(in oklch, var(--muted) 50%, transparent);
+  color: var(--foreground);
+  border-radius: calc(var(--radius) - 2px);
+}
+.bn-editor .bn-block-content[data-content-type="codeBlock"] > pre {
+  padding: 2rem 1rem 2rem 2rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875rem;
+  line-height: normal;
+  tab-size: 2;
+}
+.bn-editor .bn-block-content[data-content-type="codeBlock"] > div > select {
+  color: var(--foreground);
+}
+.bn-editor .bn-block-content[data-content-type="codeBlock"] > div > select > option {
+  color: var(--foreground);
+}
+
+/* Lists — tighten spacing to match Plate. */
+.bn-editor .bn-block-content[data-content-type="bulletListItem"],
+.bn-editor .bn-block-content[data-content-type="numberedListItem"] {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+/* Editor text color — use the app foreground instead of BlockNote's #3f3f3f. */
+.bn-editor {
+  color: var(--foreground);
+}

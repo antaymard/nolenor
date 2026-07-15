@@ -138,6 +138,9 @@
 /* ---------------------------------------------------------------------------
  * 2. Live editor window (`.bn-editor` + `[data-content-type]` structure)
  * ------------------------------------------------------------------------- */
+ .bn-editor {
+   font-family: var(--font-sans);
+ }
 
 /* Headings — override BlockNote's --level variable and font-weight per level. */
 .bn-editor [data-content-type="heading"][data-level="1"] {

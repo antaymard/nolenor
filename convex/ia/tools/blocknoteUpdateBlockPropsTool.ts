@@ -12,6 +12,7 @@ import {
   stringifyBlockNoteDocumentForStorage,
 } from "../../lib/blockNoteDocumentStorage";
 import { toolError, type ToolConfig } from "./toolHelpers";
+import { ERROR_INVALID_DOC, ERROR_TARGET_NOT_BLOCKNOTE } from "./blocknoteSchemas";
 
 export const blocknoteUpdateBlockPropsToolConfig: ToolConfig = {
   name: "update_block_props",
@@ -22,11 +23,6 @@ export const blocknoteUpdateBlockPropsToolConfig: ToolConfig = {
     toolAgentNames.worker,
   ],
 };
-
-const ERROR_TARGET_NOT_BLOCKNOTE = toolError(
-  "Target node must be a blocknote node.",
-);
-const ERROR_INVALID_DOC = toolError("Blocknote document content is not valid.");
 
 export default function blocknoteUpdateBlockPropsTool({
   threadCtx,

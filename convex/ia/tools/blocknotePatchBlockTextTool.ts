@@ -16,7 +16,8 @@ import {
   parseStoredPlateDocument,
   stringifyBlockNoteDocumentForStorage,
 } from "../../lib/blockNoteDocumentStorage";
-import { toolError, type ToolConfig } from "./toolHelpers";
+import { toolError, countExactMatches, type ToolConfig } from "./toolHelpers";
+import { ERROR_INVALID_DOC, ERROR_TARGET_NOT_BLOCKNOTE } from "./blocknoteSchemas";
 
 export const blocknotePatchBlockTextToolConfig: ToolConfig = {
   name: "patch_block_text",
@@ -27,24 +28,6 @@ export const blocknotePatchBlockTextToolConfig: ToolConfig = {
     toolAgentNames.worker,
   ],
 };
-
-const ERROR_TARGET_NOT_BLOCKNOTE = toolError(
-  "Target node must be a blocknote node.",
-);
-const ERROR_INVALID_DOC = toolError("Blocknote document content is not valid.");
-
-function countExactMatches(source: string, search: string): number {
-  if (!search) return 0;
-  let count = 0;
-  let index = 0;
-  while (true) {
-    const foundAt = source.indexOf(search, index);
-    if (foundAt === -1) break;
-    count += 1;
-    index = foundAt + search.length;
-  }
-  return count;
-}
 
 export default function blocknotePatchBlockTextTool({
   threadCtx,

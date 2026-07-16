@@ -92,7 +92,8 @@ function replaceInTree(
       blocks[i] = newBlock;
       return true;
     }
-    if (blocks[i].children && replaceInTree(blocks[i].children!, blockId, newBlock)) {
+    const children = blocks[i].children;
+    if (children && replaceInTree(children, blockId, newBlock)) {
       return true;
     }
   }
@@ -124,7 +125,8 @@ function insertInTree(
       blocks.splice(at, 0, ...newBlocks);
       return true;
     }
-    if (blocks[i].children && insertInTree(blocks[i].children!, refId, position, newBlocks)) {
+    const children = blocks[i].children;
+    if (children && insertInTree(children, refId, position, newBlocks)) {
       return true;
     }
   }
@@ -156,8 +158,9 @@ function removeFromTree(blocks: AnyBlock[], idSet: Set<string>): void {
   for (let i = blocks.length - 1; i >= 0; i--) {
     if (idSet.has(blocks[i].id)) {
       blocks.splice(i, 1);
-    } else if (blocks[i].children) {
-      removeFromTree(blocks[i].children!, idSet);
+    } else {
+      const children = blocks[i].children;
+      if (children) removeFromTree(children, idSet);
     }
   }
 }
@@ -185,7 +188,7 @@ function updatePropsInTree(
       b.props = { ...(b.props ?? {}), ...patch };
       return true;
     }
-    if (b.children && updatePropsInTree(b.children!, blockId, patch)) {
+    if (b.children && updatePropsInTree(b.children, blockId, patch)) {
       return true;
     }
   }
@@ -215,7 +218,7 @@ function updateContentInTree(
       b.content = newContent;
       return true;
     }
-    if (b.children && updateContentInTree(b.children!, blockId, newContent)) {
+    if (b.children && updateContentInTree(b.children, blockId, newContent)) {
       return true;
     }
   }

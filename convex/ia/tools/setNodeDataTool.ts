@@ -4,8 +4,8 @@ import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
-import { markdownToBlocks, annotatedMarkdownToBlocks } from "../helpers/blockNoteMarkdownConverter";
-import { ensureBlockIds, type AnyBlock } from "../helpers/blocknoteBlockTree";
+import { parseBlockNoteDocInput } from "../helpers/blockNoteMarkdownConverter";
+import { ensureBlockIds } from "../helpers/blocknoteBlockTree";
 import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
 import { stringifyBlockNoteDocumentForStorage } from "../../lib/blockNoteDocumentStorage";
 import z from "zod";
@@ -134,27 +134,7 @@ export default function setNodeDataTool({
         // output), a JSON array of blocks, or plain markdown in `doc`. Targeted
         // edits should prefer insert_blocks / replace_block / etc.
         if (input.nodeType === "blocknote") {
-          const raw = valuesToWrite.doc;
-          let blocks: AnyBlock[];
-          if (typeof raw === "string") {
-            const trimmed = raw.trim();
-            if (trimmed.startsWith("[")) {
-              try {
-                blocks = JSON.parse(trimmed) as AnyBlock[];
-              } catch {
-                blocks = (await markdownToBlocks(raw)) as AnyBlock[];
-              }
-            } else if (/<block\s/.test(trimmed)) {
-              blocks = await annotatedMarkdownToBlocks(trimmed);
-            } else {
-              blocks = (await markdownToBlocks(raw)) as AnyBlock[];
-            }
-          } else if (Array.isArray(raw)) {
-            blocks = raw as AnyBlock[];
-          } else {
-            blocks = [];
-          }
-          blocks = ensureBlockIds(blocks);
+          const blocks = ensureBlockIds(await parseBlockNoteDocInput(valuesToWrite.doc));
           valuesToWrite = {
             ...valuesToWrite,
             doc: stringifyBlockNoteDocumentForStorage(blocks),

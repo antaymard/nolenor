@@ -1,4 +1,4 @@
-// Shared tool descriptions for BlockNote editing tools.
+// Shared constants for BlockNote editing tools.
 //
 // The LLM reads documents in annotated markdown format:
 //   <block id="abc" type="heading" props='{"level":3,"textColor":"blue"}'>My **colored** heading</block>
@@ -7,6 +7,15 @@
 // modify the text, and send it back. This read/write symmetry eliminates the
 // need for the LLM to translate between two representations. Plain markdown
 // (no <block> tags) is also accepted as a lossy fallback.
+
+import { toolError } from "./toolHelpers";
+
+export const ERROR_TARGET_NOT_BLOCKNOTE = toolError(
+  "Target node must be a blocknote node.",
+);
+export const ERROR_INVALID_DOC = toolError(
+  "Blocknote document content is not valid.",
+);
 
 export const REPLACE_BLOCK_DESCRIPTION = `Replace a single block (by id) inside a blocknote node.
 

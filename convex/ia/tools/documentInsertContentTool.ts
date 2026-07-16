@@ -10,7 +10,7 @@ import {
   parseStoredPlateDocument,
   stringifyPlateDocumentForStorage,
 } from "../../lib/plateDocumentStorage";
-import { toolError, type ToolConfig } from "./toolHelpers";
+import { toolError, countExactMatches, type ToolConfig } from "./toolHelpers";
 
 // Tool compaction config
 export const documentInsertContentToolConfig: ToolConfig = {
@@ -27,22 +27,6 @@ const ERROR_TARGET_NOT_DOCUMENT = toolError("Target node must be a document.");
 const ERROR_INVALID_PLATE_DOC = toolError(
   "Document content is not valid PlateJSON.",
 );
-
-function countExactMatches(source: string, search: string): number {
-  if (!search) return 0;
-
-  let count = 0;
-  let index = 0;
-
-  while (true) {
-    const foundAt = source.indexOf(search, index);
-    if (foundAt === -1) break;
-    count += 1;
-    index = foundAt + search.length;
-  }
-
-  return count;
-}
 
 export default function documentInsertContentTool({
   threadCtx,

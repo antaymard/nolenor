@@ -1,29 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // BlockNote <-> Markdown conversion for the agent layer.
 //
-// Mirrors plateMarkdownConverter.ts: dynamic imports dodge Convex's deploy-time
-// bundling analysis (BlockNote chunks reference `document`/`window` eagerly).
-// Unlike Plate (which never touches a real DOM at runtime), BlockNote's
-// markdown export/parse genuinely needs a DOM — provided here by jsdom.
+// BlockNote's markdown export/parse APIs read `globalThis.document` (ProseMirror
+// DOMParser), so we need a real DOM — provided by jsdom. Both jsdom and
+// @blocknote/core are loaded via `globalThis.require` with the module name split
+// (e.g. `"js" + "dom"`) so esbuild's deploy-time bundling analysis can't statically
+// resolve the import and pull in Node built-ins (fs, path, vm, …). The require call
+// lives inside function bodies, never at module top level.
 //
-// Both jsdom and @blocknote/core are loaded via `globalThis.require` with the
-// module name split so esbuild (Convex codegen) cannot statically resolve the
-// import path and pull in Node built-in modules (fs, path, vm, …) that jsdom
-// uses. The require call lives inside function bodies (not at module top
-// level), so the V8 isolate's codegen analysis pass never executes it. At
-// runtime in a `"use node"` action, `require` is available (CJS bundle).
-//
-// Runtime requirement: every calling action MUST run in a `"use node"` context
-// (noleCompletion.ts, worker.ts, chunkBuilder.ts all do). jsdom is a real Node
-// dependency and cannot run in the plain V8 isolate.
+// Every calling action MUST run in a `"use node"` context (worker.ts, chunkBuilder.ts
+// all do) — jsdom is a real Node dependency and cannot run in the plain V8 isolate.
 
 import { generateBlockId, type AnyBlock } from "./blocknoteBlockTree";
 
 // ── jsdom globals + concurrency lock ───────────────────────────────────────
-// The ProseMirror DOMParser used by `tryParseMarkdownToBlocks` reads
-// `globalThis.document`. We monkeypatch it for the duration of each conversion.
-// Concurrent tool calls in the same Node process would interleave incompatible
-// globals, so a single in-flight mutex serializes all jsdom-touching work.
+// `tryParseMarkdownToBlocks` reads `globalThis.document`. We monkeypatch it for
+// the duration of each conversion. Concurrent calls would interleave
+// incompatible globals, so a single in-flight mutex serializes all jsdom work.
 
 type DomGlobals = { document: Document; window: Window & typeof globalThis };
 
@@ -31,11 +24,9 @@ let domPromise: Promise<DomGlobals> | null = null;
 let editorPromise: Promise<any> | null = null;
 let jsdomLock: Promise<void> = Promise.resolve();
 
-// Hidden require — `globalThis.require` accessed indirectly so esbuild can't
-// trace it as a `require()` call, and the module name is split so the string
-// literal "jsdom" / "@blocknote/core" doesn't appear in any import-like
-// position. Only called at runtime (inside function bodies), never at module
-// load time.
+// `globalThis.require` accessed indirectly (not as `require()`) so esbuild can't
+// trace it as a CJS import. The module name is split so the string literal
+// "jsdom" / "@blocknote/core" doesn't appear in any import-like position.
 function hiddenRequire(name: string): any {
   const g = globalThis as { require?: (m: string) => any };
   if (!g.require) {
@@ -82,23 +73,13 @@ async function withJsdomLock<T>(fn: () => T | Promise<T>): Promise<T> {
   }
 }
 
+// Always called from within `withJsdomLock`, so globals are already set — no
+// need to save/restore here. The editor is created once and reused.
 async function getEditor(): Promise<any> {
   if (editorPromise) return editorPromise;
   editorPromise = (async () => {
-    const dom = await getDom();
-    const g = globalThis as { document?: Document; window?: Window };
-    const savedDoc = g.document;
-    const savedWin = g.window;
-    (globalThis as { document?: Document }).document = dom.document;
-    (globalThis as { window?: Window }).window = dom.window;
-    try {
-      const mod = hiddenRequire("@block" + "note/core");
-      const { BlockNoteEditor } = mod;
-      return BlockNoteEditor.create();
-    } finally {
-      (globalThis as { document?: Document }).document = savedDoc;
-      (globalThis as { window?: Window }).window = savedWin;
-    }
+    const mod = hiddenRequire("@block" + "note/core");
+    return mod.BlockNoteEditor.create();
   })();
   return editorPromise;
 }
@@ -229,13 +210,13 @@ interface RawBlock {
 
 function tokenize(md: string): BlockToken[] {
   const tokens: BlockToken[] = [];
-  let m: RegExpExecArray | null;
-  TAG_RE.lastIndex = 0;
-  while ((m = TAG_RE.exec(md)) !== null) {
+  for (const m of md.matchAll(TAG_RE)) {
+    const start = m.index ?? 0;
+    const end = start + m[0].length;
     if (m[0] === "</block>") {
-      tokens.push({ kind: "close", start: m.index, end: m.index + m[0].length });
+      tokens.push({ kind: "close", start, end });
     } else {
-      tokens.push({ kind: "open", attrs: m[1], start: m.index, end: m.index + m[0].length });
+      tokens.push({ kind: "open", attrs: m[1], start, end });
     }
   }
   return tokens;
@@ -287,9 +268,7 @@ function parseTagAttrs(attrsString: string): {
     type?: string;
     props?: Record<string, unknown>;
   } = {};
-  let m: RegExpExecArray | null;
-  ATTR_RE.lastIndex = 0;
-  while ((m = ATTR_RE.exec(attrsString)) !== null) {
+  for (const m of attrsString.matchAll(ATTR_RE)) {
     const key = m[1];
     const val = m[2] !== undefined ? m[2] : m[3];
     if (key === "id") out.id = val;
@@ -317,20 +296,15 @@ async function rawToBlock(raw: RawBlock, md: string): Promise<AnyBlock> {
   const attrs = parseTagAttrs(raw.attrs ?? "");
   const directMd = extractDirectMarkdown(raw, md);
 
-  let content: unknown = undefined;
-  if (directMd) {
-    const parsed = await markdownToBlocks(directMd);
-    if (parsed && parsed.length > 0 && parsed[0].content !== undefined) {
-      content = parsed[0].content;
-    }
-  }
+  // Parse the block's own markdown (excluding children) to extract inline content.
+  const parsed = directMd ? await markdownToBlocks(directMd) : [];
+  const content = parsed[0]?.content;
 
-  let children: AnyBlock[] | undefined = undefined;
-  if (raw.children.length > 0) {
-    children = await Promise.all(
-      raw.children.map((c) => rawToBlock(c, md)),
-    );
-  }
+  // Recursively convert children, if any.
+  const children =
+    raw.children.length > 0
+      ? await Promise.all(raw.children.map((c) => rawToBlock(c, md)))
+      : undefined;
 
   const block: AnyBlock = {
     id: attrs.id || generateBlockId(),
@@ -384,4 +358,30 @@ export async function resolveBlocksInput(input: string): Promise<AnyBlock[]> {
     throw new Error("Markdown input produced no blocks.");
   }
   return blocks;
+}
+
+/**
+ * Lenient parser for set_node_data's `doc` field: accepts annotated markdown,
+ * plain markdown, a JSON array string of blocks, or a raw block array.
+ * Returns [] for empty/invalid input (allows clearing the document).
+ * Tools that reject empty input should use `resolveBlockInput` / `resolveBlocksInput` instead.
+ */
+export async function parseBlockNoteDocInput(raw: unknown): Promise<AnyBlock[]> {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        return JSON.parse(trimmed) as AnyBlock[];
+      } catch {
+        // Not valid JSON — fall through to markdown parsing.
+      }
+    }
+    if (/<block\s/.test(trimmed)) {
+      return annotatedMarkdownToBlocks(trimmed);
+    }
+    return (await markdownToBlocks(trimmed)) as AnyBlock[];
+  }
+  if (Array.isArray(raw)) return raw as AnyBlock[];
+  return [];
 }

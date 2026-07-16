@@ -181,7 +181,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Node for storing a rich text document (BlockNote editor).",
     llmDescription:
-      "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, etc.). \nThe required data value for this node is 'doc' (a JSON string of the BlockNote document).",
+      "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, colors, alignment, tables, etc.). Read via read_nodes: content is returned as annotated markdown where each block is wrapped in `<block id=\"…\" type=\"…\" props='{…}'>…</block>` (props shown only when non-default; children nested). Edit using the block-id-addressed tools (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text) — never hand-edit the raw JSON. For a full replace via set_node_data, the required data value is 'doc': a markdown string (converted to blocks) or a JSON array string of blocks.",
     defaultDimensions: { width: 320, height: 320, resizable: true },
     variants: {
       default: {
@@ -202,6 +202,13 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         doc: z.string().default("[]"),
       })
       .default({ doc: "[]" }),
+    toolInputSchema: z.object({
+      doc: z
+        .string()
+        .describe(
+          "The markdown content of the document (converted to BlockNote blocks), or a JSON array string of BlockNote blocks.",
+        ),
+    }),
   },
   {
     type: "value",

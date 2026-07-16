@@ -19,7 +19,7 @@ export const listNodesToolConfig: ToolConfig = {
 };
 
 function getExpectedNodeDataSchemaString(nodeType: string): string | null {
-  if (nodeType === "document" || nodeType === "table") {
+  if (nodeType === "document" || nodeType === "table" || nodeType === "blocknote") {
     return null;
   }
 
@@ -239,6 +239,10 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           ...uniqueDisplayedNodeTypes.map((nodeType) => {
             if (nodeType === "document") {
               return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
+            }
+
+            if (nodeType === "blocknote") {
+              return '<schema type="blocknote" tools="insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />';
             }
 
             if (nodeType === "table") {

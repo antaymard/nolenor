@@ -4,7 +4,10 @@ import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
+import { markdownToBlocks } from "../helpers/blockNoteMarkdownConverter";
+import { ensureBlockIds, type AnyBlock } from "../helpers/blocknoteBlockTree";
 import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
+import { stringifyBlockNoteDocumentForStorage } from "../../lib/blockNoteDocumentStorage";
 import z from "zod";
 import { type ToolConfig, toolError } from "./toolHelpers";
 
@@ -32,7 +35,7 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
+      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For blocknote nodes, pass `{ doc: "<markdown>" }` (converted to BlockNote blocks) or `{ doc: "<json array of blocks>" }` (used as-is) to replace the ENTIRE document; for targeted edits prefer insert_blocks, replace_block, delete_blocks, update_block_props, or patch_block_text. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
     inputSchema: z.object({
       explanation: z
         .string()
@@ -124,6 +127,35 @@ export default function setNodeDataTool({
             doc: stringifyPlateDocumentForStorage(
               await markdownToPlateJson(markdown),
             ),
+          };
+        }
+
+        // Blocknote nodes accept either a markdown string (converted via the
+        // editor) or a JSON array of blocks (used as-is) in `doc`. Targeted
+        // edits should prefer insert_blocks / replace_block / etc.
+        if (input.nodeType === "blocknote") {
+          const raw = valuesToWrite.doc;
+          let blocks: AnyBlock[];
+          if (typeof raw === "string") {
+            const trimmed = raw.trim();
+            if (trimmed.startsWith("[")) {
+              try {
+                blocks = JSON.parse(trimmed) as AnyBlock[];
+              } catch {
+                blocks = (await markdownToBlocks(raw)) as AnyBlock[];
+              }
+            } else {
+              blocks = (await markdownToBlocks(raw)) as AnyBlock[];
+            }
+          } else if (Array.isArray(raw)) {
+            blocks = raw as AnyBlock[];
+          } else {
+            blocks = [];
+          }
+          blocks = ensureBlockIds(blocks);
+          valuesToWrite = {
+            ...valuesToWrite,
+            doc: stringifyBlockNoteDocumentForStorage(blocks),
           };
         }
 

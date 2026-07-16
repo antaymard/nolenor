@@ -1,3 +1,4 @@
+"use node";
 import {v, ConvexError} from "convex/values";
 import {internalAction} from "../_generated/server";
 import {baseAgent, createWorkerAgent} from "./agents";

@@ -1,5 +1,6 @@
 import {type Doc} from "../../_generated/dataModel";
 import {plateJsonToMarkdown} from "./plateMarkdownConverter";
+import {documentToAnnotatedMarkdown} from "./blockNoteMarkdownConverter";
 import {parseStoredPlateDocument} from "../../lib/plateDocumentStorage";
 
 type SelectOption = {
@@ -370,6 +371,15 @@ export async function makeNodeDataLLMFriendly(
       const parsedDoc = parseStoredPlateDocument(doc);
       if (parsedDoc) {
         return await plateJsonToMarkdown(parsedDoc);
+      }
+      return typeof doc === "string" ? doc : JSON.stringify(doc);
+    }
+
+    case "blocknote": {
+      const doc = values.doc;
+      const parsedDoc = parseStoredPlateDocument(doc);
+      if (parsedDoc) {
+        return await documentToAnnotatedMarkdown(parsedDoc);
       }
       return typeof doc === "string" ? doc : JSON.stringify(doc);
     }

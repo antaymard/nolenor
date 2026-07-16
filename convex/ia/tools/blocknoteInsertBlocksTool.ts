@@ -1,0 +1,111 @@
+import { createTool } from "@convex-dev/agent";
+import { z } from "zod";
+import { toolAgentNames, type ThreadCtx } from "../agentConfig";
+import { internal } from "../../_generated/api";
+import {
+  documentToAnnotatedMarkdown,
+  resolveBlocksInput,
+} from "../helpers/blockNoteMarkdownConverter";
+import {
+  insertBlocks,
+  type AnyBlock,
+} from "../helpers/blocknoteBlockTree";
+import {
+  parseStoredPlateDocument,
+  stringifyBlockNoteDocumentForStorage,
+} from "../../lib/blockNoteDocumentStorage";
+import { toolError, type ToolConfig } from "./toolHelpers";
+
+export const blocknoteInsertBlocksToolConfig: ToolConfig = {
+  name: "insert_blocks",
+  authorized_agents: [
+    toolAgentNames.nole,
+    toolAgentNames.clone,
+    toolAgentNames.supervisor,
+    toolAgentNames.worker,
+  ],
+};
+
+const ERROR_TARGET_NOT_BLOCKNOTE = toolError(
+  "Target node must be a blocknote node.",
+);
+const ERROR_INVALID_DOC = toolError("Blocknote document content is not valid.");
+
+export default function blocknoteInsertBlocksTool({
+  threadCtx,
+}: {
+  threadCtx: ThreadCtx;
+}) {
+  const { canvasId } = threadCtx;
+
+  return createTool({
+    description:
+      "Insert new blocks into a blocknote node relative to a reference block id (or at the start/end of the document). Accepts a markdown string or an array of JSON block objects. New blocks get fresh ids. Use position \"before\"/\"after\" a reference block id, or reference \"START\"/\"END\" to prepend/append to the document.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("The blocknote node id in the current canvas."),
+      reference: z
+        .union([z.string(), z.literal("START"), z.literal("END")])
+        .describe(
+          "Reference block id, or \"START\" to insert at the beginning, or \"END\" to insert at the end.",
+        ),
+      position: z
+        .enum(["before", "after"])
+        .describe(
+          "Insert before or after the reference block. Ignored (treated as append/prepend) when reference is START/END.",
+        ),
+      blocks: z
+        .union([z.string(), z.array(z.record(z.string(), z.unknown()))])
+        .describe(
+          "Blocks to insert. Either a markdown string or an array of JSON block objects.",
+        ),
+      explanation: z.string().describe("3-5 words explaining the edit intent."),
+    }),
+    execute: async (ctx, input): Promise<string> => {
+      console.log(
+        `🧱 insert_blocks on node ${input.nodeId} ref=${input.reference} pos=${input.position}`,
+      );
+      try {
+        const { node, nodeData } = await ctx.runQuery(
+          internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+          { canvasId, nodeId: input.nodeId },
+        );
+        if (node.type !== "blocknote" || nodeData.type !== "blocknote") {
+          return ERROR_TARGET_NOT_BLOCKNOTE;
+        }
+
+        const blocks = parseStoredPlateDocument(nodeData.values.doc) as
+          | AnyBlock[]
+          | null;
+        if (!blocks) return ERROR_INVALID_DOC;
+
+        const newBlocks = await resolveBlocksInput(input.blocks);
+
+        const updated = insertBlocks(
+          blocks,
+          input.reference,
+          input.position,
+          newBlocks,
+        );
+        const serialized = stringifyBlockNoteDocumentForStorage(updated);
+
+        await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {
+          _id: nodeData._id,
+          values: { ...nodeData.values, doc: serialized },
+          actor: {
+            type: "agent",
+            userId: threadCtx.authUserId,
+            threadId: ctx.threadId,
+          },
+        });
+
+        const echo = await documentToAnnotatedMarkdown(newBlocks);
+        const newIds = newBlocks.map((b: AnyBlock) => b.id).join(", ");
+        console.log(`✅ insert_blocks complete for node ${input.nodeId}`);
+        return `Inserted ${newBlocks.length} block(s) (ids: ${newIds}):\n${echo}`;
+      } catch (error) {
+        console.error("insert_blocks tool error:", error);
+        return toolError(error instanceof Error ? error.message : String(error));
+      }
+    },
+  });
+}

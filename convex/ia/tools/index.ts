@@ -13,6 +13,21 @@ import documentInsertContentTool, {
 import documentStringReplaceContentTool, {
   documentStringReplaceContentToolConfig,
 } from "./documentStringReplaceContentTool";
+import blocknoteReplaceBlockTool, {
+  blocknoteReplaceBlockToolConfig,
+} from "./blocknoteReplaceBlockTool";
+import blocknoteInsertBlocksTool, {
+  blocknoteInsertBlocksToolConfig,
+} from "./blocknoteInsertBlocksTool";
+import blocknoteDeleteBlocksTool, {
+  blocknoteDeleteBlocksToolConfig,
+} from "./blocknoteDeleteBlocksTool";
+import blocknoteUpdateBlockPropsTool, {
+  blocknoteUpdateBlockPropsToolConfig,
+} from "./blocknoteUpdateBlockPropsTool";
+import blocknotePatchBlockTextTool, {
+  blocknotePatchBlockTextToolConfig,
+} from "./blocknotePatchBlockTextTool";
 import fullTextSearchTool, {
   fullTextSearchToolConfig,
 } from "./fullTextSearchTool";
@@ -94,6 +109,26 @@ const toolRegistry: ToolRegistration[] = [
   {
     config: documentInsertContentToolConfig,
     factory: ({ threadCtx }) => documentInsertContentTool({ threadCtx }),
+  },
+  {
+    config: blocknoteReplaceBlockToolConfig,
+    factory: ({ threadCtx }) => blocknoteReplaceBlockTool({ threadCtx }),
+  },
+  {
+    config: blocknoteInsertBlocksToolConfig,
+    factory: ({ threadCtx }) => blocknoteInsertBlocksTool({ threadCtx }),
+  },
+  {
+    config: blocknoteDeleteBlocksToolConfig,
+    factory: ({ threadCtx }) => blocknoteDeleteBlocksTool({ threadCtx }),
+  },
+  {
+    config: blocknoteUpdateBlockPropsToolConfig,
+    factory: ({ threadCtx }) => blocknoteUpdateBlockPropsTool({ threadCtx }),
+  },
+  {
+    config: blocknotePatchBlockTextToolConfig,
+    factory: ({ threadCtx }) => blocknotePatchBlockTextTool({ threadCtx }),
   },
   {
     config: tableUpdateRowsToolConfig,

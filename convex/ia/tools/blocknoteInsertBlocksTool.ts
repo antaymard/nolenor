@@ -15,6 +15,7 @@ import {
   stringifyBlockNoteDocumentForStorage,
 } from "../../lib/blockNoteDocumentStorage";
 import { toolError, type ToolConfig } from "./toolHelpers";
+import { INSERT_BLOCKS_DESCRIPTION } from "./blocknoteSchemas";
 
 export const blocknoteInsertBlocksToolConfig: ToolConfig = {
   name: "insert_blocks",
@@ -39,8 +40,7 @@ export default function blocknoteInsertBlocksTool({
   const { canvasId } = threadCtx;
 
   return createTool({
-    description:
-      "Insert new blocks into a blocknote node relative to a reference block id (or at the start/end of the document). Accepts a markdown string or an array of JSON block objects. New blocks get fresh ids. Use position \"before\"/\"after\" a reference block id, or reference \"START\"/\"END\" to prepend/append to the document.",
+    description: INSERT_BLOCKS_DESCRIPTION,
     inputSchema: z.object({
       nodeId: z.string().describe("The blocknote node id in the current canvas."),
       reference: z
@@ -54,9 +54,9 @@ export default function blocknoteInsertBlocksTool({
           "Insert before or after the reference block. Ignored (treated as append/prepend) when reference is START/END.",
         ),
       blocks: z
-        .union([z.string(), z.array(z.record(z.string(), z.unknown()))])
+        .string()
         .describe(
-          "Blocks to insert. Either a markdown string or an array of JSON block objects.",
+          'Annotated markdown string — the same format as read_nodes output. Multiple blocks separated by blank lines. Example: <block type="heading" props=\'{"level":2}\'>Section</block>\n\n<block type="paragraph">Body text</block>. Or plain markdown for simple text blocks (lossy).',
         ),
       explanation: z.string().describe("3-5 words explaining the edit intent."),
     }),

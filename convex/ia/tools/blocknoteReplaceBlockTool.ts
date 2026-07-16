@@ -15,6 +15,7 @@ import {
   stringifyBlockNoteDocumentForStorage,
 } from "../../lib/blockNoteDocumentStorage";
 import { toolError, type ToolConfig } from "./toolHelpers";
+import { REPLACE_BLOCK_DESCRIPTION } from "./blocknoteSchemas";
 
 export const blocknoteReplaceBlockToolConfig: ToolConfig = {
   name: "replace_block",
@@ -39,17 +40,16 @@ export default function blocknoteReplaceBlockTool({
   const { canvasId } = threadCtx;
 
   return createTool({
-    description:
-      "Replace a single block (by id) inside a blocknote node. Accepts either a JSON block object (lossless — preserves colors, alignment, props, table content) or a markdown string (converted to a block; lossy for rich inline styles). The replacement gets a fresh id.",
+    description: REPLACE_BLOCK_DESCRIPTION,
     inputSchema: z.object({
       nodeId: z.string().describe("The blocknote node id in the current canvas."),
       blockId: z
         .string()
         .describe("The id of the block to replace (as seen in read_nodes output)."),
       block: z
-        .union([z.string(), z.record(z.string(), z.unknown())])
+        .string()
         .describe(
-          "The new block. Either a markdown string (e.g. \"## Heading\\nText with **bold**\") or a JSON block object ({ type, props, content, children }). JSON is lossless and preferred for colored/aligned/table blocks.",
+          'Annotated markdown string — the same format as read_nodes output. Example: <block type="heading" props=\'{"level":3}\'>My heading</block>. Copy from read_nodes, modify the text, and send it back. Or plain markdown for simple text blocks (lossy).',
         ),
       explanation: z.string().describe("3-5 words explaining the edit intent."),
     }),

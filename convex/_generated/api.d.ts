@@ -19,6 +19,7 @@ import type * as hotposts from "../hotposts.js";
 import type * as http from "../http.js";
 import type * as ia_agentConfig from "../ia/agentConfig.js";
 import type * as ia_agents from "../ia/agents.js";
+import type * as ia_helpers__externalDeps from "../ia/helpers/_externalDeps.js";
 import type * as ia_helpers_blockNoteMarkdownConverter from "../ia/helpers/blockNoteMarkdownConverter.js";
 import type * as ia_helpers_blocknoteBlockTree from "../ia/helpers/blocknoteBlockTree.js";
 import type * as ia_helpers_composioSanitizer from "../ia/helpers/composioSanitizer.js";
@@ -149,6 +150,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "ia/agentConfig": typeof ia_agentConfig;
   "ia/agents": typeof ia_agents;
+  "ia/helpers/_externalDeps": typeof ia_helpers__externalDeps;
   "ia/helpers/blockNoteMarkdownConverter": typeof ia_helpers_blockNoteMarkdownConverter;
   "ia/helpers/blocknoteBlockTree": typeof ia_helpers_blocknoteBlockTree;
   "ia/helpers/composioSanitizer": typeof ia_helpers_composioSanitizer;

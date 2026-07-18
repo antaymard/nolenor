@@ -1,5 +1,5 @@
 {
   "node": {
-    "externalPackages": ["sharp", "jsdom"]
+    "externalPackages": ["sharp", "jsdom", "@blocknote/core"]
   }
 }

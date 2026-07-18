@@ -2,14 +2,28 @@
 // BlockNote <-> Markdown conversion for the agent layer.
 //
 // BlockNote's markdown export/parse APIs read `globalThis.document` (ProseMirror
-// DOMParser), so we need a real DOM — provided by jsdom. Both jsdom and
-// @blocknote/core are loaded via `globalThis.require` with the module name split
-// (e.g. `"js" + "dom"`) so esbuild's deploy-time bundling analysis can't statically
-// resolve the import and pull in Node built-ins (fs, path, vm, …). The require call
-// lives inside function bodies, never at module top level.
+// DOMParser), so we need a real DOM — provided by jsdom. The two dependencies
+// are loaded with different mechanisms:
 //
-// Every calling action MUST run in a `"use node"` context (worker.ts, chunkBuilder.ts
-// all do) — jsdom is a real Node dependency and cannot run in the plain V8 isolate.
+//  - jsdom (CJS): `globalThis.require("jsdom")`. esbuild can't trace
+//    `globalThis.require` so it doesn't try to bundle it.
+//
+//  - @blocknote/core (ESM): its CJS build is broken (it require()s ESM-only
+//    transitive deps like prosemirror-highlight → ERR_REQUIRE_ESM), so we must
+//    use dynamic `import()`. To hide the `import()` from esbuild (which would
+//    otherwise try to bundle @blocknote/core for the default Convex runtime,
+//    where externalPackages doesn't apply), we call `import()` through a
+//    function parameter — esbuild can't statically resolve `import(specifier)`
+//    when `specifier` is a non-constant parameter, so it leaves it as a runtime
+//    dynamic import.
+//
+// Both packages are listed in convex.json `externalPackages` and are statically
+// imported by `convex/ia/helpers/_externalDeps.ts` (a "use node" file), which
+// forces the Convex CLI to detect and install them on the server at deploy time.
+//
+// Every calling action MUST run in a `"use node"` context (worker.ts,
+// noleCompletion.ts, chunkBuilder.ts all do) — jsdom is a real Node dependency
+// and cannot run in the plain V8 isolate.
 
 import { generateBlockId, type AnyBlock } from "./blocknoteBlockTree";
 
@@ -24,9 +38,8 @@ let domPromise: Promise<DomGlobals> | null = null;
 let editorPromise: Promise<any> | null = null;
 let jsdomLock: Promise<void> = Promise.resolve();
 
-// `globalThis.require` accessed indirectly (not as `require()`) so esbuild can't
-// trace it as a CJS import. The module name is split so the string literal
-// "jsdom" / "@blocknote/core" doesn't appear in any import-like position.
+// `globalThis.require` (not bare `require`) so esbuild can't trace it as a CJS
+// import. Used for CJS packages only (jsdom).
 function hiddenRequire(name: string): any {
   const g = globalThis as { require?: (m: string) => any };
   if (!g.require) {
@@ -37,10 +50,19 @@ function hiddenRequire(name: string): any {
   return g.require(name);
 }
 
+// Wrapper around `import()` whose argument is a function parameter (not a
+// string literal), so esbuild can't statically resolve it and won't try to
+// bundle the package for the default Convex runtime. At runtime, this executes
+// a real ESM import(). Needed for @blocknote/core whose CJS build is broken
+// (ERR_REQUIRE_ESM on transitive deps like prosemirror-highlight).
+async function hiddenImport(specifier: string): Promise<any> {
+  return import(specifier);
+}
+
 async function getDom(): Promise<DomGlobals> {
   if (domPromise) return domPromise;
   domPromise = (async () => {
-    const { JSDOM } = hiddenRequire("js" + "dom");
+    const { JSDOM } = hiddenRequire("jsdom");
     const jsdom = new JSDOM("<!DOCTYPE html><html><body></body></html>", {
       url: "http://localhost/",
       pretendToBeVisual: true,
@@ -78,7 +100,7 @@ async function withJsdomLock<T>(fn: () => T | Promise<T>): Promise<T> {
 async function getEditor(): Promise<any> {
   if (editorPromise) return editorPromise;
   editorPromise = (async () => {
-    const mod = hiddenRequire("@block" + "note/core");
+    const mod = await hiddenImport("@blocknote/core");
     return mod.BlockNoteEditor.create();
   })();
   return editorPromise;

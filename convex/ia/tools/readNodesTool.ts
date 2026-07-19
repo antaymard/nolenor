@@ -9,6 +9,11 @@ import {
   makeNodeDataLLMFriendly,
 } from "../helpers/makeNodeDataLLMFriendly";
 import {
+  buildCustomSchemaEntries,
+  makeCustomNodeDataLLMFriendly,
+} from "../helpers/customTemplateHelpers";
+import type { Doc } from "../../_generated/dataModel";
+import {
   buildPdfPagesMarkdown,
   buildPdfTocMarkdown,
 } from "../helpers/pdfChunkFormatters";
@@ -558,11 +563,40 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           }),
         );
 
+        // Templates des custom nodes lus (une seule query, dédupliquée) :
+        // titres exacts, contenu par nom de champ et bloc <nodeDataSchemas>.
+        const customTemplateIds = [
+          ...new Set(
+            baseNodes
+              .map((entry) => entry.nodeData?.templateId)
+              .filter((id): id is Id<"nodeTemplates"> => id !== undefined),
+          ),
+        ];
+        const customTemplates: Doc<"nodeTemplates">[] =
+          customTemplateIds.length > 0
+            ? await ctx.runQuery(
+                internal.wrappers.nodeTemplateWrappers.getTemplates,
+                { templateIds: customTemplateIds },
+              )
+            : [];
+        const templatesById = new Map(
+          customTemplates.map((template) => [String(template._id), template]),
+        );
+        const templateForNodeData = (
+          nodeData: { templateId?: Id<"nodeTemplates"> } | null | undefined,
+        ) =>
+          nodeData?.templateId
+            ? (templatesById.get(String(nodeData.templateId)) ?? null)
+            : null;
+
         for (const entry of baseNodes) {
           if (entry.nodeData) {
             nodeDataByNodeId.set(entry.nodeId, {
               type: entry.node?.type ?? "unknown",
-              title: getNodeDataTitle(entry.nodeData),
+              title: getNodeDataTitle(
+                entry.nodeData,
+                templateForNodeData(entry.nodeData),
+              ),
             });
           }
         }
@@ -621,7 +655,13 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               };
             }
 
-            let content = await makeNodeDataLLMFriendly(nodeData);
+            let content =
+              nodeData.type === "custom"
+                ? makeCustomNodeDataLLMFriendly(
+                    nodeData,
+                    templateForNodeData(nodeData),
+                  )
+                : await makeNodeDataLLMFriendly(nodeData);
             let pdfBody: string | null = null;
             let pdfTotalPages: number | null = null;
             let tableBody: string | null = null;
@@ -869,6 +909,12 @@ ${content}
 
                 if (nodeType === "table") {
                   return '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />';
+                }
+
+                // Custom : une entrée par template présent dans le résultat
+                // (le schéma dépend du template, pas du type).
+                if (nodeType === "custom") {
+                  return buildCustomSchemaEntries(customTemplates).join("\n");
                 }
 
                 const toolsAttr =

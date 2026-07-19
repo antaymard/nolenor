@@ -10,6 +10,8 @@ export const create = internalMutation({
     type: nodeTypeValidator,
     values: v.record(v.string(), v.any()),
     canvasId: v.id("canvases"),
+    // Requis pour type === "custom" : lien autoritaire vers le template.
+    templateId: v.optional(v.id("nodeTemplates")),
   },
   returns: v.id("nodeDatas"),
   handler: async (ctx, args) => {

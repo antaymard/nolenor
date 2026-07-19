@@ -1,5 +1,6 @@
 import { createTool } from "@convex-dev/agent";
 import { internal } from "../../_generated/api";
+import type { Doc } from "../../_generated/dataModel";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
@@ -32,7 +33,7 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
+      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). For custom (user-templated) nodes, `data` keys are the FIELD IDS of the node\'s template (not field names — see the <nodeDataSchemas> entry from read_nodes/list_nodes); provided field ids overwrite their value, other fields are kept. Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
     inputSchema: z.object({
       explanation: z
         .string()
@@ -105,9 +106,25 @@ export default function setNodeDataTool({
           valuesToWrite = { ...existingValues, ...parsedData };
         }
 
+        // Custom nodes : le schéma d'écriture est généré depuis le template
+        // de l'instance (values keyées par fieldId). Sémantique merge : les
+        // fieldIds fournis écrasent, les autres sont conservés (updateValues
+        // merge déjà côté serveur — on valide seulement le delta).
+        let template: Doc<"nodeTemplates"> | null = null;
+        if (input.nodeType === "custom") {
+          const templateId = nodeLookup.nodeData.templateId;
+          if (templateId) {
+            template = await ctx.runQuery(
+              internal.wrappers.nodeTemplateWrappers.getTemplate,
+              { templateId },
+            );
+          }
+        }
+
         const validationError = validateNodeInputSchemaForLLM({
           nodeType: input.nodeType,
           input: valuesToWrite,
+          template,
         });
         if (validationError) {
           return toolError(validationError);

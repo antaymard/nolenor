@@ -1,6 +1,8 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../_generated/api";
+import type { Doc, Id } from "../../_generated/dataModel";
+import { getDefaultValuesForTemplate } from "../../config/fieldConfig";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { generateLlmId } from "../../lib/llmId";
 import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
@@ -158,6 +160,12 @@ export default function createNodeTool({
       "Create an empty node you can then populate with data or manipulate using other tools.",
     inputSchema: z.object({
       nodeType: nodeTypeZodValidator.describe("Type of the node."),
+      templateId: z
+        .string()
+        .optional()
+        .describe(
+          'Required when nodeType is "custom": the node template id (see <user_node_templates>). Ignored otherwise.',
+        ),
       explanation: z
         .string()
         .describe("3-5 words explaining the research intent."),
@@ -192,35 +200,81 @@ export default function createNodeTool({
     }),
     execute: async (ctx, input) => {
       try {
-        const nodeConfig = nodeDataConfig.find(
-          (item) => item.type === input.nodeType,
-        );
-        if (!nodeConfig) {
-          return toolError(`Unsupported nodeType ${input.nodeType}.`);
-        }
+        // ── Custom nodes : défauts, dimensions et titre viennent du
+        // template (values keyées par fieldId), pas de nodeConfig. ──
+        let template: Doc<"nodeTemplates"> | null = null;
+        let initialValues: Record<string, unknown>;
+        let titleApplied = false;
+        let resolvedDimensions: { width: number; height: number };
 
-        const defaultValues = getDefaultNodeDataValues(input.nodeType);
-        if (!defaultValues) {
-          return toolError(`Unsupported nodeType ${input.nodeType}.`);
-        }
+        if (input.nodeType === "custom") {
+          if (!input.templateId) {
+            return toolError(
+              'templateId is required when nodeType is "custom". Pick one from <user_node_templates>.',
+            );
+          }
+          try {
+            template = await ctx.runQuery(
+              internal.wrappers.nodeTemplateWrappers.getTemplate,
+              { templateId: input.templateId as Id<"nodeTemplates"> },
+            );
+          } catch {
+            template = null;
+          }
+          if (!template) {
+            return toolError(
+              `Unknown templateId "${input.templateId}". Pick one from <user_node_templates>.`,
+            );
+          }
+          if (template.creatorId !== threadCtx.authUserId) {
+            return toolError(
+              "This template belongs to another user and cannot be instantiated here.",
+            );
+          }
+          if (template.archivedAt !== undefined) {
+            return toolError(
+              `Template "${template.name}" is archived. Ask the user to restore it before creating nodes from it.`,
+            );
+          }
 
-        if (typeof defaultValues !== "object" || defaultValues === null) {
-          return toolError(
-            `Invalid default values for nodeType ${input.nodeType}.`,
+          initialValues = getDefaultValuesForTemplate(template);
+          const title = input.nodeTitle?.trim();
+          if (title && template.titleFieldId) {
+            initialValues[template.titleFieldId] = title;
+            titleApplied = true;
+          }
+          resolvedDimensions = input.dimensions ?? template.defaultDimensions;
+        } else {
+          const nodeConfig = nodeDataConfig.find(
+            (item) => item.type === input.nodeType,
           );
-        }
+          if (!nodeConfig) {
+            return toolError(`Unsupported nodeType ${input.nodeType}.`);
+          }
 
-        const defaultValuesRecord = defaultValues as Record<string, unknown>;
+          const defaultValues = getDefaultNodeDataValues(input.nodeType);
+          if (!defaultValues) {
+            return toolError(`Unsupported nodeType ${input.nodeType}.`);
+          }
 
-        const resolvedDimensions =
-          input.dimensions ?? nodeConfig.defaultDimensions;
+          if (typeof defaultValues !== "object" || defaultValues === null) {
+            return toolError(
+              `Invalid default values for nodeType ${input.nodeType}.`,
+            );
+          }
 
-        const { values: initialValues, titleApplied } =
-          await applyNodeDataTitle({
+          const defaultValuesRecord = defaultValues as Record<string, unknown>;
+
+          resolvedDimensions = input.dimensions ?? nodeConfig.defaultDimensions;
+
+          const titled = await applyNodeDataTitle({
             nodeType: input.nodeType,
             defaultValues: defaultValuesRecord,
             nodeTitle: input.nodeTitle,
           });
+          initialValues = titled.values;
+          titleApplied = titled.titleApplied;
+        }
 
         const nodeDataId = await ctx.runMutation(
           internal.wrappers.nodeDataWrappers.create,
@@ -228,6 +282,7 @@ export default function createNodeTool({
             type: input.nodeType,
             values: initialValues,
             canvasId,
+            ...(template && { templateId: template._id }),
           },
         );
 
@@ -244,6 +299,9 @@ export default function createNodeTool({
               width: resolvedDimensions.width,
               height: resolvedDimensions.height,
               color: input.color,
+              // Copie dénormalisée write-once du lien template (résolution
+              // côté canvas, cf. listForCanvas).
+              ...(template && { data: { templateId: template._id } }),
             },
           ],
         });
@@ -353,6 +411,16 @@ export default function createNodeTool({
             height: resolvedDimensions.height,
           },
           currentNodeData,
+          // Custom : la carte des champs (id ↔ nom ↔ type) — les values de
+          // set_node_data doivent être keyées par field id.
+          ...(template && {
+            templateName: template.name,
+            templateFields: template.fields.map((f) => ({
+              id: f.id,
+              name: f.name,
+              type: f.type,
+            })),
+          }),
         };
       } catch (error) {
         return toolError(

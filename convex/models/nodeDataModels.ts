@@ -21,16 +21,19 @@ export async function createNodeData(
     type,
     values,
     canvasId,
+    templateId,
   }: {
     type: Doc<"nodeDatas">["type"];
     values: Record<string, unknown>;
     canvasId: Id<"canvases">;
+    templateId?: Id<"nodeTemplates">;
   },
 ): Promise<Id<"nodeDatas">> {
   return ctx.db.insert("nodeDatas", {
     type,
     values,
     canvasId,
+    ...(templateId && { templateId }),
     updatedAt: Date.now(),
   });
 }

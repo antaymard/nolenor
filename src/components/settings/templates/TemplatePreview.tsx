@@ -30,6 +30,14 @@ function buildSampleValues(fields: TemplateField[]): Record<string, unknown> {
       case "boolean":
         values[field.id] = true;
         break;
+      case "rich_text":
+        values[field.id] = JSON.stringify([
+          { type: "p", children: [{ text: `Sample ${field.name} content.` }] },
+        ]);
+        break;
+      case "image":
+        // Pas d'image d'exemple : la preview montre l'état vide du champ.
+        break;
     }
   }
   return values;

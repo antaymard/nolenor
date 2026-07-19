@@ -657,7 +657,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
             let content =
               nodeData.type === "custom"
-                ? makeCustomNodeDataLLMFriendly(
+                ? await makeCustomNodeDataLLMFriendly(
                     nodeData,
                     templateForNodeData(nodeData),
                   )

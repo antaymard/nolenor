@@ -4,7 +4,9 @@ import {
   TbAbc,
   TbCalendar,
   TbCheckbox,
+  TbNews,
   TbNumber123,
+  TbPhoto,
   TbSelect,
 } from "react-icons/tb";
 import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
@@ -15,6 +17,11 @@ import NumberField from "@/components/fields/custom-fields/NumberField";
 import DateField from "@/components/fields/custom-fields/DateField";
 import SelectField from "@/components/fields/custom-fields/SelectField";
 import BooleanField from "@/components/fields/custom-fields/BooleanField";
+import {
+  RichTextNodeDisplay,
+  RichTextWindowEditor,
+} from "@/components/fields/custom-fields/RichTextField";
+import ImageValueField from "@/components/fields/custom-fields/ImageValueField";
 
 // Complément front de convex/config/fieldConfig.ts (même split que
 // nodeConfig ↔ prebuiltNodesConfig) : mappe chaque type de champ vers ses
@@ -70,6 +77,21 @@ const fieldRegistry: Record<FieldType, FieldRegistryEntry> = {
     label: "Checkbox",
     NodeDisplay: BooleanField,
     WindowEditor: BooleanField,
+  },
+  // Seul type à surfaces distinctes : statique virtualisé sur le canvas
+  // (jamais d'éditeur Plate dans un node), éditeur complet en window
+  // derrière le flux dirty/save du WindowFrame.
+  rich_text: {
+    icon: TbNews,
+    label: "Rich text",
+    NodeDisplay: RichTextNodeDisplay,
+    WindowEditor: RichTextWindowEditor,
+  },
+  image: {
+    icon: TbPhoto,
+    label: "Image",
+    NodeDisplay: ImageValueField,
+    WindowEditor: ImageValueField,
   },
 };
 

@@ -5,6 +5,8 @@ import {
 } from "../../config/fieldConfig";
 import { buildTemplateLLMSummary } from "../../config/templateConfig";
 import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
+import { parseStoredPlateDocument } from "../../lib/plateDocumentStorage";
+import { plateJsonToMarkdown } from "./plateMarkdownConverter";
 
 // Helpers LLM pour les custom nodes (nodes templatés par l'utilisateur).
 // Les values sont keyées par fieldId : tout affichage passe par le template
@@ -32,26 +34,36 @@ export function formatTemplatesForPrompt(templates: NodeTemplate[]): string {
 }
 
 // Contenu d'un custom node en lignes `fieldName (fieldId): value` — le
-// fieldId est nécessaire au LLM pour écrire via set_node_data.
-export function makeCustomNodeDataLLMFriendly(
+// fieldId est nécessaire au LLM pour écrire via set_node_data. Async : les
+// champs rich_text sont convertis Plate → markdown fidèlement.
+export async function makeCustomNodeDataLLMFriendly(
   nodeData: Doc<"nodeDatas">,
   template: NodeTemplate | null | undefined,
-): string {
+): Promise<string> {
   if (!template) {
     return JSON.stringify(nodeData.values);
   }
-  return template.fields
-    .map((field) => {
+  const lines = await Promise.all(
+    template.fields.map(async (field) => {
       const config = getFieldTypeConfig(field.type);
       const raw = nodeData.values[field.id];
-      const display = config.toLLMDisplay
-        ? config.toLLMDisplay(raw, field)
-        : raw === undefined || raw === null
-          ? ""
-          : String(raw);
+
+      let display: string;
+      if (field.type === "rich_text") {
+        const parsed = parseStoredPlateDocument(raw);
+        display =
+          parsed && parsed.length > 0 ? await plateJsonToMarkdown(parsed) : "";
+      } else {
+        display = config.toLLMDisplay
+          ? config.toLLMDisplay(raw, field)
+          : raw === undefined || raw === null
+            ? ""
+            : String(raw);
+      }
       return `${field.name} (${field.id}): ${display || "(empty)"}`;
-    })
-    .join("\n");
+    }),
+  );
+  return lines.join("\n");
 }
 
 // Entrées <schema> par template pour les blocs <nodeDataSchemas> des tools

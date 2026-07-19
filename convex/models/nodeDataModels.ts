@@ -5,6 +5,7 @@ import { internal } from "../_generated/api";
 import * as SearchableChunkModels from "./searchableChunkModels";
 import * as NodeDataVersionModels from "./nodeDataVersionModels";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
+import { collectR2KeysForTemplateValues } from "../config/fieldConfig";
 
 export async function readNodeData(
   ctx: QueryCtx,
@@ -92,6 +93,28 @@ export async function deleteNodeDataWithCascade(
                 r2Keys.push(url.slice(prefix.length));
               }
             }
+          }
+        }
+      }
+    } else if (nodeData.type === "custom") {
+      // Champs image des custom nodes : clés collectées via le template ;
+      // fallback défensif (template supprimé) : scan des values pour des
+      // objets porteurs d'une `key` string.
+      const template = nodeData.templateId
+        ? await ctx.db.get(nodeData.templateId)
+        : null;
+      if (template) {
+        r2Keys.push(
+          ...collectR2KeysForTemplateValues(template, nodeData.values ?? {}),
+        );
+      } else {
+        for (const value of Object.values(nodeData.values ?? {})) {
+          if (
+            value &&
+            typeof value === "object" &&
+            typeof (value as Record<string, unknown>).key === "string"
+          ) {
+            r2Keys.push((value as Record<string, unknown>).key as string);
           }
         }
       }

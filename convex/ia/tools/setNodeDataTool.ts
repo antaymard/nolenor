@@ -144,6 +144,23 @@ export default function setNodeDataTool({
           };
         }
 
+        // Custom : les champs rich_text arrivent en markdown, même cycle de
+        // conversion que les documents avant l'écriture.
+        if (input.nodeType === "custom" && template) {
+          const richTextFieldIds = new Set(
+            template.fields
+              .filter((field) => field.type === "rich_text")
+              .map((field) => field.id),
+          );
+          for (const [key, value] of Object.entries(valuesToWrite)) {
+            if (richTextFieldIds.has(key) && typeof value === "string") {
+              valuesToWrite[key] = stringifyPlateDocumentForStorage(
+                await markdownToPlateJson(value),
+              );
+            }
+          }
+        }
+
         await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {
           _id: nodeLookup.nodeData._id,
           values: valuesToWrite,

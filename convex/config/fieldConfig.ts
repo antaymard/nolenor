@@ -5,6 +5,7 @@ import {
   type FieldType,
 } from "../schemas/fieldTypeSchema";
 import { templateFieldValidator } from "../schemas/nodeTemplatesSchema";
+import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
 
 // Source de vérité des types de champs des custom node templates.
 // Partagé Convex + front (même pattern que nodeConfig.ts) : la validation
@@ -53,6 +54,30 @@ function getSelectChoices(field: TemplateField): SelectChoice[] {
 function getNumberUnit(field: TemplateField): string | undefined {
   const unit = field.options?.unit;
   return typeof unit === "string" && unit.length > 0 ? unit : undefined;
+}
+
+// Extraction SYNCHRONE du texte brut d'un doc Plate stringifié (recherche,
+// affichage compact). La conversion markdown fidèle (async) vit côté agent
+// dans customTemplateHelpers.
+function extractPlateText(value: unknown): string | null {
+  const parsed = parseStoredPlateDocument(value);
+  if (!parsed || parsed.length === 0) return null;
+
+  const texts: string[] = [];
+  const walk = (node: unknown) => {
+    if (!node || typeof node !== "object") return;
+    const record = node as { text?: unknown; children?: unknown[] };
+    if (typeof record.text === "string" && record.text.trim().length > 0) {
+      texts.push(record.text);
+    }
+    if (Array.isArray(record.children)) {
+      record.children.forEach(walk);
+    }
+  };
+  parsed.forEach(walk);
+
+  const text = texts.join(" ").trim();
+  return text.length > 0 ? text : null;
 }
 
 // ── Catalogue ───────────────────────────────────────────────────────────
@@ -175,6 +200,60 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
     getDefault: (field) =>
       typeof field.default === "boolean" ? field.default : false,
     toLLMDisplay: (value) => (value === true ? "true" : "false"),
+  },
+  {
+    type: "rich_text",
+    label: "Rich text",
+    optionsSchema: z.strictObject({}).optional(),
+    // Stocké comme les nodes document : Plate JSON stringifié
+    // (stringifyPlateDocumentForStorage au call-site window).
+    buildValueSchema: () => z.string(),
+    // Le LLM écrit du markdown ; setNodeDataTool convertit en Plate avant
+    // l'écriture (même cycle que les nodes document).
+    buildToolValueSchema: () =>
+      z
+        .string()
+        .describe(
+          "Markdown content (converted to rich text on save; replaces the whole field)",
+        ),
+    getDefault: () => undefined,
+    getSearchableText: (value) => extractPlateText(value),
+    toLLMDisplay: (value) => extractPlateText(value) ?? "",
+  },
+  {
+    type: "image",
+    label: "Image",
+    optionsSchema: z.strictObject({}).optional(),
+    // `key` présent uniquement pour les uploads R2 (cascade de suppression) ;
+    // les URLs externes posées par l'agent n'en ont pas. null = effacée.
+    buildValueSchema: () =>
+      z
+        .object({
+          url: z.string().describe("Public URL of the image."),
+          key: z
+            .string()
+            .optional()
+            .describe("Internal storage key (set for uploaded images only)."),
+        })
+        .nullable(),
+    getDefault: () => undefined,
+    collectR2Keys: (value) => {
+      if (
+        value &&
+        typeof value === "object" &&
+        typeof (value as { key?: unknown }).key === "string"
+      ) {
+        return [(value as { key: string }).key];
+      }
+      return [];
+    },
+    toLLMDisplay: (value) => {
+      const url =
+        value && typeof value === "object"
+          ? (value as { url?: unknown }).url
+          : undefined;
+      return typeof url === "string" ? url : "";
+    },
   },
 ];
 

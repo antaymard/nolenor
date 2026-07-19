@@ -37,6 +37,8 @@ const DEFAULT_FIELD_NAMES: Record<FieldType, string> = {
   date: "Date",
   select: "Select",
   boolean: "Checkbox",
+  rich_text: "Rich text",
+  image: "Image",
 };
 
 function newField(type: FieldType): TemplateField {

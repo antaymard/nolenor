@@ -78,13 +78,27 @@ function BlocknoteWindow({
   // replace the editor's blocks. The skipNextChangeRef prevents the
   // resulting onChange from marking the window as dirty.
   useEffect(() => {
-    if (!nodeDataValues) return;
+    if (!nodeDataValues) {
+      console.log("[BlocknoteWindow] re-hydration skip: nodeDataValues undefined");
+      return;
+    }
     if (
       hasHydratedOnceRef.current &&
       Object.is(lastHydratedDocRef.current, docSource)
     ) {
+      console.log("[BlocknoteWindow] re-hydration skip: docSource unchanged", {
+        hasHydratedOnce: hasHydratedOnceRef.current,
+        lastLen: typeof lastHydratedDocRef.current === "string" ? lastHydratedDocRef.current.length : "?",
+        newLen: typeof docSource === "string" ? docSource.length : "?",
+      });
       return;
     }
+
+    console.log("[BlocknoteWindow] re-hydration PROCEEDING", {
+      hasHydratedOnce: hasHydratedOnceRef.current,
+      docSourceLen: typeof docSource === "string" ? docSource.length : typeof docSource,
+      editorReady: !!editorRef.current,
+    });
 
     if (!hasHydratedOnceRef.current) {
       setIsEditorReady(false);
@@ -96,7 +110,10 @@ function BlocknoteWindow({
     }
 
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor) {
+      console.log("[BlocknoteWindow] re-hydration ABORT: editor null");
+      return;
+    }
 
     hydrationFrameRef.current = requestAnimationFrame(() => {
       const parsedBlocks = parseStoredPlateDocument(docSource) as
@@ -104,18 +121,31 @@ function BlocknoteWindow({
         | null;
       const blocks = parsedBlocks ?? [];
 
+      console.log("[BlocknoteWindow] rAF running replaceBlocks", {
+        blocksCount: blocks.length,
+        currentDocCount: editor.document.length,
+      });
+
       if (blocks.length > 0) {
         skipNextChangeRef.current = true;
         const allBlockIds = editor.document.map((b) => b.id);
-        if (allBlockIds.length > 0) {
-          editor.replaceBlocks(allBlockIds, blocks);
-        } else {
-          editor.insertBlocks(
-            blocks,
-            editor.document[editor.document.length - 1],
-            "after",
-          );
+        try {
+          if (allBlockIds.length > 0) {
+            editor.replaceBlocks(allBlockIds, blocks);
+          } else {
+            editor.insertBlocks(
+              blocks,
+              editor.document[editor.document.length - 1],
+              "after",
+            );
+          }
+          console.log("[BlocknoteWindow] replaceBlocks SUCCESS");
+        } catch (err) {
+          console.error("[BlocknoteWindow] replaceBlocks THREW:", err);
+          skipNextChangeRef.current = false;
         }
+      } else {
+        console.log("[BlocknoteWindow] rAF: blocks empty, skipping replaceBlocks");
       }
 
       setIsEditorReady(true);

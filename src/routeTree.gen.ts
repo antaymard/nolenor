@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsTemplatesRouteImport } from './routes/settings/templates'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
 import { Route as SettingsRecipesIndexRouteImport } from './routes/settings/recipes/index'
@@ -31,6 +32,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsTemplatesRoute = SettingsTemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   id: '/skills',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/recipes/': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/canvas/$canvasId'
     | '/settings/skills'
+    | '/settings/templates'
     | '/settings/recipes'
     | '/settings/recipes/edit/$recipeId'
   fileRoutesByTo: FileRoutesByTo
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/canvas/$canvasId'
     | '/settings/skills'
+    | '/settings/templates'
     | '/settings/recipes'
     | '/settings/recipes/edit/$recipeId'
   id:
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/canvas/$canvasId'
     | '/settings/skills'
+    | '/settings/templates'
     | '/settings/recipes/'
     | '/settings/recipes/edit/$recipeId'
   fileRoutesById: FileRoutesById
@@ -142,6 +154,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/templates': {
+      id: '/settings/templates'
+      path: '/templates'
+      fullPath: '/settings/templates'
+      preLoaderRoute: typeof SettingsTemplatesRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/skills': {
       id: '/settings/skills'
       path: '/skills'
@@ -175,12 +194,14 @@ declare module '@tanstack/react-router' {
 
 interface SettingsRouteRouteChildren {
   SettingsSkillsRoute: typeof SettingsSkillsRoute
+  SettingsTemplatesRoute: typeof SettingsTemplatesRoute
   SettingsRecipesIndexRoute: typeof SettingsRecipesIndexRoute
   SettingsRecipesEditRecipeIdRoute: typeof SettingsRecipesEditRecipeIdRoute
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsSkillsRoute: SettingsSkillsRoute,
+  SettingsTemplatesRoute: SettingsTemplatesRoute,
   SettingsRecipesIndexRoute: SettingsRecipesIndexRoute,
   SettingsRecipesEditRecipeIdRoute: SettingsRecipesEditRecipeIdRoute,
 }

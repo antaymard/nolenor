@@ -56,6 +56,9 @@ const TableWindow = lazy(
   () => import("@/components/windows/prebuilt/TableWindow"),
 );
 const AppWindow = lazy(() => import("@/components/windows/prebuilt/AppWindow"));
+const CustomWindow = lazy(
+  () => import("@/components/windows/prebuilt/CustomWindow"),
+);
 import { cn } from "@/lib/utils";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
 
@@ -343,6 +346,8 @@ function NodeContentBody({
       return <ImageWindow nodeDataId={nodeDataId} />;
     case "table":
       return <TableWindow nodeDataId={nodeDataId} />;
+    case "custom":
+      return <CustomWindow nodeDataId={nodeDataId} />;
     default:
       return (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

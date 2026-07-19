@@ -13,6 +13,10 @@ import DocumentStaticField from "@/components/fields/document-fields/DocumentSta
 import { TablePreview, type TableData } from "@/components/table";
 import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
 import { toastError } from "@/components/utils/errorUtils";
+import LayoutRenderer from "@/components/fields/layout/LayoutRenderer";
+import { useNodeData } from "@/hooks/useNodeData";
+import { useTemplate } from "@/stores/templatesStore";
+import type { LayoutContainer } from "@/../convex/config/templateConfig";
 
 const ACTOR_ICON = {
   user: TbUser,
@@ -43,6 +47,11 @@ function VersionContentPreview({
     api.nodeDataVersions.read,
     { versionId },
   );
+
+  // Custom nodes : le template (layout + noms de champs) vient du nodeData
+  // vivant — les versions ne stockent que les values. Hooks inconditionnels.
+  const liveNodeData = useNodeData(data?.nodeDataId);
+  const template = useTemplate(liveNodeData?.templateId);
 
   if (isPending) {
     return (
@@ -84,6 +93,27 @@ function VersionContentPreview({
           <TablePreview
             columns={table?.columns ?? []}
             rows={table?.rows ?? []}
+          />
+        </div>
+      );
+    }
+    case "custom": {
+      if (!template) {
+        return (
+          <div className="flex h-full items-center justify-center text-xs text-slate-400">
+            Preview unavailable (template not resolved).
+          </div>
+        );
+      }
+      return (
+        <div className="h-full min-h-0 overflow-auto p-2">
+          <LayoutRenderer
+            tree={
+              (template.windowLayout ?? template.nodeLayout) as LayoutContainer
+            }
+            fields={template.fields}
+            values={data.values}
+            surface="window"
           />
         </div>
       );

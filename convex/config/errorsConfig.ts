@@ -12,6 +12,7 @@ const errors = {
   INSUFFICIENT_PERMISSIONS:
     "You do not have the required permission for this action.",
   THREAD_NOT_FOUND_OR_FORBIDDEN: "Thread not found or access denied.",
+  TEMPLATE_NOT_FOUND: "This node template does not exist.",
 };
 
 export default errors;

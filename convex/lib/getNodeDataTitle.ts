@@ -1,7 +1,13 @@
 import type { Doc } from "../_generated/dataModel";
 import { parseStoredPlateDocument } from "./plateDocumentStorage";
 
-export function getNodeDataTitle(nodeData: Doc<"nodeDatas">): string {
+// `template` : requis pour un titre exact des nodes custom (titleFieldId).
+// Les call-sites qui n'ont pas le template sous la main retombent sur une
+// heuristique (première value texte courte) puis "Custom node".
+export function getNodeDataTitle(
+  nodeData: Doc<"nodeDatas">,
+  template?: { name: string; titleFieldId?: string } | null,
+): string {
   switch (nodeData.type) {
     case "document": {
       const doc = nodeData.values.doc;
@@ -78,6 +84,31 @@ export function getNodeDataTitle(nodeData: Doc<"nodeDatas">): string {
     case "app": {
       const title = nodeData.values.title;
       return typeof title === "string" ? title : "App";
+    }
+
+    case "custom": {
+      if (template?.titleFieldId) {
+        const title = nodeData.values[template.titleFieldId];
+        if (typeof title === "string" && title.trim().length > 0) {
+          return title;
+        }
+      }
+      if (template?.name) return template.name;
+
+      // Values keyées par fieldId : sans template résolu, on prend la
+      // première value texte plausible (courte, pas du JSON sérialisé).
+      for (const value of Object.values(nodeData.values ?? {})) {
+        if (
+          typeof value === "string" &&
+          value.trim().length > 0 &&
+          value.length <= 120 &&
+          !value.startsWith("[") &&
+          !value.startsWith("{")
+        ) {
+          return value;
+        }
+      }
+      return "Custom node";
     }
 
     default:

@@ -8,6 +8,7 @@ import NodeHandles from "./NodeHandles";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useIsNodeAttached } from "@/stores/noleStore";
+import { useTemplate } from "@/stores/templatesStore";
 
 function NodeFrame({
   xyNode,
@@ -25,17 +26,34 @@ function NodeFrame({
   const isAttachedToNole = useIsNodeAttached(xyNode.id);
   const nodeType = xyNode.type;
 
+  // Custom nodes : l'ouvrabilité en window dépend du template (présence
+  // d'un windowLayout), pas du type. Hook inconditionnel — templateId est
+  // undefined pour les prébuilts, le sélecteur renvoie undefined.
+  const template = useTemplate(xyNode.data?.templateId as string | undefined);
+
   const handleDoubleClick = useCallback(() => {
     const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+    if (!nodeDataId) return;
 
-    if (nodeDataId && canNodeTypeBeOpenedInWindow(nodeType)) {
+    if (nodeType === "custom") {
+      if (template?.windowLayout === undefined) return;
+      openWindow({
+        xyNodeId: xyNode.id,
+        nodeDataId,
+        nodeType: "custom",
+        windowSize: template.windowSize,
+      });
+      return;
+    }
+
+    if (canNodeTypeBeOpenedInWindow(nodeType)) {
       openWindow({
         xyNodeId: xyNode.id,
         nodeDataId,
         nodeType,
       });
     }
-  }, [xyNode.data?.nodeDataId, xyNode.id, nodeType, openWindow]);
+  }, [xyNode.data?.nodeDataId, xyNode.id, nodeType, openWindow, template]);
 
   if (!xyNode) return null;
 

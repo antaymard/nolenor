@@ -54,7 +54,7 @@ export default function DateField({ value, onCommit }: FieldRenderProps) {
           className="ml-auto shrink-0 opacity-40 hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
-            onCommit(undefined);
+            onCommit(null);
           }}
         >
           <TbX size={12} />

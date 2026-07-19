@@ -5,8 +5,10 @@ import type { Node } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { NodeType } from "@/types/domain";
 import { getDefaultNodeDataValues } from "@/../convex/config/nodeConfig";
+import { getDefaultValuesForTemplate } from "@/../convex/config/fieldConfig";
 import { generateLlmId } from "@/../convex/lib/llmId";
 import { useParams } from "@tanstack/react-router";
+import { useTemplatesStore } from "@/stores/templatesStore";
 
 type CreateNodeOptions = {
   node: Node;
@@ -33,7 +35,20 @@ export function useCreateNode() {
   }: CreateNodeOptions): Promise<CreateNodeResult> => {
     const nodeId = generateLlmId();
 
-    const defaults = getDefaultNodeDataValues(node.type as NodeType) ?? {};
+    // Custom nodes : défauts calculés depuis le template (values keyées
+    // par fieldId), templateId persisté sur le nodeData (lien autoritaire ;
+    // node.data.templateId reste la copie dénormalisée côté canvas).
+    const templateId =
+      node.type === "custom"
+        ? (node.data?.templateId as Id<"nodeTemplates"> | undefined)
+        : undefined;
+    const template = templateId
+      ? useTemplatesStore.getState().templates.get(templateId)
+      : undefined;
+
+    const defaults = template
+      ? getDefaultValuesForTemplate(template)
+      : (getDefaultNodeDataValues(node.type as NodeType) ?? {});
     const values =
       Object.keys(initialValues).length > 0 ? initialValues : defaults;
     const nodeDataId = await createNodeData({
@@ -41,6 +56,7 @@ export function useCreateNode() {
       values,
       updatedAt: Date.now(),
       canvasId,
+      ...(templateId && { templateId }),
     });
 
     // Déselectionner tous les nodes

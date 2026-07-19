@@ -81,13 +81,15 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
         max: z.number().optional(),
       })
       .optional(),
+    // Nullable : updateValues merge les values côté serveur (une clé ne
+    // peut jamais être retirée), null est le marqueur « valeur effacée ».
     buildValueSchema: (field) => {
       let schema = z.number().finite();
       const min = field.options?.min;
       const max = field.options?.max;
       if (typeof min === "number") schema = schema.min(min);
       if (typeof max === "number") schema = schema.max(max);
-      return schema;
+      return schema.nullable();
     },
     getDefault: (field) =>
       typeof field.default === "number" ? field.default : undefined,
@@ -108,16 +110,19 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
     optionsSchema: z
       .strictObject({ includeTime: z.boolean().optional() })
       .optional(),
+    // Stockage en ISO : lisible par le LLM, timezone explicite. Nullable :
+    // null = valeur effacée (cf. commentaire sur number).
     buildValueSchema: (field) => {
-      // Stockage en ISO : lisible par le LLM, timezone explicite.
       if (field.options?.includeTime === true) {
-        return z.union([
-          z.iso.datetime({ offset: true }),
-          z.iso.datetime(),
-          z.iso.date(),
-        ]);
+        return z
+          .union([
+            z.iso.datetime({ offset: true }),
+            z.iso.datetime(),
+            z.iso.date(),
+          ])
+          .nullable();
       }
-      return z.iso.date();
+      return z.iso.date().nullable();
     },
     getDefault: (field) =>
       typeof field.default === "string" ? field.default : undefined,

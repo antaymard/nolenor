@@ -24,10 +24,13 @@ export default function NumberField({
         className="nodrag w-full min-w-0 bg-transparent border-b border-blue-300 outline-none text-sm py-0.5"
         onBlur={(e) => {
           const raw = e.target.value.trim();
-          // Champ vidé = valeur effacée (la clé est retirée des values).
-          const next = raw === "" ? undefined : Number(raw);
-          if (next === undefined || Number.isFinite(next)) {
-            if (next !== num) onCommit(next);
+          // Champ vidé = null (les clés des values ne sont jamais retirées,
+          // le merge serveur ne supprime pas — null marque l'effacement).
+          const next = raw === "" ? null : Number(raw);
+          if (next === null) {
+            if (num !== undefined) onCommit(null);
+          } else if (Number.isFinite(next) && next !== num) {
+            onCommit(next);
           }
           setEditing(false);
         }}

@@ -32,6 +32,9 @@ const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
   value: { width: 400, height: 300 },
   title: { width: 480, height: 320 },
   table: { widthRatio: 1 / 1.8, heightRatio: 0.9 },
+  // Fallback pour les custom nodes dont le template ne définit pas de
+  // windowSize (la taille passe normalement par le payload openWindow).
+  custom: { width: 520, height: 460 },
 };
 
 function resolveWindowSize(preset: WindowSizePreset): WindowSize {
@@ -192,7 +195,11 @@ export interface OpenedWindow {
 type OpenedWindowPayload = Pick<
   OpenedWindow,
   "xyNodeId" | "nodeDataId" | "nodeType"
->;
+> & {
+  // Taille définie par le template pour les custom nodes ; fallback sur
+  // WINDOW_SIZE_BY_TYPE / DEFAULT_WINDOW_SIZE sinon.
+  windowSize?: WindowSize;
+};
 
 interface WindowsStore {
   openedWindows: OpenedWindow[];
@@ -241,7 +248,12 @@ export const useWindowsStore = create<WindowsStore>()(
           };
         });
       },
-      openWindow: ({ xyNodeId, nodeDataId, nodeType }: OpenedWindowPayload) => {
+      openWindow: ({
+        xyNodeId,
+        nodeDataId,
+        nodeType,
+        windowSize,
+      }: OpenedWindowPayload) => {
         set((store) => {
           const existingWindowIndex = store.openedWindows.findIndex(
             (window) => window.xyNodeId === xyNodeId,
@@ -276,7 +288,9 @@ export const useWindowsStore = create<WindowsStore>()(
           }
 
           // If the window is not open, create a new one
-          const { width, height } = getDefaultWindowSize(nodeType);
+          const { width, height } = windowSize
+            ? resolveWindowSize(windowSize)
+            : getDefaultWindowSize(nodeType);
           const nextTopZIndex = store.topZIndex + 1;
           const newWindow: OpenedWindow = {
             xyNodeId,

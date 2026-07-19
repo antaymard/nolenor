@@ -21,6 +21,8 @@ import toast from "react-hot-toast";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNodeData } from "@/hooks/useNodeData";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
+import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
+import { useTemplate } from "@/stores/templatesStore";
 import { X, Minus, Save, Maximize2 } from "lucide-react";
 import { Spinner } from "@/components/shadcn/spinner";
 import {
@@ -40,6 +42,7 @@ const ImageWindow = lazy(() => import("./prebuilt/ImageWindow"));
 const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
 const TableWindow = lazy(() => import("./prebuilt/TableWindow"));
 const AppWindow = lazy(() => import("./prebuilt/AppWindow"));
+const CustomWindow = lazy(() => import("./prebuilt/CustomWindow"));
 import { WindowFrameContext } from "./WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
@@ -98,6 +101,8 @@ function WindowBody({
       return <ImageWindow nodeDataId={nodeDataId} />;
     case "table":
       return <TableWindow nodeDataId={nodeDataId} />;
+    case "custom":
+      return <CustomWindow nodeDataId={nodeDataId} />;
     default:
       return (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -152,7 +157,13 @@ export default function WindowFrame({
 
   const title = useNodeDataTitle(nodeDataId);
   const nodeData = useNodeData(nodeDataId);
-  const NodeIcon = getNodeIcon(nodeData?.type);
+  // Custom nodes : icône du template (templateId undefined pour les
+  // prébuilts → le hook renvoie undefined).
+  const template = useTemplate(nodeData?.templateId);
+  const NodeIcon =
+    nodeData?.type === "custom"
+      ? getTemplateIcon(template?.icon)
+      : getNodeIcon(nodeData?.type);
 
   const [isDraggingOrResizing, setIsDraggingOrResizing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);

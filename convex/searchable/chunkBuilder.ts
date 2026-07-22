@@ -11,6 +11,7 @@ import { blocksToMarkdown } from "../ia/helpers/blockNoteMarkdownConverter";
 import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
 import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFriendly";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
+import { stripLoneSurrogates } from "../lib/textSanitize";
 import type { Doc } from "../_generated/dataModel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -88,7 +89,12 @@ async function rebuildChunksForNodeData(
     });
   }
 
-  const chunks = await buildChunks(nodeData, nodeId, updatedKeys);
+  const rawChunks = await buildChunks(nodeData, nodeId, updatedKeys);
+  const chunks = rawChunks.map((chunk) => ({
+    ...chunk,
+    title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
+    text: stripLoneSurrogates(chunk.text),
+  }));
 
   // console.log("[chunkBuilder] rebuildChunks:chunks-built", {
   //   nodeDataId,

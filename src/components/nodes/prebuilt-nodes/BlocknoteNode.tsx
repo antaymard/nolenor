@@ -11,7 +11,7 @@ import NodeFrame from "../NodeFrame";
 import { Button } from "@/components/shadcn/button";
 import { TbMaximize, TbNotes } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
-import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
+import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
 
 // ── Singleton headless BlockNote editor ──────────────────────────────────
 // One instance shared across all canvas nodes, never mounted to the DOM.
@@ -37,7 +37,7 @@ function blocksToHtml(docString: string | undefined): string | null {
   const cached = htmlCache.get(docString);
   if (cached !== undefined) return cached;
 
-  const blocks = parseStoredPlateDocument(docString) as
+  const blocks = parseStoredBlockNoteDocument(docString) as
     | PartialBlock[]
     | null;
   if (!blocks || blocks.length === 0) {
@@ -107,7 +107,7 @@ function BlocknoteNode(xyNode: Node) {
   const docString = values?.doc as string | undefined;
 
   const { html, isEmpty } = useMemo(() => {
-    const blocks = parseStoredPlateDocument(docString);
+    const blocks = parseStoredBlockNoteDocument(docString);
     if (!blocks || blocks.length === 0) {
       return { html: null, isEmpty: true };
     }

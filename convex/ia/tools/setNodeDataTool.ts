@@ -4,10 +4,8 @@ import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
-import { parseBlockNoteDocInput } from "../helpers/blockNoteMarkdownConverter";
-import { ensureBlockIds } from "../helpers/blocknoteBlockTree";
+import { parseBlockNoteXml } from "../helpers/blockNoteMarkdown";
 import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
-import { stringifyBlockNoteDocumentForStorage } from "../../lib/blockNoteDocumentStorage";
 import z from "zod";
 import { type ToolConfig, toolError } from "./toolHelpers";
 
@@ -35,7 +33,7 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For blocknote nodes, pass `{ doc: "<annotated markdown>" }` (same format as read_nodes output — `<block type="heading" props=\'{"level":3}\'>text</block>`, converted to blocks losslessly) or `{ doc: "<json array of blocks>" }` (used as-is) to replace the ENTIRE document; for targeted edits prefer insert_blocks, replace_block, delete_blocks, update_block_props, or patch_block_text. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
+      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For blocknote nodes, pass `{ doc: "<blocknote XML v1 string>" }` to replace the ENTIRE document — the XML is the same format returned by read_nodes: `<blocknote version="1"><block type="paragraph">Markdown text</block>…</blocknote>`. For targeted edits prefer insert_blocks, replace_block, delete_blocks, update_block_props, or patch_block_text. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
     inputSchema: z.object({
       explanation: z
         .string()
@@ -130,15 +128,28 @@ export default function setNodeDataTool({
           };
         }
 
-        // Blocknote nodes accept annotated markdown (symmetric with read_nodes
-        // output), a JSON array of blocks, or plain markdown in `doc`. Targeted
-        // edits should prefer insert_blocks / replace_block / etc.
+        // Blocknote: full replacement uses BlockNote XML v1 (same format as
+        // read_nodes output). Targeted edits should use insert_blocks /
+        // replace_block / etc., which all go through the same atomic
+        // editBlockNoteDocument mutation.
         if (input.nodeType === "blocknote") {
-          const blocks = ensureBlockIds(await parseBlockNoteDocInput(valuesToWrite.doc));
-          valuesToWrite = {
-            ...valuesToWrite,
-            doc: stringifyBlockNoteDocumentForStorage(blocks),
-          };
+          const doc = valuesToWrite.doc;
+          if (typeof doc !== "string") {
+            return toolError(
+              "blocknote `doc` must be a BlockNote XML v1 string (same format as read_nodes output).",
+            );
+          }
+          const blocks = await parseBlockNoteXml(doc);
+          await ctx.runMutation(
+            internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
+            {
+              canvasId,
+              nodeId: input.nodeId,
+              threadId: ctx.threadId,
+              edit: { kind: "replaceDocument", blocks },
+            },
+          );
+          return `Node data updated for nodeId ${input.nodeId}.`;
         }
 
         await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {

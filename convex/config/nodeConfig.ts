@@ -181,7 +181,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Node for storing a rich text document (BlockNote editor).",
     llmDescription:
-      "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, colors, alignment, tables, etc.). Read via read_nodes: content is returned as annotated markdown where each block is wrapped in `<block id=\"…\" type=\"…\" props='{…}'>…</block>` (props shown only when non-default; children nested). Edit using the block-id-addressed tools (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text) — never hand-edit the raw JSON. For a full replace via set_node_data, the required data value is 'doc': an annotated markdown string (same format as read_nodes output, lossless), a plain markdown string (lossy), or a JSON array string of blocks.",
+      "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, colors, alignment, tables, etc.). Read via read_nodes: content is returned as BlockNote XML v1 where each block is `<block id=\"…\" type=\"…\" props='{…}'>markdown content<children>…</children></block>`. The block's inline content is plain Markdown (bold, italic, strike, code, links). Block-level props (colors, alignment, level) are in the `props` attribute. Tables use a structured `<table>` element with `<row>`/`<cell>` (cell props, widths, spans preserved). This XML is the SAME format accepted by set_node_data (full replace), insert_blocks and replace_block — you can copy blocks from read_nodes output and send them back. patch_block_text replaces an exact literal substring inside a block's visible text. Edit using the block-id-addressed tools (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text) — never hand-edit the raw JSON. For a full replace via set_node_data, `doc` must be a BlockNote XML v1 string (`<blocknote version=\"1\">…</blocknote>`).",
     defaultDimensions: { width: 320, height: 320, resizable: true },
     variants: {
       default: {
@@ -206,7 +206,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       doc: z
         .string()
         .describe(
-          "Annotated markdown string (same format as read_nodes output — lossless), plain markdown (lossy), or a JSON array string of BlockNote blocks.",
+          "BlockNote XML v1 string (same format as read_nodes output). The root must be <blocknote version=\"1\">…</blocknote>. Lossless: colors, alignment, underline, tables and all props are preserved.",
         ),
     }),
   },

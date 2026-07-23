@@ -7,8 +7,9 @@ import { generateText } from "ai";
 import { openrouter } from "@openrouter/ai-sdk-provider";
 import { uploadBuffer } from "../lib/r2";
 import { plateJsonToMarkdown } from "../ia/helpers/plateMarkdownConverter";
-import { blocksToMarkdown } from "../ia/helpers/blockNoteMarkdownConverter";
+import { blocksToMarkdown } from "../ia/helpers/blockNoteMarkdown";
 import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
+import { parseStoredBlockNoteDocument } from "../lib/blockNoteDocument";
 import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFriendly";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
 import { stripLoneSurrogates } from "../lib/textSanitize";
@@ -249,7 +250,7 @@ async function buildChunks(
     }
 
     case "blocknote": {
-      const parsed = parseStoredPlateDocument(nodeData.values.doc);
+      const parsed = parseStoredBlockNoteDocument(nodeData.values.doc);
       if (!parsed || parsed.length === 0) return [];
       const firstBlockType = (parsed[0] as { type?: string } | undefined)?.type;
       const body = firstBlockType === "heading" ? parsed.slice(1) : parsed;

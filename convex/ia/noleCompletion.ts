@@ -6,10 +6,7 @@ import { createNoleAgent, getChatModel } from "./agents";
 import { generateNoleSystemPrompt } from "./systemPrompts/noleSystemPrompt";
 import { components, internal } from "../_generated/api";
 import { generateMessageContext } from "./helpers/generateMessageContext";
-import { Composio } from "@composio/core";
-import { VercelProvider } from "@composio/vercel";
 import { vMetadata } from "./nole";
-import { sanitizeComposioTools } from "./helpers/composioSanitizer";
 
 function isExpectedAbortedStreamError(error: unknown): boolean {
   if (!(error instanceof Error)) {

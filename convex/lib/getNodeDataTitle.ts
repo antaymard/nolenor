@@ -1,5 +1,6 @@
 import type { Doc } from "../_generated/dataModel";
 import { parseStoredPlateDocument } from "./plateDocumentStorage";
+import { parseStoredBlockNoteDocument } from "./blockNoteDocument";
 
 export function getNodeDataTitle(nodeData: Doc<"nodeDatas">): string {
   switch (nodeData.type) {
@@ -27,7 +28,7 @@ export function getNodeDataTitle(nodeData: Doc<"nodeDatas">): string {
 
     case "blocknote": {
       const doc = nodeData.values.doc;
-      const docValue = parseStoredPlateDocument(doc);
+      const docValue = parseStoredBlockNoteDocument(doc);
 
       if (!docValue || docValue.length === 0) return "Blocknote";
 

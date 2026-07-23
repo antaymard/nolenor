@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
 import type * as canvasEdges from "../canvasEdges.js";
 import type * as canvasNodes from "../canvasNodes.js";
@@ -60,6 +61,7 @@ import type * as ia_tools_toolHelpers from "../ia/tools/toolHelpers.js";
 import type * as ia_tools_viewImageTool from "../ia/tools/viewImageTool.js";
 import type * as ia_tools_websearchTool from "../ia/tools/websearchTool.js";
 import type * as ia_worker from "../ia/worker.js";
+import type * as lib_apiTokenCrypto from "../lib/apiTokenCrypto.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_getNodeDataTitle from "../lib/getNodeDataTitle.js";
 import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
@@ -86,6 +88,7 @@ import type * as models_threadMetadataModels from "../models/threadMetadataModel
 import type * as nodeDataVersions from "../nodeDataVersions.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as recipes from "../recipes.js";
+import type * as schemas_apiTokensSchema from "../schemas/apiTokensSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
 import type * as schemas_messageMetadataSchema from "../schemas/messageMetadataSchema.js";
@@ -129,6 +132,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  apiTokens: typeof apiTokens;
   auth: typeof auth;
   canvasEdges: typeof canvasEdges;
   canvasNodes: typeof canvasNodes;
@@ -181,6 +185,7 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/viewImageTool": typeof ia_tools_viewImageTool;
   "ia/tools/websearchTool": typeof ia_tools_websearchTool;
   "ia/worker": typeof ia_worker;
+  "lib/apiTokenCrypto": typeof lib_apiTokenCrypto;
   "lib/auth": typeof lib_auth;
   "lib/getNodeDataTitle": typeof lib_getNodeDataTitle;
   "lib/jsonSchemaMinimap": typeof lib_jsonSchemaMinimap;
@@ -207,6 +212,7 @@ declare const fullApi: ApiFromModules<{
   nodeDataVersions: typeof nodeDataVersions;
   nodeDatas: typeof nodeDatas;
   recipes: typeof recipes;
+  "schemas/apiTokensSchema": typeof schemas_apiTokensSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;
   "schemas/messageMetadataSchema": typeof schemas_messageMetadataSchema;

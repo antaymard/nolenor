@@ -4,8 +4,6 @@ import { nodeTypeValidator } from "../schemas/nodeTypeSchema";
 import { nodeDataVersionActorValidator } from "../schemas/nodeDataVersionsSchema";
 
 import * as NodeDataModels from "../models/nodeDataModels";
-import * as CanvasNodeModels from "../models/canvasNodeModels";
-import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import {
   type BlockNoteBlock,
   insertBlocks,
@@ -74,6 +72,11 @@ export const readNodeData = internalQuery({
 // previously let a targeted edit clobber concurrent changes to other fields.
 // The markdown <-> blocks conversion (jsdom) stays in the calling Node action;
 // this mutation only manipulates the native block tree.
+//
+// Auth follows the same pattern as `updateValues`: no auth check inside the
+// mutation. Access was already enforced at the `saveMessage` entrypoint
+// (editor-level `requireCanvasAccess`). The tool does the node lookup via
+// `getNodeWithNodeData` (same as the document tools) and passes `_id` here.
 
 const blockNoteEditValidator = v.union(
   v.object({
@@ -121,11 +124,9 @@ const blockNoteEditValidator = v.union(
 
 export const editBlockNoteDocument = internalMutation({
   args: {
-    canvasId: v.id("canvases"),
-    nodeId: v.string(),
-    // Agent thread id, recorded on the version checkpoint for traceability.
-    threadId: v.optional(v.string()),
+    nodeDataId: v.id("nodeDatas"),
     edit: blockNoteEditValidator,
+    actor: nodeDataVersionActorValidator,
   },
   returns: v.object({
     insertedBlockIds: v.optional(v.array(v.string())),
@@ -133,16 +134,11 @@ export const editBlockNoteDocument = internalMutation({
     deletedCount: v.optional(v.number()),
   }),
   handler: async (ctx, args) => {
-    // Authorization is derived server-side (never from an argument) and required
-    // at editor level: every BlockNote tool is a write.
-    const userId = await requireAuth(ctx);
-    await requireCanvasAccess(ctx, args.canvasId, userId, "editor");
-
-    const { node, nodeData } = await CanvasNodeModels.getNodeWithNodeData(ctx, {
-      canvasId: args.canvasId,
-      nodeId: args.nodeId,
-    });
-    if (node.type !== "blocknote" || nodeData.type !== "blocknote") {
+    const nodeData = await ctx.db.get(args.nodeDataId);
+    if (!nodeData) {
+      throw new ConvexError("Node data not found.");
+    }
+    if (nodeData.type !== "blocknote") {
       throw new ConvexError("Target node must be a blocknote node.");
     }
 
@@ -230,9 +226,9 @@ export const editBlockNoteDocument = internalMutation({
     const serialized = stringifyBlockNoteDocumentForStorage(tree);
 
     await NodeDataModels.updateValues(ctx, {
-      _id: nodeData._id,
+      _id: args.nodeDataId,
       values: { doc: serialized },
-      actor: { type: "agent", userId, threadId: args.threadId },
+      actor: args.actor,
     });
 
     return result;

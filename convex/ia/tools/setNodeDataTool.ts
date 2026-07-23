@@ -143,10 +143,13 @@ export default function setNodeDataTool({
           await ctx.runMutation(
             internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
             {
-              canvasId,
-              nodeId: input.nodeId,
-              threadId: ctx.threadId,
+              nodeDataId: nodeLookup.nodeData._id,
               edit: { kind: "replaceDocument", blocks },
+              actor: {
+                type: "agent",
+                userId: threadCtx.authUserId,
+                threadId: ctx.threadId,
+              },
             },
           );
           return `Node data updated for nodeId ${input.nodeId}.`;

@@ -7,26 +7,23 @@
 // back inside a single Convex transaction (see `wrappers/nodeDataWrappers.ts`),
 // so the tools themselves stay thin and race-free.
 //
-// Input contract: the model authors new content as plain markdown (explicitly
-// lossy for the new content it is creating). Existing content is never round-
-// tripped through markdown: `patch_block_text` operates on the native inline
-// content, `update_block_props` merges props, and `replace_block`/`insert_blocks`
-// only parse the model's *new* markdown into blocks. The annotated markdown
-// returned by `read_nodes` is read-only and is rejected by every write path.
+// Auth follows the same pattern as the document tools: the tool does a node
+// lookup via `getNodeWithNodeData` (no auth in the query), validates the type,
+// then calls the mutation with `nodeDataId` + `actor`. Access was already
+// enforced at the `saveMessage` entrypoint (editor-level requireCanvasAccess).
 
 import { createTool } from "@convex-dev/agent";
 import type { ToolSet } from "ai";
 import { z } from "zod";
 import { toolAgentNames, type ThreadCtx, type ToolAgentName } from "../agentConfig";
 import { internal } from "../../_generated/api";
+import type { Id } from "../../_generated/dataModel";
+import type { ActionCtx } from "../../_generated/server";
 import { parseBlockNoteXml } from "../helpers/blockNoteMarkdown";
 import { toolError, type ToolConfig } from "./toolHelpers";
 
-// Mirrors the `AgentTool` shape used by `tools/index.ts` so the registry can
-// consume this module's definitions without re-declaring them inline.
 type AgentTool = ToolSet[string];
 
-// All BlockNote tools are available to every agent that can act on a canvas.
 const BLOCKNOTE_AGENTS = [
   toolAgentNames.nole,
   toolAgentNames.clone,
@@ -41,6 +38,23 @@ const NODE_ID_FIELD = z
 const EXPLANATION_FIELD = z
   .string()
   .describe("3-5 words explaining the edit intent.");
+
+// Shared lookup: resolve a canvas nodeId to its nodeData _id, validating that
+// the target is actually a blocknote node. Same pattern as the document tools.
+async function lookupBlocknoteNodeData(
+  ctx: ActionCtx,
+  canvasId: Id<"canvases">,
+  nodeId: string,
+): Promise<{ nodeDataId: Id<"nodeDatas"> } | { error: string }> {
+  const { node, nodeData } = await ctx.runQuery(
+    internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+    { canvasId, nodeId },
+  );
+  if (node.type !== "blocknote" || nodeData.type !== "blocknote") {
+    return { error: "Target node must be a blocknote." };
+  }
+  return { nodeDataId: nodeData._id };
+}
 
 // ── insert_blocks ───────────────────────────────────────────────────────────
 
@@ -97,17 +111,23 @@ function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           return toolError("The provided XML produced no blocks.");
         }
 
+        const lookup = await lookupBlocknoteNodeData(ctx, canvasId, input.nodeId);
+        if ("error" in lookup) return toolError(lookup.error);
+
         const res = await ctx.runMutation(
           internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
           {
-            canvasId,
-            nodeId: input.nodeId,
-            threadId: ctx.threadId,
+            nodeDataId: lookup.nodeDataId,
             edit: {
               kind: "insert",
               position: input.position,
               referenceBlockId: input.referenceBlockId,
               blocks,
+            },
+            actor: {
+              type: "agent",
+              userId: threadCtx.authUserId,
+              threadId: ctx.threadId,
             },
           },
         );
@@ -162,16 +182,22 @@ function blocknoteReplaceBlockTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           );
         }
 
+        const lookup = await lookupBlocknoteNodeData(ctx, canvasId, input.nodeId);
+        if ("error" in lookup) return toolError(lookup.error);
+
         await ctx.runMutation(
           internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
           {
-            canvasId,
-            nodeId: input.nodeId,
-            threadId: ctx.threadId,
+            nodeDataId: lookup.nodeDataId,
             edit: {
               kind: "replace",
               blockId: input.blockId,
               block: blocks[0],
+            },
+            actor: {
+              type: "agent",
+              userId: threadCtx.authUserId,
+              threadId: ctx.threadId,
             },
           },
         );
@@ -211,13 +237,19 @@ function blocknoteDeleteBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         `🧱 delete_blocks on node ${input.nodeId} ids=${input.blockIds.join(", ")}`,
       );
       try {
+        const lookup = await lookupBlocknoteNodeData(ctx, canvasId, input.nodeId);
+        if ("error" in lookup) return toolError(lookup.error);
+
         const res = await ctx.runMutation(
           internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
           {
-            canvasId,
-            nodeId: input.nodeId,
-            threadId: ctx.threadId,
+            nodeDataId: lookup.nodeDataId,
             edit: { kind: "delete", blockIds: input.blockIds },
+            actor: {
+              type: "agent",
+              userId: threadCtx.authUserId,
+              threadId: ctx.threadId,
+            },
           },
         );
 
@@ -260,16 +292,22 @@ function blocknoteUpdateBlockPropsTool({ threadCtx }: { threadCtx: ThreadCtx }) 
         `🧱 update_block_props on node ${input.nodeId} blockId=${input.blockId}`,
       );
       try {
+        const lookup = await lookupBlocknoteNodeData(ctx, canvasId, input.nodeId);
+        if ("error" in lookup) return toolError(lookup.error);
+
         await ctx.runMutation(
           internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
           {
-            canvasId,
-            nodeId: input.nodeId,
-            threadId: ctx.threadId,
+            nodeDataId: lookup.nodeDataId,
             edit: {
               kind: "updateProps",
               blockId: input.blockId,
               propsPatch: input.propsPatch,
+            },
+            actor: {
+              type: "agent",
+              userId: threadCtx.authUserId,
+              threadId: ctx.threadId,
             },
           },
         );
@@ -317,17 +355,23 @@ function blocknotePatchBlockTextTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         `🧱 patch_block_text on node ${input.nodeId} blockId=${input.blockId}`,
       );
       try {
+        const lookup = await lookupBlocknoteNodeData(ctx, canvasId, input.nodeId);
+        if ("error" in lookup) return toolError(lookup.error);
+
         await ctx.runMutation(
           internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
           {
-            canvasId,
-            nodeId: input.nodeId,
-            threadId: ctx.threadId,
+            nodeDataId: lookup.nodeDataId,
             edit: {
               kind: "patchText",
               blockId: input.blockId,
               oldString: input.old_string,
               newString: input.new_string,
+            },
+            actor: {
+              type: "agent",
+              userId: threadCtx.authUserId,
+              threadId: ctx.threadId,
             },
           },
         );
@@ -343,8 +387,6 @@ function blocknotePatchBlockTextTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 }
 
 // ── Registry entry ───────────────────────────────────────────────────────────
-// A single ordered list consumed by `tools/index.ts`, so BlockNote tools are
-// declared once instead of being scattered across five near-identical files.
 
 type ToolFactoryContext = { agentName: ToolAgentName; threadCtx: ThreadCtx };
 

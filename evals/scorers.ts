@@ -1,14 +1,15 @@
 import { z } from "zod";
 import { generateObject } from "ai";
 import { openrouter } from "@openrouter/ai-sdk-provider";
+import type { FunctionReturnType } from "convex/server";
+import type { api } from "../convex/_generated/api";
 
-export type NoleTurnOutput = {
-  text: string;
-  model: string;
-  usageUsd: number;
-  toolCalls: { toolName: string; input: unknown; output: unknown }[];
-  visibleNodeIds: string[];
-};
+// Derived from the harness's own return validator rather than duplicated by
+// hand, so a change to runEvalTurn's shape surfaces here as a type error
+// instead of silently drifting.
+export type NoleTurnOutput = FunctionReturnType<
+  typeof api.ia.evalHarness.runEvalTurn
+>;
 
 // Recursively collects string values keyed "...NodeId"/"...nodeId" from a tool
 // call's input, to check for hallucinated node references.

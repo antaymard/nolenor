@@ -8,7 +8,8 @@ import NodeHandles from "./NodeHandles";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useIsNodeAttached } from "@/stores/noleStore";
-import { useTemplate } from "@/stores/templatesStore";
+import { useTemplateHasWindow, useTemplatesStore } from "@/stores/templatesStore";
+import type { Id as ConvexId } from "@/../convex/_generated/dataModel";
 
 function NodeFrame({
   xyNode,
@@ -29,19 +30,31 @@ function NodeFrame({
   // Custom nodes : l'ouvrabilité en window dépend du template (présence
   // d'un windowLayout), pas du type. Hook inconditionnel — templateId est
   // undefined pour les prébuilts, le sélecteur renvoie undefined.
-  const template = useTemplate(xyNode.data?.templateId as string | undefined);
+  // Sélecteur booléen dédié (pas `useTemplate`) : NodeFrame ne doit re-rendre
+  // que quand ce booléen change, pas à chaque édition du template (rename
+  // de champ, changement de layout…) — sinon tous les nodes d'un template
+  // re-rendraient à chaque modification, même sans rapport avec la window.
+  const templateId = xyNode.data?.templateId as
+    | ConvexId<"nodeTemplates">
+    | undefined;
+  const templateHasWindow = useTemplateHasWindow(templateId);
 
   const handleDoubleClick = useCallback(() => {
     const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
     if (!nodeDataId) return;
 
     if (nodeType === "custom") {
-      if (template?.windowLayout === undefined) return;
+      if (!templateHasWindow) return;
+      // windowSize n'est nécessaire qu'au moment du clic, pas pour le
+      // rendu : lu directement dans le store (pas de souscription).
+      const windowSize = templateId
+        ? useTemplatesStore.getState().templates.get(templateId)?.windowSize
+        : undefined;
       openWindow({
         xyNodeId: xyNode.id,
         nodeDataId,
         nodeType: "custom",
-        windowSize: template.windowSize,
+        windowSize,
       });
       return;
     }
@@ -53,7 +66,14 @@ function NodeFrame({
         nodeType,
       });
     }
-  }, [xyNode.data?.nodeDataId, xyNode.id, nodeType, openWindow, template]);
+  }, [
+    xyNode.data?.nodeDataId,
+    xyNode.id,
+    nodeType,
+    openWindow,
+    templateHasWindow,
+    templateId,
+  ]);
 
   if (!xyNode) return null;
 

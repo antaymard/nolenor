@@ -132,23 +132,12 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
   {
     type: "date",
     label: "Date",
-    optionsSchema: z
-      .strictObject({ includeTime: z.boolean().optional() })
-      .optional(),
-    // Stockage en ISO : lisible par le LLM, timezone explicite. Nullable :
-    // null = valeur effacée (cf. commentaire sur number).
-    buildValueSchema: (field) => {
-      if (field.options?.includeTime === true) {
-        return z
-          .union([
-            z.iso.datetime({ offset: true }),
-            z.iso.datetime(),
-            z.iso.date(),
-          ])
-          .nullable();
-      }
-      return z.iso.date().nullable();
-    },
+    // Pas d'options V1 (pas de time picker côté builder/DateField — inutile
+    // d'exposer un réglage sans UI pour l'exploiter).
+    optionsSchema: z.strictObject({}).optional(),
+    // Stockage en ISO date ("YYYY-MM-DD"). Nullable : null = valeur effacée
+    // (cf. commentaire sur number).
+    buildValueSchema: () => z.iso.date().nullable(),
     getDefault: (field) =>
       typeof field.default === "string" ? field.default : undefined,
     getSearchableText: (value) =>

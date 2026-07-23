@@ -16,7 +16,6 @@ const templateFieldValidator = v.object({
   // Options par type, validées côté app par fieldConfig :
   //   select: { choices: [{ id, label, color? }], isMulti? }
   //   number: { unit?, min?, max? } · short_text: { placeholder? }
-  //   date:   { includeTime? }
   options: v.optional(v.record(v.string(), v.any())),
   default: v.optional(v.any()),
 });

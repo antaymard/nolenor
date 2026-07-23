@@ -80,7 +80,7 @@ const insertBlocksSchema = z
     blocks: z
       .string()
       .describe(
-        "BlockNote XML v1 string (same format as read_nodes output) containing the block(s) to insert. The XML carries type, props, content and children; colors, alignment, underline and tables are preserved. New blocks always get fresh ids.",
+        "BlockNote XML v1 string (same format as read_nodes output) containing the block(s) to insert. The XML carries type, props, content and children; colors, alignment and tables are preserved. New blocks always get fresh ids.",
       ),
     explanation: EXPLANATION_FIELD,
   })

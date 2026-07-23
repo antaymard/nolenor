@@ -153,7 +153,7 @@ export const editBlockNoteDocument = internalMutation({
       const parsed = parseStoredBlockNoteDocument(nodeData.values.doc);
       if (!parsed) {
         throw new ConvexError(
-          "Cannot edit this blocknote node: the stored document is malformed. Use set_node_data with a full BlockNote XML v1 replacement to repair it.",
+          "Cannot edit this blocknote node: the stored document is malformed. Use set_node_data with a full Markdown replacement to repair it.",
         );
       }
       current = parsed;

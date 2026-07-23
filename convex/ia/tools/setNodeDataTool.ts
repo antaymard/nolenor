@@ -4,7 +4,7 @@ import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
-import { parseBlockNoteXml } from "../helpers/blockNoteMarkdown";
+import { markdownToBlockNoteBlocks } from "../helpers/blockNoteMarkdown";
 import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
 import z from "zod";
 import { type ToolConfig, toolError } from "./toolHelpers";
@@ -33,7 +33,7 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For blocknote nodes, pass `{ doc: "<blocknote XML v1 string>" }` to replace the ENTIRE document — the XML is the same format returned by read_nodes: `<blocknote version="1"><block type="paragraph">Markdown text</block>…</blocknote>`. For targeted edits prefer insert_blocks, replace_block, delete_blocks, update_block_props, or patch_block_text. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
+      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For blocknote nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document with the given markdown — this is an intentionally lossy operation: block ids are regenerated and block-level props (colors, alignment, etc.) are reset to defaults, so you MUST re-read the node (read_nodes) before any block-id-addressed edit (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text). For precise/preserving edits prefer those block-level tools instead. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
     inputSchema: z.object({
       explanation: z
         .string()
@@ -128,18 +128,25 @@ export default function setNodeDataTool({
           };
         }
 
-        // Blocknote: full replacement uses BlockNote XML v1 (same format as
-        // read_nodes output). Targeted edits should use insert_blocks /
-        // replace_block / etc., which all go through the same atomic
-        // editBlockNoteDocument mutation.
+        // Blocknote: full replacement uses plain Markdown (intentionally
+        // lossy). The block tree is parsed, normalized (fresh ids), validated
+        // and stored by the atomic editBlockNoteDocument mutation. For
+        // precise/preserving edits the agent should use the block-level tools
+        // (insert_blocks, replace_block, etc.) which accept BlockNote XML v1.
         if (input.nodeType === "blocknote") {
           const doc = valuesToWrite.doc;
           if (typeof doc !== "string") {
             return toolError(
-              "blocknote `doc` must be a BlockNote XML v1 string (same format as read_nodes output).",
+              "blocknote `doc` must be a Markdown string.",
             );
           }
-          const blocks = await parseBlockNoteXml(doc);
+          const trimmed = doc.trim();
+          if (trimmed.startsWith("<blocknote")) {
+            return toolError(
+              "blocknote `doc` for set_node_data must be plain Markdown, not BlockNote XML. Use insert_blocks / replace_block for XML edits, or provide Markdown here for a full (lossy) replace.",
+            );
+          }
+          const blocks = await markdownToBlockNoteBlocks(doc);
           await ctx.runMutation(
             internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
             {
@@ -152,7 +159,7 @@ export default function setNodeDataTool({
               },
             },
           );
-          return `Node data updated for nodeId ${input.nodeId}.`;
+          return `Node data updated for nodeId ${input.nodeId}. Block ids have been regenerated — re-read the node (read_nodes) before any block-id-addressed edit.`;
         }
 
         await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {

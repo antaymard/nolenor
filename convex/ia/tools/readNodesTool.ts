@@ -879,7 +879,7 @@ ${content}
                 }
 
                 if (nodeType === "blocknote") {
-                  return '<schema type="blocknote" format="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />';
+                  return '<schema type="blocknote" readFormat="blocknote-xml-v1" setFormat="markdown" blockEditFormat="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />';
                 }
 
                 if (nodeType === "table") {

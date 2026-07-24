@@ -68,18 +68,21 @@ const emojiFontStyle = {
 
 /**
  * Shared visual layout of the callout: rounded colored box, icon control on
- * the left, editable rich text on the right (`contentRef`). Used by the
- * editable editor render (icon popover) and the static HTML export (plain
- * icon) in callout-block.tsx.
+ * the left, editable rich text on the right. `contentRef` is used by the
+ * editable editor render (icon popover) and the static HTML export in
+ * callout-block.tsx; `children` is used by the read-only canvas renderer
+ * (BlockNoteStatic) which builds the inline content directly as React.
  */
 export function CalloutLayout({
   color,
   control,
   contentRef,
+  children,
 }: {
   color: string;
   control: React.ReactNode;
-  contentRef: (node: HTMLElement | null) => void;
+  contentRef?: (node: HTMLElement | null) => void;
+  children?: React.ReactNode;
 }) {
   return (
     <div
@@ -89,7 +92,9 @@ export function CalloutLayout({
       )}
     >
       {control}
-      <div ref={contentRef} className="w-full" />
+      <div ref={contentRef} className="w-full">
+        {children}
+      </div>
     </div>
   );
 }

@@ -37,13 +37,23 @@ const pillClassName =
   "w-fit cursor-pointer rounded-sm bg-muted px-1 text-muted-foreground";
 
 /**
+ * Static (read-only) rendering of the date pill: a plain span with the human
+ * label, no popover. Used by the canvas read-only renderer (BlockNoteStatic)
+ * AND by the spec's `toExternalHTML` (clipboard / HTML export) so the two
+ * surfaces never diverge.
+ */
+export function DatePillView({ date }: { date?: string }) {
+  return <span className={pillClassName}>{formatDatePillLabel(date ?? "")}</span>;
+}
+
+/**
  * Date pill inline content (inserted via `/date` in the slash menu). Stored in
  * the document as `{ type: "date", props: { date: <Date.toDateString()> } }`.
  *
  * `render` is used inside the editable editor: interactive popover + calendar,
  * same UX as the Plate.js date pill. `toExternalHTML` is used for static HTML
- * serialization (clipboard export and the headless editor rendering canvas
- * node previews in BlocknoteNode.tsx): a plain span, no popover.
+ * serialization (clipboard export and the headless editor rendering canvas node
+ * previews in BlocknoteNode.tsx): a plain span, no popover, via `DatePillView`.
  */
 export const dateInlineContentSpec = createReactInlineContentSpec(
   {
@@ -82,9 +92,7 @@ export const dateInlineContentSpec = createReactInlineContentSpec(
       </Popover>
     ),
     toExternalHTML: (props) => (
-      <span className={pillClassName}>
-        {formatDatePillLabel(props.inlineContent.props.date)}
-      </span>
+      <DatePillView date={props.inlineContent.props.date} />
     ),
   },
 );

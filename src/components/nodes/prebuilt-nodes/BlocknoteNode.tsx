@@ -1,6 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { type Node } from "@xyflow/react";
-import { BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
@@ -11,61 +10,23 @@ import NodeFrame from "../NodeFrame";
 import { Button } from "@/components/shadcn/button";
 import { TbMaximize, TbNotes } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
-import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
 import {
-  blockNoteSchema,
-  type AppBlockNoteEditor,
-} from "@/components/blocknote/schema";
+  parseStoredBlockNoteDocument,
+  type BlockNoteBlock,
+} from "@/../convex/lib/blockNoteDocument";
+import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 
-// ── Singleton headless BlockNote editor ──────────────────────────────────
-// One instance shared across all canvas nodes, never mounted to the DOM.
-// Used solely as a serializer: blocksToFullHTML(blocks) → HTML string.
-// This avoids instantiating a ProseMirror/Tiptap editor per visible node.
-// It MUST use the shared custom schema: a default-schema editor throws
-// "node type date not found in schema" on documents containing date pills.
-let sharedEditorSingleton: AppBlockNoteEditor | null = null;
+// ── View-only rendering ──────────────────────────────────────────────────
+// The canvas node renders the document via `BlockNoteStatic`, a read-only
+// React renderer that walks the block tree and emits semantic HTML. Custom
+// blocks/inline content (callout, date) render through their registry `View`
+// directly in the live React tree — this fixes the previous bug where custom
+// components did not show on the canvas (the old `blocksToFullHTML` path
+// mounted/unmounted a temporary React root per block during render, which
+// silently failed under React 19 + StrictMode). See
+// src/components/blocknote/BlockNoteStatic.tsx and registry.tsx.
 
-function getSharedBlockNoteEditor(): AppBlockNoteEditor {
-  if (!sharedEditorSingleton) {
-    sharedEditorSingleton = BlockNoteEditor.create({ schema: blockNoteSchema });
-  }
-  return sharedEditorSingleton;
-}
-
-// Small module-level cache: doc-string → HTML string. Avoids re-serializing
-// identical payloads across nodes or across re-renders. Capped to prevent
-// unbounded memory growth on large canvases.
-const HTML_CACHE_MAX = 200;
-const htmlCache = new Map<string, string>();
-
-function blocksToHtml(docString: string | undefined): string | null {
-  if (!docString) return null;
-  const cached = htmlCache.get(docString);
-  if (cached !== undefined) return cached;
-
-  const blocks = parseStoredBlockNoteDocument(docString) as
-    | PartialBlock[]
-    | null;
-  if (!blocks || blocks.length === 0) {
-    htmlCache.set(docString, "");
-    return null;
-  }
-
-  try {
-    const editor = getSharedBlockNoteEditor();
-    const html = editor.blocksToFullHTML(blocks);
-    // LRU-ish eviction: delete oldest entry when over capacity.
-    if (htmlCache.size >= HTML_CACHE_MAX) {
-      const firstKey = htmlCache.keys().next().value;
-      if (firstKey !== undefined) htmlCache.delete(firstKey);
-    }
-    htmlCache.set(docString, html);
-    return html;
-  } catch {
-    htmlCache.set(docString, "");
-    return null;
-  }
-}
+const EMPTY_PARAGRAPH_BLOCKS: BlockNoteBlock[] = [];
 
 // ── Empty-content detection ──────────────────────────────────────────────
 // BlockNote blocks have `content` (InlineContent[] with `text` fields) and
@@ -114,16 +75,16 @@ function BlocknoteNode(xyNode: Node) {
 
   const docString = values?.doc as string | undefined;
 
-  const { html, isEmpty } = useMemo(() => {
-    const blocks = parseStoredBlockNoteDocument(docString);
-    if (!blocks || blocks.length === 0) {
-      return { html: null, isEmpty: true };
+  const { blocks, isEmpty } = useMemo(() => {
+    const parsed = parseStoredBlockNoteDocument(docString);
+    if (!parsed || parsed.length === 0) {
+      return { blocks: EMPTY_PARAGRAPH_BLOCKS, isEmpty: true };
     }
-    const empty = !hasBlockTextContent(blocks);
+    const empty = !hasBlockTextContent(parsed);
     if (empty) {
-      return { html: null, isEmpty: true };
+      return { blocks: EMPTY_PARAGRAPH_BLOCKS, isEmpty: true };
     }
-    return { html: blocksToHtml(docString), isEmpty: false };
+    return { blocks: parsed as BlockNoteBlock[], isEmpty: false };
   }, [docString]);
 
   const blocknoteTitle = useNodeDataTitle(nodeDataId) ?? "Blocknote";
@@ -180,12 +141,12 @@ function BlocknoteNode(xyNode: Node) {
                     <TbNotes size={22} />
                     <span className="text-xs">Double click to edit</span>
                   </div>
-                ) : html ? (
-                  <div
+                ) : (
+                  <BlockNoteStatic
+                    blocks={blocks}
                     className="h-full min-h-0 overflow-y-auto p-4 select-none bn-readonly-container"
-                    dangerouslySetInnerHTML={{ __html: html }}
                   />
-                ) : null}
+                )}
               </>
             ) : null}
           </div>

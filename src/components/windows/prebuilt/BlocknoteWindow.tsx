@@ -19,8 +19,7 @@ import {
   blockNoteSchema,
   type AppBlockNoteEditor,
 } from "@/components/blocknote/schema";
-import { getDateSlashMenuItem } from "@/components/blocknote/dateSlashMenuItem";
-import { getCalloutSlashMenuItem } from "@/components/blocknote/calloutSlashMenuItem";
+import { getCustomSlashMenuItems } from "@/components/blocknote/registry";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
@@ -224,8 +223,7 @@ function BlocknoteWindow({
             filterSuggestionItems(
               [
                 ...getDefaultReactSlashMenuItems(editor),
-                getDateSlashMenuItem(editor),
-                getCalloutSlashMenuItem(editor),
+                ...getCustomSlashMenuItems(editor),
               ],
               query,
             )

@@ -326,22 +326,6 @@ export default function createNodeTool({
           }
         }
 
-        const currentNodeData =
-          input.nodeType === "document"
-            ? {
-                doc: input.nodeTitle?.trim()
-                  ? `# ${input.nodeTitle.trim()}`
-                  : "",
-              }
-            : initialValues;
-
-        const titleHint =
-          input.nodeType === "document" &&
-          titleApplied &&
-          input.nodeTitle?.trim()
-            ? `The title is already present in the document as "# ${input.nodeTitle.trim()}". Do not repeat it during later edits.`
-            : undefined;
-
         const canvas = await ctx.runQuery(
           internal.wrappers.canvasWrappers.read,
           {
@@ -354,14 +338,14 @@ export default function createNodeTool({
           canvasName: canvas.name,
           nodeId,
           nodeType: input.nodeType,
-          ...(titleHint ? { hint: titleHint } : { titleApplied }),
+          titleApplied,
           position: input.position,
           color: input.color,
           dimensions: {
             width: resolvedDimensions.width,
             height: resolvedDimensions.height,
           },
-          currentNodeData,
+          currentNodeData: initialValues,
         };
       } catch (error) {
         return toolError(

@@ -192,6 +192,15 @@ export default function createNodeTool({
     }),
     execute: async (ctx, input) => {
       try {
+        // "document" (Plate.js) is being migrated to "blocknote" (BlockNote).
+        // Block creation of new document nodes and hint the agent to use the
+        // blocknote type instead. Existing document nodes keep working.
+        if (input.nodeType === "document") {
+          return toolError(
+            'The "document" node type is deprecated. Create a "blocknote" node instead (nodeType: "blocknote") — it is the replacement rich-text node and supports the same content.',
+          );
+        }
+
         const nodeConfig = nodeDataConfig.find(
           (item) => item.type === input.nodeType,
         );

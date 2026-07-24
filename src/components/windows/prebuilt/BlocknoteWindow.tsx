@@ -35,7 +35,10 @@ function BlocknoteWindow({
   const skipNextChangeRef = useRef(false);
   const [isDirty, setIsDirty] = useState(false);
   const [shouldMountEditor, setShouldMountEditor] = useState(false);
-  const [isEditorReady, setIsEditorReady] = useState(false);
+  // Starts `true`: the editor is created synchronously with the initial server
+  // content (see the creation useMemo below), so no hydration overlay is needed
+  // on mount. The re-hydration effect toggles it around later remote updates.
+  const [isEditorReady, setIsEditorReady] = useState(true);
   const { setDirty, setSaveHandler } = useWindowFrameContext();
   const nodeDataValues = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();

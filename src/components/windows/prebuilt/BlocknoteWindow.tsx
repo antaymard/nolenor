@@ -1,12 +1,26 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BlockNoteEditor, type PartialBlock } from "@blocknote/core";
+import {
+  BlockNoteEditor,
+  filterSuggestionItems,
+  type PartialBlock,
+} from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/shadcn";
+import {
+  getDefaultReactSlashMenuItems,
+  SuggestionMenuController,
+} from "@blocknote/react";
 import type { Block } from "@blocknote/core";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
+import {
+  blockNoteSchema,
+  type AppBlockNoteEditor,
+} from "@/components/blocknote/schema";
+import { getDateSlashMenuItem } from "@/components/blocknote/dateSlashMenuItem";
+import { getCalloutSlashMenuItem } from "@/components/blocknote/calloutSlashMenuItem";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
@@ -27,7 +41,7 @@ function BlocknoteWindow({
   nodeDataId,
   onDocChange,
 }: BlocknoteWindowProps) {
-  const editorRef = useRef<BlockNoteEditor | null>(null);
+  const editorRef = useRef<AppBlockNoteEditor | null>(null);
   const latestDocRef = useRef<Block[] | null>(null);
   const hydrationFrameRef = useRef<number | null>(null);
   const hasHydratedOnceRef = useRef(false);
@@ -93,6 +107,7 @@ function BlocknoteWindow({
       | PartialBlock[]
       | null;
     const instance = BlockNoteEditor.create({
+      schema: blockNoteSchema,
       initialContent:
         parsedBlocks && parsedBlocks.length > 0 ? parsedBlocks : undefined,
     });
@@ -154,8 +169,11 @@ function BlocknoteWindow({
   }, [docSource, nodeDataValues]);
 
   const handleChange = useCallback(() => {
-    latestDocRef.current = editor.document;
-    onDocChange?.(editor.document);
+    // The custom schema only widens inline content (date pill); the stored
+    // JSON shape is unchanged, hence the cast to the default Block type.
+    const doc = editor.document as unknown as Block[];
+    latestDocRef.current = doc;
+    onDocChange?.(doc);
     if (skipNextChangeRef.current) {
       skipNextChangeRef.current = false;
       return;
@@ -195,7 +213,25 @@ function BlocknoteWindow({
         theme="light"
         onChange={handleChange}
         className={cn("nodrag h-full overflow-auto")}
-      />
+        slashMenu={false}
+      >
+        <SuggestionMenuController
+          triggerCharacter="/"
+          shouldOpen={(tr) =>
+            !tr.selection.$from.parent.type.isInGroup("tableContent")
+          }
+          getItems={async (query) =>
+            filterSuggestionItems(
+              [
+                ...getDefaultReactSlashMenuItems(editor),
+                getDateSlashMenuItem(editor),
+                getCalloutSlashMenuItem(editor),
+              ],
+              query,
+            )
+          }
+        />
+      </BlockNoteView>
       {!isEditorReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/65">
           <span className="flex items-center gap-2 text-sm text-slate-500">

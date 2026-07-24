@@ -71,8 +71,9 @@ export type BlockNoteBlockWithOptionalId = {
 };
 
 // ── Frozen v1 block defaults ────────────────────────────────────────────────
-// These match BlockNote 0.51.3 default block specs. The codec uses them to
-// omit default props from XML attributes for readability.
+// These match BlockNote 0.51.3 default block specs plus the app's custom
+// `callout` block (src/components/blocknote/callout-block.tsx). The codec uses
+// them to omit default props from XML attributes for readability.
 
 export const BLOCK_NOTE_DEFAULT_PROPS: Record<string, Record<string, unknown>> = {
   paragraph: { backgroundColor: "default", textColor: "default", textAlignment: "left" },
@@ -89,6 +90,7 @@ export const BLOCK_NOTE_DEFAULT_PROPS: Record<string, Record<string, unknown>> =
   audio: { backgroundColor: "default", name: "", url: "", caption: "", showPreview: true },
   file: { backgroundColor: "default", name: "", url: "", caption: "" },
   divider: {},
+  callout: { color: "default", icon: "💡" },
 };
 
 export const BLOCK_NOTE_DEFAULT_CELL_PROPS: BlockNoteTableCellProps = {

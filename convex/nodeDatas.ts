@@ -196,7 +196,6 @@ export const updateValues = mutation({
   },
   returns: v.boolean(),
   handler: async (ctx, { _id, values }): Promise<boolean> => {
-    console.log(values)
     const authUserId = await requireAuth(ctx);
     const existing = await ctx.db.get(_id);
 

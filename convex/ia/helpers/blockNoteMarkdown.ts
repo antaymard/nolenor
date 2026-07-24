@@ -103,11 +103,77 @@ async function getEditor(): Promise<any> {
   return editorPromise;
 }
 
+// ── Date pills ──────────────────────────────────────────────────────────────
+// `date` is a frontend-only custom inline content type (see
+// src/components/blocknote/date-inline-content.tsx). The default-schema
+// headless editor used below would throw "node type date not found in schema"
+// on it, so date pills are rewritten as plain text ("📅 <date>") before any
+// serialization. This keeps search indexing working and lets the agent see
+// the date value. Intentionally lossy on the write path: if the agent edits
+// that exact block, the pill comes back as plain text (same tradeoff as the
+// rest of the Markdown-based codec). The stored JSON keeps the real pill.
+function datePillsToText(content: unknown): unknown {
+  if (typeof content === "string" || content === undefined || content === null) {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content.map((node) => {
+      if (typeof node !== "object" || node === null) return node;
+      const n = node as Record<string, unknown>;
+      if (n.type === "date") {
+        const props = n.props as Record<string, unknown> | undefined;
+        const date = typeof props?.date === "string" ? props.date : "";
+        return { type: "text", text: date ? `📅 ${date}` : "📅" };
+      }
+      if (n.content !== undefined) {
+        return { ...n, content: datePillsToText(n.content) };
+      }
+      return node;
+    });
+  }
+  if (isTableContent(content)) {
+    return {
+      ...content,
+      rows: content.rows.map((row) => ({
+        ...row,
+        cells: row.cells.map((cell) =>
+          isTableCellObj(cell)
+            ? {
+                ...cell,
+                content: datePillsToText(cell.content) as BlockNoteInlineContent[],
+              }
+            : datePillsToText(cell),
+        ),
+      })),
+    };
+  }
+  return content;
+}
+
+// ── Callout blocks ──────────────────────────────────────────────────────────
+// `callout` is a frontend-only custom block type (see
+// src/components/blocknote/callout-block.tsx), also unknown to the
+// default-schema headless editor. Callouts are rewritten as quote blocks
+// before serialization (the icon/color live in props, which the XML keeps —
+// the agent round-trips callouts losslessly, unlike date pills).
+
+/** Rewrite frontend-only custom types for the default-schema headless editor. */
+function sanitizeBlockForHeadless(block: BlockNoteBlock): BlockNoteBlock {
+  const out = { ...block };
+  if (out.type === "callout") out.type = "quote";
+  if (out.content !== undefined) out.content = datePillsToText(out.content);
+  if (Array.isArray(out.children)) {
+    out.children = out.children.map(sanitizeBlockForHeadless);
+  }
+  return out;
+}
+
 // ── Search-only helper (not used by the XML codec) ──────────────────────────
 
 export async function blocksToMarkdown(blocks: BlockNoteBlock[]): Promise<string> {
   return withJsdomLock(async (editor) => {
-    return editor.blocksToMarkdownLossy(blocks) as string;
+    const sanitized = blocks.map(sanitizeBlockForHeadless);
+    return editor.blocksToMarkdownLossy(sanitized) as string;
   });
 }
 
@@ -181,7 +247,7 @@ function isTableCellObj(cell: unknown): cell is BlockNoteTableCell {
 
 /** Serialize a block's inline content to Markdown (children excluded). */
 function blockContentToMarkdown(editor: any, block: BlockNoteBlock): string {
-  const synthetic = { ...block, children: [] };
+  const synthetic = { ...sanitizeBlockForHeadless(block), children: [] };
   try {
     return (editor.blocksToMarkdownLossy([synthetic]) as string).trim();
   } catch {
@@ -193,7 +259,11 @@ function blockContentToMarkdown(editor: any, block: BlockNoteBlock): string {
 function inlineContentToMarkdown(editor: any, content: unknown): string {
   if (!Array.isArray(content) || content.length === 0) return "";
   try {
-    const synthetic = { id: "tmp", type: "paragraph", content };
+    const synthetic = {
+      id: "tmp",
+      type: "paragraph",
+      content: datePillsToText(content),
+    };
     return (editor.blocksToMarkdownLossy([synthetic]) as string).trim();
   } catch {
     return "";

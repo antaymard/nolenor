@@ -12,16 +12,22 @@ import { Button } from "@/components/shadcn/button";
 import { TbMaximize, TbNotes } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
+import {
+  blockNoteSchema,
+  type AppBlockNoteEditor,
+} from "@/components/blocknote/schema";
 
 // ── Singleton headless BlockNote editor ──────────────────────────────────
 // One instance shared across all canvas nodes, never mounted to the DOM.
 // Used solely as a serializer: blocksToFullHTML(blocks) → HTML string.
 // This avoids instantiating a ProseMirror/Tiptap editor per visible node.
-let sharedEditorSingleton: BlockNoteEditor | null = null;
+// It MUST use the shared custom schema: a default-schema editor throws
+// "node type date not found in schema" on documents containing date pills.
+let sharedEditorSingleton: AppBlockNoteEditor | null = null;
 
-function getSharedBlockNoteEditor(): BlockNoteEditor {
+function getSharedBlockNoteEditor(): AppBlockNoteEditor {
   if (!sharedEditorSingleton) {
-    sharedEditorSingleton = BlockNoteEditor.create();
+    sharedEditorSingleton = BlockNoteEditor.create({ schema: blockNoteSchema });
   }
   return sharedEditorSingleton;
 }
@@ -76,7 +82,9 @@ function hasBlockTextContent(blocks: unknown[]): boolean {
     if (Array.isArray(content)) {
       for (const child of content) {
         if (!child || typeof child !== "object") continue;
-        const c = child as { text?: unknown; content?: unknown };
+        const c = child as { type?: unknown; text?: unknown; content?: unknown };
+        // Date pills carry no text but are real content.
+        if (c.type === "date") return true;
         if (typeof c.text === "string" && c.text.trim() !== "") {
           return true;
         }

@@ -12,6 +12,7 @@ export const patchAppNodeCodeToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "write" },
 };
 
 const BEGIN_MARKER = "*** Begin Patch";

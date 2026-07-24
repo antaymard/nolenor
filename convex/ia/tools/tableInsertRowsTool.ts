@@ -20,6 +20,7 @@ export const tableInsertRowsToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "write" },
 };
 
 type TableRow = {

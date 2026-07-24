@@ -47,6 +47,16 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
     ],
   },
   {
+    label: "Developer",
+    buttons: [
+      {
+        label: "API tokens",
+        icon: "settings",
+        route: "/settings/api-tokens",
+      },
+    ],
+  },
+  {
     label: "Account",
     buttons: [
       {

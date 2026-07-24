@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { authTables } from "@convex-dev/auth/server";
+import { apiTokensValidator } from "./schemas/apiTokensSchema";
 import { canvasesValidator } from "./schemas/canvasesSchema";
 import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
 import { nodeDataVersionsValidator } from "./schemas/nodeDataVersionsSchema";
@@ -105,6 +106,13 @@ const schema = defineSchema({
   threadMetadata: defineTable(threadMetadataValidator)
     .index("by_threadId", ["threadId"])
     .index("by_userId", ["userId"]),
+
+  // ============================================================================
+  // API TOKENS
+  // ============================================================================
+  apiTokens: defineTable(apiTokensValidator)
+    .index("by_user", ["userId"])
+    .index("by_tokenHash", ["tokenHash"]),
 });
 
 export default schema;

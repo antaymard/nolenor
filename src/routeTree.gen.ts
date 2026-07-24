@@ -13,6 +13,7 @@ import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
+import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
 import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
 import { Route as SettingsRecipesIndexRouteImport } from './routes/settings/recipes/index'
 import { Route as SettingsRecipesEditRecipeIdRouteImport } from './routes/settings/recipes/edit.$recipeId'
@@ -37,6 +38,11 @@ const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
+  id: '/api-tokens',
+  path: '/api-tokens',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const CanvasCanvasIdRoute = CanvasCanvasIdRouteImport.update({
   id: '/canvas/$canvasId',
   path: '/canvas/$canvasId',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/recipes/': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/api-tokens'
     | '/settings/skills'
     | '/settings/recipes'
     | '/settings/recipes/edit/$recipeId'
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/api-tokens'
     | '/settings/skills'
     | '/settings/recipes'
     | '/settings/recipes/edit/$recipeId'
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/api-tokens'
     | '/settings/skills'
     | '/settings/recipes/'
     | '/settings/recipes/edit/$recipeId'
@@ -149,6 +161,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSkillsRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/api-tokens': {
+      id: '/settings/api-tokens'
+      path: '/api-tokens'
+      fullPath: '/settings/api-tokens'
+      preLoaderRoute: typeof SettingsApiTokensRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/canvas/$canvasId': {
       id: '/canvas/$canvasId'
       path: '/canvas/$canvasId'
@@ -174,12 +193,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface SettingsRouteRouteChildren {
+  SettingsApiTokensRoute: typeof SettingsApiTokensRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsRecipesIndexRoute: typeof SettingsRecipesIndexRoute
   SettingsRecipesEditRecipeIdRoute: typeof SettingsRecipesEditRecipeIdRoute
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsApiTokensRoute: SettingsApiTokensRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsRecipesIndexRoute: SettingsRecipesIndexRoute,
   SettingsRecipesEditRecipeIdRoute: SettingsRecipesEditRecipeIdRoute,

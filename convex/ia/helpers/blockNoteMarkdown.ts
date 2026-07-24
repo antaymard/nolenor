@@ -153,14 +153,22 @@ function datePillsToText(content: unknown): unknown {
 // ── Callout blocks ──────────────────────────────────────────────────────────
 // `callout` is a frontend-only custom block type (see
 // src/components/blocknote/callout-block.tsx), also unknown to the
-// default-schema headless editor. Callouts are rewritten as quote blocks
+// default-schema headless editor. Callouts are rewritten as paragraph blocks
 // before serialization (the icon/color live in props, which the XML keeps —
 // the agent round-trips callouts losslessly, unlike date pills).
 
 /** Rewrite frontend-only custom types for the default-schema headless editor. */
 function sanitizeBlockForHeadless(block: BlockNoteBlock): BlockNoteBlock {
   const out = { ...block };
-  if (out.type === "callout") out.type = "quote";
+  if (out.type === "callout") {
+    // Paragraph (not quote) so the serialized content stays raw text — no
+    // `> ` prefix in the search index or in the XML the agent reads.
+    out.type = "paragraph";
+    // The paragraph schema doesn't know callout props (color/icon): the HTML
+    // exporter iterates block props against the propSchema and would throw
+    // `Cannot read properties of undefined (reading 'default')`.
+    delete out.props;
+  }
   if (out.content !== undefined) out.content = datePillsToText(out.content);
   if (Array.isArray(out.children)) {
     out.children = out.children.map(sanitizeBlockForHeadless);

@@ -114,7 +114,7 @@ export function CalloutControls({
         <button
           type="button"
           contentEditable={false}
-          className="size-6 shrink-0 cursor-pointer select-none rounded p-1 text-[18px] leading-none hover:bg-black/10"
+          className="flex size-6 shrink-0 cursor-pointer items-center justify-center select-none rounded text-[18px] leading-none hover:bg-black/10"
           style={emojiFontStyle}
         >
           {icon || CALLOUT_DEFAULT_ICON}

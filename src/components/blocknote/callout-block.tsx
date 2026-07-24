@@ -52,7 +52,7 @@ export const createCalloutBlockSpec = createReactBlockSpec(
         color={props.block.props.color}
         control={
           <span
-            className="size-6 shrink-0 select-none p-1 text-[18px] leading-none"
+            className="flex size-6 shrink-0 items-center justify-center select-none text-[18px] leading-none"
             style={{
               fontFamily:
                 '"Apple Color Emoji", "Segoe UI Emoji", NotoColorEmoji, "Noto Color Emoji", "Segoe UI Symbol", "Android Emoji", EmojiSymbols',

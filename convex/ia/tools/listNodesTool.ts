@@ -6,6 +6,7 @@ import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeDataConfig } from "../../config/nodeConfig";
 import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
+import { escapeXmlAttribute } from "../../lib/xml";
 import { toolError, type ToolConfig } from "./toolHelpers";
 
 export const listNodesToolConfig: ToolConfig = {
@@ -19,7 +20,7 @@ export const listNodesToolConfig: ToolConfig = {
 };
 
 function getExpectedNodeDataSchemaString(nodeType: string): string | null {
-  if (nodeType === "document" || nodeType === "table") {
+  if (nodeType === "document" || nodeType === "table" || nodeType === "blocknote") {
     return null;
   }
 
@@ -231,14 +232,18 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           ...displayedEntries.map(
             ({ id, type, title, x, y, embedUrl, embedIframeUrl, embedType }) =>
               type === "embed"
-                ? `  <node id="${id}" type="embed" title="${title}" x="${x}" y="${y}"${embedUrl ? ` url="${embedUrl}"` : ""}${embedIframeUrl ? ` embedUrl="${embedIframeUrl}"` : ""}${embedType ? ` embedType="${embedType}"` : ""} />`
-                : `  <node id="${id}" type="${type}" title="${title}" x="${x}" y="${y}" />`,
+                ? `  <node id="${id}" type="embed" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""} />`
+                : `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}" />`,
           ),
           "</nodes>",
           "<nodeDataSchemas>",
           ...uniqueDisplayedNodeTypes.map((nodeType) => {
             if (nodeType === "document") {
               return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
+            }
+
+            if (nodeType === "blocknote") {
+              return '<schema type="blocknote" readFormat="blocknote-xml-v1" setFormat="markdown" blockEditFormat="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />';
             }
 
             if (nodeType === "table") {

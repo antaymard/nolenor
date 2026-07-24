@@ -176,6 +176,41 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     }),
   },
   {
+    type: "blocknote",
+    label: "Blocknote",
+    description:
+      "Node for storing a rich text document (BlockNote editor).",
+    llmDescription:
+      "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, colors, alignment, tables, etc.). Read via read_nodes: content is returned as BlockNote XML v1 where each block is `<block id=\"…\" type=\"…\" props='{…}'>markdown content<children>…</children></block>`. The block's inline content is plain Markdown (bold, italic, strike, code, links). Block-level props (colors, alignment, level) are in the `props` attribute. Tables use a structured `<table>` element with `<row>`/`<cell>` (cell props, widths, spans preserved). set_node_data accepts plain Markdown for a full (lossy) replace — block ids are regenerated and props are reset, so re-read before any targeted edit. insert_blocks and replace_block accept the same BlockNote XML v1 as read_nodes output (you can copy blocks from read_nodes and send them back). patch_block_text replaces an exact literal substring inside a block's visible text. Edit using the block-id-addressed tools (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text) — never hand-edit the raw JSON.",
+    defaultDimensions: { width: 320, height: 320, resizable: true },
+    variants: {
+      default: {
+        label: "Preview",
+        defaultWidth: 320,
+        defaultHeight: 320,
+        isDefault: true,
+      },
+      title: {
+        label: "Title",
+        defaultWidth: 220,
+        defaultHeight: 33,
+        resizable: false,
+      },
+    },
+    dataValuesSchema: z
+      .object({
+        doc: z.string().default("[]"),
+      })
+      .default({ doc: "[]" }),
+    toolInputSchema: z.object({
+      doc: z
+        .string()
+        .describe(
+          "Plain Markdown content for a full document replace. Intentionally lossy: block ids are regenerated and block-level props (colors, alignment, etc.) are reset to defaults. Re-read the node before any block-id-addressed edit.",
+        ),
+    }),
+  },
+  {
     type: "value",
     label: "Value",
     description: "Node for storing a value (text, number, boolean).",

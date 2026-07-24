@@ -371,7 +371,7 @@ export const readNodesToolConfig: ToolConfig = {
 };
 
 function getExpectedNodeDataSchemaString(nodeType: string): string | null {
-  if (nodeType === "document" || nodeType === "table") {
+  if (nodeType === "document" || nodeType === "table" || nodeType === "blocknote") {
     return null;
   }
 
@@ -597,7 +597,8 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
         const nodes = await Promise.all(
           baseNodes.map(async (entry) => {
-            const { nodeId, node, nodeData, embed, error } = entry;
+            const { nodeId, node, nodeData, embed } = entry;
+            let error = entry.error;
 
             if (error || !node || !nodeData) {
               return {
@@ -621,7 +622,17 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               };
             }
 
-            let content = await makeNodeDataLLMFriendly(nodeData);
+            // A malformed blocknote document or a jsdom conversion failure must
+            // surface as a per-node readError, not fail the whole read_nodes call.
+            let content: string;
+            try {
+              content = await makeNodeDataLLMFriendly(nodeData);
+            } catch (renderError) {
+              content = "";
+              error = `Failed to render node content: ${
+                renderError instanceof Error ? renderError.message : "Unknown error"
+              }`;
+            }
             let pdfBody: string | null = null;
             let pdfTotalPages: number | null = null;
             let tableBody: string | null = null;
@@ -827,7 +838,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                       : "";
 
                   if (nodeType === "embed") {
-                    return `<node id="${nodeId}" type="embed" title="${title}"${embedUrl ? ` url="${embedUrl}"` : ""}${embedIframeUrl ? ` embedUrl="${embedIframeUrl}"` : ""}${embedType ? ` embedType="${embedType}"` : ""}${error ? ` readError="${error}"` : ""}${positionAttributes} />`;
+                    return `<node id="${nodeId}" type="embed" title="${escapeXmlAttribute(title)}"${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""}${error ? ` readError="${escapeXmlAttribute(error)}"` : ""}${positionAttributes} />`;
                   }
 
                   if (nodeType === "pdf" && pdfBody !== null) {
@@ -835,8 +846,8 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                       pdfTotalPages !== null
                         ? ` totalPages="${pdfTotalPages}"`
                         : "";
-                    return `<node id="${nodeId}" type="pdf" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}"${totalPagesAttr}>
-${error ? `<readError>${error}</readError>\n` : ""}${pdfBody}
+                    return `<node id="${nodeId}" type="pdf" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}"${totalPagesAttr}>
+${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${pdfBody}
 </node>`;
                   }
 
@@ -849,13 +860,13 @@ ${error ? `<readError>${error}</readError>\n` : ""}${pdfBody}
                       tableDisplayedRows !== null
                         ? ` displayedRows="${tableDisplayedRows}"`
                         : "";
-                    return `<node id="${nodeId}" type="table" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}"${totalRowsAttr}${displayedRowsAttr}>
-${error ? `<readError>${error}</readError>\n` : ""}${tableBody}
+                    return `<node id="${nodeId}" type="table" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}"${totalRowsAttr}${displayedRowsAttr}>
+${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${tableBody}
 </node>`;
                   }
 
-                  return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}">
-    ${error ? `<readError>${error}</readError>` : ""}
+                  return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}">
+    ${error ? `<readError>${escapeXmlText(error)}</readError>` : ""}
 ${content}
 </node>`;
                 },
@@ -865,6 +876,10 @@ ${content}
               ...uniqueNodeTypes.map((nodeType) => {
                 if (nodeType === "document") {
                   return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
+                }
+
+                if (nodeType === "blocknote") {
+                  return '<schema type="blocknote" readFormat="blocknote-xml-v1" setFormat="markdown" blockEditFormat="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />';
                 }
 
                 if (nodeType === "table") {

@@ -13,7 +13,7 @@ interface UpdateNodeDataInput {
 }
 
 interface UseUpdateNodeDataValuesReturn {
-  updateNodeDataValues: (input: UpdateNodeDataInput) => Promise<void>;
+  updateNodeDataValues: (input: UpdateNodeDataInput) => Promise<boolean>;
   isUpdating: boolean;
 }
 
@@ -58,28 +58,33 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
   );
 
   const updateNodeDataValues = useCallback(
-    async (input: UpdateNodeDataInput): Promise<void> => {
+    async (input: UpdateNodeDataInput): Promise<boolean> => {
       const { nodeDataId, values } = input;
       const nodeData = getNodeData(nodeDataId);
       const valuesForMutation =
-        nodeData?.type === "document"
+        nodeData?.type === "document" && "doc" in values
           ? {
               ...values,
               doc: stringifyPlateDocumentForStorage(values.doc),
             }
-          : values;
+          : nodeData?.type === "blocknote" && "doc" in values
+            ? {
+                ...values,
+                doc: JSON.stringify(values.doc),
+              }
+            : values;
 
       const hasChanges = Object.entries(valuesForMutation).some(
         ([key, nextValue]) => !Object.is(nodeData?.values?.[key], nextValue),
       );
 
       if (!hasChanges) {
-        return;
+        return true;
       }
 
       // Sauvegarder le snapshot pour rollback potentiel
       const snapshotSaved = saveSnapshot(nodeDataId);
-      if (!snapshotSaved) return;
+      if (!snapshotSaved) return false;
 
       isUpdatingRef.current = true;
 
@@ -94,10 +99,12 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
         });
         // Succès : nettoyer le snapshot
         snapshotsRef.current.delete(nodeDataId);
+        return true;
       } catch (error) {
         // Erreur : revert vers le snapshot
         revertNodeData(nodeDataId);
         toastError(error, "Error updating");
+        return false;
       } finally {
         isUpdatingRef.current = false;
       }

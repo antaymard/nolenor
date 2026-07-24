@@ -45,6 +45,9 @@ import AssociatedThreadsViewer from "@/components/windows/AssociatedThreadsViewe
 const DocumentWindow = lazy(
   () => import("@/components/windows/prebuilt/DocumentWindow"),
 );
+const BlocknoteWindow = lazy(
+  () => import("@/components/windows/prebuilt/BlocknoteWindow"),
+);
 const EmbedWindow = lazy(
   () => import("@/components/windows/prebuilt/EmbedWindow"),
 );
@@ -333,6 +336,8 @@ function NodeContentBody({
   switch (nodeType) {
     case "document":
       return <DocumentWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
+    case "blocknote":
+      return <BlocknoteWindow nodeDataId={nodeDataId} />;
     case "embed":
       return <EmbedWindow nodeDataId={nodeDataId} />;
     case "app":

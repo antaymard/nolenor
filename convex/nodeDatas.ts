@@ -5,6 +5,7 @@ import type { Id } from "./_generated/dataModel";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as NodeDataModel from "./models/nodeDataModels";
 import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
+
 export const create = mutation({
   args: nodeDatasValidator,
   handler: async (ctx, args) => {

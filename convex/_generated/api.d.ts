@@ -19,6 +19,8 @@ import type * as hotposts from "../hotposts.js";
 import type * as http from "../http.js";
 import type * as ia_agentConfig from "../ia/agentConfig.js";
 import type * as ia_agents from "../ia/agents.js";
+import type * as ia_helpers__externalDeps from "../ia/helpers/_externalDeps.js";
+import type * as ia_helpers_blockNoteMarkdown from "../ia/helpers/blockNoteMarkdown.js";
 import type * as ia_helpers_composioSanitizer from "../ia/helpers/composioSanitizer.js";
 import type * as ia_helpers_generateCanvasMinimap from "../ia/helpers/generateCanvasMinimap.js";
 import type * as ia_helpers_generateMessageContext from "../ia/helpers/generateMessageContext.js";
@@ -37,6 +39,7 @@ import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/nol
 import type * as ia_systemPrompts_supervisorSystemPrompt from "../ia/systemPrompts/supervisorSystemPrompt.js";
 import type * as ia_systemPrompts_systemParts from "../ia/systemPrompts/systemParts.js";
 import type * as ia_systemPrompts_workerSystemPrompt from "../ia/systemPrompts/workerSystemPrompt.js";
+import type * as ia_tools_blockNoteTools from "../ia/tools/blockNoteTools.js";
 import type * as ia_tools_createConnectionTool from "../ia/tools/createConnectionTool.js";
 import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
 import type * as ia_tools_documentInsertContentTool from "../ia/tools/documentInsertContentTool.js";
@@ -61,6 +64,7 @@ import type * as ia_tools_viewImageTool from "../ia/tools/viewImageTool.js";
 import type * as ia_tools_websearchTool from "../ia/tools/websearchTool.js";
 import type * as ia_worker from "../ia/worker.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_blockNoteDocument from "../lib/blockNoteDocument.js";
 import type * as lib_getNodeDataTitle from "../lib/getNodeDataTitle.js";
 import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
 import type * as lib_llmId from "../lib/llmId.js";
@@ -69,6 +73,7 @@ import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js
 import type * as lib_plateDocumentStorage from "../lib/plateDocumentStorage.js";
 import type * as lib_r2 from "../lib/r2.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
+import type * as lib_textSanitize from "../lib/textSanitize.js";
 import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
 import type * as memories from "../memories.js";
@@ -140,6 +145,8 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "ia/agentConfig": typeof ia_agentConfig;
   "ia/agents": typeof ia_agents;
+  "ia/helpers/_externalDeps": typeof ia_helpers__externalDeps;
+  "ia/helpers/blockNoteMarkdown": typeof ia_helpers_blockNoteMarkdown;
   "ia/helpers/composioSanitizer": typeof ia_helpers_composioSanitizer;
   "ia/helpers/generateCanvasMinimap": typeof ia_helpers_generateCanvasMinimap;
   "ia/helpers/generateMessageContext": typeof ia_helpers_generateMessageContext;
@@ -158,6 +165,7 @@ declare const fullApi: ApiFromModules<{
   "ia/systemPrompts/supervisorSystemPrompt": typeof ia_systemPrompts_supervisorSystemPrompt;
   "ia/systemPrompts/systemParts": typeof ia_systemPrompts_systemParts;
   "ia/systemPrompts/workerSystemPrompt": typeof ia_systemPrompts_workerSystemPrompt;
+  "ia/tools/blockNoteTools": typeof ia_tools_blockNoteTools;
   "ia/tools/createConnectionTool": typeof ia_tools_createConnectionTool;
   "ia/tools/createNodeTool": typeof ia_tools_createNodeTool;
   "ia/tools/documentInsertContentTool": typeof ia_tools_documentInsertContentTool;
@@ -182,6 +190,7 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/websearchTool": typeof ia_tools_websearchTool;
   "ia/worker": typeof ia_worker;
   "lib/auth": typeof lib_auth;
+  "lib/blockNoteDocument": typeof lib_blockNoteDocument;
   "lib/getNodeDataTitle": typeof lib_getNodeDataTitle;
   "lib/jsonSchemaMinimap": typeof lib_jsonSchemaMinimap;
   "lib/llmId": typeof lib_llmId;
@@ -190,6 +199,7 @@ declare const fullApi: ApiFromModules<{
   "lib/plateDocumentStorage": typeof lib_plateDocumentStorage;
   "lib/r2": typeof lib_r2;
   "lib/searchScoring": typeof lib_searchScoring;
+  "lib/textSanitize": typeof lib_textSanitize;
   "lib/xml": typeof lib_xml;
   links: typeof links;
   memories: typeof memories;

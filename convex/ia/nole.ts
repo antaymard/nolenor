@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { baseAgent, chatModelOptions, vChatModelValues } from "./agents";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import { internal } from "../_generated/api";
 import * as MessageMetadataModels from "../models/messageMetadataModels";
 
@@ -31,6 +31,11 @@ export const saveMessage = mutation({
   },
   handler: async (ctx, { threadId, prompt, metadata, canvasId }) => {
     const authUserId = await requireAuth(ctx);
+
+    // The full agent toolset includes canvas write tools, so we require editor
+    // access up front (matching the worker path). Without this, an authenticated
+    // user could point the agent at any canvas id they know.
+    await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
 
     // 1) Persist the user message first so it exists in thread history.
     const { messageId } = await baseAgent.saveMessage(ctx, {

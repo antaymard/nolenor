@@ -5,6 +5,11 @@ import { internal } from "../_generated/api";
 import * as SearchableChunkModels from "./searchableChunkModels";
 import * as NodeDataVersionModels from "./nodeDataVersionModels";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
+import {
+  parseStoredBlockNoteDocument,
+  stringifyBlockNoteDocumentForStorage,
+  InvalidBlockNoteDocumentError,
+} from "../lib/blockNoteDocument";
 
 export async function readNodeData(
   ctx: QueryCtx,
@@ -153,6 +158,28 @@ export async function updateValues(
   if (existing.type === "app" && "code" in changedValues) {
     changedValues.__v = `${Date.now()}`;
     changedValues.errors = [];
+  }
+
+  // Blocknote: on canonicalise et on valide le `doc` côté serveur pour qu'une
+  // écriture frontend (JSON.stringify brut) ne puisse pas persister un document
+  // que les tools IA refuseraient ensuite (tables valides, ids uniques, etc.).
+  // Un document invalide est rejeté, pas silencieusement transformé en [].
+  if (existing.type === "blocknote" && "doc" in changedValues) {
+    const parsed = parseStoredBlockNoteDocument(changedValues.doc);
+    if (!parsed) {
+      throw new ConvexError(
+        "Invalid blocknote document: could not parse stored value.",
+      );
+    }
+    try {
+      changedValues.doc = stringifyBlockNoteDocumentForStorage(parsed);
+    } catch (error) {
+      const message =
+        error instanceof InvalidBlockNoteDocumentError
+          ? error.message
+          : "Invalid blocknote document.";
+      throw new ConvexError(message);
+    }
   }
 
   // On passe aussi les clés modifiées au rebuild pour que l'action puisse skipper

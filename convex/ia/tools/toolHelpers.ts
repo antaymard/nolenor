@@ -138,3 +138,17 @@ export function compactErrorResult(
 export function toolError(message: string): string {
   return JSON.stringify({ success: false, message });
 }
+
+/** Count non-overlapping exact occurrences of `search` in `source`. */
+export function countExactMatches(source: string, search: string): number {
+  if (!search) return 0;
+  let count = 0;
+  let index = 0;
+  while (true) {
+    const found = source.indexOf(search, index);
+    if (found === -1) break;
+    count += 1;
+    index = found + search.length;
+  }
+  return count;
+}

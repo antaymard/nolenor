@@ -4,6 +4,7 @@ const nodeTypeValues = [
   "link",
   "image",
   "document",
+  "blocknote",
   "value",
   "embed",
   "title",

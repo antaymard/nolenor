@@ -35,6 +35,7 @@ import { useGoToNode } from "@/hooks/useGoToNode";
 // Window bodies are lazy-loaded: they pull heavy dependencies (full Plate
 // editor, pdfjs, tanstack-table…) that shouldn't weigh down the canvas chunk.
 const DocumentWindow = lazy(() => import("./prebuilt/DocumentWindow"));
+const BlocknoteWindow = lazy(() => import("./prebuilt/BlocknoteWindow"));
 const EmbedWindow = lazy(() => import("./prebuilt/EmbedWindow"));
 const ImageWindow = lazy(() => import("./prebuilt/ImageWindow"));
 const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
@@ -88,6 +89,8 @@ function WindowBody({
   switch (nodeType) {
     case "document":
       return <DocumentWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
+    case "blocknote":
+      return <BlocknoteWindow nodeDataId={nodeDataId} />;
     case "embed":
       return <EmbedWindow nodeDataId={nodeDataId} />;
     case "app":

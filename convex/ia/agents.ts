@@ -40,6 +40,13 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
+    label: "Kimi K3",
+    value: "moonshotai/kimi-k3",
+    price: "3_15",
+    isMultimodal: true,
+    maxContext: 1000000,
+  },
+  {
     label: "GPT-5.6 Sol Pro",
     value: "openai/gpt-5.6-sol-pro",
     price: "5_30",

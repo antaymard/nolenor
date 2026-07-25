@@ -86,7 +86,7 @@ export const dateInlineContentSpec = createReactInlineContentSpec(
                 props: { date: date.toDateString() },
               });
             }}
-            initialFocus
+            autoFocus
           />
         </PopoverContent>
       </Popover>

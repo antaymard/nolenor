@@ -1,7 +1,11 @@
-import { memo, useMemo } from "react";
+import React, { memo, useMemo } from "react";
 import type { PartialBlock } from "@blocknote/core";
 
-import type { BlockNoteBlock, BlockNoteInlineContent } from "@/../convex/lib/blockNoteDocument";
+import {
+  extractInlineText,
+  type BlockNoteBlock,
+  type BlockNoteInlineContent,
+} from "@/../convex/lib/blockNoteDocument";
 import { findBlockView, findInlineContentView } from "./registry";
 
 /**
@@ -69,13 +73,16 @@ interface InlineNode {
 }
 
 function renderStyledText(node: InlineNode, key: string): React.ReactNode {
+  // Wrappers are applied inside-out; only the outermost one is a list child,
+  // so the key goes on the final element rather than on every layer.
   let el: React.ReactNode = node.text ?? "";
   const s = node.styles || {};
-  if (s.code) el = <code key={key}>{el}</code>;
-  if (s.bold) el = <strong key={key}>{el}</strong>;
-  if (s.italic) el = <em key={key}>{el}</em>;
-  if (s.underline) el = <u key={key}>{el}</u>;
-  if (s.strike) el = <s key={key}>{el}</s>;
+  if (s.code) el = <code>{el}</code>;
+  if (s.bold) el = <strong>{el}</strong>;
+  if (s.italic) el = <em>{el}</em>;
+  if (s.underline) el = <u>{el}</u>;
+  if (s.strike) el = <s>{el}</s>;
+
   const style: React.CSSProperties = {};
   if (typeof s.textColor === "string" && s.textColor !== "default") {
     style.color = s.textColor;
@@ -84,13 +91,13 @@ function renderStyledText(node: InlineNode, key: string): React.ReactNode {
     style.backgroundColor = s.backgroundColor;
   }
   if (Object.keys(style).length > 0) {
-    el = (
+    return (
       <span key={key} style={style}>
         {el}
       </span>
     );
   }
-  return el;
+  return <React.Fragment key={key}>{el}</React.Fragment>;
 }
 
 function renderInlineContent(
@@ -130,62 +137,72 @@ function renderBlockChildren(children: BlockNoteBlock[] | undefined): React.Reac
   return <>{renderBlocks(children)}</>;
 }
 
-function renderBlock(block: BlockNoteBlock, key: string): React.ReactNode {
+/**
+ * Render one block. `childrenIncluded` tells the caller whether the returned
+ * node already contains the block's children — true for the HTML fallback,
+ * which serializes the whole subtree — so children are not rendered twice.
+ */
+function renderBlock(
+  block: BlockNoteBlock,
+  key: string,
+): { node: React.ReactNode; childrenIncluded: boolean } {
   const type = block.type;
   const props = (block.props || {}) as Record<string, unknown>;
   const content = block.content as BlockNoteInlineContent[] | undefined;
+  const own = (node: React.ReactNode) => ({ node, childrenIncluded: false });
 
   // Custom block from the registry (e.g. callout).
   const CustomView = findBlockView(type);
   if (CustomView) {
-    return (
+    return own(
       <CustomView key={key} {...props}>
         {renderInlineContent(content)}
-      </CustomView>
+      </CustomView>,
     );
   }
 
   // Default blocks → semantic HTML matching the `.bn-readonly-container` CSS.
   switch (type) {
     case "paragraph":
-      return <p key={key}>{renderInlineContent(content)}</p>;
+      return own(<p key={key}>{renderInlineContent(content)}</p>);
     case "heading": {
       const level = (props.level as number | undefined) ?? 1;
       const Tag = `h${Math.min(Math.max(level, 1), 6)}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
-      return <Tag key={key}>{renderInlineContent(content)}</Tag>;
+      return own(<Tag key={key}>{renderInlineContent(content)}</Tag>);
     }
     case "quote":
-      return <blockquote key={key}>{renderInlineContent(content)}</blockquote>;
-    case "codeBlock": {
-      const text = extractPlainText(content);
-      return (
+      return own(<blockquote key={key}>{renderInlineContent(content)}</blockquote>);
+    case "codeBlock":
+      return own(
         <pre key={key}>
-          <code>{text}</code>
-        </pre>
+          <code>{extractInlineText(content)}</code>
+        </pre>,
       );
-    }
     case "divider":
-      return <hr key={key} />;
+      return own(<hr key={key} />);
     case "checkListItem":
-      return (
+      return own(
         <div key={key} className="flex items-start gap-2">
           <input type="checkbox" checked={!!props.checked} disabled readOnly />
           <span>{renderInlineContent(content)}</span>
-        </div>
+        </div>,
       );
     // List items are grouped into <ul>/<ol> by renderBlocks, not handled here.
     case "bulletListItem":
     case "numberedListItem":
       // Reached only if encountered outside grouping (defensive): render bare.
-      return <li key={key}>{renderInlineContent(content)}</li>;
+      return own(<li key={key}>{renderInlineContent(content)}</li>);
     default: {
       // Fallback for rare default types (table, file, image, video, audio,
       // toggle, columns): serialize the single block via the headless editor.
+      // `blocksToFullHTML` emits the nested children too, hence
+      // `childrenIncluded: true` — rendering them again would duplicate them.
       const html = blockToHtml(block);
-      if (html) {
-        return <div key={key} dangerouslySetInnerHTML={{ __html: html }} />;
-      }
-      return null;
+      if (!html) return own(null);
+      return {
+        node: <div key={key} dangerouslySetInnerHTML={{ __html: html }} />,
+        childrenIncluded: true,
+      };
     }
   }
 }
@@ -211,11 +228,11 @@ function renderBlocks(blocks: BlockNoteBlock[]): React.ReactNode {
         : undefined;
       out.push(
         <ListTag
-          key={`list-${out.length}`}
+          key={`list-${block.id}`}
           {...(start && start !== 1 ? { start } : {})}
         >
-          {items.map((item, j) => (
-            <li key={`li-${j}`}>
+          {items.map((item) => (
+            <li key={item.id}>
               {renderInlineContent(item.content as BlockNoteInlineContent[] | undefined)}
               {renderBlockChildren(item.children)}
             </li>
@@ -225,34 +242,20 @@ function renderBlocks(blocks: BlockNoteBlock[]): React.ReactNode {
       continue;
     }
 
-    out.push(renderBlock(block, `b-${out.length}`));
-    // Non-list blocks can also have children (e.g. toggle). Render them after.
-    const rendered = out[out.length - 1];
-    if (block.children && block.children.length > 0) {
+    const { node, childrenIncluded } = renderBlock(block, block.id);
+    out.push(node);
+    // Non-list blocks can also have children (e.g. toggle): render them as an
+    // indented sibling, unless the block's own rendering already covered them.
+    if (!childrenIncluded && block.children && block.children.length > 0) {
       out.push(
-        <div key={`kids-${out.length}`} className="pl-4">
+        <div key={`children-${block.id}`} className="pl-4">
           {renderBlocks(block.children)}
         </div>,
       );
-      // Note: `rendered` kept as-is; the children wrapper is a sibling.
-      void rendered;
     }
     i++;
   }
   return out;
-}
-
-function extractPlainText(content: BlockNoteInlineContent[] | undefined): string {
-  if (!content) return "";
-  return content
-    .map((c) => {
-      if (typeof c === "string") return c;
-      const node = c as InlineNode;
-      if (node.text) return node.text;
-      if (node.content) return extractPlainText(node.content);
-      return "";
-    })
-    .join("");
 }
 
 // ── Component ──────────────────────────────────────────────────────────────

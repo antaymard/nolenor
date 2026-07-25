@@ -148,16 +148,7 @@ export function toolError(message: string): string {
   return JSON.stringify({ success: false, message });
 }
 
-/** Count non-overlapping exact occurrences of `search` in `source`. */
-export function countExactMatches(source: string, search: string): number {
-  if (!search) return 0;
-  let count = 0;
-  let index = 0;
-  while (true) {
-    const found = source.indexOf(search, index);
-    if (found === -1) break;
-    count += 1;
-    index = found + search.length;
-  }
-  return count;
-}
+// Re-exported so the existing tool call sites keep importing it from here,
+// while the single implementation lives in `convex/lib/text.ts` (also used by
+// the BlockNote document layer).
+export { countExactMatches } from "../../lib/text";

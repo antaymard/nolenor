@@ -10,6 +10,8 @@
 // XML <-> BlockNote conversion (which needs jsdom) lives in
 // `convex/ia/helpers/blockNoteMarkdown.ts`.
 
+import { countExactMatches } from "./text";
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export type BlockNoteInlineContent =
@@ -152,8 +154,20 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function describePath(path: ReadonlyArray<(number | string)[]>): string {
-  return path.length === 0 ? "root" : path.map((p) => `[${p.join("][")}]`).join("");
+// Paths are plain strings built by concatenation as the walk descends
+// (`[0][children][2][content]`). Validation runs on every write, so the path
+// must cost one string concat per node — never an array allocation — and
+// `"root"` stands in for the empty path in error messages.
+type Path = string;
+
+const ROOT_PATH: Path = "";
+
+function childPath(path: Path, ...segments: (string | number)[]): Path {
+  return `${path}[${segments.join("][")}]`;
+}
+
+function describePath(path: Path): string {
+  return path === ROOT_PATH ? "root" : path;
 }
 
 // ── IDs ─────────────────────────────────────────────────────────────────────
@@ -197,10 +211,7 @@ function generateUniqueBlockId(existing: Set<string>): string {
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
-function validateInlineContent(
-  content: unknown,
-  path: ReadonlyArray<(number | string)[]>,
-): void {
+function validateInlineContent(content: unknown, path: Path): void {
   if (typeof content === "string") return;
 
   if (!Array.isArray(content)) {
@@ -213,7 +224,7 @@ function validateInlineContent(
 
   for (let i = 0; i < content.length; i++) {
     const node = content[i];
-    const p = [...path, ["content", i]];
+    const p = childPath(path, "content", i);
     if (typeof node === "string") continue;
     if (!isPlainObj(node)) {
       throw new InvalidBlockNoteDocumentError(
@@ -227,7 +238,7 @@ function validateInlineContent(
       );
     }
     if (n.content !== undefined) {
-      validateInlineContent(n.content, [...p, ["content"]]);
+      validateInlineContent(n.content, childPath(p, "content"));
     }
   }
 }
@@ -236,14 +247,7 @@ function isTableCell(cell: unknown): cell is BlockNoteTableCell {
   return isPlainObj(cell) && (cell as Record<string, unknown>).type === "tableCell";
 }
 
-function isLegacyCellArray(cell: unknown): cell is BlockNoteInlineContent[] {
-  return Array.isArray(cell);
-}
-
-function validateTableContent(
-  content: unknown,
-  path: ReadonlyArray<(number | string)[]>,
-): void {
+function validateTableContent(content: unknown, path: Path): void {
   if (!isPlainObj(content)) {
     throw new InvalidBlockNoteDocumentError(
       `Invalid table content at ${describePath(path)}: expected object.`,
@@ -262,7 +266,7 @@ function validateTableContent(
   }
   for (let r = 0; r < c.rows.length; r++) {
     const row = c.rows[r];
-    const rp = [...path, ["rows", r]];
+    const rp = childPath(path, "rows", r);
     if (!isPlainObj(row)) {
       throw new InvalidBlockNoteDocumentError(
         `Invalid table row at ${describePath(rp)}: expected object.`,
@@ -276,7 +280,7 @@ function validateTableContent(
     }
     for (let ci = 0; ci < cells.length; ci++) {
       const cell = cells[ci];
-      const cp = [...rp, ["cells", ci]];
+      const cp = childPath(rp, "cells", ci);
       if (isTableCell(cell)) {
         // Modern structured cell
         if (!isPlainObj(cell.props)) {
@@ -289,8 +293,8 @@ function validateTableContent(
             `Invalid table cell at ${describePath(cp)}: "content" must be an array.`,
           );
         }
-        validateInlineContent(cell.content, [...cp, ["content"]]);
-      } else if (isLegacyCellArray(cell)) {
+        validateInlineContent(cell.content, childPath(cp, "content"));
+      } else if (Array.isArray(cell)) {
         // Legacy array-of-inline-content cell
         validateInlineContent(cell, cp);
       } else {
@@ -302,10 +306,7 @@ function validateTableContent(
   }
 }
 
-function validateContent(
-  content: unknown,
-  path: ReadonlyArray<(number | string)[]>,
-): void {
+function validateContent(content: unknown, path: Path): void {
   if (content === undefined || typeof content === "string") return;
   if (Array.isArray(content)) {
     validateInlineContent(content, path);
@@ -320,11 +321,7 @@ function validateContent(
   );
 }
 
-function collectBlockIds(
-  block: unknown,
-  path: ReadonlyArray<(number | string)[]>,
-  seen: Set<string>,
-): void {
+function collectBlockIds(block: unknown, path: Path, seen: Set<string>): void {
   if (!isPlainObj(block)) {
     throw new InvalidBlockNoteDocumentError(
       `Invalid block at ${describePath(path)}: expected object, got ${
@@ -356,7 +353,7 @@ function collectBlockIds(
     );
   }
   if (b.content !== undefined) {
-    validateContent(b.content, [...path, ["content"]]);
+    validateContent(b.content, childPath(path, "content"));
   }
   if (b.children !== undefined) {
     if (!Array.isArray(b.children)) {
@@ -365,7 +362,7 @@ function collectBlockIds(
       );
     }
     for (let i = 0; i < b.children.length; i++) {
-      collectBlockIds(b.children[i], [...path, ["children", i]], seen);
+      collectBlockIds(b.children[i], childPath(path, "children", i), seen);
     }
   }
 }
@@ -380,7 +377,7 @@ export function validateBlockNoteDocument(doc: unknown): void {
   }
   const seen = new Set<string>();
   for (let i = 0; i < doc.length; i++) {
-    collectBlockIds(doc[i], [[String(i)]], seen);
+    collectBlockIds(doc[i], childPath(ROOT_PATH, i), seen);
   }
 }
 
@@ -419,10 +416,24 @@ export function listBlockIds(blocks: BlockNoteBlock[]): string[] {
 }
 
 export function findBlock(blocks: BlockNoteBlock[], id: string): BlockNoteBlock | null {
-  for (const b of blocks) {
-    if (b.id === id) return b;
-    if (b.children) {
-      const found = findBlock(b.children, id);
+  const slot = locateBlock(blocks, id);
+  return slot ? slot.siblings[slot.index] : null;
+}
+
+/**
+ * Locate a block by id and return the array holding it plus its index — the one
+ * primitive every targeted operation needs. Returning the slot (rather than the
+ * block) lets insert/replace/delete mutate in place after a single walk instead
+ * of searching the tree once per step.
+ */
+type BlockSlot = { siblings: BlockNoteBlock[]; index: number };
+
+function locateBlock(blocks: BlockNoteBlock[], id: string): BlockSlot | null {
+  for (let i = 0; i < blocks.length; i++) {
+    if (blocks[i].id === id) return { siblings: blocks, index: i };
+    const children = blocks[i].children;
+    if (children) {
+      const found = locateBlock(children, id);
       if (found) return found;
     }
   }
@@ -440,20 +451,101 @@ function listSubtreeIds(block: BlockNoteBlock): Set<string> {
   return ids;
 }
 
+// ── Inline text extraction ───────────────────────────────────────────────────
+// Single implementation shared by every surface that needs the visible text of
+// a BlockNote document: node titles (getNodeDataTitle), the canvas empty-state
+// check, the read-only renderer's code blocks, and the fullscreen outline.
+
+/**
+ * Concatenate the visible text of an inline content value. Accepts the three
+ * shapes `content` can take: a raw string, an `InlineContent[]` array (text
+ * leaves, links, custom inline nodes), or structured `tableContent`.
+ * Custom inline nodes (e.g. `date` pills) carry no text and contribute "".
+ */
 export function extractInlineText(content: unknown): string {
   if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((node) => {
-      if (typeof node === "string") return node;
-      if (isPlainObj(node)) {
-        const n = node as Record<string, unknown>;
-        if (typeof n.text === "string") return n.text;
-        if (n.content !== undefined) return extractInlineText(n.content);
+
+  if (Array.isArray(content)) {
+    let out = "";
+    for (const node of content) {
+      if (typeof node === "string") {
+        out += node;
+      } else if (isPlainObj(node)) {
+        if (typeof node.text === "string") out += node.text;
+        else if (node.content !== undefined) out += extractInlineText(node.content);
       }
-      return "";
-    })
-    .join("");
+    }
+    return out;
+  }
+
+  if (isPlainObj(content) && content.type === "tableContent") {
+    const rows = (content as unknown as BlockNoteTableContent).rows;
+    if (!Array.isArray(rows)) return "";
+    const cellTexts: string[] = [];
+    for (const row of rows) {
+      if (!isPlainObj(row) || !Array.isArray(row.cells)) continue;
+      for (const cell of row.cells) {
+        const text = extractInlineText(isTableCell(cell) ? cell.content : cell);
+        if (text) cellTexts.push(text);
+      }
+    }
+    return cellTexts.join(" ");
+  }
+
+  return "";
+}
+
+// Block types that are visible even with no text at all, so a document made
+// only of them must not be reported as empty.
+const NON_TEXTUAL_BLOCK_TYPES = new Set([
+  "image",
+  "video",
+  "audio",
+  "file",
+  "table",
+  "divider",
+]);
+
+/** True when an inline node is custom content (e.g. a `date` pill): no text, but real content. */
+function isCustomInlineNode(node: unknown): boolean {
+  return (
+    isPlainObj(node) &&
+    typeof node.type === "string" &&
+    node.type !== "text" &&
+    node.type !== "link"
+  );
+}
+
+function inlineContentHasSubstance(content: unknown): boolean {
+  if (typeof content === "string") return content.trim() !== "";
+  if (Array.isArray(content)) {
+    return content.some(
+      (node) =>
+        isCustomInlineNode(node) ||
+        extractInlineText([node]).trim() !== "",
+    );
+  }
+  if (isPlainObj(content) && content.type === "tableContent") return true;
+  return false;
+}
+
+/**
+ * True when the document has anything worth rendering: visible text, a custom
+ * inline node (date pill), or a non-textual block (image, table, divider…).
+ * Used by the canvas node to decide between the preview and the empty state.
+ */
+export function blockNoteDocumentHasText(blocks: readonly unknown[]): boolean {
+  for (const block of blocks) {
+    if (!isPlainObj(block)) continue;
+    if (typeof block.type === "string" && NON_TEXTUAL_BLOCK_TYPES.has(block.type)) {
+      return true;
+    }
+    if (inlineContentHasSubstance(block.content)) return true;
+    if (Array.isArray(block.children) && blockNoteDocumentHasText(block.children)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // ── ID assignment ────────────────────────────────────────────────────────────
@@ -496,7 +588,12 @@ function ensureIds(blocks: BlockNoteBlockWithOptionalId[], existing: Set<string>
   return blocks.map(ensure);
 }
 
-// ── Operations (pure: clone input, return a new tree) ────────────────────────
+// ── Operations ───────────────────────────────────────────────────────────────
+//
+// All operations are pure: they deep-clone the input up front and mutate only
+// the clone, so the caller's tree is never touched. Each one clones once and
+// walks the clone once (via `locateBlock`); `listBlockIds` is only recomputed
+// on the error path, to build the "valid block ids" hint.
 
 export function insertBlocks(
   blocks: BlockNoteBlock[],
@@ -505,43 +602,27 @@ export function insertBlocks(
   newBlocks: NewBlockInput[],
 ): { tree: BlockNoteBlock[]; insertedIds: string[] } {
   const tree = clone(blocks);
-  const existingIds = new Set(listBlockIds(blocks));
-  const prepared = regenerateIds(newBlocks, existingIds);
+  const prepared = regenerateIds(newBlocks, new Set(listBlockIds(tree)));
+  const insertedIds = prepared.map((b) => b.id);
 
   if (position === "start") {
-    return { tree: [...prepared, ...tree], insertedIds: prepared.map((b) => b.id) };
+    tree.unshift(...prepared);
+    return { tree, insertedIds };
   }
   if (position === "end") {
-    return { tree: [...tree, ...prepared], insertedIds: prepared.map((b) => b.id) };
+    tree.push(...prepared);
+    return { tree, insertedIds };
   }
 
   if (!referenceBlockId) {
     throw new BlockNotFoundError("<missing referenceBlockId>", listBlockIds(blocks));
   }
-  if (!insertInTree(tree, referenceBlockId, position, prepared)) {
+  const slot = locateBlock(tree, referenceBlockId);
+  if (!slot) {
     throw new BlockNotFoundError(referenceBlockId, listBlockIds(blocks));
   }
-  return { tree, insertedIds: prepared.map((b) => b.id) };
-}
-
-function insertInTree(
-  blocks: BlockNoteBlock[],
-  refId: string,
-  position: "before" | "after",
-  newBlocks: BlockNoteBlock[],
-): boolean {
-  for (let i = 0; i < blocks.length; i++) {
-    if (blocks[i].id === refId) {
-      const at = position === "before" ? i : i + 1;
-      blocks.splice(at, 0, ...newBlocks);
-      return true;
-    }
-    const children = blocks[i].children;
-    if (children && insertInTree(children, refId, position, newBlocks)) {
-      return true;
-    }
-  }
-  return false;
+  slot.siblings.splice(position === "before" ? slot.index : slot.index + 1, 0, ...prepared);
+  return { tree, insertedIds };
 }
 
 export function replaceBlock(
@@ -550,20 +631,16 @@ export function replaceBlock(
   newBlock: BlockNoteBlockWithOptionalId,
 ): BlockNoteBlock[] {
   const tree = clone(blocks);
-  const target = findBlock(blocks, blockId);
-  if (!target) {
+  const slot = locateBlock(tree, blockId);
+  if (!slot) {
     throw new BlockNotFoundError(blockId, listBlockIds(blocks));
   }
 
   // Preserve the target root id. For descendants: preserve ids that already
   // belong to the replaced subtree, generate fresh ids for new or missing ones.
-  const subtreeIds = listSubtreeIds(target);
-  const allIds = new Set(listBlockIds(blocks));
-  const replacement = buildReplacement(newBlock, blockId, subtreeIds, allIds);
-
-  if (!replaceInTree(tree, blockId, replacement)) {
-    throw new BlockNotFoundError(blockId, listBlockIds(blocks));
-  }
+  const subtreeIds = listSubtreeIds(slot.siblings[slot.index]);
+  const allIds = new Set(listBlockIds(tree));
+  slot.siblings[slot.index] = buildReplacement(newBlock, blockId, subtreeIds, allIds);
   return tree;
 }
 
@@ -574,18 +651,16 @@ function buildReplacement(
   subtreeIds: Set<string>,
   allIds: Set<string>,
 ): BlockNoteBlock {
+  // `subtreeIds` is consumed as ids are claimed, so the same descendant id
+  // supplied twice yields one preserved id and one fresh one instead of a
+  // duplicate the storage validation would then reject.
   const build = (b: BlockNoteBlockWithOptionalId, forceId?: string): BlockNoteBlock => {
     let id: string;
     if (forceId) {
       id = forceId;
-    } else if (b.id && subtreeIds.has(b.id)) {
+    } else if (b.id && subtreeIds.delete(b.id)) {
       // Preserve descendant ids that already belong to the replaced subtree.
       id = b.id;
-      if (allIds.has(id) && !subtreeIds.has(id)) {
-        throw new InvalidBlockNoteDocumentError(
-          `Block id "${id}" already exists outside the replaced subtree.`,
-        );
-      }
       allIds.add(id);
     } else {
       id = generateUniqueBlockId(allIds);
@@ -599,24 +674,6 @@ function buildReplacement(
     return out;
   };
   return build(input, targetId);
-}
-
-function replaceInTree(
-  blocks: BlockNoteBlock[],
-  blockId: string,
-  newBlock: BlockNoteBlock,
-): boolean {
-  for (let i = 0; i < blocks.length; i++) {
-    if (blocks[i].id === blockId) {
-      blocks[i] = newBlock;
-      return true;
-    }
-    const children = blocks[i].children;
-    if (children && replaceInTree(children, blockId, newBlock)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 export function deleteBlocks(
@@ -650,35 +707,20 @@ export function updateBlockProps(
   propsPatch: Record<string, unknown>,
 ): BlockNoteBlock[] {
   const tree = clone(blocks);
-  if (!updatePropsInTree(tree, blockId, propsPatch)) {
+  const slot = locateBlock(tree, blockId);
+  if (!slot) {
     throw new BlockNotFoundError(blockId, listBlockIds(blocks));
   }
-  return tree;
-}
 
-function updatePropsInTree(
-  blocks: BlockNoteBlock[],
-  blockId: string,
-  patch: Record<string, unknown>,
-): boolean {
-  for (const b of blocks) {
-    if (b.id === blockId) {
-      const merged: Record<string, unknown> = { ...(b.props ?? {}) };
-      for (const [key, val] of Object.entries(patch)) {
-        if (val === null) {
-          delete merged[key];
-        } else {
-          merged[key] = val;
-        }
-      }
-      b.props = merged;
-      return true;
-    }
-    if (b.children && updatePropsInTree(b.children, blockId, patch)) {
-      return true;
-    }
+  const target = slot.siblings[slot.index];
+  const merged: Record<string, unknown> = { ...(target.props ?? {}) };
+  for (const [key, val] of Object.entries(propsPatch)) {
+    // `null` removes the key, so the agent can reset a prop to its default.
+    if (val === null) delete merged[key];
+    else merged[key] = val;
   }
-  return false;
+  target.props = merged;
+  return tree;
 }
 
 // ── Native text patch ────────────────────────────────────────────────────────
@@ -689,10 +731,12 @@ export function patchBlockText(
   oldString: string,
   newString: string,
 ): BlockNoteBlock[] {
-  const target = findBlock(blocks, blockId);
-  if (!target) {
+  const tree = clone(blocks);
+  const slot = locateBlock(tree, blockId);
+  if (!slot) {
     throw new BlockNotFoundError(blockId, listBlockIds(blocks));
   }
+  const target = slot.siblings[slot.index];
 
   const count = countBlockTextMatches(target.content, oldString);
   if (count === 0) {
@@ -706,12 +750,7 @@ export function patchBlockText(
     );
   }
 
-  const tree = clone(blocks);
-  const updated = findBlock(tree, blockId);
-  if (!updated) {
-    throw new BlockNotFoundError(blockId, listBlockIds(blocks));
-  }
-  updated.content = applyInlinePatch(updated.content, oldString, newString);
+  target.content = applyInlinePatch(target.content, oldString, newString);
   return tree;
 }
 
@@ -866,66 +905,87 @@ function patchFlow(flow: unknown[], oldString: string, newString: string): unkno
   return flow;
 }
 
+/**
+ * Rewrite the run of adjacent text leaves that contains the match. Non-text
+ * nodes and runs without the match are re-emitted as-is (the original objects,
+ * so any field this module doesn't model survives).
+ *
+ * Precondition: `countRunMatches(flow, oldString) === 1`, enforced by `patchFlow`.
+ */
 function applyToFlow(flow: unknown[], oldString: string, newString: string): unknown[] {
   const result: unknown[] = [];
   let i = 0;
+
   while (i < flow.length) {
-    const leaf = toTextLeaf(flow[i]);
-    if (!leaf) {
+    if (!toTextLeaf(flow[i])) {
       result.push(flow[i]);
-      i++;
+      i += 1;
       continue;
     }
 
-    const runLeaves: TextLeaf[] = [];
+    // Collect the maximal run of adjacent text leaves starting at `i`.
+    const runStart = i;
+    const run: TextLeaf[] = [];
     while (i < flow.length) {
-      const l = toTextLeaf(flow[i]);
-      if (!l) break;
-      runLeaves.push(l);
-      i++;
+      const leaf = toTextLeaf(flow[i]);
+      if (!leaf) break;
+      run.push(leaf);
+      i += 1;
     }
 
-    const text = runLeaves.map((l) => l.text).join("");
-    const matchStart = text.indexOf(oldString);
+    const matchStart = run.map((l) => l.text).join("").indexOf(oldString);
     if (matchStart === -1) {
-      for (const l of runLeaves) result.push(makeLeaf(l.text, l) ?? l);
+      for (let k = runStart; k < i; k++) result.push(flow[k]);
       continue;
     }
-
-    const matchEnd = matchStart + oldString.length;
-    let cursor = 0;
-    let leafA = 0;
-    while (cursor + runLeaves[leafA].text.length <= matchStart) {
-      cursor += runLeaves[leafA].text.length;
-      leafA++;
-    }
-    const offsetA = matchStart - cursor;
-
-    let leafB = leafA;
-    let cursorB = cursor;
-    while (cursorB + runLeaves[leafB].text.length < matchEnd) {
-      cursorB += runLeaves[leafB].text.length;
-      leafB++;
-    }
-    const offsetB = matchEnd - cursorB;
-
-    const template = runLeaves[leafA];
-    const prefix = runLeaves[leafA].text.slice(0, offsetA);
-    const suffix = runLeaves[leafB].text.slice(offsetB);
-
-    if (prefix) result.push(makeLeaf(prefix, template));
-    if (newString) result.push(makeLeaf(newString, template));
-    if (suffix) result.push(makeLeaf(suffix, runLeaves[leafB]));
-    for (let k = leafB + 1; k < runLeaves.length; k++) {
-      result.push(makeLeaf(runLeaves[k].text, runLeaves[k]) ?? runLeaves[k]);
-    }
-    while (i < flow.length) {
-      result.push(flow[i]);
-      i++;
-    }
-    return result;
+    result.push(...spliceRun(run, matchStart, oldString.length, newString));
   }
+
   return result;
+}
+
+/**
+ * Replace `[matchStart, matchStart + matchLength)` inside a run of text leaves.
+ * Each leaf keeps its own styles for the text it still contributes; the
+ * replacement inherits the styles of the leaf the match starts in.
+ */
+function spliceRun(
+  run: TextLeaf[],
+  matchStart: number,
+  matchLength: number,
+  newString: string,
+): unknown[] {
+  const out: unknown[] = [];
+  const matchEnd = matchStart + matchLength;
+  let inserted = false;
+  let cursor = 0;
+
+  const push = (text: string, template: TextLeaf) => {
+    const leaf = makeLeaf(text, template);
+    if (leaf !== null) out.push(leaf);
+  };
+
+  for (const leaf of run) {
+    const start = cursor;
+    const end = start + leaf.text.length;
+    cursor = end;
+
+    // Head: the part of this leaf sitting before the match.
+    if (start < matchStart) {
+      push(leaf.text.slice(0, Math.min(end, matchStart) - start), leaf);
+    }
+    // The replacement lands once, in the leaf where the match begins.
+    if (!inserted && start <= matchStart && matchStart < end) {
+      push(newString, leaf);
+      inserted = true;
+    }
+    // Tail: the part of this leaf sitting after the match.
+    if (end > matchEnd) {
+      push(leaf.text.slice(Math.max(start, matchEnd) - start), leaf);
+    }
+  }
+
+  return out;
 }
 
 // ── Full document replacement ────────────────────────────────────────────────
@@ -937,19 +997,4 @@ export function normalizeReplaceDocumentBlocks(
   const withIds = ensureIds(blocks, existing);
   validateBlockNoteDocument(withIds);
   return withIds;
-}
-
-// ── Shared small utility ─────────────────────────────────────────────────────
-
-function countExactMatches(source: string, search: string): number {
-  if (!search) return 0;
-  let count = 0;
-  let index = 0;
-  while (true) {
-    const found = source.indexOf(search, index);
-    if (found === -1) break;
-    count += 1;
-    index = found + search.length;
-  }
-  return count;
 }

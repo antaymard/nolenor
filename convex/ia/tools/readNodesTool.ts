@@ -14,8 +14,7 @@ import {
 } from "../helpers/pdfChunkFormatters";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { nodeDataConfig } from "../../config/nodeConfig";
-import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
+import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { type ToolConfig, toolError } from "./toolHelpers";
 
 const PDF_HINTS = {
@@ -370,20 +369,6 @@ export const readNodesToolConfig: ToolConfig = {
   ],
   mcp: { access: "read" },
 };
-
-function getExpectedNodeDataSchemaString(nodeType: string): string | null {
-  if (nodeType === "document" || nodeType === "table" || nodeType === "blocknote") {
-    return null;
-  }
-
-  const config = nodeDataConfig.find((item) => item.type === nodeType);
-  if (!config) {
-    return null;
-  }
-
-  const schema = config.toolInputSchema ?? config.dataValuesSchema;
-  return formatZodSchemaAsMinimap(schema);
-}
 
 // is v1.0
 export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
@@ -874,31 +859,7 @@ ${content}
               ),
               "</nodes>",
               "<nodeDataSchemas>",
-              ...uniqueNodeTypes.map((nodeType) => {
-                if (nodeType === "document") {
-                  return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
-                }
-
-                if (nodeType === "blocknote") {
-                  return '<schema type="blocknote" readFormat="blocknote-xml-v1" setFormat="markdown" blockEditFormat="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />';
-                }
-
-                if (nodeType === "table") {
-                  return '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />';
-                }
-
-                const toolsAttr =
-                  nodeType === "app"
-                    ? 'tools="set_node_data,patch_app_node_code"'
-                    : 'tool="set_node_data"';
-
-                const schema = getExpectedNodeDataSchemaString(nodeType);
-                if (!schema) {
-                  return `<schema type="${nodeType}" ${toolsAttr} />`;
-                }
-
-                return `<schema type="${nodeType}" ${toolsAttr}>\n${schema}\n</schema>`;
-              }),
+              ...uniqueNodeTypes.map(buildNodeDataSchemaXml),
               "</nodeDataSchemas>",
             ];
           })(),

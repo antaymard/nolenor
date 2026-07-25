@@ -1,11 +1,9 @@
 import type { DefaultReactSuggestionItem } from "@blocknote/react";
 
 import type { AppBlockNoteEditor } from "./schema";
-import { createCalloutBlockSpec } from "./callout-block";
-import { CalloutView } from "./callout-block";
+import { createCalloutBlockSpec, CalloutView } from "./callout-block";
 import { getCalloutSlashMenuItem } from "./calloutSlashMenuItem";
-import { dateInlineContentSpec } from "./date-inline-content";
-import { DatePillView } from "./date-inline-content";
+import { dateInlineContentSpec, DatePillView } from "./date-inline-content";
 import { getDateSlashMenuItem } from "./dateSlashMenuItem";
 
 /**
@@ -90,22 +88,24 @@ export const customInlineContent: CustomInlineContentEntry[] = [
 export function getCustomSlashMenuItems(
   editor: AppBlockNoteEditor,
 ): DefaultReactSuggestionItem[] {
-  const items: DefaultReactSuggestionItem[] = [];
-  for (const entry of customBlocks) {
-    if (entry.slashMenuItem) items.push(entry.slashMenuItem(editor));
-  }
-  for (const entry of customInlineContent) {
-    if (entry.slashMenuItem) items.push(entry.slashMenuItem(editor));
-  }
-  return items;
+  return [...customBlocks, ...customInlineContent]
+    .filter((entry) => entry.slashMenuItem)
+    .map((entry) => entry.slashMenuItem!(editor));
 }
+
+// Built once at module load: the view lookups run for every block and every
+// inline node of every canvas preview, so they should not scan the arrays.
+const blockViewsByType = new Map(customBlocks.map((e) => [e.type, e.View]));
+const inlineContentViewsByType = new Map(
+  customInlineContent.map((e) => [e.type, e.View]),
+);
 
 /** Look up the read-only View component for a custom block type. */
 export function findBlockView(type: string): AnyView | undefined {
-  return customBlocks.find((e) => e.type === type)?.View;
+  return blockViewsByType.get(type);
 }
 
 /** Look up the read-only View component for a custom inline content type. */
 export function findInlineContentView(type: string): AnyView | undefined {
-  return customInlineContent.find((e) => e.type === type)?.View;
+  return inlineContentViewsByType.get(type);
 }

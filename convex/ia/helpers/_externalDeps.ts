@@ -3,7 +3,7 @@
 // `@blocknote/core` as external packages that must be installed on the server.
 //
 // The real runtime loading happens via `globalThis.require()` / a hidden
-// dynamic `import()` in `blockNoteMarkdown.ts` (esbuild can't trace those, so
+// dynamic `import()` in `headlessBlockNote.ts` (esbuild can't trace those, so
 // without this file the packages wouldn't be installed at deploy time).
 //
 // The static `import` statements below are seen by esbuild, but since this file

@@ -4,8 +4,7 @@ import { internal } from "../../_generated/api";
 import { type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { nodeDataConfig } from "../../config/nodeConfig";
-import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
+import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { escapeXmlAttribute } from "../../lib/xml";
 import { toolError, type ToolConfig } from "./toolHelpers";
 
@@ -19,20 +18,6 @@ export const listNodesToolConfig: ToolConfig = {
   ],
   mcp: { access: "read" },
 };
-
-function getExpectedNodeDataSchemaString(nodeType: string): string | null {
-  if (nodeType === "document" || nodeType === "table" || nodeType === "blocknote") {
-    return null;
-  }
-
-  const config = nodeDataConfig.find((item) => item.type === nodeType);
-  if (!config) {
-    return null;
-  }
-
-  const schema = config.toolInputSchema ?? config.dataValuesSchema;
-  return formatZodSchemaAsMinimap(schema);
-}
 
 // is v1.0
 export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
@@ -238,31 +223,7 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           ),
           "</nodes>",
           "<nodeDataSchemas>",
-          ...uniqueDisplayedNodeTypes.map((nodeType) => {
-            if (nodeType === "document") {
-              return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
-            }
-
-            if (nodeType === "blocknote") {
-              return '<schema type="blocknote" readFormat="blocknote-xml-v1" setFormat="markdown" blockEditFormat="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />';
-            }
-
-            if (nodeType === "table") {
-              return '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />';
-            }
-
-            const toolsAttr =
-              nodeType === "app"
-                ? 'tools="set_node_data,patch_app_node_code"'
-                : 'tool="set_node_data"';
-
-            const schema = getExpectedNodeDataSchemaString(nodeType);
-            if (!schema) {
-              return `<schema type="${nodeType}" ${toolsAttr} />`;
-            }
-
-            return `<schema type="${nodeType}" ${toolsAttr}>\n${schema}\n</schema>`;
-          }),
+          ...uniqueDisplayedNodeTypes.map(buildNodeDataSchemaXml),
           "</nodeDataSchemas>",
           "",
           truncated

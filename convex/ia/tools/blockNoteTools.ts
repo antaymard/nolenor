@@ -61,6 +61,7 @@ async function lookupBlocknoteNodeData(
 export const blocknoteInsertBlocksToolConfig: ToolConfig = {
   name: "insert_blocks",
   authorized_agents: [...BLOCKNOTE_AGENTS],
+  mcp: { access: "write" },
 };
 
 const insertBlocksSchema = z
@@ -148,6 +149,7 @@ function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 export const blocknoteReplaceBlockToolConfig: ToolConfig = {
   name: "replace_block",
   authorized_agents: [...BLOCKNOTE_AGENTS],
+  mcp: { access: "write" },
 };
 
 function blocknoteReplaceBlockTool({ threadCtx }: { threadCtx: ThreadCtx }) {
@@ -217,6 +219,7 @@ function blocknoteReplaceBlockTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 export const blocknoteDeleteBlocksToolConfig: ToolConfig = {
   name: "delete_blocks",
   authorized_agents: [...BLOCKNOTE_AGENTS],
+  mcp: { access: "write" },
 };
 
 function blocknoteDeleteBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
@@ -268,6 +271,7 @@ function blocknoteDeleteBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 export const blocknoteUpdateBlockPropsToolConfig: ToolConfig = {
   name: "update_block_props",
   authorized_agents: [...BLOCKNOTE_AGENTS],
+  mcp: { access: "write" },
 };
 
 function blocknoteUpdateBlockPropsTool({ threadCtx }: { threadCtx: ThreadCtx }) {
@@ -327,6 +331,7 @@ function blocknoteUpdateBlockPropsTool({ threadCtx }: { threadCtx: ThreadCtx }) 
 export const blocknotePatchBlockTextToolConfig: ToolConfig = {
   name: "patch_block_text",
   authorized_agents: [...BLOCKNOTE_AGENTS],
+  mcp: { access: "write" },
 };
 
 function blocknotePatchBlockTextTool({ threadCtx }: { threadCtx: ThreadCtx }) {

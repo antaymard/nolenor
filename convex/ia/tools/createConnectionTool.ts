@@ -19,6 +19,7 @@ export const createConnectionToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "write" },
 };
 
 export default function createConnectionTool({

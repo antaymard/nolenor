@@ -94,6 +94,15 @@ export interface ToolConfig {
   requireMultiModal?: boolean;
   compactionForSuccessResult?: CompactionConfig;
   compactionForFailureResult?: CompactionConfig;
+  /**
+   * Présent = le tool est exposé sur le endpoint MCP (/mcp).
+   * `access` est confronté à la permission du token API ("read" | "write") :
+   * un token read ne voit que les tools read. Les tools MCP sont
+   * canvas-scoped : le serveur MCP ajoute un argument `canvasId` au schéma
+   * et vérifie l'accès au canvas (read → viewer, write → editor) avant
+   * chaque exécution.
+   */
+  mcp?: { access: "read" | "write" };
 }
 
 const defaultCompactionConfig: CompactionConfig = {

@@ -1,7 +1,10 @@
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { httpRouter } from "convex/server";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
+import { hashApiToken } from "./lib/apiTokenCrypto";
+import { buildMcpServer } from "./mcp/server";
 
 const http = httpRouter();
 
@@ -138,6 +141,66 @@ const wishlistOptions = httpAction(async (_ctx, request) => {
   return buildWishlistResponse({}, request, 204);
 });
 
+// ============================================================================
+// MCP — assistants tiers (Claude Code, Claude Desktop…)
+// Streamable HTTP stateless : un serveur/transport neuf par requête, réponses
+// JSON (pas de session ni de SSE longue durée). Auth : Bearer <API token>.
+// ============================================================================
+
+function mcpUnauthorized(message: string): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status: 401,
+    headers: {
+      "Content-Type": "application/json",
+      "WWW-Authenticate": 'Bearer realm="nolenor-mcp"',
+    },
+  });
+}
+
+const mcpHandler = httpAction(async (ctx, request) => {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return mcpUnauthorized(
+      "Missing Bearer token. Pass a Nolênor API token in the Authorization header.",
+    );
+  }
+
+  const token = authHeader.slice("Bearer ".length).trim();
+  const tokenHash = await hashApiToken(token);
+  const tokenInfo = await ctx.runQuery(internal.mcp.auth.getTokenByHash, {
+    tokenHash,
+  });
+  if (!tokenInfo) {
+    return mcpUnauthorized("Invalid or revoked API token.");
+  }
+
+  await ctx.runMutation(internal.mcp.auth.touchLastUsedAt, {
+    tokenId: tokenInfo.tokenId,
+  });
+
+  const server = buildMcpServer(ctx, {
+    userId: tokenInfo.userId,
+    permission: tokenInfo.permission,
+  });
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+  await server.connect(transport);
+  return await transport.handleRequest(request);
+});
+
+// En stateless, pas de stream SSE (GET) ni de session à clore (DELETE).
+const mcpMethodNotAllowed = httpAction(async () => {
+  return new Response(
+    JSON.stringify({ error: "Method not allowed. Use POST." }),
+    {
+      status: 405,
+      headers: { "Content-Type": "application/json", Allow: "POST" },
+    },
+  );
+});
+
 auth.addHttpRoutes(http);
 
 http.route({
@@ -151,5 +214,12 @@ http.route({
   method: "OPTIONS",
   handler: wishlistOptions,
 });
+
+// Certains clients MCP normalisent l'URL avec un slash final → deux routes.
+for (const path of ["/mcp", "/mcp/"]) {
+  http.route({ path, method: "POST", handler: mcpHandler });
+  http.route({ path, method: "GET", handler: mcpMethodNotAllowed });
+  http.route({ path, method: "DELETE", handler: mcpMethodNotAllowed });
+}
 
 export default http;

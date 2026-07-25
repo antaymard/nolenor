@@ -5,6 +5,9 @@ export const toolAgentNames = {
   clone: "clone",
   supervisor: "supervisor",
   worker: "worker",
+  // Assistant tiers connecté via le endpoint MCP (/mcp). Jamais listé dans
+  // authorized_agents : l'exposition MCP est gouvernée par ToolConfig.mcp.
+  mcp: "mcp",
 } as const;
 
 export type ToolAgentName =

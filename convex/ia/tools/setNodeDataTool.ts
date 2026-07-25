@@ -18,6 +18,7 @@ export const setNodeDataToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "write" },
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

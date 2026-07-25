@@ -20,6 +20,10 @@ import {
   SelectValue,
 } from "@/components/shadcn/select";
 import { toastError } from "@/components/utils/errorUtils";
+import {
+  buildClaudeCodeCommand,
+  getMcpEndpointUrl,
+} from "@/lib/mcpEndpoint";
 import toast from "react-hot-toast";
 import { TbCopy, TbPlus } from "react-icons/tb";
 
@@ -64,15 +68,20 @@ export default function CreateApiTokenDialog() {
     }
   };
 
-  const handleCopy = async () => {
-    if (!createdToken) return;
+  const handleCopy = async (value: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(createdToken);
-      toast.success("Token copied to clipboard");
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied to clipboard`);
     } catch (err) {
-      toastError(err, "Failed to copy token");
+      toastError(err, `Failed to copy ${label.toLowerCase()}`);
     }
   };
+
+  const mcpEndpointUrl = getMcpEndpointUrl();
+  const claudeCodeCommand =
+    createdToken && mcpEndpointUrl
+      ? buildClaudeCodeCommand(mcpEndpointUrl, createdToken)
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -82,34 +91,63 @@ export default function CreateApiTokenDialog() {
           New token
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className={createdToken ? "sm:max-w-2xl" : undefined}>
         {createdToken ? (
           <>
             <DialogHeader>
               <DialogTitle>Token created</DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
                 Copy this token now. For security reasons, it will not be
                 shown again.
               </p>
-              <div className="flex items-center gap-2">
-                <Input
-                  readOnly
-                  value={createdToken}
-                  className="font-mono text-xs"
-                  onFocus={(e) => e.currentTarget.select()}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  title="Copy token"
-                  onClick={handleCopy}
-                >
-                  <TbCopy />
-                </Button>
+              <div className="flex flex-col gap-1.5">
+                <Label>Token</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={createdToken}
+                    className="h-11 font-mono text-base"
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Copy token"
+                    onClick={() => handleCopy(createdToken, "Token")}
+                  >
+                    <TbCopy />
+                  </Button>
+                </div>
               </div>
+              {claudeCodeCommand && (
+                <div className="flex flex-col gap-1.5">
+                  <Label>Connect Claude Code</Label>
+                  <div className="flex items-start gap-2">
+                    <pre className="min-w-0 flex-1 rounded-md border bg-muted p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+                      {claudeCodeCommand}
+                    </pre>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="Copy command"
+                      onClick={() => handleCopy(claudeCodeCommand, "Command")}
+                    >
+                      <TbCopy />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Run it as a single line. Other MCP clients need the
+                    endpoint URL{" "}
+                    <span className="font-mono">{mcpEndpointUrl}</span> with an{" "}
+                    <span className="font-mono">Authorization: Bearer</span>{" "}
+                    header.
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" onClick={resetAndClose}>

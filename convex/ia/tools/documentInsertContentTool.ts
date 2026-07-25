@@ -21,6 +21,7 @@ export const documentInsertContentToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "write" },
 };
 
 const ERROR_TARGET_NOT_DOCUMENT = toolError("Target node must be a document.");

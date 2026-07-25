@@ -26,7 +26,9 @@ import type * as ia_helpers_composioSanitizer from "../ia/helpers/composioSaniti
 import type * as ia_helpers_generateCanvasMinimap from "../ia/helpers/generateCanvasMinimap.js";
 import type * as ia_helpers_generateMessageContext from "../ia/helpers/generateMessageContext.js";
 import type * as ia_helpers_getCanvasChangesSinceLastMessage from "../ia/helpers/getCanvasChangesSinceLastMessage.js";
+import type * as ia_helpers_headlessBlockNote from "../ia/helpers/headlessBlockNote.js";
 import type * as ia_helpers_makeNodeDataLLMFriendly from "../ia/helpers/makeNodeDataLLMFriendly.js";
+import type * as ia_helpers_nodeDataSchemaXml from "../ia/helpers/nodeDataSchemaXml.js";
 import type * as ia_helpers_nodeFieldsAndTypesHelper from "../ia/helpers/nodeFieldsAndTypesHelper.js";
 import type * as ia_helpers_nodeInputSchemaValidatorForLLM from "../ia/helpers/nodeInputSchemaValidatorForLLM.js";
 import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkFormatters.js";
@@ -67,6 +69,7 @@ import type * as ia_worker from "../ia/worker.js";
 import type * as lib_apiTokenCrypto from "../lib/apiTokenCrypto.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_blockNoteDocument from "../lib/blockNoteDocument.js";
+import type * as lib_datePill from "../lib/datePill.js";
 import type * as lib_getNodeDataTitle from "../lib/getNodeDataTitle.js";
 import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
 import type * as lib_llmId from "../lib/llmId.js";
@@ -75,6 +78,7 @@ import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js
 import type * as lib_plateDocumentStorage from "../lib/plateDocumentStorage.js";
 import type * as lib_r2 from "../lib/r2.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
+import type * as lib_text from "../lib/text.js";
 import type * as lib_textSanitize from "../lib/textSanitize.js";
 import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
@@ -160,7 +164,9 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/generateCanvasMinimap": typeof ia_helpers_generateCanvasMinimap;
   "ia/helpers/generateMessageContext": typeof ia_helpers_generateMessageContext;
   "ia/helpers/getCanvasChangesSinceLastMessage": typeof ia_helpers_getCanvasChangesSinceLastMessage;
+  "ia/helpers/headlessBlockNote": typeof ia_helpers_headlessBlockNote;
   "ia/helpers/makeNodeDataLLMFriendly": typeof ia_helpers_makeNodeDataLLMFriendly;
+  "ia/helpers/nodeDataSchemaXml": typeof ia_helpers_nodeDataSchemaXml;
   "ia/helpers/nodeFieldsAndTypesHelper": typeof ia_helpers_nodeFieldsAndTypesHelper;
   "ia/helpers/nodeInputSchemaValidatorForLLM": typeof ia_helpers_nodeInputSchemaValidatorForLLM;
   "ia/helpers/pdfChunkFormatters": typeof ia_helpers_pdfChunkFormatters;
@@ -201,6 +207,7 @@ declare const fullApi: ApiFromModules<{
   "lib/apiTokenCrypto": typeof lib_apiTokenCrypto;
   "lib/auth": typeof lib_auth;
   "lib/blockNoteDocument": typeof lib_blockNoteDocument;
+  "lib/datePill": typeof lib_datePill;
   "lib/getNodeDataTitle": typeof lib_getNodeDataTitle;
   "lib/jsonSchemaMinimap": typeof lib_jsonSchemaMinimap;
   "lib/llmId": typeof lib_llmId;
@@ -209,6 +216,7 @@ declare const fullApi: ApiFromModules<{
   "lib/plateDocumentStorage": typeof lib_plateDocumentStorage;
   "lib/r2": typeof lib_r2;
   "lib/searchScoring": typeof lib_searchScoring;
+  "lib/text": typeof lib_text;
   "lib/textSanitize": typeof lib_textSanitize;
   "lib/xml": typeof lib_xml;
   links: typeof links;

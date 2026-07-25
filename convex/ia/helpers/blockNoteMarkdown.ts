@@ -35,6 +35,7 @@ import { normalizeDatePillValue } from "../../lib/datePill";
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import {
   withHeadlessEditor,
+  type DomGlobals,
   type HeadlessBlockNoteEditor,
 } from "./headlessBlockNote";
 
@@ -516,45 +517,99 @@ function tableToXml(
 
 // ── Parser: XML → blocks ──────────────────────────────────────────────────────
 //
-// Uses DOMParser with application/xml (never HTML). Strict: rejects unknown
-// elements, comments, malformed props JSON. No regex, no format detection.
+// Uses DOMParser with application/xml (never HTML).
+//
+// Liberal in what it accepts, strict in what it emits: the serializer always
+// produces `<blocknote version="1">`, but a model writing the payload by hand
+// should not have to rediscover that envelope. Observed in the wild: three
+// failed tool calls in a row (bare `<block>` elements → "documents may contain
+// only one root", then `<blocks>`, then `<blocknote>` without a version) before
+// a fourth attempt landed. All three of those now parse.
+//
+// What is still rejected: anything that is not well-formed XML, a root whose
+// children are not `<block>`, an explicit `version` other than the current one,
+// and every per-block error (bad props JSON, unknown child elements, content
+// spanning several blocks).
 //
 // Parsing logic per <block>:
 //   - <table> child element → table content
 //   - <children> child element → nested blocks
 //   - text nodes (concatenated, trimmed) → inline Markdown, parsed via editor
 
+/**
+ * Appended to every parse failure. A tool error is the only feedback the model
+ * gets, so it carries the target shape rather than just the diagnosis —
+ * otherwise the next attempt is another guess.
+ */
+const XML_FORMAT_HINT =
+  'Expected: one or more <block> elements, optionally wrapped in <blocknote>. ' +
+  'Example: <block type="paragraph">Some **markdown**</block>';
+
+function xmlError(message: string): Error {
+  return new Error(`Invalid BlockNote XML: ${message} ${XML_FORMAT_HINT}`);
+}
+
+type ParsedXml = { root: Element } | { error: string };
+
+function parseXmlDocument(dom: DomGlobals, xml: string): ParsedXml {
+  const doc = new dom.window.DOMParser().parseFromString(xml, "application/xml");
+  const errors = doc.getElementsByTagName("parsererror");
+  if (errors.length > 0) {
+    return { error: errors[0].textContent?.slice(0, 200) ?? "parse error" };
+  }
+  const root = doc.documentElement;
+  return root ? { root } : { error: "the document is empty." };
+}
+
+/**
+ * Parse the payload, retrying inside a synthetic root if it does not stand on
+ * its own. XML has no multi-root documents, so a bare run of sibling `<block>`
+ * elements — the most natural thing to write — only parses once wrapped.
+ * Trying as-is first is what lets a real container root (`<blocknote>`,
+ * `<blocks>`, …) stay the root instead of being nested inside the wrapper.
+ */
+function parseFragmentOrDocument(dom: DomGlobals, xml: string): ParsedXml {
+  const direct = parseXmlDocument(dom, xml);
+  if ("root" in direct) return direct;
+
+  const wrapped = parseXmlDocument(
+    dom,
+    `<blocknote version="${BLOCKNOTE_XML_VERSION}">${xml}</blocknote>`,
+  );
+  // Report the original diagnosis: if the wrapped form fails too, the payload
+  // is genuinely malformed and the error about it is the useful one.
+  return "root" in wrapped ? wrapped : direct;
+}
+
 export async function parseBlockNoteXml(
   xml: string,
 ): Promise<BlockNoteBlockWithOptionalId[]> {
   return withHeadlessEditor((editor, dom) => {
-    const doc = new dom.window.DOMParser().parseFromString(xml, "application/xml");
+    const parsed = parseFragmentOrDocument(dom, xml);
+    if ("error" in parsed) throw xmlError(parsed.error);
+    const { root } = parsed;
 
-    const errors = doc.getElementsByTagName("parsererror");
-    if (errors.length > 0) {
-      throw new Error(
-        `Invalid BlockNote XML: ${errors[0].textContent?.slice(0, 200) ?? "parse error"}`,
-      );
-    }
+    // A lone `<block>` is a valid XML document in its own right.
+    if (root.tagName === "block") return [parseBlockElement(editor, root)];
 
-    const root = doc.documentElement;
-    if (!root || root.tagName !== "blocknote") {
-      throw new Error(
-        `Invalid BlockNote XML: root element must be <blocknote>, got <${root?.tagName ?? "none"}>.`,
-      );
-    }
-
-    const version = root.getAttribute("version");
-    if (version !== BLOCKNOTE_XML_VERSION) {
-      throw new Error(
-        `Invalid BlockNote XML: expected version="${BLOCKNOTE_XML_VERSION}", got version="${version ?? "none"}".`,
-      );
+    // Otherwise the root is just an envelope. `<blocknote>` is what the
+    // serializer emits, but any container the model reaches for (`<blocks>`,
+    // `<fragment>`, …) is accepted — the meaningful check is on the children.
+    if (root.tagName === "blocknote") {
+      const version = root.getAttribute("version");
+      // Absent means "current"; a different explicit version is the real
+      // forward-compatibility signal and stays an error.
+      if (version !== null && version !== BLOCKNOTE_XML_VERSION) {
+        throw xmlError(
+          `expected version="${BLOCKNOTE_XML_VERSION}", got version="${version}".`,
+        );
+      }
     }
 
     return Array.from(root.children).map((child) => {
       if (child.tagName !== "block") {
-        throw new Error(
-          `Invalid BlockNote XML: unexpected element <${child.tagName}> inside <blocknote>.`,
+        throw xmlError(
+          `unexpected element <${child.tagName}> inside <${root.tagName}>.`,
         );
       }
       return parseBlockElement(editor, child);
@@ -572,12 +627,10 @@ function parsePropsAttribute(
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(
-      `Invalid BlockNote XML: ${context} has invalid props JSON: ${raw.slice(0, 100)}`,
-    );
+    throw xmlError(`${context} has invalid props JSON: ${raw.slice(0, 100)}`);
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(`Invalid BlockNote XML: props must be a JSON object.`);
+    throw xmlError(`props must be a JSON object.`);
   }
   return parsed as Record<string, unknown>;
 }
@@ -589,7 +642,7 @@ function parseBlockElement(
   const id = el.getAttribute("id") ?? undefined;
   const type = el.getAttribute("type");
   if (!type) {
-    throw new Error(`Invalid BlockNote XML: <block> is missing a "type" attribute.`);
+    throw xmlError(`<block> is missing a "type" attribute.`);
   }
   const props = parsePropsAttribute(el.getAttribute("props"), `<block type="${type}">`);
 
@@ -608,20 +661,20 @@ function parseBlockElement(
     switch (elem.tagName) {
       case "table":
         if (tableContent !== undefined) {
-          throw new Error(`Invalid BlockNote XML: <block type="${type}"> has multiple <table> elements.`);
+          throw xmlError(`<block type="${type}"> has multiple <table> elements.`);
         }
         tableContent = parseTableElement(editor, elem);
         break;
       case "children":
         for (const grandChild of Array.from(elem.children)) {
           if (grandChild.tagName !== "block") {
-            throw new Error(`Invalid BlockNote XML: unexpected <${grandChild.tagName}> inside <children>.`);
+            throw xmlError(`unexpected <${grandChild.tagName}> inside <children>.`);
           }
           children.push(parseBlockElement(editor, grandChild));
         }
         break;
       default:
-        throw new Error(`Invalid BlockNote XML: unexpected <${elem.tagName}> inside <block>.`);
+        throw xmlError(`unexpected <${elem.tagName}> inside <block>.`);
     }
   }
 
@@ -655,8 +708,8 @@ function parseMarkdownToInline(
   const blocks = editor.tryParseMarkdownToBlocks(md);
   if (!blocks || blocks.length === 0) return [];
   if (blocks.length > 1) {
-    throw new Error(
-      `Invalid BlockNote XML: block content produced ${blocks.length} blocks. Use separate <block> elements for multiple blocks.`,
+    throw xmlError(
+      `block content produced ${blocks.length} blocks. Use separate <block> elements for multiple blocks.`,
     );
   }
   const content = ((blocks[0] as { content?: unknown[] }).content ?? []) as unknown[];
@@ -677,7 +730,7 @@ function parseTableElement(
     if (child.tagName === "columns") {
       columnWidths = Array.from(child.children).map((col) => {
         if (col.tagName !== "column") {
-          throw new Error(`Invalid BlockNote XML: unexpected <${col.tagName}> inside <columns>.`);
+          throw xmlError(`unexpected <${col.tagName}> inside <columns>.`);
         }
         const widthAttr = col.getAttribute("width");
         return widthAttr !== null ? Number(widthAttr) : undefined;
@@ -685,7 +738,7 @@ function parseTableElement(
     } else if (child.tagName === "row") {
       const cells = Array.from(child.children).map((cell) => {
         if (cell.tagName !== "cell") {
-          throw new Error(`Invalid BlockNote XML: unexpected <${cell.tagName}> inside <row>.`);
+          throw xmlError(`unexpected <${cell.tagName}> inside <row>.`);
         }
         const cellProps = parsePropsAttribute(cell.getAttribute("props"), "<cell>") ?? {};
         const cellMd = (cell.textContent ?? "").trim();
@@ -702,7 +755,7 @@ function parseTableElement(
       });
       rows.push({ cells });
     } else {
-      throw new Error(`Invalid BlockNote XML: unexpected <${child.tagName}> inside <table>.`);
+      throw xmlError(`unexpected <${child.tagName}> inside <table>.`);
     }
   }
 

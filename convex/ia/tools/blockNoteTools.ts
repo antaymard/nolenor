@@ -161,7 +161,7 @@ const insertBlocksSchema = z
     blocks: z
       .string()
       .describe(
-        "BlockNote XML v1 string (same format as read_nodes output) containing the block(s) to insert. The XML carries type, props, content and children; colors, alignment and tables are preserved. New blocks always get fresh ids.",
+        'BlockNote XML v1: one or more <block> elements. The <blocknote> wrapper from read_nodes output is accepted but not required. Omit the id attribute — the server assigns fresh ids to every inserted block — and omit empty <children/>. The XML carries type, props, content and children; colors, alignment and tables are preserved. Example: <block type="heading" props=\'{"level":2}\'>Some **markdown**</block>',
       ),
     explanation: EXPLANATION_FIELD,
   })
@@ -179,7 +179,7 @@ const insertBlocksSchema = z
 function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
-      'Insert new block(s) into a blocknote node. The `blocks` parameter is a BlockNote XML v1 string (the same format you see in read_nodes output) — you can copy blocks from read_nodes and modify them. Use position "start"/"end" or "before"/"after" a reference block id. New blocks always get fresh ids.',
+      'Insert new block(s) into a blocknote node. `blocks` is one or more BlockNote XML v1 <block> elements — the <blocknote> wrapper is optional, so you can either copy blocks straight from read_nodes output or write bare <block> elements. Use position "start"/"end" or "before"/"after" a reference block id. Do not write id attributes: every inserted block gets a fresh server-assigned id.',
     inputSchema: insertBlocksSchema,
     execute: (ctx, input): Promise<string> =>
       runBlockNoteEdit({
@@ -211,14 +211,14 @@ export const blocknoteReplaceBlockToolConfig: ToolConfig = {
 function blocknoteReplaceBlockTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
-      "Replace a single block (by id) with new content. The `block` parameter is a BlockNote XML v1 string (same format as read_nodes output) containing exactly one top-level block. The target block id is preserved; descendant ids that already belong to the replaced subtree are preserved, new descendants get fresh ids. For props-only edits prefer update_block_props; for surgical text edits prefer patch_block_text.",
+      "Replace a single block (by id) with new content. `block` is exactly one BlockNote XML v1 <block> element — the <blocknote> wrapper is optional. The target block id is preserved whether or not you write it. Keep the id attribute on descendants you want to preserve; omit it on new ones, which get fresh ids. For props-only edits prefer update_block_props; for surgical text edits prefer patch_block_text.",
     inputSchema: z.object({
       nodeId: NODE_ID_FIELD,
       blockId: BLOCK_ID_FIELD("to replace"),
       block: z
         .string()
         .describe(
-          "BlockNote XML v1 string containing exactly one top-level block (the replacement). Same format as read_nodes output.",
+          'BlockNote XML v1: exactly one top-level <block> element (the replacement). The <blocknote> wrapper is accepted but not required. Example: <block type="paragraph">Some **markdown**</block>',
         ),
       explanation: EXPLANATION_FIELD,
     }),

@@ -121,7 +121,7 @@ const DocumentEditorField = forwardRef<
 
   const handleFocus = useCallback(() => {
     if (isLocked) return;
-    setFocus("platejs");
+    setFocus("richtext-editor");
   }, [setFocus, isLocked]);
 
   const handleBlur = useCallback(() => {

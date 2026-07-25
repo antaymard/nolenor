@@ -179,19 +179,129 @@ describe("XML round-trip", () => {
     });
   });
 
-  it("flattens date pills to text — the documented lossy case", async () => {
+  it("round-trips date pills through the [[date:…]] token", async () => {
     const { xml, blocks } = await roundTrip([
       {
         id: "d1",
         type: "paragraph",
-        content: [text("Le "), { type: "date", props: { date: "Fri Jul 24 2026" } }],
+        content: [text("Le "), { type: "date", props: { date: "2026-07-24" } }, text(" ok")],
       },
     ]);
 
-    expect(xml).toContain("📅 Fri Jul 24 2026");
-    expect((blocks[0].content as Array<{ type: string }>).every((n) => n.type === "text")).toBe(
-      true,
-    );
+    expect(xml).toContain("[[date:2026-07-24]]");
+    expect(blocks[0].content).toEqual([
+      text("Le "),
+      { type: "date", props: { date: "2026-07-24" } },
+      text(" ok"),
+    ]);
+  });
+
+  it("normalizes a legacy toDateString pill to ISO on the way out", async () => {
+    const { xml, blocks } = await roundTrip([
+      {
+        id: "d1",
+        type: "paragraph",
+        content: [{ type: "date", props: { date: "Fri Jul 24 2026" } }],
+      },
+    ]);
+
+    expect(xml).toContain("[[date:2026-07-24]]");
+    expect(blocks[0].content).toEqual([{ type: "date", props: { date: "2026-07-24" } }]);
+  });
+
+  it("degrades an unparseable pill value to a readable label", async () => {
+    const { xml, blocks } = await roundTrip([
+      { id: "d1", type: "paragraph", content: [{ type: "date", props: { date: "???" } }] },
+    ]);
+
+    expect(xml).toContain("📅");
+    expect(xml).not.toContain("[[date:");
+    expect((blocks[0].content as Array<{ type: string }>)[0].type).toBe("text");
+  });
+
+  it("keeps surrounding styles when a pill sits between styled text", async () => {
+    // Markdown emphasis cannot hug whitespace (`** apres**` is literal text),
+    // so the codec moves the spaces out of the bold runs before serializing.
+    // The visible text is unchanged and the words stay bold — only the span
+    // boundaries shift. See `normalizeEmphasisWhitespace`.
+    const { blocks } = await roundTrip([
+      {
+        id: "d1",
+        type: "paragraph",
+        content: [
+          text("avant ", { bold: true }),
+          { type: "date", props: { date: "2026-01-02" } },
+          text(" apres", { bold: true }),
+        ],
+      },
+    ]);
+
+    expect(blocks[0].content).toEqual([
+      text("avant", { bold: true }),
+      text(" "),
+      { type: "date", props: { date: "2026-01-02" } },
+      text(" "),
+      text("apres", { bold: true }),
+    ]);
+  });
+
+  it("leaves a token inside a code span as literal text", async () => {
+    const { blocks } = await roundTrip([
+      {
+        id: "d1",
+        type: "paragraph",
+        content: [text("[[date:2026-07-24]]", { code: true })],
+      },
+    ]);
+
+    expect(blocks[0].content).toEqual([text("[[date:2026-07-24]]", { code: true })]);
+  });
+
+  it("keeps bold on a word directly wrapping a pill", async () => {
+    const { blocks } = await roundTrip([
+      {
+        id: "d1",
+        type: "paragraph",
+        content: [
+          text("Deadline:", { bold: true }),
+          { type: "date", props: { date: "2026-01-02" } },
+        ],
+      },
+    ]);
+
+    expect(blocks[0].content).toEqual([
+      text("Deadline:", { bold: true }),
+      { type: "date", props: { date: "2026-01-02" } },
+    ]);
+  });
+
+  it("round-trips a pill inside a table cell", async () => {
+    const { blocks } = await roundTrip([
+      {
+        id: "t1",
+        type: "table",
+        content: {
+          type: "tableContent",
+          rows: [
+            {
+              cells: [
+                {
+                  ...cell("x"),
+                  content: [{ type: "date", props: { date: "2026-03-09" } }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+
+    const content = blocks[0].content as {
+      rows: Array<{ cells: Array<{ content: unknown }> }>;
+    };
+    expect(content.rows[0].cells[0].content).toEqual([
+      { type: "date", props: { date: "2026-03-09" } },
+    ]);
   });
 });
 
@@ -262,10 +372,19 @@ describe("markdownToBlockNoteBlocks", () => {
     expect(blocks[0].type).toBe("heading");
     expect(blocks.filter((b) => b.type === "bulletListItem")).toHaveLength(2);
   });
+
+  it("turns [[date:…]] tokens into real pills", async () => {
+    const blocks = await codec.markdownToBlockNoteBlocks("Rendez-vous [[date:2026-07-24]].");
+    expect(blocks[0].content).toEqual([
+      text("Rendez-vous "),
+      { type: "date", props: { date: "2026-07-24" } },
+      text("."),
+    ]);
+  });
 });
 
 describe("blocksToMarkdown", () => {
-  it("renders callouts as plain text and date pills as 📅 for the search index", async () => {
+  it("renders callouts as plain text and date pills as a readable label", async () => {
     const markdown = await codec.blocksToMarkdown([
       { id: "c1", type: "callout", props: { color: "red", icon: "🔥" }, content: [text("Note")] },
       {
@@ -278,6 +397,8 @@ describe("blocksToMarkdown", () => {
     expect(markdown).toContain("Note");
     // Rewritten as a paragraph, so no blockquote marker leaks into the index.
     expect(markdown).not.toContain("> Note");
-    expect(markdown).toContain("📅 Fri Jul 24 2026");
+    // Legacy values are normalized, and the index gets the label, not the token.
+    expect(markdown).toContain("📅 2026-07-24");
+    expect(markdown).not.toContain("[[date:");
   });
 });

@@ -278,7 +278,7 @@ export function useCanvasPasteHandler() {
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
       // blocked when focus is on platejs
-      if (focus === "platejs") {
+      if (focus === "richtext-editor") {
         return;
       }
       // Ignore paste events in input/textarea/contenteditable elements

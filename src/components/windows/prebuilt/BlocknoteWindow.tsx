@@ -194,7 +194,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   }, [onDocChange, editor]);
 
   const handleFocus = useCallback(() => {
-    setFocus("platejs");
+    setFocus("richtext-editor");
   }, [setFocus]);
 
   const handleBlur = useCallback(() => {

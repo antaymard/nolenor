@@ -31,6 +31,7 @@ import {
   compactBlockProps,
   BLOCK_NOTE_DEFAULT_CELL_PROPS,
 } from "../../lib/blockNoteDocument";
+import { normalizeDatePillValue } from "../../lib/datePill";
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import {
   withHeadlessEditor,
@@ -46,13 +47,38 @@ export const BLOCKNOTE_XML_VERSION = "1";
 // throws "node type X not found in schema" on them, so both are rewritten
 // before anything is handed to it.
 //
-//  • date pills → plain text "📅 <date>". Lossy on the write path: if the agent
-//    rewrites that block the pill comes back as text. Keeps search indexing
-//    working and lets the agent see the value. The stored JSON keeps the pill.
 //  • callouts → paragraphs. Lossless for the agent: icon/color live in props,
 //    which the XML carries independently of the headless editor.
+//  • date pills → a text stand-in, in one of two flavours (see below).
 
-function datePillsToText(content: unknown): unknown {
+/**
+ * How a `date` pill is rendered when handed to the headless editor.
+ *
+ *  - `"token"` (XML codec): `[[date:YYYY-MM-DD]]`, which survives the Markdown
+ *    round-trip untouched and is turned back into a real pill on parse. This
+ *    is what makes pills lossless for the agent, and lets it author new ones.
+ *  - `"label"` (search index): `📅 YYYY-MM-DD`, human-readable text for the
+ *    full-text index, where a machine token would be noise.
+ */
+type DatePillMode = "token" | "label";
+
+/** `[[date:YYYY-MM-DD]]` — the agent-facing spelling of a date pill. */
+const DATE_TOKEN_RE = /\[\[date:(\d{4}-\d{2}-\d{2})\]\]/g;
+
+export function formatDateToken(isoDate: string): string {
+  return `[[date:${isoDate}]]`;
+}
+
+function datePillStandIn(props: unknown, mode: DatePillMode): string {
+  const raw = (props as Record<string, unknown> | undefined)?.date;
+  const iso = normalizeDatePillValue(typeof raw === "string" ? raw : "");
+  if (mode === "label") return iso ? `📅 ${iso}` : "📅";
+  // An unparseable legacy value has no ISO form, so it cannot round-trip as a
+  // pill; degrade to the readable label rather than emit a malformed token.
+  return iso ? formatDateToken(iso) : "📅";
+}
+
+function datePillsToText(content: unknown, mode: DatePillMode): unknown {
   if (typeof content === "string" || content === undefined || content === null) {
     return content;
   }
@@ -61,12 +87,10 @@ function datePillsToText(content: unknown): unknown {
       if (typeof node !== "object" || node === null) return node;
       const n = node as Record<string, unknown>;
       if (n.type === "date") {
-        const props = n.props as Record<string, unknown> | undefined;
-        const date = typeof props?.date === "string" ? props.date : "";
-        return { type: "text", text: date ? `📅 ${date}` : "📅" };
+        return { type: "text", text: datePillStandIn(n.props, mode) };
       }
       if (n.content !== undefined) {
-        return { ...n, content: datePillsToText(n.content) };
+        return { ...n, content: datePillsToText(n.content, mode) };
       }
       return node;
     });
@@ -80,14 +104,72 @@ function datePillsToText(content: unknown): unknown {
           isTableCellObj(cell)
             ? {
                 ...cell,
-                content: datePillsToText(cell.content) as BlockNoteInlineContent[],
+                content: datePillsToText(
+                  cell.content,
+                  mode,
+                ) as BlockNoteInlineContent[],
               }
-            : datePillsToText(cell),
+            : datePillsToText(cell, mode),
         ),
       })),
     };
   }
   return content;
+}
+
+// ── Emphasis whitespace normalization ───────────────────────────────────────
+//
+// Markdown emphasis delimiters cannot hug whitespace: `** apres**` is literal
+// text, not bold. BlockNote's serializer trims the OPENING side but not the
+// closing one, so a styled leaf with leading whitespace that follows any inline
+// node (a link, a date pill) survives serialization as raw `** apres**` and
+// parses back as literal asterisks — styling lost, delimiters visible.
+//
+// Moving the whitespace out of the styled run before serialization sidesteps
+// the whole class: the text is identical, only the span boundary moves. Applied
+// to bold/italic/strike only — `code` spans can legitimately hold whitespace,
+// and underline has no Markdown form anyway.
+
+const DELIMITED_STYLES = ["bold", "italic", "strike"] as const;
+
+function hasDelimitedStyle(styles: unknown): boolean {
+  return isPlainObject(styles) && DELIMITED_STYLES.some((s) => styles[s]);
+}
+
+function normalizeEmphasisWhitespace(content: unknown): unknown {
+  if (!Array.isArray(content)) return content;
+
+  const out: unknown[] = [];
+  for (const node of content) {
+    if (isPlainObject(node) && node.type === "link" && Array.isArray(node.content)) {
+      out.push({ ...node, content: normalizeEmphasisWhitespace(node.content) });
+      continue;
+    }
+    if (
+      !isPlainObject(node) ||
+      node.type !== "text" ||
+      typeof node.text !== "string" ||
+      !hasDelimitedStyle(node.styles)
+    ) {
+      out.push(node);
+      continue;
+    }
+
+    const [, lead, core, trail] = /^(\s*)([\s\S]*?)(\s*)$/.exec(node.text)!;
+    if (!lead && !trail) {
+      out.push(node);
+      continue;
+    }
+    // An all-whitespace styled leaf has no core to emphasise: emit it bare.
+    if (!core) {
+      out.push({ type: "text", text: node.text, styles: {} });
+      continue;
+    }
+    if (lead) out.push({ type: "text", text: lead, styles: {} });
+    out.push({ ...node, text: core });
+    if (trail) out.push({ type: "text", text: trail, styles: {} });
+  }
+  return out;
 }
 
 /**
@@ -96,7 +178,7 @@ function datePillsToText(content: unknown): unknown {
  * `sanitizeBlockForHeadless`, callers that serialize a single block's inline
  * content use this and drop the children entirely.
  */
-function sanitizeBlockShallow(block: BlockNoteBlock): BlockNoteBlock {
+function sanitizeBlockShallow(block: BlockNoteBlock, mode: DatePillMode): BlockNoteBlock {
   const out = { ...block };
   if (out.type === "callout") {
     // Paragraph (not quote) so the serialized content stays raw text — no
@@ -107,24 +189,112 @@ function sanitizeBlockShallow(block: BlockNoteBlock): BlockNoteBlock {
     // `Cannot read properties of undefined (reading 'default')`.
     delete out.props;
   }
-  if (out.content !== undefined) out.content = datePillsToText(out.content);
+  if (out.content !== undefined) {
+    out.content = normalizeEmphasisWhitespace(datePillsToText(out.content, mode));
+  }
   return out;
 }
 
 /** Recursively rewrite frontend-only custom types for the headless editor. */
-function sanitizeBlockForHeadless(block: BlockNoteBlock): BlockNoteBlock {
-  const out = sanitizeBlockShallow(block);
+function sanitizeBlockForHeadless(
+  block: BlockNoteBlock,
+  mode: DatePillMode,
+): BlockNoteBlock {
+  const out = sanitizeBlockShallow(block, mode);
   if (Array.isArray(out.children)) {
-    out.children = out.children.map(sanitizeBlockForHeadless);
+    out.children = out.children.map((child) => sanitizeBlockForHeadless(child, mode));
   }
   return out;
+}
+
+// ── Date tokens → pills (parse side) ────────────────────────────────────────
+
+/**
+ * Turn `[[date:YYYY-MM-DD]]` occurrences inside parsed inline content back into
+ * real `date` inline nodes. Runs after the Markdown parser, so a token that sat
+ * inside styled text or a link is split out of its leaf while the surrounding
+ * text keeps its styles.
+ *
+ * Code spans are left alone, which is the escape hatch: `` `[[date:…]]` ``
+ * documents the syntax without turning into a pill.
+ */
+function expandDateTokens(content: unknown): unknown {
+  if (!Array.isArray(content)) return content;
+
+  const out: unknown[] = [];
+  for (const node of content) {
+    if (isPlainObject(node) && node.type === "link" && Array.isArray(node.content)) {
+      out.push({ ...node, content: expandDateTokens(node.content) });
+      continue;
+    }
+    if (
+      !isPlainObject(node) ||
+      node.type !== "text" ||
+      typeof node.text !== "string" ||
+      !node.text.includes("[[date:") ||
+      (isPlainObject(node.styles) && node.styles.code)
+    ) {
+      out.push(node);
+      continue;
+    }
+
+    const styles = node.styles;
+    let cursor = 0;
+    DATE_TOKEN_RE.lastIndex = 0;
+    for (
+      let match = DATE_TOKEN_RE.exec(node.text);
+      match;
+      match = DATE_TOKEN_RE.exec(node.text)
+    ) {
+      const before = node.text.slice(cursor, match.index);
+      if (before) out.push({ type: "text", text: before, styles });
+      out.push({ type: "date", props: { date: match[1] } });
+      cursor = match.index + match[0].length;
+    }
+    const rest = node.text.slice(cursor);
+    if (rest) out.push({ type: "text", text: rest, styles });
+  }
+  return out;
+}
+
+/** Apply `expandDateTokens` to a whole parsed block tree (content + tables + children). */
+function expandDateTokensInBlocks<T extends BlockNoteBlockWithOptionalId>(
+  blocks: T[],
+): T[] {
+  return blocks.map((block) => {
+    const out = { ...block };
+    if (isTableContent(out.content)) {
+      out.content = {
+        ...out.content,
+        rows: out.content.rows.map((row) => ({
+          ...row,
+          cells: row.cells.map((cell) =>
+            isTableCellObj(cell)
+              ? {
+                  ...cell,
+                  content: expandDateTokens(cell.content) as BlockNoteInlineContent[],
+                }
+              : (expandDateTokens(cell) as BlockNoteInlineContent[]),
+          ),
+        })),
+      };
+    } else if (out.content !== undefined) {
+      out.content = expandDateTokens(out.content);
+    }
+    if (Array.isArray(out.children)) {
+      out.children = expandDateTokensInBlocks(out.children);
+    }
+    return out;
+  });
 }
 
 // ── Search-only helper (not used by the XML codec) ──────────────────────────
 
 export async function blocksToMarkdown(blocks: BlockNoteBlock[]): Promise<string> {
   return withHeadlessEditor((editor) =>
-    editor.blocksToMarkdownLossy(blocks.map(sanitizeBlockForHeadless)),
+    editor.blocksToMarkdownLossy(
+      blocks.map((block) => sanitizeBlockForHeadless(block, "label")),
+    ),
   );
 }
 
@@ -145,10 +315,13 @@ export async function markdownToBlockNoteBlocks(
   if (!markdown || markdown.trim().length === 0) {
     return [];
   }
-  return withHeadlessEditor(
-    (editor) =>
+  return withHeadlessEditor((editor) =>
+    // `[[date:…]]` tokens are honoured here too, so a full Markdown replace can
+    // author real date pills rather than leaving the literal text behind.
+    expandDateTokensInBlocks(
       (editor.tryParseMarkdownToBlocks(markdown) ??
         []) as BlockNoteBlockWithOptionalId[],
+    ),
   );
 }
 
@@ -166,20 +339,16 @@ function propsAttribute(props: Record<string, unknown> | null): string {
   return ` props="${escapeXmlAttribute(JSON.stringify(sortKeys(props)))}"`;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function isTableContent(content: unknown): content is BlockNoteTableContent {
-  return (
-    content !== null &&
-    typeof content === "object" &&
-    (content as Record<string, unknown>).type === "tableContent"
-  );
+  return isPlainObject(content) && content.type === "tableContent";
 }
 
 function isTableCellObj(cell: unknown): cell is BlockNoteTableCell {
-  return (
-    cell !== null &&
-    typeof cell === "object" &&
-    (cell as Record<string, unknown>).type === "tableCell"
-  );
+  return isPlainObject(cell) && cell.type === "tableCell";
 }
 
 /** Serialize a block's own inline content to Markdown (children excluded). */
@@ -190,7 +359,7 @@ function blockContentToMarkdown(
   // `children` is dropped BEFORE sanitizing: sanitizing first would deep-copy
   // the whole subtree only to throw it away, making serialization quadratic on
   // nested documents (this runs once per block).
-  const synthetic = sanitizeBlockShallow({ ...block, children: [] });
+  const synthetic = sanitizeBlockShallow({ ...block, children: [] }, "token");
   try {
     return editor.blocksToMarkdownLossy([synthetic]).trim();
   } catch {
@@ -207,7 +376,11 @@ function inlineContentToMarkdown(
   try {
     return editor
       .blocksToMarkdownLossy([
-        { id: "tmp", type: "paragraph", content: datePillsToText(content) },
+        {
+          id: "tmp",
+          type: "paragraph",
+          content: normalizeEmphasisWhitespace(datePillsToText(content, "token")),
+        },
       ])
       .trim();
   } catch {
@@ -471,7 +644,9 @@ function parseBlockElement(
 
 /**
  * Parse a Markdown string into inline content (InlineContent[]).
- * The Markdown must produce exactly one paragraph block; its content is extracted.
+ * The Markdown must produce exactly one paragraph block; its content is
+ * extracted, and `[[date:…]]` tokens become real date pills. Covers both block
+ * content and table cells, the two places inline Markdown appears in the XML.
  */
 function parseMarkdownToInline(
   editor: HeadlessBlockNoteEditor,
@@ -484,7 +659,8 @@ function parseMarkdownToInline(
       `Invalid BlockNote XML: block content produced ${blocks.length} blocks. Use separate <block> elements for multiple blocks.`,
     );
   }
-  return ((blocks[0] as { content?: unknown[] }).content ?? []) as unknown[];
+  const content = ((blocks[0] as { content?: unknown[] }).content ?? []) as unknown[];
+  return expandDateTokens(content) as unknown[];
 }
 
 function parseTableElement(

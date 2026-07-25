@@ -11,6 +11,7 @@ import { Button } from "@/components/shadcn/button";
 import { TbMaximize, TbNotes } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import {
+  blockNoteDocumentHasText,
   parseStoredBlockNoteDocument,
   type BlockNoteBlock,
 } from "@/../convex/lib/blockNoteDocument";
@@ -26,41 +27,10 @@ import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 // silently failed under React 19 + StrictMode). See
 // src/components/blocknote/BlockNoteStatic.tsx and registry.tsx.
 
-const EMPTY_PARAGRAPH_BLOCKS: BlockNoteBlock[] = [];
-
-// ── Empty-content detection ──────────────────────────────────────────────
-// BlockNote blocks have `content` (InlineContent[] with `text` fields) and
-// `children` (nested blocks). We traverse both to decide if the doc is empty.
-function hasBlockTextContent(blocks: unknown[]): boolean {
-  for (const block of blocks) {
-    if (!block || typeof block !== "object") continue;
-    const b = block as {
-      content?: unknown;
-      children?: unknown[];
-    };
-
-    const content = b.content;
-    if (Array.isArray(content)) {
-      for (const child of content) {
-        if (!child || typeof child !== "object") continue;
-        const c = child as { type?: unknown; text?: unknown; content?: unknown };
-        // Date pills carry no text but are real content.
-        if (c.type === "date") return true;
-        if (typeof c.text === "string" && c.text.trim() !== "") {
-          return true;
-        }
-        if (c.content && hasBlockTextContent([c.content])) return true;
-      }
-    } else if (typeof content === "string" && content.trim() !== "") {
-      return true;
-    }
-
-    if (Array.isArray(b.children) && hasBlockTextContent(b.children)) {
-      return true;
-    }
-  }
-  return false;
-}
+// Empty-content detection lives in the shared document layer
+// (`blockNoteDocumentHasText`), so the canvas, the node title and the agent
+// tools all agree on what "empty" means.
+const NO_BLOCKS: BlockNoteBlock[] = [];
 
 function BlocknoteNode(xyNode: Node) {
   const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
@@ -77,14 +47,10 @@ function BlocknoteNode(xyNode: Node) {
 
   const { blocks, isEmpty } = useMemo(() => {
     const parsed = parseStoredBlockNoteDocument(docString);
-    if (!parsed || parsed.length === 0) {
-      return { blocks: EMPTY_PARAGRAPH_BLOCKS, isEmpty: true };
+    if (!parsed || !blockNoteDocumentHasText(parsed)) {
+      return { blocks: NO_BLOCKS, isEmpty: true };
     }
-    const empty = !hasBlockTextContent(parsed);
-    if (empty) {
-      return { blocks: EMPTY_PARAGRAPH_BLOCKS, isEmpty: true };
-    }
-    return { blocks: parsed as BlockNoteBlock[], isEmpty: false };
+    return { blocks: parsed, isEmpty: false };
   }, [docString]);
 
   const blocknoteTitle = useNodeDataTitle(nodeDataId) ?? "Blocknote";

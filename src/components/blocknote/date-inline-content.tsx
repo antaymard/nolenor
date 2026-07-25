@@ -1,5 +1,9 @@
 import { createReactInlineContentSpec } from "@blocknote/react";
 
+import {
+  parseDatePillValue,
+  toIsoDateString,
+} from "@/../convex/lib/datePill";
 import { Calendar } from "@/components/shadcn/calendar";
 import {
   Popover,
@@ -17,11 +21,13 @@ function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-/** Same labels as the Plate.js date pill (src/components/plate/date-node.tsx). */
+/**
+ * Same labels as the Plate.js date pill (src/components/plate/date-node.tsx).
+ * Accepts both the canonical ISO value and legacy `toDateString()` values.
+ */
 export function formatDatePillLabel(date: string): string {
-  if (!date) return "Pick a date";
-  const elementDate = new Date(date);
-  if (Number.isNaN(elementDate.getTime())) return "Pick a date";
+  const elementDate = parseDatePillValue(date);
+  if (!elementDate) return "Pick a date";
   const diff = startOfDay(elementDate) - startOfDay(new Date());
   if (diff === 0) return TODAY;
   if (diff === -DAY_MS) return YESTERDAY;
@@ -48,7 +54,9 @@ export function DatePillView({ date }: { date?: string }) {
 
 /**
  * Date pill inline content (inserted via `/date` in the slash menu). Stored in
- * the document as `{ type: "date", props: { date: <Date.toDateString()> } }`.
+ * the document as `{ type: "date", props: { date: "YYYY-MM-DD" } }`. Legacy
+ * documents hold a `toDateString()` value instead; both are read (see
+ * convex/lib/datePill.ts), and only ISO is written.
  *
  * `render` is used inside the editable editor: interactive popover + calendar,
  * same UX as the Plate.js date pill. `toExternalHTML` is used for static HTML
@@ -74,19 +82,15 @@ export const dateInlineContentSpec = createReactInlineContentSpec(
         <PopoverContent className="w-auto p-0">
           <Calendar
             mode="single"
-            selected={
-              props.inlineContent.props.date
-                ? new Date(props.inlineContent.props.date)
-                : undefined
-            }
+            selected={parseDatePillValue(props.inlineContent.props.date) ?? undefined}
             onSelect={(date) => {
               if (!date) return;
               props.updateInlineContent({
                 type: "date",
-                props: { date: date.toDateString() },
+                props: { date: toIsoDateString(date) },
               });
             }}
-            initialFocus
+            autoFocus
           />
         </PopoverContent>
       </Popover>

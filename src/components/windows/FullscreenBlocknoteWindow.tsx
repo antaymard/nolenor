@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { List } from "lucide-react";
 import type { Block } from "@blocknote/core";
+import { extractInlineText } from "@/../convex/lib/blockNoteDocument";
 import { cn } from "@/lib/utils";
 import { type OpenedWindow } from "@/stores/windowsStore";
 import { useIsTabletPortrait } from "@/hooks/useTabletMode";
@@ -23,20 +24,6 @@ interface FullscreenBlocknoteWindowProps {
 
 type Heading = { id: string; depth: number; title: string };
 
-function extractTextFromContent(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((child) => {
-      if (!child || typeof child !== "object") return "";
-      const c = child as { text?: unknown; content?: unknown };
-      if (typeof c.text === "string") return c.text;
-      if (c.content) return extractTextFromContent(c.content);
-      return "";
-    })
-    .join("")
-    .trim();
-}
-
 function extractHeadings(doc: Block[] | undefined): Heading[] {
   if (!doc || !Array.isArray(doc)) return [];
   const headings: Heading[] = [];
@@ -48,16 +35,20 @@ function extractHeadings(doc: Block[] | undefined): Heading[] {
       id?: string;
     };
     if (block.type !== "heading") continue;
-    const level = typeof block.props?.level === "number" ? block.props.level : 1;
-    const title = extractTextFromContent(block.content);
+    const title = extractInlineText(block.content).trim();
     if (!title) continue;
     headings.push({
       id: block.id ?? `heading-${i}`,
-      depth: level,
+      depth: typeof block.props?.level === "number" ? block.props.level : 1,
       title,
     });
   }
   return headings;
+}
+
+/** Identity of a heading list, used to skip state updates on every keystroke. */
+function headingsSignature(headings: Heading[]): string {
+  return JSON.stringify(headings.map((h) => [h.id, h.depth, h.title]));
 }
 
 export default function FullscreenBlocknoteWindow({
@@ -70,31 +61,40 @@ export default function FullscreenBlocknoteWindow({
 
   useHotkey("N", () => setIsChatOpen((v) => !v));
 
-  const [liveDoc, setLiveDoc] = useState<Block[] | null>(null);
-
-  const headings = useMemo(() => extractHeadings(liveDoc ?? undefined), [liveDoc]);
+  // Only the derived outline is kept in state, and only when it actually
+  // changes: `onDocChange` fires on every keystroke, and storing the whole
+  // document here would re-render the chat panel and the outline each time.
+  const [headings, setHeadings] = useState<Heading[]>([]);
+  const headingsSignatureRef = useRef("");
 
   const handleDocChange = useCallback((doc: Block[]) => {
-    setLiveDoc(doc);
+    const next = extractHeadings(doc);
+    const signature = headingsSignature(next);
+    if (signature === headingsSignatureRef.current) return;
+    headingsSignatureRef.current = signature;
+    setHeadings(next);
   }, []);
 
-  const scrollToHeading = useCallback((index: number) => {
+  const scrollToHeading = useCallback((heading: Heading) => {
     const root = editorScrollRef.current;
     if (!root) return;
-    const els = root.querySelectorAll<HTMLElement>(
-      "h1, h2, h3, h4, h5, h6",
-    );
-    const target = els[index];
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    // BlockNote tags each block wrapper with `data-id`, so we scroll to the
+    // exact heading rather than to the nth <h*> in the DOM — those two drift
+    // apart as soon as a heading is skipped (empty title) or nested. Matched by
+    // attribute value rather than by selector: block ids may start with a digit,
+    // which no escaping scheme handles cleanly inside a selector string.
+    const target = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-id]"),
+    ).find((el) => el.getAttribute("data-id") === heading.id);
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
   const isTabletPortrait = useIsTabletPortrait();
   const [outlineOpen, setOutlineOpen] = useState(false);
 
   const handleOutlineSelect = useCallback(
-    (index: number) => {
-      scrollToHeading(index);
+    (heading: Heading) => {
+      scrollToHeading(heading);
       setOutlineOpen(false);
     },
     [scrollToHeading],
@@ -177,7 +177,7 @@ function BlocknoteOutline({
   className,
 }: {
   headings: Heading[];
-  onSelect: (index: number) => void;
+  onSelect: (heading: Heading) => void;
   className?: string;
 }) {
   return (
@@ -192,11 +192,11 @@ function BlocknoteOutline({
           </div>
         ) : (
           <ul className="space-y-0.5">
-            {headings.map((heading, index) => (
-              <li key={`${heading.id}-${index}`}>
+            {headings.map((heading) => (
+              <li key={heading.id}>
                 <button
                   type="button"
-                  onClick={() => onSelect(index)}
+                  onClick={() => onSelect(heading)}
                   className={cn(
                     "block w-full truncate rounded px-2 py-1 text-left text-sm text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900",
                     heading.depth === 1 && "font-semibold text-slate-700",

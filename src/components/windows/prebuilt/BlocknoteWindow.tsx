@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   BlockNoteEditor,
   filterSuggestionItems,
@@ -36,20 +36,38 @@ interface BlocknoteWindowProps {
 // genuine user edits.
 const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
 
-function BlocknoteWindow({
-  nodeDataId,
-  onDocChange,
-}: BlocknoteWindowProps) {
-  const editorRef = useRef<AppBlockNoteEditor | null>(null);
+/**
+ * Canonical form of a stored doc, used to tell "the server sent something new"
+ * from "the server echoed what we just wrote".
+ *
+ * The same document reaches us in two shapes: the optimistic store update
+ * writes the live `Block[]`, then Convex pushes back the serialized string.
+ * Comparing by reference (as this component used to) treated both as remote
+ * changes and re-hydrated the editor twice per save — an overlay flash and a
+ * lost cursor each time.
+ */
+function docSignature(doc: unknown): string {
+  if (doc === undefined || doc === null) return "";
+  return typeof doc === "string" ? doc : JSON.stringify(doc);
+}
+
+function EditorLoading() {
+  return (
+    <span className="flex items-center gap-2 text-sm text-slate-500">
+      <Spinner className="size-4" />
+      Chargement de l'éditeur...
+    </span>
+  );
+}
+
+function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   const latestDocRef = useRef<Block[] | null>(null);
   const hydrationFrameRef = useRef<number | null>(null);
-  const hasHydratedOnceRef = useRef(false);
-  const lastHydratedDocRef = useRef<unknown>(undefined);
   const skipNextChangeRef = useRef(false);
   const [isDirty, setIsDirty] = useState(false);
   const [shouldMountEditor, setShouldMountEditor] = useState(false);
   // Starts `true`: the editor is created synchronously with the initial server
-  // content (see the creation useMemo below), so no hydration overlay is needed
+  // content (see the creation useState below), so no hydration overlay is needed
   // on mount. The re-hydration effect toggles it around later remote updates.
   const [isEditorReady, setIsEditorReady] = useState(true);
   const { setDirty, setSaveHandler } = useWindowFrameContext();
@@ -57,14 +75,33 @@ function BlocknoteWindow({
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const setFocus = useCanvasStore((s) => s.setFocus);
 
-  const docSource = useMemo(
-    () => nodeDataValues?.doc,
-    [nodeDataValues?.doc],
-  );
+  const docSource = nodeDataValues?.doc;
+
+  // ── Editor creation (once) ──────────────────────────────────────────────
+  // Created with the initial server content so the first paint is correct. The
+  // initial payload is recorded as already-hydrated so the re-hydration effect
+  // below does NOT replace the blocks a second time on mount.
+  const [editor] = useState<AppBlockNoteEditor>(() => {
+    const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
+      | PartialBlock[]
+      | null;
+    return BlockNoteEditor.create({
+      schema: blockNoteSchema,
+      initialContent:
+        parsedBlocks && parsedBlocks.length > 0 ? parsedBlocks : undefined,
+    });
+  });
+  const lastHydratedSignatureRef = useRef<string | null>(null);
+  if (lastHydratedSignatureRef.current === null) {
+    lastHydratedSignatureRef.current = docSignature(docSource);
+  }
 
   const handleSaveClick = useCallback(async () => {
-    const doc = latestDocRef.current ?? editorRef.current?.document;
+    const doc = latestDocRef.current ?? editor.document;
     if (!doc) return;
+    // Remember what we are writing: the optimistic store update and the server
+    // echo both come back through `docSource`, and neither should re-hydrate.
+    lastHydratedSignatureRef.current = docSignature(doc);
     const success = await updateNodeDataValues({
       nodeDataId,
       values: { doc },
@@ -72,7 +109,7 @@ function BlocknoteWindow({
     // Only clear dirty state once the server mutation has actually succeeded,
     // so a failed save keeps the unsaved-indicator on and the content editable.
     if (success) setIsDirty(false);
-  }, [nodeDataId, updateNodeDataValues]);
+  }, [editor, nodeDataId, updateNodeDataValues]);
 
   useEffect(() => {
     setSaveHandler(handleSaveClick);
@@ -97,75 +134,51 @@ function BlocknoteWindow({
     return () => cancelAnimationFrame(frameId);
   }, []);
 
-  // ── Editor creation (once) ──────────────────────────────────────────────
-  // Created with the initial server content so the first paint is correct. We
-  // record that first payload as already-hydrated so the re-hydration effect
-  // below does NOT replace the blocks a second time on mount.
-  const editor = useMemo(() => {
-    const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
-      | PartialBlock[]
-      | null;
-    const instance = BlockNoteEditor.create({
-      schema: blockNoteSchema,
-      initialContent:
-        parsedBlocks && parsedBlocks.length > 0 ? parsedBlocks : undefined,
-    });
-    editorRef.current = instance;
-    lastHydratedDocRef.current = docSource;
-    hasHydratedOnceRef.current = true;
-    return instance;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // ── Re-hydration (Last-Write-Wins) ───────────────────────────────────────
-  // When the server pushes a doc different from the last one we hydrated, we
-  // replace the editor's blocks. `skipNextChangeRef` suppresses the resulting
-  // onChange so the window is not marked dirty from a remote update. An empty
-  // document is applied as a single ephemeral empty paragraph (see above).
+  // When the server pushes a doc whose content differs from the last one we
+  // hydrated or saved, we replace the editor's blocks. `skipNextChangeRef`
+  // suppresses the resulting onChange so the window is not marked dirty from a
+  // remote update. An empty document is applied as a single ephemeral empty
+  // paragraph (see above).
   useEffect(() => {
     if (!nodeDataValues) return;
-    if (
-      hasHydratedOnceRef.current &&
-      Object.is(lastHydratedDocRef.current, docSource)
-    ) {
-      return;
-    }
+    const signature = docSignature(docSource);
+    if (signature === lastHydratedSignatureRef.current) return;
 
-    lastHydratedDocRef.current = docSource;
+    lastHydratedSignatureRef.current = signature;
     setIsEditorReady(false);
 
     if (hydrationFrameRef.current !== null) {
       cancelAnimationFrame(hydrationFrameRef.current);
     }
 
-    const editor = editorRef.current;
-    if (!editor) return;
-
     hydrationFrameRef.current = requestAnimationFrame(() => {
+      hydrationFrameRef.current = null;
       const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
         | PartialBlock[]
         | null;
-      const blocks = parsedBlocks ?? [];
       const replacement =
-        blocks.length > 0 ? blocks : ([EMPTY_PARAGRAPH] as PartialBlock[]);
+        parsedBlocks && parsedBlocks.length > 0 ? parsedBlocks : [EMPTY_PARAGRAPH];
 
       skipNextChangeRef.current = true;
       try {
-        const allBlockIds = editor.document.map((b) => b.id);
-        if (allBlockIds.length > 0) {
-          editor.replaceBlocks(allBlockIds, replacement);
-        } else {
-          editor.insertBlocks(replacement, editor.document[editor.document.length - 1], "after");
-        }
+        // BlockNote always keeps at least one block, so the document is never
+        // empty here and `replaceBlocks` covers the whole tree.
+        editor.replaceBlocks(
+          editor.document.map((b) => b.id),
+          replacement,
+        );
       } catch (err) {
         console.error("[BlocknoteWindow] replaceBlocks failed:", err);
+      } finally {
+        // Clear unconditionally: if replaceBlocks emitted no onChange, a stale
+        // `true` would swallow the user's next edit and lose the dirty flag.
         skipNextChangeRef.current = false;
       }
 
       setIsEditorReady(true);
-      hasHydratedOnceRef.current = true;
     });
-  }, [docSource, nodeDataValues]);
+  }, [docSource, editor, nodeDataValues]);
 
   const handleChange = useCallback(() => {
     // The custom schema only widens inline content (date pill); the stored
@@ -181,7 +194,7 @@ function BlocknoteWindow({
   }, [onDocChange, editor]);
 
   const handleFocus = useCallback(() => {
-    setFocus("platejs");
+    setFocus("richtext-editor");
   }, [setFocus]);
 
   const handleBlur = useCallback(() => {
@@ -193,10 +206,7 @@ function BlocknoteWindow({
   if (!shouldMountEditor) {
     return (
       <div className="h-full w-full flex items-center justify-center">
-        <span className="flex items-center gap-2 text-sm text-slate-500">
-          <Spinner className="size-4" />
-          Chargement de l'editeur...
-        </span>
+        <EditorLoading />
       </div>
     );
   }
@@ -232,19 +242,11 @@ function BlocknoteWindow({
       </BlockNoteView>
       {!isEditorReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/65">
-          <span className="flex items-center gap-2 text-sm text-slate-500">
-            <Spinner className="size-4" />
-            Chargement de l'editeur...
-          </span>
+          <EditorLoading />
         </div>
       )}
     </div>
   );
 }
 
-export default memo(
-  BlocknoteWindow,
-  (prev, next) =>
-    prev.nodeDataId === next.nodeDataId &&
-    prev.onDocChange === next.onDocChange,
-);
+export default memo(BlocknoteWindow);

@@ -1,6 +1,9 @@
 import type { Doc } from "../_generated/dataModel";
 import { parseStoredPlateDocument } from "./plateDocumentStorage";
-import { parseStoredBlockNoteDocument } from "./blockNoteDocument";
+import {
+  extractInlineText,
+  parseStoredBlockNoteDocument,
+} from "./blockNoteDocument";
 
 export function getNodeDataTitle(nodeData: Doc<"nodeDatas">): string {
   switch (nodeData.type) {
@@ -27,39 +30,12 @@ export function getNodeDataTitle(nodeData: Doc<"nodeDatas">): string {
     }
 
     case "blocknote": {
-      const doc = nodeData.values.doc;
-      const docValue = parseStoredBlockNoteDocument(doc);
+      const docValue = parseStoredBlockNoteDocument(nodeData.values.doc);
+      const firstBlock = docValue?.[0];
 
-      if (!docValue || docValue.length === 0) return "Blocknote";
-
-      const firstBlock = docValue[0] as {
-        type?: string;
-        props?: { level?: unknown };
-        content?: unknown;
-      };
-
-      // BlockNote heading blocks have type "heading" with props.level (1-6).
-      // Extract text from the content array (inline nodes with `text` field).
-      const extractText = (content: unknown): string => {
-        if (!Array.isArray(content)) return "";
-        return content
-          .map((child) => {
-            if (!child || typeof child !== "object") return "";
-            const c = child as { text?: unknown; content?: unknown };
-            if (typeof c.text === "string") return c.text;
-            if (c.content) return extractText(c.content);
-            return "";
-          })
-          .join("")
-          .trim();
-      };
-
-      if (firstBlock.type === "heading") {
-        const title = extractText(firstBlock.content);
-        return title || "Blocknote";
-      }
-
-      return "Blocknote";
+      // Only a leading heading block names the node, like the document case.
+      if (firstBlock?.type !== "heading") return "Blocknote";
+      return extractInlineText(firstBlock.content).trim() || "Blocknote";
     }
 
     case "link": {

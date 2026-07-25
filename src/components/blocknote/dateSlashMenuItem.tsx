@@ -1,6 +1,7 @@
 import { TbCalendar } from "react-icons/tb";
 import type { DefaultReactSuggestionItem } from "@blocknote/react";
 
+import { toIsoDateString } from "@/../convex/lib/datePill";
 import type { AppBlockNoteEditor } from "./schema";
 
 /**
@@ -14,7 +15,7 @@ export function getDateSlashMenuItem(
     title: "Date",
     onItemClick: () => {
       editor.insertInlineContent([
-        { type: "date", props: { date: new Date().toDateString() } },
+        { type: "date", props: { date: toIsoDateString(new Date()) } },
         " ",
       ]);
     },

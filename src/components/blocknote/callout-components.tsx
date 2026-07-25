@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { BLOCK_NOTE_DEFAULT_PROPS } from "@/../convex/lib/blockNoteDocument";
 import {
   Popover,
   PopoverContent,
@@ -8,7 +9,12 @@ import {
 import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
 
-export const CALLOUT_DEFAULT_ICON = "💡";
+// Sourced from the frozen block defaults the XML codec uses to omit default
+// props, so the spec and the codec cannot drift apart.
+export const CALLOUT_DEFAULT_COLOR = BLOCK_NOTE_DEFAULT_PROPS.callout
+  .color as string;
+export const CALLOUT_DEFAULT_ICON = BLOCK_NOTE_DEFAULT_PROPS.callout
+  .icon as string;
 
 /** Curated quick-pick icons for callouts (cf. plan: no full emoji-mart picker). */
 const CALLOUT_ICONS = [
@@ -55,13 +61,14 @@ const CALLOUT_COLORS = [
 ] as const;
 
 function calloutBgClass(color: string): string {
-  if (color !== "default" && color !== "transparent" && color in colors) {
+  if (color !== CALLOUT_DEFAULT_COLOR && color !== "transparent" && color in colors) {
     return colors[color as keyof typeof colors].lightBg;
   }
   return "bg-muted";
 }
 
-const emojiFontStyle = {
+/** Emoji-capable font stack, shared with the static callout view. */
+export const emojiFontStyle = {
   fontFamily:
     '"Apple Color Emoji", "Segoe UI Emoji", NotoColorEmoji, "Noto Color Emoji", "Segoe UI Symbol", "Android Emoji", EmojiSymbols',
 };

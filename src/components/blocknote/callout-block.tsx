@@ -1,9 +1,11 @@
 import { createReactBlockSpec } from "@blocknote/react";
 
 import {
+  CALLOUT_DEFAULT_COLOR,
   CALLOUT_DEFAULT_ICON,
   CalloutControls,
   CalloutLayout,
+  emojiFontStyle,
 } from "./callout-components";
 
 /**
@@ -27,14 +29,11 @@ export function CalloutView({
 }) {
   return (
     <CalloutLayout
-      color={color ?? "default"}
+      color={color ?? CALLOUT_DEFAULT_COLOR}
       control={
         <span
           className="flex size-6 shrink-0 items-center justify-center select-none text-[18px] leading-none"
-          style={{
-            fontFamily:
-              '"Apple Color Emoji", "Segoe UI Emoji", NotoColorEmoji, "Noto Color Emoji", "Segoe UI Symbol", "Android Emoji", EmojiSymbols',
-          }}
+          style={emojiFontStyle}
         >
           {icon || CALLOUT_DEFAULT_ICON}
         </span>
@@ -64,7 +63,7 @@ export const createCalloutBlockSpec = createReactBlockSpec(
   {
     type: "callout",
     propSchema: {
-      color: { default: "default" },
+      color: { default: CALLOUT_DEFAULT_COLOR },
       icon: { default: CALLOUT_DEFAULT_ICON },
     },
     content: "inline",

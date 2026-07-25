@@ -8,7 +8,13 @@ type CanvasInStore = Omit<Doc<"canvases">, "nodes" | "edges"> & {
 };
 
 type Status = "idle" | "unsynced" | "saving" | "saved" | "error";
-type Focus = "canvas" | "platejs";
+/**
+ * Where keyboard input is currently going. `richtext-editor` covers both
+ * rich-text editors (Plate.js document nodes and BlockNote nodes) — the
+ * distinction that matters to callers is "a text editor has focus", not which
+ * library renders it.
+ */
+type Focus = "canvas" | "richtext-editor";
 type Tool = "edit" | "slides" | "draw" | "hotspots";
 
 interface CanvasStore {

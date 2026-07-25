@@ -141,8 +141,11 @@ export default function setNodeDataTool({
               "blocknote `doc` must be a Markdown string.",
             );
           }
+          // Both the wrapped and the bare form are valid input for the XML
+          // tools, so both must be caught here — otherwise the XML would go
+          // through the Markdown parser and land as literal text in the doc.
           const trimmed = doc.trim();
-          if (trimmed.startsWith("<blocknote")) {
+          if (trimmed.startsWith("<blocknote") || trimmed.startsWith("<block")) {
             return toolError(
               "blocknote `doc` for set_node_data must be plain Markdown, not BlockNote XML. Use insert_blocks / replace_block for XML edits, or provide Markdown here for a full (lossy) replace.",
             );

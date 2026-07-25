@@ -18,11 +18,10 @@
 //
 // Internal storage stays the native BlockNote JSON block array.
 //
-// BlockNote's markdown APIs read `globalThis.document` (ProseMirror DOMParser),
-// so we need a real DOM — provided by jsdom. See `_externalDeps.ts` and
-// `convex.json` for the package-loading strategy.
+// The codec itself is pure: every function that needs a BlockNote editor takes
+// one as a parameter. The jsdom bootstrap and the global-swap lock live in
+// `headlessBlockNote.ts`; only the four exported entry points below acquire it.
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   type BlockNoteBlock,
   type BlockNoteBlockWithOptionalId,
@@ -32,87 +31,55 @@ import {
   compactBlockProps,
   BLOCK_NOTE_DEFAULT_CELL_PROPS,
 } from "../../lib/blockNoteDocument";
+import { normalizeDatePillValue } from "../../lib/datePill";
+import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
+import {
+  withHeadlessEditor,
+  type DomGlobals,
+  type HeadlessBlockNoteEditor,
+} from "./headlessBlockNote";
 
 export const BLOCKNOTE_XML_VERSION = "1";
 
-// ── jsdom globals + concurrency lock ───────────────────────────────────────
+// ── Frontend-only custom types ──────────────────────────────────────────────
+//
+// `date` (inline) and `callout` (block) are declared by the frontend schema
+// (src/components/blocknote/). The headless editor runs the DEFAULT schema and
+// throws "node type X not found in schema" on them, so both are rewritten
+// before anything is handed to it.
+//
+//  • callouts → paragraphs. Lossless for the agent: icon/color live in props,
+//    which the XML carries independently of the headless editor.
+//  • date pills → a text stand-in, in one of two flavours (see below).
 
-type DomGlobals = { document: Document; window: Window & typeof globalThis };
+/**
+ * How a `date` pill is rendered when handed to the headless editor.
+ *
+ *  - `"token"` (XML codec): `[[date:YYYY-MM-DD]]`, which survives the Markdown
+ *    round-trip untouched and is turned back into a real pill on parse. This
+ *    is what makes pills lossless for the agent, and lets it author new ones.
+ *  - `"label"` (search index): `📅 YYYY-MM-DD`, human-readable text for the
+ *    full-text index, where a machine token would be noise.
+ */
+type DatePillMode = "token" | "label";
 
-let domPromise: Promise<DomGlobals> | null = null;
-let editorPromise: Promise<any> | null = null;
-let jsdomLock: Promise<void> = Promise.resolve();
+/** `[[date:YYYY-MM-DD]]` — the agent-facing spelling of a date pill. */
+const DATE_TOKEN_RE = /\[\[date:(\d{4}-\d{2}-\d{2})\]\]/g;
 
-function hiddenRequire(name: string): any {
-  const g = globalThis as { require?: (m: string) => any };
-  if (!g.require) {
-    throw new Error(
-      `Cannot load ${name}: require() is not available. Ensure this runs in a "use node" action.`,
-    );
-  }
-  return g.require(name);
+export function formatDateToken(isoDate: string): string {
+  return `[[date:${isoDate}]]`;
 }
 
-async function hiddenImport(specifier: string): Promise<any> {
-  return import(specifier);
+function datePillStandIn(props: unknown, mode: DatePillMode): string {
+  const raw = (props as Record<string, unknown> | undefined)?.date;
+  const iso = normalizeDatePillValue(typeof raw === "string" ? raw : "");
+  if (mode === "label") return iso ? `📅 ${iso}` : "📅";
+  // An unparseable legacy value has no ISO form, so it cannot round-trip as a
+  // pill; degrade to the readable label rather than emit a malformed token.
+  return iso ? formatDateToken(iso) : "📅";
 }
 
-async function getDom(): Promise<DomGlobals> {
-  if (domPromise) return domPromise;
-  domPromise = (async () => {
-    const { JSDOM } = hiddenRequire("jsdom");
-    const jsdom = new JSDOM("<!DOCTYPE html><html><body></body></html>", {
-      url: "http://localhost/",
-      pretendToBeVisual: true,
-    });
-    const w = jsdom.window as unknown as Window & typeof globalThis;
-    return { document: w.document, window: w };
-  })();
-  return domPromise;
-}
-
-async function withJsdomLock<T>(fn: (editor: any, dom: DomGlobals) => T | Promise<T>): Promise<T> {
-  const prev = jsdomLock;
-  let release!: () => void;
-  jsdomLock = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await prev;
-  const g = globalThis as { document?: Document; window?: Window };
-  const savedDoc = g.document;
-  const savedWin = g.window;
-  try {
-    const dom = await getDom();
-    (globalThis as { document?: Document }).document = dom.document;
-    (globalThis as { window?: Window }).window = dom.window;
-    const editor = await getEditor();
-    return await fn(editor, dom);
-  } finally {
-    (globalThis as { document?: Document }).document = savedDoc;
-    (globalThis as { window?: Window }).window = savedWin;
-    release();
-  }
-}
-
-async function getEditor(): Promise<any> {
-  if (editorPromise) return editorPromise;
-  editorPromise = (async () => {
-    const mod = await hiddenImport("@blocknote/core");
-    return mod.BlockNoteEditor.create();
-  })();
-  return editorPromise;
-}
-
-// ── Date pills ──────────────────────────────────────────────────────────────
-// `date` is a frontend-only custom inline content type (see
-// src/components/blocknote/date-inline-content.tsx). The default-schema
-// headless editor used below would throw "node type date not found in schema"
-// on it, so date pills are rewritten as plain text ("📅 <date>") before any
-// serialization. This keeps search indexing working and lets the agent see
-// the date value. Intentionally lossy on the write path: if the agent edits
-// that exact block, the pill comes back as plain text (same tradeoff as the
-// rest of the Markdown-based codec). The stored JSON keeps the real pill.
-function datePillsToText(content: unknown): unknown {
+function datePillsToText(content: unknown, mode: DatePillMode): unknown {
   if (typeof content === "string" || content === undefined || content === null) {
     return content;
   }
@@ -121,12 +88,10 @@ function datePillsToText(content: unknown): unknown {
       if (typeof node !== "object" || node === null) return node;
       const n = node as Record<string, unknown>;
       if (n.type === "date") {
-        const props = n.props as Record<string, unknown> | undefined;
-        const date = typeof props?.date === "string" ? props.date : "";
-        return { type: "text", text: date ? `📅 ${date}` : "📅" };
+        return { type: "text", text: datePillStandIn(n.props, mode) };
       }
       if (n.content !== undefined) {
-        return { ...n, content: datePillsToText(n.content) };
+        return { ...n, content: datePillsToText(n.content, mode) };
       }
       return node;
     });
@@ -140,9 +105,12 @@ function datePillsToText(content: unknown): unknown {
           isTableCellObj(cell)
             ? {
                 ...cell,
-                content: datePillsToText(cell.content) as BlockNoteInlineContent[],
+                content: datePillsToText(
+                  cell.content,
+                  mode,
+                ) as BlockNoteInlineContent[],
               }
-            : datePillsToText(cell),
+            : datePillsToText(cell, mode),
         ),
       })),
     };
@@ -150,15 +118,68 @@ function datePillsToText(content: unknown): unknown {
   return content;
 }
 
-// ── Callout blocks ──────────────────────────────────────────────────────────
-// `callout` is a frontend-only custom block type (see
-// src/components/blocknote/callout-block.tsx), also unknown to the
-// default-schema headless editor. Callouts are rewritten as paragraph blocks
-// before serialization (the icon/color live in props, which the XML keeps —
-// the agent round-trips callouts losslessly, unlike date pills).
+// ── Emphasis whitespace normalization ───────────────────────────────────────
+//
+// Markdown emphasis delimiters cannot hug whitespace: `** apres**` is literal
+// text, not bold. BlockNote's serializer trims the OPENING side but not the
+// closing one, so a styled leaf with leading whitespace that follows any inline
+// node (a link, a date pill) survives serialization as raw `** apres**` and
+// parses back as literal asterisks — styling lost, delimiters visible.
+//
+// Moving the whitespace out of the styled run before serialization sidesteps
+// the whole class: the text is identical, only the span boundary moves. Applied
+// to bold/italic/strike only — `code` spans can legitimately hold whitespace,
+// and underline has no Markdown form anyway.
 
-/** Rewrite frontend-only custom types for the default-schema headless editor. */
-function sanitizeBlockForHeadless(block: BlockNoteBlock): BlockNoteBlock {
+const DELIMITED_STYLES = ["bold", "italic", "strike"] as const;
+
+function hasDelimitedStyle(styles: unknown): boolean {
+  return isPlainObject(styles) && DELIMITED_STYLES.some((s) => styles[s]);
+}
+
+function normalizeEmphasisWhitespace(content: unknown): unknown {
+  if (!Array.isArray(content)) return content;
+
+  const out: unknown[] = [];
+  for (const node of content) {
+    if (isPlainObject(node) && node.type === "link" && Array.isArray(node.content)) {
+      out.push({ ...node, content: normalizeEmphasisWhitespace(node.content) });
+      continue;
+    }
+    if (
+      !isPlainObject(node) ||
+      node.type !== "text" ||
+      typeof node.text !== "string" ||
+      !hasDelimitedStyle(node.styles)
+    ) {
+      out.push(node);
+      continue;
+    }
+
+    const [, lead, core, trail] = /^(\s*)([\s\S]*?)(\s*)$/.exec(node.text)!;
+    if (!lead && !trail) {
+      out.push(node);
+      continue;
+    }
+    // An all-whitespace styled leaf has no core to emphasise: emit it bare.
+    if (!core) {
+      out.push({ type: "text", text: node.text, styles: {} });
+      continue;
+    }
+    if (lead) out.push({ type: "text", text: lead, styles: {} });
+    out.push({ ...node, text: core });
+    if (trail) out.push({ type: "text", text: trail, styles: {} });
+  }
+  return out;
+}
+
+/**
+ * Rewrite one block's own type/props/content for the default-schema headless
+ * editor. Children are NOT touched — callers that need a whole subtree use
+ * `sanitizeBlockForHeadless`, callers that serialize a single block's inline
+ * content use this and drop the children entirely.
+ */
+function sanitizeBlockShallow(block: BlockNoteBlock, mode: DatePillMode): BlockNoteBlock {
   const out = { ...block };
   if (out.type === "callout") {
     // Paragraph (not quote) so the serialized content stays raw text — no
@@ -169,20 +190,113 @@ function sanitizeBlockForHeadless(block: BlockNoteBlock): BlockNoteBlock {
     // `Cannot read properties of undefined (reading 'default')`.
     delete out.props;
   }
-  if (out.content !== undefined) out.content = datePillsToText(out.content);
-  if (Array.isArray(out.children)) {
-    out.children = out.children.map(sanitizeBlockForHeadless);
+  if (out.content !== undefined) {
+    out.content = normalizeEmphasisWhitespace(datePillsToText(out.content, mode));
   }
   return out;
+}
+
+/** Recursively rewrite frontend-only custom types for the headless editor. */
+function sanitizeBlockForHeadless(
+  block: BlockNoteBlock,
+  mode: DatePillMode,
+): BlockNoteBlock {
+  const out = sanitizeBlockShallow(block, mode);
+  if (Array.isArray(out.children)) {
+    out.children = out.children.map((child) => sanitizeBlockForHeadless(child, mode));
+  }
+  return out;
+}
+
+// ── Date tokens → pills (parse side) ────────────────────────────────────────
+
+/**
+ * Turn `[[date:YYYY-MM-DD]]` occurrences inside parsed inline content back into
+ * real `date` inline nodes. Runs after the Markdown parser, so a token that sat
+ * inside styled text or a link is split out of its leaf while the surrounding
+ * text keeps its styles.
+ *
+ * Code spans are left alone, which is the escape hatch: `` `[[date:…]]` ``
+ * documents the syntax without turning into a pill.
+ */
+function expandDateTokens(content: unknown): unknown {
+  if (!Array.isArray(content)) return content;
+
+  const out: unknown[] = [];
+  for (const node of content) {
+    if (isPlainObject(node) && node.type === "link" && Array.isArray(node.content)) {
+      out.push({ ...node, content: expandDateTokens(node.content) });
+      continue;
+    }
+    if (
+      !isPlainObject(node) ||
+      node.type !== "text" ||
+      typeof node.text !== "string" ||
+      !node.text.includes("[[date:") ||
+      (isPlainObject(node.styles) && node.styles.code)
+    ) {
+      out.push(node);
+      continue;
+    }
+
+    const styles = node.styles;
+    let cursor = 0;
+    DATE_TOKEN_RE.lastIndex = 0;
+    for (
+      let match = DATE_TOKEN_RE.exec(node.text);
+      match;
+      match = DATE_TOKEN_RE.exec(node.text)
+    ) {
+      const before = node.text.slice(cursor, match.index);
+      if (before) out.push({ type: "text", text: before, styles });
+      out.push({ type: "date", props: { date: match[1] } });
+      cursor = match.index + match[0].length;
+    }
+    const rest = node.text.slice(cursor);
+    if (rest) out.push({ type: "text", text: rest, styles });
+  }
+  return out;
+}
+
+/** Apply `expandDateTokens` to a whole parsed block tree (content + tables + children). */
+function expandDateTokensInBlocks<T extends BlockNoteBlockWithOptionalId>(
+  blocks: T[],
+): T[] {
+  return blocks.map((block) => {
+    const out = { ...block };
+    if (isTableContent(out.content)) {
+      out.content = {
+        ...out.content,
+        rows: out.content.rows.map((row) => ({
+          ...row,
+          cells: row.cells.map((cell) =>
+            isTableCellObj(cell)
+              ? {
+                  ...cell,
+                  content: expandDateTokens(cell.content) as BlockNoteInlineContent[],
+                }
+              : (expandDateTokens(cell) as BlockNoteInlineContent[]),
+          ),
+        })),
+      };
+    } else if (out.content !== undefined) {
+      out.content = expandDateTokens(out.content);
+    }
+    if (Array.isArray(out.children)) {
+      out.children = expandDateTokensInBlocks(out.children);
+    }
+    return out;
+  });
 }
 
 // ── Search-only helper (not used by the XML codec) ──────────────────────────
 
 export async function blocksToMarkdown(blocks: BlockNoteBlock[]): Promise<string> {
-  return withJsdomLock(async (editor) => {
-    const sanitized = blocks.map(sanitizeBlockForHeadless);
-    return editor.blocksToMarkdownLossy(sanitized) as string;
-  });
+  return withHeadlessEditor((editor) =>
+    editor.blocksToMarkdownLossy(
+      blocks.map((block) => sanitizeBlockForHeadless(block, "label")),
+    ),
+  );
 }
 
 // ── Markdown → blocks (used by set_node_data full replace) ──────────────────
@@ -202,77 +316,74 @@ export async function markdownToBlockNoteBlocks(
   if (!markdown || markdown.trim().length === 0) {
     return [];
   }
-  return withJsdomLock(async (editor) => {
-    const blocks = editor.tryParseMarkdownToBlocks(markdown) as
-      | BlockNoteBlockWithOptionalId[]
-      | null;
-    return blocks ?? [];
-  });
-}
-
-// ── XML escaping ────────────────────────────────────────────────────────────
-
-function escapeXmlAttr(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function escapeXmlText(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return withHeadlessEditor((editor) =>
+    // `[[date:…]]` tokens are honoured here too, so a full Markdown replace can
+    // author real date pills rather than leaving the literal text behind.
+    expandDateTokensInBlocks(
+      (editor.tryParseMarkdownToBlocks(markdown) ??
+        []) as BlockNoteBlockWithOptionalId[],
+    ),
+  );
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function sortKeys(obj: Record<string, unknown>): Record<string, unknown> {
-  const sorted: Record<string, unknown> = {};
-  for (const key of Object.keys(obj).sort()) {
-    sorted[key] = obj[key];
-  }
-  return sorted;
+  return Object.fromEntries(
+    Object.entries(obj).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
+}
+
+/** Serialize props as a sorted-key JSON `props="…"` attribute, or "" when empty. */
+function propsAttribute(props: Record<string, unknown> | null): string {
+  if (!props) return "";
+  return ` props="${escapeXmlAttribute(JSON.stringify(sortKeys(props)))}"`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isTableContent(content: unknown): content is BlockNoteTableContent {
-  return (
-    content !== null &&
-    typeof content === "object" &&
-    (content as Record<string, unknown>).type === "tableContent"
-  );
+  return isPlainObject(content) && content.type === "tableContent";
 }
 
 function isTableCellObj(cell: unknown): cell is BlockNoteTableCell {
-  return (
-    cell !== null &&
-    typeof cell === "object" &&
-    (cell as Record<string, unknown>).type === "tableCell"
-  );
+  return isPlainObject(cell) && cell.type === "tableCell";
 }
 
-/** Serialize a block's inline content to Markdown (children excluded). */
-function blockContentToMarkdown(editor: any, block: BlockNoteBlock): string {
-  const synthetic = { ...sanitizeBlockForHeadless(block), children: [] };
+/** Serialize a block's own inline content to Markdown (children excluded). */
+function blockContentToMarkdown(
+  editor: HeadlessBlockNoteEditor,
+  block: BlockNoteBlock,
+): string {
+  // `children` is dropped BEFORE sanitizing: sanitizing first would deep-copy
+  // the whole subtree only to throw it away, making serialization quadratic on
+  // nested documents (this runs once per block).
+  const synthetic = sanitizeBlockShallow({ ...block, children: [] }, "token");
   try {
-    return (editor.blocksToMarkdownLossy([synthetic]) as string).trim();
+    return editor.blocksToMarkdownLossy([synthetic]).trim();
   } catch {
     return "";
   }
 }
 
 /** Serialize inline content (InlineContent[]) to Markdown via a synthetic paragraph. */
-function inlineContentToMarkdown(editor: any, content: unknown): string {
+function inlineContentToMarkdown(
+  editor: HeadlessBlockNoteEditor,
+  content: unknown,
+): string {
   if (!Array.isArray(content) || content.length === 0) return "";
   try {
-    const synthetic = {
-      id: "tmp",
-      type: "paragraph",
-      content: datePillsToText(content),
-    };
-    return (editor.blocksToMarkdownLossy([synthetic]) as string).trim();
+    return editor
+      .blocksToMarkdownLossy([
+        {
+          id: "tmp",
+          type: "paragraph",
+          content: normalizeEmphasisWhitespace(datePillsToText(content, "token")),
+        },
+      ])
+      .trim();
   } catch {
     return "";
   }
@@ -281,8 +392,7 @@ function inlineContentToMarkdown(editor: any, content: unknown): string {
 function compactCellProps(props: BlockNoteTableCell["props"]): Record<string, unknown> | null {
   if (!props) return null;
   const filtered: Record<string, unknown> = {};
-  for (const key of Object.keys(props)) {
-    const val = (props as Record<string, unknown>)[key];
+  for (const [key, val] of Object.entries(props)) {
     const def = (BLOCK_NOTE_DEFAULT_CELL_PROPS as Record<string, unknown>)[key];
     if (def !== undefined && val === def) continue;
     filtered[key] = val;
@@ -312,30 +422,30 @@ export async function blockNoteDocumentToXml(
   if (!blocks || blocks.length === 0) {
     return `<blocknote version="${BLOCKNOTE_XML_VERSION}"/>`;
   }
-  return withJsdomLock(async (editor) => {
+  return withHeadlessEditor((editor) => {
     const parts = blocks.map((b) => blockToXml(editor, b, 0));
     return `<blocknote version="${BLOCKNOTE_XML_VERSION}">\n${parts.join("\n")}\n</blocknote>`;
   });
 }
 
-function blockToXml(editor: any, block: BlockNoteBlock, indent: number): string {
+function blockToXml(
+  editor: HeadlessBlockNoteEditor,
+  block: BlockNoteBlock,
+  indent: number,
+): string {
   const pad = "  ".repeat(indent);
   const id = typeof block.id === "string" ? block.id : "";
   const type = typeof block.type === "string" ? block.type : "";
-  const props = compactBlockProps(type, block.props);
-  const propsAttr = props
-    ? ` props="${escapeXmlAttr(JSON.stringify(sortKeys(props)))}"`
-    : "";
-
-  const openTag = `${pad}<block id="${escapeXmlAttr(id)}" type="${escapeXmlAttr(type)}"${propsAttr}`;
+  const openTag = `${pad}<block id="${escapeXmlAttribute(id)}" type="${escapeXmlAttribute(type)}"${propsAttribute(
+    compactBlockProps(type, block.props),
+  )}`;
 
   const children = Array.isArray(block.children) ? block.children : [];
   const content = block.content;
   const hasTable = isTableContent(content);
   const hasInline = content !== undefined && content !== null && !hasTable;
-  const hasChildren = children.length > 0;
 
-  if (!hasTable && !hasInline && !hasChildren) {
+  if (!hasTable && !hasInline && children.length === 0) {
     return `${openTag}/>`;
   }
 
@@ -343,16 +453,14 @@ function blockToXml(editor: any, block: BlockNoteBlock, indent: number): string 
 
   if (hasInline) {
     const md = blockContentToMarkdown(editor, block);
-    if (md) {
-      parts.push(`${pad}  ${escapeXmlText(md)}`);
-    }
+    if (md) parts.push(`${pad}  ${escapeXmlText(md)}`);
   }
 
   if (hasTable) {
     parts.push(tableToXml(editor, content, indent + 1));
   }
 
-  if (hasChildren) {
+  if (children.length > 0) {
     parts.push(`${pad}  <children>`);
     for (const child of children) {
       parts.push(blockToXml(editor, child, indent + 2));
@@ -364,7 +472,11 @@ function blockToXml(editor: any, block: BlockNoteBlock, indent: number): string 
   return parts.join("\n");
 }
 
-function tableToXml(editor: any, content: BlockNoteTableContent, indent: number): string {
+function tableToXml(
+  editor: HeadlessBlockNoteEditor,
+  content: BlockNoteTableContent,
+  indent: number,
+): string {
   const pad = "  ".repeat(indent);
 
   let openTag = `${pad}<table`;
@@ -373,14 +485,12 @@ function tableToXml(editor: any, content: BlockNoteTableContent, indent: number)
   openTag += ">";
 
   const cols: string[] = [`${pad}  <columns>`];
-  const widths = content.columnWidths ?? [];
-  for (let i = 0; i < widths.length; i++) {
-    const w = widths[i];
-    if (w !== undefined && w !== null) {
-      cols.push(`${pad}    <column width="${w}"/>`);
-    } else {
-      cols.push(`${pad}    <column/>`);
-    }
+  for (const width of content.columnWidths ?? []) {
+    cols.push(
+      width !== undefined && width !== null
+        ? `${pad}    <column width="${width}"/>`
+        : `${pad}    <column/>`,
+    );
   }
   cols.push(`${pad}  </columns>`);
 
@@ -388,26 +498,16 @@ function tableToXml(editor: any, content: BlockNoteTableContent, indent: number)
   for (const row of content.rows) {
     rowParts.push(`${pad}  <row>`);
     for (const cell of row.cells) {
-      if (isTableCellObj(cell)) {
-        const cellProps = compactCellProps(cell.props);
-        const cellPropsAttr = cellProps
-          ? ` props="${escapeXmlAttr(JSON.stringify(sortKeys(cellProps as Record<string, unknown>)))}"`
-          : "";
-        const cellMd = inlineContentToMarkdown(editor, cell.content);
-        if (cellMd) {
-          rowParts.push(`${pad}    <cell${cellPropsAttr}>${escapeXmlText(cellMd)}</cell>`);
-        } else {
-          rowParts.push(`${pad}    <cell${cellPropsAttr}/>`);
-        }
-      } else if (Array.isArray(cell)) {
-        // Legacy array cell
-        const cellMd = inlineContentToMarkdown(editor, cell);
-        if (cellMd) {
-          rowParts.push(`${pad}    <cell>${escapeXmlText(cellMd)}</cell>`);
-        } else {
-          rowParts.push(`${pad}    <cell/>`);
-        }
-      }
+      // Legacy cells are bare inline-content arrays with no props of their own.
+      const isStructured = isTableCellObj(cell);
+      if (!isStructured && !Array.isArray(cell)) continue;
+      const attr = isStructured ? propsAttribute(compactCellProps(cell.props)) : "";
+      const md = inlineContentToMarkdown(editor, isStructured ? cell.content : cell);
+      rowParts.push(
+        md
+          ? `${pad}    <cell${attr}>${escapeXmlText(md)}</cell>`
+          : `${pad}    <cell${attr}/>`,
+      );
     }
     rowParts.push(`${pad}  </row>`);
   }
@@ -417,77 +517,134 @@ function tableToXml(editor: any, content: BlockNoteTableContent, indent: number)
 
 // ── Parser: XML → blocks ──────────────────────────────────────────────────────
 //
-// Uses DOMParser with application/xml (never HTML). Strict: rejects unknown
-// elements, comments, malformed props JSON. No regex, no format detection.
+// Uses DOMParser with application/xml (never HTML).
+//
+// Liberal in what it accepts, strict in what it emits: the serializer always
+// produces `<blocknote version="1">`, but a model writing the payload by hand
+// should not have to rediscover that envelope. Observed in the wild: three
+// failed tool calls in a row (bare `<block>` elements → "documents may contain
+// only one root", then `<blocks>`, then `<blocknote>` without a version) before
+// a fourth attempt landed. All three of those now parse.
+//
+// What is still rejected: anything that is not well-formed XML, a root whose
+// children are not `<block>`, an explicit `version` other than the current one,
+// and every per-block error (bad props JSON, unknown child elements, content
+// spanning several blocks).
 //
 // Parsing logic per <block>:
 //   - <table> child element → table content
 //   - <children> child element → nested blocks
 //   - text nodes (concatenated, trimmed) → inline Markdown, parsed via editor
 
+/**
+ * Appended to every parse failure. A tool error is the only feedback the model
+ * gets, so it carries the target shape rather than just the diagnosis —
+ * otherwise the next attempt is another guess.
+ */
+const XML_FORMAT_HINT =
+  'Expected: one or more <block> elements, optionally wrapped in <blocknote>. ' +
+  'Example: <block type="paragraph">Some **markdown**</block>';
+
+function xmlError(message: string): Error {
+  return new Error(`Invalid BlockNote XML: ${message} ${XML_FORMAT_HINT}`);
+}
+
+type ParsedXml = { root: Element } | { error: string };
+
+function parseXmlDocument(dom: DomGlobals, xml: string): ParsedXml {
+  const doc = new dom.window.DOMParser().parseFromString(xml, "application/xml");
+  const errors = doc.getElementsByTagName("parsererror");
+  if (errors.length > 0) {
+    return { error: errors[0].textContent?.slice(0, 200) ?? "parse error" };
+  }
+  const root = doc.documentElement;
+  return root ? { root } : { error: "the document is empty." };
+}
+
+/**
+ * Parse the payload, retrying inside a synthetic root if it does not stand on
+ * its own. XML has no multi-root documents, so a bare run of sibling `<block>`
+ * elements — the most natural thing to write — only parses once wrapped.
+ * Trying as-is first is what lets a real container root (`<blocknote>`,
+ * `<blocks>`, …) stay the root instead of being nested inside the wrapper.
+ */
+function parseFragmentOrDocument(dom: DomGlobals, xml: string): ParsedXml {
+  const direct = parseXmlDocument(dom, xml);
+  if ("root" in direct) return direct;
+
+  const wrapped = parseXmlDocument(
+    dom,
+    `<blocknote version="${BLOCKNOTE_XML_VERSION}">${xml}</blocknote>`,
+  );
+  // Report the original diagnosis: if the wrapped form fails too, the payload
+  // is genuinely malformed and the error about it is the useful one.
+  return "root" in wrapped ? wrapped : direct;
+}
+
 export async function parseBlockNoteXml(
   xml: string,
 ): Promise<BlockNoteBlockWithOptionalId[]> {
-  return withJsdomLock(async (editor, dom) => {
-    const parser = new dom.window.DOMParser();
-    const doc = parser.parseFromString(xml, "application/xml");
+  return withHeadlessEditor((editor, dom) => {
+    const parsed = parseFragmentOrDocument(dom, xml);
+    if ("error" in parsed) throw xmlError(parsed.error);
+    const { root } = parsed;
 
-    const errors = doc.getElementsByTagName("parsererror");
-    if (errors.length > 0) {
-      throw new Error(
-        `Invalid BlockNote XML: ${errors[0].textContent?.slice(0, 200) ?? "parse error"}`,
-      );
-    }
+    // A lone `<block>` is a valid XML document in its own right.
+    if (root.tagName === "block") return [parseBlockElement(editor, root)];
 
-    const root = doc.documentElement;
-    if (!root || root.tagName !== "blocknote") {
-      throw new Error(
-        `Invalid BlockNote XML: root element must be <blocknote>, got <${root?.tagName ?? "none"}>.`,
-      );
-    }
-
-    const version = root.getAttribute("version");
-    if (version !== BLOCKNOTE_XML_VERSION) {
-      throw new Error(
-        `Invalid BlockNote XML: expected version="${BLOCKNOTE_XML_VERSION}", got version="${version ?? "none"}".`,
-      );
-    }
-
-    const blocks: BlockNoteBlockWithOptionalId[] = [];
-    for (const child of Array.from(root.children)) {
-      if (child.tagName !== "block") {
-        throw new Error(
-          `Invalid BlockNote XML: unexpected element <${child.tagName}> inside <blocknote>.`,
+    // Otherwise the root is just an envelope. `<blocknote>` is what the
+    // serializer emits, but any container the model reaches for (`<blocks>`,
+    // `<fragment>`, …) is accepted — the meaningful check is on the children.
+    if (root.tagName === "blocknote") {
+      const version = root.getAttribute("version");
+      // Absent means "current"; a different explicit version is the real
+      // forward-compatibility signal and stays an error.
+      if (version !== null && version !== BLOCKNOTE_XML_VERSION) {
+        throw xmlError(
+          `expected version="${BLOCKNOTE_XML_VERSION}", got version="${version}".`,
         );
       }
-      blocks.push(parseBlockElement(editor, child));
     }
 
-    return blocks;
+    return Array.from(root.children).map((child) => {
+      if (child.tagName !== "block") {
+        throw xmlError(
+          `unexpected element <${child.tagName}> inside <${root.tagName}>.`,
+        );
+      }
+      return parseBlockElement(editor, child);
+    });
   });
 }
 
-function parseBlockElement(editor: any, el: Element): BlockNoteBlockWithOptionalId {
+/** Parse a `props="…"` attribute into an object, or undefined when absent. */
+function parsePropsAttribute(
+  raw: string | null,
+  context: string,
+): Record<string, unknown> | undefined {
+  if (!raw) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw xmlError(`${context} has invalid props JSON: ${raw.slice(0, 100)}`);
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw xmlError(`props must be a JSON object.`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function parseBlockElement(
+  editor: HeadlessBlockNoteEditor,
+  el: Element,
+): BlockNoteBlockWithOptionalId {
   const id = el.getAttribute("id") ?? undefined;
   const type = el.getAttribute("type");
   if (!type) {
-    throw new Error(`Invalid BlockNote XML: <block> is missing a "type" attribute.`);
+    throw xmlError(`<block> is missing a "type" attribute.`);
   }
-
-  const propsStr = el.getAttribute("props");
-  let props: Record<string, unknown> | undefined;
-  if (propsStr) {
-    try {
-      props = JSON.parse(propsStr) as Record<string, unknown>;
-    } catch {
-      throw new Error(
-        `Invalid BlockNote XML: <block type="${type}"> has invalid props JSON: ${propsStr.slice(0, 100)}`,
-      );
-    }
-    if (!props || typeof props !== "object" || Array.isArray(props)) {
-      throw new Error(`Invalid BlockNote XML: props must be a JSON object.`);
-    }
-  }
+  const props = parsePropsAttribute(el.getAttribute("props"), `<block type="${type}">`);
 
   let tableContent: unknown;
   let markdownText = "";
@@ -504,31 +661,31 @@ function parseBlockElement(editor: any, el: Element): BlockNoteBlockWithOptional
     switch (elem.tagName) {
       case "table":
         if (tableContent !== undefined) {
-          throw new Error(`Invalid BlockNote XML: <block type="${type}"> has multiple <table> elements.`);
+          throw xmlError(`<block type="${type}"> has multiple <table> elements.`);
         }
         tableContent = parseTableElement(editor, elem);
         break;
       case "children":
         for (const grandChild of Array.from(elem.children)) {
           if (grandChild.tagName !== "block") {
-            throw new Error(`Invalid BlockNote XML: unexpected <${grandChild.tagName}> inside <children>.`);
+            throw xmlError(`unexpected <${grandChild.tagName}> inside <children>.`);
           }
           children.push(parseBlockElement(editor, grandChild));
         }
         break;
       default:
-        throw new Error(`Invalid BlockNote XML: unexpected <${elem.tagName}> inside <block>.`);
+        throw xmlError(`unexpected <${elem.tagName}> inside <block>.`);
     }
   }
 
   // Parse the accumulated text as Markdown to produce inline content.
   const trimmedMd = markdownText.trim();
-  let content: unknown;
-  if (tableContent !== undefined) {
-    content = tableContent;
-  } else if (trimmedMd) {
-    content = parseMarkdownToInline(editor, trimmedMd);
-  }
+  const content =
+    tableContent !== undefined
+      ? tableContent
+      : trimmedMd
+        ? parseMarkdownToInline(editor, trimmedMd)
+        : undefined;
 
   const block: BlockNoteBlockWithOptionalId = { type };
   if (id) block.id = id;
@@ -540,63 +697,65 @@ function parseBlockElement(editor: any, el: Element): BlockNoteBlockWithOptional
 
 /**
  * Parse a Markdown string into inline content (InlineContent[]).
- * The Markdown must produce exactly one paragraph block; its content is extracted.
+ * The Markdown must produce exactly one paragraph block; its content is
+ * extracted, and `[[date:…]]` tokens become real date pills. Covers both block
+ * content and table cells, the two places inline Markdown appears in the XML.
  */
-function parseMarkdownToInline(editor: any, md: string): unknown[] {
+function parseMarkdownToInline(
+  editor: HeadlessBlockNoteEditor,
+  md: string,
+): unknown[] {
   const blocks = editor.tryParseMarkdownToBlocks(md);
   if (!blocks || blocks.length === 0) return [];
   if (blocks.length > 1) {
-    throw new Error(
-      `Invalid BlockNote XML: block content produced ${blocks.length} blocks. Use separate <block> elements for multiple blocks.`,
+    throw xmlError(
+      `block content produced ${blocks.length} blocks. Use separate <block> elements for multiple blocks.`,
     );
   }
-  return (blocks[0].content ?? []) as unknown[];
+  const content = ((blocks[0] as { content?: unknown[] }).content ?? []) as unknown[];
+  return expandDateTokens(content) as unknown[];
 }
 
-function parseTableElement(editor: any, el: Element): BlockNoteTableContent {
+function parseTableElement(
+  editor: HeadlessBlockNoteEditor,
+  el: Element,
+): BlockNoteTableContent {
   const headerRows = el.getAttribute("headerRows");
   const headerCols = el.getAttribute("headerCols");
 
   let columnWidths: (number | undefined)[] = [];
-  const rows: Array<{ cells: BlockNoteTableCell[] | BlockNoteInlineContent[][] }> = [];
+  const rows: Array<{ cells: BlockNoteTableCell[] }> = [];
 
   for (const child of Array.from(el.children)) {
     if (child.tagName === "columns") {
-      const cols: (number | undefined)[] = [];
-      for (const col of Array.from(child.children)) {
+      columnWidths = Array.from(child.children).map((col) => {
         if (col.tagName !== "column") {
-          throw new Error(`Invalid BlockNote XML: unexpected <${col.tagName}> inside <columns>.`);
+          throw xmlError(`unexpected <${col.tagName}> inside <columns>.`);
         }
         const widthAttr = col.getAttribute("width");
-        cols.push(widthAttr !== null ? Number(widthAttr) : undefined);
-      }
-      columnWidths = cols;
+        return widthAttr !== null ? Number(widthAttr) : undefined;
+      });
     } else if (child.tagName === "row") {
-      const cells: BlockNoteTableCell[] = [];
-      for (const cell of Array.from(child.children)) {
+      const cells = Array.from(child.children).map((cell) => {
         if (cell.tagName !== "cell") {
-          throw new Error(`Invalid BlockNote XML: unexpected <${cell.tagName}> inside <row>.`);
+          throw xmlError(`unexpected <${cell.tagName}> inside <row>.`);
         }
-        const propsStr = cell.getAttribute("props");
-        let cellProps: Record<string, unknown> = {};
-        if (propsStr) {
-          try {
-            cellProps = JSON.parse(propsStr) as Record<string, unknown>;
-          } catch {
-            throw new Error(`Invalid BlockNote XML: invalid cell props JSON: ${propsStr.slice(0, 100)}`);
-          }
-        }
+        const cellProps = parsePropsAttribute(cell.getAttribute("props"), "<cell>") ?? {};
         const cellMd = (cell.textContent ?? "").trim();
-        const cellContent = cellMd ? parseMarkdownToInline(editor, cellMd) : [];
-        cells.push({
+        return {
           type: "tableCell",
-          props: { ...BLOCK_NOTE_DEFAULT_CELL_PROPS, ...cellProps } as BlockNoteTableCell["props"],
-          content: cellContent as BlockNoteInlineContent[],
-        });
-      }
+          props: {
+            ...BLOCK_NOTE_DEFAULT_CELL_PROPS,
+            ...cellProps,
+          } as BlockNoteTableCell["props"],
+          content: (cellMd
+            ? parseMarkdownToInline(editor, cellMd)
+            : []) as BlockNoteInlineContent[],
+        } satisfies BlockNoteTableCell;
+      });
       rows.push({ cells });
     } else {
-      throw new Error(`Invalid BlockNote XML: unexpected <${child.tagName}> inside <table>.`);
+      throw xmlError(`unexpected <${child.tagName}> inside <table>.`);
     }
   }
 

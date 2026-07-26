@@ -8,10 +8,7 @@ import {
   formatTableMarkdown,
   makeNodeDataLLMFriendly,
 } from "../helpers/makeNodeDataLLMFriendly";
-import {
-  buildCustomSchemaEntries,
-  makeCustomNodeDataLLMFriendly,
-} from "../helpers/customTemplateHelpers";
+import { makeCustomNodeDataLLMFriendly } from "../helpers/customTemplateHelpers";
 import type { Doc } from "../../_generated/dataModel";
 import {
   buildPdfPagesMarkdown,
@@ -19,8 +16,7 @@ import {
 } from "../helpers/pdfChunkFormatters";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { nodeDataConfig } from "../../config/nodeConfig";
-import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
+import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { type ToolConfig, toolError } from "./toolHelpers";
 
 const PDF_HINTS = {
@@ -373,21 +369,8 @@ export const readNodesToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "read" },
 };
-
-function getExpectedNodeDataSchemaString(nodeType: string): string | null {
-  if (nodeType === "document" || nodeType === "table") {
-    return null;
-  }
-
-  const config = nodeDataConfig.find((item) => item.type === nodeType);
-  if (!config) {
-    return null;
-  }
-
-  const schema = config.toolInputSchema ?? config.dataValuesSchema;
-  return formatZodSchemaAsMinimap(schema);
-}
 
 // is v1.0
 export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
@@ -631,7 +614,8 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
         const nodes = await Promise.all(
           baseNodes.map(async (entry) => {
-            const { nodeId, node, nodeData, embed, error } = entry;
+            const { nodeId, node, nodeData, embed } = entry;
+            let error = entry.error;
 
             if (error || !node || !nodeData) {
               return {
@@ -655,13 +639,25 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               };
             }
 
-            let content =
-              nodeData.type === "custom"
-                ? await makeCustomNodeDataLLMFriendly(
-                    nodeData,
-                    templateForNodeData(nodeData),
-                  )
-                : await makeNodeDataLLMFriendly(nodeData);
+            // A malformed blocknote document or a jsdom conversion failure must
+            // surface as a per-node readError, not fail the whole read_nodes call.
+            let content: string;
+            try {
+              content =
+                nodeData.type === "custom"
+                  ? await makeCustomNodeDataLLMFriendly(
+                      nodeData,
+                      templateForNodeData(nodeData),
+                    )
+                  : await makeNodeDataLLMFriendly(nodeData);
+            } catch (renderError) {
+              content = "";
+              error = `Failed to render node content: ${
+                renderError instanceof Error
+                  ? renderError.message
+                  : "Unknown error"
+              }`;
+            }
             let pdfBody: string | null = null;
             let pdfTotalPages: number | null = null;
             let tableBody: string | null = null;
@@ -867,7 +863,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                       : "";
 
                   if (nodeType === "embed") {
-                    return `<node id="${nodeId}" type="embed" title="${title}"${embedUrl ? ` url="${embedUrl}"` : ""}${embedIframeUrl ? ` embedUrl="${embedIframeUrl}"` : ""}${embedType ? ` embedType="${embedType}"` : ""}${error ? ` readError="${error}"` : ""}${positionAttributes} />`;
+                    return `<node id="${nodeId}" type="embed" title="${escapeXmlAttribute(title)}"${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""}${error ? ` readError="${escapeXmlAttribute(error)}"` : ""}${positionAttributes} />`;
                   }
 
                   if (nodeType === "pdf" && pdfBody !== null) {
@@ -875,8 +871,8 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                       pdfTotalPages !== null
                         ? ` totalPages="${pdfTotalPages}"`
                         : "";
-                    return `<node id="${nodeId}" type="pdf" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}"${totalPagesAttr}>
-${error ? `<readError>${error}</readError>\n` : ""}${pdfBody}
+                    return `<node id="${nodeId}" type="pdf" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}"${totalPagesAttr}>
+${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${pdfBody}
 </node>`;
                   }
 
@@ -889,46 +885,22 @@ ${error ? `<readError>${error}</readError>\n` : ""}${pdfBody}
                       tableDisplayedRows !== null
                         ? ` displayedRows="${tableDisplayedRows}"`
                         : "";
-                    return `<node id="${nodeId}" type="table" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}"${totalRowsAttr}${displayedRowsAttr}>
-${error ? `<readError>${error}</readError>\n` : ""}${tableBody}
+                    return `<node id="${nodeId}" type="table" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}"${totalRowsAttr}${displayedRowsAttr}>
+${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${tableBody}
 </node>`;
                   }
 
-                  return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${sourceNodes.join(" ; ")}" targetNodes="${targetNodes.join(" ; ")}"${positionAttributes} title="${title}">
-    ${error ? `<readError>${error}</readError>` : ""}
+                  return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}">
+    ${error ? `<readError>${escapeXmlText(error)}</readError>` : ""}
 ${content}
 </node>`;
                 },
               ),
               "</nodes>",
               "<nodeDataSchemas>",
-              ...uniqueNodeTypes.map((nodeType) => {
-                if (nodeType === "document") {
-                  return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
-                }
-
-                if (nodeType === "table") {
-                  return '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />';
-                }
-
-                // Custom : une entrée par template présent dans le résultat
-                // (le schéma dépend du template, pas du type).
-                if (nodeType === "custom") {
-                  return buildCustomSchemaEntries(customTemplates).join("\n");
-                }
-
-                const toolsAttr =
-                  nodeType === "app"
-                    ? 'tools="set_node_data,patch_app_node_code"'
-                    : 'tool="set_node_data"';
-
-                const schema = getExpectedNodeDataSchemaString(nodeType);
-                if (!schema) {
-                  return `<schema type="${nodeType}" ${toolsAttr} />`;
-                }
-
-                return `<schema type="${nodeType}" ${toolsAttr}>\n${schema}\n</schema>`;
-              }),
+              ...uniqueNodeTypes.map((nodeType) =>
+                buildNodeDataSchemaXml(nodeType, customTemplates),
+              ),
               "</nodeDataSchemas>",
             ];
           })(),

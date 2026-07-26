@@ -1,10 +1,6 @@
 import type { Doc } from "../../_generated/dataModel";
-import {
-  buildTemplateToolSchema,
-  getFieldTypeConfig,
-} from "../../config/fieldConfig";
+import { getFieldTypeConfig } from "../../config/fieldConfig";
 import { buildTemplateLLMSummary } from "../../config/templateConfig";
-import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 import { parseStoredPlateDocument } from "../../lib/plateDocumentStorage";
 import { plateJsonToMarkdown } from "./plateMarkdownConverter";
 
@@ -64,17 +60,4 @@ export async function makeCustomNodeDataLLMFriendly(
     }),
   );
   return lines.join("\n");
-}
-
-// Entrées <schema> par template pour les blocs <nodeDataSchemas> des tools
-// read_nodes / list_nodes.
-export function buildCustomSchemaEntries(templates: NodeTemplate[]): string[] {
-  const unique = new Map(templates.map((t) => [String(t._id), t]));
-  return [...unique.values()].map((template) => {
-    const schema = formatZodSchemaAsMinimap(
-      buildTemplateToolSchema(template),
-    );
-    const attrs = `type="custom" templateId="${template._id}" templateName="${template.name}" tool="set_node_data"`;
-    return schema ? `<schema ${attrs}>\n${schema}\n</schema>` : `<schema ${attrs} />`;
-  });
 }

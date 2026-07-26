@@ -4,9 +4,8 @@ import { internal } from "../../_generated/api";
 import { type Doc, type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { nodeDataConfig } from "../../config/nodeConfig";
-import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
-import { buildCustomSchemaEntries } from "../helpers/customTemplateHelpers";
+import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
+import { escapeXmlAttribute } from "../../lib/xml";
 import { toolError, type ToolConfig } from "./toolHelpers";
 
 export const listNodesToolConfig: ToolConfig = {
@@ -17,21 +16,8 @@ export const listNodesToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "read" },
 };
-
-function getExpectedNodeDataSchemaString(nodeType: string): string | null {
-  if (nodeType === "document" || nodeType === "table") {
-    return null;
-  }
-
-  const config = nodeDataConfig.find((item) => item.type === nodeType);
-  if (!config) {
-    return null;
-  }
-
-  const schema = config.toolInputSchema ?? config.dataValuesSchema;
-  return formatZodSchemaAsMinimap(schema);
-}
 
 // is v1.0
 export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
@@ -258,37 +244,14 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           ...displayedEntries.map(
             ({ id, type, title, x, y, embedUrl, embedIframeUrl, embedType }) =>
               type === "embed"
-                ? `  <node id="${id}" type="embed" title="${title}" x="${x}" y="${y}"${embedUrl ? ` url="${embedUrl}"` : ""}${embedIframeUrl ? ` embedUrl="${embedIframeUrl}"` : ""}${embedType ? ` embedType="${embedType}"` : ""} />`
-                : `  <node id="${id}" type="${type}" title="${title}" x="${x}" y="${y}" />`,
+                ? `  <node id="${id}" type="embed" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""} />`
+                : `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}" />`,
           ),
           "</nodes>",
           "<nodeDataSchemas>",
-          ...uniqueDisplayedNodeTypes.map((nodeType) => {
-            if (nodeType === "document") {
-              return '<schema type="document" tools="insert_document_content,string_replace_document_content" />';
-            }
-
-            if (nodeType === "table") {
-              return '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />';
-            }
-
-            // Custom : une entrée par template présent dans les résultats.
-            if (nodeType === "custom") {
-              return buildCustomSchemaEntries(resolvedTemplates).join("\n");
-            }
-
-            const toolsAttr =
-              nodeType === "app"
-                ? 'tools="set_node_data,patch_app_node_code"'
-                : 'tool="set_node_data"';
-
-            const schema = getExpectedNodeDataSchemaString(nodeType);
-            if (!schema) {
-              return `<schema type="${nodeType}" ${toolsAttr} />`;
-            }
-
-            return `<schema type="${nodeType}" ${toolsAttr}>\n${schema}\n</schema>`;
-          }),
+          ...uniqueDisplayedNodeTypes.map((nodeType) =>
+            buildNodeDataSchemaXml(nodeType, resolvedTemplates),
+          ),
           "</nodeDataSchemas>",
           "",
           truncated

@@ -2,7 +2,7 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
-import { toolError, type ToolConfig } from "./toolHelpers";
+import { toolError, countExactMatches, type ToolConfig } from "./toolHelpers";
 
 export const patchAppNodeCodeToolConfig: ToolConfig = {
   name: "patch_app_node_code",
@@ -12,6 +12,7 @@ export const patchAppNodeCodeToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "write" },
 };
 
 const BEGIN_MARKER = "*** Begin Patch";
@@ -167,19 +168,6 @@ function parsePatch(rawPatch: string): ParseResult {
   }
 
   return { ok: true, hunks };
-}
-
-function countExactMatches(source: string, search: string): number {
-  if (!search) return 0;
-  let count = 0;
-  let index = 0;
-  while (true) {
-    const found = source.indexOf(search, index);
-    if (found === -1) break;
-    count += 1;
-    index = found + search.length;
-  }
-  return count;
 }
 
 type ApplyResult =

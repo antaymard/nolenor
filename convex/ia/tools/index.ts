@@ -13,6 +13,7 @@ import documentInsertContentTool, {
 import documentStringReplaceContentTool, {
   documentStringReplaceContentToolConfig,
 } from "./documentStringReplaceContentTool";
+import { blockNoteToolDefinitions } from "./blockNoteTools";
 import fullTextSearchTool, {
   fullTextSearchToolConfig,
 } from "./fullTextSearchTool";
@@ -95,6 +96,7 @@ const toolRegistry: ToolRegistration[] = [
     config: documentInsertContentToolConfig,
     factory: ({ threadCtx }) => documentInsertContentTool({ threadCtx }),
   },
+  ...blockNoteToolDefinitions,
   {
     config: tableUpdateRowsToolConfig,
     factory: ({ threadCtx }) => tableUpdateRowsTool({ threadCtx }),

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
 import type * as canvasEdges from "../canvasEdges.js";
 import type * as canvasNodes from "../canvasNodes.js";
@@ -21,11 +22,15 @@ import type * as hotposts from "../hotposts.js";
 import type * as http from "../http.js";
 import type * as ia_agentConfig from "../ia/agentConfig.js";
 import type * as ia_agents from "../ia/agents.js";
+import type * as ia_helpers__externalDeps from "../ia/helpers/_externalDeps.js";
+import type * as ia_helpers_blockNoteMarkdown from "../ia/helpers/blockNoteMarkdown.js";
 import type * as ia_helpers_composioSanitizer from "../ia/helpers/composioSanitizer.js";
 import type * as ia_helpers_generateCanvasMinimap from "../ia/helpers/generateCanvasMinimap.js";
 import type * as ia_helpers_generateMessageContext from "../ia/helpers/generateMessageContext.js";
 import type * as ia_helpers_getCanvasChangesSinceLastMessage from "../ia/helpers/getCanvasChangesSinceLastMessage.js";
+import type * as ia_helpers_headlessBlockNote from "../ia/helpers/headlessBlockNote.js";
 import type * as ia_helpers_makeNodeDataLLMFriendly from "../ia/helpers/makeNodeDataLLMFriendly.js";
+import type * as ia_helpers_nodeDataSchemaXml from "../ia/helpers/nodeDataSchemaXml.js";
 import type * as ia_helpers_nodeFieldsAndTypesHelper from "../ia/helpers/nodeFieldsAndTypesHelper.js";
 import type * as ia_helpers_nodeInputSchemaValidatorForLLM from "../ia/helpers/nodeInputSchemaValidatorForLLM.js";
 import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkFormatters.js";
@@ -39,6 +44,7 @@ import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/nol
 import type * as ia_systemPrompts_supervisorSystemPrompt from "../ia/systemPrompts/supervisorSystemPrompt.js";
 import type * as ia_systemPrompts_systemParts from "../ia/systemPrompts/systemParts.js";
 import type * as ia_systemPrompts_workerSystemPrompt from "../ia/systemPrompts/workerSystemPrompt.js";
+import type * as ia_tools_blockNoteTools from "../ia/tools/blockNoteTools.js";
 import type * as ia_tools_createConnectionTool from "../ia/tools/createConnectionTool.js";
 import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
 import type * as ia_tools_documentInsertContentTool from "../ia/tools/documentInsertContentTool.js";
@@ -62,7 +68,10 @@ import type * as ia_tools_toolHelpers from "../ia/tools/toolHelpers.js";
 import type * as ia_tools_viewImageTool from "../ia/tools/viewImageTool.js";
 import type * as ia_tools_websearchTool from "../ia/tools/websearchTool.js";
 import type * as ia_worker from "../ia/worker.js";
+import type * as lib_apiTokenCrypto from "../lib/apiTokenCrypto.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_blockNoteDocument from "../lib/blockNoteDocument.js";
+import type * as lib_datePill from "../lib/datePill.js";
 import type * as lib_getNodeDataTitle from "../lib/getNodeDataTitle.js";
 import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
 import type * as lib_llmId from "../lib/llmId.js";
@@ -71,8 +80,15 @@ import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js
 import type * as lib_plateDocumentStorage from "../lib/plateDocumentStorage.js";
 import type * as lib_r2 from "../lib/r2.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
+import type * as lib_text from "../lib/text.js";
+import type * as lib_textSanitize from "../lib/textSanitize.js";
 import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
+import type * as mcp_access from "../mcp/access.js";
+import type * as mcp_auth from "../mcp/auth.js";
+import type * as mcp_execute from "../mcp/execute.js";
+import type * as mcp_registry from "../mcp/registry.js";
+import type * as mcp_server from "../mcp/server.js";
 import type * as memories from "../memories.js";
 import type * as messageMetadata from "../messageMetadata.js";
 import type * as models_canvasEdgeModels from "../models/canvasEdgeModels.js";
@@ -90,6 +106,7 @@ import type * as nodeDataVersions from "../nodeDataVersions.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as nodeTemplates from "../nodeTemplates.js";
 import type * as recipes from "../recipes.js";
+import type * as schemas_apiTokensSchema from "../schemas/apiTokensSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_fieldTypeSchema from "../schemas/fieldTypeSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
@@ -107,8 +124,8 @@ import type * as schemas_skillsSchema from "../schemas/skillsSchema.js";
 import type * as schemas_taskExecutionsSchema from "../schemas/taskExecutionsSchema.js";
 import type * as schemas_threadMetadataSchema from "../schemas/threadMetadataSchema.js";
 import type * as schemas_wishlistEmailsSchema from "../schemas/wishlistEmailsSchema.js";
-import type * as searchableChunks from "../searchableChunks.js";
 import type * as searchable_chunkBuilder from "../searchable/chunkBuilder.js";
+import type * as searchableChunks from "../searchableChunks.js";
 import type * as shares from "../shares.js";
 import type * as skills from "../skills.js";
 import type * as slideshows from "../slideshows.js";
@@ -136,6 +153,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  apiTokens: typeof apiTokens;
   auth: typeof auth;
   canvasEdges: typeof canvasEdges;
   canvasNodes: typeof canvasNodes;
@@ -149,11 +167,15 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "ia/agentConfig": typeof ia_agentConfig;
   "ia/agents": typeof ia_agents;
+  "ia/helpers/_externalDeps": typeof ia_helpers__externalDeps;
+  "ia/helpers/blockNoteMarkdown": typeof ia_helpers_blockNoteMarkdown;
   "ia/helpers/composioSanitizer": typeof ia_helpers_composioSanitizer;
   "ia/helpers/generateCanvasMinimap": typeof ia_helpers_generateCanvasMinimap;
   "ia/helpers/generateMessageContext": typeof ia_helpers_generateMessageContext;
   "ia/helpers/getCanvasChangesSinceLastMessage": typeof ia_helpers_getCanvasChangesSinceLastMessage;
+  "ia/helpers/headlessBlockNote": typeof ia_helpers_headlessBlockNote;
   "ia/helpers/makeNodeDataLLMFriendly": typeof ia_helpers_makeNodeDataLLMFriendly;
+  "ia/helpers/nodeDataSchemaXml": typeof ia_helpers_nodeDataSchemaXml;
   "ia/helpers/nodeFieldsAndTypesHelper": typeof ia_helpers_nodeFieldsAndTypesHelper;
   "ia/helpers/nodeInputSchemaValidatorForLLM": typeof ia_helpers_nodeInputSchemaValidatorForLLM;
   "ia/helpers/pdfChunkFormatters": typeof ia_helpers_pdfChunkFormatters;
@@ -167,6 +189,7 @@ declare const fullApi: ApiFromModules<{
   "ia/systemPrompts/supervisorSystemPrompt": typeof ia_systemPrompts_supervisorSystemPrompt;
   "ia/systemPrompts/systemParts": typeof ia_systemPrompts_systemParts;
   "ia/systemPrompts/workerSystemPrompt": typeof ia_systemPrompts_workerSystemPrompt;
+  "ia/tools/blockNoteTools": typeof ia_tools_blockNoteTools;
   "ia/tools/createConnectionTool": typeof ia_tools_createConnectionTool;
   "ia/tools/createNodeTool": typeof ia_tools_createNodeTool;
   "ia/tools/documentInsertContentTool": typeof ia_tools_documentInsertContentTool;
@@ -190,7 +213,10 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/viewImageTool": typeof ia_tools_viewImageTool;
   "ia/tools/websearchTool": typeof ia_tools_websearchTool;
   "ia/worker": typeof ia_worker;
+  "lib/apiTokenCrypto": typeof lib_apiTokenCrypto;
   "lib/auth": typeof lib_auth;
+  "lib/blockNoteDocument": typeof lib_blockNoteDocument;
+  "lib/datePill": typeof lib_datePill;
   "lib/getNodeDataTitle": typeof lib_getNodeDataTitle;
   "lib/jsonSchemaMinimap": typeof lib_jsonSchemaMinimap;
   "lib/llmId": typeof lib_llmId;
@@ -199,8 +225,15 @@ declare const fullApi: ApiFromModules<{
   "lib/plateDocumentStorage": typeof lib_plateDocumentStorage;
   "lib/r2": typeof lib_r2;
   "lib/searchScoring": typeof lib_searchScoring;
+  "lib/text": typeof lib_text;
+  "lib/textSanitize": typeof lib_textSanitize;
   "lib/xml": typeof lib_xml;
   links: typeof links;
+  "mcp/access": typeof mcp_access;
+  "mcp/auth": typeof mcp_auth;
+  "mcp/execute": typeof mcp_execute;
+  "mcp/registry": typeof mcp_registry;
+  "mcp/server": typeof mcp_server;
   memories: typeof memories;
   messageMetadata: typeof messageMetadata;
   "models/canvasEdgeModels": typeof models_canvasEdgeModels;
@@ -218,6 +251,7 @@ declare const fullApi: ApiFromModules<{
   nodeDatas: typeof nodeDatas;
   nodeTemplates: typeof nodeTemplates;
   recipes: typeof recipes;
+  "schemas/apiTokensSchema": typeof schemas_apiTokensSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/fieldTypeSchema": typeof schemas_fieldTypeSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;
@@ -235,8 +269,8 @@ declare const fullApi: ApiFromModules<{
   "schemas/taskExecutionsSchema": typeof schemas_taskExecutionsSchema;
   "schemas/threadMetadataSchema": typeof schemas_threadMetadataSchema;
   "schemas/wishlistEmailsSchema": typeof schemas_wishlistEmailsSchema;
-  searchableChunks: typeof searchableChunks;
   "searchable/chunkBuilder": typeof searchable_chunkBuilder;
+  searchableChunks: typeof searchableChunks;
   shares: typeof shares;
   skills: typeof skills;
   slideshows: typeof slideshows;

@@ -7,10 +7,13 @@ import { generateText } from "ai";
 import { openrouter } from "@openrouter/ai-sdk-provider";
 import { uploadBuffer } from "../lib/r2";
 import { plateJsonToMarkdown } from "../ia/helpers/plateMarkdownConverter";
+import { blocksToMarkdown } from "../ia/helpers/blockNoteMarkdown";
 import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
+import { parseStoredBlockNoteDocument } from "../lib/blockNoteDocument";
 import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFriendly";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
 import { getSearchableTextForTemplateValues } from "../config/fieldConfig";
+import { stripLoneSurrogates } from "../lib/textSanitize";
 import type { Doc } from "../_generated/dataModel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -96,7 +99,12 @@ async function rebuildChunksForNodeData(
       })
     : null;
 
-  const chunks = await buildChunks(nodeData, nodeId, updatedKeys, template);
+  const rawChunks = await buildChunks(nodeData, nodeId, updatedKeys, template);
+  const chunks = rawChunks.map((chunk) => ({
+    ...chunk,
+    title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
+    text: stripLoneSurrogates(chunk.text),
+  }));
 
   // console.log("[chunkBuilder] rebuildChunks:chunks-built", {
   //   nodeDataId,
@@ -247,6 +255,17 @@ async function buildChunks(
           : parsed;
       if (body.length === 0) return [];
       const text = await plateJsonToMarkdown(body);
+      if (!text.trim()) return [];
+      return [{ ...base, chunkType: "node", order: 0, text }];
+    }
+
+    case "blocknote": {
+      const parsed = parseStoredBlockNoteDocument(nodeData.values.doc);
+      if (!parsed || parsed.length === 0) return [];
+      const firstBlockType = (parsed[0] as { type?: string } | undefined)?.type;
+      const body = firstBlockType === "heading" ? parsed.slice(1) : parsed;
+      if (body.length === 0) return [];
+      const text = await blocksToMarkdown(body);
       if (!text.trim()) return [];
       return [{ ...base, chunkType: "node", order: 0, text }];
     }

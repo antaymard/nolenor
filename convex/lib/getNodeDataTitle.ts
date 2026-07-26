@@ -1,5 +1,9 @@
 import type { Doc } from "../_generated/dataModel";
 import { parseStoredPlateDocument } from "./plateDocumentStorage";
+import {
+  extractInlineText,
+  parseStoredBlockNoteDocument,
+} from "./blockNoteDocument";
 
 // `template` : requis pour un titre exact des nodes custom (titleFieldId).
 // Les call-sites qui n'ont pas le template sous la main retombent sur une
@@ -29,6 +33,15 @@ export function getNodeDataTitle(
       }
 
       return "Document";
+    }
+
+    case "blocknote": {
+      const docValue = parseStoredBlockNoteDocument(nodeData.values.doc);
+      const firstBlock = docValue?.[0];
+
+      // Only a leading heading block names the node, like the document case.
+      if (firstBlock?.type !== "heading") return "Blocknote";
+      return extractInlineText(firstBlock.content).trim() || "Blocknote";
     }
 
     case "link": {

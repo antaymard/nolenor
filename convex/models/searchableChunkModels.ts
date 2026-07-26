@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { stripLoneSurrogates } from "../lib/textSanitize";
 
 type SearchableChunk = Doc<"searchableChunks">;
 
@@ -125,7 +126,7 @@ function parsePdfPageMetadata(metadata: unknown): {
         const level = typeof e.level === "string" ? e.level : null;
         const title = typeof e.title === "string" ? e.title.trim() : "";
         if (!level || !title) return [];
-        return [{ level, title }];
+        return [{ level, title: stripLoneSurrogates(title) }];
       })
     : [];
 
@@ -151,7 +152,7 @@ export async function listPdfPagesByNodeDataId(
     .filter((chunk) => chunk.chunkType === "page")
     .map((chunk) => ({
       order: chunk.order,
-      text: chunk.text,
+      text: stripLoneSurrogates(chunk.text),
       ...parsePdfPageMetadata(chunk.metadata),
     }))
     .sort((a, b) => a.order - b.order);
@@ -210,7 +211,7 @@ function getSectionTitle(metadata: unknown): string | undefined {
   if (typeof title !== "string") return undefined;
 
   const trimmed = title.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+  return trimmed.length > 0 ? stripLoneSurrogates(trimmed) : undefined;
 }
 
 export async function fullTextSearch(
@@ -281,8 +282,8 @@ export async function fullTextSearch(
       nodeType: chunk.nodeType,
       chunkType: chunk.chunkType,
       order: chunk.order,
-      text: chunk.text,
-      title: chunk.title,
+      text: stripLoneSurrogates(chunk.text),
+      title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
       page: getPage(chunk.metadata),
       sectionTitle: getSectionTitle(chunk.metadata),
     })),

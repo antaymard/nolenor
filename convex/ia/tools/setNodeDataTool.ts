@@ -5,6 +5,7 @@ import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
+import { markdownToBlockNoteBlocks } from "../helpers/blockNoteMarkdown";
 import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
 import z from "zod";
 import { type ToolConfig, toolError } from "./toolHelpers";
@@ -18,6 +19,7 @@ export const setNodeDataToolConfig: ToolConfig = {
     toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
+  mcp: { access: "write" },
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -33,7 +35,7 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). For custom (user-templated) nodes, `data` keys are the FIELD IDS of the node\'s template (not field names — see the <nodeDataSchemas> entry from read_nodes/list_nodes); provided field ids overwrite their value, other fields are kept. Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
+      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For document nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document content with the given markdown (it is converted to the internal format before saving); for targeted edits prefer string_replace_document_content or insert_document_content. For blocknote nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document with the given markdown — this is an intentionally lossy operation: block ids are regenerated and block-level props (colors, alignment, etc.) are reset to defaults, so you MUST re-read the node (read_nodes) before any block-id-addressed edit (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text). For precise/preserving edits prefer those block-level tools instead. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). For custom (user-templated) nodes, `data` keys are the FIELD IDS of the node\'s template (not field names — see the <nodeDataSchemas> entry from read_nodes/list_nodes); provided field ids overwrite their value, other fields are kept. Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
     inputSchema: z.object({
       explanation: z
         .string()
@@ -142,6 +144,44 @@ export default function setNodeDataTool({
               await markdownToPlateJson(markdown),
             ),
           };
+        }
+
+        // Blocknote: full replacement uses plain Markdown (intentionally
+        // lossy). The block tree is parsed, normalized (fresh ids), validated
+        // and stored by the atomic editBlockNoteDocument mutation. For
+        // precise/preserving edits the agent should use the block-level tools
+        // (insert_blocks, replace_block, etc.) which accept BlockNote XML v1.
+        if (input.nodeType === "blocknote") {
+          const doc = valuesToWrite.doc;
+          if (typeof doc !== "string") {
+            return toolError("blocknote `doc` must be a Markdown string.");
+          }
+          // Both the wrapped and the bare form are valid input for the XML
+          // tools, so both must be caught here — otherwise the XML would go
+          // through the Markdown parser and land as literal text in the doc.
+          const trimmed = doc.trim();
+          if (
+            trimmed.startsWith("<blocknote") ||
+            trimmed.startsWith("<block")
+          ) {
+            return toolError(
+              "blocknote `doc` for set_node_data must be plain Markdown, not BlockNote XML. Use insert_blocks / replace_block for XML edits, or provide Markdown here for a full (lossy) replace.",
+            );
+          }
+          const blocks = await markdownToBlockNoteBlocks(doc);
+          await ctx.runMutation(
+            internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
+            {
+              nodeDataId: nodeLookup.nodeData._id,
+              edit: { kind: "replaceDocument", blocks },
+              actor: {
+                type: "agent",
+                userId: threadCtx.authUserId,
+                threadId: ctx.threadId,
+              },
+            },
+          );
+          return `Node data updated for nodeId ${input.nodeId}. Block ids have been regenerated — re-read the node (read_nodes) before any block-id-addressed edit.`;
         }
 
         // Custom : les champs rich_text arrivent en markdown, même cycle de

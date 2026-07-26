@@ -82,14 +82,14 @@ function formatStructuredMessageContext(
           `${n.id} [${n.type}] (${Math.round(n.position.x)}, ${Math.round(n.position.y)}) ${n.title}`,
       );
     if (lines.length > 0) {
-      openNodesSection = `<open_nodes>\n  ${lines.join("\n  ")}\n</open_nodes>`;
+      openNodesSection = `<open_nodes hint="These nodes have been opened by the user, meaning they might be relevnt context">\n  ${lines.join("\n  ")}\n</open_nodes>`;
     }
   }
 
   let attachedPosTag = "";
   const attachedPosition = context.attachedPosition;
   if (attachedPosition) {
-    attachedPosTag = `<target_position_on_canvas (${Math.round(attachedPosition.x)}, ${Math.round(attachedPosition.y)}) />`;
+    attachedPosTag = `<target_position_on_canvas (${Math.round(attachedPosition.x)}, ${Math.round(attachedPosition.y)}) hint="The user attached this position on purpose. Use it cleverly to position new nodes." />`;
   }
 
   let attachedNodesSection = "";
@@ -105,7 +105,7 @@ function formatStructuredMessageContext(
         return `${n.id} [${n.type}] [${x1}, ${y1} -> ${x2}, ${y2}] ${n.title}`;
       });
     if (lines.length > 0) {
-      attachedNodesSection = `<attached_nodes>\n  ${lines.join("\n  ")}\n</attached_nodes>`;
+      attachedNodesSection = `<attached_nodes hint="The user attached these on purpose, to draw your attention on them in priority.">\n  ${lines.join("\n  ")}\n</attached_nodes>`;
     }
   }
 
@@ -126,23 +126,6 @@ function formatStructuredMessageContext(
     }
   }
 
-  let visibleNodesSection = "";
-  const visibleNodes = viewport?.visibleNodes || viewport?.visibleNodeIds;
-  if (Array.isArray(visibleNodes) && visibleNodes.length > 0) {
-    const maxVisible = 10;
-    const toShow = visibleNodes.slice(0, maxVisible);
-
-    const lines = toShow.map((node) => {
-      if (typeof node === "string") return node;
-      return `${node.id} [${node.type}] ${node.title}`;
-    });
-
-    if (visibleNodes.length > maxVisible) {
-      lines.push(`...truncated list. total is ${visibleNodes.length}`);
-    }
-    visibleNodesSection = `<visible_nodes>\n  ${lines.join("\n  ")}\n</visible_nodes>`;
-  }
-
   // Assemblage final via un template literal explicite
   const blocks = [
     "Note: Coordinates are provided as [top-left -> bottom-right], e.g., [100, 200 -> 300, 400].",
@@ -151,7 +134,6 @@ function formatStructuredMessageContext(
     attachedPosTag,
     attachedNodesSection,
     attachedPageSection,
-    visibleNodesSection,
   ].filter(Boolean); // Retire les chaînes vides
 
   const reminder = `<reminders>

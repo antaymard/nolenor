@@ -94,6 +94,15 @@ export interface ToolConfig {
   requireMultiModal?: boolean;
   compactionForSuccessResult?: CompactionConfig;
   compactionForFailureResult?: CompactionConfig;
+  /**
+   * Présent = le tool est exposé sur le endpoint MCP (/mcp).
+   * `access` est confronté à la permission du token API ("read" | "write") :
+   * un token read ne voit que les tools read. Les tools MCP sont
+   * canvas-scoped : le serveur MCP ajoute un argument `canvasId` au schéma
+   * et vérifie l'accès au canvas (read → viewer, write → editor) avant
+   * chaque exécution.
+   */
+  mcp?: { access: "read" | "write" };
 }
 
 const defaultCompactionConfig: CompactionConfig = {
@@ -138,3 +147,8 @@ export function compactErrorResult(
 export function toolError(message: string): string {
   return JSON.stringify({ success: false, message });
 }
+
+// Re-exported so the existing tool call sites keep importing it from here,
+// while the single implementation lives in `convex/lib/text.ts` (also used by
+// the BlockNote document layer).
+export { countExactMatches } from "../../lib/text";

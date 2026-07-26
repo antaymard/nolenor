@@ -37,9 +37,12 @@ export default defineConfig([
     },
   },
   {
-    // Vendored UI kits (shadcn/ui and Plate templates) export variants and
-    // helpers alongside components; don't hold them to the fast-refresh rule.
-    files: ['src/components/shadcn/**', 'src/components/plate/**'],
+    // Vendored UI kits (shadcn/ui and Plate/BlockNote templates) export
+    // variants, factories and helpers alongside components; don't hold them to
+    // the fast-refresh rule. BlockNote spec files co-locate the static `View`
+    // component and the spec factory (the spec's `toExternalHTML` reuses the
+    // View), which is the intended single-declaration-per-component pattern.
+    files: ['src/components/shadcn/**', 'src/components/plate/**', 'src/components/blocknote/**'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

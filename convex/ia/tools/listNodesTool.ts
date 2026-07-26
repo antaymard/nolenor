@@ -249,9 +249,13 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           ),
           "</nodes>",
           "<nodeDataSchemas>",
-          ...uniqueDisplayedNodeTypes.map((nodeType) =>
-            buildNodeDataSchemaXml(nodeType, resolvedTemplates),
-          ),
+          // Filtre les vides : un custom node dont le template n'est plus
+          // résoluble n'a pas de schéma à publier.
+          ...uniqueDisplayedNodeTypes
+            .map((nodeType) =>
+              buildNodeDataSchemaXml(nodeType, resolvedTemplates),
+            )
+            .filter((entry) => entry.length > 0),
           "</nodeDataSchemas>",
           "",
           truncated

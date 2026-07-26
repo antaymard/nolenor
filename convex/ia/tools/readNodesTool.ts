@@ -898,9 +898,13 @@ ${content}
               ),
               "</nodes>",
               "<nodeDataSchemas>",
-              ...uniqueNodeTypes.map((nodeType) =>
-                buildNodeDataSchemaXml(nodeType, customTemplates),
-              ),
+              // Filtre les vides : un custom node dont le template n'est plus
+              // résoluble n'a pas de schéma à publier.
+              ...uniqueNodeTypes
+                .map((nodeType) =>
+                  buildNodeDataSchemaXml(nodeType, customTemplates),
+                )
+                .filter((entry) => entry.length > 0),
               "</nodeDataSchemas>",
             ];
           })(),

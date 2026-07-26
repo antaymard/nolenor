@@ -5,39 +5,25 @@ import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import { cn } from "@/lib/utils";
 import { useFileUpload } from "@/hooks/useFilesUpload";
-import type { FieldRenderProps } from "@/components/fields/registry/fieldRegistry";
+import { parseImageValue } from "@/components/fields/shared/imageValue";
+import type { FieldEditorProps } from "@/components/fields/fieldHostTypes";
 
-// Value : { url, key? } | null — `key` uniquement pour les uploads R2
-// (cascade de suppression) ; les URLs externes posées par l'agent n'en ont
-// pas.
-
-type ImageValue = { url: string; key?: string };
-
-function parseImageValue(value: unknown): ImageValue | null {
-  if (
-    value &&
-    typeof value === "object" &&
-    typeof (value as ImageValue).url === "string" &&
-    (value as ImageValue).url.length > 0
-  ) {
-    return value as ImageValue;
-  }
-  return null;
-}
-
-export default function ImageValueField({
+// Monté uniquement quand onCommit est présent (cf. InlineShell, mode
+// "direct") : toujours éditable ici, pas de branche lecture seule à gérer
+// (elle vit dans ImageFullView).
+export default function ImageEditor({
   field,
   value,
   surface,
-  onCommit,
-}: FieldRenderProps) {
+  commit,
+}: FieldEditorProps) {
   const image = parseImageValue(value);
   const { uploadFile } = useFileUpload();
   const [isUploading, setIsUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFileSelected(file: File | undefined) {
-    if (!file || !onCommit) return;
+    if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Only image files are supported");
       return;
@@ -45,7 +31,7 @@ export default function ImageValueField({
     setIsUploading(true);
     try {
       const uploaded = await uploadFile(file);
-      onCommit({ url: uploaded.url, key: uploaded.key });
+      commit({ url: uploaded.url, key: uploaded.key });
     } catch (error) {
       console.error(error);
       toast.error("Image upload failed");
@@ -54,8 +40,7 @@ export default function ImageValueField({
     }
   }
 
-  const canEdit = Boolean(onCommit);
-  const showControls = canEdit && surface === "window";
+  const showControls = surface === "window";
 
   return (
     <div className="nodrag w-full min-w-0">
@@ -88,7 +73,7 @@ export default function ImageValueField({
                 variant="secondary"
                 className="h-6 w-6 hover:text-destructive"
                 title="Remove image"
-                onClick={() => onCommit?.(null)}
+                onClick={() => commit(null)}
               >
                 <TbTrash size={12} />
               </Button>
@@ -98,36 +83,30 @@ export default function ImageValueField({
       ) : (
         <button
           type="button"
-          disabled={!canEdit || isUploading}
+          disabled={isUploading}
           onClick={() => inputRef.current?.click()}
           className={cn(
             "w-full flex flex-col items-center justify-center gap-1 rounded-md border border-dashed border-gray-300 text-muted-foreground/70",
             surface === "node" ? "py-3" : "py-6",
-            canEdit && "hover:border-gray-400 hover:text-muted-foreground",
+            "hover:border-gray-400 hover:text-muted-foreground",
           )}
         >
           {isUploading ? <Spinner className="size-4" /> : <TbPhoto size={16} />}
           <span className="text-xs">
-            {isUploading
-              ? "Uploading…"
-              : canEdit
-                ? `Add ${field.name.toLowerCase()}`
-                : field.name}
+            {isUploading ? "Uploading…" : `Add ${field.name.toLowerCase()}`}
           </span>
         </button>
       )}
-      {canEdit && (
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            void handleFileSelected(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          void handleFileSelected(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
     </div>
   );
 }

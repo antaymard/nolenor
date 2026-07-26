@@ -6,7 +6,8 @@ import {
   type SelectOption,
 } from "@/components/table/types";
 import { getSelectChoices } from "@/../convex/config/fieldConfig";
-import type { FieldRenderProps } from "@/components/fields/registry/fieldRegistry";
+import { cn } from "@/lib/utils";
+import type { FieldComponentProps } from "@/components/fields/fieldHostTypes";
 
 function toSelectColor(color: string | undefined): SelectColor {
   return color && color in SELECT_COLOR_CLASSES
@@ -14,13 +15,15 @@ function toSelectColor(color: string | undefined): SelectColor {
     : "gray";
 }
 
-// Réutilise l'éditeur select des tables (chips colorées, popover avec
-// recherche). Les values sont des tableaux d'ids d'options.
-export default function SelectField({
+// "custom" (bypass des 4 shells) : SelectCellEditor gère déjà lui-même son
+// propre popover (partagé avec les tables) — l'imbriquer dans PopoverShell
+// doublerait les popovers plutôt que de les unifier. Reste un composant
+// autonome, à la manière de l'ancien FieldRenderProps.
+export default function SelectChipsField({
   field,
   value,
   onCommit,
-}: FieldRenderProps) {
+}: FieldComponentProps) {
   const [editing, setEditing] = useState(false);
 
   const options: SelectOption[] = useMemo(
@@ -38,7 +41,7 @@ export default function SelectField({
     : [];
 
   return (
-    <div className="nodrag w-full min-w-0 text-sm">
+    <div className={cn("w-full min-w-0 text-sm", onCommit && "nodrag")}>
       <SelectCellEditor
         options={options}
         isMulti={field.options?.isMulti === true}

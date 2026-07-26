@@ -11,6 +11,7 @@ import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useTemplate } from "@/stores/templatesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
+import { useWindowsStore } from "@/stores/windowsStore";
 
 // Node custom : rend le nodeLayout de son template. Le template est résolu
 // par id via le store (jamais embarqué dans les data React Flow), donc
@@ -23,6 +24,7 @@ function CustomNode(xyNode: Node) {
   const template = useTemplate(templateId);
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const openWindow = useWindowsStore((state) => state.openWindow);
   const isReadOnly = useCanvasStore(
     (state) => state.canvas?._permission === "viewer",
   );
@@ -40,6 +42,19 @@ function CustomNode(xyNode: Node) {
     [nodeDataId, updateNodeDataValues],
   );
 
+  // Seul CustomNode fournit onEscalate (cf. LayoutRenderer) : un champ
+  // edit:"window" ouvre la window du node au clic. Aucun variant du
+  // catalogue actuel n'utilise ce mode — prêt pour Phase 4/5.
+  const handleEscalate = useCallback(() => {
+    if (!nodeDataId || !template?.windowLayout) return;
+    openWindow({
+      xyNodeId: xyNode.id,
+      nodeDataId,
+      nodeType: "custom",
+      windowSize: template.windowSize,
+    });
+  }, [nodeDataId, template?.windowLayout, template?.windowSize, xyNode.id, openWindow]);
+
   return (
     <NodeFrame
       xyNode={xyNode}
@@ -53,6 +68,7 @@ function CustomNode(xyNode: Node) {
             values={values ?? {}}
             surface="node"
             onCommitField={isReadOnly ? undefined : handleCommitField}
+            onEscalateField={isReadOnly ? undefined : handleEscalate}
           />
         </div>
       ) : (

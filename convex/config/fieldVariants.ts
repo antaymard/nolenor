@@ -46,6 +46,13 @@ const fieldVariants = {
         edit: "inline",
         commit: "blur",
       },
+      {
+        id: "heading",
+        label: "Heading",
+        surfaces: ["node", "window"],
+        edit: "inline",
+        commit: "blur",
+      },
     ],
     defaultBySurface: { node: "plain", window: "plain" },
   },
@@ -58,6 +65,19 @@ const fieldVariants = {
         edit: "inline",
         commit: "blur",
       },
+      {
+        id: "kpi",
+        label: "KPI",
+        surfaces: ["node", "window"],
+        edit: "inline",
+        commit: "blur",
+        // Un `.default()` par clé, et RIEN sur l'objet : en Zod 4,
+        // `.default(x)` court-circuite le parsing et rend `x` tel quel, donc
+        // un `.default({})` sur l'objet renverrait `{}` sans appliquer les
+        // défauts des clés. C'est parseVariantOptions qui garantit un objet
+        // complet, en parsant `{}` plutôt que `undefined`.
+        optionsSchema: z.object({ showUnit: z.boolean().default(true) }),
+      },
     ],
     defaultBySurface: { node: "plain", window: "plain" },
   },
@@ -66,6 +86,13 @@ const fieldVariants = {
       {
         id: "absolute",
         label: "Absolute date",
+        surfaces: ["node", "window"],
+        edit: "popover",
+        commit: "immediate",
+      },
+      {
+        id: "relative",
+        label: "Relative date",
         surfaces: ["node", "window"],
         edit: "popover",
         commit: "immediate",
@@ -82,6 +109,13 @@ const fieldVariants = {
         edit: "popover",
         commit: "immediate",
       },
+      {
+        id: "text",
+        label: "Plain text",
+        surfaces: ["node", "window"],
+        edit: "popover",
+        commit: "immediate",
+      },
     ],
     defaultBySurface: { node: "chips", window: "chips" },
   },
@@ -92,6 +126,25 @@ const fieldVariants = {
         label: "Checkbox",
         surfaces: ["node", "window"],
         edit: "inline",
+        commit: "immediate",
+      },
+      {
+        id: "checkbox_label",
+        label: "Checkbox with label",
+        surfaces: ["node", "window"],
+        edit: "inline",
+        commit: "immediate",
+        // La vue affiche le label elle-même, en ligne : FieldHost ne rend
+        // alors pas le label au-dessus. `showLabel` reste stocké tel quel
+        // sur le placement et transmis à la vue — repasser à `checkbox` ne
+        // ressuscite jamais un label que l'utilisateur avait désactivé.
+        ownsLabel: true,
+      },
+      {
+        id: "badge",
+        label: "Badge (read-only)",
+        surfaces: ["node", "window"],
+        edit: "none",
         commit: "immediate",
       },
     ],
@@ -180,6 +233,32 @@ function resolveFieldVariant(
   return allowedOnSurface[0] ?? catalog.variants[0];
 }
 
+// Résout les options d'un variant en un objet COMPLET (défauts appliqués) ou
+// `undefined` si le variant n'en déclare pas. Comme resolveFieldVariant :
+// fonction totale, ne lève jamais. Des options invalides (variant changé
+// depuis, schéma resserré) retombent sur les défauts du schéma plutôt que de
+// faire planter la vue — le prochain save du template les normalisera
+// (cf. normalizeLayoutTree).
+function parseVariantOptions(
+  variant: FieldVariantDef,
+  raw: unknown,
+): Record<string, unknown> | undefined {
+  const schema = variant.optionsSchema;
+  if (!schema) return undefined;
+
+  // `raw ?? {}` et non `raw` : en Zod 4, parser `undefined` contre un objet
+  // sans `.default()` échoue, et avec un `.default({})` rendrait `{}` sans
+  // appliquer les défauts des clés. Parser `{}` est le seul chemin qui
+  // produit un objet réellement complet.
+  const parsed = schema.safeParse(raw ?? {});
+  if (parsed.success) return parsed.data as Record<string, unknown>;
+
+  const defaults = schema.safeParse({});
+  return defaults.success
+    ? (defaults.data as Record<string, unknown>)
+    : undefined;
+}
+
 // ── Assertions au chargement du module ───────────────────────────────────
 // Le catalogue est un `satisfies`, pas un validateur : ces invariants
 // structurels (au-delà de ce que le compilateur peut vérifier) sont donc
@@ -258,5 +337,5 @@ function assertCatalogEntry(
 
 assertFieldVariantsConfig();
 
-export { fieldVariants, resolveFieldVariant };
+export { fieldVariants, resolveFieldVariant, parseVariantOptions };
 export type { FieldSurface, FieldVariantDef, FieldVariantCatalogEntry, VariantId };

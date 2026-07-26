@@ -13,20 +13,30 @@ import type { VariantId } from "@/../convex/config/fieldVariants";
 import type { FieldVariantRegistration } from "@/components/fields/registry/fieldVariantRegistrations";
 
 import ShortTextPlainView from "@/components/fields/views/short_text/PlainView";
+import ShortTextHeadingView from "@/components/fields/views/short_text/HeadingView";
 import ShortTextEditor from "@/components/fields/editors/ShortTextEditor";
 import NumberPlainView from "@/components/fields/views/number/PlainView";
+import NumberKpiView from "@/components/fields/views/number/KpiView";
 import NumberEditor from "@/components/fields/editors/NumberEditor";
 import DateAbsoluteView from "@/components/fields/views/date/AbsoluteView";
 import DateAbsoluteTrigger from "@/components/fields/views/date/AbsoluteTrigger";
+import DateRelativeView from "@/components/fields/views/date/RelativeView";
+import DateRelativeTrigger from "@/components/fields/views/date/RelativeTrigger";
 import DateEditor from "@/components/fields/editors/DateEditor";
 import BooleanCheckboxView from "@/components/fields/views/boolean/CheckboxView";
+import BooleanCheckboxLabelView from "@/components/fields/views/boolean/CheckboxLabelView";
+import BooleanBadgeView from "@/components/fields/views/boolean/BadgeView";
 import BooleanEditor from "@/components/fields/editors/BooleanEditor";
+import BooleanLabelEditor from "@/components/fields/editors/BooleanLabelEditor";
 import ImageFullView from "@/components/fields/views/image/FullView";
 import ImageEditor from "@/components/fields/editors/ImageEditor";
 import RichTextExcerptView from "@/components/fields/views/rich_text/ExcerptView";
 import RichTextFullView from "@/components/fields/views/rich_text/FullView";
 import RichTextEditor from "@/components/fields/editors/RichTextEditor";
-import SelectChipsField from "@/components/fields/self-contained/SelectChipsField";
+import {
+  SelectChipsField,
+  SelectTextField,
+} from "@/components/fields/self-contained/SelectField";
 
 // Complément front de convex/config/fieldConfig.ts + fieldVariants.ts (même
 // split que nodeConfig ↔ prebuiltNodesConfig) : mappe chaque (type, variant)
@@ -48,12 +58,26 @@ const shortTextVariants = {
     Editor: ShortTextEditor,
     mode: "toggle",
   },
+  // Même éditeur que `plain` : seul l'affichage change (c'est tout l'intérêt
+  // du découpage vue/éditeur).
+  heading: {
+    shell: "inline",
+    View: ShortTextHeadingView,
+    Editor: ShortTextEditor,
+    mode: "toggle",
+  },
 } satisfies Record<VariantId<"short_text">, FieldVariantRegistration>;
 
 const numberVariants = {
   plain: {
     shell: "inline",
     View: NumberPlainView,
+    Editor: NumberEditor,
+    mode: "toggle",
+  },
+  kpi: {
+    shell: "inline",
+    View: NumberKpiView,
     Editor: NumberEditor,
     mode: "toggle",
   },
@@ -66,10 +90,17 @@ const dateVariants = {
     Editor: DateEditor,
     renderTrigger: DateAbsoluteTrigger,
   },
+  relative: {
+    shell: "popover",
+    View: DateRelativeView,
+    Editor: DateEditor,
+    renderTrigger: DateRelativeTrigger,
+  },
 } satisfies Record<VariantId<"date">, FieldVariantRegistration>;
 
 const selectVariants = {
   chips: { shell: "custom", Component: SelectChipsField },
+  text: { shell: "custom", Component: SelectTextField },
 } satisfies Record<VariantId<"select">, FieldVariantRegistration>;
 
 const booleanVariants = {
@@ -79,6 +110,13 @@ const booleanVariants = {
     Editor: BooleanEditor,
     mode: "direct",
   },
+  checkbox_label: {
+    shell: "inline",
+    View: BooleanCheckboxLabelView,
+    Editor: BooleanLabelEditor,
+    mode: "direct",
+  },
+  badge: { shell: "static", View: BooleanBadgeView },
 } satisfies Record<VariantId<"boolean">, FieldVariantRegistration>;
 
 const richTextVariants = {

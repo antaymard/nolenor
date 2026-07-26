@@ -22,6 +22,11 @@ export interface SelectCellEditorProps {
   onClick: () => void;
   onChange: (val: SelectCellValue) => void;
   onBlur: () => void;
+  // Rendu de la valeur sélectionnée. "chips" (défaut) = pastilles colorées,
+  // le rendu historique utilisé par les tables. "text" = libellés en texte
+  // simple, pour le variant `select.text` des custom nodes. La liste
+  // d'options du popover est identique dans les deux cas.
+  displayMode?: "chips" | "text";
 }
 
 function normalizeValue(value: SelectCellValue | null | undefined): string[] {
@@ -52,6 +57,7 @@ export function SelectCellEditor({
   onClick,
   onChange,
   onBlur,
+  displayMode = "chips",
 }: SelectCellEditorProps) {
   const [search, setSearch] = useState("");
   const selectedIds = useMemo(() => normalizeValue(value), [value]);
@@ -94,6 +100,10 @@ export function SelectCellEditor({
   const displayContent =
     selectedOptions.length === 0 ? (
       <span className="text-muted-foreground">&nbsp;</span>
+    ) : displayMode === "text" ? (
+      <span className="truncate min-w-0">
+        {selectedOptions.map((opt) => opt.label).join(", ")}
+      </span>
     ) : (
       <span className="flex items-center gap-1 flex-wrap min-w-0">
         {selectedOptions.map((opt) => (

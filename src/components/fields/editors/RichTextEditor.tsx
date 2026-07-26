@@ -15,7 +15,11 @@ import type { FieldEditorProps } from "@/components/fields/fieldHostTypes";
 // canal est absent (éditeur monté hors d'une vraie WindowFrame), on dégrade
 // vers un rendu statique — jamais un éditeur qui perdrait son contenu à
 // l'unmount.
-export default function RichTextEditor({ field, value }: FieldEditorProps) {
+export default function RichTextEditor({
+  field,
+  value,
+  showLabel,
+}: FieldEditorProps) {
   const customFields = useCustomFieldsContext();
   const doc =
     parseRichTextDoc(value) ?? ([{ type: "p", children: [{ text: "" }] }] as Value);
@@ -35,7 +39,14 @@ export default function RichTextEditor({ field, value }: FieldEditorProps) {
   );
 
   if (!customFields) {
-    return <RichTextFullView field={field} value={value} surface="window" />;
+    return (
+      <RichTextFullView
+        field={field}
+        value={value}
+        surface="window"
+        showLabel={showLabel}
+      />
+    );
   }
 
   return (

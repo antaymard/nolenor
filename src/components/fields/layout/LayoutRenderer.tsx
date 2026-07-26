@@ -93,12 +93,10 @@ function FieldSlot({
     : undefined;
 
   return (
+    // Le label n'est PAS rendu ici : c'est FieldHost qui le porte, car lui
+    // seul connaît le variant résolu et donc si celui-ci affiche le label
+    // lui-même (ownsLabel).
     <div style={placementStyle(placement)}>
-      {placement.showLabel && (
-        <div className="text-[11px] font-medium text-muted-foreground mb-0.5 truncate">
-          {field.name}
-        </div>
-      )}
       <FieldHost
         field={field}
         value={values[field.id]}

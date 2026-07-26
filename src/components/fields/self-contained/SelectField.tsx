@@ -15,15 +15,17 @@ function toSelectColor(color: string | undefined): SelectColor {
     : "gray";
 }
 
-// "custom" (bypass des 4 shells) : SelectCellEditor gère déjà lui-même son
-// propre popover (partagé avec les tables) — l'imbriquer dans PopoverShell
-// doublerait les popovers plutôt que de les unifier. Reste un composant
-// autonome, à la manière de l'ancien FieldRenderProps.
-export default function SelectChipsField({
+// shell:"custom" (bypass des 4 shells génériques) : SelectCellEditor gère
+// déjà lui-même son propre popover et est partagé avec les tables —
+// l'imbriquer dans PopoverShell empilerait deux popovers plutôt que de les
+// unifier. Les deux variants ne diffèrent que par le rendu de la valeur
+// (pastilles vs texte) ; la liste d'options du popover est identique.
+function SelectFieldBase({
   field,
   value,
   onCommit,
-}: FieldComponentProps) {
+  displayMode,
+}: FieldComponentProps & { displayMode: "chips" | "text" }) {
   const [editing, setEditing] = useState(false);
 
   const options: SelectOption[] = useMemo(
@@ -48,10 +50,19 @@ export default function SelectChipsField({
         value={ids}
         isEditing={editing}
         readOnly={!onCommit}
+        displayMode={displayMode}
         onClick={() => onCommit && setEditing(true)}
         onChange={(next) => onCommit?.(next)}
         onBlur={() => setEditing(false)}
       />
     </div>
   );
+}
+
+export function SelectChipsField(props: FieldComponentProps) {
+  return <SelectFieldBase {...props} displayMode="chips" />;
+}
+
+export function SelectTextField(props: FieldComponentProps) {
+  return <SelectFieldBase {...props} displayMode="text" />;
 }

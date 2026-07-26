@@ -14,6 +14,13 @@ type FieldViewProps = {
   value: unknown;
   surface: FieldSurface;
   options?: Record<string, unknown>;
+  // Transmis à TOUTES les vues, pas seulement celles qui l'honorent : les
+  // variants `ownsLabel` (ex. boolean.checkbox_label) affichent le label
+  // eux-mêmes en ligne, et FieldHost s'abstient alors de le rendre au-dessus.
+  // Le switch du builder reste donc toujours vrai — changer de variant
+  // déplace le label, ne le fait jamais réapparaître contre le choix de
+  // l'utilisateur.
+  showLabel: boolean;
 };
 
 type FieldEditorProps = FieldViewProps & {

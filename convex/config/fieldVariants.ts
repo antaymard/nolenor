@@ -174,6 +174,16 @@ const fieldVariants = {
         edit: "inline",
         commit: "deferred",
       },
+      // Node uniquement, et edit:"window" : un clic ouvre la window plutôt
+      // que de monter un éditeur sur le canvas. Un `link` autorisé en window
+      // serait soit une auto-escalade illégale, soit un libellé inerte.
+      {
+        id: "link",
+        label: "Link to window",
+        surfaces: ["node"],
+        edit: "window",
+        commit: "immediate",
+      },
     ],
     defaultBySurface: { node: "excerpt", window: "full" },
   },
@@ -186,8 +196,25 @@ const fieldVariants = {
         edit: "inline",
         commit: "immediate",
       },
+      {
+        id: "thumbnail",
+        label: "Thumbnail",
+        surfaces: ["node", "window"],
+        edit: "inline",
+        commit: "immediate",
+        optionsSchema: z.object({
+          size: z.enum(["sm", "md", "lg"]).default("md"),
+        }),
+      },
+      {
+        id: "link",
+        label: "Link (read-only)",
+        surfaces: ["node", "window"],
+        edit: "none",
+        commit: "immediate",
+      },
     ],
-    defaultBySurface: { node: "full", window: "full" },
+    defaultBySurface: { node: "thumbnail", window: "full" },
   },
 } satisfies Record<FieldType, FieldVariantCatalogEntry>;
 

@@ -151,6 +151,39 @@ export async function deleteNodeDataWithCascade(
   }
 }
 
+// Clés R2 d'images que CE write rend inatteignables : le champ portait une
+// image uploadée (donc avec une `key`) et sa nouvelle value ne référence plus
+// cette clé (remplacement par un autre upload, par une URL externe, ou
+// effacement). Une clé encore référencée par la nouvelle value n'est jamais
+// rendue — remplacer une image par elle-même ne doit pas la supprimer.
+// Exporté pour être testable directement : cette fonction décide de
+// SUPPRESSIONS de fichiers, une régression y serait silencieuse et
+// irréversible.
+export function collectOrphanedImageKeys(
+  fields: Doc<"nodeTemplates">["fields"],
+  previousValues: Record<string, unknown>,
+  changedValues: Record<string, unknown>,
+): string[] {
+  const readKey = (value: unknown): string | undefined => {
+    if (!value || typeof value !== "object") return undefined;
+    const key = (value as { key?: unknown }).key;
+    return typeof key === "string" && key.length > 0 ? key : undefined;
+  };
+
+  const keys: string[] = [];
+  for (const field of fields) {
+    if (field.type !== "image") continue;
+    if (!(field.id in changedValues)) continue;
+
+    const previousKey = readKey(previousValues[field.id]);
+    if (!previousKey) continue;
+    if (readKey(changedValues[field.id]) === previousKey) continue;
+
+    keys.push(previousKey);
+  }
+  return keys;
+}
+
 export async function updateValues(
   ctx: MutationCtx,
   {
@@ -264,6 +297,22 @@ export async function updateValues(
             `Invalid rich text for field "${field.name}": ${message}`,
           );
         }
+      }
+
+      // Champs image remplacés ou effacés : purge best-effort de l'ancienne
+      // clé R2. Sans ça, remplacer une image orpheline l'ancienne pour
+      // toujours (la cascade de suppression du node ne voit que la value
+      // courante). Fait ici, côté serveur, pour couvrir TOUS les chemins
+      // d'écriture (utilisateur et agent) d'un seul endroit.
+      const orphanedR2Keys = collectOrphanedImageKeys(
+        template.fields,
+        existing.values ?? {},
+        changedValues,
+      );
+      if (orphanedR2Keys.length > 0) {
+        await ctx.scheduler.runAfter(0, internal.uploads.deleteR2Files, {
+          keys: orphanedR2Keys,
+        });
       }
     }
   }

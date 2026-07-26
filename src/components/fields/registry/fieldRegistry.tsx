@@ -29,9 +29,13 @@ import BooleanBadgeView from "@/components/fields/views/boolean/BadgeView";
 import BooleanEditor from "@/components/fields/editors/BooleanEditor";
 import BooleanLabelEditor from "@/components/fields/editors/BooleanLabelEditor";
 import ImageFullView from "@/components/fields/views/image/FullView";
+import ImageThumbnailView from "@/components/fields/views/image/ThumbnailView";
+import ImageLinkView from "@/components/fields/views/image/LinkView";
 import ImageEditor from "@/components/fields/editors/ImageEditor";
+import ImageThumbnailEditor from "@/components/fields/editors/ImageThumbnailEditor";
 import RichTextExcerptView from "@/components/fields/views/rich_text/ExcerptView";
 import RichTextFullView from "@/components/fields/views/rich_text/FullView";
+import RichTextLinkView from "@/components/fields/views/rich_text/LinkView";
 import RichTextEditor from "@/components/fields/editors/RichTextEditor";
 import {
   SelectChipsField,
@@ -129,6 +133,8 @@ const richTextVariants = {
     Editor: RichTextEditor,
     mode: "direct",
   },
+  // Node : un clic ouvre la window (édition par escalade).
+  link: { shell: "window", View: RichTextLinkView },
 } satisfies Record<VariantId<"rich_text">, FieldVariantRegistration>;
 
 const imageVariants = {
@@ -138,6 +144,13 @@ const imageVariants = {
     Editor: ImageEditor,
     mode: "direct",
   },
+  thumbnail: {
+    shell: "inline",
+    View: ImageThumbnailView,
+    Editor: ImageThumbnailEditor,
+    mode: "direct",
+  },
+  link: { shell: "static", View: ImageLinkView },
 } satisfies Record<VariantId<"image">, FieldVariantRegistration>;
 
 const fieldRegistry: Record<FieldType, FieldTypeRegistryEntry> = {

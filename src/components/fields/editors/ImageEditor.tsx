@@ -1,16 +1,14 @@
-import { useRef, useState } from "react";
 import { TbPhoto, TbTrash, TbUpload } from "react-icons/tb";
-import toast from "react-hot-toast";
 import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import { cn } from "@/lib/utils";
-import { useFileUpload } from "@/hooks/useFilesUpload";
 import { parseImageValue } from "@/components/fields/shared/imageValue";
+import { useImageFieldUpload } from "@/components/fields/shared/useImageFieldUpload";
 import type { FieldEditorProps } from "@/components/fields/fieldHostTypes";
 
-// Monté uniquement quand onCommit est présent (cf. InlineShell, mode
-// "direct") : toujours éditable ici, pas de branche lecture seule à gérer
-// (elle vit dans ImageFullView).
+// Monté uniquement quand onCommit est présent (InlineShell, mode "direct") :
+// toujours éditable ici, pas de branche lecture seule à gérer — elle vit dans
+// ImageFullView.
 export default function ImageEditor({
   field,
   value,
@@ -18,27 +16,8 @@ export default function ImageEditor({
   commit,
 }: FieldEditorProps) {
   const image = parseImageValue(value);
-  const { uploadFile } = useFileUpload();
-  const [isUploading, setIsUploading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  async function handleFileSelected(file: File | undefined) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Only image files are supported");
-      return;
-    }
-    setIsUploading(true);
-    try {
-      const uploaded = await uploadFile(file);
-      commit({ url: uploaded.url, key: uploaded.key });
-    } catch (error) {
-      console.error(error);
-      toast.error("Image upload failed");
-    } finally {
-      setIsUploading(false);
-    }
-  }
+  const { inputRef, isUploading, openPicker, onInputChange } =
+    useImageFieldUpload(commit);
 
   const showControls = surface === "window";
 
@@ -63,7 +42,7 @@ export default function ImageEditor({
                 variant="secondary"
                 className="h-6 w-6"
                 title="Replace image"
-                onClick={() => inputRef.current?.click()}
+                onClick={openPicker}
               >
                 <TbUpload size={12} />
               </Button>
@@ -84,7 +63,7 @@ export default function ImageEditor({
         <button
           type="button"
           disabled={isUploading}
-          onClick={() => inputRef.current?.click()}
+          onClick={openPicker}
           className={cn(
             "w-full flex flex-col items-center justify-center gap-1 rounded-md border border-dashed border-gray-300 text-muted-foreground/70",
             surface === "node" ? "py-3" : "py-6",
@@ -102,10 +81,7 @@ export default function ImageEditor({
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => {
-          void handleFileSelected(e.target.files?.[0]);
-          e.target.value = "";
-        }}
+        onChange={onInputChange}
       />
     </div>
   );

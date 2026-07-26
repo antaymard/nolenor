@@ -5,7 +5,10 @@ import { internal } from "../_generated/api";
 import * as SearchableChunkModels from "./searchableChunkModels";
 import * as NodeDataVersionModels from "./nodeDataVersionModels";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
-import { collectR2KeysForTemplateValues } from "../config/fieldConfig";
+import {
+  buildTemplateValuesSchema,
+  collectR2KeysForTemplateValues,
+} from "../config/fieldConfig";
 import {
   parseStoredBlockNoteDocument,
   stringifyBlockNoteDocumentForStorage,
@@ -154,10 +157,17 @@ export async function updateValues(
     _id,
     values,
     actor,
+    // Réservé au restore de version (nodeDataVersions.ts) : un ancien
+    // snapshot ne doit jamais devenir irrestaurable parce que le template a
+    // évolué depuis (option supprimée, contrainte resserrée). Jamais exposé
+    // dans un validateur d'arguments public — seul du code serveur peut le
+    // positionner.
+    skipValidation = false,
   }: {
     _id: Id<"nodeDatas">;
     values: Record<string, unknown>;
     actor: NodeDataVersionActor;
+    skipValidation?: boolean;
   },
 ): Promise<boolean> {
   console.log(`🔄 Updating values for nodeData ${_id}`);
@@ -205,6 +215,26 @@ export async function updateValues(
           ? error.message
           : "Invalid blocknote document.";
       throw new ConvexError(message);
+    }
+  }
+
+  // Custom : valide le DELTA (changedValues), jamais les `values` entrantes
+  // complètes — une value ancienne, non touchée par CE write, ne doit jamais
+  // faire échouer l'écriture d'un AUTRE champ du même node (ex. option de
+  // select supprimée dans le builder, min/max resserré après coup : le node
+  // ne doit jamais devenir injoignable). Silencieux si le template n'est
+  // plus résoluble (course, template supprimé) : on ne bloque pas une
+  // écriture qu'on ne peut de toute façon pas valider.
+  if (existing.type === "custom" && !skipValidation && existing.templateId) {
+    const template = await ctx.db.get(existing.templateId);
+    if (template) {
+      const parsed = buildTemplateValuesSchema(template).safeParse(changedValues);
+      if (!parsed.success) {
+        const issues = parsed.error.issues
+          .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+          .join("; ");
+        throw new ConvexError(`Invalid value(s) for custom node: ${issues}`);
+      }
     }
   }
 

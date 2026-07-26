@@ -35,8 +35,12 @@ type FieldRenderProps = {
   value: unknown;
   surface: "node" | "window";
   placement: LayoutFieldPlacement;
-  // undefined = lecture seule (preview du builder, permission viewer).
-  // onCommit(undefined) efface la valeur (la clé est retirée des values).
+  // Prop absente = lecture seule (preview du builder, permission viewer).
+  // Pour effacer une valeur, appeler onCommit(null) — tous les types sont
+  // nullable (cf. fieldConfig). NE JAMAIS appeler onCommit(undefined) : les
+  // clés ne sont jamais retirées du record côté serveur (merge), et
+  // `undefined` est filtré avant d'atteindre le diff — ce serait un no-op
+  // silencieux, pas une erreur, donc un bug difficile à repérer.
   onCommit?: (value: unknown) => void;
 };
 

@@ -85,10 +85,14 @@ export const restore = mutation({
       force: true,
     });
 
+    // skipValidation : un snapshot valide au moment où il a été pris ne doit
+    // jamais devenir irrestaurable parce que le template (custom node) a
+    // évolué depuis (option supprimée, contrainte resserrée).
     return NodeDataModels.updateValues(ctx, {
       _id: nodeData._id,
       values: version.values,
       actor,
+      skipValidation: true,
     });
   },
 });

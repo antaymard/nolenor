@@ -82,21 +82,27 @@ function extractPlateText(value: unknown): string | null {
 
 // ── Catalogue ───────────────────────────────────────────────────────────
 
-const fieldTypeConfig: Array<FieldTypeConfigItem> = [
-  {
+// Record (pas Array) : un type manquant est une erreur de COMPILATION, pas un
+// throw runtime au premier accès. C'est le vrai garde-fou d'exhaustivité —
+// avant ce changement, `getFieldTypeConfig` pouvait échouer en prod pour un
+// type pourtant listé dans `fieldTypeValues`.
+const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
+  short_text: {
     type: "short_text",
     label: "Text",
     optionsSchema: z
       .strictObject({ placeholder: z.string().max(200).optional() })
       .optional(),
-    buildValueSchema: () => z.string().max(2000),
+    // Nullable comme tous les autres types : cf. commentaire sur `number`
+    // pour la sémantique de `null` = valeur effacée.
+    buildValueSchema: () => z.string().max(2000).nullable(),
     getDefault: (field) =>
       typeof field.default === "string" ? field.default : "",
     getSearchableText: (value) =>
       typeof value === "string" && value.trim().length > 0 ? value : null,
     toLLMDisplay: (value) => (typeof value === "string" ? value : ""),
   },
-  {
+  number: {
     type: "number",
     label: "Number",
     optionsSchema: z
@@ -129,7 +135,7 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
       return unit ? `${value} ${unit}` : String(value);
     },
   },
-  {
+  date: {
     type: "date",
     label: "Date",
     // Pas d'options V1 (pas de time picker côté builder/DateField — inutile
@@ -144,7 +150,7 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
       typeof value === "string" && value.length > 0 ? value : null,
     toLLMDisplay: (value) => (typeof value === "string" ? value : ""),
   },
-  {
+  select: {
     type: "select",
     label: "Select",
     optionsSchema: z.strictObject({
@@ -160,9 +166,24 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
         .max(50),
       isMulti: z.boolean().optional(),
     }),
-    // Value = tableau d'ids d'options (mono-select : longueur ≤ 1), même
-    // convention que les colonnes select des tables.
+    // Stockage TOLÉRANT : ids de simples strings, pas de vérification
+    // d'appartenance aux choix courants. Une option supprimée dans le
+    // builder ne doit jamais faire échouer l'écriture d'un AUTRE champ du
+    // même node (validation delta-only côté serveur) — mais si ce champ lui
+    // seul est réécrit, la value entrante hérite souvent d'ids déjà stockés
+    // (ex. multi-select : on ajoute un choix, on garde les anciens), donc la
+    // tolérance doit être ici, pas seulement dans le delta. La stricte
+    // appartenance reste imposée pour l'agent (buildToolValueSchema) et pour
+    // la déclaration d'un défaut (cf. templateFieldSchema plus bas), car ce
+    // sont des décisions fraîches, jamais des données héritées.
     buildValueSchema: (field) => {
+      let schema = z.array(z.string().min(1));
+      if (field.options?.isMulti !== true) {
+        schema = schema.max(1);
+      }
+      return schema.nullable();
+    },
+    buildToolValueSchema: (field) => {
       const choiceIds = getSelectChoices(field).map((c) => c.id);
       const item =
         choiceIds.length > 0
@@ -172,7 +193,7 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
       if (field.options?.isMulti !== true) {
         schema = schema.max(1);
       }
-      return schema;
+      return schema.nullable();
     },
     getDefault: (field) => (Array.isArray(field.default) ? field.default : []),
     getSearchableText: (value, field) => {
@@ -181,27 +202,28 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
     },
     toLLMDisplay: (value, field) => selectIdsToLabels(value, field).join(", "),
   },
-  {
+  boolean: {
     type: "boolean",
     label: "Checkbox",
     optionsSchema: z.strictObject({}).optional(),
-    buildValueSchema: () => z.boolean(),
+    buildValueSchema: () => z.boolean().nullable(),
     getDefault: (field) =>
       typeof field.default === "boolean" ? field.default : false,
     toLLMDisplay: (value) => (value === true ? "true" : "false"),
   },
-  {
+  rich_text: {
     type: "rich_text",
     label: "Rich text",
     optionsSchema: z.strictObject({}).optional(),
     // Stocké comme les nodes document : Plate JSON stringifié
     // (stringifyPlateDocumentForStorage au call-site window).
-    buildValueSchema: () => z.string(),
+    buildValueSchema: () => z.string().nullable(),
     // Le LLM écrit du markdown ; setNodeDataTool convertit en Plate avant
     // l'écriture (même cycle que les nodes document).
     buildToolValueSchema: () =>
       z
         .string()
+        .nullable()
         .describe(
           "Markdown content (converted to rich text on save; replaces the whole field)",
         ),
@@ -209,7 +231,7 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
     getSearchableText: (value) => extractPlateText(value),
     toLLMDisplay: (value) => extractPlateText(value) ?? "",
   },
-  {
+  image: {
     type: "image",
     label: "Image",
     optionsSchema: z.strictObject({}).optional(),
@@ -244,7 +266,7 @@ const fieldTypeConfig: Array<FieldTypeConfigItem> = [
       return typeof url === "string" ? url : "";
     },
   },
-];
+};
 
 function selectIdsToLabels(value: unknown, field: TemplateField): string[] {
   if (!Array.isArray(value)) return [];
@@ -255,11 +277,7 @@ function selectIdsToLabels(value: unknown, field: TemplateField): string[] {
 }
 
 function getFieldTypeConfig(type: FieldType): FieldTypeConfigItem {
-  const config = fieldTypeConfig.find((item) => item.type === type);
-  if (!config) {
-    throw new Error(`Unknown field type: ${type}`);
-  }
-  return config;
+  return fieldTypeConfig[type];
 }
 
 // ── Définition d'un champ (validation à la création/édition du template) ─
@@ -290,9 +308,14 @@ const templateFieldSchema = z
     }
 
     if (field.default !== undefined) {
-      const defaultResult = config
-        .buildValueSchema(field as TemplateField)
-        .safeParse(field.default);
+      // Une décision fraîche (comme un write agent), pas une donnée héritée
+      // → tenue au schéma strict (buildToolValueSchema) quand il existe,
+      // ex. select : le défaut doit référencer un choix qui existe VRAIMENT
+      // maintenant, contrairement à une value d'instance déjà stockée.
+      const buildSchema = config.buildToolValueSchema ?? config.buildValueSchema;
+      const defaultResult = buildSchema(field as TemplateField).safeParse(
+        field.default,
+      );
       if (!defaultResult.success) {
         ctx.addIssue({
           code: "custom",

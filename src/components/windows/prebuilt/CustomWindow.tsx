@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { TbTemplateOff } from "react-icons/tb";
-import type { Value } from "platejs";
 import type { Id } from "@/../convex/_generated/dataModel";
-import type { LayoutContainer } from "@/../convex/config/templateConfig";
-import { stringifyPlateDocumentForStorage } from "@/../convex/lib/plateDocumentStorage";
+import {
+  collectLayoutPlacements,
+  type LayoutContainer,
+} from "@/../convex/config/templateConfig";
+import { resolveFieldVariant } from "@/../convex/config/fieldVariants";
 import LayoutRenderer from "@/components/fields/layout/LayoutRenderer";
 import { CustomFieldsContext } from "@/components/fields/registry/customFieldsContext";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
@@ -14,10 +16,11 @@ import { useTemplate } from "@/stores/templatesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 
 // Window d'un custom node : rend le windowLayout du template.
-// - Champs simples : commit au blur/change (optimiste + rollback).
-// - Champs rich_text : éditeur Plate derrière le flux dirty/save du
-//   WindowFrame (Mod+S / bouton Save), agrégé sur tous les champs
-//   rich_text de la window — même UX que DocumentWindow.
+// - Variants à commit immédiat/blur : écriture directe (optimiste + rollback).
+// - Variants à commit "deferred" (rich_text sur BlockNote) : derrière le flux
+//   dirty/save du WindowFrame (Mod+S / bouton Save), agrégé sur tous les
+//   champs différés de la window via CustomFieldsContext — même UX que
+//   BlocknoteWindow.
 
 export default function CustomWindow({
   nodeDataId,
@@ -44,16 +47,19 @@ export default function CustomWindow({
     [nodeDataId, updateNodeDataValues],
   );
 
-  // ── Agrégation rich_text (docs en attente + dirty par champ) ──────────
-  const pendingDocsRef = useRef<Map<string, Value>>(new Map());
+  // ── Agrégation des champs à commit différé ────────────────────────────
+  // Les valeurs arrivent DÉJÀ sérialisées sous leur forme stockée (l'éditeur
+  // du champ s'en charge) : cette window n'a donc pas à connaître le type des
+  // champs qu'elle sauvegarde.
+  const pendingValuesRef = useRef<Map<string, unknown>>(new Map());
   const dirtyFieldsRef = useRef<Set<string>>(new Set());
 
   const customFieldsValue = useMemo(
     () => ({
-      reportRichTextDoc: (fieldId: string, doc: Value) => {
-        pendingDocsRef.current.set(fieldId, doc);
+      reportPendingValue: (fieldId: string, storedValue: unknown) => {
+        pendingValuesRef.current.set(fieldId, storedValue);
       },
-      reportRichTextDirty: (fieldId: string, dirty: boolean) => {
+      reportDirty: (fieldId: string, dirty: boolean) => {
         if (dirty) {
           dirtyFieldsRef.current.add(fieldId);
         } else {
@@ -65,12 +71,28 @@ export default function CustomWindow({
     [setDirty],
   );
 
-  const hasRichTextFields = Boolean(
-    template?.fields.some((field) => field.type === "rich_text"),
-  );
+  // Le handler de save n'est posé que si un placement de CETTE window résout
+  // réellement vers un variant à commit différé — dérivé du catalogue (et non
+  // d'un `field.type === "rich_text"` codé en dur), pour qu'un futur type
+  // différé soit pris en charge sans retoucher ce fichier. On raisonne sur les
+  // placements, pas sur template.fields : un champ non placé en window ne
+  // s'affiche pas, donc ne peut pas devenir dirty.
+  const hasDeferredFields = useMemo(() => {
+    const windowLayout = template?.windowLayout as LayoutContainer | undefined;
+    if (!windowLayout) return false;
+    const fieldsById = new Map(template!.fields.map((f) => [f.id, f]));
+    return collectLayoutPlacements(windowLayout).some((placement) => {
+      const field = fieldsById.get(placement.fieldId);
+      if (!field) return false;
+      return (
+        resolveFieldVariant(field.type, "window", placement.variant).commit ===
+        "deferred"
+      );
+    });
+  }, [template]);
 
   useEffect(() => {
-    if (!hasRichTextFields || isReadOnly) {
+    if (!hasDeferredFields || isReadOnly) {
       setSaveHandler(null);
       return;
     }
@@ -80,11 +102,8 @@ export default function CustomWindow({
         useNodeDataStore.getState().getNodeData(nodeDataId)?.values ?? {};
       const next: Record<string, unknown> = { ...current };
       for (const fieldId of dirtyFieldsRef.current) {
-        const doc = pendingDocsRef.current.get(fieldId);
-        if (doc) {
-          // Stringify au call-site : useUpdateNodeDataValues ne
-          // special-case que les nodes de type "document".
-          next[fieldId] = stringifyPlateDocumentForStorage(doc);
+        if (pendingValuesRef.current.has(fieldId)) {
+          next[fieldId] = pendingValuesRef.current.get(fieldId);
         }
       }
       void updateNodeDataValues({ nodeDataId, values: next });
@@ -94,7 +113,7 @@ export default function CustomWindow({
     setSaveHandler(handleSave);
     return () => setSaveHandler(null);
   }, [
-    hasRichTextFields,
+    hasDeferredFields,
     isReadOnly,
     nodeDataId,
     setDirty,

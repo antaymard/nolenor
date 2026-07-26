@@ -161,6 +161,11 @@ const fieldVariants = {
         surfaces: ["node"],
         edit: "none",
         commit: "immediate",
+        // Nombre de lignes visibles de l'extrait. Un `.default()` par clé,
+        // rien sur l'objet (cf. number.kpi pour le pourquoi).
+        optionsSchema: z.object({
+          lines: z.number().int().min(1).max(20).default(3),
+        }),
       },
       {
         id: "full",

@@ -1,13 +1,15 @@
-import { normalizeNodeId, type Value } from "platejs";
-import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
+import {
+  parseStoredBlockNoteDocument,
+  type BlockNoteBlock,
+} from "@/../convex/lib/blockNoteDocument";
 
-// La value stockée est du Plate JSON stringifié (même convention que les
-// nodes document). Migre vers BlockNote en Phase 5 — coupure nette, pas de
-// migration de données (cf. plan).
-function parseRichTextDoc(value: unknown): Value | null {
-  const parsed = parseStoredPlateDocument(value);
+// La value stockée est un tableau de blocs BlockNote stringifié — même
+// convention que les nodes blocknote prébuilts, donc les mêmes helpers de
+// parsing et le même renderer statique (BlockNoteStatic).
+function parseRichTextDoc(value: unknown): BlockNoteBlock[] | null {
+  const parsed = parseStoredBlockNoteDocument(value);
   if (!parsed || parsed.length === 0) return null;
-  return normalizeNodeId(parsed as Value);
+  return parsed;
 }
 
 export { parseRichTextDoc };

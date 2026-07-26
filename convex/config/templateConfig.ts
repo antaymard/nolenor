@@ -115,6 +115,25 @@ function getLayoutDepth(tree: LayoutContainer): number {
   return walk(tree);
 }
 
+// Placements de champs d'un arbre, dans l'ordre du parcours. Utile dès qu'on a
+// besoin du placement complet (et pas seulement du fieldId) : résoudre le
+// variant effectif, détecter les champs à commit différé, avertir sur un champ
+// inatteignable.
+function collectLayoutPlacements(
+  tree: LayoutContainer,
+): LayoutFieldPlacement[] {
+  const placements: LayoutFieldPlacement[] = [];
+  const walk = (node: LayoutNode) => {
+    if (node.kind === "field") {
+      placements.push(node);
+      return;
+    }
+    node.children.forEach(walk);
+  };
+  walk(tree);
+  return placements;
+}
+
 function collectLayoutNodeIds(tree: LayoutContainer): string[] {
   const ids: string[] = [];
   const walk = (node: LayoutNode) => {
@@ -308,6 +327,7 @@ export {
   layoutContainerSchema,
   layoutNodeSchema,
   collectLayoutFieldIds,
+  collectLayoutPlacements,
   validateTemplateDefinition,
   buildTemplateLLMSummary,
   MAX_LAYOUT_DEPTH,

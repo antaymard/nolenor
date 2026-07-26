@@ -235,6 +235,36 @@ export async function updateValues(
           .join("; ");
         throw new ConvexError(`Invalid value(s) for custom node: ${issues}`);
       }
+
+      // Champs rich_text : même contrat que le node blocknote prébuilt
+      // ci-dessus — canonicaliser et valider la structure côté serveur, et
+      // REJETER un document invalide plutôt que de le transformer
+      // silencieusement, sinon un write frontend pourrait persister un
+      // document que les tools blocs de l'agent refuseraient ensuite.
+      for (const field of template.fields) {
+        if (field.type !== "rich_text") continue;
+        const raw = changedValues[field.id];
+        // null = champ effacé (contrat nullable), rien à canonicaliser.
+        if (raw === undefined || raw === null) continue;
+
+        const doc = parseStoredBlockNoteDocument(raw);
+        if (!doc) {
+          throw new ConvexError(
+            `Invalid rich text for field "${field.name}": could not parse stored value.`,
+          );
+        }
+        try {
+          changedValues[field.id] = stringifyBlockNoteDocumentForStorage(doc);
+        } catch (error) {
+          const message =
+            error instanceof InvalidBlockNoteDocumentError
+              ? error.message
+              : "Invalid rich text document.";
+          throw new ConvexError(
+            `Invalid rich text for field "${field.name}": ${message}`,
+          );
+        }
+      }
     }
   }
 

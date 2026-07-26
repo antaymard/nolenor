@@ -5,7 +5,11 @@ import {
   type FieldType,
 } from "../schemas/fieldTypeSchema";
 import { templateFieldValidator } from "../schemas/nodeTemplatesSchema";
-import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
+import {
+  extractInlineText,
+  parseStoredBlockNoteDocument,
+  type BlockNoteBlock,
+} from "../lib/blockNoteDocument";
 
 // Source de vérité des types de champs des custom node templates.
 // Partagé Convex + front (même pattern que nodeConfig.ts) : la validation
@@ -56,25 +60,26 @@ function getNumberUnit(field: TemplateField): string | undefined {
   return typeof unit === "string" && unit.length > 0 ? unit : undefined;
 }
 
-// Extraction SYNCHRONE du texte brut d'un doc Plate stringifié (recherche,
-// affichage compact). La conversion markdown fidèle (async) vit côté agent
-// dans customTemplateHelpers.
-function extractPlateText(value: unknown): string | null {
-  const parsed = parseStoredPlateDocument(value);
+// Extraction SYNCHRONE du texte brut d'un doc BlockNote stringifié (recherche,
+// affichage compact). La conversion markdown fidèle (async, jsdom) vit côté
+// agent dans customFieldLLMCodecs — jamais ici : ce module est importé par le
+// front ET analysé par Convex au déploiement.
+// `extractInlineText` est le même helper que celui utilisé par les nodes
+// blocknote prébuilts (titres, état vide, recherche) : une seule définition de
+// « texte visible d'un document » pour toute l'app.
+function extractRichTextText(value: unknown): string | null {
+  const parsed = parseStoredBlockNoteDocument(value);
   if (!parsed || parsed.length === 0) return null;
 
   const texts: string[] = [];
-  const walk = (node: unknown) => {
-    if (!node || typeof node !== "object") return;
-    const record = node as { text?: unknown; children?: unknown[] };
-    if (typeof record.text === "string" && record.text.trim().length > 0) {
-      texts.push(record.text);
-    }
-    if (Array.isArray(record.children)) {
-      record.children.forEach(walk);
+  const walk = (blocks: BlockNoteBlock[]) => {
+    for (const block of blocks) {
+      const text = extractInlineText(block.content);
+      if (text.trim().length > 0) texts.push(text);
+      if (Array.isArray(block.children)) walk(block.children);
     }
   };
-  parsed.forEach(walk);
+  walk(parsed);
 
   const text = texts.join(" ").trim();
   return text.length > 0 ? text : null;
@@ -215,11 +220,14 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
     type: "rich_text",
     label: "Rich text",
     optionsSchema: z.strictObject({}).optional(),
-    // Stocké comme les nodes document : Plate JSON stringifié
-    // (stringifyPlateDocumentForStorage au call-site window).
+    // Stocké comme les nodes blocknote prébuilts : tableau de blocs BlockNote
+    // stringifié. La canonicalisation + validation structurelle se fait côté
+    // serveur dans NodeDataModel.updateValues (même branche que le node
+    // blocknote) : un write frontend ne peut pas persister un document que
+    // les tools blocs de l'agent refuseraient ensuite.
     buildValueSchema: () => z.string().nullable(),
-    // Le LLM écrit du markdown ; setNodeDataTool convertit en Plate avant
-    // l'écriture (même cycle que les nodes document).
+    // Le LLM écrit du markdown ; setNodeDataTool convertit en blocs BlockNote
+    // avant l'écriture (cf. customFieldLLMCodecs).
     buildToolValueSchema: () =>
       z
         .string()
@@ -228,8 +236,8 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
           "Markdown content (converted to rich text on save; replaces the whole field)",
         ),
     getDefault: () => undefined,
-    getSearchableText: (value) => extractPlateText(value),
-    toLLMDisplay: (value) => extractPlateText(value) ?? "",
+    getSearchableText: (value) => extractRichTextText(value),
+    toLLMDisplay: (value) => extractRichTextText(value) ?? "",
   },
   image: {
     type: "image",

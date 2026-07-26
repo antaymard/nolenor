@@ -1,8 +1,7 @@
 import type { Doc } from "../../_generated/dataModel";
 import { getFieldTypeConfig } from "../../config/fieldConfig";
 import { buildTemplateLLMSummary } from "../../config/templateConfig";
-import { parseStoredPlateDocument } from "../../lib/plateDocumentStorage";
-import { plateJsonToMarkdown } from "./plateMarkdownConverter";
+import { getCustomFieldLLMCodec } from "./customFieldLLMCodecs";
 
 // Helpers LLM pour les custom nodes (nodes templatés par l'utilisateur).
 // Les values sont keyées par fieldId : tout affichage passe par le template
@@ -31,7 +30,8 @@ export function formatTemplatesForPrompt(templates: NodeTemplate[]): string {
 
 // Contenu d'un custom node en lignes `fieldName (fieldId): value` — le
 // fieldId est nécessaire au LLM pour écrire via set_node_data. Async : les
-// champs rich_text sont convertis Plate → markdown fidèlement.
+// types dotés d'un codec LLM (rich_text : blocs BlockNote → markdown) sont
+// convertis fidèlement, les autres passent par toLLMDisplay (synchrone).
 export async function makeCustomNodeDataLLMFriendly(
   nodeData: Doc<"nodeDatas">,
   template: NodeTemplate | null | undefined,
@@ -44,18 +44,14 @@ export async function makeCustomNodeDataLLMFriendly(
       const config = getFieldTypeConfig(field.type);
       const raw = nodeData.values[field.id];
 
-      let display: string;
-      if (field.type === "rich_text") {
-        const parsed = parseStoredPlateDocument(raw);
-        display =
-          parsed && parsed.length > 0 ? await plateJsonToMarkdown(parsed) : "";
-      } else {
-        display = config.toLLMDisplay
+      const codec = getCustomFieldLLMCodec(field.type);
+      const display = codec
+        ? await codec.toLLM(raw, field)
+        : config.toLLMDisplay
           ? config.toLLMDisplay(raw, field)
           : raw === undefined || raw === null
             ? ""
             : String(raw);
-      }
       return `${field.name} (${field.id}): ${display || "(empty)"}`;
     }),
   );

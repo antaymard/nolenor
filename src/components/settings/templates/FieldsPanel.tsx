@@ -1,10 +1,16 @@
-import { TbLock, TbPlus, TbStar, TbStarFilled, TbTrash } from "react-icons/tb";
+import {
+  TbAlertTriangle,
+  TbLock,
+  TbPlus,
+  TbStar,
+  TbStarFilled,
+  TbTrash,
+} from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
 import { Switch } from "@/components/shadcn/switch";
 import { Textarea } from "@/components/shadcn/textarea";
-import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,13 +19,16 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { fieldRegistry } from "@/components/fields/registry/fieldRegistry";
-import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
 import {
-  getSelectChoices,
+  fieldTypeValues,
+  type FieldType,
+} from "@/../convex/schemas/fieldTypeSchema";
+import {
+  getFieldTypeConfig,
   type TemplateField,
 } from "@/../convex/config/fieldConfig";
 import { collectLayoutFieldIds } from "@/../convex/config/templateConfig";
-import SelectOptionsEditor from "./SelectOptionsEditor";
+import { getFieldReachability } from "./fieldReachability";
 import type { TemplateDraft } from "./templateDraft";
 
 type FieldsPanelProps = {
@@ -34,7 +43,10 @@ type FieldsPanelProps = {
   instanceCount?: number;
 };
 
-const FIELD_TYPES = Object.keys(fieldRegistry) as FieldType[];
+// Ordre du menu d'ajout = ordre canonique du schéma (fieldTypeValues), pas
+// l'ordre de déclaration du registry : celui-ci est un détail
+// d'implémentation, réordonner ses entrées ne doit pas réordonner l'UI.
+const FIELD_TYPES = fieldTypeValues;
 
 export default function FieldsPanel({
   draft,
@@ -78,12 +90,11 @@ export default function FieldsPanel({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {FIELD_TYPES.map((type) => {
-              const entry = fieldRegistry[type];
-              const Icon = entry.icon;
+              const Icon = fieldRegistry[type].icon;
               return (
                 <DropdownMenuItem key={type} onClick={() => onAddField(type)}>
                   <Icon size={14} className="mr-2" />
-                  {entry.label}
+                  {getFieldTypeConfig(type).label}
                 </DropdownMenuItem>
               );
             })}
@@ -98,6 +109,11 @@ export default function FieldsPanel({
         {draft.fields.map((field) => {
           const Icon = fieldRegistry[field.type].icon;
           const isTitle = draft.titleFieldId === field.id;
+          const reachability = getFieldReachability(
+            field,
+            draft.nodeLayout,
+            draft.windowLayout,
+          );
           return (
             <button
               key={field.id}
@@ -120,6 +136,13 @@ export default function FieldsPanel({
                   size={12}
                   className="shrink-0 text-amber-500"
                   title="Node title field"
+                />
+              )}
+              {!reachability.reachable && (
+                <TbAlertTriangle
+                  size={12}
+                  className="shrink-0 text-amber-600"
+                  title={reachability.reason}
                 />
               )}
               <span className="flex gap-1 shrink-0">
@@ -165,10 +188,25 @@ export default function FieldsPanel({
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <TbLock size={12} />
             <span>
-              Type: {fieldRegistry[selectedField.type].label} — locked after
-              creation. Duplicate as a new field to change it.
+              Type: {getFieldTypeConfig(selectedField.type).label} — locked
+              after creation. Duplicate as a new field to change it.
             </span>
           </div>
+
+          {(() => {
+            const reachability = getFieldReachability(
+              selectedField,
+              draft.nodeLayout,
+              draft.windowLayout,
+            );
+            if (reachability.reachable) return null;
+            return (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                <TbAlertTriangle size={13} className="mt-px shrink-0" />
+                <span>{reachability.reason}</span>
+              </div>
+            );
+          })()}
 
           <div className="space-y-1">
             <Label className="text-xs">AI description (optional)</Label>
@@ -184,134 +222,34 @@ export default function FieldsPanel({
             />
           </div>
 
+          {/* Réglage du TEMPLATE (titleFieldId), pas du champ : reste ici, et
+              n'a de sens que pour short_text (cf. templateConfig). */}
           {selectedField.type === "short_text" && (
-            <>
-              <div className="flex items-center justify-between">
-                <Label className="text-xs flex items-center gap-1">
-                  <TbStar size={12} /> Use as node title
-                </Label>
-                <Switch
-                  checked={draft.titleFieldId === selectedField.id}
-                  onCheckedChange={(checked) =>
-                    onSetTitleField(checked ? selectedField.id : undefined)
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Default value</Label>
-                <Input
-                  value={
-                    typeof selectedField.default === "string"
-                      ? selectedField.default
-                      : ""
-                  }
-                  onChange={(e) =>
-                    onUpdateField(selectedField.id, {
-                      default: e.target.value || undefined,
-                    })
-                  }
-                  className="h-8"
-                />
-              </div>
-            </>
-          )}
-
-          {selectedField.type === "number" && (
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Unit</Label>
-                <Input
-                  value={
-                    typeof selectedField.options?.unit === "string"
-                      ? selectedField.options.unit
-                      : ""
-                  }
-                  onChange={(e) =>
-                    onUpdateField(selectedField.id, {
-                      options: {
-                        ...selectedField.options,
-                        unit: e.target.value || undefined,
-                      },
-                    })
-                  }
-                  placeholder="kg, €…"
-                  className="h-8"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Min</Label>
-                <Input
-                  type="number"
-                  value={
-                    typeof selectedField.options?.min === "number"
-                      ? selectedField.options.min
-                      : ""
-                  }
-                  onChange={(e) =>
-                    onUpdateField(selectedField.id, {
-                      options: {
-                        ...selectedField.options,
-                        min:
-                          e.target.value === ""
-                            ? undefined
-                            : Number(e.target.value),
-                      },
-                    })
-                  }
-                  className="h-8"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Max</Label>
-                <Input
-                  type="number"
-                  value={
-                    typeof selectedField.options?.max === "number"
-                      ? selectedField.options.max
-                      : ""
-                  }
-                  onChange={(e) =>
-                    onUpdateField(selectedField.id, {
-                      options: {
-                        ...selectedField.options,
-                        max:
-                          e.target.value === ""
-                            ? undefined
-                            : Number(e.target.value),
-                      },
-                    })
-                  }
-                  className="h-8"
-                />
-              </div>
-            </div>
-          )}
-
-          {selectedField.type === "boolean" && (
             <div className="flex items-center justify-between">
-              <Label className="text-xs">Checked by default</Label>
-              <Checkbox
-                checked={selectedField.default === true}
+              <Label className="text-xs flex items-center gap-1">
+                <TbStar size={12} /> Use as node title
+              </Label>
+              <Switch
+                checked={draft.titleFieldId === selectedField.id}
                 onCheckedChange={(checked) =>
-                  onUpdateField(selectedField.id, {
-                    default: checked === true ? true : undefined,
-                  })
+                  onSetTitleField(checked ? selectedField.id : undefined)
                 }
               />
             </div>
           )}
 
-          {selectedField.type === "select" && (
-            <SelectOptionsEditor
-              choices={getSelectChoices(selectedField)}
-              isMulti={selectedField.options?.isMulti === true}
-              onChange={(choices, isMulti) =>
-                onUpdateField(selectedField.id, {
-                  options: { choices, isMulti: isMulti || undefined },
-                })
-              }
-            />
-          )}
+          {/* Options du champ : fournies par le registry. Ajouter un type ne
+              demande plus de toucher ce fichier. */}
+          {(() => {
+            const OptionsEditor = fieldRegistry[selectedField.type].OptionsEditor;
+            if (!OptionsEditor) return null;
+            return (
+              <OptionsEditor
+                field={selectedField}
+                onChange={(patch) => onUpdateField(selectedField.id, patch)}
+              />
+            );
+          })()}
 
           <div className="flex items-center gap-2 pt-1">
             {!placedOnNode.has(selectedField.id) && (

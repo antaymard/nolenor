@@ -8,9 +8,15 @@ import {
   TbPhoto,
   TbSelect,
 } from "react-icons/tb";
+import type { ComponentType } from "react";
 import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
 import type { VariantId } from "@/../convex/config/fieldVariants";
 import type { FieldVariantRegistration } from "@/components/fields/registry/fieldVariantRegistrations";
+import type { FieldOptionsEditorProps } from "@/components/fields/fieldHostTypes";
+import ShortTextOptionsEditor from "@/components/fields/options/ShortTextOptionsEditor";
+import NumberOptionsEditor from "@/components/fields/options/NumberOptionsEditor";
+import BooleanOptionsEditor from "@/components/fields/options/BooleanOptionsEditor";
+import SelectFieldOptionsEditor from "@/components/fields/options/SelectFieldOptionsEditor";
 
 import ShortTextPlainView from "@/components/fields/views/short_text/PlainView";
 import ShortTextHeadingView from "@/components/fields/views/short_text/HeadingView";
@@ -48,11 +54,18 @@ import {
 // avec `satisfies Record<VariantId<T>, ...>` : un variant ajouté/renommé
 // côté fieldVariants.ts sans entrée correspondante ici est une erreur de
 // COMPILATION, jamais un trou découvert au rendu.
+//
+// Pas de `label` ici : le libellé d'un type appartient à fieldConfig
+// (getFieldTypeConfig(type).label), partagé Convex + front. Il était
+// auparavant redéclaré à l'identique ici, donc libre de dériver en silence.
 
 type FieldTypeRegistryEntry = {
   icon: IconType;
-  label: string;
   variants: Record<string, FieldVariantRegistration>;
+  // Formulaire des options DU CHAMP dans le builder (absent = ce type n'a
+  // rien à configurer). Vit dans le registry et non dans une chaîne de `if`
+  // côté FieldsPanel, pour qu'ajouter un type ne demande pas d'y toucher.
+  OptionsEditor?: ComponentType<FieldOptionsEditorProps>;
 };
 
 const shortTextVariants = {
@@ -154,13 +167,29 @@ const imageVariants = {
 } satisfies Record<VariantId<"image">, FieldVariantRegistration>;
 
 const fieldRegistry: Record<FieldType, FieldTypeRegistryEntry> = {
-  short_text: { icon: TbAbc, label: "Text", variants: shortTextVariants },
-  number: { icon: TbNumber123, label: "Number", variants: numberVariants },
-  date: { icon: TbCalendar, label: "Date", variants: dateVariants },
-  select: { icon: TbSelect, label: "Select", variants: selectVariants },
-  boolean: { icon: TbCheckbox, label: "Checkbox", variants: booleanVariants },
-  rich_text: { icon: TbNews, label: "Rich text", variants: richTextVariants },
-  image: { icon: TbPhoto, label: "Image", variants: imageVariants },
+  short_text: {
+    icon: TbAbc,
+    variants: shortTextVariants,
+    OptionsEditor: ShortTextOptionsEditor,
+  },
+  number: {
+    icon: TbNumber123,
+    variants: numberVariants,
+    OptionsEditor: NumberOptionsEditor,
+  },
+  date: { icon: TbCalendar, variants: dateVariants },
+  select: {
+    icon: TbSelect,
+    variants: selectVariants,
+    OptionsEditor: SelectFieldOptionsEditor,
+  },
+  boolean: {
+    icon: TbCheckbox,
+    variants: booleanVariants,
+    OptionsEditor: BooleanOptionsEditor,
+  },
+  rich_text: { icon: TbNews, variants: richTextVariants },
+  image: { icon: TbPhoto, variants: imageVariants },
 };
 
 export { fieldRegistry };

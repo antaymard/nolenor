@@ -38,6 +38,15 @@ type FieldComponentProps = FieldViewProps & {
   onEscalate?: () => void;
 };
 
+// Formulaire des OPTIONS DU CHAMP (dans le builder), à ne pas confondre avec
+// celui des `variantOptions` d'un placement : celles-ci sont dérivées de
+// l'optionsSchema du variant (cf. VariantOptionsForm), alors que les options
+// du champ font partie de sa définition et valent pour tous ses placements.
+type FieldOptionsEditorProps = {
+  field: TemplateField;
+  onChange: (patch: Partial<TemplateField>) => void;
+};
+
 type FieldViewComponent = ComponentType<FieldViewProps>;
 type FieldEditorComponent = ComponentType<FieldEditorProps>;
 type FieldComponent = ComponentType<FieldComponentProps>;
@@ -55,6 +64,7 @@ export type {
   FieldViewProps,
   FieldEditorProps,
   FieldComponentProps,
+  FieldOptionsEditorProps,
   FieldViewComponent,
   FieldEditorComponent,
   FieldComponent,

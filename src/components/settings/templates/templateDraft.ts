@@ -1,5 +1,8 @@
 import type { Doc } from "@/../convex/_generated/dataModel";
-import type { TemplateField } from "@/../convex/config/fieldConfig";
+import {
+  getFieldTypeConfig,
+  type TemplateField,
+} from "@/../convex/config/fieldConfig";
 import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
 import type {
   LayoutContainer,
@@ -31,20 +34,19 @@ function genId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
 }
 
-const DEFAULT_FIELD_NAMES: Record<FieldType, string> = {
-  short_text: "Text",
-  number: "Number",
-  date: "Date",
-  select: "Select",
-  boolean: "Checkbox",
-  rich_text: "Rich text",
-  image: "Image",
-};
+// Nom par défaut d'un NOUVEAU champ. Concept distinct du libellé du type
+// (« un champ de type Texte » vs « ce champ s'appelle Texte »), mais qui
+// coïncide avec lui aujourd'hui — donc dérivé plutôt que recopié une
+// troisième fois. Si les deux divergent un jour (ex. nom par défaut
+// numéroté), c'est ici, et ici seulement, que ça se décide.
+function defaultFieldName(type: FieldType): string {
+  return getFieldTypeConfig(type).label;
+}
 
 function newField(type: FieldType): TemplateField {
   const field: TemplateField = {
     id: genId("f"),
-    name: DEFAULT_FIELD_NAMES[type],
+    name: defaultFieldName(type),
     type,
   };
   if (type === "select") {

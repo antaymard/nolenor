@@ -43,8 +43,9 @@ function CustomNode(xyNode: Node) {
   );
 
   // Seul CustomNode fournit onEscalate (cf. LayoutRenderer) : un champ
-  // edit:"window" ouvre la window du node au clic. Aucun variant du
-  // catalogue actuel n'utilise ce mode — prêt pour Phase 4/5.
+  // edit:"window" (aujourd'hui rich_text.link) ouvre la window du node au
+  // clic. Sans windowLayout, le handler ne fait rien et le shell rend une vue
+  // statique — jamais une window vide.
   const handleEscalate = useCallback(() => {
     if (!nodeDataId || !template?.windowLayout) return;
     openWindow({

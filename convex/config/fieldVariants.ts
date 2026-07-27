@@ -6,11 +6,16 @@ import { fieldTypeValues, type FieldType } from "../schemas/fieldTypeSchema";
 // de valeur (fieldConfig.ts) et de tout composant React. Un variant est
 // purement présentationnel — il ne change jamais la valeur stockée.
 //
-// Phase 2 : un seul variant par surface et par type (deux pour rich_text,
-// structurellement asymétrique aujourd'hui — node = aperçu statique, window
-// = éditeur). Objectif de cette phase : que `resolveFieldVariant` et la
-// normalisation des templates existent et ne crashent jamais, pas encore
-// offrir un choix à l'utilisateur (Phase 4/5 enrichit le catalogue).
+// Ce module est la source unique du catalogue : ajouter un variant ici et son
+// entrée dans le registry front (fieldRegistry.tsx, vérifié à la compilation
+// par `satisfies Record<VariantId<T>, …>`) suffit à le rendre choisissable
+// dans le builder. Rien d'autre à toucher — ni validation serveur, ni rendu.
+//
+// Deux garanties portées ici plutôt que par les appelants :
+// `resolveFieldVariant` et `parseVariantOptions` sont TOTALES (un placement
+// dont le variant a disparu du catalogue rend le défaut de sa surface, il ne
+// plante pas), et les invariants structurels sont vérifiés au chargement du
+// module, pas au rendu.
 
 type FieldSurface = "node" | "window";
 
@@ -24,9 +29,10 @@ type FieldVariantDef = {
   // Politique de commit PAR VARIANT (pas par type) : un même type peut être
   // blur-inline sur une surface et deferred-derrière-une-window sur l'autre.
   commit: "immediate" | "blur" | "deferred";
-  // Le variant affiche lui-même son label (ex. futur "checkbox_label") : le
-  // switch showLabel du placement reste stocké tel quel et n'est jamais
-  // supprimé côté builder, seule la vue décide où le label apparaît.
+  // Le variant affiche lui-même son label (ex. boolean.checkbox_label, qui le
+  // met à côté de la case) : le switch showLabel du placement reste stocké tel
+  // quel et n'est jamais supprimé côté builder, seule la vue décide OÙ le
+  // label apparaît.
   ownsLabel?: boolean;
   optionsSchema?: z.ZodTypeAny;
 };
@@ -219,9 +225,10 @@ const fieldVariants = {
 } satisfies Record<FieldType, FieldVariantCatalogEntry>;
 
 // Dérivé de `satisfies` (pas d'annotation de type qui élargirait `id` en
-// `string`) : chaque type garde ses ids de variant en union littérale,
-// vérifiable par le compilateur une fois qu'un `views: Record<VariantId<T>,
-// View>` existera (Phase 3).
+// `string`) : chaque type garde ses ids de variant en union littérale. C'est
+// ce qui rend `satisfies Record<VariantId<T>, FieldVariantRegistration>` dans
+// fieldRegistry.tsx capable de détecter à la COMPILATION un variant déclaré
+// ici sans composant, ou l'inverse.
 type VariantId<T extends FieldType> =
   (typeof fieldVariants)[T]["variants"][number]["id"];
 
@@ -235,11 +242,12 @@ function resolveFieldVariant(
   surface: FieldSurface,
   requested?: string,
 ): FieldVariantDef {
-  // `fieldVariants[type]` indexé par le type large FieldType (pas un
-  // littéral précis) : TS élargit `surfaces` en `never[]` dans ce contexte
-  // précis (chaque entrée du catalogue a un tuple littéral différent). Le
-  // cast est nécessaire ici ; `assertCatalogEntry` s'en passe car son
-  // paramètre est explicitement typé en `FieldVariantCatalogEntry`.
+  // `fieldVariants[type]` indexé par le type large FieldType donne l'UNION
+  // des entrées du catalogue. Chacune ayant son propre tuple littéral de
+  // surfaces, l'élément commun se réduit à `never` et `.includes(surface)`
+  // devient inappelable — d'où le cast. `assertCatalogEntry` s'en passe
+  // seulement parce que son paramètre est explicitement typé en
+  // `FieldVariantCatalogEntry`, ce qui rétablit `FieldSurface[]`.
   const catalog = fieldVariants[type];
   const allowedOnSurface = catalog.variants.filter((variant) =>
     (variant.surfaces as FieldSurface[]).includes(surface),
@@ -302,11 +310,10 @@ function assertFieldVariantsConfig(): void {
   const surfaces: FieldSurface[] = ["node", "window"];
 
   for (const type of fieldTypeValues) {
-    // Widening explicite vers le type déclaré (pas celui, plus étroit,
-    // inféré par `satisfies` sur les littéraux du catalogue actuel) : sans
-    // ça, TS voit qu'aucun variant présent aujourd'hui n'a edit:"window" et
-    // marque le contrôle ci-dessous comme mort code — alors qu'il doit rester
-    // vivant pour les variants que Phase 4/5 ajouteront.
+    // Le paramètre de assertCatalogEntry est explicitement typé en
+    // FieldVariantCatalogEntry : ce widening est ce qui rend
+    // `variant.surfaces.includes(surface)` possible à l'intérieur (même cause
+    // que le cast dans resolveFieldVariant, cf. son commentaire).
     assertCatalogEntry(type, fieldVariants[type], surfaces);
   }
 }

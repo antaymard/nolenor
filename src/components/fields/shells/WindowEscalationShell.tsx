@@ -9,11 +9,12 @@ type WindowEscalationShellProps = FieldViewProps & {
   onEscalate?: () => void;
 };
 
-// edit:"window" : aucun variant du catalogue actuel ne l'utilise encore
-// (Phase 4/5 en ajoutera, ex. un futur rich_text "excerpt" cliquable). Un
-// clic ouvre la window plutôt que de monter un éditeur sur le canvas —
-// jamais d'édition inline pour ce mode, par construction (cf. plan :
-// "jamais d'éditeur riche monté dans un node canvas").
+// edit:"window" : un clic ouvre la window plutôt que de monter un éditeur sur
+// le canvas — jamais d'édition inline pour ce mode, par construction ("jamais
+// d'éditeur riche monté dans un node canvas"). Seul utilisateur aujourd'hui :
+// rich_text.link, node-only par déclaration (un variant edit:"window"
+// autorisé sur la surface window serait une auto-escalade, refusée par les
+// assertions du catalogue).
 export default function WindowEscalationShell({
   View,
   onCommit,

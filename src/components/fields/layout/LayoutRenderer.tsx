@@ -18,10 +18,10 @@ type LayoutRendererProps = {
   values: Record<string, unknown>;
   surface: "node" | "window";
   onCommitField?: (fieldId: string, value: unknown) => void;
-  // Ouvre la window du node depuis un champ edit:"window" (cf. fieldVariants
-  // — aucun variant du catalogue actuel ne l'utilise encore). Seul CustomNode
-  // la fournit ; CustomWindow et la preview du builder la laissent absente
-  // (escalader depuis la window serait une auto-escalade illégale).
+  // Ouvre la window du node depuis un champ edit:"window" (aujourd'hui
+  // rich_text.link). Seul CustomNode la fournit ; CustomWindow et la preview
+  // du builder la laissent absente — escalader depuis la window serait une
+  // auto-escalade illégale.
   onEscalateField?: (fieldId: string) => void;
 };
 

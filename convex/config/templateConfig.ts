@@ -3,6 +3,10 @@ import {
   templateFieldSchema,
   type TemplateField,
 } from "./fieldConfig";
+import {
+  resolveFieldVariant,
+  type FieldSurface,
+} from "./fieldVariants";
 
 // Modèle de layout des custom node templates : un arbre de containers flex
 // (row/column, gap, alignement) dont les feuilles sont des placements de
@@ -27,8 +31,14 @@ type LayoutFieldPlacement = {
   showLabel?: boolean;
   grow?: number;
   width?: number | "auto" | "fill";
-  // Variante d'affichage par type (ex futur rich_text : "preview" | "full").
+  // Variante d'affichage (cf. fieldVariants.ts) — normalisée à chaque save de
+  // template : un id inconnu ou non autorisé sur cette surface est réécrit
+  // silencieusement vers le défaut, jamais rejeté (cf. normalizeLayoutTree).
   variant?: string;
+  // Options du variant résolu, validées par son `optionsSchema`. Réduites à
+  // `{}` si le variant n'a pas d'optionsSchema ou si elles ne le valident
+  // plus (variant changé, schéma resserré).
+  variantOptions?: Record<string, unknown>;
 };
 
 type LayoutContainer = {
@@ -57,6 +67,10 @@ const layoutFieldPlacementSchema = z.strictObject({
     .union([z.number().positive(), z.literal("auto"), z.literal("fill")])
     .optional(),
   variant: z.string().max(30).optional(),
+  // Forme libre ici : chaque variant a son propre optionsSchema, appliqué
+  // par normalizeLayoutTree (pas à ce stade, qui ne connaît pas encore le
+  // type du champ référencé par fieldId).
+  variantOptions: z.record(z.string(), z.unknown()).optional(),
 });
 
 const layoutContainerSchema: z.ZodType<LayoutContainer> = z.strictObject({
@@ -101,6 +115,25 @@ function getLayoutDepth(tree: LayoutContainer): number {
   return walk(tree);
 }
 
+// Placements de champs d'un arbre, dans l'ordre du parcours. Utile dès qu'on a
+// besoin du placement complet (et pas seulement du fieldId) : résoudre le
+// variant effectif, détecter les champs à commit différé, avertir sur un champ
+// inatteignable.
+function collectLayoutPlacements(
+  tree: LayoutContainer,
+): LayoutFieldPlacement[] {
+  const placements: LayoutFieldPlacement[] = [];
+  const walk = (node: LayoutNode) => {
+    if (node.kind === "field") {
+      placements.push(node);
+      return;
+    }
+    node.children.forEach(walk);
+  };
+  walk(tree);
+  return placements;
+}
+
 function collectLayoutNodeIds(tree: LayoutContainer): string[] {
   const ids: string[] = [];
   const walk = (node: LayoutNode) => {
@@ -136,12 +169,22 @@ function formatZodIssues(prefix: string, error: z.ZodError): string[] {
   });
 }
 
-function validateLayoutTree(
+// Valide la structure (profondeur, unicité des ids, champs référencés
+// existants et placés au plus une fois) ET normalise `variant`/`variantOptions`
+// de chaque placement. Normaliser plutôt que rejeter : `updateTemplate` fait
+// une revalidation complète à CHAQUE save, donc rejeter un id de variant
+// devenu invalide (variant retiré du catalogue, optionsSchema resserré)
+// rendrait le template entier non-sauvegardable pour toujours — y compris
+// pour un edit sans rapport (renommer un champ). Le seul rejet dur reste
+// structurel (déjà couvert par Zod plus haut).
+function normalizeLayoutTree(
   label: "nodeLayout" | "windowLayout",
   tree: LayoutContainer,
-  fieldIds: Set<string>,
+  fieldsById: Map<string, TemplateField>,
   errors: string[],
-) {
+): LayoutContainer {
+  const surface: FieldSurface = label === "nodeLayout" ? "node" : "window";
+
   if (getLayoutDepth(tree) > MAX_LAYOUT_DEPTH) {
     errors.push(`${label}: max container depth is ${MAX_LAYOUT_DEPTH}`);
   }
@@ -154,7 +197,7 @@ function validateLayoutTree(
   const placedFieldIds = collectLayoutFieldIds(tree);
   const seen = new Set<string>();
   for (const fieldId of placedFieldIds) {
-    if (!fieldIds.has(fieldId)) {
+    if (!fieldsById.has(fieldId)) {
       errors.push(`${label}: references unknown field "${fieldId}"`);
     }
     if (seen.has(fieldId)) {
@@ -164,6 +207,36 @@ function validateLayoutTree(
     }
     seen.add(fieldId);
   }
+
+  const normalizeNode = (node: LayoutNode): LayoutNode => {
+    if (node.kind === "container") {
+      return { ...node, children: node.children.map(normalizeNode) };
+    }
+
+    const field = fieldsById.get(node.fieldId);
+    // Champ inconnu : déjà signalé ci-dessus (errors non vide ⇒ ce tree
+    // normalisé ne sera de toute façon jamais persisté). Laissé tel quel.
+    if (!field) return node;
+
+    const resolved = resolveFieldVariant(field.type, surface, node.variant);
+
+    let variantOptions = node.variantOptions;
+    if (variantOptions !== undefined) {
+      const optionsSchema = resolved.optionsSchema;
+      if (!optionsSchema) {
+        variantOptions = {};
+      } else {
+        const parsed = optionsSchema.safeParse(variantOptions);
+        variantOptions = parsed.success
+          ? (parsed.data as Record<string, unknown>)
+          : {};
+      }
+    }
+
+    return { ...node, variant: resolved.id, variantOptions };
+  };
+
+  return normalizeNode(tree) as LayoutContainer;
 }
 
 // Valide fields + layouts + titleFieldId d'un coup. À appeler dans TOUTES
@@ -187,6 +260,7 @@ function validateTemplateDefinition(
   if (fieldIds.size !== fields.length) {
     errors.push("fields: ids must be unique (ids are never reused)");
   }
+  const fieldsById = new Map(fields.map((f) => [f.id, f]));
 
   const nodeLayoutResult = layoutContainerSchema.safeParse(input.nodeLayout);
   if (!nodeLayoutResult.success) {
@@ -218,17 +292,26 @@ function validateTemplateDefinition(
     return { ok: false, errors };
   }
 
-  const nodeLayout = nodeLayoutResult.data;
-  validateLayoutTree("nodeLayout", nodeLayout, fieldIds, errors);
-  if (windowLayout) {
-    validateLayoutTree("windowLayout", windowLayout, fieldIds, errors);
-  }
+  const normalizedNodeLayout = normalizeLayoutTree(
+    "nodeLayout",
+    nodeLayoutResult.data,
+    fieldsById,
+    errors,
+  );
+  const normalizedWindowLayout = windowLayout
+    ? normalizeLayoutTree("windowLayout", windowLayout, fieldsById, errors)
+    : undefined;
 
   if (errors.length > 0) {
     return { ok: false, errors };
   }
 
-  return { ok: true, fields, nodeLayout, windowLayout };
+  return {
+    ok: true,
+    fields,
+    nodeLayout: normalizedNodeLayout,
+    windowLayout: normalizedWindowLayout,
+  };
 }
 
 // Résumé auto pour le catalogue agent quand llmDescription est vide.
@@ -244,6 +327,7 @@ export {
   layoutContainerSchema,
   layoutNodeSchema,
   collectLayoutFieldIds,
+  collectLayoutPlacements,
   validateTemplateDefinition,
   buildTemplateLLMSummary,
   MAX_LAYOUT_DEPTH,

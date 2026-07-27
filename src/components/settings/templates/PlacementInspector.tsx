@@ -20,6 +20,12 @@ import type {
   LayoutFieldPlacement,
 } from "@/../convex/config/templateConfig";
 import {
+  fieldVariants,
+  resolveFieldVariant,
+  type FieldSurface,
+} from "@/../convex/config/fieldVariants";
+import VariantOptionsForm from "./VariantOptionsForm";
+import {
   findLayoutNode,
   removeLayoutNode,
   updateLayoutNode,
@@ -32,6 +38,10 @@ type PlacementInspectorProps = {
   tree: LayoutContainer;
   selectedId: string | null;
   fields: TemplateField[];
+  // Surface de l'arbre édité : les variants sont filtrés par leurs
+  // `surfaces`, un même champ peut donc offrir des choix différents en node
+  // et en window.
+  surface: FieldSurface;
   onChangeTree: (tree: LayoutContainer) => void;
   onClearSelection: () => void;
 };
@@ -40,6 +50,7 @@ export default function PlacementInspector({
   tree,
   selectedId,
   fields,
+  surface,
   onChangeTree,
   onClearSelection,
 }: PlacementInspectorProps) {
@@ -182,6 +193,19 @@ export default function PlacementInspector({
   const widthMode =
     typeof node.width === "number" ? "fixed" : (node.width ?? "auto");
 
+  // Variants proposables ici = ceux autorisés sur CETTE surface. Le variant
+  // effectif passe par resolveFieldVariant : si le placement en stocke un
+  // qui n'existe plus (ou n'est pas autorisé ici), le sélecteur montre celui
+  // réellement utilisé au rendu, pas une valeur fantôme.
+  const variantChoices = field
+    ? fieldVariants[field.type].variants.filter((v) =>
+        (v.surfaces as FieldSurface[]).includes(surface),
+      )
+    : [];
+  const resolvedVariant = field
+    ? resolveFieldVariant(field.type, surface, node.variant)
+    : null;
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -200,6 +224,41 @@ export default function PlacementInspector({
         </Button>
       </div>
 
+      {resolvedVariant && variantChoices.length > 1 && (
+        <div className="space-y-1">
+          <Label className="text-xs">Display as</Label>
+          <Select
+            value={resolvedVariant.id}
+            onValueChange={(v) => {
+              if (v === resolvedVariant.id) return;
+              // variantOptions vidées DANS LE MÊME patch : chaque variant a
+              // son propre optionsSchema, laisser survivre les options du
+              // précédent produirait un rejet cryptique au save suivant.
+              patch({ variant: v, variantOptions: undefined });
+            }}
+          >
+            <SelectTrigger className="h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {variantChoices.map((v) => (
+                <SelectItem key={v.id} value={v.id}>
+                  {v.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {resolvedVariant?.optionsSchema && (
+        <VariantOptionsForm
+          variant={resolvedVariant}
+          value={node.variantOptions}
+          onChange={(variantOptions) => patch({ variantOptions })}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <Label className="text-xs">Show label</Label>
         <Switch
@@ -209,6 +268,11 @@ export default function PlacementInspector({
           }
         />
       </div>
+      {resolvedVariant?.ownsLabel && node.showLabel === true && (
+        <p className="text-[11px] text-gray-400 -mt-2">
+          This variant shows the label inline, next to the field.
+        </p>
+      )}
 
       <div className="space-y-1">
         <Label className="text-xs">Width</Label>

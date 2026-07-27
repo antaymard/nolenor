@@ -31,8 +31,14 @@ function buildSampleValues(fields: TemplateField[]): Record<string, unknown> {
         values[field.id] = true;
         break;
       case "rich_text":
+        // Forme stockée : blocs BlockNote stringifiés (l'`id` est requis par
+        // le contrat de document, cf. validateBlockNoteDocument).
         values[field.id] = JSON.stringify([
-          { type: "p", children: [{ text: `Sample ${field.name} content.` }] },
+          {
+            id: `sample-${field.id}`,
+            type: "paragraph",
+            content: [{ type: "text", text: `Sample ${field.name} content.` }],
+          },
         ]);
         break;
       case "image":

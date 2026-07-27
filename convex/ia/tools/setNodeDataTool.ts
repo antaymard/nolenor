@@ -6,6 +6,7 @@ import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
 import { markdownToBlockNoteBlocks } from "../helpers/blockNoteMarkdown";
+import { decodeLLMValuesForTemplate } from "../helpers/customFieldLLMCodecs";
 import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
 import z from "zod";
 import { type ToolConfig, toolError } from "./toolHelpers";
@@ -184,21 +185,12 @@ export default function setNodeDataTool({
           return `Node data updated for nodeId ${input.nodeId}. Block ids have been regenerated — re-read the node (read_nodes) before any block-id-addressed edit.`;
         }
 
-        // Custom : les champs rich_text arrivent en markdown, même cycle de
-        // conversion que les documents avant l'écriture.
+        // Custom : traduction forme-LLM → forme stockée, par type de champ
+        // (rich_text : markdown → blocs BlockNote). Symétrique de ce que
+        // makeCustomNodeDataLLMFriendly fait en lecture — les deux sens vivent
+        // dans customFieldLLMCodecs.
         if (input.nodeType === "custom" && template) {
-          const richTextFieldIds = new Set(
-            template.fields
-              .filter((field) => field.type === "rich_text")
-              .map((field) => field.id),
-          );
-          for (const [key, value] of Object.entries(valuesToWrite)) {
-            if (richTextFieldIds.has(key) && typeof value === "string") {
-              valuesToWrite[key] = stringifyPlateDocumentForStorage(
-                await markdownToPlateJson(value),
-              );
-            }
-          }
+          await decodeLLMValuesForTemplate(valuesToWrite, template.fields);
         }
 
         await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {

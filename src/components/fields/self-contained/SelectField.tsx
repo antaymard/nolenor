@@ -6,7 +6,8 @@ import {
   type SelectOption,
 } from "@/components/table/types";
 import { getSelectChoices } from "@/../convex/config/fieldConfig";
-import type { FieldRenderProps } from "@/components/fields/registry/fieldRegistry";
+import { cn } from "@/lib/utils";
+import type { FieldComponentProps } from "@/components/fields/fieldHostTypes";
 
 function toSelectColor(color: string | undefined): SelectColor {
   return color && color in SELECT_COLOR_CLASSES
@@ -14,13 +15,17 @@ function toSelectColor(color: string | undefined): SelectColor {
     : "gray";
 }
 
-// Réutilise l'éditeur select des tables (chips colorées, popover avec
-// recherche). Les values sont des tableaux d'ids d'options.
-export default function SelectField({
+// shell:"custom" (bypass des 4 shells génériques) : SelectCellEditor gère
+// déjà lui-même son propre popover et est partagé avec les tables —
+// l'imbriquer dans PopoverShell empilerait deux popovers plutôt que de les
+// unifier. Les deux variants ne diffèrent que par le rendu de la valeur
+// (pastilles vs texte) ; la liste d'options du popover est identique.
+function SelectFieldBase({
   field,
   value,
   onCommit,
-}: FieldRenderProps) {
+  displayMode,
+}: FieldComponentProps & { displayMode: "chips" | "text" }) {
   const [editing, setEditing] = useState(false);
 
   const options: SelectOption[] = useMemo(
@@ -38,17 +43,26 @@ export default function SelectField({
     : [];
 
   return (
-    <div className="nodrag w-full min-w-0 text-sm">
+    <div className={cn("w-full min-w-0 text-sm", onCommit && "nodrag")}>
       <SelectCellEditor
         options={options}
         isMulti={field.options?.isMulti === true}
         value={ids}
         isEditing={editing}
         readOnly={!onCommit}
+        displayMode={displayMode}
         onClick={() => onCommit && setEditing(true)}
         onChange={(next) => onCommit?.(next)}
         onBlur={() => setEditing(false)}
       />
     </div>
   );
+}
+
+export function SelectChipsField(props: FieldComponentProps) {
+  return <SelectFieldBase {...props} displayMode="chips" />;
+}
+
+export function SelectTextField(props: FieldComponentProps) {
+  return <SelectFieldBase {...props} displayMode="text" />;
 }

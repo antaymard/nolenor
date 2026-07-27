@@ -5,7 +5,7 @@ import type {
   LayoutNode,
 } from "@/../convex/config/templateConfig";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
-import { getFieldComponent } from "@/components/fields/registry/fieldRegistry";
+import FieldHost from "@/components/fields/FieldHost";
 
 // Rendu d'un arbre de layout de custom node template. Utilisé par les trois
 // surfaces : preview du builder (onCommitField absent = lecture seule),
@@ -18,6 +18,11 @@ type LayoutRendererProps = {
   values: Record<string, unknown>;
   surface: "node" | "window";
   onCommitField?: (fieldId: string, value: unknown) => void;
+  // Ouvre la window du node depuis un champ edit:"window" (cf. fieldVariants
+  // — aucun variant du catalogue actuel ne l'utilise encore). Seul CustomNode
+  // la fournit ; CustomWindow et la preview du builder la laissent absente
+  // (escalader depuis la window serait une auto-escalade illégale).
+  onEscalateField?: (fieldId: string) => void;
 };
 
 const ALIGN_MAP: Record<string, CSSProperties["alignItems"]> = {
@@ -68,34 +73,37 @@ function FieldSlot({
   values,
   surface,
   onCommitField,
+  onEscalateField,
 }: {
   placement: LayoutFieldPlacement;
   fields: TemplateField[];
   values: Record<string, unknown>;
   surface: "node" | "window";
   onCommitField?: (fieldId: string, value: unknown) => void;
+  onEscalateField?: (fieldId: string) => void;
 }) {
   const field = fields.find((f) => f.id === placement.fieldId);
   if (!field) return null;
 
-  const Component = getFieldComponent(field.type, surface);
   const onCommit = onCommitField
     ? (value: unknown) => onCommitField(field.id, value)
     : undefined;
+  const onEscalate = onEscalateField
+    ? () => onEscalateField(field.id)
+    : undefined;
 
   return (
+    // Le label n'est PAS rendu ici : c'est FieldHost qui le porte, car lui
+    // seul connaît le variant résolu et donc si celui-ci affiche le label
+    // lui-même (ownsLabel).
     <div style={placementStyle(placement)}>
-      {placement.showLabel && (
-        <div className="text-[11px] font-medium text-muted-foreground mb-0.5 truncate">
-          {field.name}
-        </div>
-      )}
-      <Component
+      <FieldHost
         field={field}
         value={values[field.id]}
         surface={surface}
         placement={placement}
         onCommit={onCommit}
+        onEscalate={onEscalate}
       />
     </div>
   );
@@ -107,12 +115,14 @@ function LayoutNodeRenderer({
   values,
   surface,
   onCommitField,
+  onEscalateField,
 }: {
   node: LayoutNode;
   fields: TemplateField[];
   values: Record<string, unknown>;
   surface: "node" | "window";
   onCommitField?: (fieldId: string, value: unknown) => void;
+  onEscalateField?: (fieldId: string) => void;
 }) {
   if (node.kind === "field") {
     return (
@@ -122,6 +132,7 @@ function LayoutNodeRenderer({
         values={values}
         surface={surface}
         onCommitField={onCommitField}
+        onEscalateField={onEscalateField}
       />
     );
   }
@@ -136,6 +147,7 @@ function LayoutNodeRenderer({
           values={values}
           surface={surface}
           onCommitField={onCommitField}
+          onEscalateField={onEscalateField}
         />
       ))}
     </div>
@@ -148,6 +160,7 @@ function LayoutRenderer({
   values,
   surface,
   onCommitField,
+  onEscalateField,
 }: LayoutRendererProps) {
   return (
     <LayoutNodeRenderer
@@ -156,6 +169,7 @@ function LayoutRenderer({
       values={values}
       surface={surface}
       onCommitField={onCommitField}
+      onEscalateField={onEscalateField}
     />
   );
 }

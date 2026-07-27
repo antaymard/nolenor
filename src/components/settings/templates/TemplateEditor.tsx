@@ -489,6 +489,7 @@ export default function TemplateEditor({
               tree={activeTree}
               selectedId={selectedLayoutId}
               fields={draft.fields}
+              surface={surface}
               onChangeTree={changeActiveTree}
               onClearSelection={() => setSelectedLayoutId(null)}
             />

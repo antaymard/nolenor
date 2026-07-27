@@ -25,6 +25,7 @@ import type * as ia_agents from "../ia/agents.js";
 import type * as ia_helpers__externalDeps from "../ia/helpers/_externalDeps.js";
 import type * as ia_helpers_blockNoteMarkdown from "../ia/helpers/blockNoteMarkdown.js";
 import type * as ia_helpers_composioSanitizer from "../ia/helpers/composioSanitizer.js";
+import type * as ia_helpers_customFieldLLMCodecs from "../ia/helpers/customFieldLLMCodecs.js";
 import type * as ia_helpers_customTemplateHelpers from "../ia/helpers/customTemplateHelpers.js";
 import type * as ia_helpers_generateCanvasMinimap from "../ia/helpers/generateCanvasMinimap.js";
 import type * as ia_helpers_generateMessageContext from "../ia/helpers/generateMessageContext.js";
@@ -171,6 +172,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/_externalDeps": typeof ia_helpers__externalDeps;
   "ia/helpers/blockNoteMarkdown": typeof ia_helpers_blockNoteMarkdown;
   "ia/helpers/composioSanitizer": typeof ia_helpers_composioSanitizer;
+  "ia/helpers/customFieldLLMCodecs": typeof ia_helpers_customFieldLLMCodecs;
   "ia/helpers/customTemplateHelpers": typeof ia_helpers_customTemplateHelpers;
   "ia/helpers/generateCanvasMinimap": typeof ia_helpers_generateCanvasMinimap;
   "ia/helpers/generateMessageContext": typeof ia_helpers_generateMessageContext;

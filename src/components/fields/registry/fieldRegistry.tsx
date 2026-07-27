@@ -1,4 +1,3 @@
-import type { ComponentType } from "react";
 import type { IconType } from "react-icons";
 import {
   TbAbc,
@@ -9,99 +8,189 @@ import {
   TbPhoto,
   TbSelect,
 } from "react-icons/tb";
+import type { ComponentType } from "react";
 import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
-import type { TemplateField } from "@/../convex/config/fieldConfig";
-import type { LayoutFieldPlacement } from "@/../convex/config/templateConfig";
-import ShortTextField from "@/components/fields/custom-fields/ShortTextField";
-import NumberField from "@/components/fields/custom-fields/NumberField";
-import DateField from "@/components/fields/custom-fields/DateField";
-import SelectField from "@/components/fields/custom-fields/SelectField";
-import BooleanField from "@/components/fields/custom-fields/BooleanField";
+import type { VariantId } from "@/../convex/config/fieldVariants";
+import type { FieldVariantRegistration } from "@/components/fields/registry/fieldVariantRegistrations";
+import type { FieldOptionsEditorProps } from "@/components/fields/fieldHostTypes";
+import ShortTextOptionsEditor from "@/components/fields/options/ShortTextOptionsEditor";
+import NumberOptionsEditor from "@/components/fields/options/NumberOptionsEditor";
+import BooleanOptionsEditor from "@/components/fields/options/BooleanOptionsEditor";
+import SelectFieldOptionsEditor from "@/components/fields/options/SelectFieldOptionsEditor";
+
+import ShortTextPlainView from "@/components/fields/views/short_text/PlainView";
+import ShortTextHeadingView from "@/components/fields/views/short_text/HeadingView";
+import ShortTextEditor from "@/components/fields/editors/ShortTextEditor";
+import NumberPlainView from "@/components/fields/views/number/PlainView";
+import NumberKpiView from "@/components/fields/views/number/KpiView";
+import NumberEditor from "@/components/fields/editors/NumberEditor";
+import DateAbsoluteView from "@/components/fields/views/date/AbsoluteView";
+import DateAbsoluteTrigger from "@/components/fields/views/date/AbsoluteTrigger";
+import DateRelativeView from "@/components/fields/views/date/RelativeView";
+import DateRelativeTrigger from "@/components/fields/views/date/RelativeTrigger";
+import DateEditor from "@/components/fields/editors/DateEditor";
+import BooleanCheckboxView from "@/components/fields/views/boolean/CheckboxView";
+import BooleanCheckboxLabelView from "@/components/fields/views/boolean/CheckboxLabelView";
+import BooleanBadgeView from "@/components/fields/views/boolean/BadgeView";
+import BooleanEditor from "@/components/fields/editors/BooleanEditor";
+import BooleanLabelEditor from "@/components/fields/editors/BooleanLabelEditor";
+import ImageFullView from "@/components/fields/views/image/FullView";
+import ImageThumbnailView from "@/components/fields/views/image/ThumbnailView";
+import ImageLinkView from "@/components/fields/views/image/LinkView";
+import ImageEditor from "@/components/fields/editors/ImageEditor";
+import ImageThumbnailEditor from "@/components/fields/editors/ImageThumbnailEditor";
+import RichTextExcerptView from "@/components/fields/views/rich_text/ExcerptView";
+import RichTextFullView from "@/components/fields/views/rich_text/FullView";
+import RichTextLinkView from "@/components/fields/views/rich_text/LinkView";
+import RichTextEditor from "@/components/fields/editors/RichTextEditor";
 import {
-  RichTextNodeDisplay,
-  RichTextWindowEditor,
-} from "@/components/fields/custom-fields/RichTextField";
-import ImageValueField from "@/components/fields/custom-fields/ImageValueField";
+  SelectChipsField,
+  SelectTextField,
+} from "@/components/fields/self-contained/SelectField";
 
-// Complément front de convex/config/fieldConfig.ts (même split que
-// nodeConfig ↔ prebuiltNodesConfig) : mappe chaque type de champ vers ses
-// composants de rendu. NodeDisplay = rendu compact sur le canvas,
-// WindowEditor = éditeur complet en window. En V1 les deux surfaces
-// partagent le même composant ; rich_text (à venir) les distinguera
-// (static virtualisé sur node / éditeur Plate en window).
+// Complément front de convex/config/fieldConfig.ts + fieldVariants.ts (même
+// split que nodeConfig ↔ prebuiltNodesConfig) : mappe chaque (type, variant)
+// vers son shell + ses composants de rendu. Chaque `variants` est déclaré
+// avec `satisfies Record<VariantId<T>, ...>` : un variant ajouté/renommé
+// côté fieldVariants.ts sans entrée correspondante ici est une erreur de
+// COMPILATION, jamais un trou découvert au rendu.
+//
+// Pas de `label` ici : le libellé d'un type appartient à fieldConfig
+// (getFieldTypeConfig(type).label), partagé Convex + front. Il était
+// auparavant redéclaré à l'identique ici, donc libre de dériver en silence.
 
-type FieldRenderProps = {
-  field: TemplateField;
-  value: unknown;
-  surface: "node" | "window";
-  placement: LayoutFieldPlacement;
-  // undefined = lecture seule (preview du builder, permission viewer).
-  // onCommit(undefined) efface la valeur (la clé est retirée des values).
-  onCommit?: (value: unknown) => void;
-};
-
-type FieldRegistryEntry = {
+type FieldTypeRegistryEntry = {
   icon: IconType;
-  label: string;
-  NodeDisplay: ComponentType<FieldRenderProps>;
-  WindowEditor: ComponentType<FieldRenderProps>;
+  variants: Record<string, FieldVariantRegistration>;
+  // Formulaire des options DU CHAMP dans le builder (absent = ce type n'a
+  // rien à configurer). Vit dans le registry et non dans une chaîne de `if`
+  // côté FieldsPanel, pour qu'ajouter un type ne demande pas d'y toucher.
+  OptionsEditor?: ComponentType<FieldOptionsEditorProps>;
 };
 
-const fieldRegistry: Record<FieldType, FieldRegistryEntry> = {
+const shortTextVariants = {
+  plain: {
+    shell: "inline",
+    View: ShortTextPlainView,
+    Editor: ShortTextEditor,
+    mode: "toggle",
+  },
+  // Même éditeur que `plain` : seul l'affichage change (c'est tout l'intérêt
+  // du découpage vue/éditeur).
+  heading: {
+    shell: "inline",
+    View: ShortTextHeadingView,
+    Editor: ShortTextEditor,
+    mode: "toggle",
+  },
+} satisfies Record<VariantId<"short_text">, FieldVariantRegistration>;
+
+const numberVariants = {
+  plain: {
+    shell: "inline",
+    View: NumberPlainView,
+    Editor: NumberEditor,
+    mode: "toggle",
+  },
+  kpi: {
+    shell: "inline",
+    View: NumberKpiView,
+    Editor: NumberEditor,
+    mode: "toggle",
+  },
+} satisfies Record<VariantId<"number">, FieldVariantRegistration>;
+
+const dateVariants = {
+  absolute: {
+    shell: "popover",
+    View: DateAbsoluteView,
+    Editor: DateEditor,
+    renderTrigger: DateAbsoluteTrigger,
+  },
+  relative: {
+    shell: "popover",
+    View: DateRelativeView,
+    Editor: DateEditor,
+    renderTrigger: DateRelativeTrigger,
+  },
+} satisfies Record<VariantId<"date">, FieldVariantRegistration>;
+
+const selectVariants = {
+  chips: { shell: "custom", Component: SelectChipsField },
+  text: { shell: "custom", Component: SelectTextField },
+} satisfies Record<VariantId<"select">, FieldVariantRegistration>;
+
+const booleanVariants = {
+  checkbox: {
+    shell: "inline",
+    View: BooleanCheckboxView,
+    Editor: BooleanEditor,
+    mode: "direct",
+  },
+  checkbox_label: {
+    shell: "inline",
+    View: BooleanCheckboxLabelView,
+    Editor: BooleanLabelEditor,
+    mode: "direct",
+  },
+  badge: { shell: "static", View: BooleanBadgeView },
+} satisfies Record<VariantId<"boolean">, FieldVariantRegistration>;
+
+const richTextVariants = {
+  // Node : jamais d'éditeur monté sur le canvas (cf. plan).
+  excerpt: { shell: "static", View: RichTextExcerptView },
+  // Window : commit "deferred", cf. RichTextEditor pour le canal différé.
+  full: {
+    shell: "inline",
+    View: RichTextFullView,
+    Editor: RichTextEditor,
+    mode: "direct",
+  },
+  // Node : un clic ouvre la window (édition par escalade).
+  link: { shell: "window", View: RichTextLinkView },
+} satisfies Record<VariantId<"rich_text">, FieldVariantRegistration>;
+
+const imageVariants = {
+  full: {
+    shell: "inline",
+    View: ImageFullView,
+    Editor: ImageEditor,
+    mode: "direct",
+  },
+  thumbnail: {
+    shell: "inline",
+    View: ImageThumbnailView,
+    Editor: ImageThumbnailEditor,
+    mode: "direct",
+  },
+  link: { shell: "static", View: ImageLinkView },
+} satisfies Record<VariantId<"image">, FieldVariantRegistration>;
+
+const fieldRegistry: Record<FieldType, FieldTypeRegistryEntry> = {
   short_text: {
     icon: TbAbc,
-    label: "Text",
-    NodeDisplay: ShortTextField,
-    WindowEditor: ShortTextField,
+    variants: shortTextVariants,
+    OptionsEditor: ShortTextOptionsEditor,
   },
   number: {
     icon: TbNumber123,
-    label: "Number",
-    NodeDisplay: NumberField,
-    WindowEditor: NumberField,
+    variants: numberVariants,
+    OptionsEditor: NumberOptionsEditor,
   },
-  date: {
-    icon: TbCalendar,
-    label: "Date",
-    NodeDisplay: DateField,
-    WindowEditor: DateField,
-  },
+  date: { icon: TbCalendar, variants: dateVariants },
   select: {
     icon: TbSelect,
-    label: "Select",
-    NodeDisplay: SelectField,
-    WindowEditor: SelectField,
+    variants: selectVariants,
+    OptionsEditor: SelectFieldOptionsEditor,
   },
   boolean: {
     icon: TbCheckbox,
-    label: "Checkbox",
-    NodeDisplay: BooleanField,
-    WindowEditor: BooleanField,
+    variants: booleanVariants,
+    OptionsEditor: BooleanOptionsEditor,
   },
-  // Seul type à surfaces distinctes : statique virtualisé sur le canvas
-  // (jamais d'éditeur Plate dans un node), éditeur complet en window
-  // derrière le flux dirty/save du WindowFrame.
-  rich_text: {
-    icon: TbNews,
-    label: "Rich text",
-    NodeDisplay: RichTextNodeDisplay,
-    WindowEditor: RichTextWindowEditor,
-  },
-  image: {
-    icon: TbPhoto,
-    label: "Image",
-    NodeDisplay: ImageValueField,
-    WindowEditor: ImageValueField,
-  },
+  rich_text: { icon: TbNews, variants: richTextVariants },
+  image: { icon: TbPhoto, variants: imageVariants },
 };
 
-function getFieldComponent(
-  type: FieldType,
-  surface: "node" | "window",
-): ComponentType<FieldRenderProps> {
-  const entry = fieldRegistry[type];
-  return surface === "node" ? entry.NodeDisplay : entry.WindowEditor;
-}
-
-export { fieldRegistry, getFieldComponent };
-export type { FieldRenderProps, FieldRegistryEntry };
+export { fieldRegistry };
+export type { FieldTypeRegistryEntry };

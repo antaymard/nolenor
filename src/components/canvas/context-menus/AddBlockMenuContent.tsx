@@ -1,4 +1,4 @@
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvexAuth } from "convex/react";
 import { useNavigate } from "@tanstack/react-router";
 import { TbSettings } from "react-icons/tb";
 import {
@@ -8,7 +8,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { useCreateNode } from "@/hooks/useCreateNode";
 import prebuiltNodesConfig from "../../nodes/prebuilt-nodes/prebuiltNodesConfig";
-import { api } from "@/../convex/_generated/api";
+import { useMyTemplates } from "@/stores/templatesStore";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 
 export default function AddBlockMenuContent({
@@ -22,11 +22,12 @@ export default function AddBlockMenuContent({
   const navigate = useNavigate();
   const { isAuthenticated } = useConvexAuth();
 
-  // Templates non archivés du user (section « My templates »).
-  const templates = useQuery(
-    api.nodeTemplates.listMine,
-    isAuthenticated ? {} : "skip",
-  );
+  // Lu depuis templatesStore, alimenté par la subscription listMine de la
+  // route canvas : disponible dès le premier rendu. Une useQuery locale
+  // rouvrait une subscription à chaque ouverture du menu (ce composant est
+  // démonté à la fermeture), donc rendait d'abord une liste vide — et le
+  // wrapper mesure puis fige la position du menu à ce moment-là.
+  const templates = useMyTemplates();
 
   return (
     <>
@@ -65,7 +66,7 @@ export default function AddBlockMenuContent({
           <DropdownMenuLabel className="whitespace-nowrap">
             My templates
           </DropdownMenuLabel>
-          {templates?.map((template) => {
+          {templates.map((template) => {
             const Icon = getTemplateIcon(template.icon);
             return (
               <DropdownMenuItem

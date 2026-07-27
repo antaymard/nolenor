@@ -130,6 +130,7 @@ function CanvasContent({
   const clearNodeDatas = useNodeDataStore((state) => state.clear);
   const setCanvas = useCanvasStore((state) => state.setCanvas);
   const upsertTemplates = useTemplatesStore((state) => state.upsertTemplates);
+  const setMyTemplateIds = useTemplatesStore((state) => state.setMyTemplateIds);
   const clearTemplates = useTemplatesStore((state) => state.clear);
   const lastCanvasSnapshotRef = useRef<string | null>(null);
 
@@ -182,8 +183,17 @@ function CanvasContent({
   }, [canvasTemplates, upsertTemplates]);
 
   useEffect(() => {
-    if (myTemplates) upsertTemplates(myTemplates);
-  }, [myTemplates, upsertTemplates]);
+    if (!myTemplates) return;
+    upsertTemplates(myTemplates);
+    // Les archivés sont bien chargés (leurs instances vivantes doivent rendre)
+    // mais ne sont pas proposables : le menu d'ajout lit `myTemplateIds`, pas
+    // la map. L'ordre est celui du serveur (tri par nom).
+    setMyTemplateIds(
+      myTemplates
+        .filter((template) => template.archivedAt === undefined)
+        .map((template) => template._id),
+    );
+  }, [myTemplates, upsertTemplates, setMyTemplateIds]);
 
   // Context menu management
   const {

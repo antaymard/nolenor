@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useBlocker } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useQuery } from "convex/react";
@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/plate/alert-dialog";
 import { useTemplateEditor } from "@/hooks/useTemplateEditor";
+import { useCanvasStore } from "@/stores/canvasStore";
 import TemplateEditor from "./TemplateEditor";
 
 // Hôte de l'éditeur de template, monté une seule fois à la racine : il
@@ -88,6 +89,7 @@ export default function TemplateEditorModal() {
 
   return (
     <>
+      <CanvasFocusGuard />
       <Dialog
         open
         onOpenChange={(open) => {
@@ -169,6 +171,21 @@ export default function TemplateEditorModal() {
       </AlertDialog>
     </>
   );
+}
+
+// Tant que la modale est ouverte, le canvas ne doit plus recevoir le clavier :
+// sans ça, Mod+D en tapant le nom d'un template duplique un node derrière.
+// Composant dédié plutôt qu'un effet dans le parent — il n'est monté que
+// pendant l'ouverture, donc l'effet n'a aucune condition à porter.
+function CanvasFocusGuard() {
+  useEffect(() => {
+    const previous = useCanvasStore.getState().focus;
+    useCanvasStore.getState().setFocus("modal");
+    // Restaure la valeur PRÉCÉDENTE et non "canvas" en dur : une window
+    // d'édition richtext peut très bien être ouverte derrière la modale.
+    return () => useCanvasStore.getState().setFocus(previous);
+  }, []);
+  return null;
 }
 
 // Séparé pour que la query ne tourne que sur un id réel : en création, il n'y

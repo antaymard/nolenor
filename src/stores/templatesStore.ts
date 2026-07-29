@@ -20,8 +20,17 @@ interface TemplatesStore {
   // L'appartenance vient de listMine, donc tranchée par le serveur : rien à
   // recalculer côté client, et pas besoin de connaître l'id du user.
   myTemplateIds: Id<"nodeTemplates">[];
+  // Tous mes templates, ARCHIVÉS INCLUS. Répond à une autre question que
+  // `myTemplateIds` — « celui-ci est-il à moi ? » et non « lequel puis-je
+  // ajouter ? » — d'où un champ distinct plutôt qu'un filtre sur l'autre :
+  // on peut vouloir éditer un template archivé, jamais en créer une instance.
+  // C'est le seul signal de propriété disponible côté front (il n'existe
+  // aucune query exposant l'id du user courant) ; il vient de listMine, donc
+  // l'appartenance reste tranchée par le serveur.
+  ownedTemplateIds: Set<Id<"nodeTemplates">>;
   upsertTemplates: (templates: Doc<"nodeTemplates">[]) => void;
   setMyTemplateIds: (ids: Id<"nodeTemplates">[]) => void;
+  setOwnedTemplateIds: (ids: Id<"nodeTemplates">[]) => void;
   clear: () => void;
 }
 
@@ -30,6 +39,7 @@ export const useTemplatesStore = create<TemplatesStore>()(
     (set) => ({
       templates: new Map(),
       myTemplateIds: [],
+      ownedTemplateIds: new Set(),
 
       // Merge par updatedAt : les docs inchangés gardent leur référence
       // (les sélecteurs ne re-rendent pas). Pas de retrait : les templates
@@ -62,7 +72,24 @@ export const useTemplatesStore = create<TemplatesStore>()(
         });
       },
 
-      clear: () => set({ templates: new Map(), myTemplateIds: [] }),
+      // Même précaution que setMyTemplateIds : la query source se réabonne
+      // souvent, remplacer le Set par un équivalent re-rendrait les menus
+      // contextuels pour rien.
+      setOwnedTemplateIds: (ids) => {
+        set((state) => {
+          const unchanged =
+            state.ownedTemplateIds.size === ids.length &&
+            ids.every((id) => state.ownedTemplateIds.has(id));
+          return unchanged ? state : { ownedTemplateIds: new Set(ids) };
+        });
+      },
+
+      clear: () =>
+        set({
+          templates: new Map(),
+          myTemplateIds: [],
+          ownedTemplateIds: new Set(),
+        }),
     }),
     { name: "templates-store" },
   ),
@@ -96,6 +123,25 @@ export function useMyTemplates(): Doc<"nodeTemplates">[] {
       state.myTemplateIds
         .map((id) => state.templates.get(id))
         .filter((template): template is Doc<"nodeTemplates"> => !!template),
+    ),
+  );
+}
+
+/**
+ * « Ce template est-il le mien ? » — seul le propriétaire peut le modifier
+ * (requireOwnedTemplate côté serveur), donc l'entrée d'édition du menu
+ * contextuel doit se masquer sinon. Faux tant que listMine n'a pas répondu :
+ * mieux vaut une entrée qui apparaît avec un instant de retard qu'une entrée
+ * qui mène à une erreur de permission.
+ */
+export function useOwnsTemplate(templateId: string | undefined): boolean {
+  return useTemplatesStore(
+    useCallback(
+      (state) =>
+        templateId
+          ? state.ownedTemplateIds.has(templateId as Id<"nodeTemplates">)
+          : false,
+      [templateId],
     ),
   );
 }

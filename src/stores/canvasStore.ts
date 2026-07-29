@@ -12,9 +12,15 @@ type Status = "idle" | "unsynced" | "saving" | "saved" | "error";
  * Where keyboard input is currently going. `richtext-editor` covers both
  * rich-text editors (Plate.js document nodes and BlockNote nodes) — the
  * distinction that matters to callers is "a text editor has focus", not which
- * library renders it.
+ * library renders it. `modal` covers full-screen overlays that own the
+ * keyboard (template editor).
+ *
+ * Callers must test `focus === "canvas"` to enable a canvas behaviour, never
+ * `focus !== "richtext-editor"`: a new value must default to "the canvas is
+ * NOT driving", otherwise adding one silently re-enables canvas shortcuts
+ * under every new surface.
  */
-type Focus = "canvas" | "richtext-editor";
+type Focus = "canvas" | "richtext-editor" | "modal";
 type Tool = "edit" | "slides" | "draw" | "hotspots";
 
 interface CanvasStore {

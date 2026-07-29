@@ -131,6 +131,9 @@ function CanvasContent({
   const setCanvas = useCanvasStore((state) => state.setCanvas);
   const upsertTemplates = useTemplatesStore((state) => state.upsertTemplates);
   const setMyTemplateIds = useTemplatesStore((state) => state.setMyTemplateIds);
+  const setOwnedTemplateIds = useTemplatesStore(
+    (state) => state.setOwnedTemplateIds,
+  );
   const clearTemplates = useTemplatesStore((state) => state.clear);
   const lastCanvasSnapshotRef = useRef<string | null>(null);
 
@@ -193,7 +196,10 @@ function CanvasContent({
         .filter((template) => template.archivedAt === undefined)
         .map((template) => template._id),
     );
-  }, [myTemplates, upsertTemplates, setMyTemplateIds]);
+    // Propriété : archivés inclus — un template archivé reste éditable, il
+    // n'est simplement plus proposé à l'ajout.
+    setOwnedTemplateIds(myTemplates.map((template) => template._id));
+  }, [myTemplates, upsertTemplates, setMyTemplateIds, setOwnedTemplateIds]);
 
   // Context menu management
   const {

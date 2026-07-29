@@ -191,6 +191,25 @@ export async function setArchived(
   });
 }
 
+// Variante non levante de requireOwnedTemplate, pour les LECTURES : « pas
+// trouvé » et « pas à toi » y sont des états d'interface, pas des erreurs —
+// l'éditeur en modale s'ouvre depuis une URL, qui peut être périmée ou
+// partagée par quelqu'un d'autre.
+//
+// Volontairement non fusionnée avec requireOwnedTemplate : les mutations ont
+// besoin de distinguer les deux échecs (le message d'erreur diffère), alors
+// qu'une lecture ne doit surtout pas les distinguer, sous peine de révéler
+// l'existence d'un template appartenant à autrui.
+export async function getOwnedTemplate(
+  ctx: Ctx,
+  templateId: Id<"nodeTemplates">,
+  userId: Id<"users">,
+): Promise<Doc<"nodeTemplates"> | null> {
+  const template = await ctx.db.get(templateId);
+  if (!template || template.creatorId !== userId) return null;
+  return template;
+}
+
 export async function requireOwnedTemplate(
   ctx: Ctx,
   templateId: Id<"nodeTemplates">,

@@ -38,6 +38,19 @@ export const listMine = query({
   },
 });
 
+// Un template précis, pour l'éditeur en modale. Query dédiée plutôt qu'un
+// find dans listMine : la modale est montée à la racine et s'ouvre aussi
+// hors d'une route canvas, où ni templatesStore ni listMine ne sont là.
+// Renvoie null si le template n'existe pas OU ne t'appartient pas — la
+// modale en fait un état affichable (cf. getOwnedTemplate).
+export const getMine = query({
+  args: { templateId: v.id("nodeTemplates") },
+  handler: async (ctx, { templateId }) => {
+    const authUserId = await requireAuth(ctx);
+    return NodeTemplateModels.getOwnedTemplate(ctx, templateId, authUserId);
+  },
+});
+
 // Templates référencés par les nodes d'un canvas — c'est ainsi que les
 // viewers d'un canvas partagé résolvent les templates d'autres users.
 export const listForCanvas = query({

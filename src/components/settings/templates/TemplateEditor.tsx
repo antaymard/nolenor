@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import toast from "react-hot-toast";
 import { TbArchive, TbArchiveOff, TbDeviceFloppy } from "react-icons/tb";
@@ -61,11 +61,16 @@ import {
 type TemplateEditorProps = {
   template?: Doc<"nodeTemplates">;
   onCreated?: (id: Id<"nodeTemplates">) => void;
+  // Remonte l'état « draft non sauvegardé » à l'hôte. C'est lui qui possède
+  // la fermeture (la modale), donc lui qui doit pouvoir la retenir — même
+  // contrat que BlockNoteFieldEditor.
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 export default function TemplateEditor({
   template,
   onCreated,
+  onDirtyChange,
 }: TemplateEditorProps) {
   const [draft, setDraft] = useState<TemplateDraft>(() =>
     template ? draftFromTemplate(template) : newEmptyDraft(),
@@ -91,6 +96,15 @@ export default function TemplateEditor({
     () => JSON.stringify(draft) !== savedSnapshot,
     [draft, savedSnapshot],
   );
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  // Au démontage, l'hôte doit repartir propre : sans ça, fermer l'éditeur sur
+  // un draft sale laisserait la modale convaincue qu'il reste des
+  // modifications, et elle redemanderait confirmation à la réouverture.
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const activeTree =
     surface === "window" && draft.windowLayout

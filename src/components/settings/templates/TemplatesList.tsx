@@ -4,7 +4,10 @@ import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 
 type TemplatesListProps = {
   templates: Doc<"nodeTemplates">[];
-  selectedId: Doc<"nodeTemplates">["_id"] | null;
+  // Optionnel : l'édition se faisant en modale, la liste des settings n'a
+  // plus de notion de sélection persistante. Conservé pour les contextes qui
+  // afficheraient la liste à côté d'une cible active.
+  selectedId?: Doc<"nodeTemplates">["_id"] | null;
   onSelect: (id: Doc<"nodeTemplates">["_id"]) => void;
 };
 
@@ -41,7 +44,7 @@ function TemplateRow({
 
 export default function TemplatesList({
   templates,
-  selectedId,
+  selectedId = null,
   onSelect,
 }: TemplatesListProps) {
   const active = templates.filter((t) => t.archivedAt === undefined);

@@ -97,6 +97,23 @@ function parseDefinitionOrThrow(input: TemplateWriteInput) {
   return result;
 }
 
+// `updatedAt` sert de clé de fraîcheur au front : templatesStore ignore un
+// doc dont l'updatedAt n'a pas bougé, pour ne pas re-rendre toutes les
+// instances d'un template à chaque re-push de listForCanvas — qui re-tourne
+// à chaque drag de node (cf. resolveTemplatesForCanvas).
+//
+// Date.now() seul ne suffit donc pas : deux écritures sur le même template
+// dans la même milliseconde produiraient la même valeur, et la seconde serait
+// ignorée par le client. Le mode de défaillance est mauvais — pas un retard,
+// une perte silencieuse jusqu'à l'écriture suivante. Strictement croissant
+// par template, l'invariant devient garanti plutôt que probable.
+// Exportée pour être testable : c'est un contrat entre deux couches (cette
+// règle d'écriture et le merge de templatesStore), et le ramener à un
+// Date.now() « équivalent » se relirait sans que rien n'échoue.
+export function nextUpdatedAt(previous: number): number {
+  return Math.max(Date.now(), previous + 1);
+}
+
 export async function createTemplate(
   ctx: MutationCtx,
   { creatorId, input }: { creatorId: Id<"users">; input: TemplateWriteInput },
@@ -157,7 +174,7 @@ export async function updateTemplate(
     titleFieldId: input.titleFieldId,
     defaultDimensions: input.defaultDimensions,
     windowSize: input.windowSize,
-    updatedAt: Date.now(),
+    updatedAt: nextUpdatedAt(template.updatedAt),
   });
 }
 
@@ -170,7 +187,7 @@ export async function setArchived(
 ): Promise<void> {
   await ctx.db.patch(template._id, {
     archivedAt: archived ? Date.now() : undefined,
-    updatedAt: Date.now(),
+    updatedAt: nextUpdatedAt(template.updatedAt),
   });
 }
 

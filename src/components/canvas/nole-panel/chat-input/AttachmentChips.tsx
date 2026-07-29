@@ -3,6 +3,7 @@ import { HiMiniXMark } from "react-icons/hi2";
 import { LuMousePointerClick } from "react-icons/lu";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useTemplatesStore } from "@/stores/templatesStore";
 import { getCanvasNodeTitle } from "@/lib/getCanvasNodeTitle";
 import { cn } from "@/lib/utils";
 import type { CanvasNode } from "@/types";
@@ -107,10 +108,14 @@ function NodeAttachment({
   onAttach: (node: CanvasNode) => void;
 }) {
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
+  // Souscription : la Map ne change de référence que quand un template change
+  // réellement (upsertTemplates renvoie l'état inchangé sinon), donc renommer
+  // un template met le chip à jour sans re-rendre à chaque push de query.
+  const templates = useTemplatesStore((state) => state.templates);
   const NodeIcon = prebuiltNodesConfig.find(
     (config) => config.type === node.type,
   )?.nodeIcon;
-  const nodeTitle = getCanvasNodeTitle(node, nodeDatas);
+  const nodeTitle = getCanvasNodeTitle(node, nodeDatas, templates);
 
   return (
     <div

@@ -9,6 +9,7 @@ import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { markdownToPlateValue } from "@/lib/plateMarkdownConverter";
+import { extractAudioMetadata } from "@/lib/audioMetadata";
 
 const PASTE_GUARD_WINDOW_MS = 300;
 
@@ -270,10 +271,34 @@ export function useCanvasPasteHandler() {
 
       try {
         const fileData = await uploadFile(file);
+        const tags = await extractAudioMetadata(file);
+
+        let cover: { url: string; key: string } | null = null;
+        if (tags.cover) {
+          try {
+            const extension = tags.cover.mimeType.split("/")[1] ?? "jpg";
+            const uploaded = await uploadFile(
+              new File([tags.cover.blob], `cover.${extension}`, {
+                type: tags.cover.mimeType,
+              }),
+            );
+            cover = { url: uploaded.url, key: uploaded.key };
+          } catch (error) {
+            console.warn("Cover upload failed", error);
+          }
+        }
+
         await updateNodeDataValues({
           _id: nodeDataId,
           values: {
-            audio: { ...fileData, duration: 0, peaks: [] },
+            audio: {
+              ...fileData,
+              duration: 0,
+              peaks: [],
+              title: tags.title,
+              artist: tags.artist,
+              cover,
+            },
             loop: { start: 0, end: 0, enabled: false },
           },
         });

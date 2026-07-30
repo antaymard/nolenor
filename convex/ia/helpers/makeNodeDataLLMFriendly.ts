@@ -448,6 +448,9 @@ export async function makeNodeDataLLMFriendly(
             filename?: string;
             mimeType?: string;
             duration?: number;
+            title?: string;
+            artist?: string;
+            label?: string;
           }
         | null
         | undefined;
@@ -455,11 +458,19 @@ export async function makeNodeDataLLMFriendly(
 
       // Never JSON.stringify the raw values here: they carry a `peaks` array
       // that would flood every read_nodes call with kilobytes of noise.
+      const name =
+        audio.label ??
+        (audio.title
+          ? audio.artist
+            ? `${audio.artist} — ${audio.title}`
+            : audio.title
+          : audio.filename) ??
+        "audio";
       const details = [
         audio.mimeType,
         audio.duration ? formatSeconds(audio.duration) : undefined,
       ].filter(Boolean);
-      const head = `- [${audio.filename ?? "audio"}](${audio.url})${
+      const head = `- [${name}](${audio.url})${
         details.length > 0 ? ` (${details.join(", ")})` : ""
       }`;
 

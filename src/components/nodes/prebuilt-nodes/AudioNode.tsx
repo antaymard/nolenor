@@ -29,6 +29,8 @@ import {
 import { UploadFile } from "@/components/fields/UploadFile";
 import { useNodeDataValuesField } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
+import { useFileUpload } from "@/hooks/useFilesUpload";
+import { extractAudioMetadata } from "@/lib/audioMetadata";
 import {
   formatTime,
   isLoopSet,
@@ -47,7 +49,26 @@ export type AudioValue = {
   key: string;
   duration: number;
   peaks: number[];
+  title?: string;
+  artist?: string;
+  label?: string;
+  cover?: { url: string; key: string } | null;
 };
+
+/**
+ * Mirrors getNodeDataTitle's precedence: what the user typed, then the file's
+ * own tags, then the filename.
+ */
+function displayNameOf(audio: AudioValue | null): string {
+  if (!audio) return "";
+  if (audio.label?.trim()) return audio.label.trim();
+  if (audio.title?.trim()) {
+    const title = audio.title.trim();
+    const artist = audio.artist?.trim();
+    return artist ? `${artist} — ${title}` : title;
+  }
+  return audio.filename;
+}
 
 const DEFAULT_LOOP: AudioLoop = { start: 0, end: 0, enabled: false };
 
@@ -69,6 +90,7 @@ function AudioNode(xyNode: Node) {
   const loop = storedLoop ?? DEFAULT_LOOP;
 
   const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const { uploadFile } = useFileUpload();
 
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -157,26 +179,56 @@ function AudioNode(xyNode: Node) {
   );
 
   const handleUploadComplete = useCallback(
-    (fileData: {
-      url: string;
-      filename: string;
-      mimeType: string;
-      size: number;
-      uploadedAt: number;
-      key: string;
-    }) => {
+    async (
+      fileData: {
+        url: string;
+        filename: string;
+        mimeType: string;
+        size: number;
+        uploadedAt: number;
+        key: string;
+      },
+      file: File,
+    ) => {
       if (!nodeDataId) return;
+      setIsPopoverOpen(false);
+
+      const tags = await extractAudioMetadata(file);
+
+      let cover: { url: string; key: string } | null = null;
+      if (tags.cover) {
+        try {
+          const extension = tags.cover.mimeType.split("/")[1] ?? "jpg";
+          const uploaded = await uploadFile(
+            new File([tags.cover.blob], `cover.${extension}`, {
+              type: tags.cover.mimeType,
+            }),
+          );
+          cover = { url: uploaded.url, key: uploaded.key };
+        } catch (error) {
+          console.warn("[AudioNode] cover upload failed", error);
+        }
+      }
+
+      // One write for the whole gesture: splitting it would create two
+      // versions and run the R2 reference sync twice.
       updateNodeDataValues({
         nodeDataId,
         values: {
-          audio: { ...fileData, duration: 0, peaks: [] },
+          audio: {
+            ...fileData,
+            duration: 0,
+            peaks: [],
+            title: tags.title,
+            artist: tags.artist,
+            cover,
+          },
           // Loop bounds are timestamps into the old file — meaningless now.
           loop: DEFAULT_LOOP,
         },
       });
-      setIsPopoverOpen(false);
     },
-    [nodeDataId, updateNodeDataValues],
+    [nodeDataId, updateNodeDataValues, uploadFile],
   );
 
   const handleRename = useCallback(() => {
@@ -185,22 +237,25 @@ function AudioNode(xyNode: Node) {
       return;
     }
     const next = titleDraft.trim();
-    if (next && next !== audio.filename) {
-      // Display name only — the R2 key is untouched.
+    // Writes `label`, never `filename`: renaming the node must not change the
+    // name the file is downloaded under.
+    if (next && next !== displayNameOf(audio)) {
       updateNodeDataValues({
         nodeDataId,
-        values: { audio: { ...audio, filename: next } },
+        values: { audio: { ...audio, label: next } },
       });
     }
     setIsPopoverOpen(false);
   }, [audio, nodeDataId, titleDraft, updateNodeDataValues]);
 
+  const displayName = displayNameOf(audio);
+
   const handlePopoverOpenChange = useCallback(
     (open: boolean) => {
       setIsPopoverOpen(open);
-      if (open) setTitleDraft(audio?.filename ?? "");
+      if (open) setTitleDraft(displayName);
     },
-    [audio?.filename],
+    [displayName],
   );
 
   const handleDownload = useCallback(async () => {
@@ -389,7 +444,7 @@ function AudioNode(xyNode: Node) {
 
       <NodeFrame xyNode={xyNode} resizable={!isCompact}>
         {audio ? (
-          <div className="flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2">
+          <div className="flex h-full w-full min-w-0 items-center gap-2 px-2">
             <audio
               ref={audioRef}
               src={audio.url}
@@ -398,6 +453,19 @@ function AudioNode(xyNode: Node) {
               onEnded={handleEnded}
             />
 
+            {/* No cover, no thumbnail: an empty square would be worse than the
+                plain layout. `draggable` off so the browser's native image
+                drag does not fight the node drag. */}
+            {!isCompact && audio.cover && (
+              <img
+                src={audio.cover.url}
+                alt=""
+                draggable={false}
+                className="pointer-events-none size-14 shrink-0 rounded object-cover"
+              />
+            )}
+
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
             {isCompact ? (
               <div className="flex min-w-0 items-center gap-2">
                 <button
@@ -413,14 +481,20 @@ function AudioNode(xyNode: Node) {
                     <TbPlayerPlay size={16} />
                   )}
                 </button>
-                <p className="min-w-0 flex-1 truncate text-sm">
-                  {audio.filename}
-                </p>
+                {audio.cover && (
+                  <img
+                    src={audio.cover.url}
+                    alt=""
+                    draggable={false}
+                    className="pointer-events-none size-5 shrink-0 rounded-[3px] object-cover"
+                  />
+                )}
+                <p className="min-w-0 flex-1 truncate text-sm">{displayName}</p>
                 <div className="w-16 shrink-0">{bar}</div>
               </div>
             ) : (
               <>
-                <p className="truncate text-sm font-medium">{audio.filename}</p>
+                <p className="truncate text-sm font-medium">{displayName}</p>
                 {bar}
                 <div className="nodrag flex items-center gap-1.5 text-xs">
                   <button
@@ -451,24 +525,34 @@ function AudioNode(xyNode: Node) {
                     {formatTime(duration)}
                   </span>
 
-                  <span className="ml-auto flex items-center gap-1.5">
+                  <span className="ml-auto flex shrink-0 items-center gap-1.5">
                     <button
                       type="button"
-                      className="text-muted-foreground hover:text-violet-700"
+                      className="flex items-center gap-0.5 text-muted-foreground hover:text-violet-700"
                       onMouseDown={stopMouseDown}
                       onClick={handleFlagStart}
                       title="Début de la boucle ici"
                     >
                       <TbFlag size={14} />
+                      {loopIsSet && (
+                        <span className="text-[10px] tabular-nums">
+                          {formatTime(loop.start)}
+                        </span>
+                      )}
                     </button>
                     <button
                       type="button"
-                      className="text-muted-foreground hover:text-violet-700"
+                      className="flex items-center gap-0.5 text-muted-foreground hover:text-violet-700"
                       onMouseDown={stopMouseDown}
                       onClick={handleFlagEnd}
                       title="Fin de la boucle ici"
                     >
                       <TbFlag size={14} className="-scale-x-100" />
+                      {loopIsSet && (
+                        <span className="text-[10px] tabular-nums">
+                          {formatTime(loop.end)}
+                        </span>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -498,6 +582,7 @@ function AudioNode(xyNode: Node) {
                 </div>
               </>
             )}
+            </div>
           </div>
         ) : (
           <div className="flex h-full w-full items-center gap-2 px-2">

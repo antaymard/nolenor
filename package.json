@@ -108,6 +108,7 @@
     "lowlight": "^3.3.0",
     "lucide-react": "^0.554.0",
     "mdast-util-find-and-replace": "^3.0.0",
+    "music-metadata": "^11.14.0",
     "papaparse": "^5.5.3",
     "parallel-web": "^0.2.4",
     "pdf-lib": "^1.17.1",

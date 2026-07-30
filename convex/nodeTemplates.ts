@@ -43,7 +43,7 @@ export const listMine = query({
 // hors d'une route canvas, où ni templatesStore ni listMine ne sont là.
 // Renvoie null si le template n'existe pas OU ne t'appartient pas — la
 // modale en fait un état affichable (cf. getOwnedTemplate).
-export const getMine = query({
+export const getOneThatIsMine = query({
   args: { templateId: v.id("nodeTemplates") },
   handler: async (ctx, { templateId }) => {
     const authUserId = await requireAuth(ctx);

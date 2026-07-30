@@ -117,6 +117,7 @@ export default function TemplateEditorModal() {
             requestClose();
           }}
         >
+          {/* HIDDEN */}
           <DialogTitle className="sr-only">Edit custom node type</DialogTitle>
           <DialogDescription className="sr-only">
             Design the fields and layouts of a custom node type.
@@ -188,8 +189,7 @@ function CanvasFocusGuard() {
   return null;
 }
 
-// Séparé pour que la query ne tourne que sur un id réel : en création, il n'y
-// a rien à charger, et `useQuery` ne peut pas être appelé conditionnellement.
+// Logique d'affichage en fonction du template => vide, forbidden, inexistant...
 function EditorBody({
   templateId,
   onCreated,
@@ -200,7 +200,7 @@ function EditorBody({
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const template = useQuery(
-    api.nodeTemplates.getMine,
+    api.nodeTemplates.getOneThatIsMine,
     templateId ? { templateId } : "skip",
   );
 

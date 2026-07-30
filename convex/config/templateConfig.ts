@@ -7,6 +7,7 @@ import {
   resolveFieldVariant,
   type FieldSurface,
 } from "./fieldVariants";
+import { getResolvedOptionsSchema } from "./optionDescriptors";
 
 // Modèle de layout des custom node templates : un arbre de containers flex
 // (row/column, gap, alignement) dont les feuilles sont des placements de
@@ -222,11 +223,15 @@ function normalizeLayoutTree(
 
     let variantOptions = node.variantOptions;
     if (variantOptions !== undefined) {
-      const optionsSchema = resolved.optionsSchema;
-      if (!optionsSchema) {
+      const descriptors = resolved.optionFields;
+      if (!descriptors || descriptors.length === 0) {
         variantOptions = {};
       } else {
-        const parsed = optionsSchema.safeParse(variantOptions);
+        // Même schéma que celui du rendu (dérivé des descripteurs, mis en
+        // cache) : ce qui est normalisé à l'écriture est exactement ce qui
+        // sera résolu à la lecture.
+        const parsed =
+          getResolvedOptionsSchema(descriptors).safeParse(variantOptions);
         variantOptions = parsed.success
           ? (parsed.data as Record<string, unknown>)
           : {};

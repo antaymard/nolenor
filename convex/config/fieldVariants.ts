@@ -1,5 +1,8 @@
-import { z } from "zod";
 import { fieldTypeValues, type FieldType } from "../schemas/fieldTypeSchema";
+import {
+  getResolvedOptionsSchema,
+  type OptionFieldDescriptor,
+} from "./optionDescriptors";
 
 // Couche 2 du design "variants de champs" (custom nodes) : déclaration des
 // présentations possibles par type de champ, indépendante de la sémantique
@@ -34,7 +37,10 @@ type FieldVariantDef = {
   // quel et n'est jamais supprimé côté builder, seule la vue décide OÙ le
   // label apparaît.
   ownsLabel?: boolean;
-  optionsSchema?: z.ZodTypeAny;
+  // Options d'affichage de CE variant. Déclaratives : le formulaire du
+  // builder et le schéma de validation en sont tous deux dérivés, il n'y a
+  // donc pas de schéma à tenir en phase à côté (cf. optionDescriptors).
+  optionFields?: OptionFieldDescriptor[];
 };
 
 type FieldVariantCatalogEntry = {
@@ -82,7 +88,14 @@ const fieldVariants = {
         // un `.default({})` sur l'objet renverrait `{}` sans appliquer les
         // défauts des clés. C'est parseVariantOptions qui garantit un objet
         // complet, en parsant `{}` plutôt que `undefined`.
-        optionsSchema: z.object({ showUnit: z.boolean().default(true) }),
+        optionFields: [
+          {
+            key: "showUnit",
+            kind: "boolean",
+            label: "Show unit",
+            default: true,
+          },
+        ],
       },
     ],
     defaultBySurface: { node: "plain", window: "plain" },
@@ -169,9 +182,18 @@ const fieldVariants = {
         commit: "immediate",
         // Nombre de lignes visibles de l'extrait. Un `.default()` par clé,
         // rien sur l'objet (cf. number.kpi pour le pourquoi).
-        optionsSchema: z.object({
-          lines: z.number().int().min(1).max(20).default(3),
-        }),
+        optionFields: [
+          {
+            key: "lines",
+            kind: "number",
+            label: "Lines",
+            help: "Height of the excerpt, in lines of text.",
+            default: 3,
+            min: 1,
+            max: 20,
+            integer: true,
+          },
+        ],
       },
       {
         id: "full",
@@ -208,9 +230,19 @@ const fieldVariants = {
         surfaces: ["node", "window"],
         edit: "inline",
         commit: "immediate",
-        optionsSchema: z.object({
-          size: z.enum(["sm", "md", "lg"]).default("md"),
-        }),
+        optionFields: [
+          {
+            key: "size",
+            kind: "enum",
+            label: "Size",
+            default: "md",
+            values: [
+              { value: "sm", label: "Small" },
+              { value: "md", label: "Medium" },
+              { value: "lg", label: "Large" },
+            ],
+          },
+        ],
       },
       {
         id: "link",
@@ -283,8 +315,12 @@ function parseVariantOptions(
   variant: FieldVariantDef,
   raw: unknown,
 ): Record<string, unknown> | undefined {
-  const schema = variant.optionsSchema;
-  if (!schema) return undefined;
+  if (!variant.optionFields || variant.optionFields.length === 0) {
+    return undefined;
+  }
+  // Schéma dérivé des descripteurs, construit une seule fois et mis en cache
+  // sur l'identité du tableau (littéral de module).
+  const schema = getResolvedOptionsSchema(variant.optionFields);
 
   // `raw ?? {}` et non `raw` : en Zod 4, parser `undefined` contre un objet
   // sans `.default()` échoue, et avec un `.default({})` rendrait `{}` sans

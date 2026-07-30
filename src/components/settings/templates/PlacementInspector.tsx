@@ -21,10 +21,11 @@ import type {
 } from "@/../convex/config/templateConfig";
 import {
   fieldVariants,
+  parseVariantOptions,
   resolveFieldVariant,
   type FieldSurface,
 } from "@/../convex/config/fieldVariants";
-import VariantOptionsForm from "./VariantOptionsForm";
+import OptionDescriptorsForm from "./OptionDescriptorsForm";
 import {
   findLayoutNode,
   removeLayoutNode,
@@ -251,11 +252,15 @@ export default function PlacementInspector({
         </div>
       )}
 
-      {resolvedVariant?.optionsSchema && (
-        <VariantOptionsForm
-          variant={resolvedVariant}
-          value={node.variantOptions}
+      {resolvedVariant?.optionFields && (
+        <OptionDescriptorsForm
+          descriptors={resolvedVariant.optionFields}
+          // Valeurs résolues et non brutes : l'utilisateur voit les défauts
+          // effectifs, pas des champs vides qui suggéreraient à tort
+          // « non configuré ».
+          values={parseVariantOptions(resolvedVariant, node.variantOptions) ?? {}}
           onChange={(variantOptions) => patch({ variantOptions })}
+          title={`${resolvedVariant.label} options`}
         />
       )}
 

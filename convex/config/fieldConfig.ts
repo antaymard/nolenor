@@ -6,6 +6,10 @@ import {
 } from "../schemas/fieldTypeSchema";
 import { templateFieldValidator } from "../schemas/nodeTemplatesSchema";
 import {
+  buildLooseOptionsSchema,
+  type OptionFieldDescriptor,
+} from "./optionDescriptors";
+import {
   extractInlineText,
   parseStoredBlockNoteDocument,
   type BlockNoteBlock,
@@ -25,8 +29,20 @@ type SelectChoice = { id: string; label: string; color?: string };
 type FieldTypeConfigItem = {
   type: FieldType;
   label: string;
+  // Options du champ, déclarées : le formulaire du builder en est dérivé, et
+  // `optionsSchema` aussi (via buildLooseOptionsSchema). Vide = ce type n'a
+  // rien à configurer, ou ses options sont trop structurées pour un
+  // formulaire générique et un composant dédié les prend en charge
+  // (cf. `select` et son éditeur de choix, déclaré dans fieldRegistry).
+  optionFields: OptionFieldDescriptor[];
   // Forme des `options` du champ (validée à la création/édition du template).
+  // Dérivée de `optionFields`, sauf là où la forme n'est pas exprimable en
+  // descripteurs.
   optionsSchema: z.ZodTypeAny;
+  // Ce type accepte-t-il une valeur par défaut saisie dans le builder ?
+  // L'emplacement correspondant monte l'éditeur du champ lui-même — il n'y a
+  // donc aucune UI par type à écrire, seulement à dire oui ou non.
+  supportsDefault: boolean;
   // Forme stockée de la value dans nodeDatas.values[field.id].
   buildValueSchema: (field: TemplateField) => z.ZodTypeAny;
   // Forme côté LLM si différente de la forme stockée (ex futur : rich_text
@@ -85,6 +101,39 @@ function extractRichTextText(value: unknown): string | null {
   return text.length > 0 ? text : null;
 }
 
+// ── Options déclarées par type ──────────────────────────────────────────
+// Constantes nommées et non littéraux inline : chaque tableau est référencé
+// deux fois (le formulaire le lit, le schéma en dérive) et son identité doit
+// rester stable.
+
+const SHORT_TEXT_OPTIONS: OptionFieldDescriptor[] = [
+  {
+    key: "placeholder",
+    kind: "text",
+    label: "Placeholder",
+    maxLength: 200,
+    help: "Shown when the field is empty. Defaults to the field name.",
+  },
+];
+
+const NUMBER_OPTIONS: OptionFieldDescriptor[] = [
+  {
+    key: "unit",
+    kind: "text",
+    label: "Unit",
+    maxLength: 30,
+    placeholder: "kg, €…",
+  },
+  { key: "min", kind: "number", label: "Min" },
+  { key: "max", kind: "number", label: "Max" },
+];
+
+// Partagé par les types sans options configurables. `select` l'utilise aussi :
+// ses options existent mais ne sont pas exprimables en descripteurs (tableau
+// de choix structurés), elles gardent leur schéma écrit à la main et leur
+// éditeur dédié.
+const NO_OPTIONS: OptionFieldDescriptor[] = [];
+
 // ── Catalogue ───────────────────────────────────────────────────────────
 
 // Record (pas Array) : un type manquant est une erreur de COMPILATION, pas un
@@ -95,9 +144,9 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
   short_text: {
     type: "short_text",
     label: "Text",
-    optionsSchema: z
-      .strictObject({ placeholder: z.string().max(200).optional() })
-      .optional(),
+    optionFields: SHORT_TEXT_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(SHORT_TEXT_OPTIONS),
+    supportsDefault: true,
     // Nullable comme tous les autres types : cf. commentaire sur `number`
     // pour la sémantique de `null` = valeur effacée.
     buildValueSchema: () => z.string().max(2000).nullable(),
@@ -110,13 +159,9 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
   number: {
     type: "number",
     label: "Number",
-    optionsSchema: z
-      .strictObject({
-        unit: z.string().max(30).optional(),
-        min: z.number().optional(),
-        max: z.number().optional(),
-      })
-      .optional(),
+    optionFields: NUMBER_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NUMBER_OPTIONS),
+    supportsDefault: true,
     // Nullable : updateValues merge les values côté serveur (une clé ne
     // peut jamais être retirée), null est le marqueur « valeur effacée ».
     buildValueSchema: (field) => {
@@ -145,7 +190,9 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
     label: "Date",
     // Pas d'options V1 (pas de time picker côté builder/DateField — inutile
     // d'exposer un réglage sans UI pour l'exploiter).
-    optionsSchema: z.strictObject({}).optional(),
+    optionFields: NO_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NO_OPTIONS),
+    supportsDefault: true,
     // Stockage en ISO date ("YYYY-MM-DD"). Nullable : null = valeur effacée
     // (cf. commentaire sur number).
     buildValueSchema: () => z.iso.date().nullable(),
@@ -158,6 +205,11 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
   select: {
     type: "select",
     label: "Select",
+    // Options non exprimables en descripteurs : un tableau de choix
+    // structurés, avec réordonnancement et couleurs. Schéma écrit à la main,
+    // éditeur dédié déclaré dans fieldRegistry.
+    optionFields: NO_OPTIONS,
+    supportsDefault: true,
     optionsSchema: z.strictObject({
       choices: z
         .array(
@@ -210,7 +262,9 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
   boolean: {
     type: "boolean",
     label: "Checkbox",
-    optionsSchema: z.strictObject({}).optional(),
+    optionFields: NO_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NO_OPTIONS),
+    supportsDefault: true,
     buildValueSchema: () => z.boolean().nullable(),
     getDefault: (field) =>
       typeof field.default === "boolean" ? field.default : false,
@@ -219,7 +273,11 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
   rich_text: {
     type: "rich_text",
     label: "Rich text",
-    optionsSchema: z.strictObject({}).optional(),
+    optionFields: NO_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NO_OPTIONS),
+    // Un document par défaut n'aurait pas de sens (et getDefault renvoie
+    // undefined) : pas d'emplacement de défaut dans le builder.
+    supportsDefault: false,
     // Stocké comme les nodes blocknote prébuilts : tableau de blocs BlockNote
     // stringifié. La canonicalisation + validation structurelle se fait côté
     // serveur dans NodeDataModel.updateValues (même branche que le node
@@ -242,7 +300,11 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
   image: {
     type: "image",
     label: "Image",
-    optionsSchema: z.strictObject({}).optional(),
+    optionFields: NO_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NO_OPTIONS),
+    // Idem : une image par défaut supposerait un upload à la définition du
+    // type, pas à l'usage.
+    supportsDefault: false,
     // `key` présent uniquement pour les uploads R2 (cascade de suppression) ;
     // les URLs externes posées par l'agent n'en ont pas. null = effacée.
     buildValueSchema: () =>

@@ -247,6 +247,54 @@ export function useCanvasPasteHandler() {
   );
 
   /**
+   * Handle audio file paste
+   */
+  const handleAudioFilePaste = useCallback(
+    async (file: File) => {
+      const position = getViewportCenter();
+
+      const audioNodeConfig = prebuiltNodesConfig.find(
+        (config) => config.node.type === "audio",
+      );
+      if (!audioNodeConfig) {
+        toast.error("Error: AudioNode configuration not found");
+        return;
+      }
+
+      // Create the node first so the upload has somewhere visible to land.
+      const { nodeId, nodeDataId } = await createNode({
+        node: audioNodeConfig.node,
+        position,
+      });
+      if (!nodeDataId) return;
+
+      try {
+        const fileData = await uploadFile(file);
+        await updateNodeDataValues({
+          _id: nodeDataId,
+          values: {
+            audio: { ...fileData, duration: 0, peaks: [] },
+            loop: { start: 0, end: 0, enabled: false },
+          },
+        });
+        toast.success("Audio added to canvas");
+      } catch (error) {
+        console.error("Upload failed:", error);
+        toast.error("Error uploading audio");
+
+        setNodes((nodes) => nodes.filter((n) => n.id !== nodeId));
+      }
+    },
+    [
+      getViewportCenter,
+      createNode,
+      uploadFile,
+      updateNodeDataValues,
+      setNodes,
+    ],
+  );
+
+  /**
    * Handle URL paste (image URL or web URL)
    */
   const handleUrlPaste = useCallback(
@@ -303,6 +351,14 @@ export function useCanvasPasteHandler() {
           });
           return;
         }
+        if (file.type.startsWith("audio/")) {
+          const signature = `audio:${file.type}:${file.size}:${file.lastModified}`;
+          e.preventDefault();
+          runWithPasteGuard(pasteGuardRef.current, signature, async () => {
+            await handleAudioFilePaste(file);
+          });
+          return;
+        }
       }
 
       // Check for text (URL or plain text)
@@ -330,6 +386,7 @@ export function useCanvasPasteHandler() {
     [
       focus,
       handleImageFilePaste,
+      handleAudioFilePaste,
       handleUrlPaste,
       createDocumentNode,
     ],

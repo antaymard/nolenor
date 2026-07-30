@@ -11,6 +11,7 @@ const nodeTypeValues = [
   "pdf",
   "table",
   "app",
+  "audio",
 ] as const;
 
 const nodeTypeValidator = v.union(

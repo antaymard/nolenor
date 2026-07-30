@@ -494,6 +494,111 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       })
       .default({ code: "", state: null }),
   },
+  {
+    type: "audio",
+    label: "Audio",
+    description:
+      "Node for playing an uploaded audio file, with a saved loop region.",
+    llmDescription:
+      "For storing/playing an audio file (music, recording, interview, voice memo). The user can play it on the canvas and save a loop region to replay a specific passage over and over. \nThe data value 'audio' is an object with 'url' (the public URL of the file), 'filename' (the display name, which also serves as the node title), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key) and 'duration' (length in seconds). The data value 'loop' is an object with 'start' and 'end' (both in seconds from the beginning of the file) and 'enabled' (whether looping is active); a loop region only counts as set when 'end' is greater than 'start'. 'playbackRate' is the playback speed (1 = normal). \nUse set_node_data with 'loop' to place a loop on a passage the user describes — express the bounds in seconds.",
+    defaultDimensions: { width: 320, height: 88, resizable: true },
+    variants: {
+      player: {
+        label: "Player",
+        defaultWidth: 320,
+        defaultHeight: 88,
+        resizable: true,
+        isDefault: true,
+      },
+      compact: {
+        label: "Compact",
+        defaultWidth: 260,
+        defaultHeight: 33,
+        resizable: false,
+      },
+    },
+    dataValuesSchema: z
+      .object({
+        audio: z
+          .object({
+            url: z.string().describe("The public URL of the audio file."),
+            filename: z.string().describe("The display filename."),
+            mimeType: z.string().describe("The MIME type of the file."),
+            size: z.number().describe("The file size in bytes."),
+            uploadedAt: z
+              .number()
+              .describe("Upload timestamp (epoch milliseconds)."),
+            key: z.string().describe("The storage key/path of the file."),
+            duration: z
+              .number()
+              .describe("Duration of the audio in seconds.")
+              .default(0),
+            // Reserved for the waveform: normalised amplitude buckets (0-100).
+            // Not populated yet — the node renders a plain progress bar.
+            peaks: z.array(z.number()).default([]),
+          })
+          .nullable()
+          .default(null),
+        loop: z
+          .object({
+            start: z
+              .number()
+              .describe("Loop start, in seconds from the beginning.")
+              .default(0),
+            end: z
+              .number()
+              .describe("Loop end, in seconds from the beginning.")
+              .default(0),
+            enabled: z
+              .boolean()
+              .describe("Whether looping is active.")
+              .default(false),
+          })
+          .default({ start: 0, end: 0, enabled: false }),
+        playbackRate: z
+          .number()
+          .min(0.25)
+          .max(4)
+          .describe("Playback speed, 1 being normal.")
+          .default(1),
+      })
+      .default({
+        audio: null,
+        loop: { start: 0, end: 0, enabled: false },
+        playbackRate: 1,
+      }),
+    // `key` and `peaks` are deliberately absent: the storage key is owned by the
+    // upload path, and peaks are derived data.
+    toolInputSchema: z
+      .object({
+        audio: z
+          .object({
+            url: z.string().describe("The public URL of the audio file."),
+            filename: z.string().describe("The display filename."),
+            mimeType: z.string().describe("The MIME type of the file."),
+            size: z.number().describe("The file size in bytes."),
+            duration: z
+              .number()
+              .optional()
+              .describe("Duration of the audio in seconds."),
+          })
+          .strict()
+          .optional(),
+        loop: z
+          .object({
+            start: z
+              .number()
+              .describe("Loop start, in seconds from the beginning."),
+            end: z
+              .number()
+              .describe("Loop end, in seconds from the beginning."),
+            enabled: z.boolean().describe("Whether looping is active."),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict(),
+  },
 ];
 
 function getDefaultNodeDataValues(

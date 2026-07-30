@@ -69,6 +69,16 @@ export function getNodeDataTitle(nodeData: Doc<"nodeDatas">): string {
         : "PDF";
     }
 
+    case "audio": {
+      const audio = nodeData.values.audio as
+        | { filename?: unknown }
+        | null
+        | undefined;
+      return typeof audio?.filename === "string" && audio.filename.length > 0
+        ? audio.filename
+        : "Audio";
+    }
+
     case "image": {
       const images = nodeData.values.images as
         | Array<{ filename?: unknown }>

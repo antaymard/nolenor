@@ -78,6 +78,14 @@ export async function deleteNodeDataWithCascade(
           }
         }
       }
+    } else if (nodeData.type === "audio") {
+      const audio = nodeData.values?.audio;
+      if (audio && typeof audio === "object") {
+        const key = (audio as Record<string, unknown>).key;
+        if (typeof key === "string") {
+          r2Keys.push(key);
+        }
+      }
     } else if (nodeData.type === "image") {
       const publicUrlBase = process.env.R2_PUBLIC_URL;
       const images = nodeData.values?.images;

@@ -58,6 +58,13 @@ export type TableFormatResult = {
   missingRowIds: string[];
 };
 
+/** `m:ss`, the same shape the audio node shows the user. */
+function formatSeconds(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
 function escapeMarkdownTableCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
 }
@@ -432,6 +439,40 @@ export async function makeNodeDataLLMFriendly(
             `- [${f.filename}](${f.url})${f.mimeType ? ` (${f.mimeType})` : ""}`,
         )
         .join("\n");
+    }
+
+    case "audio": {
+      const audio = values.audio as
+        | {
+            url?: string;
+            filename?: string;
+            mimeType?: string;
+            duration?: number;
+          }
+        | null
+        | undefined;
+      if (!audio?.url) return "(aucun fichier audio)";
+
+      // Never JSON.stringify the raw values here: they carry a `peaks` array
+      // that would flood every read_nodes call with kilobytes of noise.
+      const details = [
+        audio.mimeType,
+        audio.duration ? formatSeconds(audio.duration) : undefined,
+      ].filter(Boolean);
+      const head = `- [${audio.filename ?? "audio"}](${audio.url})${
+        details.length > 0 ? ` (${details.join(", ")})` : ""
+      }`;
+
+      const loop = values.loop as
+        | { start?: number; end?: number; enabled?: boolean }
+        | undefined;
+      const start = loop?.start ?? 0;
+      const end = loop?.end ?? 0;
+      if (end <= start) return head;
+
+      return `${head} · loop ${formatSeconds(start)}→${formatSeconds(end)} (${
+        loop?.enabled ? "activée" : "inactive"
+      })`;
     }
 
     case "table": {

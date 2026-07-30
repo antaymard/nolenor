@@ -121,21 +121,22 @@ export function useAudioPlayback({
 
   useEffect(() => stopRaf, [stopRaf]);
 
-  // Keep element-level settings in sync.
-  useEffect(() => {
+  const applyElementSettings = useCallback(() => {
     const el = audioRef.current;
     if (!el) return;
     el.playbackRate = playbackRate;
     // Slowing a passage down to work on it must not transpose it.
     el.preservesPitch = true;
-  }, [playbackRate]);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
     el.volume = volume;
     el.muted = muted;
-  }, [volume, muted]);
+  }, [muted, playbackRate, volume]);
+
+  // Covers later changes. The first application is done on loadedmetadata,
+  // because the element only mounts once the node has a file and this effect
+  // would otherwise have already run against a null ref.
+  useEffect(() => {
+    applyElementSettings();
+  }, [applyElementSettings]);
 
   const pause = useCallback(() => {
     const el = audioRef.current;
@@ -219,11 +220,13 @@ export function useAudioPlayback({
 
   const handleLoadedMetadata = useCallback(() => {
     const el = audioRef.current;
-    if (!el || !Number.isFinite(el.duration)) return;
+    if (!el) return;
+    applyElementSettings();
+    if (!Number.isFinite(el.duration)) return;
     setDuration(el.duration);
     onDurationDetected?.(el.duration);
     syncUi();
-  }, [onDurationDetected, syncUi]);
+  }, [applyElementSettings, onDurationDetected, syncUi]);
 
   const handleEnded = useCallback(() => {
     pause();

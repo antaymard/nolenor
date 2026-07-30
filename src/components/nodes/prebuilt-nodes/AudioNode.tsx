@@ -2,11 +2,18 @@ import { memo, useCallback, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import {
   TbDownload,
+  TbFlag,
+  TbGauge,
   TbMusic,
   TbPencil,
   TbPlayerPause,
   TbPlayerPlay,
   TbPlayerTrackPrev,
+  TbRepeat,
+  TbRepeatOff,
+  TbVolume,
+  TbVolumeOff,
+  TbX,
 } from "react-icons/tb";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
@@ -24,9 +31,11 @@ import { useNodeDataValuesField } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import {
   formatTime,
+  isLoopSet,
   useAudioPlayback,
   type AudioLoop,
 } from "@/hooks/useAudioPlayback";
+import { useAudioStore } from "@/stores/audioStore";
 import type { Id } from "@/../convex/_generated/dataModel";
 
 export type AudioValue = {
@@ -41,6 +50,8 @@ export type AudioValue = {
 };
 
 const DEFAULT_LOOP: AudioLoop = { start: 0, end: 0, enabled: false };
+
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 function AudioNode(xyNode: Node) {
   const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
@@ -85,6 +96,7 @@ function AudioNode(xyNode: Node) {
     toggle,
     seekToRatio,
     restart,
+    getCurrentTime,
     handleLoadedMetadata,
     handleEnded,
   } = useAudioPlayback({
@@ -95,6 +107,54 @@ function AudioNode(xyNode: Node) {
   });
 
   const duration = audio?.duration || detectedDuration;
+
+  const writeLoop = useCallback(
+    (next: AudioLoop) => {
+      if (!nodeDataId) return;
+      // The stored object is recreated on every sync, so compare the fields:
+      // Object.is on the whole object would call every write a change.
+      if (
+        next.start === loop.start &&
+        next.end === loop.end &&
+        next.enabled === loop.enabled
+      ) {
+        return;
+      }
+      updateNodeDataValues({ nodeDataId, values: { loop: next } });
+    },
+    [loop.enabled, loop.end, loop.start, nodeDataId, updateNodeDataValues],
+  );
+
+  // Planting a flag must always leave a usable region rather than an inverted
+  // one, so the opposite bound gives way when it would end up on the wrong side.
+  const handleFlagStart = useCallback(() => {
+    const start = getCurrentTime();
+    const end = loop.end > start ? loop.end : duration;
+    writeLoop({ start, end, enabled: loop.enabled });
+  }, [duration, getCurrentTime, loop.enabled, loop.end, writeLoop]);
+
+  const handleFlagEnd = useCallback(() => {
+    const end = getCurrentTime();
+    const start = loop.start < end ? loop.start : 0;
+    writeLoop({ start, end, enabled: loop.enabled });
+  }, [getCurrentTime, loop.enabled, loop.start, writeLoop]);
+
+  const handleToggleLoop = useCallback(() => {
+    if (!isLoopSet(loop)) return;
+    writeLoop({ ...loop, enabled: !loop.enabled });
+  }, [loop, writeLoop]);
+
+  const handleClearLoop = useCallback(() => {
+    writeLoop(DEFAULT_LOOP);
+  }, [writeLoop]);
+
+  const handleRateChange = useCallback(
+    (rate: number) => {
+      if (!nodeDataId || rate === playbackRate) return;
+      updateNodeDataValues({ nodeDataId, values: { playbackRate: rate } });
+    },
+    [nodeDataId, playbackRate, updateNodeDataValues],
+  );
 
   const handleUploadComplete = useCallback(
     (fileData: {
@@ -174,6 +234,13 @@ function AudioNode(xyNode: Node) {
     e.stopPropagation();
   }, []);
 
+  const volume = useAudioStore((s) => s.volume);
+  const muted = useAudioStore((s) => s.muted);
+  const setVolume = useAudioStore((s) => s.setVolume);
+  const toggleMuted = useAudioStore((s) => s.toggleMuted);
+
+  const loopIsSet = isLoopSet(loop);
+
   const bar = useMemo(
     () => (
       <AudioProgressBar
@@ -201,14 +268,86 @@ function AudioNode(xyNode: Node) {
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
         {audio && (
-          <Button
-            variant="outline"
-            size="icon"
-            title="Télécharger"
-            onClick={handleDownload}
-          >
-            <TbDownload />
-          </Button>
+          <>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" title="Vitesse et volume">
+                  <TbGauge />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56">
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="mb-1.5 text-xs text-muted-foreground">
+                      Vitesse
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {PLAYBACK_RATES.map((rate) => (
+                        <Button
+                          key={rate}
+                          size="sm"
+                          variant={
+                            rate === playbackRate ? "default" : "outline"
+                          }
+                          onClick={() => handleRateChange(rate)}
+                        >
+                          {rate}x
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      La hauteur est conservée.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs text-muted-foreground">
+                      Volume
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={toggleMuted}
+                        title={muted ? "Réactiver le son" : "Couper le son"}
+                      >
+                        {muted ? (
+                          <TbVolumeOff size={16} />
+                        ) : (
+                          <TbVolume size={16} />
+                        )}
+                      </button>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={volume}
+                        onChange={(e) => setVolume(Number(e.target.value))}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+            {loopIsSet && (
+              <Button
+                variant="outline"
+                size="icon"
+                title="Effacer la boucle"
+                onClick={handleClearLoop}
+              >
+                <TbX />
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              title="Télécharger"
+              onClick={handleDownload}
+            >
+              <TbDownload />
+            </Button>
+          </>
         )}
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
@@ -310,6 +449,51 @@ function AudioNode(xyNode: Node) {
                     <span ref={timeLabelRef}>0:00</span>
                     {" / "}
                     {formatTime(duration)}
+                  </span>
+
+                  <span className="ml-auto flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-violet-700"
+                      onMouseDown={stopMouseDown}
+                      onClick={handleFlagStart}
+                      title="Début de la boucle ici"
+                    >
+                      <TbFlag size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-violet-700"
+                      onMouseDown={stopMouseDown}
+                      onClick={handleFlagEnd}
+                      title="Fin de la boucle ici"
+                    >
+                      <TbFlag size={14} className="-scale-x-100" />
+                    </button>
+                    <button
+                      type="button"
+                      className={
+                        loop.enabled
+                          ? "text-violet-700"
+                          : "text-muted-foreground hover:text-foreground disabled:opacity-40"
+                      }
+                      onMouseDown={stopMouseDown}
+                      onClick={handleToggleLoop}
+                      disabled={!loopIsSet}
+                      title={
+                        loopIsSet
+                          ? loop.enabled
+                            ? "Désactiver la boucle"
+                            : "Activer la boucle"
+                          : "Placez d'abord un début et une fin"
+                      }
+                    >
+                      {loop.enabled ? (
+                        <TbRepeat size={15} />
+                      ) : (
+                        <TbRepeatOff size={15} />
+                      )}
+                    </button>
                   </span>
                 </div>
               </>

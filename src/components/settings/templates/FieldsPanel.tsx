@@ -29,6 +29,8 @@ import {
 } from "@/../convex/config/fieldConfig";
 import { collectLayoutFieldIds } from "@/../convex/config/templateConfig";
 import { getFieldReachability } from "./fieldReachability";
+import OptionDescriptorsForm from "./OptionDescriptorsForm";
+import FieldDefaultValueEditor from "./FieldDefaultValueEditor";
 import type { TemplateDraft } from "./templateDraft";
 
 type FieldsPanelProps = {
@@ -238,16 +240,46 @@ export default function FieldsPanel({
             </div>
           )}
 
-          {/* Options du champ : fournies par le registry. Ajouter un type ne
-              demande plus de toucher ce fichier. */}
+          {/* Trois blocs indépendants, aucun ne connaît de type de champ :
+              1. les options déclarées, rendues par un formulaire dérivé ;
+              2. un éditeur dédié quand le registry en déclare un (les choix
+                 d'un select ne se génèrent pas correctement) ;
+              3. la valeur par défaut, saisie via le champ lui-même.
+              Ajouter un type de champ ne demande de toucher aucun des trois. */}
           {(() => {
-            const OptionsEditor = fieldRegistry[selectedField.type].OptionsEditor;
-            if (!OptionsEditor) return null;
+            const config = getFieldTypeConfig(selectedField.type);
+            const OptionsEditor =
+              fieldRegistry[selectedField.type].OptionsEditor;
+            const patchField = (patch: Partial<TemplateField>) =>
+              onUpdateField(selectedField.id, patch);
+
             return (
-              <OptionsEditor
-                field={selectedField}
-                onChange={(patch) => onUpdateField(selectedField.id, patch)}
-              />
+              <>
+                {config.optionFields.length > 0 && (
+                  <OptionDescriptorsForm
+                    descriptors={config.optionFields}
+                    // Valeurs BRUTES (et non résolues) : les options d'un
+                    // champ n'ont pas de défaut injecté, un contrôle vide veut
+                    // dire « non configuré » et doit le rester.
+                    values={selectedField.options ?? {}}
+                    onChange={(options) => patchField({ options })}
+                  />
+                )}
+
+                {OptionsEditor && (
+                  <OptionsEditor
+                    field={selectedField}
+                    onChange={patchField}
+                  />
+                )}
+
+                {config.supportsDefault && (
+                  <FieldDefaultValueEditor
+                    field={selectedField}
+                    onChange={patchField}
+                  />
+                )}
+              </>
             );
           })()}
 

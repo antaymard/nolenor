@@ -13,9 +13,6 @@ import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
 import type { VariantId } from "@/../convex/config/fieldVariants";
 import type { FieldVariantRegistration } from "@/components/fields/registry/fieldVariantRegistrations";
 import type { FieldOptionsEditorProps } from "@/components/fields/fieldHostTypes";
-import ShortTextOptionsEditor from "@/components/fields/options/ShortTextOptionsEditor";
-import NumberOptionsEditor from "@/components/fields/options/NumberOptionsEditor";
-import BooleanOptionsEditor from "@/components/fields/options/BooleanOptionsEditor";
 import SelectFieldOptionsEditor from "@/components/fields/options/SelectFieldOptionsEditor";
 
 import ShortTextPlainView from "@/components/fields/views/short_text/PlainView";
@@ -62,9 +59,10 @@ import {
 type FieldTypeRegistryEntry = {
   icon: IconType;
   variants: Record<string, FieldVariantRegistration>;
-  // Formulaire des options DU CHAMP dans le builder (absent = ce type n'a
-  // rien à configurer). Vit dans le registry et non dans une chaîne de `if`
-  // côté FieldsPanel, pour qu'ajouter un type ne demande pas d'y toucher.
+  // Éditeur d'options DÉDIÉ, à ne déclarer que lorsqu'un formulaire dérivé
+  // des descripteurs (fieldConfig.optionFields) ne convient pas — aujourd'hui
+  // le seul cas est `select`, dont les choix sont un tableau d'objets
+  // réordonnables et colorés. Absent = formulaire dérivé, ou rien à régler.
   OptionsEditor?: ComponentType<FieldOptionsEditorProps>;
 };
 
@@ -167,27 +165,15 @@ const imageVariants = {
 } satisfies Record<VariantId<"image">, FieldVariantRegistration>;
 
 const fieldRegistry: Record<FieldType, FieldTypeRegistryEntry> = {
-  short_text: {
-    icon: TbAbc,
-    variants: shortTextVariants,
-    OptionsEditor: ShortTextOptionsEditor,
-  },
-  number: {
-    icon: TbNumber123,
-    variants: numberVariants,
-    OptionsEditor: NumberOptionsEditor,
-  },
+  short_text: { icon: TbAbc, variants: shortTextVariants },
+  number: { icon: TbNumber123, variants: numberVariants },
   date: { icon: TbCalendar, variants: dateVariants },
   select: {
     icon: TbSelect,
     variants: selectVariants,
     OptionsEditor: SelectFieldOptionsEditor,
   },
-  boolean: {
-    icon: TbCheckbox,
-    variants: booleanVariants,
-    OptionsEditor: BooleanOptionsEditor,
-  },
+  boolean: { icon: TbCheckbox, variants: booleanVariants },
   rich_text: { icon: TbNews, variants: richTextVariants },
   image: { icon: TbPhoto, variants: imageVariants },
 };

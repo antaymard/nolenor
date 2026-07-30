@@ -19,11 +19,15 @@ type OptionFieldDescriptorBase = {
   help?: string;
 };
 
+// `default` est FACULTATIF : les options d'un variant en ont toujours un (on
+// veut un objet résolu complet), celles d'un champ souvent pas — les bornes
+// min/max d'un nombre n'ont pas de valeur par défaut sensée. La contrainte est
+// donc portée par le constructeur qui en a besoin, pas par le type.
 type OptionFieldDescriptor =
-  | (OptionFieldDescriptorBase & { kind: "boolean"; default: boolean })
+  | (OptionFieldDescriptorBase & { kind: "boolean"; default?: boolean })
   | (OptionFieldDescriptorBase & {
       kind: "number";
-      default: number;
+      default?: number;
       min?: number;
       max?: number;
       integer?: boolean;
@@ -36,7 +40,7 @@ type OptionFieldDescriptor =
     })
   | (OptionFieldDescriptorBase & {
       kind: "enum";
-      default: string;
+      default?: string;
       // Libellés explicites : sans eux le formulaire afficherait "sm" au lieu
       // de "Small".
       values: { value: string; label: string }[];
@@ -79,9 +83,21 @@ function baseSchema(descriptor: OptionFieldDescriptor): z.ZodTypeAny {
 }
 
 function descriptorDefault(descriptor: OptionFieldDescriptor): unknown {
-  return descriptor.kind === "text"
-    ? (descriptor.default ?? "")
-    : descriptor.default;
+  // Un texte sans défaut vaut la chaîne vide — c'est toujours un défaut
+  // sensé. Les trois autres formes n'en ont pas d'équivalent : un booléen ou
+  // un enum sans défaut ne peut pas produire d'objet résolu complet.
+  if (descriptor.kind === "text") return descriptor.default ?? "";
+
+  if (descriptor.default === undefined) {
+    // Erreur de configuration, attrapée au CHARGEMENT du module (les
+    // descripteurs sont des littéraux de module, ce schéma est construit une
+    // fois) — jamais au rendu. Même politique que
+    // assertFieldVariantsConfig.
+    throw new Error(
+      `optionDescriptors: "${descriptor.key}" (${descriptor.kind}) is used in a resolved options schema but declares no default.`,
+    );
+  }
+  return descriptor.default;
 }
 
 /**

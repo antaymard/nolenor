@@ -15,6 +15,7 @@ import type * as canvasNodes from "../canvasNodes.js";
 import type * as canvases from "../canvases.js";
 import type * as config_errorsConfig from "../config/errorsConfig.js";
 import type * as config_fieldConfig from "../config/fieldConfig.js";
+import type * as config_fieldVariants from "../config/fieldVariants.js";
 import type * as config_nodeConfig from "../config/nodeConfig.js";
 import type * as config_templateConfig from "../config/templateConfig.js";
 import type * as crons from "../crons.js";
@@ -162,6 +163,7 @@ declare const fullApi: ApiFromModules<{
   canvases: typeof canvases;
   "config/errorsConfig": typeof config_errorsConfig;
   "config/fieldConfig": typeof config_fieldConfig;
+  "config/fieldVariants": typeof config_fieldVariants;
   "config/nodeConfig": typeof config_nodeConfig;
   "config/templateConfig": typeof config_templateConfig;
   crons: typeof crons;

@@ -7,17 +7,14 @@ type TemplatesListProps = {
   // Optionnel : l'édition se faisant en modale, la liste des settings n'a
   // plus de notion de sélection persistante. Conservé pour les contextes qui
   // afficheraient la liste à côté d'une cible active.
-  selectedId?: Doc<"nodeTemplates">["_id"] | null;
   onSelect: (id: Doc<"nodeTemplates">["_id"]) => void;
 };
 
 function TemplateRow({
   template,
-  selected,
   onSelect,
 }: {
   template: Doc<"nodeTemplates">;
-  selected: boolean;
   onSelect: () => void;
 }) {
   const Icon = getTemplateIcon(template.icon);
@@ -27,7 +24,6 @@ function TemplateRow({
       onClick={onSelect}
       className={cn(
         "w-full text-left p-3 hover:bg-gray-100 transition-colors flex items-center gap-2.5",
-        selected && "bg-violet-50 hover:bg-violet-100",
       )}
     >
       <Icon size={16} className="shrink-0 text-gray-500" />
@@ -44,7 +40,6 @@ function TemplateRow({
 
 export default function TemplatesList({
   templates,
-  selectedId = null,
   onSelect,
 }: TemplatesListProps) {
   const active = templates.filter((t) => t.archivedAt === undefined);
@@ -64,7 +59,6 @@ export default function TemplatesList({
             <TemplateRow
               key={template._id}
               template={template}
-              selected={selectedId === template._id}
               onSelect={() => onSelect(template._id)}
             />
           ))}
@@ -80,7 +74,6 @@ export default function TemplatesList({
               <TemplateRow
                 key={template._id}
                 template={template}
-                selected={selectedId === template._id}
                 onSelect={() => onSelect(template._id)}
               />
             ))}

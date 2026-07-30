@@ -6169,9 +6169,9 @@ convex-helpers@^0.1.114:
   resolved "https://registry.npmjs.org/convex-helpers/-/convex-helpers-0.1.115.tgz"
   integrity sha512-f9gyJO+hzNBfSNV9moW7HaLY6bWFpOQR6EAXtD9yPbuPX8xGm0H1dtce1GjdVHhZgUam/svmutpbZssJ1z3t1A==
 
-convex@^1.38.0:
+convex@^1.42.3:
   version "1.42.3"
-  resolved "https://registry.npmjs.org/convex/-/convex-1.42.3.tgz"
+  resolved "https://registry.yarnpkg.com/convex/-/convex-1.42.3.tgz#d226b720e9ac5acf52d0e5771781a1f4c9e4df0e"
   integrity sha512-7Tz/lH6UlZdiqzLPF/zrlH6Rlo/DOp836dL+GZkUMEQ2jaGGNnBIiIDcOOiEqtfSehuQ65r/rdNMnb4LupowaA==
   dependencies:
     esbuild "0.27.0"

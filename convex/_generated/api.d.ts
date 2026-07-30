@@ -17,6 +17,7 @@ import type * as config_errorsConfig from "../config/errorsConfig.js";
 import type * as config_fieldConfig from "../config/fieldConfig.js";
 import type * as config_fieldVariants from "../config/fieldVariants.js";
 import type * as config_nodeConfig from "../config/nodeConfig.js";
+import type * as config_optionDescriptors from "../config/optionDescriptors.js";
 import type * as config_templateConfig from "../config/templateConfig.js";
 import type * as crons from "../crons.js";
 import type * as hotposts from "../hotposts.js";
@@ -165,6 +166,7 @@ declare const fullApi: ApiFromModules<{
   "config/fieldConfig": typeof config_fieldConfig;
   "config/fieldVariants": typeof config_fieldVariants;
   "config/nodeConfig": typeof config_nodeConfig;
+  "config/optionDescriptors": typeof config_optionDescriptors;
   "config/templateConfig": typeof config_templateConfig;
   crons: typeof crons;
   hotposts: typeof hotposts;

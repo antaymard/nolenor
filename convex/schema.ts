@@ -15,6 +15,7 @@ import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
 import { recipesValidor } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
+import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
 
 const schema = defineSchema({
   ...authTables,
@@ -31,6 +32,12 @@ const schema = defineSchema({
     }),
 
   nodeDatas: defineTable(nodeDatasValidator).index("by_canvasId", ["canvasId"]),
+
+  // Reference counting for R2 blobs: a duplicated node shares its original's
+  // storage key, so a file may only be deleted once its last referent is gone.
+  r2Objects: defineTable(r2ObjectsValidator)
+    .index("by_key", ["key"])
+    .index("by_nodeDataId", ["nodeDataId"]),
 
   // Checkpoints invisibles des values de nodeDatas (1 snapshot pré-write par
   // session d'édition d'un acteur). Purgés par cron après 30 jours ; ils

@@ -12,11 +12,14 @@ export const create = mutation({
     const authUserId = await requireAuth(ctx);
     await requireCanvasAccess(ctx, args.canvasId, authUserId, "editor");
 
-    const nodeDataId = await ctx.db.insert("nodeDatas", {
-      ...args,
+    // Through the model rather than a direct insert: that is where R2
+    // references get registered, and a node created here may already point at
+    // a blob (duplication copies `values` wholesale).
+    return NodeDataModel.createNodeData(ctx, {
+      type: args.type,
+      values: args.values,
+      canvasId: args.canvasId,
     });
-
-    return nodeDataId;
   },
   returns: v.id("nodeDatas"),
 });

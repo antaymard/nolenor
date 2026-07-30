@@ -22,10 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/shadcn/select";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/shadcn/toggle-group";
 import { cn } from "@/lib/utils";
 import nodeColors from "@/components/nodes/nodeColors";
 import type { colorsEnum } from "@/types/domain";
@@ -41,16 +37,19 @@ import {
   templateIconNames,
 } from "@/components/fields/registry/templateIcons";
 import FieldsPanel from "./FieldsPanel";
-import LayoutCanvas from "./LayoutCanvas";
 import PlacementInspector from "./PlacementInspector";
 import TemplatePreview from "./TemplatePreview";
 import {
   draftFromTemplate,
   genId,
+  insertLayoutNode,
   newEmptyDraft,
   newField,
   newPlacement,
   removeFieldPlacements,
+  resolveInsertionPoint,
+  type LayoutSelection,
+  type LayoutSurface,
   type TemplateDraft,
 } from "./templateDraft";
 
@@ -77,8 +76,9 @@ export default function TemplateEditor({
   );
   const [initialDraft] = useState(() => JSON.stringify(draft));
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
-  const [selectedLayoutId, setSelectedLayoutId] = useState<string | null>(null);
-  const [surface, setSurface] = useState<"node" | "window">("node");
+  // La surface n'est plus un mode : elle est portée par la sélection, donc
+  // désignée en cliquant dans l'aperçu visé.
+  const [selection, setSelection] = useState<LayoutSelection>(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [savedSnapshot, setSavedSnapshot] = useState(initialDraft);
@@ -106,8 +106,11 @@ export default function TemplateEditor({
   // modifications, et elle redemanderait confirmation à la réouverture.
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
-  const activeTree =
-    surface === "window" && draft.windowLayout
+  // Surface de l'inspecteur : celle de la sélection, `node` par défaut quand
+  // rien n'est sélectionné.
+  const inspectedSurface: LayoutSurface = selection?.surface ?? "node";
+  const inspectedTree =
+    inspectedSurface === "window" && draft.windowLayout
       ? draft.windowLayout
       : draft.nodeLayout;
 
@@ -115,32 +118,51 @@ export default function TemplateEditor({
     setDraft((prev) => ({ ...prev, ...patch }));
   }
 
-  function changeActiveTree(tree: LayoutContainer) {
-    if (surface === "window") {
+  function changeTree(target: LayoutSurface, tree: LayoutContainer) {
+    if (target === "window") {
       update({ windowLayout: tree });
     } else {
       update({ nodeLayout: tree });
     }
   }
 
+  // Insère un placement au point d'insertion dérivé de la sélection. Un seul
+  // chemin pour l'ajout d'un nouveau champ et la pose d'un champ existant.
+  function placeAtSelection(
+    prev: TemplateDraft,
+    fieldId: string,
+    target: LayoutSurface,
+  ): TemplateDraft {
+    const tree =
+      target === "window" && prev.windowLayout
+        ? prev.windowLayout
+        : prev.nodeLayout;
+    // Le point d'insertion ne suit la sélection que si elle est sur CETTE
+    // surface ; sinon on retombe sur la fin de la racine.
+    const { containerId, index } = resolveInsertionPoint(
+      tree,
+      selection?.surface === target ? selection.nodeId : null,
+    );
+    const next = insertLayoutNode(
+      tree,
+      containerId,
+      index,
+      newPlacement(fieldId),
+    );
+    return target === "window"
+      ? { ...prev, windowLayout: next }
+      : { ...prev, nodeLayout: next };
+  }
+
   function handleAddField(type: FieldType) {
     const field = newField(type);
-    setDraft((prev) => {
-      const next = { ...prev, fields: [...prev.fields, field] };
-      // Placé automatiquement à la racine de la surface active.
-      if (surface === "window" && next.windowLayout) {
-        next.windowLayout = {
-          ...next.windowLayout,
-          children: [...next.windowLayout.children, newPlacement(field.id)],
-        };
-      } else {
-        next.nodeLayout = {
-          ...next.nodeLayout,
-          children: [...next.nodeLayout.children, newPlacement(field.id)],
-        };
-      }
-      return next;
-    });
+    setDraft((prev) =>
+      placeAtSelection(
+        { ...prev, fields: [...prev.fields, field] },
+        field.id,
+        selection?.surface ?? "node",
+      ),
+    );
     setSelectedFieldId(field.id);
   }
 
@@ -164,25 +186,10 @@ export default function TemplateEditor({
     setSelectedFieldId(null);
   }
 
-  function handlePlaceField(fieldId: string, target: "node" | "window") {
+  function handlePlaceField(fieldId: string, target: LayoutSurface) {
     setDraft((prev) => {
-      if (target === "window") {
-        if (!prev.windowLayout) return prev;
-        return {
-          ...prev,
-          windowLayout: {
-            ...prev.windowLayout,
-            children: [...prev.windowLayout.children, newPlacement(fieldId)],
-          },
-        };
-      }
-      return {
-        ...prev,
-        nodeLayout: {
-          ...prev.nodeLayout,
-          children: [...prev.nodeLayout.children, newPlacement(fieldId)],
-        },
-      };
+      if (target === "window" && !prev.windowLayout) return prev;
+      return placeAtSelection(prev, fieldId, target);
     });
   }
 
@@ -209,7 +216,7 @@ export default function TemplateEditor({
         return;
       }
       update({ windowLayout: undefined });
-      if (surface === "window") setSurface("node");
+      if (selection?.surface === "window") setSelection(null);
     }
   }
 
@@ -452,8 +459,8 @@ export default function TemplateEditor({
         </div>
       </div>
 
-      {/* Builder */}
-      <div className="grid grid-cols-[280px_1fr_280px] gap-4 flex-1 min-h-0">
+      {/* Builder — catalogue des champs | maquette éditable | inspecteur */}
+      <div className="grid grid-cols-[280px_1fr_300px] gap-4 flex-1 min-h-0">
         <FieldsPanel
           draft={draft}
           selectedFieldId={selectedFieldId}
@@ -466,51 +473,28 @@ export default function TemplateEditor({
           instanceCount={instanceCount}
         />
 
-        <div className="flex flex-col gap-2 min-h-0 overflow-y-auto pr-1">
-          <ToggleGroup
-            type="single"
-            value={surface}
-            onValueChange={(v) => {
-              if (v === "node" || v === "window") {
-                setSurface(v);
-                setSelectedLayoutId(null);
-              }
-            }}
-            className="justify-start"
-          >
-            <ToggleGroupItem value="node" className="h-7 px-3 text-xs">
-              Node layout
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="window"
-              disabled={!draft.windowLayout}
-              className="h-7 px-3 text-xs"
-            >
-              Window layout
-            </ToggleGroupItem>
-          </ToggleGroup>
+        <TemplatePreview
+          draft={draft}
+          selection={selection}
+          onSelect={(s, nodeId) => setSelection({ surface: s, nodeId })}
+          onChangeTree={changeTree}
+        />
 
-          <LayoutCanvas
-            tree={activeTree}
-            fields={draft.fields}
-            selectedId={selectedLayoutId}
-            onSelect={setSelectedLayoutId}
-            onChangeTree={changeActiveTree}
-          />
-
+        <div className="min-h-0 overflow-y-auto pr-1">
           <div className="border border-gray-200 rounded-md p-3 bg-gray-50">
             <PlacementInspector
-              tree={activeTree}
-              selectedId={selectedLayoutId}
+              tree={inspectedTree}
+              selectedId={selection?.nodeId ?? null}
               fields={draft.fields}
-              surface={surface}
-              onChangeTree={changeActiveTree}
-              onClearSelection={() => setSelectedLayoutId(null)}
+              surface={inspectedSurface}
+              onChangeTree={(tree) => changeTree(inspectedSurface, tree)}
+              onSelect={(nodeId) =>
+                setSelection({ surface: inspectedSurface, nodeId })
+              }
+              onClearSelection={() => setSelection(null)}
             />
           </div>
         </div>
-
-        <TemplatePreview draft={draft} />
       </div>
     </div>
   );

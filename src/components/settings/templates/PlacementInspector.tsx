@@ -1,4 +1,4 @@
-import { TbTrash } from "react-icons/tb";
+import { TbChevronRight, TbLayoutColumns, TbLayoutRows, TbTrash } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
@@ -28,12 +28,18 @@ import {
 import OptionDescriptorsForm from "./OptionDescriptorsForm";
 import {
   findLayoutNode,
+  getAncestorPath,
   removeLayoutNode,
   updateLayoutNode,
+  wrapInContainer,
 } from "./templateDraft";
 
 // Inspecteur du node de layout sélectionné : propriétés flex d'un
 // container, options d'affichage d'un placement de champ.
+//
+// Porte aussi le fil d'ariane et le groupage, qui ne sont pas du confort : les
+// containers n'ont aucune existence visuelle propre dans l'aperçu, donc sans
+// eux rien n'indique où l'on se trouve ni comment créer une ligne.
 
 type PlacementInspectorProps = {
   tree: LayoutContainer;
@@ -44,6 +50,7 @@ type PlacementInspectorProps = {
   // et en window.
   surface: FieldSurface;
   onChangeTree: (tree: LayoutContainer) => void;
+  onSelect: (nodeId: string) => void;
   onClearSelection: () => void;
 };
 
@@ -53,13 +60,14 @@ export default function PlacementInspector({
   fields,
   surface,
   onChangeTree,
+  onSelect,
   onClearSelection,
 }: PlacementInspectorProps) {
   const node = selectedId ? findLayoutNode(tree, selectedId) : null;
   if (!node) {
     return (
       <p className="text-xs text-gray-400 italic">
-        Select a container or a field in the layout to edit it.
+        Click a field or a container in the preview to edit it.
       </p>
     );
   }
@@ -78,9 +86,93 @@ export default function PlacementInspector({
     onClearSelection();
   }
 
+  function handleWrap(direction: "row" | "column") {
+    const { tree: next, containerId } = wrapInContainer(
+      tree,
+      node!.id,
+      direction,
+    );
+    if (!containerId) return;
+    onChangeTree(next);
+    onSelect(containerId);
+  }
+
+  function labelFor(nodeId: string): string {
+    const found = findLayoutNode(tree, nodeId);
+    if (!found) return "?";
+    if (found.kind === "container") {
+      return found.direction === "row" ? "Row" : "Column";
+    }
+    return fields.find((f) => f.id === found.fieldId)?.name ?? "Unknown field";
+  }
+
+  // On exécute l'opération pour savoir si elle passe, plutôt que de réécrire
+  // sa règle ici : c'est wrapInContainer qui décide (racine, profondeur max),
+  // et une seconde formulation de la règle finirait par diverger.
+  const canWrap = !isRoot && wrapInContainer(tree, node.id, "row").containerId !== null;
+
+  const path = getAncestorPath(tree, node.id);
+
+  const header = (
+    <div className="space-y-2">
+      {path.length > 1 && (
+        <div className="flex items-center flex-wrap gap-0.5 text-[11px] text-gray-400">
+          {path.map((id, i) => {
+            const last = i === path.length - 1;
+            return (
+              <span key={id} className="flex items-center gap-0.5">
+                {i > 0 && <TbChevronRight size={10} className="shrink-0" />}
+                {last ? (
+                  <span className="text-gray-600 font-medium">
+                    {labelFor(id)}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSelect(id)}
+                    className="hover:text-violet-600 hover:underline"
+                  >
+                    {labelFor(id)}
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {canWrap && (
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] text-gray-400 mr-1">Group in</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => handleWrap("row")}
+            title="Wrap this element in a row — the way to put things side by side"
+          >
+            <TbLayoutColumns size={11} className="mr-1" /> Row
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => handleWrap("column")}
+            title="Wrap this element in a column"
+          >
+            <TbLayoutRows size={11} className="mr-1" /> Column
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   if (node.kind === "container") {
     return (
       <div className="space-y-3">
+        {header}
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-semibold text-gray-500">
             Container {isRoot && "(root)"}
@@ -209,6 +301,7 @@ export default function PlacementInspector({
 
   return (
     <div className="space-y-3">
+      {header}
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-semibold text-gray-500 truncate">
           Field: {field?.name ?? "Unknown"}

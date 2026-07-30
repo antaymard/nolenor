@@ -33,8 +33,14 @@ export function extractR2Keys(
     }
 
     case "audio": {
-      const key = keyOf(values.audio);
+      const audio = values.audio;
+      const key = keyOf(audio);
       if (key) keys.push(key);
+      // Cover art is a second blob of its own, extracted from the file's tags.
+      if (audio && typeof audio === "object") {
+        const coverKey = keyOf((audio as Record<string, unknown>).cover);
+        if (coverKey) keys.push(coverKey);
+      }
       break;
     }
 

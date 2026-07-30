@@ -1,62 +1,69 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import nodeColors from "@/components/nodes/nodeColors";
 import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import LayoutRenderer from "@/components/fields/layout/LayoutRenderer";
-import { getSelectChoices } from "@/../convex/config/fieldConfig";
-import type { TemplateField } from "@/../convex/config/fieldConfig";
+import {
+  buildSampleValues,
+  type FieldSampleKind,
+} from "@/components/fields/registry/fieldSamples";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/shadcn/toggle-group";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import type { TemplateDraft } from "./templateDraft";
 
-// Valeurs d'exemple pour la preview (jamais persistées).
-function buildSampleValues(fields: TemplateField[]): Record<string, unknown> {
-  const values: Record<string, unknown> = {};
-  for (const field of fields) {
-    switch (field.type) {
-      case "short_text":
-        values[field.id] = `Sample ${field.name.toLowerCase()}`;
-        break;
-      case "number":
-        values[field.id] = 42;
-        break;
-      case "date":
-        values[field.id] = new Date().toISOString().slice(0, 10);
-        break;
-      case "select": {
-        const first = getSelectChoices(field)[0];
-        values[field.id] = first ? [first.id] : [];
-        break;
-      }
-      case "boolean":
-        values[field.id] = true;
-        break;
-      case "rich_text":
-        // Forme stockée : blocs BlockNote stringifiés (l'`id` est requis par
-        // le contrat de document, cf. validateBlockNoteDocument).
-        values[field.id] = JSON.stringify([
-          {
-            id: `sample-${field.id}`,
-            type: "paragraph",
-            content: [{ type: "text", text: `Sample ${field.name} content.` }],
-          },
-        ]);
-        break;
-      case "image":
-        // Pas d'image d'exemple : la preview montre l'état vide du champ.
-        break;
-    }
-  }
-  return values;
-}
+// Les valeurs d'exemple vivent dans fieldSamples (registry) : un Record par
+// type de champ, donc vérifié par le compilateur. Ce fichier ne connaît plus
+// aucun type de champ en particulier.
+
+const SAMPLE_KINDS: { value: FieldSampleKind; label: string; title: string }[] =
+  [
+    { value: "filled", label: "Filled", title: "Typical values" },
+    { value: "empty", label: "Empty", title: "A freshly created node" },
+    {
+      value: "overflow",
+      label: "Overflow",
+      title: "Long values — reveals layouts that don't hold",
+    },
+  ];
 
 export default function TemplatePreview({ draft }: { draft: TemplateDraft }) {
-  const values = useMemo(() => buildSampleValues(draft.fields), [draft.fields]);
+  const [sampleKind, setSampleKind] = useState<FieldSampleKind>("filled");
+
+  const values = useMemo(
+    () => buildSampleValues(draft.fields, sampleKind),
+    [draft.fields, sampleKind],
+  );
 
   const color = nodeColors[(draft.color as colorsEnum) ?? "default"];
   const Icon = getTemplateIcon(draft.icon);
 
   return (
     <div className="flex flex-col gap-6 min-h-0 overflow-y-auto">
+      {/* Contrôle volontairement minimal : la mise en page de l'éditeur est
+          en attente de conception, la couche de données lui survivra. */}
+      <ToggleGroup
+        type="single"
+        value={sampleKind}
+        onValueChange={(v) => {
+          if (v) setSampleKind(v as FieldSampleKind);
+        }}
+        className="justify-start"
+      >
+        {SAMPLE_KINDS.map((kind) => (
+          <ToggleGroupItem
+            key={kind.value}
+            value={kind.value}
+            title={kind.title}
+            className="h-7 px-3 text-xs"
+          >
+            {kind.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+
       <div>
         <h3 className="text-sm font-semibold text-gray-500 mb-2">
           Node preview

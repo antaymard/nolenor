@@ -182,7 +182,9 @@ function renderBlock(
       return own(<hr key={key} />);
     case "checkListItem":
       return own(
-        <div key={key} className="flex items-start gap-2">
+        // `bn-static-check-item` is the styling hook for blocknote-overrides.css,
+        // which sizes the box and matches the editor's row rhythm.
+        <div key={key} className="bn-static-check-item flex items-start gap-2">
           <input type="checkbox" checked={!!props.checked} disabled readOnly />
           <span>{renderInlineContent(content)}</span>
         </div>,

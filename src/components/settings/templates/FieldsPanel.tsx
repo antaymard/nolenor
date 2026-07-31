@@ -145,23 +145,28 @@ export default function FieldsPanel({
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-5 py-4 border-r border-slate-200">
       <div>
         <h3 className="text-md font-bold">FIELDS</h3>
-        <p className="text-sm italic opacity-50 leading-tight">
+        <p className="text-[10px] opacity-60 leading-tight">
           The data this node type holds. Place a field on a surface to make it
           visible there.
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col">
         {draft.fields.length === 0 && (
           <p className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-500 italic">
             No fields yet.
           </p>
         )}
 
-        {draft.fields.map((field) => {
+        {draft.fields.map((field, i) => {
           const Icon = fieldRegistry[field.type].icon;
           const isTitle = draft.titleFieldId === field.id;
           const expanded = expandedFieldId === field.id;
+          const prevExpanded =
+            i > 0 && expandedFieldId === draft.fields[i - 1].id;
+          const nextExpanded =
+            i < draft.fields.length - 1 &&
+            expandedFieldId === draft.fields[i + 1].id;
           const reachability = getFieldReachability(
             field,
             draft.nodeLayout,
@@ -176,8 +181,14 @@ export default function FieldsPanel({
             <div
               key={field.id}
               className={cn(
-                "overflow-hidden rounded-md border bg-white transition-colors",
-                expanded ? "border-violet-300" : "border-gray-200",
+                "overflow-hidden border bg-white transition-colors border-slate-200 border-b-0 ",
+                expanded
+                  ? "rounded-md border-b my-2"
+                  : cn(
+                      "first-of-type:rounded-t-md last-of-type:rounded-b-md last-of-type:border-b",
+                      prevExpanded && "rounded-t-md",
+                      nextExpanded && "rounded-b-md border-b",
+                    ),
               )}
             >
               <button
@@ -185,8 +196,10 @@ export default function FieldsPanel({
                 onClick={() => onExpandField(expanded ? null : field.id)}
                 className="flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-gray-50"
               >
-                <Icon size={14} className="shrink-0 text-gray-500" />
-                <span className="flex-1 truncate text-sm font-medium">
+                <div className="">
+                  <Icon size={14} className="shrink-0" />
+                </div>
+                <span className="flex-1 truncate font-medium">
                   {field.name}
                 </span>
                 {isTitle && (

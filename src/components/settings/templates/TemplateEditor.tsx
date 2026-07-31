@@ -316,9 +316,9 @@ export default function TemplateEditor({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center justify-center rounded h-16 w-16 aspect-square bg-blue-100 text-blue-500 hover:bg-blue-200 border border-blue-300"
+                className="flex items-center justify-center rounded h-10 w-10 aspect-square bg-blue-100 text-blue-500 hover:bg-blue-200 border border-blue-300"
               >
-                <Icon size={20} />
+                <Icon size={18} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -344,12 +344,12 @@ export default function TemplateEditor({
           </DropdownMenu>
 
           <div className="flex flex-col w-4/5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between -mb-3">
               <Input
                 value={draft.name}
                 onChange={(e) => update({ name: e.target.value })}
                 placeholder="Template name"
-                className="border-transparent shadow-none font-semibold hover:bg-slate-50 hover:border-slate-200 max-w-52 -mb-2"
+                className="border-transparent shadow-none font-semibold text-lg hover:bg-slate-50 hover:border-slate-200 max-w-52  h-7"
               />
               {instanceCount !== undefined && instanceCount > 0 && (
                 <span className="shrink-0 pt-6 text-xs text-gray-400">
@@ -364,7 +364,7 @@ export default function TemplateEditor({
                 update({ llmDescription: e.target.value || undefined })
               }
               placeholder="Description, for you and Nolë (AI assistant). Describe why this template is useful and when to use it (auto-generated from fields if empty)"
-              className="border-transparent shadow-none italic text-sm hover:bg-slate-50 hover:border-slate-200 "
+              className="border-transparent shadow-none italic text-sm hover:bg-slate-50 hover:border-slate-200 h-7"
             />
           </div>
 

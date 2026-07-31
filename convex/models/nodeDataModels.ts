@@ -40,6 +40,23 @@ export async function createNodeData(
     templateId?: Id<"nodeTemplates">;
   },
 ): Promise<Id<"nodeDatas">> {
+  // `templateId` est optionnel au schéma parce que les types prébuilts n'en
+  // ont pas — mais pour un custom il est obligatoire, et le typage ne peut pas
+  // l'exprimer ici. Sans lui, le node se rend quand même sur le canvas (qui
+  // lit la copie dénormalisée du canvas node) : la panne se manifeste ailleurs,
+  // à l'ouverture de la window et surtout dans la validation des values à
+  // l'écriture, qui cesse de s'exécuter. C'est ce silence qu'on ferme.
+  //
+  // Posé ici et non dans la mutation publique : c'est le point de passage
+  // UNIQUE des deux voies (mutation publique et wrapper interne de l'agent),
+  // et les arguments de la première viennent du réseau, où le typage ne
+  // protège de rien.
+  if (type === "custom" && !templateId) {
+    throw new ConvexError(
+      "A custom node requires a templateId (the template defines its fields and layouts).",
+    );
+  }
+
   const nodeDataId = await ctx.db.insert("nodeDatas", {
     type,
     values,

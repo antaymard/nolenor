@@ -2,7 +2,6 @@ import {
   TbAlertTriangle,
   TbChevronDown,
   TbChevronRight,
-  TbLock,
   TbPlus,
   TbStar,
   TbStarFilled,

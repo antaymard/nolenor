@@ -15,10 +15,17 @@ export const create = mutation({
     // Through the model rather than a direct insert: that is where R2
     // references get registered, and a node created here may already point at
     // a blob (duplication copies `values` wholesale).
+    //
+    // `templateId` is forwarded explicitly: it used to be accepted by the
+    // validator and dropped here, which silently produced custom nodes with no
+    // link to their template — the canvas still rendered (it reads the
+    // denormalised copy on the canvas node) but the window could not resolve
+    // the template, and value validation on write silently stopped running.
     return NodeDataModel.createNodeData(ctx, {
       type: args.type,
       values: args.values,
       canvasId: args.canvasId,
+      templateId: args.templateId,
     });
   },
   returns: v.id("nodeDatas"),

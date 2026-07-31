@@ -6,6 +6,11 @@ import type {
 } from "@/../convex/config/templateConfig";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
 import FieldHost from "@/components/fields/FieldHost";
+import {
+  EditableContainer,
+  EditablePlacement,
+  type LayoutEditor,
+} from "./layoutEditing";
 
 // Rendu d'un arbre de layout de custom node template. Utilisé par les trois
 // surfaces : preview du builder (onCommitField absent = lecture seule),
@@ -23,6 +28,10 @@ type LayoutRendererProps = {
   // du builder la laissent absente — escalader depuis la window serait une
   // auto-escalade illégale.
   onEscalateField?: (fieldId: string) => void;
+  // Édition directe sur la maquette (builder de template uniquement). Absente
+  // → aucun changement pour CustomNode et CustomWindow : mêmes éléments,
+  // mêmes styles. Cf. layoutEditing.tsx.
+  editor?: LayoutEditor;
 };
 
 const ALIGN_MAP: Record<string, CSSProperties["alignItems"]> = {
@@ -74,6 +83,7 @@ function FieldSlot({
   surface,
   onCommitField,
   onEscalateField,
+  editor,
 }: {
   placement: LayoutFieldPlacement;
   fields: TemplateField[];
@@ -81,9 +91,24 @@ function FieldSlot({
   surface: "node" | "window";
   onCommitField?: (fieldId: string, value: unknown) => void;
   onEscalateField?: (fieldId: string) => void;
+  editor?: LayoutEditor;
 }) {
   const field = fields.find((f) => f.id === placement.fieldId);
-  if (!field) return null;
+  const style = placementStyle(placement);
+
+  // Placement orphelin : ignoré silencieusement au rendu réel, mais rendu
+  // visible en édition — sinon il serait ni sélectionnable ni supprimable,
+  // et bloquerait le save sans qu'on puisse le joindre.
+  if (!field) {
+    if (!editor) return null;
+    return (
+      <EditablePlacement placement={placement} editor={editor} style={style}>
+        <span style={{ fontSize: 10, fontStyle: "italic", color: "rgb(220 38 38)" }}>
+          Unknown field
+        </span>
+      </EditablePlacement>
+    );
+  }
 
   const onCommit = onCommitField
     ? (value: unknown) => onCommitField(field.id, value)
@@ -92,21 +117,28 @@ function FieldSlot({
     ? () => onEscalateField(field.id)
     : undefined;
 
-  return (
-    // Le label n'est PAS rendu ici : c'est FieldHost qui le porte, car lui
-    // seul connaît le variant résolu et donc si celui-ci affiche le label
-    // lui-même (ownsLabel).
-    <div style={placementStyle(placement)}>
-      <FieldHost
-        field={field}
-        value={values[field.id]}
-        surface={surface}
-        placement={placement}
-        onCommit={onCommit}
-        onEscalate={onEscalate}
-      />
-    </div>
+  // Le label n'est PAS rendu ici : c'est FieldHost qui le porte, car lui
+  // seul connaît le variant résolu et donc si celui-ci affiche le label
+  // lui-même (ownsLabel).
+  const host = (
+    <FieldHost
+      field={field}
+      value={values[field.id]}
+      surface={surface}
+      placement={placement}
+      onCommit={onCommit}
+      onEscalate={onEscalate}
+    />
   );
+
+  if (editor) {
+    return (
+      <EditablePlacement placement={placement} editor={editor} style={style}>
+        {host}
+      </EditablePlacement>
+    );
+  }
+  return <div style={style}>{host}</div>;
 }
 
 function LayoutNodeRenderer({
@@ -116,6 +148,8 @@ function LayoutNodeRenderer({
   surface,
   onCommitField,
   onEscalateField,
+  editor,
+  isRoot = false,
 }: {
   node: LayoutNode;
   fields: TemplateField[];
@@ -123,6 +157,8 @@ function LayoutNodeRenderer({
   surface: "node" | "window";
   onCommitField?: (fieldId: string, value: unknown) => void;
   onEscalateField?: (fieldId: string) => void;
+  editor?: LayoutEditor;
+  isRoot?: boolean;
 }) {
   if (node.kind === "field") {
     return (
@@ -133,25 +169,38 @@ function LayoutNodeRenderer({
         surface={surface}
         onCommitField={onCommitField}
         onEscalateField={onEscalateField}
+        editor={editor}
       />
     );
   }
 
-  return (
-    <div style={containerStyle(node)}>
-      {node.children.map((child) => (
-        <LayoutNodeRenderer
-          key={child.id}
-          node={child}
-          fields={fields}
-          values={values}
-          surface={surface}
-          onCommitField={onCommitField}
-          onEscalateField={onEscalateField}
-        />
-      ))}
-    </div>
-  );
+  const style = containerStyle(node);
+  const children = node.children.map((child) => (
+    <LayoutNodeRenderer
+      key={child.id}
+      node={child}
+      fields={fields}
+      values={values}
+      surface={surface}
+      onCommitField={onCommitField}
+      onEscalateField={onEscalateField}
+      editor={editor}
+    />
+  ));
+
+  if (editor) {
+    return (
+      <EditableContainer
+        container={node}
+        editor={editor}
+        style={style}
+        isRoot={isRoot}
+      >
+        {children}
+      </EditableContainer>
+    );
+  }
+  return <div style={style}>{children}</div>;
 }
 
 function LayoutRenderer({
@@ -161,6 +210,7 @@ function LayoutRenderer({
   surface,
   onCommitField,
   onEscalateField,
+  editor,
 }: LayoutRendererProps) {
   return (
     <LayoutNodeRenderer
@@ -170,6 +220,8 @@ function LayoutRenderer({
       surface={surface}
       onCommitField={onCommitField}
       onEscalateField={onEscalateField}
+      editor={editor}
+      isRoot
     />
   );
 }

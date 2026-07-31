@@ -333,6 +333,7 @@ export {
   layoutNodeSchema,
   collectLayoutFieldIds,
   collectLayoutPlacements,
+  getLayoutDepth,
   validateTemplateDefinition,
   buildTemplateLLMSummary,
   MAX_LAYOUT_DEPTH,

@@ -4,10 +4,12 @@ import {
   type TemplateField,
 } from "@/../convex/config/fieldConfig";
 import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
-import type {
-  LayoutContainer,
-  LayoutFieldPlacement,
-  LayoutNode,
+import {
+  getLayoutDepth,
+  MAX_LAYOUT_DEPTH,
+  type LayoutContainer,
+  type LayoutFieldPlacement,
+  type LayoutNode,
 } from "@/../convex/config/templateConfig";
 
 // État local du builder : le draft complet d'un template, sauvegardé
@@ -27,6 +29,12 @@ type TemplateDraft = {
   defaultDimensions: { width: number; height: number; resizable?: boolean };
   windowSize?: { width: number; height: number };
 };
+
+// Surface d'édition, et node de layout sélectionné SUR cette surface. La
+// surface n'est plus un mode choisi à l'avance : elle est portée par la
+// sélection, donc déterminée par l'aperçu dans lequel on a cliqué.
+type LayoutSurface = "node" | "window";
+type LayoutSelection = { surface: LayoutSurface; nodeId: string } | null;
 
 // Ids stables (fields, placements, containers) : jamais réutilisés ni
 // modifiés après création.
@@ -234,6 +242,89 @@ function moveLayoutNode(
   return insertLayoutNode(without, targetContainerId, targetIndex, removed);
 }
 
+// Chemin racine → node, ids inclus, le node lui-même en dernier. Alimente le
+// fil d'ariane, qui a remplacé la lecture de l'arbre : les containers n'ayant
+// aucune existence visuelle propre dans l'aperçu, sans lui rien n'indique dans
+// quel container on se trouve. Vide si le node est introuvable.
+function getAncestorPath(tree: LayoutContainer, nodeId: string): string[] {
+  const path: string[] = [];
+
+  const walk = (node: LayoutNode, trail: string[]): boolean => {
+    const next = [...trail, node.id];
+    if (node.id === nodeId) {
+      path.push(...next);
+      return true;
+    }
+    return (
+      node.kind === "container" &&
+      node.children.some((child) => walk(child, next))
+    );
+  };
+
+  walk(tree, []);
+  return path;
+}
+
+// Où atterrit un nouveau champ. C'est la sélection qui porte le point
+// d'insertion — ce qui remplace le toggle de surface : on ne désigne plus une
+// cible à l'avance dans une autre colonne, on l'a déjà désignée en cliquant.
+function resolveInsertionPoint(
+  tree: LayoutContainer,
+  selectedId: string | null,
+): { containerId: string; index: number | undefined } {
+  const selected = selectedId ? findLayoutNode(tree, selectedId) : null;
+  if (!selected) return { containerId: tree.id, index: undefined };
+  if (selected.kind === "container") {
+    return { containerId: selected.id, index: undefined };
+  }
+
+  const parentId = findParentId(tree, selected.id);
+  if (!parentId) return { containerId: tree.id, index: undefined };
+  const parent = findLayoutNode(tree, parentId) as LayoutContainer;
+  const index = parent.children.findIndex((c) => c.id === selected.id);
+
+  // Juste APRÈS le placement sélectionné : ajouter un champ en ayant
+  // sélectionné son voisin doit le poser à côté, pas en fin de container.
+  return { containerId: parentId, index: index < 0 ? undefined : index + 1 };
+}
+
+// Groupe un node dans un nouveau container, à sa place exacte. Remplace le
+// bouton « + Container » de l'arbre, qui créait un container vide sans aucun
+// rapport avec la sélection — inutilisable sans vue structurelle.
+//
+// `containerId: null` signale un refus (node racine, node introuvable, ou
+// profondeur maximale atteinte). Refuser ici plutôt que laisser
+// `validateTemplateDefinition` rejeter : l'erreur ne tomberait qu'au save,
+// longtemps après le geste qui l'a causée.
+function wrapInContainer(
+  tree: LayoutContainer,
+  nodeId: string,
+  direction: "row" | "column",
+): { tree: LayoutContainer; containerId: string | null } {
+  const parentId = findParentId(tree, nodeId);
+  if (!parentId) return { tree, containerId: null };
+  const parent = findLayoutNode(tree, parentId) as LayoutContainer;
+  const index = parent.children.findIndex((c) => c.id === nodeId);
+  if (index < 0) return { tree, containerId: null };
+
+  const { tree: without, removed } = removeLayoutNode(tree, nodeId);
+  if (!removed) return { tree, containerId: null };
+
+  const container: LayoutContainer = {
+    ...newContainer(direction),
+    children: [removed],
+  };
+  // Réinséré à `index` : le node retiré a décalé ses suivants d'un cran vers
+  // la gauche, donc réinsérer à la même position le remet exactement où il
+  // était.
+  const next = insertLayoutNode(without, parentId, index, container);
+
+  if (getLayoutDepth(next) > MAX_LAYOUT_DEPTH) {
+    return { tree, containerId: null };
+  }
+  return { tree: next, containerId: container.id };
+}
+
 // Retire toutes les placements d'un champ (suppression du champ).
 function removeFieldPlacements(
   tree: LayoutContainer,
@@ -262,5 +353,8 @@ export {
   insertLayoutNode,
   moveLayoutNode,
   removeFieldPlacements,
+  getAncestorPath,
+  resolveInsertionPoint,
+  wrapInContainer,
 };
-export type { TemplateDraft };
+export type { TemplateDraft, LayoutSurface, LayoutSelection };

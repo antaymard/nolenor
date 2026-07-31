@@ -1,4 +1,4 @@
-import { TbTrash } from "react-icons/tb";
+import { TbLayoutColumns, TbLayoutRows, TbTrash } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
@@ -30,10 +30,16 @@ import {
   findLayoutNode,
   removeLayoutNode,
   updateLayoutNode,
+  wrapInContainer,
 } from "./templateDraft";
 
 // Inspecteur du node de layout sélectionné : propriétés flex d'un
 // container, options d'affichage d'un placement de champ.
+//
+// Porte aussi le groupage, qui n'est pas du confort : c'est le seul moyen de
+// créer une ligne, les containers n'ayant aucune existence visuelle propre
+// dans l'aperçu. Le fil d'ariane, lui, vit au-dessus de l'aperçu qu'il
+// décrit — pas ici.
 
 type PlacementInspectorProps = {
   tree: LayoutContainer;
@@ -44,6 +50,7 @@ type PlacementInspectorProps = {
   // et en window.
   surface: FieldSurface;
   onChangeTree: (tree: LayoutContainer) => void;
+  onSelect: (nodeId: string) => void;
   onClearSelection: () => void;
 };
 
@@ -53,13 +60,14 @@ export default function PlacementInspector({
   fields,
   surface,
   onChangeTree,
+  onSelect,
   onClearSelection,
 }: PlacementInspectorProps) {
   const node = selectedId ? findLayoutNode(tree, selectedId) : null;
   if (!node) {
     return (
       <p className="text-xs text-gray-400 italic">
-        Select a container or a field in the layout to edit it.
+        Click a field or a container in the preview to edit it.
       </p>
     );
   }
@@ -78,9 +86,56 @@ export default function PlacementInspector({
     onClearSelection();
   }
 
+  function handleWrap(direction: "row" | "column") {
+    const { tree: next, containerId } = wrapInContainer(
+      tree,
+      node!.id,
+      direction,
+    );
+    if (!containerId) return;
+    onChangeTree(next);
+    onSelect(containerId);
+  }
+
+  // On exécute l'opération pour savoir si elle passe, plutôt que de réécrire
+  // sa règle ici : c'est wrapInContainer qui décide (racine, profondeur max),
+  // et une seconde formulation de la règle finirait par diverger.
+  const canWrap = !isRoot && wrapInContainer(tree, node.id, "row").containerId !== null;
+
+  const header = (
+    <div className="space-y-2">
+      {canWrap && (
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] text-gray-400 mr-1">Group in</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => handleWrap("row")}
+            title="Wrap this element in a row — the way to put things side by side"
+          >
+            <TbLayoutColumns size={11} className="mr-1" /> Row
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => handleWrap("column")}
+            title="Wrap this element in a column"
+          >
+            <TbLayoutRows size={11} className="mr-1" /> Column
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   if (node.kind === "container") {
     return (
       <div className="space-y-3">
+        {header}
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-semibold text-gray-500">
             Container {isRoot && "(root)"}
@@ -209,6 +264,7 @@ export default function PlacementInspector({
 
   return (
     <div className="space-y-3">
+      {header}
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-semibold text-gray-500 truncate">
           Field: {field?.name ?? "Unknown"}

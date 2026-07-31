@@ -10,10 +10,7 @@ import {
   buildSampleValues,
   type FieldSampleKind,
 } from "@/components/fields/registry/fieldSamples";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/shadcn/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
 import type { LayoutContainer } from "@/../convex/config/templateConfig";
@@ -147,12 +144,10 @@ export default function TemplatePreview({
     selection?.surface === surface ? selection.nodeId : null;
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 overflow-auto pr-1">
+    <div className="flex min-h-0 flex-col gap-4 overflow-auto p-5 py-4">
       <div>
-        <h3 className="text-sm font-semibold tracking-wide text-gray-500">
-          PREVIEWS
-        </h3>
-        <p className="text-xs text-gray-400 italic">
+        <h3 className="text-md font-bold">PREVIEWS</h3>
+        <p className="text-sm opacity-50 italic leading-tight">
           How your template will appear on the canvas and as a window (when
           double clicking a node). Drag fields to reorder them, and group them
           into rows to build side-by-side layouts.
@@ -204,7 +199,9 @@ export default function TemplatePreview({
       {/* ── Node ───────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-3">
-          <h4 className="text-sm font-semibold text-gray-600">Node on canvas</h4>
+          <h4 className="text-sm font-semibold text-gray-600">
+            Node on canvas
+          </h4>
           <div className="ml-auto flex items-center gap-2">
             <Label className="shrink-0 text-xs text-gray-400">Size</Label>
             <Input

@@ -308,42 +308,68 @@ export default function TemplateEditor({
   const Icon = getTemplateIcon(draft.icon);
 
   return (
-    <div className="flex flex-col gap-4 h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-slate-200 p-5">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="flex items-center justify-center rounded h-12 w-12 bg-blue-100 text-blue-500 hover:bg-blue-200 border border-blue-300">
-              <Icon size={18} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="grid grid-cols-5 gap-1 p-2">
-            {templateIconNames.map((name) => {
-              const ItemIcon = templateIconMap[name];
-              return (
-                <DropdownMenuItem
-                  key={name}
-                  onClick={() => update({ icon: name })}
-                  className={cn(
-                    "justify-center",
-                    draft.icon === name && "bg-violet-100",
-                  )}
-                >
-                  <ItemIcon size={15} />
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="flex items-center justify-between gap-5 border-b border-slate-200 p-5">
+        <div className="flex flex-1 gap-1 items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center justify-center rounded h-16 w-16 aspect-square bg-blue-100 text-blue-500 hover:bg-blue-200 border border-blue-300"
+              >
+                <Icon size={20} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="grid grid-cols-5 gap-1 p-2"
+            >
+              {templateIconNames.map((name) => {
+                const ItemIcon = templateIconMap[name];
+                return (
+                  <DropdownMenuItem
+                    key={name}
+                    onClick={() => update({ icon: name })}
+                    className={cn(
+                      "justify-center",
+                      draft.icon === name && "bg-violet-100",
+                    )}
+                  >
+                    <ItemIcon size={15} />
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        <Input
-          value={draft.name}
-          onChange={(e) => update({ name: e.target.value })}
-          placeholder="Template name"
-          className="h-9 flex-1 font-medium"
-        />
+          <div className="flex flex-col w-4/5">
+            <div className="flex items-center justify-between">
+              <Input
+                value={draft.name}
+                onChange={(e) => update({ name: e.target.value })}
+                placeholder="Template name"
+                className="border-transparent shadow-none font-semibold hover:bg-slate-50 hover:border-slate-200 max-w-52 -mb-2"
+              />
+              {instanceCount !== undefined && instanceCount > 0 && (
+                <span className="shrink-0 pt-6 text-xs text-gray-400">
+                  {instanceCount} node{instanceCount > 1 ? "s" : ""} use
+                  {instanceCount == 1 ? "s" : ""} this template
+                </span>
+              )}
+            </div>
+            <Input
+              value={draft.llmDescription ?? ""}
+              onChange={(e) =>
+                update({ llmDescription: e.target.value || undefined })
+              }
+              placeholder="Description, for you and Nolë (AI assistant). Describe why this template is useful and when to use it (auto-generated from fields if empty)"
+              className="border-transparent shadow-none italic text-sm hover:bg-slate-50 hover:border-slate-200 "
+            />
+          </div>
 
-        <Select
+          {/* REMOVED : color picker for default node color*/}
+          {/*<Select
           value={draft.color ?? "default"}
           onValueChange={(v) => update({ color: v })}
         >
@@ -365,28 +391,28 @@ export default function TemplateEditor({
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
+        </Select>*/}
 
-        {template && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={handleToggleArchive}
-            title={
-              template.archivedAt === undefined
-                ? "Archive template"
-                : "Restore template"
-            }
-          >
-            {template.archivedAt === undefined ? (
-              <TbArchive size={16} />
-            ) : (
-              <TbArchiveOff size={16} />
-            )}
-          </Button>
-        )}
-
+          {template && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleToggleArchive}
+              title={
+                template.archivedAt === undefined
+                  ? "Archive template"
+                  : "Restore template"
+              }
+            >
+              {template.archivedAt === undefined ? (
+                <TbArchive size={16} />
+              ) : (
+                <TbArchiveOff size={16} />
+              )}
+            </Button>
+          )}
+        </div>
         <Button
           type="button"
           onClick={handleSave}
@@ -408,29 +434,8 @@ export default function TemplateEditor({
         </div>
       )}
 
-      {/* Réglages de template (et non de champ) : ce qui reste ici après que
-          les dimensions et l'ouverture en window ont rejoint leur aperçu. */}
-      <div className="flex items-start gap-3">
-        <div className="flex-1 space-y-1">
-          <Label className="text-xs">AI description</Label>
-          <Textarea
-            value={draft.llmDescription ?? ""}
-            onChange={(e) =>
-              update({ llmDescription: e.target.value || undefined })
-            }
-            placeholder="Tells Nolë when to use this node type (auto-generated from fields if empty)"
-            className="text-sm min-h-12"
-          />
-        </div>
-        {instanceCount !== undefined && instanceCount > 0 && (
-          <span className="shrink-0 pt-6 text-xs text-gray-400">
-            {instanceCount} node{instanceCount > 1 ? "s" : ""} use this template
-          </span>
-        )}
-      </div>
-
       {/* Builder — catalogue des champs | maquette éditable | inspecteur */}
-      <div className="grid grid-cols-[280px_1fr_300px] gap-4 flex-1 min-h-0">
+      <div className="grid grid-cols-[350px_1fr_320px] flex-1 min-h-0">
         <FieldsPanel
           draft={draft}
           expandedFieldId={expandedFieldId}
@@ -459,7 +464,7 @@ export default function TemplateEditor({
           onToggleWindow={handleToggleWindow}
         />
 
-        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-5 py-4 border-l border-slate-200">
           <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
             <h3 className="mb-3 text-sm font-semibold text-gray-500">
               Field options ({inspectedSurface} view)
@@ -485,7 +490,9 @@ export default function TemplateEditor({
               label="Tree (node)"
               tree={draft.nodeLayout}
               fields={draft.fields}
-              selectedId={selection?.surface === "node" ? selection.nodeId : null}
+              selectedId={
+                selection?.surface === "node" ? selection.nodeId : null
+              }
               hoveredId={hoveredId}
               onSelect={(nodeId) => setSelection({ surface: "node", nodeId })}
               onHover={setHoveredId}

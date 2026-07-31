@@ -82,22 +82,21 @@ function SurfaceChip({
           e.stopPropagation();
           onAdd();
         }}
-        className="flex items-center gap-0.5 rounded bg-gray-100 px-1 py-px text-[10px] text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
+        className="flex items-center gap-1 rounded-full bg-slate-100 text-sm text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-500 px-2 py-1"
       >
-        <TbPlus size={9} /> Display in {label}
+        <TbPlus size={10} strokeWidth={3} /> Display in {label}
       </button>
     );
   }
   return (
     <span
       className={cn(
-        "flex items-center gap-0.5 rounded px-1 py-px text-[10px]",
+        "flex items-center gap-1 rounded-full text-sm px-2 py-1",
         tone === "node"
           ? "bg-blue-100 text-blue-700"
           : "bg-violet-100 text-violet-700",
       )}
     >
-      Visible in {label}
       <button
         type="button"
         onClick={(e) => {
@@ -107,8 +106,9 @@ function SurfaceChip({
         title={`Remove from the ${label} layout (the field itself is kept)`}
         className="opacity-60 transition-opacity hover:opacity-100"
       >
-        <TbX size={9} />
+        <TbX size={10} strokeWidth={3} />
       </button>
+      Visible in {label}
     </span>
   );
 }
@@ -142,12 +142,10 @@ export default function FieldsPanel({
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-5 py-4 border-r border-slate-200">
       <div>
-        <h3 className="text-sm font-semibold tracking-wide text-gray-500">
-          FIELDS
-        </h3>
-        <p className="text-xs text-gray-400 italic">
+        <h3 className="text-md font-bold">FIELDS</h3>
+        <p className="text-sm italic opacity-50 leading-tight">
           The data this node type holds. Place a field on a surface to make it
           visible there.
         </p>
@@ -208,7 +206,10 @@ export default function FieldsPanel({
                 {expanded ? (
                   <TbChevronDown size={14} className="shrink-0 text-gray-400" />
                 ) : (
-                  <TbChevronRight size={14} className="shrink-0 text-gray-400" />
+                  <TbChevronRight
+                    size={14}
+                    className="shrink-0 text-gray-400"
+                  />
                 )}
               </button>
 

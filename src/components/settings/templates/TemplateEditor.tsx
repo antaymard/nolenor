@@ -7,7 +7,6 @@ import type { Doc, Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
-import { Switch } from "@/components/shadcn/switch";
 import { Textarea } from "@/components/shadcn/textarea";
 import {
   DropdownMenu,
@@ -37,6 +36,7 @@ import {
   templateIconNames,
 } from "@/components/fields/registry/templateIcons";
 import FieldsPanel from "./FieldsPanel";
+import LayoutTree from "./LayoutTree";
 import PlacementInspector from "./PlacementInspector";
 import TemplatePreview from "./TemplatePreview";
 import {
@@ -75,10 +75,13 @@ export default function TemplateEditor({
     template ? draftFromTemplate(template) : newEmptyDraft(),
   );
   const [initialDraft] = useState(() => JSON.stringify(draft));
-  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [expandedFieldId, setExpandedFieldId] = useState<string | null>(null);
   // La surface n'est plus un mode : elle est portée par la sélection, donc
   // désignée en cliquant dans l'aperçu visé.
   const [selection, setSelection] = useState<LayoutSelection>(null);
+  // Survol partagé entre la maquette et la vue structurelle : survoler une
+  // ligne du tree surligne l'élément dans l'aperçu, et réciproquement.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [savedSnapshot, setSavedSnapshot] = useState(initialDraft);
@@ -163,7 +166,27 @@ export default function TemplateEditor({
         selection?.surface ?? "node",
       ),
     );
-    setSelectedFieldId(field.id);
+    setExpandedFieldId(field.id);
+  }
+
+  // Retire le placement d'un champ sur UNE surface — le champ lui-même est
+  // conservé. C'est l'action de la pastille « Visible in … × ».
+  function handleUnplaceField(fieldId: string, target: LayoutSurface) {
+    setDraft((prev) => {
+      if (target === "window") {
+        if (!prev.windowLayout) return prev;
+        return {
+          ...prev,
+          windowLayout: removeFieldPlacements(prev.windowLayout, fieldId),
+        };
+      }
+      return {
+        ...prev,
+        nodeLayout: removeFieldPlacements(prev.nodeLayout, fieldId),
+      };
+    });
+    // La sélection peut porter sur le placement qu'on vient de retirer.
+    setSelection((prev) => (prev?.surface === target ? null : prev));
   }
 
   function handleUpdateField(id: string, patch: Partial<TemplateField>) {
@@ -183,7 +206,7 @@ export default function TemplateEditor({
         : undefined,
       titleFieldId: prev.titleFieldId === id ? undefined : prev.titleFieldId,
     }));
-    setSelectedFieldId(null);
+    setExpandedFieldId(null);
   }
 
   function handlePlaceField(fieldId: string, target: LayoutSurface) {
@@ -385,9 +408,10 @@ export default function TemplateEditor({
         </div>
       )}
 
-      {/* Meta */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
+      {/* Réglages de template (et non de champ) : ce qui reste ici après que
+          les dimensions et l'ouverture en window ont rejoint leur aperçu. */}
+      <div className="flex items-start gap-3">
+        <div className="flex-1 space-y-1">
           <Label className="text-xs">AI description</Label>
           <Textarea
             value={draft.llmDescription ?? ""}
@@ -398,78 +422,25 @@ export default function TemplateEditor({
             className="text-sm min-h-12"
           />
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <Label className="text-xs shrink-0">Node size</Label>
-            <Input
-              type="number"
-              min={60}
-              value={draft.defaultDimensions.width}
-              onChange={(e) =>
-                update({
-                  defaultDimensions: {
-                    ...draft.defaultDimensions,
-                    width: Number(e.target.value) || 60,
-                  },
-                })
-              }
-              className="h-7 w-20"
-            />
-            <span className="text-xs text-gray-400">×</span>
-            <Input
-              type="number"
-              min={33}
-              value={draft.defaultDimensions.height}
-              onChange={(e) =>
-                update({
-                  defaultDimensions: {
-                    ...draft.defaultDimensions,
-                    height: Number(e.target.value) || 33,
-                  },
-                })
-              }
-              className="h-7 w-20"
-            />
-            <Label className="text-xs">Resizable</Label>
-            <Switch
-              checked={draft.defaultDimensions.resizable !== false}
-              onCheckedChange={(checked) =>
-                update({
-                  defaultDimensions: {
-                    ...draft.defaultDimensions,
-                    resizable: checked ? true : false,
-                  },
-                })
-              }
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <Label className="text-xs shrink-0">Openable in window</Label>
-            <Switch
-              checked={draft.windowLayout !== undefined}
-              onCheckedChange={handleToggleWindow}
-            />
-            {instanceCount !== undefined && instanceCount > 0 && (
-              <span className="text-xs text-gray-400 ml-auto">
-                {instanceCount} node{instanceCount > 1 ? "s" : ""} use this
-                template
-              </span>
-            )}
-          </div>
-        </div>
+        {instanceCount !== undefined && instanceCount > 0 && (
+          <span className="shrink-0 pt-6 text-xs text-gray-400">
+            {instanceCount} node{instanceCount > 1 ? "s" : ""} use this template
+          </span>
+        )}
       </div>
 
       {/* Builder — catalogue des champs | maquette éditable | inspecteur */}
       <div className="grid grid-cols-[280px_1fr_300px] gap-4 flex-1 min-h-0">
         <FieldsPanel
           draft={draft}
-          selectedFieldId={selectedFieldId}
-          onSelectField={setSelectedFieldId}
+          expandedFieldId={expandedFieldId}
+          onExpandField={setExpandedFieldId}
           onAddField={handleAddField}
           onUpdateField={handleUpdateField}
           onRemoveField={handleRemoveField}
           onSetTitleField={(id) => update({ titleFieldId: id })}
           onPlaceField={handlePlaceField}
+          onUnplaceField={handleUnplaceField}
           instanceCount={instanceCount}
         />
 
@@ -478,10 +449,21 @@ export default function TemplateEditor({
           selection={selection}
           onSelect={(s, nodeId) => setSelection({ surface: s, nodeId })}
           onChangeTree={changeTree}
+          hoveredId={hoveredId}
+          onHover={setHoveredId}
+          onChangeDimensions={(patch) =>
+            update({
+              defaultDimensions: { ...draft.defaultDimensions, ...patch },
+            })
+          }
+          onToggleWindow={handleToggleWindow}
         />
 
-        <div className="min-h-0 overflow-y-auto pr-1">
-          <div className="border border-gray-200 rounded-md p-3 bg-gray-50">
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+            <h3 className="mb-3 text-sm font-semibold text-gray-500">
+              Field options ({inspectedSurface} view)
+            </h3>
             <PlacementInspector
               tree={inspectedTree}
               selectedId={selection?.nodeId ?? null}
@@ -493,6 +475,36 @@ export default function TemplateEditor({
               }
               onClearSelection={() => setSelection(null)}
             />
+          </div>
+
+          {/* Vue structurelle, repliée. Deux arbres indépendants plutôt qu'un
+              seul qui suivrait la sélection : son libellé changerait à chaque
+              clic, et rien ne permettrait de comparer les deux surfaces. */}
+          <div className="mt-auto space-y-2">
+            <LayoutTree
+              label="Tree (node)"
+              tree={draft.nodeLayout}
+              fields={draft.fields}
+              selectedId={selection?.surface === "node" ? selection.nodeId : null}
+              hoveredId={hoveredId}
+              onSelect={(nodeId) => setSelection({ surface: "node", nodeId })}
+              onHover={setHoveredId}
+            />
+            {draft.windowLayout && (
+              <LayoutTree
+                label="Tree (window)"
+                tree={draft.windowLayout}
+                fields={draft.fields}
+                selectedId={
+                  selection?.surface === "window" ? selection.nodeId : null
+                }
+                hoveredId={hoveredId}
+                onSelect={(nodeId) =>
+                  setSelection({ surface: "window", nodeId })
+                }
+                onHover={setHoveredId}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { TbChevronRight, TbLayoutColumns, TbLayoutRows, TbTrash } from "react-icons/tb";
+import { TbLayoutColumns, TbLayoutRows, TbTrash } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
@@ -28,7 +28,6 @@ import {
 import OptionDescriptorsForm from "./OptionDescriptorsForm";
 import {
   findLayoutNode,
-  getAncestorPath,
   removeLayoutNode,
   updateLayoutNode,
   wrapInContainer,
@@ -37,9 +36,10 @@ import {
 // Inspecteur du node de layout sélectionné : propriétés flex d'un
 // container, options d'affichage d'un placement de champ.
 //
-// Porte aussi le fil d'ariane et le groupage, qui ne sont pas du confort : les
-// containers n'ont aucune existence visuelle propre dans l'aperçu, donc sans
-// eux rien n'indique où l'on se trouve ni comment créer une ligne.
+// Porte aussi le groupage, qui n'est pas du confort : c'est le seul moyen de
+// créer une ligne, les containers n'ayant aucune existence visuelle propre
+// dans l'aperçu. Le fil d'ariane, lui, vit au-dessus de l'aperçu qu'il
+// décrit — pas ici.
 
 type PlacementInspectorProps = {
   tree: LayoutContainer;
@@ -97,50 +97,13 @@ export default function PlacementInspector({
     onSelect(containerId);
   }
 
-  function labelFor(nodeId: string): string {
-    const found = findLayoutNode(tree, nodeId);
-    if (!found) return "?";
-    if (found.kind === "container") {
-      return found.direction === "row" ? "Row" : "Column";
-    }
-    return fields.find((f) => f.id === found.fieldId)?.name ?? "Unknown field";
-  }
-
   // On exécute l'opération pour savoir si elle passe, plutôt que de réécrire
   // sa règle ici : c'est wrapInContainer qui décide (racine, profondeur max),
   // et une seconde formulation de la règle finirait par diverger.
   const canWrap = !isRoot && wrapInContainer(tree, node.id, "row").containerId !== null;
 
-  const path = getAncestorPath(tree, node.id);
-
   const header = (
     <div className="space-y-2">
-      {path.length > 1 && (
-        <div className="flex items-center flex-wrap gap-0.5 text-[11px] text-gray-400">
-          {path.map((id, i) => {
-            const last = i === path.length - 1;
-            return (
-              <span key={id} className="flex items-center gap-0.5">
-                {i > 0 && <TbChevronRight size={10} className="shrink-0" />}
-                {last ? (
-                  <span className="text-gray-600 font-medium">
-                    {labelFor(id)}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onSelect(id)}
-                    className="hover:text-violet-600 hover:underline"
-                  >
-                    {labelFor(id)}
-                  </button>
-                )}
-              </span>
-            );
-          })}
-        </div>
-      )}
-
       {canWrap && (
         <div className="flex items-center gap-1">
           <span className="text-[11px] text-gray-400 mr-1">Group in</span>

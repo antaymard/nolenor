@@ -198,7 +198,12 @@ function EditableContainer({
           style={{
             position: "absolute",
             top: 0,
-            left: 0,
+            // À DROITE : le contenu d'un layout démarre presque toujours à
+            // gauche, un badge posé là masque le début du premier champ. Et il
+            // reste à l'intérieur de la boîte, le cadre de l'aperçu étant en
+            // overflow:hidden — un débord vers le haut serait rogné, toujours
+            // pour la racine qui affleure le bord.
+            right: 0,
             zIndex: 1,
             pointerEvents: "none",
             fontSize: 9,

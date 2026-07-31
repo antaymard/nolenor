@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -36,6 +35,11 @@ type EditableSurfaceProps = {
   selectedId: string | null;
   onSelect: (nodeId: string) => void;
   onChangeTree: (tree: LayoutContainer) => void;
+  // Survol contrôlé par l'hôte, et non local : la vue structurelle repliable
+  // surligne dans la maquette la ligne qu'on survole chez elle, et
+  // réciproquement. Deux états séparés ne pourraient pas se répondre.
+  hoveredId: string | null;
+  onHover: (nodeId: string | null) => void;
 };
 
 export default function EditableSurface({
@@ -46,9 +50,9 @@ export default function EditableSurface({
   selectedId,
   onSelect,
   onChangeTree,
+  hoveredId,
+  onHover,
 }: EditableSurfaceProps) {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-
   // Aucune poignée de glissement : sur un champ de 20 px de haut il n'y a pas
   // la place. Le placement entier est l'activateur, et c'est cette contrainte
   // de distance qui sépare le clic (sélection) du glissement (déplacement).
@@ -116,12 +120,7 @@ export default function EditableSurface({
         fields={fields}
         values={values}
         surface={surface}
-        editor={{
-          selectedId,
-          hoveredId,
-          onSelect,
-          onHover: setHoveredId,
-        }}
+        editor={{ selectedId, hoveredId, onSelect, onHover }}
       />
     </DndContext>
   );

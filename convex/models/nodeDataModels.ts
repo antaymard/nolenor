@@ -4,6 +4,8 @@ import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import * as SearchableChunkModels from "./searchableChunkModels";
 import * as NodeDataVersionModels from "./nodeDataVersionModels";
+import * as R2ObjectModels from "./r2ObjectModels";
+import { extractR2Keys } from "../lib/r2Keys";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
 import {
   buildTemplateValuesSchema,
@@ -38,13 +40,22 @@ export async function createNodeData(
     templateId?: Id<"nodeTemplates">;
   },
 ): Promise<Id<"nodeDatas">> {
-  return ctx.db.insert("nodeDatas", {
+  const nodeDataId = await ctx.db.insert("nodeDatas", {
     type,
     values,
     canvasId,
     ...(templateId && { templateId }),
     updatedAt: Date.now(),
   });
+
+  // Duplication copies `values` wholesale, so a fresh node can already point
+  // at an existing blob. Register the references before anyone can delete it.
+  await R2ObjectModels.syncRefs(ctx, {
+    nodeDataId,
+    keys: extractR2Keys({ type, values }),
+  });
+
+  return nodeDataId;
 }
 
 export async function deleteNodeDataWithCascade(
@@ -58,7 +69,10 @@ export async function deleteNodeDataWithCascade(
   },
 ): Promise<void> {
   const nodeData = await ctx.db.get(nodeDataId);
-  const r2Keys: string[] = [];
+
+  // Only keys this node held the last reference to. A duplicate still pointing
+  // at the same file keeps it alive.
+  const r2Keys = await R2ObjectModels.releaseRefs(ctx, { nodeDataId });
 
   if (nodeData) {
     // Snapshot final : les versions survivent volontairement au node
@@ -332,10 +346,23 @@ export async function updateValues(
   });
 
   const now = Date.now();
+  const nextValues = { ...existing.values, ...changedValues };
   await ctx.db.patch("nodeDatas", _id, {
-    values: { ...existing.values, ...changedValues },
+    values: nextValues,
     updatedAt: now,
   });
+
+  // Swapping a node's file is an ordinary update, so this is also what stops
+  // the replaced blob from lingering on R2 forever.
+  const orphanedKeys = await R2ObjectModels.syncRefs(ctx, {
+    nodeDataId: _id,
+    keys: extractR2Keys({ type: existing.type, values: nextValues }),
+  });
+  if (orphanedKeys.length > 0) {
+    await ctx.scheduler.runAfter(0, internal.uploads.deleteR2Files, {
+      keys: orphanedKeys,
+    });
+  }
 
   await ctx.scheduler.runAfter(
     0,

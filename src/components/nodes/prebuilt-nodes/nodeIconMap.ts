@@ -12,6 +12,7 @@ import {
   TbAppWindow,
   TbNotes,
   TbTemplate,
+  TbMusic,
 } from "react-icons/tb";
 
 export const NODE_TYPE_ICON_MAP: Record<string, IconType> = {
@@ -26,6 +27,7 @@ export const NODE_TYPE_ICON_MAP: Record<string, IconType> = {
   embed: TbCode,
   table: TbTable,
   app: TbAppWindow,
+  audio: TbMusic,
   // Fallback générique pour les custom nodes ; les surfaces qui connaissent
   // le template affichent son icône propre (cf. getTemplateIcon).
   custom: TbTemplate,

@@ -75,6 +75,34 @@ export function getNodeDataTitle(
         : "PDF";
     }
 
+    case "audio": {
+      const audio = nodeData.values.audio as
+        | {
+            label?: unknown;
+            artist?: unknown;
+            title?: unknown;
+            filename?: unknown;
+          }
+        | null
+        | undefined;
+
+      const str = (value: unknown): string | undefined =>
+        typeof value === "string" && value.trim().length > 0
+          ? value.trim()
+          : undefined;
+
+      // A name the user typed beats the file's own tags, which in turn beat
+      // the filename — "01 - Track.mp3" is nobody's idea of a title.
+      const label = str(audio?.label);
+      if (label) return label;
+
+      const title = str(audio?.title);
+      const artist = str(audio?.artist);
+      if (title) return artist ? `${artist} — ${title}` : title;
+
+      return str(audio?.filename) ?? "Audio";
+    }
+
     case "image": {
       const images = nodeData.values.images as
         | Array<{ filename?: unknown }>

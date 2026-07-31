@@ -16,6 +16,7 @@ import PdfNode from "./PdfNode";
 import EmbedNode from "./EmbedNode";
 import TableNode from "./TableNode";
 import AppNode from "./AppNode";
+import AudioNode from "./AudioNode";
 
 type NodeUiConfigItem = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -83,6 +84,11 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeComponent: AppNode,
     nodeIcon: NODE_TYPE_ICON_MAP.app,
     canBeOpenInWindow: true,
+  },
+  audio: {
+    nodeComponent: AudioNode,
+    nodeIcon: NODE_TYPE_ICON_MAP.audio,
+    canBeOpenInWindow: false,
   },
 };
 

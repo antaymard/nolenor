@@ -1,14 +1,19 @@
 import { useFileUpload } from "../../hooks/useFilesUpload";
 
 interface UploadFileProps {
-  onUploadComplete: (fileData: {
-    url: string;
-    filename: string;
-    mimeType: string;
-    size: number;
-    uploadedAt: number;
-    key: string;
-  }) => void;
+  onUploadComplete: (
+    fileData: {
+      url: string;
+      filename: string;
+      mimeType: string;
+      size: number;
+      uploadedAt: number;
+      key: string;
+    },
+    // The original File, for callers that need to read more out of it than
+    // the upload result carries — audio tags, for instance.
+    file: File,
+  ) => void;
   accept?: string;
 }
 
@@ -21,7 +26,7 @@ export const UploadFile = ({ onUploadComplete, accept }: UploadFileProps) => {
 
     try {
       const fileData = await uploadFile(file);
-      onUploadComplete(fileData);
+      onUploadComplete(fileData, file);
     } catch (error) {
       console.error("Upload failed:", error);
     }

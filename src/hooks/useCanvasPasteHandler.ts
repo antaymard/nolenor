@@ -9,6 +9,7 @@ import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { markdownToPlateValue } from "@/lib/plateMarkdownConverter";
+import { extractAudioMetadata } from "@/lib/audioMetadata";
 
 const PASTE_GUARD_WINDOW_MS = 300;
 
@@ -247,6 +248,78 @@ export function useCanvasPasteHandler() {
   );
 
   /**
+   * Handle audio file paste
+   */
+  const handleAudioFilePaste = useCallback(
+    async (file: File) => {
+      const position = getViewportCenter();
+
+      const audioNodeConfig = prebuiltNodesConfig.find(
+        (config) => config.node.type === "audio",
+      );
+      if (!audioNodeConfig) {
+        toast.error("Error: AudioNode configuration not found");
+        return;
+      }
+
+      // Create the node first so the upload has somewhere visible to land.
+      const { nodeId, nodeDataId } = await createNode({
+        node: audioNodeConfig.node,
+        position,
+      });
+      if (!nodeDataId) return;
+
+      try {
+        const fileData = await uploadFile(file);
+        const tags = await extractAudioMetadata(file);
+
+        let cover: { url: string; key: string } | null = null;
+        if (tags.cover) {
+          try {
+            const extension = tags.cover.mimeType.split("/")[1] ?? "jpg";
+            const uploaded = await uploadFile(
+              new File([tags.cover.blob], `cover.${extension}`, {
+                type: tags.cover.mimeType,
+              }),
+            );
+            cover = { url: uploaded.url, key: uploaded.key };
+          } catch (error) {
+            console.warn("Cover upload failed", error);
+          }
+        }
+
+        await updateNodeDataValues({
+          _id: nodeDataId,
+          values: {
+            audio: {
+              ...fileData,
+              duration: 0,
+              peaks: [],
+              title: tags.title,
+              artist: tags.artist,
+              cover,
+            },
+            loop: { start: 0, end: 0, enabled: false },
+          },
+        });
+        toast.success("Audio added to canvas");
+      } catch (error) {
+        console.error("Upload failed:", error);
+        toast.error("Error uploading audio");
+
+        setNodes((nodes) => nodes.filter((n) => n.id !== nodeId));
+      }
+    },
+    [
+      getViewportCenter,
+      createNode,
+      uploadFile,
+      updateNodeDataValues,
+      setNodes,
+    ],
+  );
+
+  /**
    * Handle URL paste (image URL or web URL)
    */
   const handleUrlPaste = useCallback(
@@ -307,6 +380,14 @@ export function useCanvasPasteHandler() {
           });
           return;
         }
+        if (file.type.startsWith("audio/")) {
+          const signature = `audio:${file.type}:${file.size}:${file.lastModified}`;
+          e.preventDefault();
+          runWithPasteGuard(pasteGuardRef.current, signature, async () => {
+            await handleAudioFilePaste(file);
+          });
+          return;
+        }
       }
 
       // Check for text (URL or plain text)
@@ -334,6 +415,7 @@ export function useCanvasPasteHandler() {
     [
       focus,
       handleImageFilePaste,
+      handleAudioFilePaste,
       handleUrlPaste,
       createDocumentNode,
     ],

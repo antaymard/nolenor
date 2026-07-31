@@ -54,7 +54,26 @@ type LayoutContainer = {
   children: LayoutNode[];
 };
 
-type LayoutNode = LayoutContainer | LayoutFieldPlacement;
+// Éléments de mise en page qui ne portent aucune donnée : ils structurent le
+// rendu sans jamais apparaître dans `template.fields`. Conséquence utile et
+// voulue — `buildTemplateToolSchema` construisant le schéma de l'agent depuis
+// les champs, Nolë ne les voit pas et n'a rien à y écrire.
+type LayoutDivider = {
+  kind: "divider";
+  id: string;
+};
+
+type LayoutStaticText = {
+  kind: "text";
+  id: string;
+  content: string;
+};
+
+type LayoutNode =
+  | LayoutContainer
+  | LayoutFieldPlacement
+  | LayoutDivider
+  | LayoutStaticText;
 
 // ── Zod ─────────────────────────────────────────────────────────────────
 
@@ -88,30 +107,75 @@ const layoutContainerSchema: z.ZodType<LayoutContainer> = z.strictObject({
     .max(MAX_CHILDREN_PER_CONTAINER),
 });
 
+const layoutDividerSchema = z.strictObject({
+  kind: z.literal("divider"),
+  id: z.string().min(1).max(64),
+});
+
+const layoutStaticTextSchema = z.strictObject({
+  kind: z.literal("text"),
+  id: z.string().min(1).max(64),
+  // Borné comme tout ce qui est persisté : un texte de mise en page, pas un
+  // champ rich_text déguisé.
+  content: z.string().max(500),
+});
+
 const layoutNodeSchema: z.ZodType<LayoutNode> = z.union([
   layoutContainerSchema,
   layoutFieldPlacementSchema,
+  layoutDividerSchema,
+  layoutStaticTextSchema,
 ]);
 
 // ── Parcours ────────────────────────────────────────────────────────────
 
+// Les parcours ci-dessous switchent EXHAUSTIVEMENT sur `kind`, avec garde
+// `never`. Ils testaient auparavant `field` par exclusion et traitaient tout
+// le reste comme un container — ce qui plantait dès qu'un kind sans `children`
+// est apparu (divider, texte statique). Ces fonctions tournent côté serveur à
+// chaque validateTemplateDefinition ET côté client sur le canvas : le prochain
+// kind doit échouer à la compilation, pas à l'exécution.
+function assertNeverNode(node: never): never {
+  throw new Error(
+    `Unhandled layout node kind: ${JSON.stringify((node as LayoutNode).kind)}`,
+  );
+}
+
 function collectLayoutFieldIds(tree: LayoutContainer): string[] {
   const ids: string[] = [];
   const walk = (node: LayoutNode) => {
-    if (node.kind === "field") {
-      ids.push(node.fieldId);
-      return;
+    switch (node.kind) {
+      case "field":
+        ids.push(node.fieldId);
+        return;
+      case "container":
+        node.children.forEach(walk);
+        return;
+      case "divider":
+      case "text":
+        return;
+      default:
+        assertNeverNode(node);
     }
-    node.children.forEach(walk);
   };
   walk(tree);
   return ids;
 }
 
+// Profondeur d'imbrication : ne compte que les containers. Une feuille, quelle
+// qu'elle soit, vaut 0.
 function getLayoutDepth(tree: LayoutContainer): number {
   const walk = (node: LayoutNode): number => {
-    if (node.kind === "field") return 0;
-    return 1 + Math.max(0, ...node.children.map(walk));
+    switch (node.kind) {
+      case "container":
+        return 1 + Math.max(0, ...node.children.map(walk));
+      case "field":
+      case "divider":
+      case "text":
+        return 0;
+      default:
+        return assertNeverNode(node);
+    }
   };
   return walk(tree);
 }
@@ -125,11 +189,19 @@ function collectLayoutPlacements(
 ): LayoutFieldPlacement[] {
   const placements: LayoutFieldPlacement[] = [];
   const walk = (node: LayoutNode) => {
-    if (node.kind === "field") {
-      placements.push(node);
-      return;
+    switch (node.kind) {
+      case "field":
+        placements.push(node);
+        return;
+      case "container":
+        node.children.forEach(walk);
+        return;
+      case "divider":
+      case "text":
+        return;
+      default:
+        assertNeverNode(node);
     }
-    node.children.forEach(walk);
   };
   walk(tree);
   return placements;
@@ -213,6 +285,11 @@ function normalizeLayoutTree(
     if (node.kind === "container") {
       return { ...node, children: node.children.map(normalizeNode) };
     }
+    // Seuls les placements de champ portent un variant à normaliser. Les
+    // éléments de mise en page n'ont rien à résoudre — test explicite plutôt
+    // que par exclusion, pour que le prochain kind ne tombe pas ici par
+    // accident.
+    if (node.kind !== "field") return node;
 
     const field = fieldsById.get(node.fieldId);
     // Champ inconnu : déjà signalé ci-dessus (errors non vide ⇒ ce tree
@@ -340,4 +417,10 @@ export {
   MAX_CHILDREN_PER_CONTAINER,
   MAX_FIELDS_PER_TEMPLATE,
 };
-export type { LayoutNode, LayoutContainer, LayoutFieldPlacement };
+export type {
+  LayoutNode,
+  LayoutContainer,
+  LayoutFieldPlacement,
+  LayoutDivider,
+  LayoutStaticText,
+};

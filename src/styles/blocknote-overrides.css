@@ -46,12 +46,21 @@
  * 22.8 / 18.9 / 16.3 / 14.6 / 13.3 / 13 px.
  * ------------------------------------------------------------------------- */
 :root {
-  --doc-h1-size: 1.75em;
-  --doc-h2-size: 1.45em;
-  --doc-h3-size: 1.25em;
-  --doc-h4-size: 1.12em;
-  --doc-h5-size: 1.02em;
-  --doc-h6-size: 1em;
+  /* Kept unitless so the same number can drive both a font-size (`* 1em`) and
+   * the drag-handle alignment further down, which needs a px length. */
+  --doc-h1-scale: 1.75;
+  --doc-h2-scale: 1.45;
+  --doc-h3-scale: 1.25;
+  --doc-h4-scale: 1.12;
+  --doc-h5-scale: 1.02;
+  --doc-h6-scale: 1;
+
+  --doc-h1-size: calc(var(--doc-h1-scale) * 1em);
+  --doc-h2-size: calc(var(--doc-h2-scale) * 1em);
+  --doc-h3-size: calc(var(--doc-h3-scale) * 1em);
+  --doc-h4-size: calc(var(--doc-h4-scale) * 1em);
+  --doc-h5-size: calc(var(--doc-h5-scale) * 1em);
+  --doc-h6-size: calc(var(--doc-h6-scale) * 1em);
 
   /* Headings are set tighter than the body, as display type usually is — Plate
    * got this implicitly from Tailwind's size-paired leading (`text-4xl`,
@@ -70,9 +79,12 @@
   --doc-h5-weight: 600;
   --doc-h6-weight: 600;
 
-  /* `.slate-h1..h5` margin-top; h6 uses the heading-node value (0.75em). */
-  --doc-heading-gap: 0.5em;
-  --doc-heading-gap-h6: 0.75em;
+  /* Space above a heading, in em of that heading. Unitless for the same reason
+   * as the scales above. */
+  --doc-heading-gap-scale: 0.5;
+  --doc-heading-gap-h6-scale: 0.75;
+  --doc-heading-gap: calc(var(--doc-heading-gap-scale) * 1em);
+  --doc-heading-gap-h6: calc(var(--doc-heading-gap-h6-scale) * 1em);
   /* Space below a heading (Plate's `mb-1`). Applied as padding, not margin:
    * `.bn-block` is a flex container, so margins do not collapse in the editor
    * the way they do in the readonly container — padding behaves the same in
@@ -140,9 +152,16 @@
  * `padding-top: 0` cancels BlockNote's blanket `[data-content-type="heading"]
  * { padding-top: 18px }`; vertical rhythm comes from `margin-top` instead, like
  * Plate's `.slate-h*`.
+ *
+ * Level 1 is matched by the BARE heading selector, not `[data-level="1"]`:
+ * BlockNote omits a prop from the DOM when it equals its default, and the
+ * default level is 1 — so `[data-level="1"]` never matches in the editor and an
+ * h1 would silently keep BlockNote's 3em. Its own stylesheet has the same shape
+ * (`[data-content-type="heading"] { --level: 3em }`). The level 2-6 rules below
+ * carry one extra attribute and therefore override it.
  * ------------------------------------------------------------------------- */
-.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="1"],
-.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="1"],
+.bn-editor .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"],
+.bn-readonly-container .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"],
 .bn-readonly-container h1 {
   --level: var(--doc-h1-size);
   font-size: var(--doc-h1-size);
@@ -154,8 +173,8 @@
   padding-bottom: var(--doc-heading-gap-bottom);
 }
 
-.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="2"],
-.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="2"],
+.bn-editor .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="2"],
+.bn-readonly-container .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="2"],
 .bn-readonly-container h2 {
   --level: var(--doc-h2-size);
   font-size: var(--doc-h2-size);
@@ -167,8 +186,8 @@
   padding-bottom: var(--doc-heading-gap-bottom);
 }
 
-.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="3"],
-.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="3"],
+.bn-editor .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="3"],
+.bn-readonly-container .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="3"],
 .bn-readonly-container h3 {
   --level: var(--doc-h3-size);
   font-size: var(--doc-h3-size);
@@ -180,8 +199,8 @@
   padding-bottom: var(--doc-heading-gap-bottom);
 }
 
-.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="4"],
-.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="4"],
+.bn-editor .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="4"],
+.bn-readonly-container .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="4"],
 .bn-readonly-container h4 {
   --level: var(--doc-h4-size);
   font-size: var(--doc-h4-size);
@@ -193,8 +212,8 @@
   padding-bottom: var(--doc-heading-gap-bottom);
 }
 
-.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="5"],
-.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="5"],
+.bn-editor .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="5"],
+.bn-readonly-container .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="5"],
 .bn-readonly-container h5 {
   --level: var(--doc-h5-size);
   font-size: var(--doc-h5-size);
@@ -206,8 +225,8 @@
   padding-bottom: var(--doc-heading-gap-bottom);
 }
 
-.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="6"],
-.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="6"],
+.bn-editor .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="6"],
+.bn-readonly-container .bn-block-outer .bn-block .bn-block-content[data-content-type="heading"][data-level="6"],
 .bn-readonly-container h6 {
   --level: var(--doc-h6-size);
   font-size: var(--doc-h6-size);
@@ -231,7 +250,8 @@
 /* No leading gap on the first block — `.slate-h1:first-child { margin-top: 0 }`.
  * Must come after the per-level rules and match their (0,5,0) specificity. */
 .bn-editor
-  .bn-block-outer:first-child
+  .bn-block-group
+  > .bn-block-outer:first-child
   > .bn-block
   > .bn-block-content[data-content-type="heading"] {
   margin-top: 0;
@@ -405,4 +425,70 @@
 /* Plate's `placeholder:text-muted-foreground/80`. */
 .bn-editor .bn-block-content:has(.ProseMirror-trailing-break:only-child)::after {
   color: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * Drag handle alignment
+ *
+ * The side menu is anchored to the TOP of the block box (`placement:
+ * "left-start"` in SideMenuController) and its buttons are centred inside it,
+ * so BlockNote aligns the handle purely by giving `.bn-side-menu` a height per
+ * block type — see "Matches Side Menu height to block line height" in
+ * @blocknote/react/src/editor/styles.css. That is the supported hook; there is
+ * no offset prop.
+ *
+ * Its shipped values (30px, and 108/84/67px for h1-h3) are tuned for
+ * BlockNote's own scale — 16px body, h1 at 3em, 18px of heading padding. Ours
+ * is a 13px body with a different ramp and top margins instead of padding, so
+ * the stock heights centre the handle on the wrong point. Headings are the
+ * visible case because they are the only types with a special height, which is
+ * why the handle looks fine until a block is turned into a heading. Levels 4-6
+ * have no rule upstream at all and fall back to the 30px default.
+ *
+ * The handle is centred when the menu height equals twice the distance from the
+ * block top to the text centre:
+ *     height = 2 * marginTop + lineBox
+ *            = 2 * (gap * size) + (size * lh)
+ *            = size * (lh + 2 * gap)
+ * Derived from the tokens above so the handle follows any change to the ramp.
+ * ------------------------------------------------------------------------- */
+.bn-side-menu {
+  height: calc(var(--doc-line-height) * var(--text-base) + 2 * var(--doc-block-gap));
+}
+
+.bn-side-menu[data-block-type="heading"][data-level="1"] {
+  height: calc(
+    var(--doc-h1-scale) * var(--text-base) *
+      (var(--doc-h1-lh) + 2 * var(--doc-heading-gap-scale))
+  );
+}
+.bn-side-menu[data-block-type="heading"][data-level="2"] {
+  height: calc(
+    var(--doc-h2-scale) * var(--text-base) *
+      (var(--doc-h2-lh) + 2 * var(--doc-heading-gap-scale))
+  );
+}
+.bn-side-menu[data-block-type="heading"][data-level="3"] {
+  height: calc(
+    var(--doc-h3-scale) * var(--text-base) *
+      (var(--doc-h3-lh) + 2 * var(--doc-heading-gap-scale))
+  );
+}
+.bn-side-menu[data-block-type="heading"][data-level="4"] {
+  height: calc(
+    var(--doc-h4-scale) * var(--text-base) *
+      (var(--doc-h4-lh) + 2 * var(--doc-heading-gap-scale))
+  );
+}
+.bn-side-menu[data-block-type="heading"][data-level="5"] {
+  height: calc(
+    var(--doc-h5-scale) * var(--text-base) *
+      (var(--doc-h5-lh) + 2 * var(--doc-heading-gap-scale))
+  );
+}
+.bn-side-menu[data-block-type="heading"][data-level="6"] {
+  height: calc(
+    var(--doc-h6-scale) * var(--text-base) *
+      (var(--doc-h6-lh) + 2 * var(--doc-heading-gap-h6-scale))
+  );
 }

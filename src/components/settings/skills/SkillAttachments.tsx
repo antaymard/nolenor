@@ -4,6 +4,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Doc, Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
+import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
 import {
@@ -81,7 +82,6 @@ export default function SkillAttachments({
     attachmentId: Id<"skillAttachments">,
     name: string,
   ) => {
-    if (!confirm(`Remove attachment "${name}"?`)) return;
     try {
       await removeAttachment({ attachmentId });
       toast.success(`Attachment "${name}" removed.`);
@@ -123,15 +123,24 @@ export default function SkillAttachments({
                 </span>
                 <span className="text-xs text-gray-500">{attachment.type}</span>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-red-600 hover:text-red-700"
-                onClick={() => handleRemove(attachment._id, attachment.name)}
+              <ConfirmableButton
+                title={`Remove attachment "${attachment.name}"?`}
+                text="It will no longer be available to this skill."
+                confirmLabel="Remove"
+                destructive
+                onConfirm={() =>
+                  void handleRemove(attachment._id, attachment.name)
+                }
               >
-                Remove
-              </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-red-600 hover:text-red-700"
+                >
+                  Remove
+                </Button>
+              </ConfirmableButton>
             </li>
           ))}
         </ul>

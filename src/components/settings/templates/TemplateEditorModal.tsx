@@ -19,7 +19,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/plate/alert-dialog";
+} from "@/components/shadcn/alert-dialog";
 import { useTemplateEditor } from "@/hooks/useTemplateEditor";
 import { useCanvasStore } from "@/stores/canvasStore";
 import TemplateEditor from "./TemplateEditor";

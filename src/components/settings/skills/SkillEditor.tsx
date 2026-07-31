@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
+import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { Input } from "@/components/shadcn/input";
 import { toastError } from "@/components/utils/errorUtils";
 import { parseSkillFrontmatter } from "@/../convex/lib/parseSkillFrontmatter";
@@ -121,11 +122,6 @@ export default function SkillEditor({
 
   const handleDelete = async () => {
     if (isDraft) return;
-    if (
-      !confirm(`Delete skill "${currentSkill?.name}"? This cannot be undone.`)
-    ) {
-      return;
-    }
     try {
       if (skillId) {
         await removeSkill({ skillId });
@@ -156,14 +152,21 @@ export default function SkillEditor({
         </div>
         <div className="flex gap-2 shrink-0">
             {!isDraft && (
-              <Button
-                type="button"
-                variant="outline"
-                className="text-red-600 hover:text-red-700"
-                onClick={handleDelete}
+              <ConfirmableButton
+                title={`Delete skill "${currentSkill?.name}"?`}
+                text="This cannot be undone."
+                confirmLabel="Delete skill"
+                destructive
+                onConfirm={() => void handleDelete()}
               >
-                Delete
-              </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700"
+                >
+                  Delete
+                </Button>
+              </ConfirmableButton>
             )}
           <Button type="button" onClick={handleSave} disabled={isSaving}>
             {isSaving ? "Saving…" : "Save"}

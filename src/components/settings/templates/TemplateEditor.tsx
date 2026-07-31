@@ -4,26 +4,15 @@ import toast from "react-hot-toast";
 import { TbArchive, TbArchiveOff, TbDeviceFloppy } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import type { Doc, Id } from "@/../convex/_generated/dataModel";
-import { Button } from "@/components/shadcn/button";
+import { Button, buttonVariants } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
-import { Label } from "@/components/shadcn/label";
-import { Textarea } from "@/components/shadcn/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/shadcn/select";
 import { cn } from "@/lib/utils";
-import nodeColors from "@/components/nodes/nodeColors";
-import type { colorsEnum } from "@/types/domain";
 import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
 import {
@@ -35,6 +24,17 @@ import {
   templateIconMap,
   templateIconNames,
 } from "@/components/fields/registry/templateIcons";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/shadcn/alert-dialog";
+import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import FieldsPanel from "./FieldsPanel";
 import LayoutTree from "./LayoutTree";
 import PlacementInspector from "./PlacementInspector";
@@ -82,6 +82,7 @@ export default function TemplateEditor({
   // Survol partagé entre la maquette et la vue structurelle : survoler une
   // ligne du tree surligne l'élément dans l'aperçu, et réciproquement.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pendingWindowDisable, setPendingWindowDisable] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [savedSnapshot, setSavedSnapshot] = useState(initialDraft);
@@ -216,7 +217,23 @@ export default function TemplateEditor({
     });
   }
 
+  // Désactiver la vue window jette l'arbre : on ne demande donc confirmation
+  // que s'il y a quelque chose à perdre.
+  const windowDisableNeedsConfirm =
+    (draft.windowLayout?.children.length ?? 0) > 0;
+
+  // L'interrupteur n'est pas un bouton : l'envelopper dans un
+  // AlertDialogTrigger intercepterait son clic et `onConfirm` ne porterait
+  // aucune direction. D'où un dialogue CONTRÔLÉ, piloté par ce drapeau.
   function handleToggleWindow(enabled: boolean) {
+    if (!enabled && windowDisableNeedsConfirm) {
+      setPendingWindowDisable(true);
+      return;
+    }
+    applyToggleWindow(enabled);
+  }
+
+  function applyToggleWindow(enabled: boolean) {
     if (enabled) {
       update({
         windowLayout: draft.windowLayout ?? {
@@ -229,15 +246,6 @@ export default function TemplateEditor({
         },
       });
     } else {
-      if (
-        draft.windowLayout &&
-        draft.windowLayout.children.length > 0 &&
-        !window.confirm(
-          "Disable the window view? The window layout will be discarded.",
-        )
-      ) {
-        return;
-      }
       update({ windowLayout: undefined });
       if (selection?.surface === "window") setSelection(null);
     }
@@ -289,20 +297,12 @@ export default function TemplateEditor({
     }
   }
 
+  const willArchive = template?.archivedAt === undefined;
+
   async function handleToggleArchive() {
     if (!template) return;
-    const archived = template.archivedAt === undefined;
-    if (
-      archived &&
-      (instanceCount ?? 0) > 0 &&
-      !window.confirm(
-        `Archive this template? ${instanceCount} existing node${(instanceCount ?? 0) > 1 ? "s" : ""} will keep rendering, but it will no longer appear in the add menu.`,
-      )
-    ) {
-      return;
-    }
-    await setArchived({ templateId: template._id, archived });
-    toast.success(archived ? "Template archived" : "Template restored");
+    await setArchived({ templateId: template._id, archived: willArchive });
+    toast.success(willArchive ? "Template archived" : "Template restored");
   }
 
   const Icon = getTemplateIcon(draft.icon);
@@ -394,23 +394,32 @@ export default function TemplateEditor({
         </Select>*/}
 
           {template && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleToggleArchive}
-              title={
-                template.archivedAt === undefined
-                  ? "Archive template"
-                  : "Restore template"
-              }
+            <ConfirmableButton
+              title="Archive this template?"
+              // Composé au rendu, donc à l'ouverture du dialogue :
+              // `instanceCount` est une requête vive, et le compte annoncé doit
+              // être celui que l'utilisateur avait sous les yeux.
+              text={`${instanceCount} existing node${(instanceCount ?? 0) > 1 ? "s" : ""} will keep rendering, but the type will no longer appear in the add menu.`}
+              confirmLabel="Archive"
+              cancelLabel="Cancel"
+              // Restaurer ne détruit rien, et archiver un type inutilisé non
+              // plus : on ne demande que quand des nodes sont concernés.
+              shouldConfirm={willArchive && (instanceCount ?? 0) > 0}
+              onConfirm={handleToggleArchive}
             >
-              {template.archivedAt === undefined ? (
-                <TbArchive size={16} />
-              ) : (
-                <TbArchiveOff size={16} />
-              )}
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                title={willArchive ? "Archive template" : "Restore template"}
+              >
+                {willArchive ? (
+                  <TbArchive size={16} />
+                ) : (
+                  <TbArchiveOff size={16} />
+                )}
+              </Button>
+            </ConfirmableButton>
           )}
         </div>
         <Button
@@ -515,6 +524,42 @@ export default function TemplateEditor({
           </div>
         </div>
       </div>
+
+      {/* Dialogue contrôlé, et non un ConfirmableButton : la source du geste
+          est un interrupteur, pas un bouton. Annuler doit le laisser ALLUMÉ,
+          ce qui tombe tout seul ici puisque rien n'a encore été appliqué. */}
+      <AlertDialog
+        open={pendingWindowDisable}
+        onOpenChange={(open) => {
+          if (!open) setPendingWindowDisable(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disable the window view?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The window layout and its{" "}
+              {draft.windowLayout?.children.length ?? 0} placement
+              {(draft.windowLayout?.children.length ?? 0) > 1 ? "s" : ""} will
+              be discarded. The fields themselves are kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingWindowDisable(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={() => {
+                setPendingWindowDisable(false);
+                applyToggleWindow(false);
+              }}
+            >
+              Discard window layout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

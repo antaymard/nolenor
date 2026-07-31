@@ -17,7 +17,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/plate/alert-dialog";
+} from "@/components/shadcn/alert-dialog";
+import { buttonVariants } from "@/components/shadcn/button";
 import { X } from "lucide-react";
 
 interface ConfirmableButtonProps {
@@ -31,6 +32,9 @@ interface ConfirmableButtonProps {
   cancelLabel?: string;
   showCloseButton?: boolean;
   autoFocusConfirm?: boolean;
+  // Colore le bouton de confirmation en rouge. Pour les actions qui détruisent
+  // quelque chose — la couleur fait partie de l'avertissement.
+  destructive?: boolean;
 }
 
 export default function ConfirmableButton({
@@ -40,10 +44,15 @@ export default function ConfirmableButton({
   onConfirm,
   children,
   shouldConfirm = true,
-  confirmLabel = "Confirmer",
-  cancelLabel = "Annuler",
+  // Défauts en anglais, comme le reste de l'UI. Ils étaient en français, ce
+  // qui ne se voyait pas : tous les appels les surchargeaient — sauf
+  // VersionHistoryViewer, qui affichait donc « Annuler » au milieu d'un écran
+  // anglais.
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
   showCloseButton = true,
   autoFocusConfirm = false,
+  destructive = false,
 }: ConfirmableButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -95,7 +104,18 @@ export default function ConfirmableButton({
           <AlertDialogCancel onClick={() => onCancel?.()}>
             {cancelLabel}
           </AlertDialogCancel>
-          <AlertDialogAction ref={confirmRef} onClick={() => onConfirm()}>
+          <AlertDialogAction
+            ref={confirmRef}
+            onClick={() => onConfirm()}
+            // La variante officielle plutôt qu'une recopie de ses classes :
+            // elle porte aussi l'anneau de focus et les nuances sombres, et
+            // elle suivra si le thème change.
+            className={
+              destructive
+                ? buttonVariants({ variant: "destructive" })
+                : undefined
+            }
+          >
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

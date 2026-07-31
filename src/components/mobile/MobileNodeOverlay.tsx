@@ -24,7 +24,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/plate/alert-dialog";
+} from "@/components/shadcn/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,

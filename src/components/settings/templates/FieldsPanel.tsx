@@ -31,6 +31,7 @@ import {
   type TemplateField,
 } from "@/../convex/config/fieldConfig";
 import { collectLayoutFieldIds } from "@/../convex/config/templateConfig";
+import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { getFieldReachability } from "./fieldReachability";
 import OptionDescriptorsForm from "./OptionDescriptorsForm";
 import FieldDefaultValueEditor from "./FieldDefaultValueEditor";
@@ -130,15 +131,14 @@ export default function FieldsPanel({
     draft.windowLayout ? collectLayoutFieldIds(draft.windowLayout) : [],
   );
 
-  function handleRemove(field: TemplateField) {
+  // Le nom du champ vit dans le titre du dialogue, le corps ne porte que la
+  // conséquence — qui n'existe que s'il y a des instances.
+  function deleteWarning(field: TemplateField): string {
     const count = instanceCount ?? 0;
-    const message =
-      count > 0
-        ? `Delete field "${field.name}"? ${count} node${count > 1 ? "s" : ""} use this template — their values for this field will be hidden but kept (recoverable via version history).`
-        : `Delete field "${field.name}"?`;
-    if (window.confirm(message)) {
-      onRemoveField(field.id);
+    if (count === 0) {
+      return `"${field.name}" and its layout placements will be removed from this template.`;
     }
+    return `${count} node${count > 1 ? "s" : ""} use this template. Their values for "${field.name}" will be hidden but kept, and stay recoverable via version history.`;
   }
 
   return (
@@ -312,15 +312,23 @@ export default function FieldsPanel({
                     />
                   )}
 
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                    onClick={() => handleRemove(field)}
+                  <ConfirmableButton
+                    title={`Delete field "${field.name}"?`}
+                    text={deleteWarning(field)}
+                    confirmLabel="Delete field"
+                    cancelLabel="Keep it"
+                    destructive
+                    onConfirm={() => onRemoveField(field.id)}
                   >
-                    <TbTrash size={12} className="mr-1" /> Delete
-                  </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                    >
+                      <TbTrash size={12} className="mr-1" /> Delete
+                    </Button>
+                  </ConfirmableButton>
                 </div>
               )}
             </div>

@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/shadcn/sheet";
 import { Button } from "@/components/shadcn/button";
+import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
 import CanvasFormModal from "@/components/canvas/CanvasFormModal";
 import { TbPlus, TbTrash } from "react-icons/tb";
@@ -56,12 +57,10 @@ export default function MobileLeftSidebar({
   };
 
   const handleDeleteCanvas = async (id: Id<"canvases">) => {
-    if (confirm("Delete this workspace?")) {
-      try {
-        await deleteCanvas({ canvasId: id });
-      } catch (error) {
-        toastError(error, "Error deleting workspace.");
-      }
+    try {
+      await deleteCanvas({ canvasId: id });
+    } catch (error) {
+      toastError(error, "Error deleting workspace.");
     }
   };
 
@@ -201,15 +200,22 @@ function CanvasRow({
         {name}
       </button>
       {onDelete && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 opacity-50 hover:opacity-100 hover:text-red-500"
-          onClick={onDelete}
-          aria-label="Delete workspace"
+        <ConfirmableButton
+          title={`Delete workspace "${name}"?`}
+          text="Its nodes and conversations go with it."
+          confirmLabel="Delete workspace"
+          destructive
+          onConfirm={onDelete}
         >
-          <TbTrash size={13} />
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 opacity-50 hover:opacity-100 hover:text-red-500"
+            aria-label="Delete workspace"
+          >
+            <TbTrash size={13} />
+          </Button>
+        </ConfirmableButton>
       )}
     </div>
   );

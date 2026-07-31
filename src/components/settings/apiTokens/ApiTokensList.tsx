@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
+import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import {
   Table,
   TableBody,
@@ -33,11 +34,6 @@ export default function ApiTokensList({ tokens }: { tokens: ApiToken[] }) {
   const revokeApiToken = useMutation(api.apiTokens.revoke);
 
   const handleRevoke = async (token: ApiToken) => {
-    const confirmed = confirm(
-      `Revoke token "${token.name}"? Any application using it will immediately lose access.`,
-    );
-    if (!confirmed) return;
-
     try {
       await revokeApiToken({ tokenId: token._id });
     } catch (err) {
@@ -96,14 +92,21 @@ export default function ApiTokensList({ tokens }: { tokens: ApiToken[] }) {
                       >
                         <TbPencil size={14} />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Revoke token"
-                        onClick={() => handleRevoke(token)}
+                      <ConfirmableButton
+                        title={`Revoke token "${token.name}"?`}
+                        text="Any application using it will immediately lose access."
+                        confirmLabel="Revoke"
+                        destructive
+                        onConfirm={() => void handleRevoke(token)}
                       >
-                        <TbTrash size={14} />
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Revoke token"
+                        >
+                          <TbTrash size={14} />
+                        </Button>
+                      </ConfirmableButton>
                     </div>
                   )}
                 </TableCell>

@@ -77,6 +77,7 @@ import type * as lib_parseModelPrice from "../lib/parseModelPrice.js";
 import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js";
 import type * as lib_plateDocumentStorage from "../lib/plateDocumentStorage.js";
 import type * as lib_r2 from "../lib/r2.js";
+import type * as lib_r2Keys from "../lib/r2Keys.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
 import type * as lib_text from "../lib/text.js";
 import type * as lib_textSanitize from "../lib/textSanitize.js";
@@ -96,6 +97,7 @@ import type * as models_memoryModels from "../models/memoryModels.js";
 import type * as models_messageMetadataModels from "../models/messageMetadataModels.js";
 import type * as models_nodeDataModels from "../models/nodeDataModels.js";
 import type * as models_nodeDataVersionModels from "../models/nodeDataVersionModels.js";
+import type * as models_r2ObjectModels from "../models/r2ObjectModels.js";
 import type * as models_searchableChunkModels from "../models/searchableChunkModels.js";
 import type * as models_skillModels from "../models/skillModels.js";
 import type * as models_threadMetadataModels from "../models/threadMetadataModels.js";
@@ -109,6 +111,7 @@ import type * as schemas_messageMetadataSchema from "../schemas/messageMetadataS
 import type * as schemas_nodeDataVersionsSchema from "../schemas/nodeDataVersionsSchema.js";
 import type * as schemas_nodeDatasSchema from "../schemas/nodeDatasSchema.js";
 import type * as schemas_nodeTypeSchema from "../schemas/nodeTypeSchema.js";
+import type * as schemas_r2ObjectsSchema from "../schemas/r2ObjectsSchema.js";
 import type * as schemas_recipesSchema from "../schemas/recipesSchema.js";
 import type * as schemas_scheduledJobsSchema from "../schemas/scheduledJobsSchema.js";
 import type * as schemas_searchableChunksSchema from "../schemas/searchableChunksSchema.js";
@@ -215,6 +218,7 @@ declare const fullApi: ApiFromModules<{
   "lib/parseSkillFrontmatter": typeof lib_parseSkillFrontmatter;
   "lib/plateDocumentStorage": typeof lib_plateDocumentStorage;
   "lib/r2": typeof lib_r2;
+  "lib/r2Keys": typeof lib_r2Keys;
   "lib/searchScoring": typeof lib_searchScoring;
   "lib/text": typeof lib_text;
   "lib/textSanitize": typeof lib_textSanitize;
@@ -234,6 +238,7 @@ declare const fullApi: ApiFromModules<{
   "models/messageMetadataModels": typeof models_messageMetadataModels;
   "models/nodeDataModels": typeof models_nodeDataModels;
   "models/nodeDataVersionModels": typeof models_nodeDataVersionModels;
+  "models/r2ObjectModels": typeof models_r2ObjectModels;
   "models/searchableChunkModels": typeof models_searchableChunkModels;
   "models/skillModels": typeof models_skillModels;
   "models/threadMetadataModels": typeof models_threadMetadataModels;
@@ -247,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/nodeDataVersionsSchema": typeof schemas_nodeDataVersionsSchema;
   "schemas/nodeDatasSchema": typeof schemas_nodeDatasSchema;
   "schemas/nodeTypeSchema": typeof schemas_nodeTypeSchema;
+  "schemas/r2ObjectsSchema": typeof schemas_r2ObjectsSchema;
   "schemas/recipesSchema": typeof schemas_recipesSchema;
   "schemas/scheduledJobsSchema": typeof schemas_scheduledJobsSchema;
   "schemas/searchableChunksSchema": typeof schemas_searchableChunksSchema;

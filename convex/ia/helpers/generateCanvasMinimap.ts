@@ -59,6 +59,7 @@ const TYPE_WEIGHT: Record<string, number> = {
   value: 30,
   embed: 25,
   pdf: 20,
+  audio: 20,
   file: 15,
 };
 

@@ -260,6 +260,33 @@ async function buildChunks(
       return [{ ...base, chunkType: "node", order: 0, text }];
     }
 
+    case "audio": {
+      // Cheap branch: the filename is all we have to go on until transcription
+      // lands, and it is what the user searches for.
+      const audio = nodeData.values.audio as
+        | {
+            filename?: string;
+            mimeType?: string;
+            title?: string;
+            artist?: string;
+            label?: string;
+          }
+        | null
+        | undefined;
+      if (!audio?.filename) return [];
+      // Index the tags too: people search for the artist, not "01 - Track.mp3".
+      const parts = [
+        audio.label,
+        audio.artist,
+        audio.title,
+        audio.filename,
+        audio.mimeType,
+      ].filter(Boolean);
+      return [
+        { ...base, chunkType: "node", order: 0, text: parts.join(" | ") },
+      ];
+    }
+
     case "image": {
       return await buildImageChunks(base, nodeData.values);
     }

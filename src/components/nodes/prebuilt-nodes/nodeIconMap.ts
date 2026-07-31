@@ -11,6 +11,7 @@ import {
   TbTable,
   TbAppWindow,
   TbNotes,
+  TbMusic,
 } from "react-icons/tb";
 
 export const NODE_TYPE_ICON_MAP: Record<string, IconType> = {
@@ -25,4 +26,5 @@ export const NODE_TYPE_ICON_MAP: Record<string, IconType> = {
   embed: TbCode,
   table: TbTable,
   app: TbAppWindow,
+  audio: TbMusic,
 };

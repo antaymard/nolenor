@@ -203,9 +203,10 @@ export default function TemplatePreview({
       {/* ── Node ───────────────────────────────────────────────────────── */}
       <div className="space-y-2 border-b border-slate-200 px-5 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h4 className="text font-bold text-slate-500">
-            How it looks on the canvas (node)
-          </h4>
+          <h4 className="text font-bold text-slate-500">Node preview</h4>
+          <p className="text-[10px] opacity-60 leading-tight">
+            How it looks on the canvas.
+          </p>
           <div className="ml-auto flex items-center gap-2">
             <Label className="shrink-0 text-xs">Size</Label>
             <Input
@@ -249,9 +250,7 @@ export default function TemplatePreview({
         <div className="flex justify-center p-6">
           <div
             className={cn(
-              "overflow-hidden rounded-md border",
-              color?.bg ?? "bg-slate-100",
-              color?.border ?? "border-slate-300",
+              "overflow-hidden rounded-md border bg-white border-slate-200",
             )}
             style={{
               width: draft.defaultDimensions.width,
@@ -277,9 +276,10 @@ export default function TemplatePreview({
       {/* ── Window ─────────────────────────────────────────────────────── */}
       <div className="space-y-2 px-5 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h4 className="text font-bold text-slate-500">
-            How it looks after double clic (window)
-          </h4>
+          <h4 className="text font-bold text-slate-500">Window preview</h4>
+          <p className="text-[10px] opacity-60 leading-tight">
+            How it looks in window mode, after a double-click on the node.
+          </p>
           <div className="ml-auto flex items-center gap-2">
             <Label className="shrink-0 text-xs text-gray-400">
               Can be open in window
@@ -302,8 +302,8 @@ export default function TemplatePreview({
 
         {draft.windowLayout ? (
           <div
-            className="overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm"
-            style={{ width: 420, zoom }}
+            className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md w-4/5 mx-auto mt-5"
+            style={{ zoom }}
           >
             <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
               <Icon size={14} className="text-gray-500" />

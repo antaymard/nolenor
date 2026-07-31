@@ -107,7 +107,7 @@ export default function TemplateEditorModal() {
           // `sm:max-w-none` et pas `max-w-none` : le défaut de
           // DialogContent est `sm:max-w-lg`, une variante responsive qu'une
           // classe de base ne peut pas écraser (elle gagne au-dessus de sm).
-          className="flex h-[92vh] w-[96vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none"
+          className="flex h-[92vh] w-[96vw] max-w-none flex-col gap-0 overflow-hidden p-1 sm:max-w-none rounded-[18px] border-0"
           onEscapeKeyDown={(e) => {
             e.preventDefault();
             requestClose();
@@ -117,6 +117,7 @@ export default function TemplateEditorModal() {
             requestClose();
           }}
         >
+          <div className="border rounded-[14px] h-full w-full border-slate-200">
           {/* HIDDEN */}
           <DialogTitle className="sr-only">Edit custom node type</DialogTitle>
           <DialogDescription className="sr-only">
@@ -134,13 +135,14 @@ export default function TemplateEditorModal() {
 
           {/* `pr-12` réserve la place de la croix : sans ça elle se pose sur
               le bouton Save de l'en-tête de l'éditeur. */}
-          <div className="min-h-0 flex-1 overflow-hidden p-5 pr-12">
+
             <EditorBody
               templateId={isCreating ? null : (editingTemplateId as Id<"nodeTemplates">)}
               onCreated={replaceTemplateId}
               onDirtyChange={setIsDirty}
             />
-          </div>
+
+        </div>
         </DialogContent>
       </Dialog>
 

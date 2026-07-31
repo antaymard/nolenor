@@ -310,12 +310,12 @@ export default function TemplateEditor({
   return (
     <div className="flex flex-col gap-4 h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 p-5">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="icon">
-              <Icon size={16} />
-            </Button>
+            <button type="button" className="flex items-center justify-center rounded h-12 w-12 bg-blue-100 text-blue-500 hover:bg-blue-200 border border-blue-300">
+              <Icon size={18} />
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="grid grid-cols-5 gap-1 p-2">
             {templateIconNames.map((name) => {

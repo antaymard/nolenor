@@ -3,6 +3,7 @@ import { authTables } from "@convex-dev/auth/server";
 import { apiTokensValidator } from "./schemas/apiTokensSchema";
 import { canvasesValidator } from "./schemas/canvasesSchema";
 import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
+import { nodeTemplatesValidator } from "./schemas/nodeTemplatesSchema";
 import { nodeDataVersionsValidator } from "./schemas/nodeDataVersionsSchema";
 import { scheduledJobsValidator } from "./schemas/scheduledJobsSchema";
 import { sharesValidator } from "./schemas/sharesSchema";
@@ -31,7 +32,16 @@ const schema = defineSchema({
       filterFields: ["creatorId"],
     }),
 
-  nodeDatas: defineTable(nodeDatasValidator).index("by_canvasId", ["canvasId"]),
+  nodeDatas: defineTable(nodeDatasValidator)
+    .index("by_canvasId", ["canvasId"])
+    .index("by_templateId", ["templateId"]),
+
+  // Templates de custom nodes définis par l'utilisateur : champs typés +
+  // arbres de layout (node / window). Scopés par user, réutilisables sur
+  // tous ses canvases.
+  nodeTemplates: defineTable(nodeTemplatesValidator).index("by_creator", [
+    "creatorId",
+  ]),
 
   // Reference counting for R2 blobs: a duplicated node shares its original's
   // storage key, so a file may only be deleted once its last referent is gone.

@@ -1,7 +1,7 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../_generated/api";
-import { type Id } from "../../_generated/dataModel";
+import { type Doc, type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
@@ -139,6 +139,25 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           `📋 Found ${filteredNodes.length} node(s) matching filters`,
         );
 
+        // Templates des custom nodes listés : cache par templateId (titres
+        // exacts + entrées <nodeDataSchemas> par template).
+        const templateCache = new Map<
+          string,
+          Promise<Doc<"nodeTemplates"> | null>
+        >();
+        const fetchTemplate = (templateId: Id<"nodeTemplates">) => {
+          const key = String(templateId);
+          if (!templateCache.has(key)) {
+            templateCache.set(
+              key,
+              ctx.runQuery(internal.wrappers.nodeTemplateWrappers.getTemplate, {
+                templateId,
+              }),
+            );
+          }
+          return templateCache.get(key)!;
+        };
+
         // Fetch titles for filtered nodes that have nodeData
         const nodeEntries = await Promise.all(
           filteredNodes.map(async (node) => {
@@ -155,7 +174,10 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                     nodeId: node.id,
                   },
                 );
-                title = getNodeDataTitle(nodeData);
+                const template = nodeData.templateId
+                  ? await fetchTemplate(nodeData.templateId)
+                  : null;
+                title = getNodeDataTitle(nodeData, template);
 
                 if (
                   node.type === "embed" &&
@@ -213,6 +235,10 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           ...new Set(displayedEntries.map((node) => node.type)),
         ];
 
+        const resolvedTemplates = (
+          await Promise.all([...templateCache.values()])
+        ).filter((t): t is Doc<"nodeTemplates"> => t !== null);
+
         const xml = [
           `<nodes count="${displayedEntries.length}"${truncated ? ` truncated="true" total="${nodeEntries.length}"` : ""}>`,
           ...displayedEntries.map(
@@ -223,7 +249,13 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           ),
           "</nodes>",
           "<nodeDataSchemas>",
-          ...uniqueDisplayedNodeTypes.map(buildNodeDataSchemaXml),
+          // Filtre les vides : un custom node dont le template n'est plus
+          // résoluble n'a pas de schéma à publier.
+          ...uniqueDisplayedNodeTypes
+            .map((nodeType) =>
+              buildNodeDataSchemaXml(nodeType, resolvedTemplates),
+            )
+            .filter((entry) => entry.length > 0),
           "</nodeDataSchemas>",
           "",
           truncated

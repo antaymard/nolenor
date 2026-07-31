@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { Doc } from "../../_generated/dataModel";
 import { nodeDataConfig, nodeTypeZodValidator } from "../../config/nodeConfig";
+import { buildTemplateToolSchema } from "../../config/fieldConfig";
 import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 
 type NodeType = z.infer<typeof nodeTypeZodValidator>;
@@ -12,26 +14,46 @@ function formatIssue(issue: z.ZodIssue): string {
 /**
  * Validates tool input against a node's schema and returns a readable string error for LLMs.
  * Returns null when input is valid.
+ * For custom nodes, the schema is built at runtime from the node's template
+ * (values keyed by fieldId) — `template` is then required.
  */
 export function validateNodeInputSchemaForLLM({
   nodeType,
   input,
+  template,
 }: {
   nodeType: NodeType;
   input: unknown;
+  template?: Doc<"nodeTemplates"> | null;
 }): string | null {
-  const nodeConfig = nodeDataConfig.find((config) => config.type === nodeType);
+  let schema: z.ZodTypeAny;
 
-  if (!nodeConfig) {
-    const supportedTypes = nodeTypeZodValidator.options.join(", ");
-    return [
-      "Input validation failed.",
-      `Unknown node type: ${nodeType}.`,
-      `Supported node types: ${supportedTypes}.`,
-    ].join("\n");
+  if (nodeType === "custom") {
+    if (!template) {
+      return [
+        "Input validation failed.",
+        "This custom node has no resolvable template (missing or deleted).",
+        "Read the node with read_nodes to inspect its raw values.",
+      ].join("\n");
+    }
+    schema = buildTemplateToolSchema(template);
+  } else {
+    const nodeConfig = nodeDataConfig.find(
+      (config) => config.type === nodeType,
+    );
+
+    if (!nodeConfig) {
+      const supportedTypes = nodeTypeZodValidator.options.join(", ");
+      return [
+        "Input validation failed.",
+        `Unknown node type: ${nodeType}.`,
+        `Supported node types: ${supportedTypes}.`,
+      ].join("\n");
+    }
+
+    schema = nodeConfig.toolInputSchema ?? nodeConfig.dataValuesSchema;
   }
 
-  const schema = nodeConfig.toolInputSchema ?? nodeConfig.dataValuesSchema;
   const parsed = schema.safeParse(input);
   if (parsed.success) {
     return null;

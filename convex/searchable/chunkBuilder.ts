@@ -12,6 +12,7 @@ import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
 import { parseStoredBlockNoteDocument } from "../lib/blockNoteDocument";
 import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFriendly";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
+import { getSearchableTextForTemplateValues } from "../config/fieldConfig";
 import { stripLoneSurrogates } from "../lib/textSanitize";
 import type { Doc } from "../_generated/dataModel";
 
@@ -90,7 +91,15 @@ async function rebuildChunksForNodeData(
     });
   }
 
-  const rawChunks = await buildChunks(nodeData, nodeId, updatedKeys);
+  // Custom nodes : le template porte les noms de champs (texte indexé) et
+  // le titleFieldId (titre du chunk).
+  const template = nodeData.templateId
+    ? await ctx.runQuery(internal.wrappers.nodeTemplateWrappers.getTemplate, {
+        templateId: nodeData.templateId,
+      })
+    : null;
+
+  const rawChunks = await buildChunks(nodeData, nodeId, updatedKeys, template);
   const chunks = rawChunks.map((chunk) => ({
     ...chunk,
     title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
@@ -156,6 +165,7 @@ async function buildChunks(
   nodeData: Doc<"nodeDatas">,
   nodeId: string,
   updatedKeys?: string[],
+  template?: Doc<"nodeTemplates"> | null,
 ): Promise<ChunkInput[]> {
   // console.log("[chunkBuilder] buildChunks:start", {
   //   nodeDataId: nodeData._id,
@@ -181,8 +191,8 @@ async function buildChunks(
     nodeDataId: nodeData._id,
     canvasId: nodeData.canvasId,
     nodeType: nodeData.type,
-    templateId: undefined as string | undefined,
-    title: getNodeDataTitle(nodeData),
+    templateId: nodeData.templateId ? String(nodeData.templateId) : undefined,
+    title: getNodeDataTitle(nodeData, template),
   };
 
   switch (nodeData.type) {
@@ -289,6 +299,18 @@ async function buildChunks(
 
     case "image": {
       return await buildImageChunks(base, nodeData.values);
+    }
+
+    case "custom": {
+      // Concatène les champs textuels (`nom: valeur` par ligne, labels de
+      // select résolus, unités incluses). Pas d'indexation vision en V1.
+      if (!template) return [];
+      const text = getSearchableTextForTemplateValues(
+        template,
+        nodeData.values,
+      );
+      if (!text.trim()) return [];
+      return [{ ...base, chunkType: "node", order: 0, text }];
     }
 
     case "pdf": {

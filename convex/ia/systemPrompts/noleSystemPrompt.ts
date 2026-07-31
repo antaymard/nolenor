@@ -3,6 +3,7 @@ import {type Id} from "../../_generated/dataModel";
 import {internal} from "../../_generated/api";
 import {escapeXmlText} from "../../lib/xml";
 import {nodeTypesPresentation} from "./systemParts";
+import { formatTemplatesForPrompt } from "../helpers/customTemplateHelpers";
 
 function formatMemorySnapshot(rawContent?: string | null): string {
   if (!rawContent) {
@@ -67,6 +68,7 @@ async function generateNoleSystemPrompt({
     minimapResult,
     availableSkills,
     userCanvases,
+    userTemplates,
   ] = await Promise.all([
     ctx.runQuery(internal.wrappers.memoryWrappers.read, {
       subjectId: userId,
@@ -83,12 +85,16 @@ async function generateNoleSystemPrompt({
       userId,
     }),
     ctx.runQuery(internal.wrappers.canvasWrappers.listUserCanvases, { userId }),
+    ctx.runQuery(internal.wrappers.nodeTemplateWrappers.listByCreator, {
+      creatorId: userId,
+    }),
   ]);
 
   const userMemoryContext = formatMemorySnapshot(userMemory?.content);
   const canvasMemoryContext = formatMemorySnapshot(canvasMemory?.content);
   const availableSkillsContext = formatAvailableSkills(availableSkills);
   const userCanvasesContext = formatUserCanvases(userCanvases);
+  const userTemplatesContext = formatTemplatesForPrompt(userTemplates);
 
   return `
 <identity>
@@ -111,6 +117,11 @@ Each node type has a specific purpose and can be used to represent different kin
 <available_node_types>
 ${nodeTypesPresentation}
 </available_node_types>
+
+<user_node_templates>
+The user can design their own node types ("custom" nodes) from typed fields. Create an instance with create_node (nodeType "custom" + templateId). Field values are keyed by FIELD ID (not field name): read the node or its <nodeDataSchemas> entry before writing with set_node_data.
+${userTemplatesContext}
+</user_node_templates>
 </about_nolenor>
 
 <thinking_process>

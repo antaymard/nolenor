@@ -30,7 +30,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/plate/alert-dialog";
+} from "@/components/shadcn/alert-dialog";
 import { buttonVariants } from "@/components/shadcn/button";
 import { HiDotsVertical } from "react-icons/hi";
 import { TbPlus } from "react-icons/tb";

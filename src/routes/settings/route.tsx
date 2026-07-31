@@ -44,6 +44,11 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
         icon: "settings",
         route: "/settings/skills",
       },
+      {
+        label: "Custom nodes",
+        icon: "settings",
+        route: "/settings/templates",
+      },
     ],
   },
   {

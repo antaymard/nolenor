@@ -24,9 +24,12 @@ import {
   TbArrowLeftFromArc,
   TbCheck,
   TbCopyPlus,
+  TbLayoutBoardSplit,
   TbPalette,
   TbSpaces,
 } from "react-icons/tb";
+import { useOwnsTemplate } from "@/stores/templatesStore";
+import { useTemplateEditor } from "@/hooks/useTemplateEditor";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useState } from "react";
 import type { IconType } from "react-icons";
@@ -67,6 +70,14 @@ export default function NodeContextMenu({
   const updatePositionOrDimensions = useMutation(
     api.canvasNodes.updatePositionOrDimensions,
   );
+
+  // Custom nodes : édition du template depuis le canvas, sans passer par les
+  // settings. Masquée si le template n'est pas le mien — seul son
+  // propriétaire peut le sauvegarder (requireOwnedTemplate), l'afficher
+  // mènerait un viewer de canvas partagé droit à une erreur de permission.
+  const templateId = xyNode.data?.templateId as string | undefined;
+  const ownsTemplate = useOwnsTemplate(templateId);
+  const { openTemplateEditor } = useTemplateEditor();
 
   const variants = prebuiltNodesConfig.find(
     (config) => config.node.type === xyNode.type,
@@ -150,6 +161,14 @@ export default function NodeContextMenu({
           ))}
         </div>
       ),
+    },
+    {
+      hidden: !templateId || !ownsTemplate,
+      label: "Edit template",
+      icon: TbLayoutBoardSplit,
+      onClick: () => {
+        if (templateId) openTemplateEditor(templateId);
+      },
     },
     {
       label: "Duplicate",

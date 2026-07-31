@@ -6,12 +6,16 @@
 // per-type tool lists (notably the blocknote one, which names six tools and two
 // wire formats) are declared exactly once.
 
+import type { Doc } from "../../_generated/dataModel";
 import { nodeDataConfig } from "../../config/nodeConfig";
+import { buildTemplateToolSchema } from "../../config/fieldConfig";
 import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 
 // Node types whose write surface is a set of dedicated tools rather than a
 // `set_node_data` payload, so a schema minimap would be misleading.
-const CUSTOM_SCHEMA_BY_TYPE: Record<string, string> = {
+// (Named "dedicated tools" rather than "custom" to avoid colliding with the
+// "custom" node type, whose schema is template-derived — see below.)
+const DEDICATED_TOOLS_SCHEMA_BY_TYPE: Record<string, string> = {
   document:
     '<schema type="document" tools="insert_document_content,string_replace_document_content" />',
   blocknote:
@@ -20,10 +24,40 @@ const CUSTOM_SCHEMA_BY_TYPE: Record<string, string> = {
     '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />',
 };
 
-/** One `<schema>` element describing how the agent should write to `nodeType`. */
-export function buildNodeDataSchemaXml(nodeType: string): string {
-  const custom = CUSTOM_SCHEMA_BY_TYPE[nodeType];
-  if (custom) return custom;
+/**
+ * `<schema>` elements for "custom" (user-templated) nodes. Their write shape
+ * comes from the instance's template fields (values keyed by field id), not
+ * from the node type — so one element is emitted per distinct template present
+ * in the tool's result rather than a single one for the type.
+ */
+function buildTemplateSchemaXml(templates: Doc<"nodeTemplates">[]): string {
+  const unique = new Map(templates.map((t) => [String(t._id), t]));
+  return [...unique.values()]
+    .map((template) => {
+      const minimap = formatZodSchemaAsMinimap(
+        buildTemplateToolSchema(template),
+      );
+      const attrs = `type="custom" templateId="${template._id}" templateName="${template.name}" tool="set_node_data"`;
+      return minimap
+        ? `<schema ${attrs}>\n${minimap}\n</schema>`
+        : `<schema ${attrs} />`;
+    })
+    .join("\n");
+}
+
+/**
+ * One `<schema>` element describing how the agent should write to `nodeType`.
+ * `customTemplates` is only consulted for the "custom" type, which needs one
+ * entry per template rather than one per type.
+ */
+export function buildNodeDataSchemaXml(
+  nodeType: string,
+  customTemplates: Doc<"nodeTemplates">[] = [],
+): string {
+  if (nodeType === "custom") return buildTemplateSchemaXml(customTemplates);
+
+  const dedicated = DEDICATED_TOOLS_SCHEMA_BY_TYPE[nodeType];
+  if (dedicated) return dedicated;
 
   const toolsAttr =
     nodeType === "app"

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsTemplatesRouteImport } from './routes/settings/templates'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
 import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
@@ -32,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsTemplatesRoute = SettingsTemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   id: '/skills',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/recipes/': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/canvas/$canvasId'
     | '/settings/api-tokens'
     | '/settings/skills'
+    | '/settings/templates'
     | '/settings/recipes'
     | '/settings/recipes/edit/$recipeId'
   fileRoutesByTo: FileRoutesByTo
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/canvas/$canvasId'
     | '/settings/api-tokens'
     | '/settings/skills'
+    | '/settings/templates'
     | '/settings/recipes'
     | '/settings/recipes/edit/$recipeId'
   id:
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | '/canvas/$canvasId'
     | '/settings/api-tokens'
     | '/settings/skills'
+    | '/settings/templates'
     | '/settings/recipes/'
     | '/settings/recipes/edit/$recipeId'
   fileRoutesById: FileRoutesById
@@ -153,6 +165,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/settings/templates': {
+      id: '/settings/templates'
+      path: '/templates'
+      fullPath: '/settings/templates'
+      preLoaderRoute: typeof SettingsTemplatesRouteImport
+      parentRoute: typeof SettingsRouteRoute
     }
     '/settings/skills': {
       id: '/settings/skills'
@@ -195,6 +214,7 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteRouteChildren {
   SettingsApiTokensRoute: typeof SettingsApiTokensRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
+  SettingsTemplatesRoute: typeof SettingsTemplatesRoute
   SettingsRecipesIndexRoute: typeof SettingsRecipesIndexRoute
   SettingsRecipesEditRecipeIdRoute: typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -202,6 +222,7 @@ interface SettingsRouteRouteChildren {
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsApiTokensRoute: SettingsApiTokensRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
+  SettingsTemplatesRoute: SettingsTemplatesRoute,
   SettingsRecipesIndexRoute: SettingsRecipesIndexRoute,
   SettingsRecipesEditRecipeIdRoute: SettingsRecipesEditRecipeIdRoute,
 }

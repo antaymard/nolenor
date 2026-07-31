@@ -10,6 +10,7 @@ import type { CanvasNode } from "@/types";
 import type { ChatModelValues } from "@/types/convex";
 import { useNoleStore } from "@/stores/noleStore";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoleThread } from "@/hooks/useNoleThread";
 import { useNoleModelSelection } from "@/hooks/useNoleModelSelection";
@@ -124,7 +125,14 @@ export function useNoleChat() {
       viewport,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
-      getNodeTitle: (node) => getCanvasNodeTitle(node, nodeDatas),
+      // Lecture ponctuelle à l'envoi du message (pas un rendu) : getState()
+      // est le bon choix ici, contrairement aux chips qui, eux, souscrivent.
+      getNodeTitle: (node) =>
+        getCanvasNodeTitle(
+          node,
+          nodeDatas,
+          useTemplatesStore.getState().templates,
+        ),
     });
 
     setUserInput("");

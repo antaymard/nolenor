@@ -8,6 +8,8 @@ import {
   formatTableMarkdown,
   makeNodeDataLLMFriendly,
 } from "../helpers/makeNodeDataLLMFriendly";
+import { makeCustomNodeDataLLMFriendly } from "../helpers/customTemplateHelpers";
+import type { Doc } from "../../_generated/dataModel";
 import {
   buildPdfPagesMarkdown,
   buildPdfTocMarkdown,
@@ -544,11 +546,40 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           }),
         );
 
+        // Templates des custom nodes lus (une seule query, dédupliquée) :
+        // titres exacts, contenu par nom de champ et bloc <nodeDataSchemas>.
+        const customTemplateIds = [
+          ...new Set(
+            baseNodes
+              .map((entry) => entry.nodeData?.templateId)
+              .filter((id): id is Id<"nodeTemplates"> => id !== undefined),
+          ),
+        ];
+        const customTemplates: Doc<"nodeTemplates">[] =
+          customTemplateIds.length > 0
+            ? await ctx.runQuery(
+                internal.wrappers.nodeTemplateWrappers.getTemplates,
+                { templateIds: customTemplateIds },
+              )
+            : [];
+        const templatesById = new Map(
+          customTemplates.map((template) => [String(template._id), template]),
+        );
+        const templateForNodeData = (
+          nodeData: { templateId?: Id<"nodeTemplates"> } | null | undefined,
+        ) =>
+          nodeData?.templateId
+            ? (templatesById.get(String(nodeData.templateId)) ?? null)
+            : null;
+
         for (const entry of baseNodes) {
           if (entry.nodeData) {
             nodeDataByNodeId.set(entry.nodeId, {
               type: entry.node?.type ?? "unknown",
-              title: getNodeDataTitle(entry.nodeData),
+              title: getNodeDataTitle(
+                entry.nodeData,
+                templateForNodeData(entry.nodeData),
+              ),
             });
           }
         }
@@ -612,11 +643,19 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             // surface as a per-node readError, not fail the whole read_nodes call.
             let content: string;
             try {
-              content = await makeNodeDataLLMFriendly(nodeData);
+              content =
+                nodeData.type === "custom"
+                  ? await makeCustomNodeDataLLMFriendly(
+                      nodeData,
+                      templateForNodeData(nodeData),
+                    )
+                  : await makeNodeDataLLMFriendly(nodeData);
             } catch (renderError) {
               content = "";
               error = `Failed to render node content: ${
-                renderError instanceof Error ? renderError.message : "Unknown error"
+                renderError instanceof Error
+                  ? renderError.message
+                  : "Unknown error"
               }`;
             }
             let pdfBody: string | null = null;
@@ -859,7 +898,13 @@ ${content}
               ),
               "</nodes>",
               "<nodeDataSchemas>",
-              ...uniqueNodeTypes.map(buildNodeDataSchemaXml),
+              // Filtre les vides : un custom node dont le template n'est plus
+              // résoluble n'a pas de schéma à publier.
+              ...uniqueNodeTypes
+                .map((nodeType) =>
+                  buildNodeDataSchemaXml(nodeType, customTemplates),
+                )
+                .filter((entry) => entry.length > 0),
               "</nodeDataSchemas>",
             ];
           })(),

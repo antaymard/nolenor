@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useTemplatesStore } from "@/stores/templatesStore";
 import { useNoleStore } from "@/stores/noleStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useCanvasStore } from "@/stores/canvasStore";
@@ -50,7 +51,7 @@ import MinimizedWindowsStack from "@/components/windows/MinimizedWindowsStack";
 import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
 import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
 import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanner";
-import { useConvexAuth } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import OnboardingModal from "@/components/ui/OnboardingModal";
 import { generateLlmId } from "@/../convex/lib/llmId";
 import SearchModale from "@/components/canvas/search-modale/SearchModale";
@@ -128,6 +129,12 @@ function CanvasContent({
   const setNodeDatas = useNodeDataStore((state) => state.setNodeDatas);
   const clearNodeDatas = useNodeDataStore((state) => state.clear);
   const setCanvas = useCanvasStore((state) => state.setCanvas);
+  const upsertTemplates = useTemplatesStore((state) => state.upsertTemplates);
+  const setMyTemplateIds = useTemplatesStore((state) => state.setMyTemplateIds);
+  const setOwnedTemplateIds = useTemplatesStore(
+    (state) => state.setOwnedTemplateIds,
+  );
+  const clearTemplates = useTemplatesStore((state) => state.clear);
   const lastCanvasSnapshotRef = useRef<string | null>(null);
 
   // Cleanup stores on canvas switch
@@ -136,8 +143,9 @@ function CanvasContent({
     useCanvasStore.getState().setStatus("idle");
     setCanvas(null);
     clearNodeDatas();
+    clearTemplates();
     lastCanvasSnapshotRef.current = null;
-  }, [canvasId, clearNodeDatas, setCanvas]);
+  }, [canvasId, clearNodeDatas, clearTemplates, setCanvas]);
 
   // Handle paste events (images, URLs)
   useCanvasPasteHandler();
@@ -160,6 +168,38 @@ function CanvasContent({
     api.nodeDatas.listByCanvasId,
     canvasId ? { canvasId } : "skip",
   );
+
+  // Custom node templates : ceux référencés par le canvas (viewers de
+  // canvases partagés inclus) + ceux du user (menu d'ajout, nouveaux nodes).
+  // Mergés dans templatesStore pour des sélecteurs granulaires par node.
+  const canvasTemplates = useQuery(
+    api.nodeTemplates.listForCanvas,
+    canvasId ? { canvasId } : "skip",
+  );
+  const myTemplates = useQuery(
+    api.nodeTemplates.listMine,
+    isAuthenticated ? { includeArchived: true } : "skip",
+  );
+
+  useEffect(() => {
+    if (canvasTemplates) upsertTemplates(canvasTemplates);
+  }, [canvasTemplates, upsertTemplates]);
+
+  useEffect(() => {
+    if (!myTemplates) return;
+    upsertTemplates(myTemplates);
+    // Les archivés sont bien chargés (leurs instances vivantes doivent rendre)
+    // mais ne sont pas proposables : le menu d'ajout lit `myTemplateIds`, pas
+    // la map. L'ordre est celui du serveur (tri par nom).
+    setMyTemplateIds(
+      myTemplates
+        .filter((template) => template.archivedAt === undefined)
+        .map((template) => template._id),
+    );
+    // Propriété : archivés inclus — un template archivé reste éditable, il
+    // n'est simplement plus proposé à l'ajout.
+    setOwnedTemplateIds(myTemplates.map((template) => template._id));
+  }, [myTemplates, upsertTemplates, setMyTemplateIds, setOwnedTemplateIds]);
 
   // Context menu management
   const {

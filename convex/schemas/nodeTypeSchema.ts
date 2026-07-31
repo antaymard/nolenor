@@ -11,8 +11,10 @@ const nodeTypeValues = [
   "pdf",
   "table",
   "app",
+  // Node défini par l'utilisateur : la forme des values est portée par un
+  // document nodeTemplates (cf. nodeDatas.templateId), pas par nodeConfig.
   "audio",
-  "custom"
+  "custom",
 ] as const;
 
 const nodeTypeValidator = v.union(

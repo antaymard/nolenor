@@ -350,8 +350,12 @@ export function useCanvasPasteHandler() {
    */
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
-      // blocked when focus is on platejs
-      if (focus === "richtext-editor") {
+      // Only paste onto the canvas when the canvas is what has focus. Tested
+      // positively (`!== "canvas"`) and not against a list of other values:
+      // with the old `=== "richtext-editor"` check, any new Focus value fell
+      // through to canvas behaviour — a paste over an open modal created a
+      // node behind it.
+      if (focus !== "canvas") {
         return;
       }
       // Ignore paste events in input/textarea/contenteditable elements

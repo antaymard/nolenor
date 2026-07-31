@@ -8,6 +8,10 @@ import * as R2ObjectModels from "./r2ObjectModels";
 import { extractR2Keys } from "../lib/r2Keys";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
 import {
+  buildTemplateValuesSchema,
+  collectR2KeysForTemplateValues,
+} from "../config/fieldConfig";
+import {
   parseStoredBlockNoteDocument,
   stringifyBlockNoteDocumentForStorage,
   InvalidBlockNoteDocumentError,
@@ -28,16 +32,36 @@ export async function createNodeData(
     type,
     values,
     canvasId,
+    templateId,
   }: {
     type: Doc<"nodeDatas">["type"];
     values: Record<string, unknown>;
     canvasId: Id<"canvases">;
+    templateId?: Id<"nodeTemplates">;
   },
 ): Promise<Id<"nodeDatas">> {
+  // `templateId` est optionnel au schéma parce que les types prébuilts n'en
+  // ont pas — mais pour un custom il est obligatoire, et le typage ne peut pas
+  // l'exprimer ici. Sans lui, le node se rend quand même sur le canvas (qui
+  // lit la copie dénormalisée du canvas node) : la panne se manifeste ailleurs,
+  // à l'ouverture de la window et surtout dans la validation des values à
+  // l'écriture, qui cesse de s'exécuter. C'est ce silence qu'on ferme.
+  //
+  // Posé ici et non dans la mutation publique : c'est le point de passage
+  // UNIQUE des deux voies (mutation publique et wrapper interne de l'agent),
+  // et les arguments de la première viennent du réseau, où le typage ne
+  // protège de rien.
+  if (type === "custom" && !templateId) {
+    throw new ConvexError(
+      "A custom node requires a templateId (the template defines its fields and layouts).",
+    );
+  }
+
   const nodeDataId = await ctx.db.insert("nodeDatas", {
     type,
     values,
     canvasId,
+    ...(templateId && { templateId }),
     updatedAt: Date.now(),
   });
 
@@ -78,6 +102,62 @@ export async function deleteNodeDataWithCascade(
       trigger: "delete",
       force: true,
     });
+
+    if (nodeData.type === "pdf") {
+      const files = nodeData.values?.files;
+      if (Array.isArray(files)) {
+        for (const file of files) {
+          if (
+            file &&
+            typeof file === "object" &&
+            typeof (file as Record<string, unknown>).key === "string"
+          ) {
+            r2Keys.push((file as Record<string, unknown>).key as string);
+          }
+        }
+      }
+    } else if (nodeData.type === "image") {
+      const publicUrlBase = process.env.R2_PUBLIC_URL;
+      const images = nodeData.values?.images;
+      if (Array.isArray(images)) {
+        for (const image of images) {
+          if (image && typeof image === "object") {
+            const imgRecord = image as Record<string, unknown>;
+            if (typeof imgRecord.key === "string") {
+              r2Keys.push(imgRecord.key);
+            } else if (publicUrlBase && typeof imgRecord.url === "string") {
+              const url = imgRecord.url;
+              const prefix = `${publicUrlBase}/`;
+              if (url.startsWith(prefix)) {
+                r2Keys.push(url.slice(prefix.length));
+              }
+            }
+          }
+        }
+      }
+    } else if (nodeData.type === "custom") {
+      // Champs image des custom nodes : clés collectées via le template ;
+      // fallback défensif (template supprimé) : scan des values pour des
+      // objets porteurs d'une `key` string.
+      const template = nodeData.templateId
+        ? await ctx.db.get(nodeData.templateId)
+        : null;
+      if (template) {
+        r2Keys.push(
+          ...collectR2KeysForTemplateValues(template, nodeData.values ?? {}),
+        );
+      } else {
+        for (const value of Object.values(nodeData.values ?? {})) {
+          if (
+            value &&
+            typeof value === "object" &&
+            typeof (value as Record<string, unknown>).key === "string"
+          ) {
+            r2Keys.push((value as Record<string, unknown>).key as string);
+          }
+        }
+      }
+    }
   }
 
   // Delete memories
@@ -102,16 +182,56 @@ export async function deleteNodeDataWithCascade(
   }
 }
 
+// Clés R2 d'images que CE write rend inatteignables : le champ portait une
+// image uploadée (donc avec une `key`) et sa nouvelle value ne référence plus
+// cette clé (remplacement par un autre upload, par une URL externe, ou
+// effacement). Une clé encore référencée par la nouvelle value n'est jamais
+// rendue — remplacer une image par elle-même ne doit pas la supprimer.
+// Exporté pour être testable directement : cette fonction décide de
+// SUPPRESSIONS de fichiers, une régression y serait silencieuse et
+// irréversible.
+export function collectOrphanedImageKeys(
+  fields: Doc<"nodeTemplates">["fields"],
+  previousValues: Record<string, unknown>,
+  changedValues: Record<string, unknown>,
+): string[] {
+  const readKey = (value: unknown): string | undefined => {
+    if (!value || typeof value !== "object") return undefined;
+    const key = (value as { key?: unknown }).key;
+    return typeof key === "string" && key.length > 0 ? key : undefined;
+  };
+
+  const keys: string[] = [];
+  for (const field of fields) {
+    if (field.type !== "image") continue;
+    if (!(field.id in changedValues)) continue;
+
+    const previousKey = readKey(previousValues[field.id]);
+    if (!previousKey) continue;
+    if (readKey(changedValues[field.id]) === previousKey) continue;
+
+    keys.push(previousKey);
+  }
+  return keys;
+}
+
 export async function updateValues(
   ctx: MutationCtx,
   {
     _id,
     values,
     actor,
+    // Réservé au restore de version (nodeDataVersions.ts) : un ancien
+    // snapshot ne doit jamais devenir irrestaurable parce que le template a
+    // évolué depuis (option supprimée, contrainte resserrée). Jamais exposé
+    // dans un validateur d'arguments public — seul du code serveur peut le
+    // positionner.
+    skipValidation = false,
   }: {
     _id: Id<"nodeDatas">;
     values: Record<string, unknown>;
     actor: NodeDataVersionActor;
+    skipValidation?: boolean;
   },
 ): Promise<boolean> {
   console.log(`🔄 Updating values for nodeData ${_id}`);
@@ -159,6 +279,72 @@ export async function updateValues(
           ? error.message
           : "Invalid blocknote document.";
       throw new ConvexError(message);
+    }
+  }
+
+  // Custom : valide le DELTA (changedValues), jamais les `values` entrantes
+  // complètes — une value ancienne, non touchée par CE write, ne doit jamais
+  // faire échouer l'écriture d'un AUTRE champ du même node (ex. option de
+  // select supprimée dans le builder, min/max resserré après coup : le node
+  // ne doit jamais devenir injoignable). Silencieux si le template n'est
+  // plus résoluble (course, template supprimé) : on ne bloque pas une
+  // écriture qu'on ne peut de toute façon pas valider.
+  if (existing.type === "custom" && !skipValidation && existing.templateId) {
+    const template = await ctx.db.get(existing.templateId);
+    if (template) {
+      const parsed = buildTemplateValuesSchema(template).safeParse(changedValues);
+      if (!parsed.success) {
+        const issues = parsed.error.issues
+          .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+          .join("; ");
+        throw new ConvexError(`Invalid value(s) for custom node: ${issues}`);
+      }
+
+      // Champs rich_text : même contrat que le node blocknote prébuilt
+      // ci-dessus — canonicaliser et valider la structure côté serveur, et
+      // REJETER un document invalide plutôt que de le transformer
+      // silencieusement, sinon un write frontend pourrait persister un
+      // document que les tools blocs de l'agent refuseraient ensuite.
+      for (const field of template.fields) {
+        if (field.type !== "rich_text") continue;
+        const raw = changedValues[field.id];
+        // null = champ effacé (contrat nullable), rien à canonicaliser.
+        if (raw === undefined || raw === null) continue;
+
+        const doc = parseStoredBlockNoteDocument(raw);
+        if (!doc) {
+          throw new ConvexError(
+            `Invalid rich text for field "${field.name}": could not parse stored value.`,
+          );
+        }
+        try {
+          changedValues[field.id] = stringifyBlockNoteDocumentForStorage(doc);
+        } catch (error) {
+          const message =
+            error instanceof InvalidBlockNoteDocumentError
+              ? error.message
+              : "Invalid rich text document.";
+          throw new ConvexError(
+            `Invalid rich text for field "${field.name}": ${message}`,
+          );
+        }
+      }
+
+      // Champs image remplacés ou effacés : purge best-effort de l'ancienne
+      // clé R2. Sans ça, remplacer une image orpheline l'ancienne pour
+      // toujours (la cascade de suppression du node ne voit que la value
+      // courante). Fait ici, côté serveur, pour couvrir TOUS les chemins
+      // d'écriture (utilisateur et agent) d'un seul endroit.
+      const orphanedR2Keys = collectOrphanedImageKeys(
+        template.fields,
+        existing.values ?? {},
+        changedValues,
+      );
+      if (orphanedR2Keys.length > 0) {
+        await ctx.scheduler.runAfter(0, internal.uploads.deleteR2Files, {
+          keys: orphanedR2Keys,
+        });
+      }
     }
   }
 

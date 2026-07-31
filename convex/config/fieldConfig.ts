@@ -1,0 +1,501 @@
+import { z } from "zod";
+import type { Infer } from "convex/values";
+import {
+  fieldTypeValues,
+  type FieldType,
+} from "../schemas/fieldTypeSchema";
+import { templateFieldValidator } from "../schemas/nodeTemplatesSchema";
+import {
+  buildLooseOptionsSchema,
+  type OptionFieldDescriptor,
+} from "./optionDescriptors";
+import {
+  extractInlineText,
+  parseStoredBlockNoteDocument,
+  type BlockNoteBlock,
+} from "../lib/blockNoteDocument";
+
+// Source de vérité des types de champs des custom node templates.
+// Partagé Convex + front (même pattern que nodeConfig.ts) : la validation
+// des écritures (user et agent), les défauts, l'extraction de texte pour la
+// recherche et l'affichage LLM dérivent tous d'ici.
+
+const fieldTypeZodValidator = z.enum(fieldTypeValues);
+
+type TemplateField = Infer<typeof templateFieldValidator>;
+
+type SelectChoice = { id: string; label: string; color?: string };
+
+type FieldTypeConfigItem = {
+  type: FieldType;
+  label: string;
+  // Options du champ, déclarées : le formulaire du builder en est dérivé, et
+  // `optionsSchema` aussi (via buildLooseOptionsSchema). Vide = ce type n'a
+  // rien à configurer, ou ses options sont trop structurées pour un
+  // formulaire générique et un composant dédié les prend en charge
+  // (cf. `select` et son éditeur de choix, déclaré dans fieldRegistry).
+  optionFields: OptionFieldDescriptor[];
+  // Forme des `options` du champ (validée à la création/édition du template).
+  // Dérivée de `optionFields`, sauf là où la forme n'est pas exprimable en
+  // descripteurs.
+  optionsSchema: z.ZodTypeAny;
+  // Ce type accepte-t-il une valeur par défaut saisie dans le builder ?
+  // L'emplacement correspondant monte l'éditeur du champ lui-même — il n'y a
+  // donc aucune UI par type à écrire, seulement à dire oui ou non.
+  supportsDefault: boolean;
+  // Forme stockée de la value dans nodeDatas.values[field.id].
+  buildValueSchema: (field: TemplateField) => z.ZodTypeAny;
+  // Forme côté LLM si différente de la forme stockée (ex futur : rich_text
+  // en markdown). Absent = buildValueSchema.
+  buildToolValueSchema?: (field: TemplateField) => z.ZodTypeAny;
+  getDefault: (field: TemplateField) => unknown;
+  // Texte indexable pour la recherche full-text (null = rien à indexer).
+  getSearchableText?: (value: unknown, field: TemplateField) => string | null;
+  // Clés R2 à purger à la suppression du node (champs image/file, à venir).
+  collectR2Keys?: (value: unknown) => string[];
+  // Rendu compact pour read_nodes (ex : ids de select → labels).
+  toLLMDisplay?: (value: unknown, field: TemplateField) => string;
+};
+
+// ── Helpers d'options ───────────────────────────────────────────────────
+
+function getSelectChoices(field: TemplateField): SelectChoice[] {
+  const raw = field.options?.choices;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (c): c is SelectChoice =>
+      typeof c === "object" &&
+      c !== null &&
+      typeof (c as SelectChoice).id === "string" &&
+      typeof (c as SelectChoice).label === "string",
+  );
+}
+
+function getNumberUnit(field: TemplateField): string | undefined {
+  const unit = field.options?.unit;
+  return typeof unit === "string" && unit.length > 0 ? unit : undefined;
+}
+
+// Extraction SYNCHRONE du texte brut d'un doc BlockNote stringifié (recherche,
+// affichage compact). La conversion markdown fidèle (async, jsdom) vit côté
+// agent dans customFieldLLMCodecs — jamais ici : ce module est importé par le
+// front ET analysé par Convex au déploiement.
+// `extractInlineText` est le même helper que celui utilisé par les nodes
+// blocknote prébuilts (titres, état vide, recherche) : une seule définition de
+// « texte visible d'un document » pour toute l'app.
+function extractRichTextText(value: unknown): string | null {
+  const parsed = parseStoredBlockNoteDocument(value);
+  if (!parsed || parsed.length === 0) return null;
+
+  const texts: string[] = [];
+  const walk = (blocks: BlockNoteBlock[]) => {
+    for (const block of blocks) {
+      const text = extractInlineText(block.content);
+      if (text.trim().length > 0) texts.push(text);
+      if (Array.isArray(block.children)) walk(block.children);
+    }
+  };
+  walk(parsed);
+
+  const text = texts.join(" ").trim();
+  return text.length > 0 ? text : null;
+}
+
+// ── Options déclarées par type ──────────────────────────────────────────
+// Constantes nommées et non littéraux inline : chaque tableau est référencé
+// deux fois (le formulaire le lit, le schéma en dérive) et son identité doit
+// rester stable.
+
+const SHORT_TEXT_OPTIONS: OptionFieldDescriptor[] = [
+  {
+    key: "placeholder",
+    kind: "text",
+    label: "Placeholder",
+    maxLength: 200,
+    help: "Shown when the field is empty. Defaults to the field name.",
+  },
+];
+
+const NUMBER_OPTIONS: OptionFieldDescriptor[] = [
+  {
+    key: "unit",
+    kind: "text",
+    label: "Unit",
+    maxLength: 30,
+    placeholder: "kg, €…",
+  },
+  { key: "min", kind: "number", label: "Min" },
+  { key: "max", kind: "number", label: "Max" },
+];
+
+// Partagé par les types sans options configurables. `select` l'utilise aussi :
+// ses options existent mais ne sont pas exprimables en descripteurs (tableau
+// de choix structurés), elles gardent leur schéma écrit à la main et leur
+// éditeur dédié.
+const NO_OPTIONS: OptionFieldDescriptor[] = [];
+
+// ── Catalogue ───────────────────────────────────────────────────────────
+
+// Record (pas Array) : un type manquant est une erreur de COMPILATION, pas un
+// throw runtime au premier accès. C'est le vrai garde-fou d'exhaustivité —
+// avant ce changement, `getFieldTypeConfig` pouvait échouer en prod pour un
+// type pourtant listé dans `fieldTypeValues`.
+const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
+  short_text: {
+    type: "short_text",
+    label: "Text",
+    optionFields: SHORT_TEXT_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(SHORT_TEXT_OPTIONS),
+    supportsDefault: true,
+    // Nullable comme tous les autres types : cf. commentaire sur `number`
+    // pour la sémantique de `null` = valeur effacée.
+    buildValueSchema: () => z.string().max(2000).nullable(),
+    getDefault: (field) =>
+      typeof field.default === "string" ? field.default : "",
+    getSearchableText: (value) =>
+      typeof value === "string" && value.trim().length > 0 ? value : null,
+    toLLMDisplay: (value) => (typeof value === "string" ? value : ""),
+  },
+  number: {
+    type: "number",
+    label: "Number",
+    optionFields: NUMBER_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NUMBER_OPTIONS),
+    supportsDefault: true,
+    // Nullable : updateValues merge les values côté serveur (une clé ne
+    // peut jamais être retirée), null est le marqueur « valeur effacée ».
+    buildValueSchema: (field) => {
+      let schema = z.number().finite();
+      const min = field.options?.min;
+      const max = field.options?.max;
+      if (typeof min === "number") schema = schema.min(min);
+      if (typeof max === "number") schema = schema.max(max);
+      return schema.nullable();
+    },
+    getDefault: (field) =>
+      typeof field.default === "number" ? field.default : undefined,
+    getSearchableText: (value, field) => {
+      if (typeof value !== "number") return null;
+      const unit = getNumberUnit(field);
+      return unit ? `${value} ${unit}` : String(value);
+    },
+    toLLMDisplay: (value, field) => {
+      if (typeof value !== "number") return "";
+      const unit = getNumberUnit(field);
+      return unit ? `${value} ${unit}` : String(value);
+    },
+  },
+  date: {
+    type: "date",
+    label: "Date",
+    // Pas d'options V1 (pas de time picker côté builder/DateField — inutile
+    // d'exposer un réglage sans UI pour l'exploiter).
+    optionFields: NO_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NO_OPTIONS),
+    supportsDefault: true,
+    // Stockage en ISO date ("YYYY-MM-DD"). Nullable : null = valeur effacée
+    // (cf. commentaire sur number).
+    buildValueSchema: () => z.iso.date().nullable(),
+    getDefault: (field) =>
+      typeof field.default === "string" ? field.default : undefined,
+    getSearchableText: (value) =>
+      typeof value === "string" && value.length > 0 ? value : null,
+    toLLMDisplay: (value) => (typeof value === "string" ? value : ""),
+  },
+  select: {
+    type: "select",
+    label: "Select",
+    // Options non exprimables en descripteurs : un tableau de choix
+    // structurés, avec réordonnancement et couleurs. Schéma écrit à la main,
+    // éditeur dédié déclaré dans fieldRegistry.
+    optionFields: NO_OPTIONS,
+    supportsDefault: true,
+    optionsSchema: z.strictObject({
+      choices: z
+        .array(
+          z.strictObject({
+            id: z.string().min(1).max(64),
+            label: z.string().min(1).max(80),
+            color: z.string().max(30).optional(),
+          }),
+        )
+        .min(1)
+        .max(50),
+      isMulti: z.boolean().optional(),
+    }),
+    // Stockage TOLÉRANT : ids de simples strings, pas de vérification
+    // d'appartenance aux choix courants. Une option supprimée dans le
+    // builder ne doit jamais faire échouer l'écriture d'un AUTRE champ du
+    // même node (validation delta-only côté serveur) — mais si ce champ lui
+    // seul est réécrit, la value entrante hérite souvent d'ids déjà stockés
+    // (ex. multi-select : on ajoute un choix, on garde les anciens), donc la
+    // tolérance doit être ici, pas seulement dans le delta. La stricte
+    // appartenance reste imposée pour l'agent (buildToolValueSchema) et pour
+    // la déclaration d'un défaut (cf. templateFieldSchema plus bas), car ce
+    // sont des décisions fraîches, jamais des données héritées.
+    buildValueSchema: (field) => {
+      let schema = z.array(z.string().min(1));
+      if (field.options?.isMulti !== true) {
+        schema = schema.max(1);
+      }
+      return schema.nullable();
+    },
+    buildToolValueSchema: (field) => {
+      const choiceIds = getSelectChoices(field).map((c) => c.id);
+      const item =
+        choiceIds.length > 0
+          ? z.enum(choiceIds as [string, ...string[]])
+          : z.string();
+      let schema = z.array(item);
+      if (field.options?.isMulti !== true) {
+        schema = schema.max(1);
+      }
+      return schema.nullable();
+    },
+    getDefault: (field) => (Array.isArray(field.default) ? field.default : []),
+    getSearchableText: (value, field) => {
+      const labels = selectIdsToLabels(value, field);
+      return labels.length > 0 ? labels.join(", ") : null;
+    },
+    toLLMDisplay: (value, field) => selectIdsToLabels(value, field).join(", "),
+  },
+  boolean: {
+    type: "boolean",
+    label: "Checkbox",
+    optionFields: NO_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NO_OPTIONS),
+    supportsDefault: true,
+    buildValueSchema: () => z.boolean().nullable(),
+    getDefault: (field) =>
+      typeof field.default === "boolean" ? field.default : false,
+    toLLMDisplay: (value) => (value === true ? "true" : "false"),
+  },
+  rich_text: {
+    type: "rich_text",
+    label: "Rich text",
+    optionFields: NO_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NO_OPTIONS),
+    // Un document par défaut n'aurait pas de sens (et getDefault renvoie
+    // undefined) : pas d'emplacement de défaut dans le builder.
+    supportsDefault: false,
+    // Stocké comme les nodes blocknote prébuilts : tableau de blocs BlockNote
+    // stringifié. La canonicalisation + validation structurelle se fait côté
+    // serveur dans NodeDataModel.updateValues (même branche que le node
+    // blocknote) : un write frontend ne peut pas persister un document que
+    // les tools blocs de l'agent refuseraient ensuite.
+    buildValueSchema: () => z.string().nullable(),
+    // Le LLM écrit du markdown ; setNodeDataTool convertit en blocs BlockNote
+    // avant l'écriture (cf. customFieldLLMCodecs).
+    buildToolValueSchema: () =>
+      z
+        .string()
+        .nullable()
+        .describe(
+          "Markdown content (converted to rich text on save; replaces the whole field)",
+        ),
+    getDefault: () => undefined,
+    getSearchableText: (value) => extractRichTextText(value),
+    toLLMDisplay: (value) => extractRichTextText(value) ?? "",
+  },
+  image: {
+    type: "image",
+    label: "Image",
+    optionFields: NO_OPTIONS,
+    optionsSchema: buildLooseOptionsSchema(NO_OPTIONS),
+    // Idem : une image par défaut supposerait un upload à la définition du
+    // type, pas à l'usage.
+    supportsDefault: false,
+    // `key` présent uniquement pour les uploads R2 (cascade de suppression) ;
+    // les URLs externes posées par l'agent n'en ont pas. null = effacée.
+    buildValueSchema: () =>
+      z
+        .object({
+          url: z.string().describe("Public URL of the image."),
+          key: z
+            .string()
+            .optional()
+            .describe("Internal storage key (set for uploaded images only)."),
+        })
+        .nullable(),
+    getDefault: () => undefined,
+    collectR2Keys: (value) => {
+      if (
+        value &&
+        typeof value === "object" &&
+        typeof (value as { key?: unknown }).key === "string"
+      ) {
+        return [(value as { key: string }).key];
+      }
+      return [];
+    },
+    toLLMDisplay: (value) => {
+      const url =
+        value && typeof value === "object"
+          ? (value as { url?: unknown }).url
+          : undefined;
+      return typeof url === "string" ? url : "";
+    },
+  },
+};
+
+function selectIdsToLabels(value: unknown, field: TemplateField): string[] {
+  if (!Array.isArray(value)) return [];
+  const choices = getSelectChoices(field);
+  return value
+    .filter((id): id is string => typeof id === "string")
+    .map((id) => choices.find((c) => c.id === id)?.label ?? id);
+}
+
+function getFieldTypeConfig(type: FieldType): FieldTypeConfigItem {
+  return fieldTypeConfig[type];
+}
+
+// ── Définition d'un champ (validation à la création/édition du template) ─
+
+const templateFieldSchema = z
+  .strictObject({
+    id: z.string().min(1).max(64),
+    name: z.string().min(1).max(80),
+    type: fieldTypeZodValidator,
+    required: z.boolean().optional(),
+    description: z.string().max(500).optional(),
+    options: z.record(z.string(), z.unknown()).optional(),
+    default: z.unknown().optional(),
+  })
+  .superRefine((field, ctx) => {
+    const config = getFieldTypeConfig(field.type);
+
+    const optionsResult = config.optionsSchema.safeParse(field.options);
+    if (!optionsResult.success) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["options"],
+        message: `Invalid options for field "${field.name}" (${field.type}): ${optionsResult.error.issues
+          .map((i) => i.message)
+          .join("; ")}`,
+      });
+      return;
+    }
+
+    if (field.default !== undefined) {
+      // Une décision fraîche (comme un write agent), pas une donnée héritée
+      // → tenue au schéma strict (buildToolValueSchema) quand il existe,
+      // ex. select : le défaut doit référencer un choix qui existe VRAIMENT
+      // maintenant, contrairement à une value d'instance déjà stockée.
+      const buildSchema = config.buildToolValueSchema ?? config.buildValueSchema;
+      const defaultResult = buildSchema(field as TemplateField).safeParse(
+        field.default,
+      );
+      if (!defaultResult.success) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["default"],
+          message: `Invalid default for field "${field.name}" (${field.type})`,
+        });
+      }
+    }
+  });
+
+// ── Schémas au niveau template ──────────────────────────────────────────
+
+function describeFieldForLLM(field: TemplateField): string {
+  return field.description
+    ? `${field.name} — ${field.description}`
+    : field.name;
+}
+
+type TemplateFieldsSource = { fields: TemplateField[] };
+
+// Forme des values d'une instance. Loose : tolère les values orphelines de
+// champs supprimés (elles sont conservées, ignorées au rendu). Toutes les
+// clés sont optionnelles — l'évolution du template rend légitime l'absence
+// de n'importe quelle clé ; `required` est un concern UI, pas un rejet
+// d'écriture.
+function buildTemplateValuesSchema(template: TemplateFieldsSource) {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const field of template.fields) {
+    shape[field.id] = getFieldTypeConfig(field.type)
+      .buildValueSchema(field)
+      .optional()
+      .describe(describeFieldForLLM(field));
+  }
+  return z.looseObject(shape);
+}
+
+// Forme des écritures de l'agent (set_node_data). Strict : seuls les
+// fieldIds existants sont acceptés, pour que l'erreur minimap renvoie le
+// schéma exact au LLM.
+function buildTemplateToolSchema(template: TemplateFieldsSource) {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const field of template.fields) {
+    const config = getFieldTypeConfig(field.type);
+    const build = config.buildToolValueSchema ?? config.buildValueSchema;
+    shape[field.id] = build(field)
+      .optional()
+      .describe(describeFieldForLLM(field));
+  }
+  return z.strictObject(shape);
+}
+
+// Miroir de getDefaultNodeDataValues pour les custom nodes.
+function getDefaultValuesForTemplate(
+  template: TemplateFieldsSource,
+): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  for (const field of template.fields) {
+    const config = getFieldTypeConfig(field.type);
+    const value =
+      field.default !== undefined ? field.default : config.getDefault(field);
+    if (value !== undefined) {
+      values[field.id] = value;
+    }
+  }
+  return values;
+}
+
+// Texte indexable pour la recherche full-text (chunkBuilder).
+function getSearchableTextForTemplateValues(
+  template: TemplateFieldsSource,
+  values: Record<string, unknown>,
+): string {
+  const lines: string[] = [];
+  for (const field of template.fields) {
+    const config = getFieldTypeConfig(field.type);
+    if (!config.getSearchableText) continue;
+    const text = config.getSearchableText(values[field.id], field);
+    if (text) {
+      lines.push(`${field.name}: ${text}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+// Clés R2 référencées par les values (cascade de suppression).
+function collectR2KeysForTemplateValues(
+  template: TemplateFieldsSource,
+  values: Record<string, unknown>,
+): string[] {
+  const keys: string[] = [];
+  for (const field of template.fields) {
+    const config = getFieldTypeConfig(field.type);
+    if (!config.collectR2Keys) continue;
+    keys.push(...config.collectR2Keys(values[field.id]));
+  }
+  return keys;
+}
+
+export {
+  fieldTypeConfig,
+  fieldTypeZodValidator,
+  getFieldTypeConfig,
+  getSelectChoices,
+  selectIdsToLabels,
+  templateFieldSchema,
+  buildTemplateValuesSchema,
+  buildTemplateToolSchema,
+  getDefaultValuesForTemplate,
+  getSearchableTextForTemplateValues,
+  collectR2KeysForTemplateValues,
+  describeFieldForLLM,
+};
+export type { TemplateField, FieldTypeConfigItem, SelectChoice };

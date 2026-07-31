@@ -1,229 +1,278 @@
 /*
  * BlockNote CSS overrides — align text appearance with the Plate.js document node.
  *
- * Two surfaces are styled:
- *   1. Canvas node preview (`.bn-readonly-container`) — renders semantic HTML
- *      (`<h1>`, `<p>`, `<blockquote>`, `<pre><code>`, `<ul>/<ol>`).
- *   2. Live editor window (`.bn-editor`) — renders BlockNote's internal DOM with
- *      `[data-content-type="…"][data-level="…"]` attributes.
+ * The `document` node still runs on Plate, so both editors sit on the same
+ * canvas and any divergence is immediately visible. This file makes the two
+ * BlockNote surfaces render like Plate:
+ *   1. Canvas node preview (`.bn-readonly-container`) — `BlockNoteStatic` emits
+ *      semantic HTML (`<h1>`, `<p>`, `<blockquote>`, `<pre><code>`, `<ul>/<ol>`),
+ *      with a `blocksToFullHTML` fallback for rare blocks that emits BlockNote's
+ *      own `.bn-block-content[data-content-type]` markup instead.
+ *   2. Live editor window (`.bn-editor`) — BlockNote's internal DOM.
+ * Both are covered by the same rules so they cannot drift apart again.
  *
  * Values mirror Plate's typography:
- *   - Headings  → src/index.css `.slate-h1..h5` (lines 279-313)
- *   - Editor    → src/components/plate/editor.tsx (cva: selection, strong, placeholder)
+ *   - Headings  → src/index.css `.slate-h1..h5` (the `.slate-*` rules win over
+ *     the Tailwind classes on the nodes, since Tailwind utilities are layered)
+ *   - Paragraph → src/components/plate/paragraph-node.tsx (m-0 px-0 py-1)
+ *   - Editor    → src/components/plate/editor.tsx (selection, strong, placeholder)
+ *     and DocumentEditorField.tsx (`px-5 py-3`)
  *   - Blockquote→ src/components/plate/blockquote-node.tsx (my-1 border-l-2 pl-6 italic)
- *   - Code block→ src/components/plate/code-block-node.tsx (bg-muted/50, font-mono, text-sm)
+ *   - Code      → src/components/plate/code-block-node.tsx + code-node.tsx
+ *   - Lists     → src/components/plate/indent-kit.tsx (offset: 24)
+ *
+ * Two things to know before editing the heading rules:
+ *   - BlockNote drives heading sizes through a `--level` custom property, not
+ *     `font-size` (node_modules/@blocknote/core/src/editor/Block.css). Overriding
+ *     `--level` is what actually resizes a heading.
+ *   - The same rule hardcodes `font-weight: bold` at specificity (0,5,0), so any
+ *     weight override must match it. Hence the `.bn-block .bn-block-content[…][…]`
+ *     shape below — do not "simplify" it to a shorter selector.
  *
  * Loaded after `@blocknote/shadcn/style.css` in main.tsx so equal-specificity
  * selectors win by source order.
  */
 
 /* ---------------------------------------------------------------------------
- * Font family — use the app font (Poppins) instead of BlockNote's Inter.
+ * Shared typography scale — single source of truth for both surfaces.
+ *
+ * Sizes are in `em` so they scale off the 13px app base (`--text-base`), exactly
+ * like Plate's `.slate-h*`. Note `--doc-h5-size` is in `rem`, not `em`: that is
+ * what `.slate-h5` uses, which makes h5 (14.4px) marginally larger than h4
+ * (14.3px). Kept as-is for parity with the document node rather than silently
+ * "fixed" here.
  * ------------------------------------------------------------------------- */
-.bn-root, .bn-editor {
-  font-family: var(--font-sans);
+:root {
+  --doc-h1-size: 2em;
+  --doc-h2-size: 1.65em;
+  --doc-h3-size: 1.35em;
+  --doc-h4-size: 1.1em;
+  --doc-h5-size: 0.9rem;
+  --doc-h6-size: 1em;
+
+  /* Plate's headings inherit Tailwind's size-paired leading (`text-4xl`,
+   * `text-2xl`, `text-xl`, `text-lg`, `text-base` on heading-node.tsx), which is
+   * tighter than the 1.5 body leading. Without these the headings read notably
+   * airier than the document node. */
+  --doc-h1-lh: 1.111;
+  --doc-h2-lh: 1.333;
+  --doc-h3-lh: 1.4;
+  --doc-h4-lh: 1.556;
+  --doc-h5-lh: 1.556;
+  --doc-h6-lh: 1.5;
+
+  --doc-h1-weight: 600;
+  --doc-h2-weight: 500;
+  --doc-h3-weight: 500;
+  --doc-h4-weight: 600;
+  --doc-h5-weight: 600;
+  --doc-h6-weight: 600;
+
+  /* `.slate-h1..h5` margin-top; h6 uses the heading-node value (0.75em). */
+  --doc-heading-gap: 0.5em;
+  --doc-heading-gap-h6: 0.75em;
+  /* Space below a heading (Plate's `mb-1`). Applied as padding, not margin:
+   * `.bn-block` is a flex container, so margins do not collapse in the editor
+   * the way they do in the readonly container — padding behaves the same in
+   * both, which is what keeps the two surfaces identical. */
+  --doc-heading-gap-bottom: 0.25rem;
+
+  /* `py-1` on paragraphs and list items. */
+  --doc-block-gap: 0.25rem;
 }
 
 /* ---------------------------------------------------------------------------
- * 1. Canvas node preview (readonly semantic HTML)
- *    Targeted via `.bn-readonly-container` — the wrapper in BlocknoteNode.tsx.
- *    Tailwind preflight resets all headings to inherit, so we must re-apply.
+ * Base — use the app font (Poppins) and the app text size (13px) instead of
+ * BlockNote's Inter/16px, which come from `.bn-default-styles` on `.bn-editor`.
+ * `line-height: 1.5` matches Plate's LineHeightKit `defaultNodeValue`.
+ *
+ * Font family is set on `.bn-root` too (it wraps the menus and toolbars), but
+ * the size is deliberately not — shrinking BlockNote's own UI chrome is not
+ * what we want, only the document content.
  * ------------------------------------------------------------------------- */
+.bn-root,
+.bn-editor,
 .bn-readonly-container {
+  font-family: var(--font-sans);
+}
+
+.bn-editor,
+.bn-readonly-container {
+  font-size: var(--text-base);
+  line-height: 1.5;
   color: var(--foreground);
-  line-height: 1.2;
 }
 
-/* Remove paddings on all headings*/
-.bn-readonly-container [data-content-type="heading"] {
-  padding-top: 0px;
+/* Editor gutters — BlockNote defaults to `padding-inline: 54px` to make room
+ * for the drag handle. Plate used `px-5 py-3`; 2.25rem is the compromise that
+ * gets close to it while keeping the drag handle and the `+` button clickable.
+ * The fullscreen view overrides `padding-inline` from
+ * FullscreenBlocknoteWindow.tsx (56rem centered measure, same as Plate). */
+.bn-editor {
+  padding-inline: 2.25rem;
+  padding-block: 0.75rem;
 }
 
+/* ---------------------------------------------------------------------------
+ * Headings
+ *
+ * Three selectors per level: the live editor, the `blocksToFullHTML` fallback
+ * inside the readonly container, and the semantic HTML `BlockNoteStatic` emits.
+ * The `.bn-block .bn-block-content` shape is required to reach (0,5,0) and beat
+ * BlockNote's hardcoded `font-weight: bold` — see the header comment.
+ *
+ * `padding-top: 0` cancels BlockNote's blanket `[data-content-type="heading"]
+ * { padding-top: 18px }`; vertical rhythm comes from `margin-top` instead, like
+ * Plate's `.slate-h*`.
+ * ------------------------------------------------------------------------- */
+.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="1"],
+.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="1"],
 .bn-readonly-container h1 {
-  font-size: 2rem;
-  font-weight: 600;
-}
-.bn-readonly-container h1:first-child {
-  margin-top: 0;
+  --level: var(--doc-h1-size);
+  font-size: var(--doc-h1-size);
+  font-weight: var(--doc-h1-weight);
+  line-height: var(--doc-h1-lh);
+  margin-top: var(--doc-heading-gap);
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: var(--doc-heading-gap-bottom);
 }
 
+.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="2"],
+.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="2"],
 .bn-readonly-container h2 {
-  padding-top: 8px;
-  font-size: 1.7rem;
-  font-weight: 600;
-}
-.bn-readonly-container h2:first-child {
-  margin-top: 0;
+  --level: var(--doc-h2-size);
+  font-size: var(--doc-h2-size);
+  font-weight: var(--doc-h2-weight);
+  line-height: var(--doc-h2-lh);
+  margin-top: var(--doc-heading-gap);
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: var(--doc-heading-gap-bottom);
 }
 
+.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="3"],
+.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="3"],
 .bn-readonly-container h3 {
-  padding-top: 8px;
-  font-size: 1.35rem;
-  font-weight: 600;
-}
-.bn-readonly-container h3:first-child {
-  margin-top: 0;
+  --level: var(--doc-h3-size);
+  font-size: var(--doc-h3-size);
+  font-weight: var(--doc-h3-weight);
+  line-height: var(--doc-h3-lh);
+  margin-top: var(--doc-heading-gap);
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: var(--doc-heading-gap-bottom);
 }
 
+.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="4"],
+.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="4"],
 .bn-readonly-container h4 {
-  padding-top: 8px;
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-.bn-readonly-container h4:first-child {
-  margin-top: 0;
+  --level: var(--doc-h4-size);
+  font-size: var(--doc-h4-size);
+  font-weight: var(--doc-h4-weight);
+  line-height: var(--doc-h4-lh);
+  margin-top: var(--doc-heading-gap);
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: var(--doc-heading-gap-bottom);
 }
 
+.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="5"],
+.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="5"],
 .bn-readonly-container h5 {
-  padding-top: 8px;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-.bn-readonly-container h5:first-child {
-  margin-top: 0;
+  --level: var(--doc-h5-size);
+  font-size: var(--doc-h5-size);
+  font-weight: var(--doc-h5-weight);
+  line-height: var(--doc-h5-lh);
+  margin-top: var(--doc-heading-gap);
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: var(--doc-heading-gap-bottom);
 }
 
+.bn-editor .bn-block .bn-block-content[data-content-type="heading"][data-level="6"],
+.bn-readonly-container .bn-block .bn-block-content[data-content-type="heading"][data-level="6"],
 .bn-readonly-container h6 {
-  padding-top: 8px;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  font-weight: 600;
+  --level: var(--doc-h6-size);
+  font-size: var(--doc-h6-size);
+  font-weight: var(--doc-h6-weight);
+  line-height: var(--doc-h6-lh);
+  margin-top: var(--doc-heading-gap-h6);
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: var(--doc-heading-gap-bottom);
 }
-.bn-readonly-container h6:first-child {
+
+/* Block-type changes animate `font-size` from `--prev-level`; without this the
+ * heading flashes at BlockNote's default scale before settling on ours. */
+.bn-editor [data-prev-level="1"] { --prev-level: var(--doc-h1-size); }
+.bn-editor [data-prev-level="2"] { --prev-level: var(--doc-h2-size); }
+.bn-editor [data-prev-level="3"] { --prev-level: var(--doc-h3-size); }
+.bn-editor [data-prev-level="4"] { --prev-level: var(--doc-h4-size); }
+.bn-editor [data-prev-level="5"] { --prev-level: var(--doc-h5-size); }
+.bn-editor [data-prev-level="6"] { --prev-level: var(--doc-h6-size); }
+
+/* No leading gap on the first block — `.slate-h1:first-child { margin-top: 0 }`.
+ * Must come after the per-level rules and match their (0,5,0) specificity. */
+.bn-editor
+  .bn-block-outer:first-child
+  > .bn-block
+  > .bn-block-content[data-content-type="heading"] {
   margin-top: 0;
 }
 
-.bn-readonly-container strong {
-  font-weight: 700;
+.bn-readonly-container > :first-child,
+.bn-readonly-container > .bn-block-outer:first-child .bn-block-content[data-content-type="heading"] {
+  margin-top: 0;
 }
 
-.bn-readonly-container blockquote {
-  margin: 0.25rem 0;
-  border-left: 2px solid var(--border);
-  padding-left: 1.5rem;
-  font-style: italic;
+/* ---------------------------------------------------------------------------
+ * Paragraphs — Plate's `m-0 px-0 py-1`. BlockNote defaults to `padding: 3px 0`.
+ * ------------------------------------------------------------------------- */
+.bn-editor .bn-block-content[data-content-type="paragraph"],
+.bn-readonly-container .bn-block-content[data-content-type="paragraph"],
+.bn-readonly-container p {
+  margin: 0;
+  padding: var(--doc-block-gap) 0;
 }
 
-.bn-readonly-container pre {
-  overflow-x: auto;
-  margin: 0.25rem 0;
-  padding: 2rem 1rem 2rem 2rem;
-  border-radius: calc(var(--radius) - 2px);
-  background-color: color-mix(in oklch, var(--muted) 50%, transparent);
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.875rem;
-  line-height: normal;
-  tab-size: 2;
-}
-.bn-readonly-container pre code {
-  font-family: inherit;
+/* ---------------------------------------------------------------------------
+ * Lists
+ *
+ * In the editor, markers are `::before` pseudo-elements with a 24px min-width
+ * and nesting is `.bn-block-group .bn-block-group { margin-left: 24px }` — both
+ * already match Plate's IndentKit `offset: 24`, so only the vertical rhythm
+ * needs aligning. The readonly container renders real `<ul>/<ol>`, which need
+ * the 24px indent applied explicitly.
+ * ------------------------------------------------------------------------- */
+.bn-editor .bn-block-content[data-content-type="bulletListItem"],
+.bn-editor .bn-block-content[data-content-type="numberedListItem"],
+.bn-editor .bn-block-content[data-content-type="checkListItem"] {
+  padding-top: var(--doc-block-gap);
+  padding-bottom: var(--doc-block-gap);
 }
 
 .bn-readonly-container ul,
 .bn-readonly-container ol {
-  margin: 0.25em 0;
-  padding-left: 1.5em;
+  margin: 0;
+  padding-left: 24px;
 }
 .bn-readonly-container li {
-  margin: 0.125em 0;
+  margin: 0;
+  padding: var(--doc-block-gap) 0;
 }
 .bn-readonly-container li > p {
   margin: 0;
-}
-
-.bn-readonly-container ::selection {
-  background-color: color-mix(in oklch, var(--brand) 25%, transparent);
+  padding: 0;
 }
 
 /* ---------------------------------------------------------------------------
- * 2. Live editor window (`.bn-editor` + `[data-content-type]` structure)
+ * Blockquote — Plate's `my-1 border-l-2 pl-6 italic`. `color: inherit` cancels
+ * BlockNote's grey, which Plate did not have.
  * ------------------------------------------------------------------------- */
-
-
-/* Headings — override BlockNote's --level variable and font-weight per level. */
-.bn-editor [data-content-type="heading"][data-level="1"] {
-  font-size: 1.7rem;
-  padding-top: 0.5rem;
-  font-weight: 600;
-}
-
-.bn-editor [data-content-type="heading"][data-level="1"]:first-child {
-  padding-top: 0;
-}
-
-.bn-editor [data-content-type="heading"][data-level="2"] {
-  font-size: 1.35rem;
-  font-weight: 500;
-}
-.bn-editor [data-content-type="heading"][data-level="2"]:first-child {
-  padding-top: 0;
-}
-
-
-.bn-editor [data-content-type="heading"][data-level="3"] {
-  font-size: 1.35rem;
-  font-weight: 500;
-}
-.bn-editor [data-content-type="heading"][data-level="3"]:first-child {
-  padding-top: 0;
-}
-
-
-.bn-editor [data-content-type="heading"][data-level="4"] {
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-.bn-editor [data-content-type="heading"][data-level="4"]:first-child {
-  padding-top: 0;
-}
-
-.bn-editor [data-content-type="heading"][data-level="5"] {
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-.bn-editor [data-content-type="heading"][data-level="5"]:first-child {
-  padding-top: 0;
-}
-
-.bn-editor [data-content-type="heading"][data-level="6"] {
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-.bn-editor [data-content-type="heading"][data-level="6"]:first-child {
-  padding-top: 0;
-}
-
-
-/* The first heading in the editor should not have top padding. */
-.bn-editor .bn-block-outer:first-child
-  > .bn-block
-  > .bn-block-content[data-content-type="heading"] {
-  padding-top: 1rem;
-}
-
-/* Inline content — match Plate's whitespace + break-words. */
-.bn-editor .bn-inline-content {
-  overflow-wrap: break-word;
-}
-
-/* Strong — match Plate's [&_strong]:font-bold. */
-.bn-editor .bn-inline-content strong {
-  font-weight: 700;
-}
-
-/* Selection — match Plate's selection:bg-brand/25. */
-.bn-editor ::selection {
-  background-color: color-mix(in oklch, var(--brand) 25%, transparent);
-}
-
-/* Placeholder — match Plate's placeholder:text-muted-foreground/80. */
-.bn-editor .bn-block-content:has(.ProseMirror-trailing-break:only-child)::after {
-  color: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
-}
-
-/* Blockquote — match Plate's my-1 border-l-2 pl-6 italic. */
-.bn-editor [data-content-type="quote"] blockquote {
+.bn-editor [data-content-type="quote"] blockquote,
+.bn-readonly-container [data-content-type="quote"] blockquote,
+.bn-readonly-container blockquote {
   margin: 0.25rem 0;
   border-left: 2px solid var(--border);
   color: inherit;
@@ -231,34 +280,91 @@
   font-style: italic;
 }
 
-/* Code block — match Plate's bg-muted/50 + font-mono + text-sm. */
-.bn-editor .bn-block-content[data-content-type="codeBlock"] {
+/* In the editor the vertical spacing moves from the blockquote to its block
+ * container: margins do not collapse inside `.bn-block` (flex), so leaving them
+ * on the blockquote would double the gap against its neighbours. */
+.bn-editor [data-content-type="quote"] blockquote {
+  margin: 0;
+}
+.bn-editor .bn-block-content[data-content-type="quote"] {
+  padding-top: var(--doc-block-gap);
+  padding-bottom: var(--doc-block-gap);
+}
+
+/* ---------------------------------------------------------------------------
+ * Code — Plate's `bg-muted/50` wrapper and `p-8 pr-4 font-mono text-sm
+ * leading-[normal] [tab-size:2]` pre. `text-sm` is 11px in this theme
+ * (src/index.css `--text-sm`), not the browser's 14px.
+ * ------------------------------------------------------------------------- */
+.bn-editor .bn-block-content[data-content-type="codeBlock"],
+.bn-readonly-container .bn-block-content[data-content-type="codeBlock"] {
   background-color: color-mix(in oklch, var(--muted) 50%, transparent);
   color: var(--foreground);
   border-radius: calc(var(--radius) - 2px);
 }
-.bn-editor .bn-block-content[data-content-type="codeBlock"] > pre {
+
+.bn-editor .bn-block-content[data-content-type="codeBlock"] > pre,
+.bn-readonly-container .bn-block-content[data-content-type="codeBlock"] > pre,
+.bn-readonly-container pre {
+  overflow-x: auto;
+  margin: 0.25rem 0;
   padding: 2rem 1rem 2rem 2rem;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.875rem;
+  border-radius: calc(var(--radius) - 2px);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   line-height: normal;
   tab-size: 2;
 }
-.bn-editor .bn-block-content[data-content-type="codeBlock"] > div > select {
-  color: var(--foreground);
+
+.bn-readonly-container pre {
+  background-color: color-mix(in oklch, var(--muted) 50%, transparent);
 }
+
+.bn-readonly-container pre code {
+  font-family: inherit;
+  font-size: inherit;
+  background: none;
+  padding: 0;
+}
+
+.bn-editor .bn-block-content[data-content-type="codeBlock"] > div > select,
 .bn-editor .bn-block-content[data-content-type="codeBlock"] > div > select > option {
   color: var(--foreground);
 }
 
-/* Lists — tighten spacing to match Plate. */
-.bn-editor .bn-block-content[data-content-type="bulletListItem"],
-.bn-editor .bn-block-content[data-content-type="numberedListItem"] {
-  padding-top: 1px;
-  padding-bottom: 1px;
+/* Inline code — Plate's code-node.tsx. BlockNote only sets `font-family: monospace`. */
+.bn-editor .bn-inline-content code,
+.bn-readonly-container :not(pre) > code {
+  white-space: pre-wrap;
+  border-radius: calc(var(--radius) - 2px);
+  background-color: var(--muted);
+  padding: 0.2em 0.3em;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
 }
 
-/* Editor text color — use the app foreground instead of BlockNote's #3f3f3f. */
-.bn-editor {
-  color: var(--foreground);
+/* ---------------------------------------------------------------------------
+ * Marks, selection, placeholder
+ * ------------------------------------------------------------------------- */
+
+/* Plate's `[&_strong]:font-bold`. */
+.bn-editor .bn-inline-content strong,
+.bn-readonly-container strong {
+  font-weight: 700;
+}
+
+.bn-editor .bn-inline-content,
+.bn-readonly-container {
+  overflow-wrap: break-word;
+}
+
+/* Plate's `selection:bg-brand/25`. */
+.bn-editor ::selection,
+.bn-readonly-container ::selection {
+  background-color: color-mix(in oklch, var(--brand) 25%, transparent);
+}
+
+/* Plate's `placeholder:text-muted-foreground/80`. */
+.bn-editor .bn-block-content:has(.ProseMirror-trailing-break:only-child)::after {
+  color: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
 }

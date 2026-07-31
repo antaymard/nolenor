@@ -50,9 +50,10 @@ const ZOOM_LEVELS = [1, 1.5, 2];
 // conteneur EXTÉRIEUR au cadre : la géométrie du rendu doit rester celle du
 // canvas réel, au pixel près.
 const CANVAS_BACKDROP = {
+  backgroundColor: "#f8fafc",
   backgroundImage:
-    "radial-gradient(circle, rgb(203 213 225) 1px, transparent 1px)",
-  backgroundSize: "16px 16px",
+    "linear-gradient(to right, rgba(226, 232, 240, 0.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(226, 232, 240, 0.35) 1px, transparent 1px)",
+  backgroundSize: "20px 20px",
 };
 
 type TemplatePreviewProps = {
@@ -144,8 +145,11 @@ export default function TemplatePreview({
     selection?.surface === surface ? selection.nodeId : null;
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 overflow-auto p-5 py-4">
-      <div>
+    <div
+      className="flex min-h-0 flex-col gap-4 overflow-auto py-4"
+      style={CANVAS_BACKDROP}
+    >
+      <div className="px-5 ">
         <h3 className="text-md font-bold">PREVIEWS</h3>
         <p className="text-[10px] opacity-60 leading-tight">
           How your template will appear on the canvas and as a window (when
@@ -154,7 +158,7 @@ export default function TemplatePreview({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 px-5 border-b border-slate-200 pb-4">
         <ToggleGroup
           type="single"
           value={sampleKind}
@@ -197,10 +201,10 @@ export default function TemplatePreview({
       </div>
 
       {/* ── Node ───────────────────────────────────────────────────────── */}
-      <div className="space-y-1.5">
+      <div className="space-y-2 border-b border-slate-200 px-5 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h4 className="text-sm font-semibold text-gray-600">
-            Node on canvas
+          <h4 className="text font-bold text-slate-500">
+            How it looks on the canvas (node)
           </h4>
           <div className="ml-auto flex items-center gap-2">
             <Label className="shrink-0 text-xs">Size</Label>
@@ -211,7 +215,7 @@ export default function TemplatePreview({
               onChange={(e) =>
                 onChangeDimensions({ width: Number(e.target.value) || 60 })
               }
-              className="h-5 w-16"
+              className="h-5 w-16 bg-white/60 shadow-none pt-1.5"
             />
             <span className="text-xs">×</span>
             <Input
@@ -221,7 +225,7 @@ export default function TemplatePreview({
               onChange={(e) =>
                 onChangeDimensions({ height: Number(e.target.value) || 33 })
               }
-              className="h-5 w-16"
+              className="h-5 w-16 bg-white/60 shadow-none pt-1.5"
             />
             <Label className="shrink-0 text-xs">Resizable</Label>
             <Switch
@@ -242,10 +246,7 @@ export default function TemplatePreview({
           />
         )}
 
-        <div
-          className="flex justify-center rounded-md border border-gray-200 p-6"
-          style={CANVAS_BACKDROP}
-        >
+        <div className="flex justify-center p-6">
           <div
             className={cn(
               "overflow-hidden rounded-md border",
@@ -274,9 +275,11 @@ export default function TemplatePreview({
       </div>
 
       {/* ── Window ─────────────────────────────────────────────────────── */}
-      <div className="space-y-1.5">
+      <div className="space-y-2 px-5 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h4 className="text-sm font-semibold text-gray-600">Window</h4>
+          <h4 className="text font-bold text-slate-500">
+            How it looks after double clic (window)
+          </h4>
           <div className="ml-auto flex items-center gap-2">
             <Label className="shrink-0 text-xs text-gray-400">
               Can be open in window

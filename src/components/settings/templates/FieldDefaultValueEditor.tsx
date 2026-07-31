@@ -30,6 +30,9 @@ export default function FieldDefaultValueEditor({
   return (
     <div className="space-y-1">
       <Label className="text-xs">Default value</Label>
+      <p className="text-[10px] opacity-50">
+        Pre-filled when a node of this type is created. Leave empty for none.
+      </p>
       <div className="rounded-md border border-gray-200 bg-white p-2">
         <FieldHost
           field={field}
@@ -48,9 +51,6 @@ export default function FieldDefaultValueEditor({
       </div>
       {/* Nécessaire : à vide, la plupart des vues affichent leur placeholder
           en italique, ce qui pourrait se lire comme une valeur déjà posée. */}
-      <p className="text-[11px] text-gray-400">
-        Pre-filled when a node of this type is created. Leave empty for none.
-      </p>
     </div>
   );
 }

@@ -181,9 +181,9 @@ export default function FieldsPanel({
             <div
               key={field.id}
               className={cn(
-                "overflow-hidden border bg-white transition-colors border-slate-200 border-b-0 ",
+                "overflow-hidden border bg-white transition-colors border-slate-200 border-b-0 hover:bg-slate-100",
                 expanded
-                  ? "rounded-md border-b my-2"
+                  ? "rounded-md border-b my-5 bg-slate-100"
                   : cn(
                       "first-of-type:rounded-t-md last-of-type:rounded-b-md last-of-type:border-b",
                       prevExpanded && "rounded-t-md",
@@ -194,9 +194,11 @@ export default function FieldsPanel({
               <button
                 type="button"
                 onClick={() => onExpandField(expanded ? null : field.id)}
-                className="flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-gray-50"
+                className={cn(
+                  "flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors ",
+                )}
               >
-                <div className="">
+                <div className="rounded-sm bg-slate-100 text-slate-500 flex items-center justify-center p-2">
                   <Icon size={14} className="shrink-0" />
                 </div>
                 <span className="flex-1 truncate font-medium">
@@ -246,7 +248,7 @@ export default function FieldsPanel({
               </div>
 
               {expanded && (
-                <div className="space-y-3 border-t border-gray-100 bg-gray-50 p-3">
+                <div className="space-y-5 border-t border-slate-200 bg-white p-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Name</Label>
                     <Input
@@ -254,14 +256,6 @@ export default function FieldsPanel({
                       onChange={(e) => patchField({ name: e.target.value })}
                       className="h-8"
                     />
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <TbLock size={12} />
-                    <span>
-                      Type: {config.label} — locked after creation. Duplicate as
-                      a new field to change it.
-                    </span>
                   </div>
 
                   {!reachability.reachable && (

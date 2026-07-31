@@ -368,31 +368,6 @@ export default function TemplateEditor({
             />
           </div>
 
-          {/* REMOVED : color picker for default node color*/}
-          {/*<Select
-          value={draft.color ?? "default"}
-          onValueChange={(v) => update({ color: v })}
-        >
-          <SelectTrigger className="h-9 w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(nodeColors) as colorsEnum[]).map((c) => (
-              <SelectItem key={c} value={c}>
-                <span className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "h-3 w-3 rounded-full border border-gray-300",
-                      nodeColors[c].bg,
-                    )}
-                  />
-                  {nodeColors[c].label}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>*/}
-
           {template && (
             <ConfirmableButton
               title="Archive this template?"

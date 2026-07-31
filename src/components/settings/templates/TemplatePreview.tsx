@@ -147,7 +147,7 @@ export default function TemplatePreview({
     <div className="flex min-h-0 flex-col gap-4 overflow-auto p-5 py-4">
       <div>
         <h3 className="text-md font-bold">PREVIEWS</h3>
-        <p className="text-sm opacity-50 italic leading-tight">
+        <p className="text-[10px] opacity-60 leading-tight">
           How your template will appear on the canvas and as a window (when
           double clicking a node). Drag fields to reorder them, and group them
           into rows to build side-by-side layouts.
@@ -168,7 +168,7 @@ export default function TemplatePreview({
               key={kind.value}
               value={kind.value}
               title={kind.title}
-              className="h-7 px-3 text-xs"
+              className="h-7 px-3 text-xs border border-slate-200 border-r-0 last-of-type:border-r"
             >
               {kind.label}
             </ToggleGroupItem>
@@ -188,7 +188,7 @@ export default function TemplatePreview({
             <ToggleGroupItem
               key={level}
               value={String(level)}
-              className="h-7 px-2 text-xs"
+              className="h-7 px-2 text-xs border border-slate-200 border-r-0 last-of-type:border-r"
             >
               {level}×
             </ToggleGroupItem>
@@ -203,7 +203,7 @@ export default function TemplatePreview({
             Node on canvas
           </h4>
           <div className="ml-auto flex items-center gap-2">
-            <Label className="shrink-0 text-xs text-gray-400">Size</Label>
+            <Label className="shrink-0 text-xs">Size</Label>
             <Input
               type="number"
               min={60}
@@ -211,9 +211,9 @@ export default function TemplatePreview({
               onChange={(e) =>
                 onChangeDimensions({ width: Number(e.target.value) || 60 })
               }
-              className="h-7 w-16"
+              className="h-5 w-16"
             />
-            <span className="text-xs text-gray-400">×</span>
+            <span className="text-xs">×</span>
             <Input
               type="number"
               min={33}
@@ -221,9 +221,9 @@ export default function TemplatePreview({
               onChange={(e) =>
                 onChangeDimensions({ height: Number(e.target.value) || 33 })
               }
-              className="h-7 w-16"
+              className="h-5 w-16"
             />
-            <Label className="shrink-0 text-xs text-gray-400">Resizable</Label>
+            <Label className="shrink-0 text-xs">Resizable</Label>
             <Switch
               checked={draft.defaultDimensions.resizable !== false}
               onCheckedChange={(checked) =>

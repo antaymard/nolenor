@@ -1,7 +1,5 @@
 import { useMemo, useState } from "react";
 import { TbChevronRight } from "react-icons/tb";
-import nodeColors from "@/components/nodes/nodeColors";
-import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
@@ -13,11 +11,16 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
-import type { LayoutContainer } from "@/../convex/config/templateConfig";
+import type {
+  LayoutContainer,
+  LayoutNode,
+} from "@/../convex/config/templateConfig";
+import LayoutAddButtons from "./LayoutAddButtons";
 import EditableSurface from "./EditableSurface";
 import {
   findLayoutNode,
   getAncestorPath,
+  layoutNodeLabel,
   type LayoutSelection,
   type LayoutSurface,
   type TemplateDraft,
@@ -67,6 +70,7 @@ type TemplatePreviewProps = {
     patch: Partial<TemplateDraft["defaultDimensions"]>,
   ) => void;
   onToggleWindow: (enabled: boolean) => void;
+  onAddNode: (surface: LayoutSurface, node: LayoutNode) => void;
 };
 
 // Chemin des ancêtres de la sélection, au-dessus de l'aperçu qu'il décrit.
@@ -88,11 +92,7 @@ function Breadcrumb({
 
   const labelFor = (id: string) => {
     const found = findLayoutNode(tree, id);
-    if (!found) return "?";
-    if (found.kind === "container") {
-      return found.direction === "row" ? "Row" : "Column";
-    }
-    return fields.find((f) => f.id === found.fieldId)?.name ?? "Unknown field";
+    return found ? layoutNodeLabel(found, fields) : "?";
   };
 
   return (
@@ -129,6 +129,7 @@ export default function TemplatePreview({
   onHover,
   onChangeDimensions,
   onToggleWindow,
+  onAddNode,
 }: TemplatePreviewProps) {
   const [sampleKind, setSampleKind] = useState<FieldSampleKind>("filled");
   const [zoom, setZoom] = useState(1);
@@ -138,7 +139,6 @@ export default function TemplatePreview({
     [draft.fields, sampleKind],
   );
 
-  const color = nodeColors[(draft.color as colorsEnum) ?? "default"];
   const Icon = getTemplateIcon(draft.icon);
 
   const selectedIdFor = (surface: LayoutSurface) =>
@@ -238,6 +238,8 @@ export default function TemplatePreview({
           </div>
         </div>
 
+        <LayoutAddButtons surface="node" onAdd={onAddNode} />
+
         {selection?.surface === "node" && (
           <Breadcrumb
             tree={draft.nodeLayout}
@@ -290,6 +292,12 @@ export default function TemplatePreview({
             />
           </div>
         </div>
+
+        <LayoutAddButtons
+          surface="window"
+          onAdd={onAddNode}
+          disabled={!draft.windowLayout}
+        />
 
         {draft.windowLayout && selection?.surface === "window" && (
           <Breadcrumb

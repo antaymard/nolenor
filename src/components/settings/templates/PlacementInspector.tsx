@@ -2,6 +2,7 @@ import { TbLayoutColumns, TbLayoutRows, TbTrash } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
+import { Textarea } from "@/components/shadcn/textarea";
 import { Switch } from "@/components/shadcn/switch";
 import {
   Select,
@@ -17,7 +18,7 @@ import {
 import type { TemplateField } from "@/../convex/config/fieldConfig";
 import type {
   LayoutContainer,
-  LayoutFieldPlacement,
+  LayoutNode,
 } from "@/../convex/config/templateConfig";
 import {
   fieldVariants,
@@ -74,9 +75,7 @@ export default function PlacementInspector({
 
   const isRoot = node.id === tree.id;
 
-  function patch(
-    p: Partial<LayoutContainer> | Partial<LayoutFieldPlacement>,
-  ) {
+  function patch(p: Partial<LayoutNode>) {
     onChangeTree(updateLayoutNode(tree, node!.id, p));
   }
 
@@ -240,6 +239,67 @@ export default function PlacementInspector({
               </SelectContent>
             </Select>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Un divider n'a rien à régler : son orientation se déduit de son parent et
+  // sa couleur du node. Il garde l'en-tête (fil d'ariane, groupage) et la
+  // suppression, comme tout élément de l'arbre.
+  if (node.kind === "divider") {
+    return (
+      <div className="space-y-3">
+        {header}
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-gray-500">Divider</h4>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+            onClick={handleRemove}
+            title="Remove this divider"
+          >
+            <TbTrash size={13} />
+          </Button>
+        </div>
+        <p className="text-[11px] text-gray-400">
+          Horizontal in a column, vertical in a row. Takes the node colour on
+          the canvas.
+        </p>
+      </div>
+    );
+  }
+
+  // Le texte statique s'édite ICI et jamais en place : il appartient au
+  // template, pas aux données du node — l'aperçu ne doit donc pas devenir une
+  // surface de saisie.
+  if (node.kind === "text") {
+    return (
+      <div className="space-y-3">
+        {header}
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-gray-500">Static text</h4>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+            onClick={handleRemove}
+            title="Remove this text"
+          >
+            <TbTrash size={13} />
+          </Button>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Content</Label>
+          <Textarea
+            value={node.content}
+            onChange={(e) => patch({ content: e.target.value })}
+            placeholder="Section title, hint, caption…"
+            className="min-h-16 text-sm"
+          />
         </div>
       </div>
     );

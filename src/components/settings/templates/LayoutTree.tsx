@@ -4,6 +4,8 @@ import {
   TbChevronRight,
   TbLayoutColumns,
   TbLayoutRows,
+  TbSeparator,
+  TbTypography,
 } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { fieldRegistry } from "@/components/fields/registry/fieldRegistry";
@@ -12,6 +14,7 @@ import type {
   LayoutContainer,
   LayoutNode,
 } from "@/../convex/config/templateConfig";
+import { layoutNodeLabel } from "./templateDraft";
 
 // Vue structurelle d'un arbre de layout, repliée par défaut.
 //
@@ -37,6 +40,23 @@ type LayoutTreeProps = {
   defaultOpen?: boolean;
 };
 
+// Icône par kind. Les champs gardent celle de leur type (registry) ; les
+// éléments de mise en page ont la leur.
+function iconForNode(node: LayoutNode, fields: TemplateField[]) {
+  switch (node.kind) {
+    case "container":
+      return node.direction === "row" ? TbLayoutColumns : TbLayoutRows;
+    case "divider":
+      return TbSeparator;
+    case "text":
+      return TbTypography;
+    case "field": {
+      const field = fields.find((f) => f.id === node.fieldId);
+      return field ? fieldRegistry[field.type].icon : TbChevronRight;
+    }
+  }
+}
+
 function TreeRow({
   node,
   depth,
@@ -57,20 +77,15 @@ function TreeRow({
   isRoot?: boolean;
 }) {
   const isContainer = node.kind === "container";
-  const field = isContainer
-    ? null
-    : fields.find((f) => f.id === node.fieldId) ?? null;
-  const Icon = isContainer
-    ? node.direction === "row"
-      ? TbLayoutColumns
-      : TbLayoutRows
-    : field
-      ? fieldRegistry[field.type].icon
-      : TbChevronRight;
+  // Un placement dont le champ est introuvable : signalé en rouge, comme dans
+  // l'aperçu. Les kinds sans champ (divider, texte) ne sont pas concernés.
+  const orphanField =
+    node.kind === "field" && !fields.some((f) => f.id === node.fieldId);
 
-  const label = isContainer
-    ? `${node.direction === "row" ? "Row" : "Column"}${isRoot ? " (root)" : ""}`
-    : (field?.name ?? "Unknown field");
+  const Icon = iconForNode(node, fields);
+  const label = `${layoutNodeLabel(node, fields)}${
+    isContainer && isRoot ? " (root)" : ""
+  }`;
 
   return (
     <>
@@ -94,7 +109,9 @@ function TreeRow({
           className={cn(
             "truncate",
             isContainer && "text-gray-500",
-            !isContainer && !field && "italic text-red-500",
+            node.kind === "divider" && "text-gray-400",
+            node.kind === "text" && !node.content.trim() && "italic text-gray-400",
+            orphanField && "italic text-red-500",
           )}
         >
           {label}

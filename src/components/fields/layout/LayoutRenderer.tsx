@@ -1,8 +1,10 @@
 import { memo, type CSSProperties } from "react";
 import type {
   LayoutContainer,
+  LayoutDivider,
   LayoutFieldPlacement,
   LayoutNode,
+  LayoutStaticText,
 } from "@/../convex/config/templateConfig";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
 import FieldHost from "@/components/fields/FieldHost";
@@ -32,6 +34,10 @@ type LayoutRendererProps = {
   // → aucun changement pour CustomNode et CustomWindow : mêmes éléments,
   // mêmes styles. Cf. layoutEditing.tsx.
   editor?: LayoutEditor;
+  // Classe de bordure des dividers. Seul CustomNode la fournit, depuis la
+  // couleur du node : le trait suit alors la couleur, y compris quand elle
+  // change. Absente ailleurs → gris neutre.
+  dividerClassName?: string;
 };
 
 const ALIGN_MAP: Record<string, CSSProperties["alignItems"]> = {
@@ -102,7 +108,7 @@ function FieldSlot({
   if (!field) {
     if (!editor) return null;
     return (
-      <EditablePlacement placement={placement} editor={editor} style={style}>
+      <EditablePlacement nodeId={placement.id} editor={editor} style={style}>
         <span style={{ fontSize: 10, fontStyle: "italic", color: "rgb(220 38 38)" }}>
           Unknown field
         </span>
@@ -133,12 +139,82 @@ function FieldSlot({
 
   if (editor) {
     return (
-      <EditablePlacement placement={placement} editor={editor} style={style}>
+      <EditablePlacement nodeId={placement.id} editor={editor} style={style}>
         {host}
       </EditablePlacement>
     );
   }
   return <div style={style}>{host}</div>;
+}
+
+// Trait de séparation. S'oriente contre son parent : vertical dans une ligne,
+// horizontal dans une colonne — sans quoi un divider posé dans une row se
+// rendrait en trait horizontal écrasé à zéro.
+//
+// La couleur vient de `dividerClassName`, que seul CustomNode fournit (elle
+// suit alors la couleur du node). Aperçu et window la laissent absente et
+// retombent sur un gris neutre, comme leurs propres bordures.
+function DividerSlot({
+  divider,
+  parentDirection,
+  dividerClassName,
+  editor,
+}: {
+  divider: LayoutDivider;
+  parentDirection: "row" | "column";
+  dividerClassName?: string;
+  editor?: LayoutEditor;
+}) {
+  const vertical = parentDirection === "row";
+  const style: CSSProperties = vertical
+    ? { alignSelf: "stretch", borderLeftWidth: 1, minWidth: 1, flexShrink: 0 }
+    : { alignSelf: "stretch", borderTopWidth: 1, minHeight: 1, flexShrink: 0 };
+
+  const className = dividerClassName ?? "border-slate-200";
+
+  if (editor) {
+    return (
+      <EditablePlacement
+        nodeId={divider.id}
+        editor={editor}
+        style={style}
+        className={className}
+      >
+        {null}
+      </EditablePlacement>
+    );
+  }
+  return <div style={style} className={className} />;
+}
+
+// Texte de mise en page. Son contenu s'édite depuis l'inspecteur, jamais en
+// place : il appartient au template, pas aux données du node.
+function StaticTextSlot({
+  text,
+  editor,
+}: {
+  text: LayoutStaticText;
+  editor?: LayoutEditor;
+}) {
+  const style: CSSProperties = { minWidth: 0 };
+  const content = text.content.trim();
+  // Un texte vide n'a aucune hauteur : en édition il deviendrait
+  // insélectionnable, exactement comme un container vide. On lui donne alors
+  // un substitut visible — jamais dans le rendu réel, qui doit rester fidèle.
+  const body = content ? (
+    <span className="whitespace-pre-wrap">{text.content}</span>
+  ) : editor ? (
+    <span className="text-[10px] italic text-gray-400">Empty text</span>
+  ) : null;
+
+  if (editor) {
+    return (
+      <EditablePlacement nodeId={text.id} editor={editor} style={style}>
+        {body}
+      </EditablePlacement>
+    );
+  }
+  return <div style={style}>{body}</div>;
 }
 
 function LayoutNodeRenderer({
@@ -150,6 +226,8 @@ function LayoutNodeRenderer({
   onEscalateField,
   editor,
   isRoot = false,
+  parentDirection = "column",
+  dividerClassName,
 }: {
   node: LayoutNode;
   fields: TemplateField[];
@@ -159,6 +237,8 @@ function LayoutNodeRenderer({
   onEscalateField?: (fieldId: string) => void;
   editor?: LayoutEditor;
   isRoot?: boolean;
+  parentDirection?: "row" | "column";
+  dividerClassName?: string;
 }) {
   if (node.kind === "field") {
     return (
@@ -174,6 +254,21 @@ function LayoutNodeRenderer({
     );
   }
 
+  if (node.kind === "divider") {
+    return (
+      <DividerSlot
+        divider={node}
+        parentDirection={parentDirection}
+        dividerClassName={dividerClassName}
+        editor={editor}
+      />
+    );
+  }
+
+  if (node.kind === "text") {
+    return <StaticTextSlot text={node} editor={editor} />;
+  }
+
   const style = containerStyle(node);
   const children = node.children.map((child) => (
     <LayoutNodeRenderer
@@ -185,6 +280,11 @@ function LayoutNodeRenderer({
       onCommitField={onCommitField}
       onEscalateField={onEscalateField}
       editor={editor}
+      // Un divider doit s'orienter CONTRE son parent : trait vertical dans une
+      // ligne, horizontal dans une colonne. Le nœud ne connaît pas son parent,
+      // on lui passe donc sa direction.
+      parentDirection={node.direction}
+      dividerClassName={dividerClassName}
     />
   ));
 
@@ -211,6 +311,7 @@ function LayoutRenderer({
   onCommitField,
   onEscalateField,
   editor,
+  dividerClassName,
 }: LayoutRendererProps) {
   return (
     <LayoutNodeRenderer
@@ -221,6 +322,7 @@ function LayoutRenderer({
       onCommitField={onCommitField}
       onEscalateField={onEscalateField}
       editor={editor}
+      dividerClassName={dividerClassName}
       isRoot
     />
   );

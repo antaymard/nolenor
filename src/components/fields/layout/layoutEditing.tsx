@@ -7,10 +7,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type {
-  LayoutContainer,
-  LayoutFieldPlacement,
-} from "@/../convex/config/templateConfig";
+import type { LayoutContainer } from "@/../convex/config/templateConfig";
 
 // Couche d'édition de LayoutRenderer : sélection, survol et dnd posés sur le
 // rendu RÉEL du layout. Compagnon du renderer, pas un second renderer — les
@@ -87,19 +84,25 @@ function useEditableNode(nodeId: string, editor: LayoutEditor, draggable: boolea
   return { sortable, handlers, dragStyle };
 }
 
+// Enrobage sélectionnable/draggable d'une FEUILLE de l'arbre — placement de
+// champ, divider ou texte statique. Prend un id et non un nœud : ces trois
+// kinds n'ont rien en commun sinon d'être des feuilles, et l'éditeur n'a
+// besoin que de l'identité.
 function EditablePlacement({
-  placement,
+  nodeId,
   editor,
   style,
+  className,
   children,
 }: {
-  placement: LayoutFieldPlacement;
+  nodeId: string;
   editor: LayoutEditor;
   style: CSSProperties;
+  className?: string;
   children: ReactNode;
 }) {
   const { sortable, handlers, dragStyle } = useEditableNode(
-    placement.id,
+    nodeId,
     editor,
     true,
   );
@@ -107,7 +110,8 @@ function EditablePlacement({
   return (
     <div
       ref={sortable.setNodeRef}
-      style={{ ...style, ...dragStyle, ...selectionStyle(editor, placement.id) }}
+      className={className}
+      style={{ ...style, ...dragStyle, ...selectionStyle(editor, nodeId) }}
       {...sortable.attributes}
       {...sortable.listeners}
       {...handlers}

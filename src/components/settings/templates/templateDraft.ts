@@ -8,8 +8,10 @@ import {
   getLayoutDepth,
   MAX_LAYOUT_DEPTH,
   type LayoutContainer,
+  type LayoutDivider,
   type LayoutFieldPlacement,
   type LayoutNode,
+  type LayoutStaticText,
 } from "@/../convex/config/templateConfig";
 
 // État local du builder : le draft complet d'un template, sauvegardé
@@ -72,6 +74,52 @@ function newPlacement(fieldId: string): LayoutFieldPlacement {
 
 function newContainer(direction: "row" | "column"): LayoutContainer {
   return { kind: "container", id: genId("c"), direction, gap: 8, children: [] };
+}
+
+function newDivider(): LayoutDivider {
+  return { kind: "divider", id: genId("d") };
+}
+
+function newStaticText(): LayoutStaticText {
+  // Vide à la création : le contenu se saisit dans l'inspecteur, et le rendu
+  // en édition affiche un substitut pour que l'élément reste sélectionnable.
+  return { kind: "text", id: genId("t"), content: "" };
+}
+
+// Libellé d'un nœud de layout, partagé par le fil d'ariane, la vue
+// structurelle et l'inspecteur — trois endroits qui décliraient sinon le même
+// switch, avec le risque d'oublier un kind à chacun.
+function layoutNodeLabel(node: LayoutNode, fields: TemplateField[]): string {
+  switch (node.kind) {
+    case "container":
+      return node.direction === "row" ? "Row" : "Column";
+    case "field":
+      return fields.find((f) => f.id === node.fieldId)?.name ?? "Unknown field";
+    case "divider":
+      return "Divider";
+    case "text": {
+      const content = node.content.trim();
+      return content ? `“${content.slice(0, 24)}”` : "Text";
+    }
+  }
+}
+
+// Insertion sous garde de profondeur. `insertLayoutNode` ne la vérifie pas —
+// jusqu'ici seul `wrapInContainer` créait des containers et portait le
+// contrôle. Ajouter un container par bouton passe par ici, sinon l'erreur ne
+// tomberait qu'au Save, loin du geste qui l'a causée.
+//
+// Rend `null` en cas de refus, comme wrapInContainer, plutôt qu'un arbre
+// silencieusement inchangé.
+function insertLayoutNodeGuarded(
+  tree: LayoutContainer,
+  containerId: string,
+  index: number | undefined,
+  node: LayoutNode,
+): LayoutContainer | null {
+  const next = insertLayoutNode(tree, containerId, index, node);
+  if (getLayoutDepth(next) > MAX_LAYOUT_DEPTH) return null;
+  return next;
 }
 
 function newEmptyDraft(): TemplateDraft {
@@ -154,7 +202,10 @@ function findParentId(tree: LayoutContainer, nodeId: string): string | null {
 function updateLayoutNode(
   tree: LayoutContainer,
   nodeId: string,
-  patch: Partial<LayoutContainer> | Partial<LayoutFieldPlacement>,
+  // Partial<LayoutNode> et non une union de Partial : l'appelant connaît le
+  // kind du nœud qu'il patche, cette fonction n'a pas à le redémontrer. Le
+  // `as LayoutNode` ci-dessous reste nécessaire pour la même raison.
+  patch: Partial<LayoutNode>,
 ): LayoutContainer {
   const mapNode = (node: LayoutNode): LayoutNode => {
     if (node.id === nodeId) {
@@ -344,6 +395,10 @@ export {
   newField,
   newPlacement,
   newContainer,
+  newDivider,
+  newStaticText,
+  insertLayoutNodeGuarded,
+  layoutNodeLabel,
   newEmptyDraft,
   draftFromTemplate,
   findLayoutNode,

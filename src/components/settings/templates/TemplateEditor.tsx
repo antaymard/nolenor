@@ -17,7 +17,9 @@ import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
 import {
   validateTemplateDefinition,
+  MAX_LAYOUT_DEPTH,
   type LayoutContainer,
+  type LayoutNode,
 } from "@/../convex/config/templateConfig";
 import {
   getTemplateIcon,
@@ -43,6 +45,7 @@ import {
   draftFromTemplate,
   genId,
   insertLayoutNode,
+  insertLayoutNodeGuarded,
   newEmptyDraft,
   newField,
   newPlacement,
@@ -168,6 +171,39 @@ export default function TemplateEditor({
       ),
     );
     setExpandedFieldId(field.id);
+  }
+
+  // Ajout d'un élément de mise en page (container, divider, texte statique).
+  // Même point d'insertion que l'ajout de champ : dans le container
+  // sélectionné, ou juste après l'élément sélectionné, ou en fin de racine —
+  // un seul comportement pour tous les boutons d'ajout.
+  // Calculé HORS de l'updater de setDraft, et non dedans : React exécute les
+  // updaters pendant la phase de rendu, un toast déclenché là écrirait dans le
+  // Toaster en plein rendu de l'éditeur. Et l'insertion peut être refusée — la
+  // sélection ne doit alors pas désigner un nœud qui n'existe pas.
+  function handleAddNode(target: LayoutSurface, node: LayoutNode) {
+    const tree =
+      target === "window" ? draft.windowLayout : draft.nodeLayout;
+    if (!tree) return;
+
+    const { containerId, index } = resolveInsertionPoint(
+      tree,
+      selection?.surface === target ? selection.nodeId : null,
+    );
+    const next = insertLayoutNodeGuarded(tree, containerId, index, node);
+    if (!next) {
+      toast.error(
+        `Nesting limit reached (${MAX_LAYOUT_DEPTH} levels). Select a shallower spot first.`,
+      );
+      return;
+    }
+
+    setDraft((prev) =>
+      target === "window"
+        ? { ...prev, windowLayout: next }
+        : { ...prev, nodeLayout: next },
+    );
+    setSelection({ surface: target, nodeId: node.id });
   }
 
   // Retire le placement d'un champ sur UNE surface — le champ lui-même est
@@ -446,6 +482,7 @@ export default function TemplateEditor({
             })
           }
           onToggleWindow={handleToggleWindow}
+          onAddNode={handleAddNode}
         />
 
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-5 py-4 border-l border-slate-200">

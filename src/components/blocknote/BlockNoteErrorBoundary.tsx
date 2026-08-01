@@ -55,10 +55,10 @@ export class BlockNoteErrorBoundary extends Component<
         <div className="h-full w-full flex flex-col items-center justify-center gap-3 p-4 text-center">
           <TbAlertTriangle size={28} className="text-amber-500" />
           <div className="text-sm text-slate-600">
-            Contenu corrompu — impossible à afficher.
+            Unable to display this content.
           </div>
           <Button size="sm" variant="outline" onClick={this.handleReload}>
-            Recharger
+            Try again
           </Button>
         </div>
       );

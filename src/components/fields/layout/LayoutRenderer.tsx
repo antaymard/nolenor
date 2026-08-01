@@ -175,7 +175,7 @@ function LayoutNodeRenderer({
   }
 
   const style = containerStyle(node);
-  const children = node.children.map((child) => (
+  const children = node.children?.map((child) => (
     <LayoutNodeRenderer
       key={child.id}
       node={child}

@@ -19,20 +19,20 @@ export default function CorruptedDocumentBanner({
 }: CorruptedDocumentBannerProps) {
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 p-6">
-      <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-center shadow-lg">
+      <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-center">
         <TbAlertTriangle className="size-6 text-amber-600" />
         <div className="flex flex-col gap-1">
           <span className="text-sm font-semibold text-stone-900">
-            Ce document n'a pas pu être chargé
+            This document couldn't be loaded
           </span>
           <p className="text-sm text-stone-600">
-            Son contenu est corrompu et n'a pas pu être affiché. Il reste
-            récupérable côté serveur tant que vous n'avez pas confirmé, mais
-            continuer l'effacera définitivement.
+            Its content is corrupted and couldn't be displayed. It can still be
+            recovered from the server until you confirm, but continuing will
+            permanently delete it.
           </p>
         </div>
         <Button size="sm" variant="destructive" onClick={onContinue}>
-          Continuer (efface le contenu corrompu)
+          Continue (delete corrupted content)
         </Button>
       </div>
     </div>

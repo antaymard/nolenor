@@ -183,9 +183,25 @@ function renderBlock(
     case "checkListItem":
       return own(
         // `bn-static-check-item` is the styling hook for blocknote-overrides.css,
-        // which sizes the box and matches the editor's row rhythm.
-        <div key={key} className="bn-static-check-item flex items-start gap-2">
-          <input type="checkbox" checked={!!props.checked} disabled readOnly />
+        // which sizes the box and matches the editor's row rhythm. `data-checked`
+        // mirrors the attribute the editor puts on its own check list blocks, so
+        // one rule can drive the checked styling on both surfaces.
+        //
+        // The input is deliberately not `disabled`: the UA greys a disabled box
+        // out, which made a ticked item hard to read. `readOnly` keeps React from
+        // warning about a controlled input with no `onChange`, and the CSS makes
+        // it inert.
+        <div
+          key={key}
+          className="bn-static-check-item flex items-start gap-2"
+          data-checked={props.checked ? "true" : "false"}
+        >
+          <input
+            type="checkbox"
+            checked={!!props.checked}
+            readOnly
+            tabIndex={-1}
+          />
           <span>{renderInlineContent(content)}</span>
         </div>,
       );

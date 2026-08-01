@@ -293,6 +293,23 @@
   margin: 0;
   padding-left: 24px;
 }
+
+/* Markers have to be restored explicitly: Tailwind's preflight sets
+ * `list-style: none` on `ul`/`ol`, so the canvas preview rendered its lists
+ * without any bullet or number at all. The bullet ramp matches what the editor
+ * draws through `::before` — "•" then "◦" then "▪" by nesting depth. */
+.bn-readonly-container ul {
+  list-style-type: disc;
+}
+.bn-readonly-container ul ul {
+  list-style-type: circle;
+}
+.bn-readonly-container ul ul ul {
+  list-style-type: square;
+}
+.bn-readonly-container ol {
+  list-style-type: decimal;
+}
 .bn-readonly-container li {
   margin: 0;
   padding: var(--doc-block-gap) 0;
@@ -322,6 +339,18 @@
 
 .bn-readonly-container .bn-static-check-item {
   padding: var(--doc-block-gap) 0;
+}
+
+/* The canvas box stays interactive-looking but is inert (see BlockNoteStatic:
+ * it is `readOnly`, not `disabled`, so the UA does not grey it out). */
+.bn-readonly-container .bn-static-check-item input[type="checkbox"] {
+  pointer-events: none;
+}
+
+/* Checked state — the editor strikes the text through via its own
+ * `[data-checked="true"] .bn-inline-content` rule; this is the canvas twin. */
+.bn-readonly-container .bn-static-check-item[data-checked="true"] span {
+  text-decoration: line-through;
 }
 
 /* ---------------------------------------------------------------------------

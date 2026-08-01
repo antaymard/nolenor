@@ -13,16 +13,16 @@ import { generateSupervisorSystemPrompt } from "./systemPrompts/supervisorSystem
 export const chatModelOptions = [
   {
     label: "Deepseek v4 Flash",
-    value: "deepseek/deepseek-v4-flash",
+    value: "deepseek/deepseek-v4-flash-0731",
     price: "0.09_0.18",
     isMultimodal: false,
     maxContext: 1000000,
   },
   {
-    label: "DeepSeek V4 Pro",
-    value: "deepseek/deepseek-v4-pro",
-    price: "0.435 _0.87",
-    isMultimodal: false,
+    label: "GPT-5.6 Luna Pro",
+    value: "openai/gpt-5.6-luna-pro",
+    price: "0.10 _0.60",
+    isMultimodal: true,
     maxContext: 1000000,
   },
   {
@@ -33,9 +33,9 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Claude Sonnet 5",
-    value: "anthropic/claude-sonnet-5",
-    price: "2_10",
+    label: "GPT-5.6 Terra Pro",
+    value: "openai/gpt-5.6-terra-pro",
+    price: "1_6",
     isMultimodal: true,
     maxContext: 1000000,
   },
@@ -80,7 +80,7 @@ export function isModelMultimodal(model: LanguageModelV3): boolean {
 
 const defaultModels = {
   nole: getChatModel(defaultChatModelValue),
-  worker: getChatModel("deepseek/deepseek-v4-pro"),
+  worker: getChatModel("deepseek/deepseek-v4-flash-0731"),
   fast: openrouter("mistralai/mistral-small-2603"),
 };
 

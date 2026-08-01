@@ -14,6 +14,8 @@ import {
   normalizeReplaceDocumentBlocks,
   parseStoredBlockNoteDocument,
   stringifyBlockNoteDocumentForStorage,
+  validateBlockNoteDocument,
+  InvalidBlockNoteDocumentError,
 } from "../lib/blockNoteDocument";
 
 export const create = internalMutation({
@@ -157,6 +159,27 @@ export const editBlockNoteDocument = internalMutation({
         throw new ConvexError(
           "Cannot edit this blocknote node: the stored document is malformed. Use set_node_data with a full Markdown replacement to repair it.",
         );
+      }
+      // Beyond "is it parseable JSON", the document must also be a shape
+      // BlockNote's real schema can construct — otherwise this edit would
+      // compute successfully, pass `stringifyBlockNoteDocumentForStorage`'s
+      // validation on the *edited* tree (which is the only gate that ran
+      // before this check existed), and only crash client-side the next time
+      // someone opens the node (see safeCreateEditor.ts / BlocknoteWindow.tsx
+      // for why that no longer wipes the window, but it still shouldn't be
+      // allowed to happen). Checking `current` here, before computing the
+      // edit, also means an edit unrelated to the broken block gets this
+      // same clear, actionable error instead of a confusing one surfacing
+      // from deep inside the final serialization step below.
+      try {
+        validateBlockNoteDocument(parsed);
+      } catch (error) {
+        if (error instanceof InvalidBlockNoteDocumentError) {
+          throw new ConvexError(
+            `Cannot edit this blocknote node: the stored document contains invalid content (${error.message}). Use set_node_data with a full Markdown replacement to repair it.`,
+          );
+        }
+        throw error;
       }
       current = parsed;
     }

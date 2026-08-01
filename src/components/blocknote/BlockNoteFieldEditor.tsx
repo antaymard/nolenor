@@ -1,6 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
-  BlockNoteEditor,
   filterSuggestionItems,
   type Block,
   type PartialBlock,
@@ -11,11 +10,14 @@ import {
   SuggestionMenuController,
 } from "@blocknote/react";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
+import type { AppBlockNoteEditor } from "@/components/blocknote/schema";
 import {
-  blockNoteSchema,
-  type AppBlockNoteEditor,
-} from "@/components/blocknote/schema";
-import { getCustomSlashMenuItems } from "@/components/blocknote/registry";
+  getCustomSlashMenuItems,
+  groupSuggestionItems,
+} from "@/components/blocknote/registry";
+import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
+import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
@@ -69,13 +71,24 @@ function BlockNoteFieldEditor({
 
   // Créé une seule fois, avec le contenu initial : le premier paint est
   // correct et l'effet de re-hydratation ne rejoue pas au montage.
-  const [editor] = useState<AppBlockNoteEditor>(() => {
+  //
+  // `createSafeBlockNoteEditor` protège contre une valeur stockée qui ferait
+  // trébucher le schéma ProseMirror (voir safeCreateEditor.ts) — sur échec,
+  // elle renvoie un éditeur vide fonctionnel plutôt que de lever, et
+  // `isCorrupted` bloque toute publication de changement (`onDocChange`/
+  // `onDirtyChange`, qui alimentent le flux dirty/save différé du custom node)
+  // tant que l'utilisateur n'a pas explicitement confirmé la perte via le
+  // bandeau ci-dessous.
+  const [{ editor, isCorrupted }] = useState<{
+    editor: AppBlockNoteEditor;
+    isCorrupted: boolean;
+  }>(() => {
     const blocks = parseStoredBlockNoteDocument(value) as PartialBlock[] | null;
-    return BlockNoteEditor.create({
-      schema: blockNoteSchema,
-      initialContent: blocks && blocks.length > 0 ? blocks : undefined,
-    });
+    const result = createSafeBlockNoteEditor(blocks);
+    return { editor: result.editor, isCorrupted: result.status !== "ok" };
   });
+  const [isCorruptionAcknowledged, setIsCorruptionAcknowledged] =
+    useState(!isCorrupted);
 
   const lastHydratedSignatureRef = useRef<string | null>(null);
   if (lastHydratedSignatureRef.current === null) {
@@ -128,12 +141,27 @@ function BlockNoteFieldEditor({
   }, [value, editor]);
 
   const handleChange = useCallback(() => {
+    // Blocked while an unacknowledged corruption banner is showing: the field
+    // is visually covered and non-interactive at that point (see the render
+    // below), but this guard is the actual defense — it stops the recovered
+    // empty document from ever being published as a pending value before the
+    // user agreed to lose the original.
+    if (!isCorruptionAcknowledged) return;
     const doc = editor.document as unknown as Block[];
     onDocChange(doc);
     if (skipNextChangeRef.current) {
       skipNextChangeRef.current = false;
       return;
     }
+    onDirtyChange(true);
+  }, [editor, onDocChange, onDirtyChange, isCorruptionAcknowledged]);
+
+  const handleContinueFromCorruption = useCallback(() => {
+    setIsCorruptionAcknowledged(true);
+    // Publish the recovered (empty) document right away, consistent with how
+    // every other edit to this field is committed: through the deferred
+    // pending-value channel, not a direct save.
+    onDocChange(editor.document as unknown as Block[]);
     onDirtyChange(true);
   }, [editor, onDocChange, onDirtyChange]);
 
@@ -144,33 +172,38 @@ function BlockNoteFieldEditor({
 
   return (
     <div className="relative" onFocus={handleFocus} onBlur={handleBlur}>
-      <BlockNoteView
-        editor={editor}
-        theme="light"
-        onChange={handleChange}
-        className={cn("nodrag", className)}
-        slashMenu={false}
-      >
-        <SuggestionMenuController
-          triggerCharacter="/"
-          shouldOpen={(tr) =>
-            !tr.selection.$from.parent.type.isInGroup("tableContent")
-          }
-          getItems={async (query) =>
-            filterSuggestionItems(
-              [
-                ...getDefaultReactSlashMenuItems(editor),
-                ...getCustomSlashMenuItems(editor),
-              ],
-              query,
-            )
-          }
-        />
-      </BlockNoteView>
+      <BlockNoteErrorBoundary resetKey={value}>
+        <BlockNoteView
+          editor={editor}
+          theme="light"
+          onChange={handleChange}
+          className={cn("nodrag", className)}
+          slashMenu={false}
+        >
+          <SuggestionMenuController
+            triggerCharacter="/"
+            shouldOpen={(tr) =>
+              !tr.selection.$from.parent.type.isInGroup("tableContent")
+            }
+            getItems={async (query) =>
+              filterSuggestionItems(
+                groupSuggestionItems([
+                  ...getDefaultReactSlashMenuItems(editor),
+                  ...getCustomSlashMenuItems(editor),
+                ]),
+                query,
+              )
+            }
+          />
+        </BlockNoteView>
+      </BlockNoteErrorBoundary>
       {!isEditorReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/65">
           <EditorLoading />
         </div>
+      )}
+      {!isCorruptionAcknowledged && (
+        <CorruptedDocumentBanner onContinue={handleContinueFromCorruption} />
       )}
     </div>
   );

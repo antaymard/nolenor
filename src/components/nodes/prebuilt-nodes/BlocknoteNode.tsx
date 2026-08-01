@@ -16,6 +16,7 @@ import {
   type BlockNoteBlock,
 } from "@/../convex/lib/blockNoteDocument";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
+import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 
 // ── View-only rendering ──────────────────────────────────────────────────
 // The canvas node renders the document via `BlockNoteStatic`, a read-only
@@ -108,10 +109,12 @@ function BlocknoteNode(xyNode: Node) {
                     <span className="text-xs">Double click to edit</span>
                   </div>
                 ) : (
-                  <BlockNoteStatic
-                    blocks={blocks}
-                    className="h-full min-h-0 overflow-y-auto p-4 select-none bn-readonly-container"
-                  />
+                  <BlockNoteErrorBoundary resetKey={docString}>
+                    <BlockNoteStatic
+                      blocks={blocks}
+                      className="h-full min-h-0 overflow-y-auto p-4 select-none bn-readonly-container"
+                    />
+                  </BlockNoteErrorBoundary>
                 )}
               </>
             ) : null}

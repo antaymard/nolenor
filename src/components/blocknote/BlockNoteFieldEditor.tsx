@@ -14,6 +14,7 @@ import type { AppBlockNoteEditor } from "@/components/blocknote/schema";
 import { getCustomSlashMenuItems } from "@/components/blocknote/registry";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
+import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
@@ -168,29 +169,31 @@ function BlockNoteFieldEditor({
 
   return (
     <div className="relative" onFocus={handleFocus} onBlur={handleBlur}>
-      <BlockNoteView
-        editor={editor}
-        theme="light"
-        onChange={handleChange}
-        className={cn("nodrag", className)}
-        slashMenu={false}
-      >
-        <SuggestionMenuController
-          triggerCharacter="/"
-          shouldOpen={(tr) =>
-            !tr.selection.$from.parent.type.isInGroup("tableContent")
-          }
-          getItems={async (query) =>
-            filterSuggestionItems(
-              [
-                ...getDefaultReactSlashMenuItems(editor),
-                ...getCustomSlashMenuItems(editor),
-              ],
-              query,
-            )
-          }
-        />
-      </BlockNoteView>
+      <BlockNoteErrorBoundary resetKey={value}>
+        <BlockNoteView
+          editor={editor}
+          theme="light"
+          onChange={handleChange}
+          className={cn("nodrag", className)}
+          slashMenu={false}
+        >
+          <SuggestionMenuController
+            triggerCharacter="/"
+            shouldOpen={(tr) =>
+              !tr.selection.$from.parent.type.isInGroup("tableContent")
+            }
+            getItems={async (query) =>
+              filterSuggestionItems(
+                [
+                  ...getDefaultReactSlashMenuItems(editor),
+                  ...getCustomSlashMenuItems(editor),
+                ],
+                query,
+              )
+            }
+          />
+        </BlockNoteView>
+      </BlockNoteErrorBoundary>
       {!isEditorReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/65">
           <EditorLoading />

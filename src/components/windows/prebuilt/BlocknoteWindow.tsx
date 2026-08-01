@@ -12,7 +12,10 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
 import type { AppBlockNoteEditor } from "@/components/blocknote/schema";
-import { getCustomSlashMenuItems } from "@/components/blocknote/registry";
+import {
+  getCustomSlashMenuItems,
+  groupSuggestionItems,
+} from "@/components/blocknote/registry";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
@@ -253,10 +256,10 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
             }
             getItems={async (query) =>
               filterSuggestionItems(
-                [
+                groupSuggestionItems([
                   ...getDefaultReactSlashMenuItems(editor),
                   ...getCustomSlashMenuItems(editor),
-                ],
+                ]),
                 query,
               )
             }

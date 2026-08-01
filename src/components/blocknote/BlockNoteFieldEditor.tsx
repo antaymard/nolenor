@@ -11,7 +11,10 @@ import {
 } from "@blocknote/react";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
 import type { AppBlockNoteEditor } from "@/components/blocknote/schema";
-import { getCustomSlashMenuItems } from "@/components/blocknote/registry";
+import {
+  getCustomSlashMenuItems,
+  groupSuggestionItems,
+} from "@/components/blocknote/registry";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
@@ -184,10 +187,10 @@ function BlockNoteFieldEditor({
             }
             getItems={async (query) =>
               filterSuggestionItems(
-                [
+                groupSuggestionItems([
                   ...getDefaultReactSlashMenuItems(editor),
                   ...getCustomSlashMenuItems(editor),
-                ],
+                ]),
                 query,
               )
             }

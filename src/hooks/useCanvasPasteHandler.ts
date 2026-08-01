@@ -8,7 +8,7 @@ import { useAction, useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useCanvasStore } from "@/stores/canvasStore";
-import { markdownToPlateValue } from "@/lib/plateMarkdownConverter";
+import { markdownToBlockNoteBlocks } from "@/lib/blockNoteMarkdownConverter";
 import { extractAudioMetadata } from "@/lib/audioMetadata";
 
 const PASTE_GUARD_WINDOW_MS = 300;
@@ -190,24 +190,24 @@ export function useCanvasPasteHandler() {
   );
 
   /**
-   * Create a DocumentNode with plain text content
+   * Create a BlocknoteNode with plain text content
    */
-  const createDocumentNode = useCallback(
+  const createBlocknoteNode = useCallback(
     async (text: string) => {
       const position = getViewportCenter();
 
-      const documentNodeConfig = prebuiltNodesConfig.find(
-        (config) => config.node.type === "document",
+      const blocknoteNodeConfig = prebuiltNodesConfig.find(
+        (config) => config.node.type === "blocknote",
       );
-      if (!documentNodeConfig) {
-        toast.error("Error: DocumentNode configuration not found");
+      if (!blocknoteNodeConfig) {
+        toast.error("Error: BlocknoteNode configuration not found");
         return null;
       }
 
-      const doc = markdownToPlateValue(text);
+      const doc = markdownToBlockNoteBlocks(text);
 
       await createNode({
-        node: documentNodeConfig.node,
+        node: blocknoteNodeConfig.node,
         position,
         initialValues: { doc },
       });
@@ -406,7 +406,7 @@ export function useCanvasPasteHandler() {
           });
         } else {
           runWithPasteGuard(pasteGuardRef.current, signature, async () => {
-            await createDocumentNode(trimmedText);
+            await createBlocknoteNode(trimmedText);
             toast.success("Document created");
           });
         }
@@ -417,7 +417,7 @@ export function useCanvasPasteHandler() {
       handleImageFilePaste,
       handleAudioFilePaste,
       handleUrlPaste,
-      createDocumentNode,
+      createBlocknoteNode,
     ],
   );
 

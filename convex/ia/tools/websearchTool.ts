@@ -1,7 +1,7 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import Parallel from "parallel-web";
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames } from "../agentConfig";
 
 export const websearchToolConfig: ToolConfig = {
@@ -21,9 +21,7 @@ const client = new Parallel({
 export const websearchTool = createTool({
   description: "Search the web for relevant information.",
   inputSchema: z.object({
-    explanation: z
-      .string()
-      .describe("3-5 words explaining the research intent."),
+    explanation: EXPLANATION_FIELD,
     objective: z
       .string()
       .describe(

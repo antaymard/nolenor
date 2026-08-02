@@ -3,7 +3,7 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 export const loadSkillToolConfig: ToolConfig = {
   name: "load_skill",
@@ -15,6 +15,7 @@ export default function loadSkillTool({ threadCtx }: { threadCtx: ThreadCtx }) {
     description:
       "Load a resource by its exact name. First tries to match a skill listed in <available_skills> (returns the skill body and the list of its attachments). If no skill matches, tries to match an attachment that belongs to one of your accessible skills (returns the attachment content). Use this tool when the user's request matches a skill, then again with an attachment name as referenced in the skill body.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       name: z
         .string()
         .describe(

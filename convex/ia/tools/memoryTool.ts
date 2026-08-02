@@ -2,7 +2,7 @@ import { createTool } from "@convex-dev/agent";
 import { internal } from "../../_generated/api";
 import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 const MAX_USER_MEMORY_CHARS = 1300;
 const MAX_CANVAS_MEMORY_CHARS = 2500;
@@ -43,9 +43,7 @@ export default function memoryToolFactory({
     description:
       "Read or update persistent user or canvas memories. User and canvas memories are already loaded into the system prompt at the beginning of the session as a frozen snapshot. Use this tool to read or modify them so changes stay persisted for future sessions.",
     inputSchema: z.object({
-      explanation: z
-        .string()
-        .describe("3-5 words explaining the research intent."),
+      explanation: EXPLANATION_FIELD,
       action: z.enum(["add", "remove", "replace", "read"]),
       target: z.enum(["user", "canvas"]),
       content: z.string().optional().describe("Required for add and replace."),

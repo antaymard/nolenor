@@ -10,7 +10,12 @@ import {
   parseStoredPlateDocument,
   stringifyPlateDocumentForStorage,
 } from "../../lib/plateDocumentStorage";
-import { toolError, countExactMatches, type ToolConfig } from "./toolHelpers";
+import {
+  EXPLANATION_FIELD,
+  toolError,
+  countExactMatches,
+  type ToolConfig,
+} from "./toolHelpers";
 
 // Tool compaction config
 export const documentStringReplaceContentToolConfig: ToolConfig = {
@@ -52,7 +57,7 @@ export default function documentStringReplaceContentTool({
         .describe(
           "The replacement string to paste in place of old_string. Can be empty if you just want to delete the old_string. Use markdown formatting.",
         ),
-      explanation: z.string().describe("3-5 words explaining the edit intent."),
+      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

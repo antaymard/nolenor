@@ -17,7 +17,7 @@ import {
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 const PDF_HINTS = {
   toc: "Call read_nodes with pdfPages=[{nodeId, pages:[…]}] to read full markdown of specific pages.",
@@ -386,6 +386,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
       `For table nodes, by default returns the first ${TABLE_DEFAULT_ROW_LIMIT} rows along with column definitions (incl. select options and node references). ` +
       "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after full_text_search to read matched rows).",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeIds: z
         .array(z.string())
         .min(1)

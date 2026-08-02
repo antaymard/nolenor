@@ -10,7 +10,12 @@ import {
   parseStoredPlateDocument,
   stringifyPlateDocumentForStorage,
 } from "../../lib/plateDocumentStorage";
-import { toolError, countExactMatches, type ToolConfig } from "./toolHelpers";
+import {
+  EXPLANATION_FIELD,
+  toolError,
+  countExactMatches,
+  type ToolConfig,
+} from "./toolHelpers";
 
 // Tool compaction config
 export const documentInsertContentToolConfig: ToolConfig = {
@@ -55,7 +60,7 @@ export default function documentInsertContentTool({
       content: z
         .string()
         .describe("The content to insert. Use markdown formatting."),
-      explanation: z.string().describe("3-5 words explaining the edit intent."),
+      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

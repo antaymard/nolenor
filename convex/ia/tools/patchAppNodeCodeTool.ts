@@ -2,7 +2,12 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
-import { toolError, countExactMatches, type ToolConfig } from "./toolHelpers";
+import {
+  EXPLANATION_FIELD,
+  toolError,
+  countExactMatches,
+  type ToolConfig,
+} from "./toolHelpers";
 
 export const patchAppNodeCodeToolConfig: ToolConfig = {
   name: "patch_app_node_code",
@@ -246,7 +251,7 @@ export default function patchAppNodeCodeTool({
         .describe(
           "The patch payload, wrapped in `*** Begin Patch` / `*** End Patch`, with one or more `@@` hunks. See tool description for the exact format.",
         ),
-      explanation: z.string().describe("3-5 words explaining the edit intent."),
+      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

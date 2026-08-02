@@ -1,7 +1,7 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { ConvexError } from "convex/values";
-import { type ToolConfig } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig } from "./toolHelpers";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
 import { type Id } from "../../_generated/dataModel";
@@ -62,9 +62,7 @@ export default function runSubAgent({ threadCtx }: { threadCtx: ThreadCtx }) {
 
     On failure this tool returns { success: false, errorKind, message, guidance }. errorKind tells you what happened: "invalid_arguments" (fix your input), "access_denied" (pick another canvasId or omit it), "worker_execution" (the worker ran but failed — retryable), "infrastructure" (transient backend error — retry shortly).`,
     inputSchema: z.object({
-      explanation: z
-        .string()
-        .describe("3-5 words explaining the research intent."),
+      explanation: EXPLANATION_FIELD,
       instructions: z.string().describe("Instructions for the subtask to run."),
       canvasId: z.optional(
         z

@@ -1,4 +1,6 @@
-import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
+import prebuiltNodesConfig, {
+  canNodeTypeBeCreated,
+} from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -171,6 +173,7 @@ export default function NodeContextMenu({
       },
     },
     {
+      hidden: !canNodeTypeBeCreated(xyNode.type),
       label: "Duplicate",
       icon: TbCopyPlus,
       onClick: () => {

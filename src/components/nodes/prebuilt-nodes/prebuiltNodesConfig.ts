@@ -23,6 +23,7 @@ type NodeUiConfigItem = {
   nodeComponent: React.ComponentType<any>;
   nodeIcon: IconType;
   canBeOpenInWindow: boolean;
+  creatable: boolean;
 };
 
 type PrebuiltNodeConfig = NodeDataConfigItem &
@@ -33,62 +34,78 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeComponent: TitleNode,
     nodeIcon: NODE_TYPE_ICON_MAP.title,
     canBeOpenInWindow: false,
+    creatable: true,
   },
   link: {
     nodeComponent: LinkNode,
     nodeIcon: NODE_TYPE_ICON_MAP.link,
     canBeOpenInWindow: false,
+    creatable: true,
   },
   image: {
     nodeComponent: ImageNode,
     nodeIcon: NODE_TYPE_ICON_MAP.image,
     canBeOpenInWindow: true,
+    creatable: true,
   },
+  // "document" (Plate.js) is being migrated to "blocknote" (BlockNote).
+  // Creation of new document nodes is blocked; existing ones keep working
+  // unchanged (display, edit, open in window, etc). Mirrors the agent-side
+  // block in convex/ia/tools/createNodeTool.ts.
   document: {
     nodeComponent: DocumentNode,
     nodeIcon: NODE_TYPE_ICON_MAP.document,
     canBeOpenInWindow: true,
+    creatable: false,
   },
   blocknote: {
     nodeComponent: BlocknoteNode,
     nodeIcon: NODE_TYPE_ICON_MAP.blocknote,
     canBeOpenInWindow: true,
+    creatable: true,
   },
   value: {
     nodeComponent: ValueNode,
     nodeIcon: NODE_TYPE_ICON_MAP.value,
     canBeOpenInWindow: false,
+    creatable: true,
   },
   embed: {
     nodeComponent: EmbedNode,
     nodeIcon: NODE_TYPE_ICON_MAP.embed,
     canBeOpenInWindow: true,
+    creatable: true,
   },
   pdf: {
     nodeComponent: PdfNode,
     nodeIcon: NODE_TYPE_ICON_MAP.pdf,
     canBeOpenInWindow: true,
+    creatable: true,
   },
   // fetch is frontend-only (not yet implemented as a backend node type)
   fetch: {
     nodeComponent: FetchNode,
     nodeIcon: NODE_TYPE_ICON_MAP.fetch,
     canBeOpenInWindow: false,
+    creatable: true,
   },
   table: {
     nodeComponent: TableNode,
     nodeIcon: NODE_TYPE_ICON_MAP.table,
     canBeOpenInWindow: true,
+    creatable: true,
   },
   app: {
     nodeComponent: AppNode,
     nodeIcon: NODE_TYPE_ICON_MAP.app,
     canBeOpenInWindow: true,
+    creatable: true,
   },
   audio: {
     nodeComponent: AudioNode,
     nodeIcon: NODE_TYPE_ICON_MAP.audio,
     canBeOpenInWindow: false,
+    creatable: true,
   },
 };
 
@@ -131,6 +148,29 @@ function canNodeTypeBeOpenedInWindow(
   return nodeType ? openableNodeTypes.has(nodeType as NodeType) : false;
 }
 
+const creatableNodeTypes = new Set<NodeType>(
+  prebuiltNodesConfig
+    .filter((config) => config.creatable)
+    .map((config) => config.type),
+);
+
+/**
+ * Checks if a node type can be created via the manual creation UI
+ * (Add a block menu, duplication, etc). "document" is excluded here as it
+ * is being deprecated in favor of "blocknote" — existing document nodes
+ * are unaffected, only new creation is blocked.
+ */
+function canNodeTypeBeCreated(
+  nodeType: string | undefined,
+): nodeType is NodeType {
+  return nodeType ? creatableNodeTypes.has(nodeType as NodeType) : false;
+}
+
 export default prebuiltNodesConfig;
-export { openableNodeTypes, canNodeTypeBeOpenedInWindow };
+export {
+  openableNodeTypes,
+  canNodeTypeBeOpenedInWindow,
+  creatableNodeTypes,
+  canNodeTypeBeCreated,
+};
 export type { PrebuiltNodeConfig };

@@ -77,6 +77,16 @@ export default function EditableSurface({
       return;
     }
 
+    // Dépôt sur l'espace propre de la RACINE — la bande de `gap` entre deux
+    // enfants, ou son padding. Elle reste une cible de collision (en booléen,
+    // le `disabled` de useSortable ne coupe que le draggable), mais n'ayant pas
+    // de parent elle tombait sur le `return` ci-dessous : le geste ne produisait
+    // rien du tout, sans le moindre retour. On ajoute à la fin.
+    if (overId === tree.id) {
+      onChangeTree(moveLayoutNode(tree, activeId, tree.id, undefined));
+      return;
+    }
+
     const overParentId = findParentId(tree, overId);
     if (!overParentId) return;
     const overParent = findLayoutNode(tree, overParentId) as LayoutContainer;

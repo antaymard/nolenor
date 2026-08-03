@@ -7,10 +7,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type {
-  LayoutContainer,
-  LayoutFieldPlacement,
-} from "@/../convex/config/templateConfig";
+import type { LayoutContainer } from "@/../convex/config/templateConfig";
 
 // Couche d'édition de LayoutRenderer : sélection, survol et dnd posés sur le
 // rendu RÉEL du layout. Compagnon du renderer, pas un second renderer — les
@@ -59,8 +56,22 @@ function selectionStyle(
   return {};
 }
 
-function useEditableNode(nodeId: string, editor: LayoutEditor, draggable: boolean) {
-  const sortable = useSortable({ id: nodeId, disabled: !draggable });
+// `disabled` en FORME OBJET et non en booléen. Un booléen ne désactive que le
+// draggable : normalizeLocalDisabled (@dnd-kit/sortable) force explicitement
+// `droppable: false` par compatibilité ascendante. Or c'est justement le
+// droppable qu'on doit pouvoir couper — cf. EditableContainer.
+type NodeAbility = { draggable: boolean; droppable: boolean };
+
+function useEditableNode(
+  nodeId: string,
+  editor: LayoutEditor,
+  ability: NodeAbility,
+) {
+  const draggable = ability.draggable;
+  const sortable = useSortable({
+    id: nodeId,
+    disabled: { draggable: !ability.draggable, droppable: !ability.droppable },
+  });
 
   const handlers = {
     onClick: (e: React.MouseEvent) => {
@@ -87,27 +98,33 @@ function useEditableNode(nodeId: string, editor: LayoutEditor, draggable: boolea
   return { sortable, handlers, dragStyle };
 }
 
+// Enrobage sélectionnable/draggable d'une FEUILLE de l'arbre — placement de
+// champ, divider ou texte statique. Prend un id et non un nœud : ces trois
+// kinds n'ont rien en commun sinon d'être des feuilles, et l'éditeur n'a
+// besoin que de l'identité.
 function EditablePlacement({
-  placement,
+  nodeId,
   editor,
   style,
+  className,
   children,
 }: {
-  placement: LayoutFieldPlacement;
+  nodeId: string;
   editor: LayoutEditor;
   style: CSSProperties;
+  className?: string;
   children: ReactNode;
 }) {
-  const { sortable, handlers, dragStyle } = useEditableNode(
-    placement.id,
-    editor,
-    true,
-  );
+  const { sortable, handlers, dragStyle } = useEditableNode(nodeId, editor, {
+    draggable: true,
+    droppable: true,
+  });
 
   return (
     <div
       ref={sortable.setNodeRef}
-      style={{ ...style, ...dragStyle, ...selectionStyle(editor, placement.id) }}
+      className={className}
+      style={{ ...style, ...dragStyle, ...selectionStyle(editor, nodeId) }}
       {...sortable.attributes}
       {...sortable.listeners}
       {...handlers}
@@ -134,7 +151,23 @@ function EditableContainer({
   const { sortable, handlers, dragStyle } = useEditableNode(
     container.id,
     editor,
-    !isRoot,
+    {
+      draggable: !isRoot,
+      // Un container VIDE ne doit pas se disputer sa propre cible de dépôt.
+      // Ses deux droppables — celui du sortable et le `into:` ci-dessous —
+      // vivent sur le MÊME élément, donc partagent le même rectangle :
+      // pointerWithin les départage par la distance aux coins, identique, et
+      // le tri stable laisse gagner celui enregistré en premier — le sortable.
+      // `over` valait donc l'id du container, jamais `into:`, et handleDragEnd
+      // déposait l'élément à CÔTÉ du container au lieu de le mettre dedans.
+      // Le liseré violet ne s'allumait pas davantage, `isOver` venant de
+      // `into:`. Couper ce droppable-ci laisse `into:` gagner sans concurrence.
+      //
+      // Ce qu'on perd est ce qu'on veut perdre : on ne dépose pas À CÔTÉ d'un
+      // container vide, on dépose DEDANS. Il reste déplaçable, et se réordonne
+      // en le lâchant sur un frère.
+      droppable: !isEmpty,
+    },
   );
   // `disabled` plutôt qu'un hook conditionnel : le droppable reste enregistré
   // mais sans rect, donc invisible à la détection de collision.

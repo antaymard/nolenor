@@ -11,6 +11,8 @@ import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useTemplate } from "@/stores/templatesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
+import { colors } from "@/components/ui/styles";
+import type { colorsEnum } from "@/types/domain";
 import { useWindowsStore } from "@/stores/windowsStore";
 
 // Node custom : rend le nodeLayout de son template. Le template est résolu
@@ -68,6 +70,9 @@ function CustomNode(xyNode: Node) {
             fields={template.fields}
             values={values ?? {}}
             surface="node"
+            // Les dividers suivent la couleur du node, et la suivent quand
+            // elle change : la classe vient de la même palette que le cadre.
+            dividerClassName={colors[(xyNode.data?.color as colorsEnum) || "default"].nodeBorder}
             onCommitField={isReadOnly ? undefined : handleCommitField}
             onEscalateField={isReadOnly ? undefined : handleEscalate}
           />

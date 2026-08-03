@@ -1,7 +1,5 @@
 import { useMemo, useState } from "react";
 import { TbChevronRight } from "react-icons/tb";
-import nodeColors from "@/components/nodes/nodeColors";
-import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
@@ -13,11 +11,16 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
-import type { LayoutContainer } from "@/../convex/config/templateConfig";
+import type {
+  LayoutContainer,
+  LayoutNode,
+} from "@/../convex/config/templateConfig";
+import LayoutAddButtons from "./LayoutAddButtons";
 import EditableSurface from "./EditableSurface";
 import {
   findLayoutNode,
   getAncestorPath,
+  layoutNodeLabel,
   type LayoutSelection,
   type LayoutSurface,
   type TemplateDraft,
@@ -67,6 +70,14 @@ type TemplatePreviewProps = {
     patch: Partial<TemplateDraft["defaultDimensions"]>,
   ) => void;
   onToggleWindow: (enabled: boolean) => void;
+  // `atRoot` doit figurer ICI : sans lui, TypeScript accepte silencieusement
+  // le passage à `onAdd` (une fonction à moins de paramètres est assignable),
+  // et la sortie de secours du menu ne serait plus vérifiée par le compilateur.
+  onAddNode: (
+    surface: LayoutSurface,
+    node: LayoutNode,
+    atRoot?: boolean,
+  ) => void;
 };
 
 // Chemin des ancêtres de la sélection, au-dessus de l'aperçu qu'il décrit.
@@ -88,11 +99,7 @@ function Breadcrumb({
 
   const labelFor = (id: string) => {
     const found = findLayoutNode(tree, id);
-    if (!found) return "?";
-    if (found.kind === "container") {
-      return found.direction === "row" ? "Row" : "Column";
-    }
-    return fields.find((f) => f.id === found.fieldId)?.name ?? "Unknown field";
+    return found ? layoutNodeLabel(found, fields) : "?";
   };
 
   return (
@@ -129,6 +136,7 @@ export default function TemplatePreview({
   onHover,
   onChangeDimensions,
   onToggleWindow,
+  onAddNode,
 }: TemplatePreviewProps) {
   const [sampleKind, setSampleKind] = useState<FieldSampleKind>("filled");
   const [zoom, setZoom] = useState(1);
@@ -138,7 +146,6 @@ export default function TemplatePreview({
     [draft.fields, sampleKind],
   );
 
-  const color = nodeColors[(draft.color as colorsEnum) ?? "default"];
   const Icon = getTemplateIcon(draft.icon);
 
   const selectedIdFor = (surface: LayoutSurface) =>
@@ -248,27 +255,42 @@ export default function TemplatePreview({
         )}
 
         <div className="flex justify-center p-6">
-          <div
-            className={cn(
-              "overflow-hidden rounded-md border bg-white border-slate-200",
-            )}
-            style={{
-              width: draft.defaultDimensions.width,
-              minHeight: draft.defaultDimensions.height,
-              zoom,
-            }}
-          >
-            <EditableSurface
-              tree={draft.nodeLayout}
-              fields={draft.fields}
-              values={values}
-              surface="node"
-              selectedId={selectedIdFor("node")}
-              onSelect={(nodeId) => onSelect("node", nodeId)}
-              onChangeTree={(tree) => onChangeTree("node", tree)}
-              hoveredId={hoveredId}
-              onHover={onHover}
-            />
+          {/* `relative` sur un conteneur au plus près de l'aperçu : le « + »
+              est posé en absolu contre son bord droit, donc il ne participe
+              pas au centrage et l'aperçu ne se décale pas d'un pixel quand il
+              apparaît ou disparaît. */}
+          <div className="relative">
+            <div
+              className={cn(
+                "overflow-hidden rounded-md border bg-white border-slate-200",
+              )}
+              style={{
+                width: draft.defaultDimensions.width,
+                minHeight: draft.defaultDimensions.height,
+                zoom,
+              }}
+            >
+              <EditableSurface
+                tree={draft.nodeLayout}
+                fields={draft.fields}
+                values={values}
+                surface="node"
+                selectedId={selectedIdFor("node")}
+                onSelect={(nodeId) => onSelect("node", nodeId)}
+                onChangeTree={(tree) => onChangeTree("node", tree)}
+                hoveredId={hoveredId}
+                onHover={onHover}
+              />
+            </div>
+            <div className="absolute left-full top-0 ml-2">
+              <LayoutAddButtons
+                surface="node"
+                tree={draft.nodeLayout}
+                fields={draft.fields}
+                selectedId={selectedIdFor("node")}
+                onAdd={onAddNode}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -301,26 +323,37 @@ export default function TemplatePreview({
         )}
 
         {draft.windowLayout ? (
-          <div
-            className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md w-4/5 mx-auto mt-5"
-            style={{ zoom }}
-          >
-            <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
-              <Icon size={14} className="text-gray-500" />
-              <span className="truncate text-sm font-medium">{draft.name}</span>
-            </div>
-            <div className="min-h-24">
-              <EditableSurface
+          <div className="relative mx-auto mt-5 w-4/5">
+            <div className="absolute left-full top-0 ml-2">
+              <LayoutAddButtons
+                surface="window"
                 tree={draft.windowLayout}
                 fields={draft.fields}
-                values={values}
-                surface="window"
                 selectedId={selectedIdFor("window")}
-                onSelect={(nodeId) => onSelect("window", nodeId)}
-                onChangeTree={(tree) => onChangeTree("window", tree)}
-                hoveredId={hoveredId}
-                onHover={onHover}
+                onAdd={onAddNode}
               />
+            </div>
+            <div
+              className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
+              style={{ zoom }}
+            >
+              <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+                <Icon size={14} className="text-gray-500" />
+                <span className="truncate text-sm font-medium">{draft.name}</span>
+              </div>
+              <div className="min-h-24">
+                <EditableSurface
+                  tree={draft.windowLayout}
+                  fields={draft.fields}
+                  values={values}
+                  surface="window"
+                  selectedId={selectedIdFor("window")}
+                  onSelect={(nodeId) => onSelect("window", nodeId)}
+                  onChangeTree={(tree) => onChangeTree("window", tree)}
+                  hoveredId={hoveredId}
+                  onHover={onHover}
+                />
+              </div>
             </div>
           </div>
         ) : (

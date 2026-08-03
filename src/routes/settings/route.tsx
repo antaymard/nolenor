@@ -70,6 +70,11 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
         route: "/settings/",
       },
       {
+        label: "Export my data",
+        icon: "settings",
+        route: "/settings/export",
+      },
+      {
         label: "Sign out",
         icon: "logout",
         action: "logout",

@@ -20,6 +20,7 @@ import type * as config_nodeConfig from "../config/nodeConfig.js";
 import type * as config_optionDescriptors from "../config/optionDescriptors.js";
 import type * as config_templateConfig from "../config/templateConfig.js";
 import type * as crons from "../crons.js";
+import type * as dataExport from "../dataExport.js";
 import type * as hotposts from "../hotposts.js";
 import type * as http from "../http.js";
 import type * as ia_agentConfig from "../ia/agentConfig.js";
@@ -172,6 +173,7 @@ declare const fullApi: ApiFromModules<{
   "config/optionDescriptors": typeof config_optionDescriptors;
   "config/templateConfig": typeof config_templateConfig;
   crons: typeof crons;
+  dataExport: typeof dataExport;
   hotposts: typeof hotposts;
   http: typeof http;
   "ia/agentConfig": typeof ia_agentConfig;

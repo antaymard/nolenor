@@ -1,6 +1,6 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
 
@@ -21,7 +21,7 @@ export default function listUserCanvasesTool({
 }) {
   return createTool({
     description: `Use this to list all canvases created by the user. This will return a list of canvas IDs, with their titles and descriptions. Use this canvasIDs to run SubAgents on other canvases, as you cannot go beyond the current canvas yourself.`,
-    inputSchema: z.object(),
+    inputSchema: z.object({ explanation: EXPLANATION_FIELD }),
     execute: async (ctx) => {
       try {
         // For now, only list canvases whose creator is the user (not shared canvases)

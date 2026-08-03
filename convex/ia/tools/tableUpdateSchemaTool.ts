@@ -3,7 +3,7 @@ import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
 import { generateLlmId } from "../../lib/llmId";
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 // Tool compaction config
 export const tableUpdateSchemaToolConfig: ToolConfig = {
@@ -368,7 +368,7 @@ export default function tableUpdateSchemaTool({
             .describe("For delete_column: column id(s) or name(s) to delete."),
         })
         .describe("Operation payload."),
-      explanation: z.string().describe("3-5 words explaining the edit intent."),
+      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

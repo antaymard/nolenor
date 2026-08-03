@@ -13,6 +13,7 @@ import {
   nodeTypeZodValidator,
 } from "../../config/nodeConfig";
 import {
+  EXPLANATION_FIELD,
   getClosestHandlesForDirectedEdge,
   type NodeRect,
   type ToolConfig,
@@ -167,9 +168,7 @@ export default function createNodeTool({
         .describe(
           'Required when nodeType is "custom": the node template id (see <user_node_templates>). Ignored otherwise.',
         ),
-      explanation: z
-        .string()
-        .describe("3-5 words explaining the research intent."),
+      explanation: EXPLANATION_FIELD,
       position: z
         .object({
           x: z.number(),

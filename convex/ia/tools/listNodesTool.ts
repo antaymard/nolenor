@@ -6,7 +6,7 @@ import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { escapeXmlAttribute } from "../../lib/xml";
-import { toolError, type ToolConfig } from "./toolHelpers";
+import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
 
 export const listNodesToolConfig: ToolConfig = {
   name: "list_nodes",
@@ -27,9 +27,7 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
     description:
       "A tool to list and filter nodes from the current canvas. Returns a compact list of nodes (id, type, title, position) without their full content. Use read_nodes to get the full content of specific nodes after identifying them with this tool. All filters are combined with AND logic — call the tool multiple times to simulate OR. Results are capped at 20 nodes; if truncated, refine your filters to narrow down.",
     inputSchema: z.object({
-      explanation: z
-        .string()
-        .describe("3-5 words explaining the research intent."),
+      explanation: EXPLANATION_FIELD,
       nodeTypes: z
         .array(z.string())
         .optional()

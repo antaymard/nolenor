@@ -2,7 +2,7 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import Parallel from "parallel-web";
 
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames } from "../agentConfig";
 
 export const openWebPageToolConfig: ToolConfig = {
@@ -23,9 +23,7 @@ export const openWebPageTool = createTool({
   description:
     "Convert any public URL into clean, LLM-optimized markdown. It converts any public URL into clean markdown, including JavaScript-heavy pages and PDFs. It returns focused excerpts aligned to the objective, or full page content if requested.",
   inputSchema: z.object({
-    explanation: z
-      .string()
-      .describe("3-5 words explaining the research intent."),
+    explanation: EXPLANATION_FIELD,
     urls: z
       .array(z.string())
       .describe(

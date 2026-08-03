@@ -93,6 +93,44 @@ export function getCustomSlashMenuItems(
     .map((entry) => entry.slashMenuItem!(editor));
 }
 
+/**
+ * Stably groups suggestion items by `group` so concatenating multiple sources
+ * (BlockNote's own defaults + our custom entries above) never produces two
+ * separate, non-contiguous runs of the same group name.
+ *
+ * BlockNote's `SuggestionMenu` renders one `<Label key={group}>` every time an
+ * item's group differs from the previous item's. Our custom items reuse
+ * default group names ("Basic blocks" for callout, "Others" for date) — since
+ * they're appended after the full default list, they reopen groups that had
+ * already closed, so React sees two `<Label>` elements sharing the same key
+ * ("Encountered two children with the same key"). That's undefined
+ * reconciliation behavior, and exactly what produced blank-looking section
+ * headers in the slash menu once the list got filtered down. Grouping the
+ * combined list before filtering — not after; filtering only removes items,
+ * it never reorders, so contiguity survives it — fixes it for any custom item
+ * regardless of which existing group name it picks.
+ *
+ * Preserves the order groups first appear in, and each item's relative order
+ * within its group.
+ */
+export function groupSuggestionItems<T extends { group?: string }>(
+  items: T[],
+): T[] {
+  const order: string[] = [];
+  const byGroup = new Map<string, T[]>();
+  for (const item of items) {
+    const key = item.group ?? "";
+    let bucket = byGroup.get(key);
+    if (!bucket) {
+      bucket = [];
+      byGroup.set(key, bucket);
+      order.push(key);
+    }
+    bucket.push(item);
+  }
+  return order.flatMap((key) => byGroup.get(key)!);
+}
+
 // Built once at module load: the view lookups run for every block and every
 // inline node of every canvas preview, so they should not scan the arrays.
 const blockViewsByType = new Map(customBlocks.map((e) => [e.type, e.View]));

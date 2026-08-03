@@ -1,7 +1,7 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { toolAgentNames } from "../agentConfig";
-import { type ToolConfig } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig } from "./toolHelpers";
 
 export const viewImageToolConfig: ToolConfig = {
   name: "view_image",
@@ -21,9 +21,7 @@ type ViewImageOutput =
 export const viewImageTool = createTool({
   description: "See an image from an URL (not a nodeId).",
   inputSchema: z.object({
-    explanation: z
-      .string()
-      .describe("3-5 words explaining the research intent."),
+    explanation: EXPLANATION_FIELD,
     url: z.string().describe("The URL of the image to fetch and view."),
   }),
   execute: async (_ctx, input): Promise<ViewImageOutput> => {

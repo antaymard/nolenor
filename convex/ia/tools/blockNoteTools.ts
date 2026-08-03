@@ -20,7 +20,7 @@ import { toolAgentNames, type ThreadCtx, type ToolAgentName } from "../agentConf
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { parseBlockNoteXml } from "../helpers/blockNoteMarkdown";
-import { toolError, type ToolConfig } from "./toolHelpers";
+import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
 
 type AgentTool = ToolSet[string];
 
@@ -34,10 +34,6 @@ const BLOCKNOTE_AGENTS = [
 const NODE_ID_FIELD = z
   .string()
   .describe("The blocknote node id in the current canvas.");
-
-const EXPLANATION_FIELD = z
-  .string()
-  .describe("3-5 words explaining the edit intent.");
 
 const BLOCK_ID_FIELD = (what: string) =>
   z.string().describe(`The id of the block ${what} (as seen in read_nodes output).`);

@@ -4,7 +4,7 @@ import { internal } from "../../_generated/api";
 import { type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { type ThreadCtx, toolAgentNames } from "../agentConfig";
-import { type ToolConfig } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig } from "./toolHelpers";
 
 export const fullTextSearchToolConfig: ToolConfig = {
   name: "full_text_search",
@@ -118,9 +118,7 @@ export default function fullTextSearchTool({
     description:
       "Search exact tokens in the current canvas using full-text indexed chunks, every node type is searchable (pdf inclduded). Use this for precise lookup (names, acronyms, reference IDs, rare words). Returns compact snippets and metadata to quickly decide what to read next.",
     inputSchema: z.object({
-      explanation: z
-        .string()
-        .describe("3-5 words explaining the research intent."),
+      explanation: EXPLANATION_FIELD,
       query: z
         .string()
         .describe("The exact token or short phrase to search for."),

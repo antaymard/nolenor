@@ -211,6 +211,45 @@ function generateUniqueBlockId(existing: Set<string>): string {
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
+// Custom inline content types the frontend schema declares (see
+// src/components/blocknote/registry.tsx `customInlineContentSpecs`). Duplicated
+// here rather than imported so this module stays free of any React/BlockNote
+// dependency — keep in sync with the registry when adding a new inline type.
+const CUSTOM_INLINE_CONTENT_TYPES = ["date"] as const;
+
+// The only inline leaf types BlockNote's real schema can ever produce: "text"
+// and "link" (@blocknote/core's `defaultInlineContentSpecs`) plus the app's
+// custom inline content above. A node with any other `type` — most notably a
+// block object like `{type: "paragraph", content: [...]}` smuggled into a
+// table cell's content array — can never come out of a real editor, and
+// building one into the document is exactly what makes
+// `BlockNoteEditor.create()` crash downstream (see safeCreateEditor.ts /
+// BlocknoteWindow.tsx for the client-side backstop, and this function for
+// where it should be rejected before it is ever persisted).
+const KNOWN_INLINE_TYPES = new Set<string>([
+  "text",
+  "link",
+  ...CUSTOM_INLINE_CONTENT_TYPES,
+]);
+
+function validateTextLeaf(n: Record<string, unknown>, p: Path): void {
+  if (typeof n.text !== "string") {
+    throw new InvalidBlockNoteDocumentError(
+      `Invalid text node at ${describePath(p)}: missing or non-string "text".`,
+    );
+  }
+  if (n.styles !== undefined && !isPlainObj(n.styles)) {
+    throw new InvalidBlockNoteDocumentError(
+      `Invalid text node at ${describePath(p)}: "styles" must be an object.`,
+    );
+  }
+  if (n.content !== undefined) {
+    throw new InvalidBlockNoteDocumentError(
+      `Invalid text node at ${describePath(p)}: a text leaf cannot have "content".`,
+    );
+  }
+}
+
 function validateInlineContent(content: unknown, path: Path): void {
   if (typeof content === "string") return;
 
@@ -237,14 +276,132 @@ function validateInlineContent(content: unknown, path: Path): void {
         `Invalid inline node at ${describePath(p)}: missing or empty "type" string.`,
       );
     }
+    if (!KNOWN_INLINE_TYPES.has(n.type)) {
+      throw new InvalidBlockNoteDocumentError(
+        `Invalid inline node at ${describePath(p)}: unknown inline type "${n.type}". A block cannot appear as inline content. Expected one of: ${[...KNOWN_INLINE_TYPES].join(", ")}.`,
+      );
+    }
+    if (n.type === "text") {
+      validateTextLeaf(n, p);
+      continue;
+    }
+    if (n.type === "link") {
+      if (typeof n.href !== "string") {
+        throw new InvalidBlockNoteDocumentError(
+          `Invalid link node at ${describePath(p)}: missing or non-string "href".`,
+        );
+      }
+      if (!Array.isArray(n.content)) {
+        throw new InvalidBlockNoteDocumentError(
+          `Invalid link node at ${describePath(p)}: "content" must be an array of text nodes.`,
+        );
+      }
+      const cp = childPath(p, "content");
+      for (let j = 0; j < n.content.length; j++) {
+        const c = n.content[j];
+        const jp = childPath(cp, j);
+        // A link's content can only ever be styled text — never another
+        // link or a custom inline atom (BlockNote's own type,
+        // `Link<T> = { content: StyledText<T>[] }`, does not allow it).
+        if (!isPlainObj(c) || (c as Record<string, unknown>).type !== "text") {
+          throw new InvalidBlockNoteDocumentError(
+            `Invalid link content at ${describePath(jp)}: a link can only contain text nodes.`,
+          );
+        }
+        validateTextLeaf(c as Record<string, unknown>, jp);
+      }
+      continue;
+    }
+    // Custom inline atom (e.g. "date"): props-only, no nested content.
     if (n.content !== undefined) {
-      validateInlineContent(n.content, childPath(p, "content"));
+      throw new InvalidBlockNoteDocumentError(
+        `Invalid inline node at ${describePath(p)}: type "${n.type}" cannot have "content".`,
+      );
+    }
+    if (n.props !== undefined && !isPlainObj(n.props)) {
+      throw new InvalidBlockNoteDocumentError(
+        `Invalid inline node at ${describePath(p)}: "props" must be an object.`,
+      );
     }
   }
 }
 
 function isTableCell(cell: unknown): cell is BlockNoteTableCell {
   return isPlainObj(cell) && (cell as Record<string, unknown>).type === "tableCell";
+}
+
+/** colspan/rowspan default to 1; only a structured `tableCell` can override them. */
+function getCellSpan(cell: unknown, key: "colspan" | "rowspan"): number {
+  if (!isTableCell(cell)) return 1;
+  const value = (cell.props as Record<string, unknown> | undefined)?.[key];
+  return typeof value === "number" && value >= 1 ? value : 1;
+}
+
+/**
+ * Replica of `@blocknote/core`'s `getTableCellOccupancyGrid`
+ * (api/blockManipulation/tables/tables.ts) — not imported because that module
+ * isn't part of the package's public export surface. `tableContentToNodes`
+ * (api/nodeConversions/blockToNode.ts) runs this exact algorithm on every cell
+ * during `BlockNoteEditor.create()`, and throws if it finds an overlap or an
+ * overflow — so this check accepts exactly the tables a real editor accepts
+ * (including legitimate colspan/rowspan, where a spanned-over row has fewer
+ * `cells` entries than the table's width) and rejects exactly what would
+ * otherwise crash construction downstream.
+ */
+function validateTableOccupancy(
+  rows: Array<{ cells: unknown[] }>,
+  path: Path,
+): void {
+  const height = rows.length;
+  let width = 0;
+  for (const row of rows) {
+    let rowWidth = 0;
+    for (const cell of row.cells) rowWidth += getCellSpan(cell, "colspan");
+    width = Math.max(width, rowWidth);
+  }
+  if (height === 0 || width === 0) return;
+
+  const grid: boolean[][] = Array.from({ length: height }, () =>
+    new Array(width).fill(false),
+  );
+
+  const findNextAvailable = (row: number, col: number): { row: number; col: number } => {
+    for (let i = row; i < height; i++) {
+      for (let j = col; j < width; j++) {
+        if (!grid[i][j]) return { row: i, col: j };
+      }
+    }
+    throw new InvalidBlockNoteDocumentError(
+      `Invalid table at ${describePath(path)}: more cells than the table's computed grid has room for.`,
+    );
+  };
+
+  for (let r = 0; r < rows.length; r++) {
+    let searchCol = 0;
+    for (let ci = 0; ci < rows[r].cells.length; ci++) {
+      const cell = rows[r].cells[ci];
+      const rowspan = getCellSpan(cell, "rowspan");
+      const colspan = getCellSpan(cell, "colspan");
+      const { row: startRow, col: startCol } = findNextAvailable(r, searchCol);
+
+      if (startRow + rowspan > height || startCol + colspan > width) {
+        throw new InvalidBlockNoteDocumentError(
+          `Invalid table at ${describePath(childPath(path, "rows", r, "cells", ci))}: rowspan/colspan overflows the table's bounds.`,
+        );
+      }
+      for (let i = startRow; i < startRow + rowspan; i++) {
+        for (let j = startCol; j < startCol + colspan; j++) {
+          if (grid[i][j]) {
+            throw new InvalidBlockNoteDocumentError(
+              `Invalid table at ${describePath(childPath(path, "rows", r, "cells", ci))}: cells overlap at row ${i}, column ${j}.`,
+            );
+          }
+          grid[i][j] = true;
+        }
+      }
+      searchCol = startCol + colspan;
+    }
+  }
 }
 
 function validateTableContent(content: unknown, path: Path): void {
@@ -264,6 +421,7 @@ function validateTableContent(content: unknown, path: Path): void {
       `Invalid table content at ${describePath(path)}: "rows" must be an array.`,
     );
   }
+  const rowsForOccupancy: Array<{ cells: unknown[] }> = [];
   for (let r = 0; r < c.rows.length; r++) {
     const row = c.rows[r];
     const rp = childPath(path, "rows", r);
@@ -278,6 +436,7 @@ function validateTableContent(content: unknown, path: Path): void {
         `Invalid table row at ${describePath(rp)}: "cells" must be an array.`,
       );
     }
+    rowsForOccupancy.push({ cells });
     for (let ci = 0; ci < cells.length; ci++) {
       const cell = cells[ci];
       const cp = childPath(rp, "cells", ci);
@@ -304,6 +463,7 @@ function validateTableContent(content: unknown, path: Path): void {
       }
     }
   }
+  validateTableOccupancy(rowsForOccupancy, path);
 }
 
 function validateContent(content: unknown, path: Path): void {

@@ -4,6 +4,7 @@ import { internal } from "../../_generated/api";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { generateLlmId } from "../../lib/llmId";
 import {
+  EXPLANATION_FIELD,
   getClosestHandlesForDirectedEdge,
   type NodeRect,
   type ToolConfig,
@@ -32,6 +33,7 @@ export default function createConnectionTool({
   return createTool({
     description: "Create a directed connection between two existing nodes.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       sourceNodeId: z
         .string()
         .describe("Source node ID in the current canvas."),

@@ -8,7 +8,7 @@ import {
   normalizeCellValueForColumn,
   type TableColumn,
 } from "../helpers/tableCellValidation";
-import { toolError, type ToolConfig } from "./toolHelpers";
+import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
 
 // Tool compaction config
 export const tableUpdateRowsToolConfig: ToolConfig = {
@@ -67,9 +67,9 @@ export default function tableUpdateRowsTool({
     inputSchema: z.object({
       nodeId: z.string().describe("The node ID in the current canvas."),
       values: valuesByRowIdSchema.describe(
-        'Row updates in this format: `{"rowId":{"columnId":value}}`. Example: `{"588P493x":{"description":"Contenu embarque"},"412Z233E":{"type":"Document","color":"Navy"}}`.',
+        'Row updates in this format: `{"rowId":{"columnId":value}}`. Example: `{"588P493x":{"description":"Embedded content"},"412Z233E":{"type":"Document","color":"Navy"}}`.',
       ),
-      explanation: z.string().describe("3-5 words explaining the edit intent."),
+      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(`🧮 Table rows update requested on node ${input.nodeId}`);

@@ -741,7 +741,27 @@ function parseTableElement(
           throw xmlError(`unexpected <${cell.tagName}> inside <row>.`);
         }
         const cellProps = parsePropsAttribute(cell.getAttribute("props"), "<cell>") ?? {};
-        const cellMd = (cell.textContent ?? "").trim();
+        // Walk childNodes explicitly rather than reading `cell.textContent`:
+        // that getter silently concatenates all descendant text regardless of
+        // intervening tags, so a stray element (e.g. an LLM writing a nested
+        // <blocks><block>...</block></blocks> wrapper instead of plain
+        // Markdown) would be laundered away instead of rejected. A cell's
+        // content is always plain Markdown text — the serializer (tableToXml)
+        // never emits element children inside <cell> — so any element here is
+        // malformed input, consistent with the discipline parseBlockElement
+        // already applies to <block>/<children>.
+        let cellMd = "";
+        for (const child of Array.from(cell.childNodes)) {
+          if (child.nodeType === 3 /* TEXT */) {
+            cellMd += child.textContent ?? "";
+            continue;
+          }
+          if (child.nodeType !== 1 /* ELEMENT */) continue;
+          throw xmlError(
+            `<cell> contains unexpected <${(child as Element).tagName}> element; cell content must be plain Markdown text, not nested elements.`,
+          );
+        }
+        cellMd = cellMd.trim();
         return {
           type: "tableCell",
           props: {

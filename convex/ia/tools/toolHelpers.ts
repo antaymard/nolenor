@@ -1,5 +1,12 @@
 // Shared helpers for tool error formatting and compaction logic
+import { z } from "zod";
 import type { ToolAgentName } from "../agentConfig";
+
+export const EXPLANATION_FIELD = z
+  .string()
+  .describe(
+    'Required. One first-person sentence stating what you are about to do with this call, e.g. "I will insert a new paragraph after the introduction."',
+  );
 
 export type NodeRect = {
   id: string;

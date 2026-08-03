@@ -9,7 +9,7 @@ import {
   normalizeCellValueForColumn,
   type TableColumn,
 } from "../helpers/tableCellValidation";
-import { type ToolConfig, toolError } from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 // Tool compaction config
 export const tableInsertRowsToolConfig: ToolConfig = {
@@ -73,9 +73,9 @@ export default function tableInsertRowsTool({
         .array(rowInputSchema)
         .min(1)
         .describe(
-          'Rows to insert as objects keyed by columnId. Example: `[{"description":"Contenu embarque"},{"type":"Document","color":"Navy"}]`.',
+          'Rows to insert as objects keyed by columnId. Example: `[{"description":"Embedded content"},{"type":"Document","color":"Navy"}]`.',
         ),
-      explanation: z.string().describe("3-5 words explaining the edit intent."),
+      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

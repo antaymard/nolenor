@@ -1,9 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import {
-  BlockNoteEditor,
-  filterSuggestionItems,
-  type PartialBlock,
-} from "@blocknote/core";
+import { filterSuggestionItems, type PartialBlock } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/shadcn";
 import {
   getDefaultReactSlashMenuItems,
@@ -15,11 +11,14 @@ import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
+import type { AppBlockNoteEditor } from "@/components/blocknote/schema";
 import {
-  blockNoteSchema,
-  type AppBlockNoteEditor,
-} from "@/components/blocknote/schema";
-import { getCustomSlashMenuItems } from "@/components/blocknote/registry";
+  getCustomSlashMenuItems,
+  groupSuggestionItems,
+} from "@/components/blocknote/registry";
+import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
+import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
@@ -81,16 +80,26 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   // Created with the initial server content so the first paint is correct. The
   // initial payload is recorded as already-hydrated so the re-hydration effect
   // below does NOT replace the blocks a second time on mount.
-  const [editor] = useState<AppBlockNoteEditor>(() => {
+  //
+  // `createSafeBlockNoteEditor` guards against a stored document that trips
+  // ProseMirror's schema (e.g. a malformed table) — see safeCreateEditor.ts.
+  // On failure it hands back a working *empty* editor instead of throwing, so
+  // `isCorrupted` gates both saving and edits behind an explicit user
+  // confirmation (CorruptedDocumentBanner below): the original content is
+  // dropped from the in-memory editor, but stays recoverable server-side
+  // until the user acknowledges losing it.
+  const [{ editor, isCorrupted }] = useState<{
+    editor: AppBlockNoteEditor;
+    isCorrupted: boolean;
+  }>(() => {
     const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
       | PartialBlock[]
       | null;
-    return BlockNoteEditor.create({
-      schema: blockNoteSchema,
-      initialContent:
-        parsedBlocks && parsedBlocks.length > 0 ? parsedBlocks : undefined,
-    });
+    const result = createSafeBlockNoteEditor(parsedBlocks);
+    return { editor: result.editor, isCorrupted: result.status !== "ok" };
   });
+  const [isCorruptionAcknowledged, setIsCorruptionAcknowledged] =
+    useState(!isCorrupted);
   const lastHydratedSignatureRef = useRef<string | null>(null);
   if (lastHydratedSignatureRef.current === null) {
     lastHydratedSignatureRef.current = docSignature(docSource);
@@ -111,10 +120,25 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     if (success) setIsDirty(false);
   }, [editor, nodeDataId, updateNodeDataValues]);
 
+  // Save is only wired up once any corruption banner has been acknowledged —
+  // otherwise the window's own Save button (in the surrounding chrome, not
+  // covered by the banner overlay below) could silently overwrite the
+  // original stored document with the empty fallback before the user agreed
+  // to lose it.
   useEffect(() => {
+    if (!isCorruptionAcknowledged) return;
     setSaveHandler(handleSaveClick);
     return () => setSaveHandler(null);
-  }, [handleSaveClick, setSaveHandler]);
+  }, [handleSaveClick, setSaveHandler, isCorruptionAcknowledged]);
+
+  const handleContinueFromCorruption = useCallback(() => {
+    setIsCorruptionAcknowledged(true);
+    // The user just explicitly agreed to drop the corrupted content — persist
+    // the recovered (empty) document immediately rather than waiting for a
+    // save that may never come if they close the window without editing,
+    // which would otherwise leave the crash-inducing document in storage.
+    void handleSaveClick();
+  }, [handleSaveClick]);
 
   useEffect(() => {
     setDirty(isDirty);
@@ -217,33 +241,38 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
       onFocus={handleFocus}
       onBlur={handleBlur}
     >
-      <BlockNoteView
-        editor={editor}
-        theme="light"
-        onChange={handleChange}
-        className={cn("nodrag h-full overflow-auto")}
-        slashMenu={false}
-      >
-        <SuggestionMenuController
-          triggerCharacter="/"
-          shouldOpen={(tr) =>
-            !tr.selection.$from.parent.type.isInGroup("tableContent")
-          }
-          getItems={async (query) =>
-            filterSuggestionItems(
-              [
-                ...getDefaultReactSlashMenuItems(editor),
-                ...getCustomSlashMenuItems(editor),
-              ],
-              query,
-            )
-          }
-        />
-      </BlockNoteView>
+      <BlockNoteErrorBoundary resetKey={docSource}>
+        <BlockNoteView
+          editor={editor}
+          theme="light"
+          onChange={handleChange}
+          className={cn("nodrag h-full overflow-auto")}
+          slashMenu={false}
+        >
+          <SuggestionMenuController
+            triggerCharacter="/"
+            shouldOpen={(tr) =>
+              !tr.selection.$from.parent.type.isInGroup("tableContent")
+            }
+            getItems={async (query) =>
+              filterSuggestionItems(
+                groupSuggestionItems([
+                  ...getDefaultReactSlashMenuItems(editor),
+                  ...getCustomSlashMenuItems(editor),
+                ]),
+                query,
+              )
+            }
+          />
+        </BlockNoteView>
+      </BlockNoteErrorBoundary>
       {!isEditorReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/65">
           <EditorLoading />
         </div>
+      )}
+      {!isCorruptionAcknowledged && (
+        <CorruptedDocumentBanner onContinue={handleContinueFromCorruption} />
       )}
     </div>
   );

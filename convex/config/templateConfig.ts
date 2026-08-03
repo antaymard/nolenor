@@ -77,6 +77,11 @@ type LayoutStaticText = {
   // combinaison utile est fill + maxWidth : prendre la place disponible sans
   // jamais dépasser.
   maxWidth?: number;
+  // Clampe à une ligne, avec ellipse. Complément de maxWidth, qui borne la
+  // LONGUEUR d'une ligne quand celui-ci en borne le NOMBRE : un node a une
+  // hauteur fixe et coupe déjà ce qui dépasse (CustomNode, overflow-hidden),
+  // mais en plein milieu d'une ligne et sans rien signaler.
+  singleLine?: boolean;
 };
 
 type LayoutNode =
@@ -134,6 +139,7 @@ const layoutStaticTextSchema = z.strictObject({
     .union([z.number().positive(), z.literal("auto"), z.literal("fill")])
     .optional(),
   maxWidth: z.number().positive().max(2000).optional(),
+  singleLine: z.boolean().optional(),
 });
 
 const layoutNodeSchema: z.ZodType<LayoutNode> = z.union([

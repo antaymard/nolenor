@@ -350,6 +350,17 @@ export default function PlacementInspector({
           />
         </div>
 
+        {/* Propriété du texte lui-même, donc au-dessus de son encombrement.
+            `v || undefined` : `false` n'est jamais écrit dans l'arbre, seulement
+            l'absence — c'est ce qui garde les layouts persistés minimaux. */}
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">Single line</Label>
+          <Switch
+            checked={node.singleLine === true}
+            onCheckedChange={(v) => patch({ singleLine: v || undefined })}
+          />
+        </div>
+
         <WidthControl width={node.width} onChange={(width) => patch({ width })} />
 
         {/* Masqué en mode Fixed, où il ne pourrait que contredire une largeur

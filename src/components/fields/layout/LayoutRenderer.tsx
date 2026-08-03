@@ -7,6 +7,7 @@ import type {
   LayoutStaticText,
 } from "@/../convex/config/templateConfig";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
+import { cn } from "@/lib/utils";
 import FieldHost from "@/components/fields/FieldHost";
 import {
   EditableContainer,
@@ -216,9 +217,21 @@ function StaticTextSlot({
   // Un texte vide n'a aucune hauteur : en édition il deviendrait
   // insélectionnable, exactement comme un container vide. On lui donne alors
   // un substitut visible — jamais dans le rendu réel, qui doit rester fidèle.
+  // `line-clamp-1` et surtout PAS `truncate` : ce dernier pose
+  // `white-space: nowrap`, qui entre en conflit frontal avec le `pre-wrap`
+  // ci-dessous — deux utilitaires sur la même propriété, départagés par l'ordre
+  // du CSS généré et non par l'ordre dans la chaîne de classes. `line-clamp-1`
+  // ne touche pas à `white-space` et apporte l'ellipse.
+  //
+  // Le clamp s'applique AUSSI dans l'aperçu de l'éditeur : règle de fidélité,
+  // l'auteur doit voir ce que verront les viewers. Le contenu s'édite de toute
+  // façon dans l'inspecteur, jamais en place.
   const body = content ? (
-    <span className="whitespace-pre-wrap">{text.content}</span>
+    <span className={cn("whitespace-pre-wrap", text.singleLine && "line-clamp-1")}>
+      {text.content}
+    </span>
   ) : editor ? (
+    // Non clampé : c'est une aide d'édition, pas du contenu.
     <span className="text-[10px] italic text-gray-400">Empty text</span>
   ) : null;
 
@@ -229,7 +242,15 @@ function StaticTextSlot({
       </EditablePlacement>
     );
   }
-  return <div style={style}>{body}</div>;
+  // Infobulle sur le rendu réel SEULEMENT : dans l'éditeur elle surgirait en
+  // plein glisser-déposer. Posée sans vérifier que le texte déborde vraiment —
+  // le savoir demanderait un ref et un ResizeObserver pour un gain nul quand le
+  // texte est court. Même choix que TableNode.
+  return (
+    <div style={style} title={text.singleLine && content ? text.content : undefined}>
+      {body}
+    </div>
+  );
 }
 
 function LayoutNodeRenderer({

@@ -431,6 +431,49 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * Tables (read-only surfaces)
+ *
+ * BlockNote's own table rules are all scoped under `.bn-editor`
+ * (`.bn-editor [data-content-type="table"] th/td { border: 1px solid #ddd;
+ * padding: 5px 10px }`), so nothing reached the static renderer — tables came
+ * out as borderless text in a correct column layout. These rules re-state the
+ * editor's values so the two surfaces match.
+ *
+ * Deliberately NOT scoped to `.bn-readonly-container`: BlockNoteStatic also
+ * backs the rich_text field views (ExcerptView / FullView), which do not set
+ * that class.
+ *
+ * Wide tables follow what the Plate node did (table-node-static.tsx): the block
+ * is its own horizontal scroll container and the table keeps its natural width
+ * inside it. Hence no `max-width: 100%` on the table itself — that would
+ * squeeze the columns and there would be nothing left to scroll.
+ * ------------------------------------------------------------------------- */
+.bn-static-table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-block: var(--doc-block-gap);
+}
+
+.bn-static-table {
+  width: max-content;
+  table-layout: fixed;
+  border-collapse: collapse;
+  word-break: break-word;
+}
+
+.bn-static-table th,
+.bn-static-table td {
+  border: 1px solid #ddd;
+  padding: 5px 10px;
+  vertical-align: top;
+}
+
+.bn-static-table th {
+  text-align: left;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------
  * Marks, selection, placeholder
  * ------------------------------------------------------------------------- */
 

@@ -158,6 +158,17 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     return () => cancelAnimationFrame(frameId);
   }, []);
 
+  // ── Initial document emission ────────────────────────────────────────────
+  // `BlockNoteView`'s onChange only fires on a real transaction, never on
+  // mount: the editor is built synchronously with the server content, so no
+  // transaction happens. Without this, a consumer of `onDocChange` (the
+  // fullscreen outline) stays empty until the first keystroke.
+  useEffect(() => {
+    const doc = editor.document as unknown as Block[];
+    latestDocRef.current = doc;
+    onDocChange?.(doc);
+  }, [editor, onDocChange]);
+
   // ── Re-hydration (Last-Write-Wins) ───────────────────────────────────────
   // When the server pushes a doc whose content differs from the last one we
   // hydrated or saved, we replace the editor's blocks. `skipNextChangeRef`
@@ -200,9 +211,16 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
         skipNextChangeRef.current = false;
       }
 
+      // Emit explicitly rather than relying on the onChange that replaceBlocks
+      // happens to dispatch — if the replacement is a no-op at the ProseMirror
+      // level, no change event fires and consumers would keep a stale outline.
+      const doc = editor.document as unknown as Block[];
+      latestDocRef.current = doc;
+      onDocChange?.(doc);
+
       setIsEditorReady(true);
     });
-  }, [docSource, editor, nodeDataValues]);
+  }, [docSource, editor, nodeDataValues, onDocChange]);
 
   const handleChange = useCallback(() => {
     // The custom schema only widens inline content (date pill); the stored

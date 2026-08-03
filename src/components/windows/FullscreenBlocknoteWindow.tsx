@@ -1,10 +1,14 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { List } from "lucide-react";
 import type { Block } from "@blocknote/core";
-import { extractInlineText } from "@/../convex/lib/blockNoteDocument";
+import {
+  extractInlineText,
+  parseStoredBlockNoteDocument,
+} from "@/../convex/lib/blockNoteDocument";
 import { cn } from "@/lib/utils";
 import { type OpenedWindow } from "@/stores/windowsStore";
+import { useNodeDataValuesField } from "@/hooks/useNodeData";
 import { useIsTabletPortrait } from "@/hooks/useTabletMode";
 import BlocknoteWindow from "./prebuilt/BlocknoteWindow";
 import ChatContainer from "@/components/canvas/nole-panel/ChatContainer";
@@ -24,25 +28,47 @@ interface FullscreenBlocknoteWindowProps {
 
 type Heading = { id: string; depth: number; title: string };
 
-function extractHeadings(doc: Block[] | undefined): Heading[] {
-  if (!doc || !Array.isArray(doc)) return [];
-  const headings: Heading[] = [];
-  for (let i = 0; i < doc.length; i++) {
-    const block = doc[i] as {
-      type?: string;
-      props?: { level?: unknown };
-      content?: unknown;
-      id?: string;
-    };
-    if (block.type !== "heading") continue;
-    const title = extractInlineText(block.content).trim();
-    if (!title) continue;
-    headings.push({
-      id: block.id ?? `heading-${i}`,
-      depth: typeof block.props?.level === "number" ? block.props.level : 1,
-      title,
-    });
+type HeadingCandidate = {
+  type?: string;
+  props?: { level?: unknown };
+  content?: unknown;
+  children?: unknown;
+  id?: string;
+};
+
+/**
+ * Collect headings in document order, descending into `children` so titles
+ * nested inside a toggle, a column or a list item are not silently dropped.
+ * `path` only feeds the fallback id for blocks that somehow lack one, so it
+ * just has to be unique per position.
+ */
+function collectHeadings(
+  blocks: unknown,
+  headings: Heading[],
+  path: string,
+): void {
+  if (!Array.isArray(blocks)) return;
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i] as HeadingCandidate | null;
+    if (!block || typeof block !== "object") continue;
+    const here = path ? `${path}-${i}` : `${i}`;
+    if (block.type === "heading") {
+      const title = extractInlineText(block.content).trim();
+      if (title) {
+        headings.push({
+          id: block.id ?? `heading-${here}`,
+          depth: typeof block.props?.level === "number" ? block.props.level : 1,
+          title,
+        });
+      }
+    }
+    collectHeadings(block.children, headings, here);
   }
+}
+
+function extractHeadings(doc: Block[] | undefined): Heading[] {
+  const headings: Heading[] = [];
+  collectHeadings(doc, headings, "");
   return headings;
 }
 
@@ -61,18 +87,36 @@ export default function FullscreenBlocknoteWindow({
 
   useHotkey("N", () => setIsChatOpen((v) => !v));
 
+  // Seed the outline from the stored document so it is already populated on
+  // open — the editor is mounted behind a `requestAnimationFrame`, so there is
+  // a frame where nothing has emitted a document yet. Mirrors what the Plate
+  // sibling does in FullscreenDocumentWindow.
+  const docSource = useNodeDataValuesField<unknown>(nodeDataId, "doc");
+  const initialHeadings = useMemo(
+    () =>
+      extractHeadings(
+        (parseStoredBlockNoteDocument(docSource) ?? undefined) as
+          | Block[]
+          | undefined,
+      ),
+    [docSource],
+  );
+
   // Only the derived outline is kept in state, and only when it actually
   // changes: `onDocChange` fires on every keystroke, and storing the whole
   // document here would re-render the chat panel and the outline each time.
-  const [headings, setHeadings] = useState<Heading[]>([]);
-  const headingsSignatureRef = useRef("");
+  // `null` means "nothing emitted yet", which is distinct from "the document
+  // has no heading" — otherwise the seed above could never show.
+  const [liveHeadings, setLiveHeadings] = useState<Heading[] | null>(null);
+  const headings = liveHeadings ?? initialHeadings;
+  const headingsSignatureRef = useRef<string | null>(null);
 
   const handleDocChange = useCallback((doc: Block[]) => {
     const next = extractHeadings(doc);
     const signature = headingsSignature(next);
     if (signature === headingsSignatureRef.current) return;
     headingsSignatureRef.current = signature;
-    setHeadings(next);
+    setLiveHeadings(next);
   }, []);
 
   const scrollToHeading = useCallback((heading: Heading) => {

@@ -70,7 +70,14 @@ type TemplatePreviewProps = {
     patch: Partial<TemplateDraft["defaultDimensions"]>,
   ) => void;
   onToggleWindow: (enabled: boolean) => void;
-  onAddNode: (surface: LayoutSurface, node: LayoutNode) => void;
+  // `atRoot` doit figurer ICI : sans lui, TypeScript accepte silencieusement
+  // le passage à `onAdd` (une fonction à moins de paramètres est assignable),
+  // et la sortie de secours du menu ne serait plus vérifiée par le compilateur.
+  onAddNode: (
+    surface: LayoutSurface,
+    node: LayoutNode,
+    atRoot?: boolean,
+  ) => void;
 };
 
 // Chemin des ancêtres de la sélection, au-dessus de l'aperçu qu'il décrit.
@@ -238,8 +245,6 @@ export default function TemplatePreview({
           </div>
         </div>
 
-        <LayoutAddButtons surface="node" onAdd={onAddNode} />
-
         {selection?.surface === "node" && (
           <Breadcrumb
             tree={draft.nodeLayout}
@@ -250,27 +255,42 @@ export default function TemplatePreview({
         )}
 
         <div className="flex justify-center p-6">
-          <div
-            className={cn(
-              "overflow-hidden rounded-md border bg-white border-slate-200",
-            )}
-            style={{
-              width: draft.defaultDimensions.width,
-              minHeight: draft.defaultDimensions.height,
-              zoom,
-            }}
-          >
-            <EditableSurface
-              tree={draft.nodeLayout}
-              fields={draft.fields}
-              values={values}
-              surface="node"
-              selectedId={selectedIdFor("node")}
-              onSelect={(nodeId) => onSelect("node", nodeId)}
-              onChangeTree={(tree) => onChangeTree("node", tree)}
-              hoveredId={hoveredId}
-              onHover={onHover}
-            />
+          {/* `relative` sur un conteneur au plus près de l'aperçu : le « + »
+              est posé en absolu contre son bord droit, donc il ne participe
+              pas au centrage et l'aperçu ne se décale pas d'un pixel quand il
+              apparaît ou disparaît. */}
+          <div className="relative">
+            <div
+              className={cn(
+                "overflow-hidden rounded-md border bg-white border-slate-200",
+              )}
+              style={{
+                width: draft.defaultDimensions.width,
+                minHeight: draft.defaultDimensions.height,
+                zoom,
+              }}
+            >
+              <EditableSurface
+                tree={draft.nodeLayout}
+                fields={draft.fields}
+                values={values}
+                surface="node"
+                selectedId={selectedIdFor("node")}
+                onSelect={(nodeId) => onSelect("node", nodeId)}
+                onChangeTree={(tree) => onChangeTree("node", tree)}
+                hoveredId={hoveredId}
+                onHover={onHover}
+              />
+            </div>
+            <div className="absolute left-full top-0 ml-2">
+              <LayoutAddButtons
+                surface="node"
+                tree={draft.nodeLayout}
+                fields={draft.fields}
+                selectedId={selectedIdFor("node")}
+                onAdd={onAddNode}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -293,12 +313,6 @@ export default function TemplatePreview({
           </div>
         </div>
 
-        <LayoutAddButtons
-          surface="window"
-          onAdd={onAddNode}
-          disabled={!draft.windowLayout}
-        />
-
         {draft.windowLayout && selection?.surface === "window" && (
           <Breadcrumb
             tree={draft.windowLayout}
@@ -309,26 +323,37 @@ export default function TemplatePreview({
         )}
 
         {draft.windowLayout ? (
-          <div
-            className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md w-4/5 mx-auto mt-5"
-            style={{ zoom }}
-          >
-            <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
-              <Icon size={14} className="text-gray-500" />
-              <span className="truncate text-sm font-medium">{draft.name}</span>
-            </div>
-            <div className="min-h-24">
-              <EditableSurface
+          <div className="relative mx-auto mt-5 w-4/5">
+            <div className="absolute left-full top-0 ml-2">
+              <LayoutAddButtons
+                surface="window"
                 tree={draft.windowLayout}
                 fields={draft.fields}
-                values={values}
-                surface="window"
                 selectedId={selectedIdFor("window")}
-                onSelect={(nodeId) => onSelect("window", nodeId)}
-                onChangeTree={(tree) => onChangeTree("window", tree)}
-                hoveredId={hoveredId}
-                onHover={onHover}
+                onAdd={onAddNode}
               />
+            </div>
+            <div
+              className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
+              style={{ zoom }}
+            >
+              <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+                <Icon size={14} className="text-gray-500" />
+                <span className="truncate text-sm font-medium">{draft.name}</span>
+              </div>
+              <div className="min-h-24">
+                <EditableSurface
+                  tree={draft.windowLayout}
+                  fields={draft.fields}
+                  values={values}
+                  surface="window"
+                  selectedId={selectedIdFor("window")}
+                  onSelect={(nodeId) => onSelect("window", nodeId)}
+                  onChangeTree={(tree) => onChangeTree("window", tree)}
+                  hoveredId={hoveredId}
+                  onHover={onHover}
+                />
+              </div>
             </div>
           </div>
         ) : (

@@ -181,14 +181,20 @@ export default function TemplateEditor({
   // updaters pendant la phase de rendu, un toast déclenché là écrirait dans le
   // Toaster en plein rendu de l'éditeur. Et l'insertion peut être refusée — la
   // sélection ne doit alors pas désigner un nœud qui n'existe pas.
-  function handleAddNode(target: LayoutSurface, node: LayoutNode) {
+  function handleAddNode(
+    target: LayoutSurface,
+    node: LayoutNode,
+    atRoot?: boolean,
+  ) {
     const tree =
       target === "window" ? draft.windowLayout : draft.nodeLayout;
     if (!tree) return;
 
+    // `atRoot` ignore la sélection : c'est la sortie de secours du menu, quand
+    // la destination héritée de la sélection n'est pas celle qu'on veut.
     const { containerId, index } = resolveInsertionPoint(
       tree,
-      selection?.surface === target ? selection.nodeId : null,
+      atRoot || selection?.surface !== target ? null : selection.nodeId,
     );
     const next = insertLayoutNodeGuarded(tree, containerId, index, node);
     if (!next) {

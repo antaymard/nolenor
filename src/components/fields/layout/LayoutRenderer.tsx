@@ -68,16 +68,31 @@ function containerStyle(container: LayoutContainer): CSSProperties {
   };
 }
 
-function placementStyle(placement: LayoutFieldPlacement): CSSProperties {
+// Dimensions d'une FEUILLE de l'arbre. Prend les seules propriétés de taille et
+// non le nœud entier : placements de champ et textes statiques les partagent
+// sans partager leur forme.
+//
+// En COLONNE, `width` porte sur l'axe transverse — une largeur explicite prend
+// alors naturellement le pas sur `alignItems: stretch` du container, il n'y a
+// rien à neutraliser. En ROW elle porte sur l'axe principal.
+function sizingStyle(sizing: {
+  width?: number | "auto" | "fill";
+  grow?: number;
+  maxWidth?: number;
+}): CSSProperties {
   const style: CSSProperties = { minWidth: 0 };
-  if (typeof placement.width === "number") {
-    style.width = placement.width;
+  if (typeof sizing.width === "number") {
+    style.width = sizing.width;
+    // Sans quoi le flex reprend aussitôt la largeur qu'on vient de fixer.
     style.flexShrink = 0;
-  } else if (placement.width === "fill") {
+  } else if (sizing.width === "fill") {
     style.flexGrow = 1;
   }
-  if (placement.grow !== undefined) {
-    style.flexGrow = placement.grow;
+  if (sizing.grow !== undefined) {
+    style.flexGrow = sizing.grow;
+  }
+  if (sizing.maxWidth !== undefined) {
+    style.maxWidth = sizing.maxWidth;
   }
   return style;
 }
@@ -100,7 +115,7 @@ function FieldSlot({
   editor?: LayoutEditor;
 }) {
   const field = fields.find((f) => f.id === placement.fieldId);
-  const style = placementStyle(placement);
+  const style = sizingStyle(placement);
 
   // Placement orphelin : ignoré silencieusement au rendu réel, mais rendu
   // visible en édition — sinon il serait ni sélectionnable ni supprimable,
@@ -196,7 +211,7 @@ function StaticTextSlot({
   text: LayoutStaticText;
   editor?: LayoutEditor;
 }) {
-  const style: CSSProperties = { minWidth: 0 };
+  const style = sizingStyle(text);
   const content = text.content.trim();
   // Un texte vide n'a aucune hauteur : en édition il deviendrait
   // insélectionnable, exactement comme un container vide. On lui donne alors

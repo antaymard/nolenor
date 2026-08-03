@@ -67,6 +67,16 @@ type LayoutStaticText = {
   kind: "text";
   id: string;
   content: string;
+  // Mêmes dimensions qu'un placement de champ, et volontairement le même
+  // vocabulaire : deux façons de dire « largeur » dans le même éditeur seraient
+  // une de trop.
+  width?: number | "auto" | "fill";
+  // Propre au texte, parce que lui seul se retourne à la ligne. `width` fixe
+  // force la boîte même pour trois mots ; `maxWidth` plafonne la longueur de
+  // ligne en laissant le texte plus court quand le contenu l'est. La
+  // combinaison utile est fill + maxWidth : prendre la place disponible sans
+  // jamais dépasser.
+  maxWidth?: number;
 };
 
 type LayoutNode =
@@ -118,6 +128,12 @@ const layoutStaticTextSchema = z.strictObject({
   // Borné comme tout ce qui est persisté : un texte de mise en page, pas un
   // champ rich_text déguisé.
   content: z.string().max(500),
+  // strictObject : sans ces deux lignes, tout template portant une largeur de
+  // texte serait REJETÉ à l'écriture, pas silencieusement rogné.
+  width: z
+    .union([z.number().positive(), z.literal("auto"), z.literal("fill")])
+    .optional(),
+  maxWidth: z.number().positive().max(2000).optional(),
 });
 
 const layoutNodeSchema: z.ZodType<LayoutNode> = z.union([

@@ -42,6 +42,54 @@ import {
 // dans l'aperçu. Le fil d'ariane, lui, vit au-dessus de l'aperçu qu'il
 // décrit — pas ici.
 
+// Contrôle de largeur, partagé par les placements de champ et les textes
+// statiques : un seul rendu pour un seul vocabulaire. Deux copies finiraient
+// par diverger sur un détail (le plancher à 20 px, le défaut à 120) et
+// l'éditeur proposerait alors deux « largeurs » subtilement différentes.
+function WidthControl({
+  width,
+  onChange,
+}: {
+  width?: number | "auto" | "fill";
+  onChange: (width: number | "auto" | "fill" | undefined) => void;
+}) {
+  const mode = typeof width === "number" ? "fixed" : (width ?? "auto");
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">Width</Label>
+      <div className="flex gap-2">
+        <Select
+          value={mode}
+          onValueChange={(v) => {
+            if (v === "auto") onChange(undefined);
+            else if (v === "fill") onChange("fill");
+            else onChange(120);
+          }}
+        >
+          <SelectTrigger className="h-7 text-xs flex-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">Auto</SelectItem>
+            <SelectItem value="fill">Fill</SelectItem>
+            <SelectItem value="fixed">Fixed (px)</SelectItem>
+          </SelectContent>
+        </Select>
+        {mode === "fixed" && (
+          <Input
+            type="number"
+            min={20}
+            value={typeof width === "number" ? width : 120}
+            onChange={(e) => onChange(Math.max(20, Number(e.target.value) || 20))}
+            className="h-7 w-20"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 type PlacementInspectorProps = {
   tree: LayoutContainer;
   selectedId: string | null;
@@ -301,13 +349,55 @@ export default function PlacementInspector({
             className="min-h-16 text-sm"
           />
         </div>
+
+        <WidthControl width={node.width} onChange={(width) => patch({ width })} />
+
+        {/* Masqué en mode Fixed, où il ne pourrait que contredire une largeur
+            déjà exacte. Le couple qui compte est Fill + Max : prendre la place
+            disponible sans jamais dépasser. */}
+        {typeof node.width !== "number" && (
+          <div className="space-y-1">
+            <Label className="text-xs">Max width</Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={20}
+                max={2000}
+                value={node.maxWidth ?? ""}
+                placeholder="None"
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  patch({
+                    maxWidth: raw
+                      ? Math.min(2000, Math.max(20, Number(raw) || 20))
+                      : undefined,
+                  });
+                }}
+                className="h-7 w-24"
+              />
+              {node.maxWidth !== undefined && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-[11px] text-muted-foreground"
+                  onClick={() => patch({ maxWidth: undefined })}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+            <p className="text-[11px] text-gray-400">
+              Caps the line length. The text stays narrower when its content is
+              short — unlike a fixed width.
+            </p>
+          </div>
+        )}
       </div>
     );
   }
 
   const field = fields.find((f) => f.id === node.fieldId);
-  const widthMode =
-    typeof node.width === "number" ? "fixed" : (node.width ?? "auto");
 
   // Variants proposables ici = ceux autorisés sur CETTE surface. Le variant
   // effectif passe par resolveFieldVariant : si le placement en stocke un
@@ -395,39 +485,7 @@ export default function PlacementInspector({
         </p>
       )}
 
-      <div className="space-y-1">
-        <Label className="text-xs">Width</Label>
-        <div className="flex gap-2">
-          <Select
-            value={widthMode}
-            onValueChange={(v) => {
-              if (v === "auto") patch({ width: undefined });
-              else if (v === "fill") patch({ width: "fill" });
-              else patch({ width: 120 });
-            }}
-          >
-            <SelectTrigger className="h-7 text-xs flex-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">Auto</SelectItem>
-              <SelectItem value="fill">Fill</SelectItem>
-              <SelectItem value="fixed">Fixed (px)</SelectItem>
-            </SelectContent>
-          </Select>
-          {widthMode === "fixed" && (
-            <Input
-              type="number"
-              min={20}
-              value={typeof node.width === "number" ? node.width : 120}
-              onChange={(e) =>
-                patch({ width: Math.max(20, Number(e.target.value) || 20) })
-              }
-              className="h-7 w-20"
-            />
-          )}
-        </div>
-      </div>
+      <WidthControl width={node.width} onChange={(width) => patch({ width })} />
     </div>
   );
 }

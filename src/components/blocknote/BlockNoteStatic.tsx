@@ -5,7 +5,10 @@ import {
   extractInlineText,
   type BlockNoteBlock,
   type BlockNoteInlineContent,
+  type BlockNoteTableCell,
+  type BlockNoteTableContent,
 } from "@/../convex/lib/blockNoteDocument";
+import { cn } from "@/lib/utils";
 import { findBlockView, findInlineContentView } from "./registry";
 
 /**
@@ -19,10 +22,10 @@ import { findBlockView, findInlineContentView } from "./registry";
  * free and lets them render as plain React in the live tree — the key fix for
  * custom blocks not showing on the canvas.
  *
- * Default BlockNote blocks (paragraph, heading, lists, quote, code, ...) are
- * mapped to semantic HTML elements (`<p>`, `<h1..6>`, `<ul>/<ol>`, `<blockquote>`,
- * `<pre><code>`, ...). Rare/unsupported default block types (table, file,
- * image, video, audio, toggle, columns) fall back to a per-block
+ * Default BlockNote blocks (paragraph, heading, lists, quote, code, table, ...)
+ * are mapped to semantic HTML elements (`<p>`, `<h1..6>`, `<ul>/<ol>`,
+ * `<blockquote>`, `<pre><code>`, `<table>`, ...). Rare/unsupported default block
+ * types (file, image, video, audio, toggle, columns) fall back to a per-block
  * `blocksToFullHTML` serialization; those use BlockNote's native DOM renderers
  * (not React specs) so the fallback is safe and never yields a blank node.
  *
@@ -33,7 +36,7 @@ import { findBlockView, findInlineContentView } from "./registry";
 
 // ── Fallback serializer (rare default block types only) ───────────────────
 // A headless BlockNote editor used solely to serialize individual blocks that
-// BlockNoteStatic does not map natively (table, file, image, ...). It MUST
+// BlockNoteStatic does not map natively (file, image, video, ...). It MUST
 // use the shared custom schema or it would throw on documents containing
 // custom types. These default specs use pure-DOM renderers, so this path does
 // not go through the fragile React `createRoot` serialization that breaks
@@ -130,6 +133,111 @@ function renderInlineContent(
   });
 }
 
+// ── Tables ─────────────────────────────────────────────────────────────────
+
+/** Fallback column width — BlockNote's own `--default-cell-min-width`. */
+const DEFAULT_COLUMN_WIDTH = 120;
+
+/** A cell is either a structured `tableCell` or, historically, a bare inline array. */
+function isTableCell(cell: unknown): cell is BlockNoteTableCell {
+  return (
+    !!cell &&
+    typeof cell === "object" &&
+    !Array.isArray(cell) &&
+    (cell as { type?: unknown }).type === "tableCell"
+  );
+}
+
+/**
+ * BlockNote colors are palette names ("gray", "blue", ...), and
+ * `@blocknote/shadcn/style.css` styles them through `[data-text-color]` /
+ * `[data-background-color]` selectors that are NOT scoped to `.bn-editor` —
+ * so emitting the attribute is enough, no inline style needed.
+ */
+function colorAttr(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "default" ? value : undefined;
+}
+
+/**
+ * BlockNote's own table CSS is scoped under `.bn-editor`, so serializing a
+ * table through `blocksToFullHTML` (the generic fallback below) yielded an
+ * unstyled `<table>`: correct column layout, no borders. Rendering it natively
+ * gets it the `.bn-static-table` rules from blocknote-overrides.css, and —
+ * unlike the fallback — routes cell content through `renderInlineContent`, so
+ * custom inline content (the date pill) survives inside a cell.
+ */
+function renderTable(block: BlockNoteBlock, key: string): React.ReactNode {
+  const content = block.content as BlockNoteTableContent | undefined;
+  if (
+    !content ||
+    typeof content !== "object" ||
+    content.type !== "tableContent" ||
+    !Array.isArray(content.rows)
+  ) {
+    return null;
+  }
+
+  const headerRows = content.headerRows ?? 0;
+  const headerCols = content.headerCols ?? 0;
+  const columnCount = content.rows.reduce(
+    (max, row) => Math.max(max, Array.isArray(row?.cells) ? row.cells.length : 0),
+    0,
+  );
+  if (columnCount === 0) return null;
+  const widths = Array.isArray(content.columnWidths) ? content.columnWidths : [];
+
+  return (
+    <div key={key} className="bn-static-table-wrapper">
+      <table className="bn-static-table">
+        <colgroup>
+          {Array.from({ length: columnCount }, (_, i) => (
+            <col
+              key={i}
+              style={{
+                width:
+                  typeof widths[i] === "number" && widths[i]
+                    ? widths[i]
+                    : DEFAULT_COLUMN_WIDTH,
+              }}
+            />
+          ))}
+        </colgroup>
+        <tbody>
+          {content.rows.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {(Array.isArray(row?.cells) ? row.cells : []).map(
+                (cell, colIndex) => {
+                  const structured = isTableCell(cell) ? cell : null;
+                  const inline = (
+                    structured ? structured.content : cell
+                  ) as BlockNoteInlineContent[] | undefined;
+                  const props = structured?.props;
+                  const colspan = props?.colspan;
+                  const rowspan = props?.rowspan;
+                  const Tag =
+                    rowIndex < headerRows || colIndex < headerCols ? "th" : "td";
+                  return (
+                    <Tag
+                      key={colIndex}
+                      colSpan={colspan && colspan > 1 ? colspan : undefined}
+                      rowSpan={rowspan && rowspan > 1 ? rowspan : undefined}
+                      data-text-alignment={props?.textAlignment}
+                      data-text-color={colorAttr(props?.textColor)}
+                      data-background-color={colorAttr(props?.backgroundColor)}
+                    >
+                      {renderInlineContent(inline)}
+                    </Tag>
+                  );
+                },
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Blocks ─────────────────────────────────────────────────────────────────
 
 function renderBlockChildren(children: BlockNoteBlock[] | undefined): React.ReactNode {
@@ -180,6 +288,8 @@ function renderBlock(
       );
     case "divider":
       return own(<hr key={key} />);
+    case "table":
+      return own(renderTable(block, key));
     case "checkListItem":
       return own(
         // `bn-static-check-item` is the styling hook for blocknote-overrides.css,
@@ -211,8 +321,8 @@ function renderBlock(
       // Reached only if encountered outside grouping (defensive): render bare.
       return own(<li key={key}>{renderInlineContent(content)}</li>);
     default: {
-      // Fallback for rare default types (table, file, image, video, audio,
-      // toggle, columns): serialize the single block via the headless editor.
+      // Fallback for rare default types (file, image, video, audio, toggle,
+      // columns): serialize the single block via the headless editor.
       // `blocksToFullHTML` emits the nested children too, hence
       // `childrenIncluded: true` — rendering them again would duplicate them.
       const html = blockToHtml(block);
@@ -285,7 +395,13 @@ interface BlockNoteStaticProps {
 
 function BlockNoteStaticImpl({ blocks, className }: BlockNoteStaticProps) {
   const rendered = useMemo(() => renderBlocks(blocks), [blocks]);
-  return <div className={className}>{rendered}</div>;
+  // `bn-root` only declares BlockNote's design tokens — in particular the
+  // `--bn-colors-highlights-*` palette that its global `[data-text-color]` /
+  // `[data-background-color]` rules resolve against. Without it those
+  // attributes (emitted on table cells) resolve to an undefined variable and
+  // the colour is silently dropped. The font-family it also sets is already
+  // overridden for `.bn-root` in blocknote-overrides.css.
+  return <div className={cn("bn-root", className)}>{rendered}</div>;
 }
 
 export const BlockNoteStatic = memo(BlockNoteStaticImpl);

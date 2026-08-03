@@ -7,7 +7,9 @@ import {
   DropdownMenuSeparator,
 } from "@/components/shadcn/dropdown-menu";
 import { useCreateNode } from "@/hooks/useCreateNode";
-import prebuiltNodesConfig from "../../nodes/prebuilt-nodes/prebuiltNodesConfig";
+import prebuiltNodesConfig, {
+  canNodeTypeBeCreated,
+} from "../../nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useMyTemplates } from "@/stores/templatesStore";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 
@@ -35,30 +37,34 @@ export default function AddBlockMenuContent({
         Add a block
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-      {prebuiltNodesConfig.map((nodeConfig, i) => {
-        const Icon = nodeConfig.nodeIcon;
-        return (
-          <DropdownMenuItem
-            key={i}
-            className="w-48"
-            onClick={async () => {
-              const nodeToCreate = { ...nodeConfig.node };
-              if (nodeConfig.variants?.default) {
-                nodeToCreate.height = nodeConfig.variants.default.defaultHeight;
-                nodeToCreate.width = nodeConfig.variants.default.defaultWidth;
-              }
+      {prebuiltNodesConfig
+        .filter((nodeConfig) => canNodeTypeBeCreated(nodeConfig.node.type))
+        .map((nodeConfig, i) => {
+          const Icon = nodeConfig.nodeIcon;
+          return (
+            <DropdownMenuItem
+              key={i}
+              className="w-48"
+              onClick={async () => {
+                const nodeToCreate = { ...nodeConfig.node };
+                if (nodeConfig.variants?.default) {
+                  nodeToCreate.height =
+                    nodeConfig.variants.default.defaultHeight;
+                  nodeToCreate.width =
+                    nodeConfig.variants.default.defaultWidth;
+                }
 
-              await createNode({
-                node: nodeToCreate,
-                position: getCreatePosition(),
-              });
-              onCreated?.();
-            }}
-          >
-            <Icon /> {nodeConfig.label}
-          </DropdownMenuItem>
-        );
-      })}
+                await createNode({
+                  node: nodeToCreate,
+                  position: getCreatePosition(),
+                });
+                onCreated?.();
+              }}
+            >
+              <Icon /> {nodeConfig.label}
+            </DropdownMenuItem>
+          );
+        })}
 
       {isAuthenticated && (
         <>

@@ -99,6 +99,7 @@ import type * as memories from "../memories.js";
 import type * as messageMetadata from "../messageMetadata.js";
 import type * as migrations_plateSimplify from "../migrations/plateSimplify.js";
 import type * as migrations_plateToBlockNote from "../migrations/plateToBlockNote.js";
+import type * as migrations_plateToBlockNoteConvert from "../migrations/plateToBlockNoteConvert.js";
 import type * as migrations_plateToBlockNoteData from "../migrations/plateToBlockNoteData.js";
 import type * as migrations_plateToBlockNoteMarkdown from "../migrations/plateToBlockNoteMarkdown.js";
 import type * as models_canvasEdgeModels from "../models/canvasEdgeModels.js";
@@ -256,6 +257,7 @@ declare const fullApi: ApiFromModules<{
   messageMetadata: typeof messageMetadata;
   "migrations/plateSimplify": typeof migrations_plateSimplify;
   "migrations/plateToBlockNote": typeof migrations_plateToBlockNote;
+  "migrations/plateToBlockNoteConvert": typeof migrations_plateToBlockNoteConvert;
   "migrations/plateToBlockNoteData": typeof migrations_plateToBlockNoteData;
   "migrations/plateToBlockNoteMarkdown": typeof migrations_plateToBlockNoteMarkdown;
   "models/canvasEdgeModels": typeof models_canvasEdgeModels;

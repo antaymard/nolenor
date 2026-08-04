@@ -96,11 +96,57 @@ function textLeaf(text: string): PlateNode {
   return { text };
 }
 
+/**
+ * Types dont les espaces de bordure sont signifiantes : l'indentation d'une
+ * ligne de code ne doit jamais être rognée.
+ */
+const WHITESPACE_SIGNIFICANT_TYPES = new Set(["code_block", "code_line"]);
+
+/**
+ * Retire les espaces au bord du contenu inline d'un bloc.
+ *
+ * Une espace en fin de ligne est signifiante en Markdown (saut de ligne forcé),
+ * donc le sérialiseur l'encode en entité — `taux de recyclabilité etc.&#x20;` —
+ * et BlockNote, qui ne décode pas les entités, l'écrit telle quelle dans le
+ * document. Or une espace en début ou fin de bloc n'a aucun rendu : la retirer
+ * est sans effet visible et supprime toute la classe de problème.
+ */
+function trimBlockEdgeWhitespace(children: PlateNode[]): PlateNode[] {
+  const out = [...children];
+
+  // Boucle plutôt qu'une passe : sortir les espaces d'un mark
+  // (`simplifyLeaf`) peut laisser plusieurs feuilles blanches consécutives au
+  // bord. S'arrête sur un élément (lien, image) — il n'y a alors rien à rogner.
+  const trimSide = (side: "start" | "end") => {
+    for (;;) {
+      const index = side === "end" ? out.length - 1 : 0;
+      const node = out[index];
+      if (!node || typeof node.text !== "string") return;
+      const trimmed =
+        side === "end" ? node.text.trimEnd() : node.text.trimStart();
+      if (trimmed === node.text) return;
+      if (trimmed !== "") {
+        out[index] = { ...node, text: trimmed };
+        return;
+      }
+      out.splice(index, 1);
+    }
+  };
+
+  trimSide("end");
+  trimSide("start");
+  return out;
+}
+
 /** Un élément dont tous les enfants ont disparu doit garder une feuille vide. */
 function withChildren(element: PlateNode, children: PlateNode[]): PlateNode {
+  const type = typeof element.type === "string" ? element.type : "";
+  const trimmed = WHITESPACE_SIGNIFICANT_TYPES.has(type)
+    ? children
+    : trimBlockEdgeWhitespace(children);
   return {
     ...element,
-    children: children.length > 0 ? children : [textLeaf("")],
+    children: trimmed.length > 0 ? trimmed : [textLeaf("")],
   };
 }
 
@@ -136,25 +182,50 @@ function mediaToLinkParagraph(
   };
 }
 
-function simplifyLeaf(leaf: PlateNode, stats: SimplifyStats): PlateNode {
-  const out: PlateNode = { text: leaf.text };
+/**
+ * Retire les marks non conservés, et sort les espaces de bordure du mark.
+ *
+ * Le second point n'est pas cosmétique. Un mark dont le texte se termine par
+ * une espace n'est pas exprimable tel quel en Markdown (`** **`, `<u>a </u>`),
+ * alors le sérialiseur encode l'espace en entité — `<u>Tour de table&#x20;</u>`
+ * — et BlockNote, qui ne décode pas les entités, laisse `&#x20;` en clair dans
+ * le document. Souligner une espace finale n'a aucun rendu visible : on la sort
+ * du mark, ce qui donne un Markdown propre et un texte intact.
+ */
+function simplifyLeaf(leaf: PlateNode, stats: SimplifyStats): PlateNode[] {
+  const marks: PlateNode = {};
   for (const key of Object.keys(leaf)) {
     if (key === "text") continue;
     if (KEPT_LEAF_MARKS.has(key)) {
-      out[key] = leaf[key];
+      marks[key] = leaf[key];
       continue;
     }
     // `id` et `key` ne sont pas des marks : les ignorer sans les compter comme
     // une perte de mise en forme.
     if (key !== "id" && key !== "key") count(stats.degraded, `mark:${key}`);
   }
+
+  const text = leaf.text as string;
+  // Rien à sortir : pas de mark, ou pas d'espace de bordure.
+  if (Object.keys(marks).length === 0 || text.trim() === text) {
+    return [{ text, ...marks }];
+  }
+  // Que des espaces : le mark n'a rien à qualifier.
+  if (text.trim() === "") return [textLeaf(text)];
+
+  const leadLength = text.length - text.trimStart().length;
+  const trailLength = text.length - text.trimEnd().length;
+  const out: PlateNode[] = [];
+  if (leadLength > 0) out.push(textLeaf(text.slice(0, leadLength)));
+  out.push({ text: text.slice(leadLength, text.length - trailLength), ...marks });
+  if (trailLength > 0) out.push(textLeaf(text.slice(text.length - trailLength)));
   return out;
 }
 
 /** Renvoie les nœuds de remplacement : `[]` = supprimé, plusieurs = déplié. */
 function simplifyNode(node: unknown, stats: SimplifyStats): PlateNode[] {
   if (!isPlainObject(node)) return [];
-  if (isTextLeaf(node)) return [simplifyLeaf(node, stats)];
+  if (isTextLeaf(node)) return simplifyLeaf(node, stats);
 
   const type = typeof node.type === "string" ? node.type : "";
   const children = Array.isArray(node.children) ? node.children : [];
@@ -251,6 +322,17 @@ export function simplifyPlateForMarkdown(nodes: readonly unknown[]): {
   const stats: SimplifyStats = { degraded: {}, dropped: {} };
   const out = nodes.flatMap((node) => simplifyNode(node, stats));
   return { nodes: out, stats };
+}
+
+/**
+ * Texte visible d'un document Plate, blocs concaténés sans séparateur.
+ *
+ * Appelé sur l'arbre DÉJÀ simplifié, c'est le texte que la conversion doit
+ * rendre à l'identique : le garde de fidélité de `plateToBlockNote.ts` le
+ * compare au texte du document BlockNote produit.
+ */
+export function plateVisibleText(nodes: readonly unknown[]): string {
+  return nodes.map(plainText).join("");
 }
 
 /** True dès qu'un document Plate contient du texte ou un média visible. */

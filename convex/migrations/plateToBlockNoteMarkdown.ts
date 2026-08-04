@@ -24,7 +24,7 @@ let converterPromise: Promise<MarkdownConverter> | null = null;
 async function loadConverter(): Promise<MarkdownConverter> {
   const [
     { createSlateEditor },
-    { MarkdownPlugin },
+    { MarkdownPlugin, remarkMdx },
     { BaseListPlugin },
     { default: remarkGfm },
   ] = await Promise.all([
@@ -43,10 +43,26 @@ async function loadConverter(): Promise<MarkdownConverter> {
       BaseListPlugin,
       MarkdownPlugin.configure({
         options: {
-          // GFM seul : il porte les tableaux et les cases à cocher, que
-          // BlockNote sait reparser. Pas de `remarkMdx` ni `remarkMath` — plus
-          // rien ne produit de MDX après `simplifyPlateForMarkdown`.
-          remarkPlugins: [remarkGfm],
+          // `remarkGfm` porte les tableaux et les cases à cocher.
+          //
+          // `remarkMdx` est nécessaire pour UNE seule règle : `underline`, que
+          // @platejs/markdown sérialise en `<u>` — un nœud `mdxJsxTextElement`
+          // que `mdast-util-to-markdown` ne sait pas rendre sans lui (il lève
+          // `Cannot handle unknown node "mdxJsxTextElement"`). Et ça vaut le
+          // coup : BlockNote reparse `<u>texte</u>` en
+          // `styles: { underline: true }`, donc le souligné traverse le pont
+          // sans perte.
+          //
+          // C'est la SEULE règle émettrice de MDX encore atteignable ici.
+          // Toutes les autres — `comment`, `date`, `highlight`, `kbd`,
+          // `subscript`, `superscript`, `suggestion`, les `fontRules`
+          // (color / backgroundColor / fontSize / fontFamily), les
+          // `mediaRules` (audio / file / media_embed / video) et les
+          // `columnRules` — sont retirées ou converties en amont par
+          // `simplifyPlateForMarkdown`. C'est ce qui permet de réactiver
+          // `remarkMdx` sans réintroduire le texte parasite (`<pill …>`) qui
+          // avait motivé son retrait.
+          remarkPlugins: [remarkGfm, remarkMdx],
         },
       }),
     ],

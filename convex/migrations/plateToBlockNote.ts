@@ -2,15 +2,8 @@
 
 // Migration en base : nodes `document` (PlateJS) -> `blocknote` (BlockNote).
 //
-// Pipeline, par document :
-//
-//   values.doc
-//     -> parseStoredPlateDocument      (tolère string | array)
-//     -> simplifyPlateForMarkdown      (réduction pure au sous-ensemble Markdown)
-//     -> simplifiedPlateToMarkdown     (Plate -> Markdown, converter dédié)
-//     -> markdownToBlockNoteBlocks     (Markdown -> blocs, + pills date)
-//     -> normalizeReplaceDocumentBlocks (pose les ids ET valide)
-//     -> JSON.stringify
+// Ce fichier est le RUNNER : pagination, lots, relais, rapport. La conversion
+// d'un document vit dans `plateToBlockNoteConvert.ts`.
 //
 // Contrainte de débit : `withHeadlessEditor` installe jsdom sur `globalThis` et
 // sérialise TOUS ses appels derrière un lock process-global. La migration
@@ -30,15 +23,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction } from "../_generated/server";
-import { markdownToBlockNoteBlocks } from "../ia/helpers/blockNoteMarkdown";
-import { normalizeReplaceDocumentBlocks } from "../lib/blockNoteDocument";
-import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
-import {
-  plateDocumentHasSubstance,
-  simplifyPlateForMarkdown,
-  type SimplifyStats,
-} from "./plateSimplify";
-import { simplifiedPlateToMarkdown } from "./plateToBlockNoteMarkdown";
+import { convertDocument, describeError } from "./plateToBlockNoteConvert";
 
 /** Marge confortable sous la limite de 10 min d'une action Convex. */
 const SOFT_DEADLINE_MS = 5 * 60 * 1000;
@@ -53,16 +38,6 @@ const SOFT_DEADLINE_MS = 5 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 5;
 /** Bornage du rapport : au-delà, seuls les compteurs restent significatifs. */
 const MAX_REPORTED_FAILURES = 25;
-
-const EMPTY_DOCUMENT = "[]";
-
-/**
- * Le sérialiseur Markdown de Plate rend un paragraphe vide par un espace de
- * largeur nulle (U+200B), qui deviendrait un bloc BlockNote contenant un
- * caractère invisible. Aucun contenu légitime n'en dépend ici : on les retire
- * avant de mesurer si le Markdown est vide et avant de le reparser.
- */
-const ZERO_WIDTH_RE = /[\u200B\uFEFF]/g;
 
 type Histogram = Record<string, number>;
 
@@ -112,65 +87,6 @@ function emptyTotals(): Totals {
 function mergeHistogram(into: Histogram, from: Histogram): void {
   for (const [key, value] of Object.entries(from)) {
     into[key] = (into[key] ?? 0) + value;
-  }
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-// ── Conversion d'un document ────────────────────────────────────────────────
-
-type Conversion =
-  | { ok: true; doc: string; stats: SimplifyStats }
-  | { ok: false; reason: string };
-
-/**
- * Un document vide reste vide ; un document qui AVAIT du contenu mais dont la
- * conversion ne produit rien est un échec, jamais une écriture. Sans ce
- * garde-fou, un bug de sérialisation viderait silencieusement des documents
- * utilisateur, sans aucune trace.
- */
-async function convertDocument(raw: unknown): Promise<Conversion> {
-  const parsed = parseStoredPlateDocument(raw);
-  if (!parsed) {
-    return { ok: false, reason: "document PlateJS illisible (JSON invalide)" };
-  }
-
-  const emptyStats: SimplifyStats = { degraded: {}, dropped: {} };
-  if (parsed.length === 0) {
-    return { ok: true, doc: EMPTY_DOCUMENT, stats: emptyStats };
-  }
-
-  const hadSubstance = plateDocumentHasSubstance(parsed);
-  const { nodes, stats } = simplifyPlateForMarkdown(parsed);
-
-  let markdown: string;
-  try {
-    markdown = (await simplifiedPlateToMarkdown(nodes)).replace(ZERO_WIDTH_RE, "");
-  } catch (error) {
-    return { ok: false, reason: `sérialisation Markdown: ${describeError(error)}` };
-  }
-
-  if (markdown.trim() === "") {
-    if (hadSubstance) {
-      return { ok: false, reason: "le document avait du contenu, le Markdown est vide" };
-    }
-    return { ok: true, doc: EMPTY_DOCUMENT, stats };
-  }
-
-  try {
-    const blocks = await markdownToBlockNoteBlocks(markdown);
-    if (blocks.length === 0) {
-      return { ok: false, reason: "Markdown non vide mais aucun bloc BlockNote produit" };
-    }
-    // Pose les ids manquants ET valide (ids uniques, types inline connus,
-    // grille de table cohérente) : un document invalide lève ici, avant toute
-    // écriture.
-    const normalized = normalizeReplaceDocumentBlocks(blocks);
-    return { ok: true, doc: JSON.stringify(normalized), stats };
-  } catch (error) {
-    return { ok: false, reason: `conversion BlockNote: ${describeError(error)}` };
   }
 }
 

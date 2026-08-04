@@ -92,7 +92,6 @@ import type * as mcp_registry from "../mcp/registry.js";
 import type * as mcp_server from "../mcp/server.js";
 import type * as memories from "../memories.js";
 import type * as messageMetadata from "../messageMetadata.js";
-import type * as migrations_dropDocumentType from "../migrations/dropDocumentType.js";
 import type * as models_canvasEdgeModels from "../models/canvasEdgeModels.js";
 import type * as models_canvasModels from "../models/canvasModels.js";
 import type * as models_canvasNodeModels from "../models/canvasNodeModels.js";
@@ -241,7 +240,6 @@ declare const fullApi: ApiFromModules<{
   "mcp/server": typeof mcp_server;
   memories: typeof memories;
   messageMetadata: typeof messageMetadata;
-  "migrations/dropDocumentType": typeof migrations_dropDocumentType;
   "models/canvasEdgeModels": typeof models_canvasEdgeModels;
   "models/canvasModels": typeof models_canvasModels;
   "models/canvasNodeModels": typeof models_canvasNodeModels;

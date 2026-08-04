@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as admin_purgeNodeDatas from "../admin/purgeNodeDatas.js";
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
 import type * as canvasEdges from "../canvasEdges.js";
@@ -166,6 +167,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "admin/purgeNodeDatas": typeof admin_purgeNodeDatas;
   apiTokens: typeof apiTokens;
   auth: typeof auth;
   canvasEdges: typeof canvasEdges;

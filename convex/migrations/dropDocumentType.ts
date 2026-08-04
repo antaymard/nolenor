@@ -48,6 +48,45 @@ export const countRemaining = internalQuery({
   },
 });
 
+// Détaille les entrées `canvases.nodes[]` restées en `type: "document"`. La
+// migration les convertissait à partir de leur nodeData ; celles qui survivent
+// sont donc soit orphelines (`nodeDataId` absent ou pendant), soit désynchro-
+// nisées d'un nodeData bien converti. Les deux cas ne se réparent pas pareil,
+// d'où l'inspection avant écriture.
+export const inspectCanvasNodes = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const canvases = await ctx.db.query("canvases").collect();
+    const out = [];
+
+    for (const canvas of canvases) {
+      for (const node of canvas.nodes ?? []) {
+        if (node.type !== "document") continue;
+
+        const nodeData = node.nodeDataId
+          ? await ctx.db.get(node.nodeDataId)
+          : null;
+
+        out.push({
+          canvasId: canvas._id,
+          canvasName: canvas.name,
+          nodeId: node.id,
+          nodeDataId: node.nodeDataId ?? null,
+          nodeDataType: nodeData?.type ?? null,
+          nodeDataExists: nodeData !== null,
+          variant: node.variant ?? null,
+          position: node.position,
+          edges: (canvas.edges ?? []).filter(
+            (edge) => edge.source === node.id || edge.target === node.id,
+          ).length,
+        });
+      }
+    }
+
+    return out;
+  },
+});
+
 // Supprime un lot puis se re-schedule tant qu'un lot est plein, comme
 // `pruneExpiredBatch`. Ni `nodeDataVersions` ni `searchableChunks` n'ont
 // d'index sur `nodeType`, d'où le filtre en mémoire : le volume résiduel est

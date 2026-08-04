@@ -22,7 +22,7 @@ function startOfDay(d: Date): number {
 }
 
 /**
- * Same labels as the Plate.js date pill (src/components/plate/date-node.tsx).
+ * Same labels as the Plate.js date pill this replaced.
  * Accepts both the canonical ISO value and legacy `toDateString()` values.
  */
 export function formatDatePillLabel(date: string): string {

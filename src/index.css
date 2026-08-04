@@ -277,52 +277,6 @@
   }
 }
 
-.slate-h1 {
-  margin-top: 0.5em;
-  font-size: 2em;
-  font-weight: 600;
-}
-.slate-h1:first-child {
-  margin-top: 0;
-}
-
-.slate-h2 {
-  margin-top: 0.5em;
-  font-size: 1.65em;
-  font-weight: 500;
-}
-
-.slate-h3 {
-  margin-top: 0.5em;
-  font-size: 1.35em;
-  font-weight: 500;
-}
-.slate-h4 {
-  margin-top: 0.5em;
-  font-size: 1.25em;
-  font-weight: 600;
-}
-.slate-h4 {
-  margin-top: 0.5em;
-  font-size: 1.1em;
-  font-weight: 600;
-}
-.slate-h5 {
-  margin-top: 0.5em;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-/* .slate-p:first-child {
-  margin-top: 0.25em;
-} */
-
-/* .slate-ul,
-.slate-ol {
-  margin-top: 0.25em;
-  margin-bottom: 0.25em;
-} */
-
 /* Styles pour le markdown dans les messages Nole */
 @keyframes shake {
   0% {

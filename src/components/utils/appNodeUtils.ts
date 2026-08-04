@@ -1,6 +1,7 @@
 import { getNodeDataTitle } from "@/components/utils/nodeDataDisplayUtils";
-import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
-import { plateJsonToMarkdown } from "@/lib/plateMarkdownConverter";
+import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
+import { blockNoteBlocksToMarkdown } from "@/lib/blockNoteMarkdownConverter";
+import type { PartialBlock } from "@blocknote/core";
 import type { NodeData } from "@/types/convex";
 
 export type SourceNode = {
@@ -10,7 +11,7 @@ export type SourceNode = {
   // table
   columns?: { id: string; name: string; type: string }[];
   rows?: Record<string, unknown>[];
-  // document
+  // blocknote
   markdown?: string;
   // value
   value?: string | number;
@@ -53,11 +54,15 @@ export function resolveSourceNode(
         | undefined;
       return { ...base, value: val?.value, label: val?.label, unit: val?.unit };
     }
-    case "document": {
-      const docSource = nodeData.values?.doc;
-      const parsedDoc = parseStoredPlateDocument(docSource);
-      const markdown = parsedDoc ? plateJsonToMarkdown(parsedDoc) : undefined;
-      return { ...base, markdown };
+    case "blocknote": {
+      const parsedDoc = parseStoredBlockNoteDocument(nodeData.values?.doc);
+      const result = parsedDoc?.length
+        ? blockNoteBlocksToMarkdown(parsedDoc as unknown as PartialBlock[])
+        : null;
+      return {
+        ...base,
+        markdown: result?.status === "ok" ? result.markdown : undefined,
+      };
     }
     case "image": {
       const images = nodeData.values?.images as

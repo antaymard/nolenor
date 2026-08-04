@@ -37,7 +37,7 @@ La différenciation par rapport aux concurrents (Spine, Flowith, Miro AI) : Nol�
 - **Routing** : TanStack React Router (file-based routing)
 - **State management** : Zustand (6 stores principaux)
 - **Canvas** : React Flow (@xyflow/react)
-- **Rich text editor** : Plate.js (v51) avec une trentaine de plugins (headings, listes, tables, code blocks, math, media, mentions, emojis, comments, drag & drop, autoformat, export Markdown/DOCX)
+- **Rich text editor** : BlockNote (`@blocknote/core|react|shadcn`) — headings, listes, tables, code blocks, callouts, pills de date
 - **UI** : Radix UI + shadcn/ui + Tailwind CSS 4
 - **Drag & drop** : DnD Kit
 - **Formulaires** : TanStack React Form + Formik
@@ -117,7 +117,7 @@ Système de partage :
 Templates de nœuds custom (chantier en cours, pas dispo) :
 
 - `name`, `description`, `icon`, `isSystem`, `creatorId`
-- `fields` : tableau de champs typés (short_text, url, select, image, image_url, number, date, rich_text, boolean, document, file)
+- `fields` : tableau de champs typés (short_text, number, date, select, boolean, rich_text, image)
 - `visuals` : variantes d'affichage (node et window)
 
 ### Autres tables
@@ -143,7 +143,7 @@ Ce qui est fonctionnel et livrable aujourd'hui.
 
 Chaque nœud vit sur le canvas React Flow avec drag & drop, redimensionnement, couleur, z-index, lock/hide.
 
-1. **Document** — éditeur rich text complet via Plate.js. Headings, listes (ordonnées, non-ordonnées, tâches), tables, code blocks avec syntax highlighting, math, callouts, media, mentions, emojis, comments, drag & drop de blocs, export Markdown/DOCX, autoformat markdown. Min 250x150px.
+1. **Blocknote** — éditeur rich text complet via BlockNote. Headings, listes (ordonnées, non-ordonnées, tâches), tables, code blocks, callouts, pills de date, drag & drop de blocs, autoformat markdown. Min 250x150px.
 
 2. **Image** — upload et affichage. Stockage vers Cloudflare R2. Min 100x100px.
 
@@ -226,11 +226,11 @@ Tools exposés par Nolë Chat :
 - Stockage organisé par user ID
 - Métadonnées : filename, mimeType, taille, date
 
-### Conversion Markdown ↔ Plate.js
+### Conversion Markdown ↔ BlockNote
 
-- `markdownToPlateJson()` : markdown → JSON Plate.js (avec plugins remark-math, remark-gfm, remark-mdx, remark-mention)
-- `plateJsonToMarkdown()` : JSON Plate.js → markdown
-- Utilisé partout : stockage, affichage, échange avec l'IA, import/export
+- `markdownToBlockNoteBlocks()` / `blocksToMarkdown()` (`convex/ia/helpers/blockNoteMarkdown.ts`) — côté serveur, via un runtime BlockNote headless sur jsdom
+- `blockNoteDocumentToXml()` / `parseBlockNoteXml()` — BlockNote XML v1, le format d'échange avec l'agent
+- Côté navigateur, `src/lib/blockNoteMarkdownConverter.ts` fait les deux sens sans jsdom
 
 ### Gestion d'erreurs
 
@@ -242,7 +242,7 @@ Messages d'erreur standardisés : CANVAS_NOT_FOUND, UNAUTHORIZED_USER, USER_NOT_
 
 ### Templates de nœuds custom
 
-Le système existe dans le code (table nodeTemplates, éditeur dans /settings/templates) mais il est à refaire complètement. Il permettra de créer des types de nœuds personnalisés avec des champs typés (11 types : short_text, url, select, image, image_url, number, date, rich_text, boolean, document, file) et des variantes visuelles.
+Le système existe dans le code (table nodeTemplates, éditeur dans /settings/templates) mais il est à refaire complètement. Il permettra de créer des types de nœuds personnalisés avec des champs typés (7 types : short_text, number, date, select, boolean, rich_text, image) et des variantes visuelles.
 
 ### Slideshows
 
@@ -285,7 +285,7 @@ Type de nœud pour les requêtes HTTP (GET/POST/PUT/DELETE avec headers, query p
 
 6 stores principaux :
 
-1. **canvasStore** — canvas actif, statut de sync (idle/unsynced/saving/saved/error), focus (canvas/platejs), outil actif (edit/slides/draw), permission
+1. **canvasStore** — canvas actif, statut de sync (idle/unsynced/saving/saved/error), focus (canvas/richtext-editor/modal), outil actif (edit/slides/draw), permission
 2. **nodeDataStore** — Map<Id, Doc> pour lookup O(1). CRUD sur les données de nœuds.
 3. **noleStore** — état du chat IA. Canvas attaché, nœuds attachés, position.
 4. **windowsStore** — gestion des fenêtres ouvertes

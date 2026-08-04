@@ -34,7 +34,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Node for free text labels on the canvas. Supports h1/h2/h3/p heading levels for the whole text. Does not support rich markdown.",
     llmDescription:
-      "For sections headings, hubs nodes, parents of related sub nodes. Use this node for titles (for branches in trees of thought), subtitles, or any standalone text that doesn't require rich formatting. If you need rich text formatting (bold, italic, lists, etc.), use the Document node instead. \nThe required data values for this node are 'text' (the content of the label) and 'level' (the heading level, which can be 'h1', 'h2', 'h3', or 'p').",
+      "For sections headings, hubs nodes, parents of related sub nodes. Use this node for titles (for branches in trees of thought), subtitles, or any standalone text that doesn't require rich formatting. If you need rich text formatting (bold, italic, lists, etc.), use the Blocknote node instead. \nThe required data values for this node are 'text' (the content of the label) and 'level' (the heading level, which can be 'h1', 'h2', 'h3', or 'p').",
     defaultDimensions: { width: 220, height: 33, resizable: true },
     defaultColor: "transparent",
     dataValuesSchema: z
@@ -144,36 +144,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .describe("The images to display on the node."),
       })
       .strict(),
-  },
-  {
-    type: "document",
-    label: "Document",
-    description: "Node for storing a rich text document (Plate.js / markdown).",
-    llmDescription:
-      "For storing/displaying rich text content. Use this node for any text content that requires rich formatting (bold, headings, lists, links, imgs (using url), callouts, files, etc.). \nThe required data value for this node is 'doc' (the markdown content of the document).",
-    defaultDimensions: { width: 320, height: 320, resizable: true },
-    variants: {
-      default: {
-        label: "Preview",
-        defaultWidth: 320,
-        defaultHeight: 320,
-        isDefault: true,
-      },
-      title: {
-        label: "Title",
-        defaultWidth: 220,
-        defaultHeight: 33,
-        resizable: false,
-      },
-    },
-    dataValuesSchema: z
-      .object({
-        doc: z.string().default("[]"),
-      })
-      .default({ doc: "[]" }),
-    toolInputSchema: z.object({
-      doc: z.string().describe("The markdown content of the document."),
-    }),
   },
   {
     type: "blocknote",

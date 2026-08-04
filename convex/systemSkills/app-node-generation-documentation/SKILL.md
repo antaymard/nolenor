@@ -43,13 +43,13 @@ Returns all data from nodes connected via edges. No arguments needed.
 ```typescript
 async getData(): Promise<Record<string, {
   id: string;
-  type: "table" | "document" | "value" | "image" | "link" | "title" | "pdf";
+  type: "table" | "blocknote" | "value" | "image" | "link" | "title" | "pdf";
   name: string;
   // --- table ---
   columns?: { id: string; name: string; type: string }[];
   // rows properties are flattened: row.annee NOT row.cells.annee
   rows?: Record<string, any>[];
-  // --- document ---
+  // --- blocknote ---
   markdown?: string;
   // --- value ---
   value?: string | number;

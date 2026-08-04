@@ -72,6 +72,17 @@ export const restore = mutation({
     if (!nodeData) throw new ConvexError("NodeData not found");
     await requireCanvasAccess(ctx, nodeData.canvasId, authUserId, "editor");
 
+    // Le snapshot est stocké au format du node AU MOMENT où il a été pris. Si
+    // le node a changé de type depuis, son `values` n'est plus lisible par le
+    // node courant : `updateValues` rejetterait le document avec une erreur de
+    // validation brute et incompréhensible. On refuse explicitement, avec un
+    // message qui dit pourquoi.
+    if (version.nodeType !== nodeData.type) {
+      throw new ConvexError(
+        `Cette version date d'avant le changement de format du node (${version.nodeType} -> ${nodeData.type}) et ne peut plus être restaurée.`,
+      );
+    }
+
     const actor: NodeDataVersionActor = { type: "user", userId: authUserId };
 
     // Checkpoint forcé de l'état courant AVANT d'écrire : le restore est ainsi

@@ -22,9 +22,9 @@ export type McpAuth = {
 
 const SERVER_INFO = { name: "nolenor", version: "0.1.0" };
 
-const INSTRUCTIONS = `Nolênor is a visual canvas workspace. Each canvas holds nodes (documents, blocknote documents, tables, images, apps…) optionally linked by connections (edges).
+const INSTRUCTIONS = `Nolênor is a visual canvas workspace. Each canvas holds nodes (blocknote documents, tables, images, apps…) optionally linked by connections (edges).
 
-Typical workflow: call list_canvases to get canvas IDs, then list_nodes / read_nodes / full_text_search to explore a canvas, then the write tools (create_node, create_connection, set_node_data, document / block / table tools) to edit it.
+Typical workflow: call list_canvases to get canvas IDs, then list_nodes / read_nodes / full_text_search to explore a canvas, then the write tools (create_node, create_connection, set_node_data, block / table tools) to edit it.
 
 Every tool except list_canvases requires a canvasId argument. Write tools require an API token with "write" permission and editor access to the canvas.`;
 

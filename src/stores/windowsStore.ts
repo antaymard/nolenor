@@ -23,7 +23,6 @@ type WindowSizePreset = WindowSize | ViewportWindowSize;
 const DEFAULT_WINDOW_SIZE: WindowSizePreset = { width: 800, height: 520 };
 
 const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
-  document: { widthRatio: 1 / 2.3, heightRatio: 0.9 },
   blocknote: { widthRatio: 1 / 2.3, heightRatio: 0.9 },
   image: { width: 600, height: 600 },
   embed: { width: 500, height: 500 },
@@ -172,7 +171,6 @@ type Delta = { x: number; y: number };
 export type SnapSide = "left" | "right" | "top";
 
 const FULLSCREEN_ELIGIBLE_NODE_TYPES: ReadonlySet<NodeType> = new Set([
-  "document",
   "blocknote",
   "table",
   "pdf",

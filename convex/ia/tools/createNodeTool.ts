@@ -5,8 +5,10 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import { getDefaultValuesForTemplate } from "../../config/fieldConfig";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { generateLlmId } from "../../lib/llmId";
-import { markdownToPlateJson } from "../helpers/plateMarkdownConverter";
-import { stringifyPlateDocumentForStorage } from "../../lib/plateDocumentStorage";
+import {
+  generateBlockId,
+  stringifyBlockNoteDocumentForStorage,
+} from "../../lib/blockNoteDocument";
 import {
   getDefaultNodeDataValues,
   nodeDataConfig,
@@ -59,13 +61,22 @@ async function applyNodeDataTitle({
   }
 
   switch (nodeType) {
-    case "document": {
+    case "blocknote": {
+      // Le bloc heading est construit à la main plutôt que via
+      // `markdownToBlockNoteBlocks` : ce dernier passe par le runtime jsdom
+      // headless et son verrou global de process, disproportionné pour un
+      // titre. La forme produite est celle que `getNodeDataTitle` relit.
       return {
         values: {
           ...defaultValues,
-          doc: stringifyPlateDocumentForStorage(
-            await markdownToPlateJson(`# ${title}`),
-          ),
+          doc: stringifyBlockNoteDocumentForStorage([
+            {
+              id: generateBlockId(),
+              type: "heading",
+              props: { level: 1 },
+              content: [{ type: "text", text: title, styles: {} }],
+            },
+          ]),
         },
         titleApplied: true,
       };
@@ -200,15 +211,6 @@ export default function createNodeTool({
     }),
     execute: async (ctx, input) => {
       try {
-        // "document" (Plate.js) is being migrated to "blocknote" (BlockNote).
-        // Block creation of new document nodes and hint the agent to use the
-        // blocknote type instead. Existing document nodes keep working.
-        if (input.nodeType === "document") {
-          return toolError(
-            'The "document" node type is deprecated. Create a "blocknote" node instead (nodeType: "blocknote") — it is the replacement rich-text node and supports the same content.',
-          );
-        }
-
         // ── Custom nodes : défauts, dimensions et titre viennent du
         // template (values keyées par fieldId), pas de nodeConfig — le
         // lookup nodeDataConfig reste donc dans la branche non-custom. ──

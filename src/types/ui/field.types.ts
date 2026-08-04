@@ -18,5 +18,4 @@ export type FieldType =
   | "date"
   | "rich_text"
   | "boolean"
-  | "file"
-  | "document";
+  | "file";

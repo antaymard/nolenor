@@ -1,7 +1,7 @@
 # Custom Nodes (templates utilisateur) — Spec & Plan — by opencode
 
 > Feature : permettre à l'utilisateur de créer ses propres types de nodes à partir
-> d'une bibliothèque de champs (titre, richtext Plate.js, date, select, image, etc.),
+> d'une bibliothèque de champs (titre, richtext BlockNote, date, select, image, etc.),
 > agencés librement (flexbox row/column, spacing, alignement) avec **deux layouts
 > distincts** : affichage canvas et affichage window (double-clic). Un champ peut
 > n'apparaître que dans l'un des deux. Parité complète avec les nodes prebuilt :
@@ -17,9 +17,9 @@
 
 Le terrain est mieux préparé qu'il n'y paraît :
 
-- `src/types/ui/field.types.ts` : `FieldType` à **11 littéraux** déjà déclarés
+- `src/types/ui/field.types.ts` : `FieldType` à **10 littéraux** déjà déclarés
   (`short_text`, `url`, `select`, `image`, `image_url`, `number`, `date`,
-  `rich_text`, `boolean`, `file`, `document`) et `BaseFieldProps` avec
+  `rich_text`, `boolean`, `file`) et `BaseFieldProps` avec
   `visualType: "node" | "window"` — exactement la distinction canvas/window.
 - `src/types/domain/nodeTypes.ts` : interface `NodeField { id, name, type, description?, options? }`.
 - `convex/schemas/searchableChunksSchema.ts` : champ `templateId: v.optional(v.string())`
@@ -36,8 +36,8 @@ Le terrain est mieux préparé qu'il n'y paraît :
   nécessaire ; versioning, optimistic updates, diff minimal par clé et écritures
   agent fonctionnent tels quels.
 - `@dnd-kit/core` + `sortable` déjà dans les dépendances.
-- Patterns de champs existants : `DocumentStaticField` (canvas, virtualisé) vs
-  `DocumentEditorField` (window), `ImageField`, `FileNameField`, éditeurs de
+- Patterns de champs existants : `BlockNoteStatic` (canvas) vs
+  `BlockNoteFieldEditor` (window), `ImageField`, `FileNameField`, éditeurs de
   cellules table (`SelectCellEditor`, `SelectOptionsDialog` avec options
   `{id,label,color}` + `isMulti`, `NodeCellEditor`, date…).
 
@@ -66,8 +66,8 @@ On ne bascule PAS les prebuilt sur le moteur de templates. Raisons :
   + SDK `nolenor.getData()`), `PdfNode` (react-pdf + OCR Mistral), `TableNode`
   (tanstack-table + éditeurs de cellules), `BlocknoteNode` (5 tools agent adressés
   par block id), `ImageNode` (upload R2 + vision LLM).
-- 12 tools agent spécialisés couplés à ces types (document ×2, blocknote ×5,
-  table ×4, app ×1).
+- 10 tools agent spécialisés couplés à ces types (blocknote ×5, table ×4,
+  app ×1).
 
 On unifie la **couche définition** :
 
@@ -93,9 +93,9 @@ live. ~3-4 j de dev, zéro dépendance, contrôle UX total.
 ### 1.3 Édition sur canvas : **champs simples inline, riches statiques** ✅
 
 - Inline sur canvas : `short_text`, `number`, `boolean`, `select`, `date`, `url`.
-- Statique sur canvas (édition en window) : `rich_text`, `image`, `file`,
-  `document` — perf (`DocumentStaticField` est virtualisé via
-  @tanstack/react-virtual : 50 instances Plate sur un canvas tueraient tout).
+- Statique sur canvas (édition en window) : `rich_text`, `image`, `file` —
+  perf (le rendu statique passe par `BlockNoteStatic`, pas par un éditeur :
+  50 instances d'éditeur sur un canvas tueraient tout).
 - Convention existante : `onChange === undefined` ⇒ rendu preview/statique.
 
 ### 1.4 Portée des templates : **user-level + système** ✅
@@ -193,14 +193,14 @@ fieldTypeRegistry = {
   short_text: { zod: (f) => z.string().default(...), toLLM, fromLLM,
                 searchable: true, canvasMode: "inline" },
   rich_text:  { zod: () => z.string().default("[]"),
-                toLLM: plateToMarkdown, fromLLM: markdownToPlate,
+                toLLM: blocksToMarkdown, fromLLM: markdownToBlocks,
                 searchable: true, canvasMode: "static" },
   select:     { optionsSchema: {id,label,color}[] + isMulti, searchable: true,
                 canvasMode: "inline" },
   date:       { toLLM: iso, fromLLM: parseDate, canvasMode: "inline" },
   image:      { containsR2Key: true, canvasMode: "static" },
   file:       { containsR2Key: true, canvasMode: "static" },
-  // …url, image_url, number, boolean, document
+  // …url, image_url, number, boolean
 };
 ```
 

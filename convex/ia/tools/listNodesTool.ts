@@ -32,7 +32,7 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         .array(z.string())
         .optional()
         .describe(
-          "Filter by node types (e.g. ['document', 'image', 'table']). If omitted, all types are included.",
+          "Filter by node types (e.g. ['blocknote', 'image', 'table']). If omitted, all types are included.",
         ),
       targetNode: z
         .object({

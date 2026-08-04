@@ -14,7 +14,7 @@ import { BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 import "@blocknote/shadcn/style.css";
 import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
-import { cn } from "@udecode/cn";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings/recipes/edit/$recipeId")({
   component: RouteComponent,

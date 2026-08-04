@@ -5,7 +5,6 @@ import type { Node } from "@xyflow/react";
 import { nodeDataConfig } from "@/../convex/config/nodeConfig";
 import type { NodeDataConfigItem } from "@/../convex/config/nodeConfig";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
-import DocumentNode from "./DocumentNode";
 import BlocknoteNode from "./BlocknoteNode";
 import TitleNode from "./TitleNode";
 import ImageNode from "./ImageNode";
@@ -47,16 +46,6 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.image,
     canBeOpenInWindow: true,
     creatable: true,
-  },
-  // "document" (Plate.js) is being migrated to "blocknote" (BlockNote).
-  // Creation of new document nodes is blocked; existing ones keep working
-  // unchanged (display, edit, open in window, etc). Mirrors the agent-side
-  // block in convex/ia/tools/createNodeTool.ts.
-  document: {
-    nodeComponent: DocumentNode,
-    nodeIcon: NODE_TYPE_ICON_MAP.document,
-    canBeOpenInWindow: true,
-    creatable: false,
   },
   blocknote: {
     nodeComponent: BlocknoteNode,
@@ -156,9 +145,7 @@ const creatableNodeTypes = new Set<NodeType>(
 
 /**
  * Checks if a node type can be created via the manual creation UI
- * (Add a block menu, duplication, etc). "document" is excluded here as it
- * is being deprecated in favor of "blocknote" — existing document nodes
- * are unaffected, only new creation is blocked.
+ * (Add a block menu, duplication, etc).
  */
 function canNodeTypeBeCreated(
   nodeType: string | undefined,

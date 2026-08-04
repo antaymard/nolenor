@@ -63,6 +63,16 @@ const TYPE_WEIGHT: Record<string, number> = {
   file: 15,
 };
 
+/**
+ * Les types de node dont le contenu est un document riche sérialisé dans
+ * `values.doc`. Ils se pèsent à la longueur de leur `doc`, pas au
+ * `TYPE_WEIGHT` forfaitaire — sans quoi un document de 40 ko compte comme un
+ * node vide dans la minimap servie à l'agent.
+ */
+function isRichTextNodeType(type: string): boolean {
+  return type === "blocknote";
+}
+
 // ---- Main export ----
 
 export const generate = internalQuery({
@@ -457,7 +467,7 @@ function enrichLeaves(
     const node = nodeById.get(leaf.id);
     if (!node) continue;
 
-    if (nd.type === "document") {
+    if (isRichTextNodeType(nd.type)) {
       const doc = nd.values.doc;
       leaf.infoWeight = (typeof doc === "string" ? doc.length : 0) + 100;
     } else {
@@ -507,7 +517,7 @@ async function buildHeavyOrphanHubs(
 ): Promise<Hub[]> {
   const results = await Promise.all(
     nodes
-      .filter((n) => n.type === "document")
+      .filter((n) => isRichTextNodeType(n.type))
       .map(async (node): Promise<Hub | null> => {
         if (!node.nodeDataId) return null;
         const nd = await ctx.db.get("nodeDatas", node.nodeDataId);

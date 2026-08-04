@@ -39,8 +39,6 @@ import type * as ia_helpers_nodeDataSchemaXml from "../ia/helpers/nodeDataSchema
 import type * as ia_helpers_nodeFieldsAndTypesHelper from "../ia/helpers/nodeFieldsAndTypesHelper.js";
 import type * as ia_helpers_nodeInputSchemaValidatorForLLM from "../ia/helpers/nodeInputSchemaValidatorForLLM.js";
 import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkFormatters.js";
-import type * as ia_helpers_pillMarkdownRules from "../ia/helpers/pillMarkdownRules.js";
-import type * as ia_helpers_plateMarkdownConverter from "../ia/helpers/plateMarkdownConverter.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
 import type * as ia_nole from "../ia/nole.js";
 import type * as ia_noleCompletion from "../ia/noleCompletion.js";
@@ -52,8 +50,6 @@ import type * as ia_systemPrompts_workerSystemPrompt from "../ia/systemPrompts/w
 import type * as ia_tools_blockNoteTools from "../ia/tools/blockNoteTools.js";
 import type * as ia_tools_createConnectionTool from "../ia/tools/createConnectionTool.js";
 import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
-import type * as ia_tools_documentInsertContentTool from "../ia/tools/documentInsertContentTool.js";
-import type * as ia_tools_documentStringReplaceContentTool from "../ia/tools/documentStringReplaceContentTool.js";
 import type * as ia_tools_fullTextSearchTool from "../ia/tools/fullTextSearchTool.js";
 import type * as ia_tools_index from "../ia/tools/index.js";
 import type * as ia_tools_listNodesTool from "../ia/tools/listNodesTool.js";
@@ -82,7 +78,6 @@ import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
 import type * as lib_llmId from "../lib/llmId.js";
 import type * as lib_parseModelPrice from "../lib/parseModelPrice.js";
 import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js";
-import type * as lib_plateDocumentStorage from "../lib/plateDocumentStorage.js";
 import type * as lib_r2 from "../lib/r2.js";
 import type * as lib_r2Keys from "../lib/r2Keys.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
@@ -192,8 +187,6 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/nodeFieldsAndTypesHelper": typeof ia_helpers_nodeFieldsAndTypesHelper;
   "ia/helpers/nodeInputSchemaValidatorForLLM": typeof ia_helpers_nodeInputSchemaValidatorForLLM;
   "ia/helpers/pdfChunkFormatters": typeof ia_helpers_pdfChunkFormatters;
-  "ia/helpers/pillMarkdownRules": typeof ia_helpers_pillMarkdownRules;
-  "ia/helpers/plateMarkdownConverter": typeof ia_helpers_plateMarkdownConverter;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
   "ia/nole": typeof ia_nole;
   "ia/noleCompletion": typeof ia_noleCompletion;
@@ -205,8 +198,6 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/blockNoteTools": typeof ia_tools_blockNoteTools;
   "ia/tools/createConnectionTool": typeof ia_tools_createConnectionTool;
   "ia/tools/createNodeTool": typeof ia_tools_createNodeTool;
-  "ia/tools/documentInsertContentTool": typeof ia_tools_documentInsertContentTool;
-  "ia/tools/documentStringReplaceContentTool": typeof ia_tools_documentStringReplaceContentTool;
   "ia/tools/fullTextSearchTool": typeof ia_tools_fullTextSearchTool;
   "ia/tools/index": typeof ia_tools_index;
   "ia/tools/listNodesTool": typeof ia_tools_listNodesTool;
@@ -235,7 +226,6 @@ declare const fullApi: ApiFromModules<{
   "lib/llmId": typeof lib_llmId;
   "lib/parseModelPrice": typeof lib_parseModelPrice;
   "lib/parseSkillFrontmatter": typeof lib_parseSkillFrontmatter;
-  "lib/plateDocumentStorage": typeof lib_plateDocumentStorage;
   "lib/r2": typeof lib_r2;
   "lib/r2Keys": typeof lib_r2Keys;
   "lib/searchScoring": typeof lib_searchScoring;

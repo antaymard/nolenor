@@ -42,9 +42,6 @@ import VersionHistoryViewer from "@/components/windows/VersionHistoryViewer";
 import AssociatedThreadsViewer from "@/components/windows/AssociatedThreadsViewer";
 // Same lazy boundaries as WindowFrame: keep the heavy editors out of the
 // canvas chunk on mobile too.
-const DocumentWindow = lazy(
-  () => import("@/components/windows/prebuilt/DocumentWindow"),
-);
 const BlocknoteWindow = lazy(
   () => import("@/components/windows/prebuilt/BlocknoteWindow"),
 );
@@ -337,8 +334,6 @@ function NodeContentBody({
   nodeType,
 }: Pick<OpenedWindow, "xyNodeId" | "nodeDataId" | "nodeType">) {
   switch (nodeType) {
-    case "document":
-      return <DocumentWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
     case "blocknote":
       return <BlocknoteWindow nodeDataId={nodeDataId} />;
     case "embed":

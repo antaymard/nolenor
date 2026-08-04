@@ -3,10 +3,9 @@ import { Button } from "@/components/shadcn/button";
 import { TbAlertTriangle } from "react-icons/tb";
 
 /**
- * BlockNote counterpart of PlateErrorBoundary
- * (src/components/plate/PlateErrorBoundary.tsx), same failure mode: a render
- * or update-time crash (a custom block view throwing, a ProseMirror
- * decoration issue, ...) that would otherwise take down the whole app.
+ * Guards against a render or update-time crash (a custom block view throwing,
+ * a ProseMirror decoration issue, ...) that would otherwise take down the
+ * whole app.
  *
  * This is a different layer from `createSafeBlockNoteEditor`
  * (safeCreateEditor.ts), which only guards the synchronous

@@ -1,25 +1,17 @@
 /*
- * BlockNote CSS overrides — align text appearance with the Plate.js document node.
- *
- * The `document` node still runs on Plate, so both editors sit on the same
- * canvas and any divergence is immediately visible. This file makes the two
- * BlockNote surfaces render like Plate:
+ * BlockNote CSS overrides — typography for the two BlockNote surfaces:
  *   1. Canvas node preview (`.bn-readonly-container`) — `BlockNoteStatic` emits
  *      semantic HTML (`<h1>`, `<p>`, `<blockquote>`, `<pre><code>`, `<ul>/<ol>`),
  *      with a `blocksToFullHTML` fallback for rare blocks that emits BlockNote's
  *      own `.bn-block-content[data-content-type]` markup instead.
  *   2. Live editor window (`.bn-editor`) — BlockNote's internal DOM.
- * Both are covered by the same rules so they cannot drift apart again.
+ * Both are covered by the same rules so they cannot drift apart.
  *
- * Values mirror Plate's typography:
- *   - Headings  → src/index.css `.slate-h1..h5` (the `.slate-*` rules win over
- *     the Tailwind classes on the nodes, since Tailwind utilities are layered)
- *   - Paragraph → src/components/plate/paragraph-node.tsx (m-0 px-0 py-1)
- *   - Editor    → src/components/plate/editor.tsx (selection, strong, placeholder)
- *     and DocumentEditorField.tsx (`px-5 py-3`)
- *   - Blockquote→ src/components/plate/blockquote-node.tsx (my-1 border-l-2 pl-6 italic)
- *   - Code      → src/components/plate/code-block-node.tsx + code-node.tsx
- *   - Lists     → src/components/plate/indent-kit.tsx (offset: 24)
+ * The values were derived from the Plate.js `document` node that BlockNote
+ * replaced, so the two editors would render identically while both existed on
+ * the canvas. Plate is gone; the "Plate's …" annotations below record where a
+ * number comes from, and are no longer a constraint — they can be revisited on
+ * their own merits.
  *
  * Two things to know before editing the heading rules:
  *   - BlockNote drives heading sizes through a `--level` custom property, not
@@ -38,10 +30,10 @@
  *
  * Sizes are in `em` so they scale off the 13px app base (`--text-base`).
  *
- * The ramp started as a literal copy of Plate's `.slate-h*` (h1 2em = 26px) but
+ * The ramp started as a literal copy of Plate's heading scale (h1 2em = 26px) but
  * h1 read too large at this body size, so the whole ramp is pulled down while
  * keeping its proportions — shrinking h1 alone would have collided with h2.
- * This also retires Plate's `.slate-h5` quirk, where h5 was expressed in `rem`
+ * This also retires Plate's h5 quirk, where it was expressed in `rem`
  * and ended up marginally larger than h4. Resulting sizes on a 13px base:
  * 22.8 / 18.9 / 16.3 / 14.6 / 13.3 / 13 px.
  * ------------------------------------------------------------------------- */
@@ -151,7 +143,7 @@
  *
  * `padding-top: 0` cancels BlockNote's blanket `[data-content-type="heading"]
  * { padding-top: 18px }`; vertical rhythm comes from `margin-top` instead, like
- * Plate's `.slate-h*`.
+ * Plate's heading rules did.
  *
  * Level 1 is matched by the BARE heading selector, not `[data-level="1"]`:
  * BlockNote omits a prop from the DOM when it equals its default, and the
@@ -247,7 +239,7 @@
 .bn-editor [data-prev-level="5"] { --prev-level: var(--doc-h5-size); }
 .bn-editor [data-prev-level="6"] { --prev-level: var(--doc-h6-size); }
 
-/* No leading gap on the first block — `.slate-h1:first-child { margin-top: 0 }`.
+/* No leading gap on the first block, as Plate did for a leading h1.
  * Must come after the per-level rules and match their (0,5,0) specificity. */
 .bn-editor
   .bn-block-group
@@ -443,7 +435,7 @@
  * backs the rich_text field views (ExcerptView / FullView), which do not set
  * that class.
  *
- * Wide tables follow what the Plate node did (table-node-static.tsx): the block
+ * Wide tables follow what the Plate table node did: the block
  * is its own horizontal scroll container and the table keeps its natural width
  * inside it. Hence no `max-width: 100%` on the table itself — that would
  * squeeze the columns and there would be nothing left to scroll.

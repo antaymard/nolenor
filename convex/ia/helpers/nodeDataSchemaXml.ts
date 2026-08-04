@@ -16,8 +16,6 @@ import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 // (Named "dedicated tools" rather than "custom" to avoid colliding with the
 // "custom" node type, whose schema is template-derived — see below.)
 const DEDICATED_TOOLS_SCHEMA_BY_TYPE: Record<string, string> = {
-  document:
-    '<schema type="document" tools="insert_document_content,string_replace_document_content" />',
   blocknote:
     '<schema type="blocknote" readFormat="blocknote-xml-v1" setFormat="markdown" blockEditFormat="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />',
   table:

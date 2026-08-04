@@ -6,12 +6,11 @@ import useRichQuery from "../utils/useRichQuery";
 import { api } from "@/../convex/_generated/api";
 import { formatDistanceToNow } from "@/lib/date-utils";
 import { TbUser, TbRobot, TbSettings, TbRestore } from "react-icons/tb";
-import { normalizeNodeId, type Value } from "platejs";
 import { cn } from "@/lib/utils";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
-import DocumentStaticField from "@/components/fields/document-fields/DocumentStaticField";
+import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 import { TablePreview, type TableData } from "@/components/table";
-import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
+import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
 import { toastError } from "@/components/utils/errorUtils";
 import LayoutRenderer from "@/components/fields/layout/LayoutRenderer";
 import { useNodeData } from "@/hooks/useNodeData";
@@ -70,8 +69,8 @@ function VersionContentPreview({
   }
 
   switch (data.nodeType) {
-    case "document": {
-      const parsed = parseStoredPlateDocument(data.values.doc);
+    case "blocknote": {
+      const parsed = parseStoredBlockNoteDocument(data.values.doc);
       if (!parsed || parsed.length === 0) {
         return (
           <div className="flex h-full items-center justify-center text-xs text-slate-400">
@@ -79,10 +78,9 @@ function VersionContentPreview({
           </div>
         );
       }
-      const doc = normalizeNodeId(parsed as Value);
       return (
         <div className="h-full min-h-0 overflow-auto">
-          <DocumentStaticField value={{ doc }} preview />
+          <BlockNoteStatic blocks={parsed} className="text-sm" />
         </div>
       );
     }

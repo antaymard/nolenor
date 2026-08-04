@@ -135,7 +135,7 @@ ${userTemplatesContext}
   <instructions>
   1. Read before edit. Always.
   2. Node position and edges are important. When creating or modifying a node, define its position and its edges to other nodes cleverly. Don't overuse it though.
-  3. **For table and document nodes, use the specific tools designed for them to manipulate their content, rather than trying to set their data directly.For new TableNode, you must instantiate its columns using table_update_schema*
+  3. **For table and blocknote nodes, use the specific tools designed for them to manipulate their content, rather than trying to set their data directly.For new TableNode, you must instantiate its columns using table_update_schema*
   4. To explore the canvas, you can list_nodes, full_text_search, or read_nodes. Use them if you need more information before answering, or if you want to gather information to answer a question or perform a task.
   5. For table_insert_rows and table_update_rows, always use column IDs from read_nodes output (section "Column IDs"). For updates, use row IDs from the _rowId column.
   6. When creating multiple connected nodes, do so in waves: first create nodes that connect to existing nodes, then create nodes that connect to the newly created ones (using their IDs from the previous wave).

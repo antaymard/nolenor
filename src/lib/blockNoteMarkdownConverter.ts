@@ -1,5 +1,6 @@
-import { BlockNoteEditor, type Block } from "@blocknote/core";
+import { BlockNoteEditor, type Block, type PartialBlock } from "@blocknote/core";
 import { blockNoteSchema } from "@/components/blocknote/schema";
+import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
 
 // Client-only markdown -> BlockNote blocks conversion (paste handler). This is
 // a genuine browser context, so — unlike the Convex codec in
@@ -32,4 +33,27 @@ function getConverter() {
  */
 export function markdownToBlockNoteBlocks(markdown: string): Block[] {
   return getConverter().tryParseMarkdownToBlocks(markdown) as unknown as Block[];
+}
+
+/**
+ * Sérialise des blocs BlockNote en Markdown. Lossy par nature : les props de
+ * bloc (couleurs, alignement) et les types custom n'ont pas d'équivalent
+ * Markdown.
+ *
+ * Les blocs sont chargés dans un éditeur dédié plutôt que dans le singleton :
+ * un document stocké avant que la validation serveur n'existe peut faire
+ * throw `createChecked`, et `createSafeBlockNoteEditor` absorbe ce cas.
+ *
+ * Le statut est rendu plutôt qu'aplati sur `null` : un document illisible et un
+ * document vide appellent des messages différents côté export.
+ */
+export function blockNoteBlocksToMarkdown(
+  blocks: PartialBlock[],
+): { status: "ok"; markdown: string } | { status: "unreadable" } {
+  const { editor, status } = createSafeBlockNoteEditor(blocks);
+  if (status !== "ok") return { status: "unreadable" };
+  return {
+    status: "ok",
+    markdown: editor.blocksToMarkdownLossy(editor.document).trim(),
+  };
 }

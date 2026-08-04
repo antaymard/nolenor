@@ -34,9 +34,8 @@ import {
 } from "react-icons/tb";
 import { useReactFlow } from "@xyflow/react";
 import { useGoToNode } from "@/hooks/useGoToNode";
-// Window bodies are lazy-loaded: they pull heavy dependencies (full Plate
+// Window bodies are lazy-loaded: they pull heavy dependencies (BlockNote
 // editor, pdfjs, tanstack-table…) that shouldn't weigh down the canvas chunk.
-const DocumentWindow = lazy(() => import("./prebuilt/DocumentWindow"));
 const BlocknoteWindow = lazy(() => import("./prebuilt/BlocknoteWindow"));
 const EmbedWindow = lazy(() => import("./prebuilt/EmbedWindow"));
 const ImageWindow = lazy(() => import("./prebuilt/ImageWindow"));
@@ -90,8 +89,6 @@ function WindowBody({
   nodeDataId,
 }: Pick<OpenedWindow, "nodeType" | "xyNodeId" | "nodeDataId">) {
   switch (nodeType) {
-    case "document":
-      return <DocumentWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
     case "blocknote":
       return <BlocknoteWindow nodeDataId={nodeDataId} />;
     case "embed":

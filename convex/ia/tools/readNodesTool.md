@@ -166,7 +166,7 @@ Les pages dépassant la limite sont ignorées silencieusement. Un hint est ajout
 ```xml
 <nodes>
   <!-- Un <node> par nodeId demandé -->
-  <node id="…" type="document" sourceNodes="id1 | type | title ; …" targetNodes="…" x="100" y="200" width="300" height="400" title="Mon doc">
+  <node id="…" type="blocknote" sourceNodes="id1 | type | title ; …" targetNodes="…" x="100" y="200" width="300" height="400" title="Mon doc">
     … contenu LLM-friendly …
   </node>
 
@@ -178,7 +178,7 @@ Les pages dépassant la limite sont ignorées silencieusement. Un hint est ajout
 </nodes>
 
 <nodeDataSchemas>
-  <schema nodeType="document" edition_tools="insert_document_content,string_replace_document_content"></schema>
+  <schema nodeType="blocknote" edition_tools="insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text"></schema>
   <schema nodeType="table" edition_tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows"></schema>
   <schema nodeType="task" edition_tool="set_node_data">{ … JSON Schema … }</schema>
 </nodeDataSchemas>

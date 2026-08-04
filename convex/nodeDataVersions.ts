@@ -77,11 +77,6 @@ export const restore = mutation({
     // node courant : `updateValues` rejetterait le document avec une erreur de
     // validation brute et incompréhensible. On refuse explicitement, avec un
     // message qui dit pourquoi.
-    //
-    // Cas concret : la migration PlateJS -> BlockNote a converti les versions
-    // en même temps que leur node, mais celles dont la conversion a échoué sont
-    // restées en `nodeType: "document"` sur un node devenu `blocknote`. Elles
-    // vivent jusqu'à l'expiration de leur TTL (30 jours).
     if (version.nodeType !== nodeData.type) {
       throw new ConvexError(
         `Cette version date d'avant le changement de format du node (${version.nodeType} -> ${nodeData.type}) et ne peut plus être restaurée.`,

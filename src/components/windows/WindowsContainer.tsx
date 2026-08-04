@@ -6,9 +6,6 @@ import WindowFrame from "./WindowFrame";
 
 // Fullscreen windows share the heavy editor dependencies of their windowed
 // counterparts; load them on demand instead of with the canvas chunk.
-const FullscreenDocumentWindow = lazy(
-  () => import("./FullscreenDocumentWindow"),
-);
 const FullscreenBlocknoteWindow = lazy(
   () => import("./FullscreenBlocknoteWindow"),
 );
@@ -57,9 +54,7 @@ export default function WindowsContainer() {
         existingNodeIds.includes(fullscreenWindow.xyNodeId) && (
           <div className="pointer-events-auto">
             <Suspense fallback={null}>
-              {fullscreenWindow.nodeType === "document" ? (
-                <FullscreenDocumentWindow openedWindow={fullscreenWindow} />
-              ) : fullscreenWindow.nodeType === "blocknote" ? (
+              {fullscreenWindow.nodeType === "blocknote" ? (
                 <FullscreenBlocknoteWindow openedWindow={fullscreenWindow} />
               ) : fullscreenWindow.nodeType === "table" ? (
                 <FullscreenTableWindow openedWindow={fullscreenWindow} />

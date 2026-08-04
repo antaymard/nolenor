@@ -7,12 +7,6 @@ import createNodeTool, { createNodeToolConfig } from "./createNodeTool";
 import patchAppNodeCodeTool, {
   patchAppNodeCodeToolConfig,
 } from "./patchAppNodeCodeTool";
-import documentInsertContentTool, {
-  documentInsertContentToolConfig,
-} from "./documentInsertContentTool";
-import documentStringReplaceContentTool, {
-  documentStringReplaceContentToolConfig,
-} from "./documentStringReplaceContentTool";
 import { blockNoteToolDefinitions } from "./blockNoteTools";
 import fullTextSearchTool, {
   fullTextSearchToolConfig,
@@ -87,14 +81,6 @@ const toolRegistry: ToolRegistration[] = [
   {
     config: websearchToolConfig,
     factory: () => websearchTool,
-  },
-  {
-    config: documentStringReplaceContentToolConfig,
-    factory: ({ threadCtx }) => documentStringReplaceContentTool({ threadCtx }),
-  },
-  {
-    config: documentInsertContentToolConfig,
-    factory: ({ threadCtx }) => documentInsertContentTool({ threadCtx }),
   },
   ...blockNoteToolDefinitions,
   {

@@ -5,7 +5,6 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { toastError } from "@/components/utils/errorUtils";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import type { Doc } from "@/../convex/_generated/dataModel";
-import { stringifyPlateDocumentForStorage } from "@/../convex/lib/plateDocumentStorage";
 
 interface UpdateNodeDataInput {
   nodeDataId: Id<"nodeDatas">;
@@ -62,17 +61,9 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
       const { nodeDataId, values } = input;
       const nodeData = getNodeData(nodeDataId);
       const valuesForMutation =
-        nodeData?.type === "document" && "doc" in values
-          ? {
-              ...values,
-              doc: stringifyPlateDocumentForStorage(values.doc),
-            }
-          : nodeData?.type === "blocknote" && "doc" in values
-            ? {
-                ...values,
-                doc: JSON.stringify(values.doc),
-              }
-            : values;
+        nodeData?.type === "blocknote" && "doc" in values
+          ? { ...values, doc: JSON.stringify(values.doc) }
+          : values;
 
       const hasChanges = Object.entries(valuesForMutation).some(
         ([key, nextValue]) => !Object.is(nodeData?.values?.[key], nextValue),

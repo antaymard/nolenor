@@ -29,7 +29,7 @@ function generateSupervisorSystemPrompt(): string {
     - Delegate — Spawn Workers via run_subagent or runWorker (clone / supervisor / worker profiles with the right tools).
     - Track — Monitor task progress and Worker status. Persist state updates. Re-plan if needed. Rerun failed steps if needed. Learn from past mistakes, and adapt your delegation strategy accordingly.
     - Verify — Check Worker outputs for completeness and quality.
-    - Deliver — Aggregate results and update the canvas: create result nodes, attach them to the TaskNode via create_connection, write into nodes via insert_document_content, or update table rows.
+    - Deliver — Aggregate results and update the canvas: create result nodes, attach them to the TaskNode via create_connection, write into nodes via insert_blocks, or update table rows.
   </mission>
 
   <task_lifecycle>

@@ -10,7 +10,7 @@ Ce fichier doit rester léger pour éviter de surcharger le contexte des agents.
 
 ## Stack principale
 
-- Frontend: React 19, TypeScript, Vite, TanStack Router, Zustand, React Flow, Plate.js, Tailwind 4.
+- Frontend: React 19, TypeScript, Vite, TanStack Router, Zustand, React Flow, BlockNote, Tailwind 4.
 - Backend: Convex (temps réel + auth + serverless), `@convex-dev/agent`.
 - Packages: yarn.
 
@@ -65,7 +65,7 @@ Ce fichier doit rester léger pour éviter de surcharger le contexte des agents.
 
 6 stores principaux :
 
-1. **canvasStore** — canvas actif, statut de sync (idle/unsynced/saving/saved/error), focus (canvas/platejs), outil actif (edit/slides/draw), permission
+1. **canvasStore** — canvas actif, statut de sync (idle/unsynced/saving/saved/error), focus (canvas/richtext-editor/modal), outil actif (edit/slides/draw), permission
 2. **nodeDataStore** — Map<Id, Doc> pour lookup O(1). CRUD sur les données de nœuds.
 3. **noleStore** — état du chat IA. Canvas attaché, nœuds attachés, position.
 4. **windowsStore** — gestion des fenêtres ouvertes

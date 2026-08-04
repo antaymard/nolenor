@@ -12,7 +12,7 @@ on an infinite canvas, connect them, and can integrate external data sources.
 - React Flow for canvas/nodes
 - Zustand for UI state
 - TanStack Router (file-based routing)
-- Plate.js for rich text editing
+- BlockNote for rich text editing
 - Tailwind CSS
 - Utilisation de convex-dev/agent (composant convex agent) pour tout ce qui concerne les agents IA. Le MCP Convex est installé si besoin.
 - Gestion des packages avec yarn

@@ -9,11 +9,10 @@ type CanvasInStore = Omit<Doc<"canvases">, "nodes" | "edges"> & {
 
 type Status = "idle" | "unsynced" | "saving" | "saved" | "error";
 /**
- * Where keyboard input is currently going. `richtext-editor` covers both
- * rich-text editors (Plate.js document nodes and BlockNote nodes) — the
- * distinction that matters to callers is "a text editor has focus", not which
- * library renders it. `modal` covers full-screen overlays that own the
- * keyboard (template editor).
+ * Where keyboard input is currently going. `richtext-editor` covers the
+ * BlockNote surfaces — what matters to callers is "a text editor has focus",
+ * not which library renders it. `modal` covers full-screen overlays that own
+ * the keyboard (template editor).
  *
  * Callers must test `focus === "canvas"` to enable a canvas behaviour, never
  * `focus !== "richtext-editor"`: a new value must default to "the canvas is

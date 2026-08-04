@@ -1,5 +1,4 @@
 import type { Doc } from "../_generated/dataModel";
-import { parseStoredPlateDocument } from "./plateDocumentStorage";
 import {
   extractInlineText,
   parseStoredBlockNoteDocument,
@@ -13,33 +12,11 @@ export function getNodeDataTitle(
   template?: { name: string; titleFieldId?: string } | null,
 ): string {
   switch (nodeData.type) {
-    case "document": {
-      const doc = nodeData.values.doc;
-      const docValue = parseStoredPlateDocument(doc);
-
-      if (!docValue || docValue.length === 0) return "Document";
-
-      const firstBlock = docValue[0] as {
-        type?: string;
-        children?: Array<{ text?: unknown }>;
-      };
-
-      if (firstBlock.type === "h1" || firstBlock.type === "h2") {
-        const title = (firstBlock.children ?? [])
-          .map((child) => (typeof child.text === "string" ? child.text : ""))
-          .join(" ")
-          .trim();
-        return title || "Document";
-      }
-
-      return "Document";
-    }
-
     case "blocknote": {
       const docValue = parseStoredBlockNoteDocument(nodeData.values.doc);
       const firstBlock = docValue?.[0];
 
-      // Only a leading heading block names the node, like the document case.
+      // Only a leading heading block names the node.
       if (firstBlock?.type !== "heading") return "Blocknote";
       return extractInlineText(firstBlock.content).trim() || "Blocknote";
     }

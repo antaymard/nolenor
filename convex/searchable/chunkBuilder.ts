@@ -6,9 +6,7 @@ import { internal } from "../_generated/api";
 import { generateText } from "ai";
 import { openrouter } from "@openrouter/ai-sdk-provider";
 import { uploadBuffer } from "../lib/r2";
-import { plateJsonToMarkdown } from "../ia/helpers/plateMarkdownConverter";
 import { blocksToMarkdown } from "../ia/helpers/blockNoteMarkdown";
-import { parseStoredPlateDocument } from "../lib/plateDocumentStorage";
 import { parseStoredBlockNoteDocument } from "../lib/blockNoteDocument";
 import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFriendly";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
@@ -241,20 +239,6 @@ async function buildChunks(
 
     case "table": {
       const text = makeTableNodeDataLLMFriendly(nodeData.values.table);
-      if (!text.trim()) return [];
-      return [{ ...base, chunkType: "node", order: 0, text }];
-    }
-
-    case "document": {
-      const parsed = parseStoredPlateDocument(nodeData.values.doc);
-      if (!parsed || parsed.length === 0) return [];
-      const firstBlockType = (parsed[0] as { type?: string } | undefined)?.type;
-      const body =
-        firstBlockType === "h1" || firstBlockType === "h2"
-          ? parsed.slice(1)
-          : parsed;
-      if (body.length === 0) return [];
-      const text = await plateJsonToMarkdown(body);
       if (!text.trim()) return [];
       return [{ ...base, chunkType: "node", order: 0, text }];
     }

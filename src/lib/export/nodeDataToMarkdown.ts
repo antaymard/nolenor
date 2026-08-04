@@ -1,11 +1,9 @@
 import type { Doc } from "@/../convex/_generated/dataModel";
 import { getNodeDataTitle } from "@/../convex/lib/getNodeDataTitle";
-import { parseStoredPlateDocument } from "@/../convex/lib/plateDocumentStorage";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
 import { getFieldTypeConfig } from "@/../convex/config/fieldConfig";
 import type { PartialBlock } from "@blocknote/core";
-import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
-import { plateJsonToMarkdown } from "@/lib/plateMarkdownConverter";
+import { blockNoteBlocksToMarkdown } from "@/lib/blockNoteMarkdownConverter";
 import type { ExportTemplate } from "./types";
 
 /**
@@ -81,31 +79,20 @@ function tableCell(value: unknown): string {
  * passe par jsdom derrière un verrou global sérialisé — inutilisable pour
  * convertir des centaines de nodes. Ici le DOM est déjà là.
  */
+// Synchrone dans @blocknote/core (contrairement au chemin serveur, qui doit
+// attendre le jsdom) — la fonction reste `async` pour une seule signature
+// côté appelants.
 async function blockNoteValueToMarkdown(
   value: unknown,
 ): Promise<string | null> {
   const blocks = parseStoredBlockNoteDocument(value);
   if (!blocks || blocks.length === 0) return null;
 
-  const { editor, status } = createSafeBlockNoteEditor(
-    blocks as unknown as PartialBlock[],
-  );
-
-  if (status !== "ok") {
+  const result = blockNoteBlocksToMarkdown(blocks as unknown as PartialBlock[]);
+  if (result.status !== "ok") {
     return "> Ce contenu n'a pas pu être relu par l'éditeur. Sa version brute est intacte dans `nodes.json`.";
   }
-
-  // Synchrone dans @blocknote/core (contrairement au chemin serveur, qui doit
-  // attendre le jsdom) — la fonction reste `async` pour une seule signature
-  // côté appelants.
-  const markdown = editor.blocksToMarkdownLossy(editor.document);
-  return markdown.trim() || null;
-}
-
-function plateValueToMarkdown(value: unknown): string | null {
-  const parsed = parseStoredPlateDocument(value);
-  if (!parsed || parsed.length === 0) return null;
-  return plateJsonToMarkdown(parsed).trim() || null;
+  return result.markdown || null;
 }
 
 // ── Corps par type de node ─────────────────────────────────────────────────
@@ -125,8 +112,6 @@ async function renderBody(
       return hashes ? `${hashes} ${text}` : text;
     }
 
-    case "document":
-      return plateValueToMarkdown(values.doc) ?? "_Document vide_";
 
     case "blocknote":
       return (await blockNoteValueToMarkdown(values.doc)) ?? "_Document vide_";

@@ -68,12 +68,9 @@ const TYPE_WEIGHT: Record<string, number> = {
  * `values.doc`. Ils se pèsent à la longueur de leur `doc`, pas au
  * `TYPE_WEIGHT` forfaitaire — sans quoi un document de 40 ko compte comme un
  * node vide dans la minimap servie à l'agent.
- *
- * `document` (PlateJS) n'existe plus en base depuis la migration vers
- * `blocknote`, mais reste listé tant que le littéral est dans le schéma.
  */
 function isRichTextNodeType(type: string): boolean {
-  return type === "document" || type === "blocknote";
+  return type === "blocknote";
 }
 
 // ---- Main export ----

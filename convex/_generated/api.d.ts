@@ -8,7 +8,6 @@
  * @module
  */
 
-import type * as admin_purgeNodeDatas from "../admin/purgeNodeDatas.js";
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
 import type * as canvasEdges from "../canvasEdges.js";
@@ -98,11 +97,6 @@ import type * as mcp_registry from "../mcp/registry.js";
 import type * as mcp_server from "../mcp/server.js";
 import type * as memories from "../memories.js";
 import type * as messageMetadata from "../messageMetadata.js";
-import type * as migrations_plateSimplify from "../migrations/plateSimplify.js";
-import type * as migrations_plateToBlockNote from "../migrations/plateToBlockNote.js";
-import type * as migrations_plateToBlockNoteConvert from "../migrations/plateToBlockNoteConvert.js";
-import type * as migrations_plateToBlockNoteData from "../migrations/plateToBlockNoteData.js";
-import type * as migrations_plateToBlockNoteMarkdown from "../migrations/plateToBlockNoteMarkdown.js";
 import type * as models_canvasEdgeModels from "../models/canvasEdgeModels.js";
 import type * as models_canvasModels from "../models/canvasModels.js";
 import type * as models_canvasNodeModels from "../models/canvasNodeModels.js";
@@ -167,7 +161,6 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "admin/purgeNodeDatas": typeof admin_purgeNodeDatas;
   apiTokens: typeof apiTokens;
   auth: typeof auth;
   canvasEdges: typeof canvasEdges;
@@ -257,11 +250,6 @@ declare const fullApi: ApiFromModules<{
   "mcp/server": typeof mcp_server;
   memories: typeof memories;
   messageMetadata: typeof messageMetadata;
-  "migrations/plateSimplify": typeof migrations_plateSimplify;
-  "migrations/plateToBlockNote": typeof migrations_plateToBlockNote;
-  "migrations/plateToBlockNoteConvert": typeof migrations_plateToBlockNoteConvert;
-  "migrations/plateToBlockNoteData": typeof migrations_plateToBlockNoteData;
-  "migrations/plateToBlockNoteMarkdown": typeof migrations_plateToBlockNoteMarkdown;
   "models/canvasEdgeModels": typeof models_canvasEdgeModels;
   "models/canvasModels": typeof models_canvasModels;
   "models/canvasNodeModels": typeof models_canvasNodeModels;

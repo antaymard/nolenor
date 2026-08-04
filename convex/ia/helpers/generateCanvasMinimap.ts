@@ -64,11 +64,13 @@ const TYPE_WEIGHT: Record<string, number> = {
 };
 
 /**
- * Les deux types de node dont le contenu est un document riche sérialisé dans
- * `values.doc` : `document` (PlateJS, en cours de migration) et `blocknote`
- * (BlockNote). Tous deux se pèsent à la longueur de leur `doc`, pas au
+ * Les types de node dont le contenu est un document riche sérialisé dans
+ * `values.doc`. Ils se pèsent à la longueur de leur `doc`, pas au
  * `TYPE_WEIGHT` forfaitaire — sans quoi un document de 40 ko compte comme un
  * node vide dans la minimap servie à l'agent.
+ *
+ * `document` (PlateJS) n'existe plus en base depuis la migration vers
+ * `blocknote`, mais reste listé tant que le littéral est dans le schéma.
  */
 function isRichTextNodeType(type: string): boolean {
   return type === "document" || type === "blocknote";

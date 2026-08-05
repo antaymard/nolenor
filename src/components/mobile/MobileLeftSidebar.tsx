@@ -34,16 +34,11 @@ export default function MobileLeftSidebar({
 
   const { selectThread, threadId, startNewThread } = useMobileNoleChat();
 
-  const userThreads = useQuery(api.threads.listUserThreads, {
-    paginationOpts: { numItems: 30, cursor: null },
-  });
-  const deleteThread = useAction(api.threads.deleteThread);
+  // Conversations du canvas ouvert uniquement.
   const threadsList =
-    userThreads?.success &&
-    userThreads.threads &&
-    !Array.isArray(userThreads.threads)
-      ? userThreads.threads.page
-      : [];
+    useQuery(api.threads.listCanvasThreads, canvasId ? { canvasId } : "skip") ??
+    [];
+  const deleteThread = useAction(api.threads.deleteThread);
 
   const ownCanvases = (userCanvases ?? []).filter((c) => !("shared" in c));
   const sharedCanvases = (userCanvases ?? []).filter((c) => "shared" in c);
@@ -69,9 +64,9 @@ export default function MobileLeftSidebar({
     onOpenChange(false);
   };
 
-  const handleNewThread = async () => {
+  const handleNewThread = () => {
     onOpenChange(false);
-    await startNewThread();
+    startNewThread();
   };
 
   return (
@@ -140,7 +135,7 @@ export default function MobileLeftSidebar({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => void handleNewThread()}
+              onClick={handleNewThread}
               aria-label="New conversation"
             >
               <TbPlus size={14} />
@@ -149,19 +144,19 @@ export default function MobileLeftSidebar({
 
           {threadsList.length === 0 ? (
             <div className="text-sm text-muted-foreground px-2 py-2">
-              No previous sessions
+              Aucune conversation sur ce canvas
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
               {threadsList.map((thread) => (
                 <ThreadRow
-                  key={thread._id}
-                  active={thread._id === threadId}
-                  title={thread.title ?? null}
-                  onSelect={() => handleSelectThread(thread._id)}
+                  key={thread.threadId}
+                  active={thread.threadId === threadId}
+                  title={thread.title}
+                  onSelect={() => handleSelectThread(thread.threadId)}
                   onDelete={async () => {
                     try {
-                      await deleteThread({ threadId: thread._id });
+                      await deleteThread({ threadId: thread.threadId });
                     } catch (error) {
                       toastError(error, "Error deleting thread.");
                     }

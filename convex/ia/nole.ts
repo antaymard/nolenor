@@ -97,7 +97,13 @@ export const saveMessage = mutation({
       });
     }
 
-    // 3) Schedule the response generation in background.
+    // 3) Dater l'interaction : c'est cette date qui décide, à la réouverture du
+    // panel, si la conversation du canvas est reprise ou laissée derrière.
+    await ctx.runMutation(internal.wrappers.threadMetadataWrappers.touch, {
+      threadId,
+    });
+
+    // 4) Schedule the response generation in background.
     void ctx.scheduler.runAfter(0, internal.ia.noleCompletion.streamResponse, {
       authUserId: authUserId,
       threadId,

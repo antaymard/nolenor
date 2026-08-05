@@ -122,15 +122,7 @@ const schema = defineSchema({
     .index("by_threadId", ["threadId"]),
   threadMetadata: defineTable(threadMetadataValidator)
     .index("by_threadId", ["threadId"])
-    .index("by_userId", ["userId"])
-    // `agentName` est dans la clé pour que le listing des conversations d'un
-    // canvas ne scanne pas les threads de sous-agents (cf. threadMetadataSchema).
-    .index("by_userId_and_canvasId_and_agentName", [
-      "userId",
-      "canvasId",
-      "agentName",
-    ])
-    .index("by_masterThreadId", ["masterThreadId"]),
+    .index("by_userId", ["userId"]),
 
   // ============================================================================
   // API TOKENS

@@ -53,12 +53,20 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
     );
   }
 
+  if (!threadId) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-slate-500">
+        Error loading chat
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-full flex flex-col shadow-2xl/10">
       {/* Header */}
       <div className="pl-2 rounded-t-lg border-b flex items-center justify-between gap-2">
         <p className="text-sm font-medium truncate flex-1">
-          {threadId ? threadInfo?.title || "Sans titre" : "Nouvelle conversation"}
+          {threadInfo?.title || "Untitled"}
         </p>
         <ThreadStatsBadge
           threadId={threadId}
@@ -69,12 +77,11 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={chat.startNewThread}
+            onClick={() => void chat.startNewThread()}
           >
             <TbPlus size={14} />
           </Button>
           <ThreadSelector
-            canvasId={chat.canvasId}
             currentThreadId={threadId}
             onSelectThread={chat.selectThread}
           />
@@ -89,19 +96,13 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
         </div>
       </div>
 
-      {/* Messages — pas de thread tant que le premier message n'est pas parti */}
+      {/* Messages */}
       <div className="w-full flex-1 min-h-0">
-        {threadId ? (
-          <ChatInterface
-            threadId={threadId}
-            onRetry={handleRetry}
-            onAssistantRespondingChange={chat.setIsAssistantResponding}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center px-4 text-center text-sm text-slate-400">
-            Posez votre première question à Nolë.
-          </div>
-        )}
+        <ChatInterface
+          threadId={threadId}
+          onRetry={handleRetry}
+          onAssistantRespondingChange={chat.setIsAssistantResponding}
+        />
       </div>
 
       {/* Composer */}

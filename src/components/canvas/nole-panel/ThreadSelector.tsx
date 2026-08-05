@@ -1,6 +1,5 @@
 import { useQuery, useAction } from "convex/react";
 import { api } from "@/../convex/_generated/api";
-import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import {
   DropdownMenu,
@@ -12,21 +11,22 @@ import { TbMessageSearch, TbTrash } from "react-icons/tb";
 import { toastError } from "@/components/utils/errorUtils";
 
 interface ThreadSelectorProps {
-  canvasId: Id<"canvases"> | undefined;
-  currentThreadId: string | null;
+  currentThreadId: string;
   onSelectThread: (threadId: string) => void;
 }
 
 export default function ThreadSelector({
-  canvasId,
   currentThreadId,
   onSelectThread,
 }: ThreadSelectorProps) {
-  const threads = useQuery(
-    api.threads.listCanvasThreads,
-    canvasId ? { canvasId } : "skip",
-  );
+  const userThreads = useQuery(api.threads.listUserThreads, {
+    paginationOpts: { numItems: 20, cursor: null },
+  });
   const deleteThread = useAction(api.threads.deleteThread);
+
+  const threadsData = userThreads?.success ? userThreads.threads : null;
+  const threads =
+    threadsData && !Array.isArray(threadsData) ? threadsData.page : [];
 
   return (
     <DropdownMenu>
@@ -39,33 +39,33 @@ export default function ThreadSelector({
         align="start"
         className="w-64 max-h-80 overflow-y-auto"
       >
-        {(!threads || threads.length === 0) && (
+        {threads.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground text-center">
-            Aucune conversation sur ce canvas
+            No previous sessions
           </div>
         )}
-        {threads?.map((thread) => (
+        {threads.map((thread) => (
           <DropdownMenuItem
-            key={thread.threadId}
+            key={thread._id}
             className="flex items-center justify-between gap-2 cursor-pointer"
-            onSelect={() => onSelectThread(thread.threadId)}
+            onSelect={() => onSelectThread(thread._id)}
           >
             <div className="flex flex-col flex-1 min-w-0">
               <span className="truncate text-sm font-medium">
-                {thread.title || "Sans titre"}
+                {thread.title || "Untitled"}
               </span>
               <span className="text-xs text-muted-foreground">
-                {new Date(thread.lastActivityTime).toLocaleDateString()}
+                {new Date(thread._creationTime).toLocaleDateString()}
               </span>
             </div>
-            {thread.threadId !== currentThreadId && (
+            {thread._id !== currentThreadId && (
               <button
                 type="button"
                 className="p-1 rounded hover:text-red-500 shrink-0"
                 onClick={async (e) => {
                   e.stopPropagation();
                   try {
-                    await deleteThread({ threadId: thread.threadId });
+                    await deleteThread({ threadId: thread._id });
                   } catch (error) {
                     toastError(error, "Error deleting thread.");
                   }

@@ -37,6 +37,14 @@ export default function MobileChatScreen({
     );
   }
 
+  if (!threadId) {
+    return (
+      <div className="h-dvh flex items-center justify-center text-slate-500">
+        Error loading chat
+      </div>
+    );
+  }
+
   return (
     <div className="absolute inset-0 flex flex-col bg-white">
       {/* Header */}
@@ -63,7 +71,7 @@ export default function MobileChatScreen({
           <Button
             variant="ghost"
             size="icon"
-            onClick={startNewThread}
+            onClick={() => void startNewThread()}
             aria-label="New conversation"
           >
             <TbPlus size={20} />
@@ -82,18 +90,11 @@ export default function MobileChatScreen({
       {/* Chat — leave room for the fixed input below */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0">
-          {/* Pas de thread tant que le premier message n'est pas parti. */}
-          {threadId ? (
-            <ChatInterface
-              threadId={threadId}
-              onRetry={handleRetry}
-              onAssistantRespondingChange={setIsAssistantResponding}
-            />
-          ) : (
-            <div className="h-full flex items-center justify-center px-6 text-center text-sm text-slate-400">
-              Posez votre première question à Nolë.
-            </div>
-          )}
+          <ChatInterface
+            threadId={threadId}
+            onRetry={handleRetry}
+            onAssistantRespondingChange={setIsAssistantResponding}
+          />
         </div>
         {/* Spacer to avoid content going under the fixed input */}
         <div

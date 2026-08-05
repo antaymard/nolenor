@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
-import { findByThreadId } from "../models/threadMetadataModels";
 
 export const read = internalQuery({
   args: {
@@ -23,60 +22,19 @@ export const create = internalMutation({
     userId: v.id("users"),
     canvasId: v.id("canvases"),
     agentName: v.string(),
-    // Renseigné pour un thread de sous-agent : le thread Nolë qui l'a déclenché.
-    masterThreadId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { threadId, userId, canvasId, agentName, masterThreadId } = args;
+    const { threadId, userId, canvasId, agentName } = args;
     const newThreadMetadata = {
       threadId,
       userId,
       canvasId,
       totalUsageUsd: 0, // Init
       agentName,
-      ...(masterThreadId ? { masterThreadId } : {}),
     };
 
     await ctx.db.insert("threadMetadata", newThreadMetadata);
     return newThreadMetadata;
-  },
-});
-
-/**
- * Supprime la ligne de metadata d'un thread supprimé. Sans ça le listing par
- * canvas, qui part désormais de `threadMetadata`, garderait des fantômes.
- */
-export const remove = internalMutation({
-  args: {
-    threadId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const threadMetadata = await findByThreadId(ctx, {
-      threadId: args.threadId,
-    });
-    if (!threadMetadata) return;
-    await ctx.db.delete("threadMetadata", threadMetadata._id);
-  },
-});
-
-/**
- * Marque une interaction utilisateur. `updateUsage` ne stampe `lastMessageTime`
- * qu'une fois l'assistant passé ; on veut aussi dater l'envoi, sinon un tour
- * qui échoue laisse le thread paraître plus vieux qu'il ne l'est.
- */
-export const touch = internalMutation({
-  args: {
-    threadId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const threadMetadata = await findByThreadId(ctx, {
-      threadId: args.threadId,
-    });
-    // Pas de ligne pour les threads sans metadata (sous-agents actuels) : no-op.
-    if (!threadMetadata) return;
-    await ctx.db.patch("threadMetadata", threadMetadata._id, {
-      lastMessageTime: Date.now(),
-    });
   },
 });
 

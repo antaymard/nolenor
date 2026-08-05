@@ -26,9 +26,8 @@ import { generateMessageContext } from "@/components/canvas/nole-panel/messageCo
  * the desktop panel and the mobile screen.
  */
 export function useNoleChat() {
-  // `strict: false` : hors route canvas, `canvasId` est absent à l'exécution.
   const { canvasId } = useParams({ strict: false }) as {
-    canvasId: Id<"canvases"> | undefined;
+    canvasId: Id<"canvases">;
   };
 
   // Thread (with an in-session override to switch/select threads). The override
@@ -37,7 +36,6 @@ export function useNoleChat() {
   const {
     threadId: initialThreadId,
     isLoading,
-    ensureThread,
     resetThread,
   } = useNoleThread({ canvasId });
   const overrideThreadId = useNoleStore((state) => state.activeThreadId);
@@ -105,9 +103,8 @@ export function useNoleChat() {
   const reactFlow = useReactFlow();
 
   const sendCurrentMessage = useCallback(async () => {
-    // `threadId` peut être null : la conversation est vierge et le thread sera
-    // créé par `ensureThread` ci-dessous.
     if (
+      !threadId ||
       !canvasId ||
       !userInput.trim() ||
       isSending ||
@@ -141,20 +138,14 @@ export function useNoleChat() {
     setUserInput("");
     setIsSending(true);
     try {
-      // Une conversation reprise depuis l'historique prime ; sinon on résout le
-      // thread du canvas, quitte à le créer maintenant.
-      const activeThreadId = overrideThreadId ?? (await ensureThread());
       await sendMessage({
-        threadId: activeThreadId,
+        threadId,
         prompt,
         metadata: { messageContext, model: selectedModel },
         canvasId,
       });
       resetAttachments();
-      void updateThreadTitle({
-        threadId: activeThreadId,
-        onlyIfUntitled: true,
-      });
+      void updateThreadTitle({ threadId, onlyIfUntitled: true });
     } catch (error) {
       console.error("Erreur lors de l'envoi:", error);
       setUserInput(prompt);
@@ -165,6 +156,7 @@ export function useNoleChat() {
       setIsSending(false);
     }
   }, [
+    threadId,
     canvasId,
     userInput,
     isSending,
@@ -176,8 +168,6 @@ export function useNoleChat() {
     attachedNodes,
     attachedPosition,
     nodeDatas,
-    overrideThreadId,
-    ensureThread,
     sendMessage,
     selectedModel,
     resetAttachments,
@@ -203,13 +193,11 @@ export function useNoleChat() {
     }
   }, [threadId, isAssistantResponding, isCancelling, abortStream]);
 
-  // Rien n'est écrit en base : on remet une conversation vierge, le thread sera
-  // créé au premier message.
-  const startNewThread = useCallback(() => {
+  const startNewThread = useCallback(async () => {
     setOverrideThreadId(null);
     setUserInput("");
     resetAttachments();
-    resetThread();
+    await resetThread();
   }, [resetAttachments, resetThread, setOverrideThreadId]);
 
   const selectThread = useCallback(
@@ -222,8 +210,6 @@ export function useNoleChat() {
   );
 
   return {
-    // canvas
-    canvasId,
     // thread
     threadId,
     threadInfo,

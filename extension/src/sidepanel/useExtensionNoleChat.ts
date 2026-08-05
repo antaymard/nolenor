@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   useAction,
-  useConvex,
   useMutation as useConvexMutation,
   useQuery as useConvexQuery,
 } from "convex/react";
@@ -17,12 +16,6 @@ type ChatModelOption = {
   price: string;
   isMultimodal: boolean;
 };
-
-/**
- * Au-delà de ce délai sans interaction, la conversation du canvas n'est plus
- * reprise (identique au panel web).
- */
-const THREAD_REUSE_WINDOW_MS = 5 * 60 * 60 * 1000;
 
 export function useExtensionNoleChat() {
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -42,24 +35,12 @@ export function useExtensionNoleChat() {
     | undefined;
   const [selectedModel, setSelectedModel] = useState<string>();
 
-  const convex = useConvex();
+  const latestThread = useConvexQuery(api.threads.getLatestThread);
   const startThreadMutation = useConvexMutation(api.threads.startThread);
   const threadInfo = useConvexQuery(
     api.threads.getThreadInfo,
     threadId ? { threadId } : "skip",
   );
-
-  // Création en vol : deux envois rapprochés ne doivent pas créer deux threads.
-  const pendingCreation = useRef<Promise<string> | null>(null);
-  const currentThreadId = useRef<string | null>(null);
-  // Incrémenté à chaque résolution : un thread créé pour le canvas A ne doit
-  // pas être adopté si l'utilisateur est passé sur le canvas B entre-temps.
-  const resolutionId = useRef(0);
-
-  const setResolvedThreadId = useCallback((id: string | null) => {
-    currentThreadId.current = id;
-    setThreadId(id);
-  }, []);
 
   useEffect(() => {
     if (!selectedModel && modelOptions && modelOptions.length > 0) {
@@ -67,70 +48,27 @@ export function useExtensionNoleChat() {
     }
   }, [modelOptions, selectedModel]);
 
-  // Résolution en lecture ponctuelle (pas d'abonnement) et rejouée au
-  // changement de canvas : un sous-agent qui écrit en base ne doit pas faire
-  // basculer la conversation affichée. Rien n'est créé ici : le thread naît à
-  // l'envoi du premier message.
   useEffect(() => {
-    resolutionId.current += 1;
-
-    if (!selectedCanvasId) {
-      setResolvedThreadId(null);
-      setIsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoading(true);
-    setResolvedThreadId(null);
-    setOverrideThreadId(null);
-    pendingCreation.current = null;
-
-    convex
-      .query(api.threads.getLatestCanvasThread, {
-        canvasId: selectedCanvasId as Id<"canvases">,
-      })
-      .then((latest) => {
-        if (cancelled) return;
-        const isFresh =
-          latest !== null &&
-          Date.now() - latest.lastActivityTime < THREAD_REUSE_WINDOW_MS;
-        setResolvedThreadId(isFresh ? latest.threadId : null);
-      })
-      .catch((error) => {
-        if (!cancelled) console.error("Error resolving thread:", error);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
+    const initThread = async () => {
+      try {
+        if (latestThread !== undefined) {
+          if (latestThread && "threadId" in latestThread) {
+            setThreadId(latestThread.threadId);
+          } else {
+            const result = await startThreadMutation({
+              canvasId: selectedCanvasId as Id<"canvases">,
+            });
+            setThreadId(result.threadId);
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing thread:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
-  }, [convex, selectedCanvasId, setResolvedThreadId]);
-
-  /** Renvoie le thread courant, en le créant s'il n'existe pas encore. */
-  const ensureThread = useCallback(async (): Promise<string> => {
-    if (currentThreadId.current) return currentThreadId.current;
-    if (pendingCreation.current) return pendingCreation.current;
-
-    // L'appelant reçoit le thread créé dans tous les cas, mais on ne l'adopte
-    // comme thread affiché que si on est toujours sur ce canvas.
-    const startedFor = resolutionId.current;
-    const creation = startThreadMutation({
-      canvasId: selectedCanvasId as Id<"canvases">,
-    })
-      .then(({ threadId: created }) => {
-        if (resolutionId.current === startedFor) setResolvedThreadId(created);
-        return created;
-      })
-      .finally(() => {
-        pendingCreation.current = null;
-      });
-
-    pendingCreation.current = creation;
-    return creation;
-  }, [selectedCanvasId, startThreadMutation, setResolvedThreadId]);
+    void initThread();
+  }, [startThreadMutation, latestThread, selectedCanvasId]);
 
   const effectiveThreadId = overrideThreadId ?? threadId;
 
@@ -141,9 +79,8 @@ export function useExtensionNoleChat() {
   const updateThreadTitleMutation = useAction(api.threads.updateThreadTitle);
 
   const sendCurrentMessage = useCallback(async () => {
-    // `effectiveThreadId` peut être null : la conversation est vierge et le
-    // thread sera créé par `ensureThread` ci-dessous.
     if (
+      !effectiveThreadId ||
       !selectedCanvasId ||
       !userInput.trim() ||
       isSending ||
@@ -163,11 +100,8 @@ export function useExtensionNoleChat() {
     setIsSending(true);
 
     try {
-      // Une conversation reprise depuis l'historique prime ; sinon on résout le
-      // thread du canvas, quitte à le créer maintenant.
-      const activeThreadId = overrideThreadId ?? (await ensureThread());
       await sendMessageMutation({
-        threadId: activeThreadId,
+        threadId: effectiveThreadId,
         prompt,
         metadata: {
           messageContext:
@@ -178,7 +112,7 @@ export function useExtensionNoleChat() {
       });
       removeAttachedPage();
       void updateThreadTitleMutation({
-        threadId: activeThreadId,
+        threadId: effectiveThreadId,
         onlyIfUntitled: true,
       });
     } catch (error) {
@@ -189,8 +123,7 @@ export function useExtensionNoleChat() {
       setIsSending(false);
     }
   }, [
-    overrideThreadId,
-    ensureThread,
+    effectiveThreadId,
     selectedCanvasId,
     userInput,
     isSending,
@@ -219,13 +152,22 @@ export function useExtensionNoleChat() {
     abortStreamMutation,
   ]);
 
-  // Rien n'est écrit en base : le thread sera créé au premier message.
-  const startNewThread = useCallback(() => {
+  const startNewThread = useCallback(async () => {
     setOverrideThreadId(null);
     setUserInput("");
-    pendingCreation.current = null;
-    setResolvedThreadId(null);
-  }, [setResolvedThreadId]);
+    setIsLoading(true);
+    setThreadId(null);
+    try {
+      const result = await startThreadMutation({
+        canvasId: selectedCanvasId as Id<"canvases">,
+      });
+      setThreadId(result.threadId);
+    } catch (error) {
+      console.error("Error starting new thread:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [startThreadMutation, selectedCanvasId]);
 
   const selectThread = useCallback((id: string) => {
     setOverrideThreadId(id);

@@ -63,15 +63,25 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     setDirty(isDirty && !isLocked);
   }, [isDirty, isLocked, setDirty]);
 
-  const handleSave = useCallback(() => {
-    updateNodeDataValues({
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    const columns = columnsRef.current;
+    const rows = rowsRef.current;
+    const title = titleRef.current;
+    const success = await updateNodeDataValues({
       nodeDataId,
       values: {
-        title: titleRef.current,
-        table: { columns: columnsRef.current, rows: rowsRef.current },
+        title,
+        table: { columns, rows },
       },
     });
-    setIsDirty(false);
+    const hasPendingEdits =
+      columnsRef.current !== columns ||
+      rowsRef.current !== rows ||
+      titleRef.current !== title;
+    if (success && !hasPendingEdits) {
+      setIsDirty(false);
+    }
+    return success && !hasPendingEdits;
   }, [nodeDataId, updateNodeDataValues]);
 
   useEffect(() => {

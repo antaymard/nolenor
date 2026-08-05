@@ -96,19 +96,38 @@ export default function CustomWindow({
       setSaveHandler(null);
       return;
     }
-    const handleSave = () => {
-      if (dirtyFieldsRef.current.size === 0) return;
+    const handleSave = async (): Promise<boolean> => {
+      if (dirtyFieldsRef.current.size === 0) return true;
+      const fieldsToSave = new Set(dirtyFieldsRef.current);
       const current =
         useNodeDataStore.getState().getNodeData(nodeDataId)?.values ?? {};
       const next: Record<string, unknown> = { ...current };
-      for (const fieldId of dirtyFieldsRef.current) {
+      const savedValues = new Map<string, unknown>();
+      for (const fieldId of fieldsToSave) {
         if (pendingValuesRef.current.has(fieldId)) {
-          next[fieldId] = pendingValuesRef.current.get(fieldId);
+          const value = pendingValuesRef.current.get(fieldId);
+          savedValues.set(fieldId, value);
+          next[fieldId] = value;
         }
       }
-      void updateNodeDataValues({ nodeDataId, values: next });
-      dirtyFieldsRef.current.clear();
-      setDirty(false);
+      const success = await updateNodeDataValues({ nodeDataId, values: next });
+      if (success) {
+        for (const fieldId of fieldsToSave) {
+          if (!savedValues.has(fieldId)) continue;
+          if (
+            Object.is(
+              pendingValuesRef.current.get(fieldId),
+              savedValues.get(fieldId),
+            )
+          ) {
+            dirtyFieldsRef.current.delete(fieldId);
+          }
+        }
+        const hasPendingEdits = dirtyFieldsRef.current.size > 0;
+        setDirty(hasPendingEdits);
+        return !hasPendingEdits;
+      }
+      return success;
     };
     setSaveHandler(handleSave);
     return () => setSaveHandler(null);

@@ -149,12 +149,6 @@ export default function ChatScreen() {
     );
   }
 
-  if (!threadId) {
-    return (
-      <div className="h-full flex items-center justify-center text-slate-400">Loading chat...</div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -170,23 +164,33 @@ export default function ChatScreen() {
         <div className="flex items-center gap-0.5 shrink-0">
           <button
             type="button"
-            onClick={() => void startNewThread()}
+            onClick={startNewThread}
             className="p-1.5 rounded-md hover:bg-gray-100 text-slate-400 hover:text-slate-600"
             title="New conversation"
           >
             <TbPlus size={15} />
           </button>
-          <ThreadSelector currentThreadId={threadId} onSelectThread={selectThread} />
+          <ThreadSelector
+            canvasId={selectedCanvasId}
+            currentThreadId={threadId}
+            onSelectThread={selectThread}
+          />
         </div>
       </div>
 
-      {/* Chat */}
+      {/* Chat — pas de thread tant que le premier message n'est pas parti */}
       <div className="flex-1 min-h-0">
-        <ChatInterface
-          threadId={threadId}
-          onRetry={handleRetry}
-          onAssistantRespondingChange={setIsAssistantResponding}
-        />
+        {threadId ? (
+          <ChatInterface
+            threadId={threadId}
+            onRetry={handleRetry}
+            onAssistantRespondingChange={setIsAssistantResponding}
+          />
+        ) : (
+          <div className="h-full flex items-center justify-center px-6 text-center text-sm text-slate-400">
+            Posez votre première question à Nolë.
+          </div>
+        )}
       </div>
 
       {/* Input */}
@@ -370,22 +374,22 @@ function CanvasSelector({
 }
 
 function ThreadSelector({
+  canvasId,
   currentThreadId,
   onSelectThread,
 }: {
-  currentThreadId: string;
+  canvasId: string | null;
+  currentThreadId: string | null;
   onSelectThread: (threadId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const threadsResult = useQuery(api.threads.listUserThreads, {
-    paginationOpts: { numItems: 20, cursor: null },
-  });
-  const deleteThread = useAction(api.threads.deleteThread);
-
+  // Conversations du canvas sélectionné uniquement.
   const threads =
-    threadsResult && !Array.isArray(threadsResult) && "threads" in threadsResult
-      ? (threadsResult as { threads: { page: Array<{ _id: string; title?: string; _creationTime: number }> } }).threads.page
-      : [];
+    useQuery(
+      api.threads.listCanvasThreads,
+      canvasId ? { canvasId: canvasId as Id<"canvases"> } : "skip",
+    ) ?? [];
+  const deleteThread = useAction(api.threads.deleteThread);
 
   return (
     <>
@@ -402,34 +406,36 @@ function ThreadSelector({
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute top-full right-0 mt-1 z-20 w-56 bg-white border rounded-lg shadow-lg py-1 max-h-72 overflow-y-auto">
             {threads.length === 0 && (
-              <div className="px-3 py-2 text-sm text-gray-400 text-center">No conversations yet</div>
+              <div className="px-3 py-2 text-sm text-gray-400 text-center">
+                Aucune conversation sur ce canvas
+              </div>
             )}
             {threads.map((thread) => (
               <div
-                key={thread._id}
+                key={thread.threadId}
                 className={cn(
                   "flex items-center justify-between px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer",
-                  thread._id === currentThreadId && "bg-gray-50 font-medium",
+                  thread.threadId === currentThreadId && "bg-gray-50 font-medium",
                 )}
                 onClick={() => {
-                  onSelectThread(thread._id);
+                  onSelectThread(thread.threadId);
                   setOpen(false);
                 }}
               >
                 <div className="flex-1 min-w-0 mr-2">
-                  <div className="truncate">{thread.title || "Untitled"}</div>
+                  <div className="truncate">{thread.title || "Sans titre"}</div>
                   <div className="text-xs text-gray-400">
-                    {new Date(thread._creationTime).toLocaleDateString()}
+                    {new Date(thread.lastActivityTime).toLocaleDateString()}
                   </div>
                 </div>
-                {thread._id !== currentThreadId && (
+                {thread.threadId !== currentThreadId && (
                   <button
                     type="button"
                     className="p-0.5 rounded hover:text-red-500 shrink-0"
                     onClick={async (e) => {
                       e.stopPropagation();
                       try {
-                        await deleteThread({ threadId: thread._id });
+                        await deleteThread({ threadId: thread.threadId });
                       } catch (error) {
                         console.error("Error deleting thread:", error);
                       }

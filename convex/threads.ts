@@ -1,7 +1,8 @@
 import { action, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireAuth } from "./lib/auth";
+import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import { components, internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 import {
   createThread,
@@ -13,41 +14,64 @@ import {
 import z from "zod";
 import { createBaseAgent } from "./ia/agents";
 import errors from "./config/errorsConfig";
+import { threadAgentNames } from "./schemas/threadMetadataSchema";
+import {
+  lastActivityTime,
+  listNoleThreadsByUserAndCanvas,
+} from "./models/threadMetadataModels";
 
-function isHiddenThread(title?: string): boolean {
-  return (title?.startsWith("__") || !title) ?? false;
+// Bornes de scan. Le nombre de conversations Nolë par canvas et par
+// utilisateur reste petit ; on lit une tranche récente et on trie en mémoire
+// sur la dernière activité (que l'index, ordonné par date de création, ne
+// donne pas).
+const LATEST_THREAD_SCAN_LIMIT = 20;
+const CANVAS_THREADS_SCAN_LIMIT = 30;
+
+function byLastActivityDesc(a: Doc<"threadMetadata">, b: Doc<"threadMetadata">) {
+  return lastActivityTime(b) - lastActivityTime(a);
 }
 
-export const getLatestThread = query({
-  args: {},
+/**
+ * Dernière conversation Nolë de l'utilisateur sur ce canvas, avec la date de sa
+ * dernière activité. C'est l'appelant qui décide s'il la reprend ou s'il
+ * démarre une conversation vierge : la fenêtre de reprise dépend de l'heure
+ * courante, et lire l'horloge dans une query donnerait un résultat qui ne se
+ * réévalue jamais.
+ */
+export const getLatestCanvasThread = query({
+  args: {
+    canvasId: v.id("canvases"),
+  },
   returns: v.union(
     v.object({
       threadId: v.string(),
+      lastActivityTime: v.number(),
     }),
     v.null(),
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, { canvasId }) => {
     const authUserId = await requireAuth(ctx);
+    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer");
 
-    const result = await ctx.runQuery(
-      components.agent.threads.listThreadsByUserId,
-      {
-        userId: authUserId,
-        order: "desc",
-        paginationOpts: { numItems: 15, cursor: null },
-      },
-    );
+    const threads = await listNoleThreadsByUserAndCanvas(ctx, {
+      userId: authUserId,
+      canvasId,
+      limit: LATEST_THREAD_SCAN_LIMIT,
+    });
 
-    if (!result || result.page.length === 0) {
-      return null;
-    }
+    const latest = threads.sort(byLastActivityDesc)[0];
+    if (!latest) return null;
 
-    const visibleThread = result.page.find((t) => !isHiddenThread(t.title));
-    return visibleThread ? { threadId: visibleThread._id } : null;
+    return {
+      threadId: latest.threadId,
+      lastActivityTime: lastActivityTime(latest),
+    };
   },
 });
 
-// Called when the user clicks the "New Thread" button. It creates a new thread and the corresponding threadMetadata, and returns the threadId to the client.
+// Appelé à l'envoi du premier message d'une conversation (création paresseuse :
+// ouvrir le panel ne crée rien). Crée le thread et sa ligne de metadata, qui
+// porte le lien vers le canvas.
 export const startThread = mutation({
   args: {
     canvasId: v.id("canvases"),
@@ -57,6 +81,7 @@ export const startThread = mutation({
   }),
   handler: async (ctx, { canvasId }) => {
     const authUserId = await requireAuth(ctx);
+    await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
 
     // Create the actual thread
     const threadId = await createThread(ctx, components.agent, {
@@ -68,40 +93,54 @@ export const startThread = mutation({
       threadId,
       canvasId,
       userId: authUserId,
-      agentName: "Nolë",
+      agentName: threadAgentNames.nole,
     });
     return { threadId };
   },
 });
 
-export const listUserThreads = query({
+/**
+ * Conversations Nolë de l'utilisateur sur ce canvas, la plus récemment active
+ * d'abord. Les threads sont hydratés depuis le composant agent pour leur titre.
+ */
+export const listCanvasThreads = query({
   args: {
-    paginationOpts: paginationOptsValidator,
+    canvasId: v.id("canvases"),
   },
-  returns: v.any(),
-  handler: async (ctx, args) => {
+  returns: v.array(
+    v.object({
+      threadId: v.string(),
+      title: v.union(v.string(), v.null()),
+      lastActivityTime: v.number(),
+    }),
+  ),
+  handler: async (ctx, { canvasId }) => {
     const authUserId = await requireAuth(ctx);
+    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer");
 
-    if (!authUserId) {
-      return {
-        success: false,
-        threads: [],
-        error: errors.UNAUTHORIZED_USER,
-      };
-    }
+    const threads = await listNoleThreadsByUserAndCanvas(ctx, {
+      userId: authUserId,
+      canvasId,
+      limit: CANVAS_THREADS_SCAN_LIMIT,
+    });
 
-    const threads = await ctx.runQuery(
-      components.agent.threads.listThreadsByUserId,
-      { userId: authUserId, paginationOpts: args.paginationOpts },
+    const hydrated = await Promise.all(
+      threads.sort(byLastActivityDesc).map(async (metadata) => {
+        const thread = await getThreadMetadata(ctx, components.agent, {
+          threadId: metadata.threadId,
+        }).catch(() => null);
+        // La ligne survit à la suppression du thread côté composant si le
+        // nettoyage a échoué : on l'ignore plutôt que d'afficher un fantôme.
+        if (!thread) return null;
+        return {
+          threadId: metadata.threadId,
+          title: thread.title ?? null,
+          lastActivityTime: lastActivityTime(metadata),
+        };
+      }),
     );
 
-    return {
-      success: true,
-      threads: {
-        ...threads,
-        page: threads.page.filter((t) => !isHiddenThread(t.title)),
-      },
-    };
+    return hydrated.filter((thread) => thread !== null);
   },
 });
 
@@ -229,6 +268,12 @@ export const deleteThread = action({
     }
 
     await ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {
+      threadId,
+    });
+
+    // Le listing par canvas part de `threadMetadata` : sans ça, le thread
+    // supprimé resterait dans l'historique.
+    await ctx.runMutation(internal.wrappers.threadMetadataWrappers.remove, {
       threadId,
     });
 

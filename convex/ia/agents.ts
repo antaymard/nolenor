@@ -26,13 +26,6 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Z.ai GLM5.2",
-    value: "z-ai/glm-5.2",
-    price: "0.95_3",
-    isMultimodal: false,
-    maxContext: 1000000,
-  },
-  {
     label: "GPT-5.6 Terra Pro",
     value: "openai/gpt-5.6-terra-pro",
     price: "1_6",

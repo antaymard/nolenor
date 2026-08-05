@@ -1,5 +1,7 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { type Node } from "@xyflow/react";
+import type { PartialBlock } from "@blocknote/core";
+import toast from "react-hot-toast";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
@@ -8,13 +10,14 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import NodeFrame from "../NodeFrame";
 import { Button } from "@/components/shadcn/button";
-import { TbMaximize, TbNotes } from "react-icons/tb";
+import { TbDownload, TbMaximize, TbNotes } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import {
   blockNoteDocumentHasText,
   parseStoredBlockNoteDocument,
   type BlockNoteBlock,
 } from "@/../convex/lib/blockNoteDocument";
+import { blockNoteBlocksToMarkdown } from "@/lib/blockNoteMarkdownConverter";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 
@@ -32,6 +35,19 @@ import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBou
 // (`blockNoteDocumentHasText`), so the canvas, the node title and the agent
 // tools all agree on what "empty" means.
 const NO_BLOCKS: BlockNoteBlock[] = [];
+
+function markdownFilename(title: string): string {
+  const slug = title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+
+  return `${slug || "blocknote"}.md`;
+}
 
 function BlocknoteNode(xyNode: Node) {
   const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
@@ -55,6 +71,28 @@ function BlocknoteNode(xyNode: Node) {
   }, [docString]);
 
   const blocknoteTitle = useNodeDataTitle(nodeDataId) ?? "Blocknote";
+
+  const handleDownload = useCallback(() => {
+    const result = blockNoteBlocksToMarkdown(
+      blocks as unknown as PartialBlock[],
+    );
+    if (result.status !== "ok") {
+      toast.error("Impossible de convertir ce document en Markdown");
+      return;
+    }
+
+    const blob = new Blob([result.markdown], {
+      type: "text/markdown;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = markdownFilename(blocknoteTitle);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [blocknoteTitle, blocks]);
 
   // ── Visibility-gated rendering ──────────────────────────────────────────
   // Same pattern as DocumentNode: IntersectionObserver with 300px rootMargin
@@ -94,6 +132,16 @@ function BlocknoteNode(xyNode: Node) {
         >
           <TbMaximize />
         </Button>
+        {!isEmpty && (
+          <Button
+            size="icon"
+            variant="outline"
+            title="Télécharger en Markdown"
+            onClick={handleDownload}
+          >
+            <TbDownload />
+          </Button>
+        )}
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode}>
         {xyNode.data.variant !== "title" && (

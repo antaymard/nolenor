@@ -188,7 +188,7 @@ export default function ChatScreen() {
           />
         ) : (
           <div className="h-full flex items-center justify-center px-6 text-center text-sm text-slate-400">
-            Posez votre première question à Nolë.
+            Start talking to Nolë
           </div>
         )}
       </div>

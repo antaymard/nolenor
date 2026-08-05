@@ -58,7 +58,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
       {/* Header */}
       <div className="pl-2 rounded-t-lg border-b flex items-center justify-between gap-2">
         <p className="text-sm font-medium truncate flex-1">
-          {threadId ? threadInfo?.title || "Sans titre" : "Nouvelle conversation"}
+          {threadId ? threadInfo?.title || "Untitled chat" : "New chat"}
         </p>
         <ThreadStatsBadge
           threadId={threadId}
@@ -99,7 +99,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center px-4 text-center text-sm text-slate-400">
-            Posez votre première question à Nolë.
+            Start talking to Nolë
           </div>
         )}
       </div>

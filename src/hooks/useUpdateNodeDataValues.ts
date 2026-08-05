@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
@@ -28,7 +28,8 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
   const snapshotsRef = useRef<Map<Id<"nodeDatas">, Doc<"nodeDatas">>>(
     new Map(),
   );
-  const isUpdatingRef = useRef(false);
+  const activeUpdatesRef = useRef(0);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const saveSnapshot = useCallback(
     (nodeDataId: Id<"nodeDatas">): boolean => {
@@ -77,7 +78,8 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
       const snapshotSaved = saveSnapshot(nodeDataId);
       if (!snapshotSaved) return false;
 
-      isUpdatingRef.current = true;
+      activeUpdatesRef.current += 1;
+      setIsUpdating(true);
 
       // Mise à jour optimiste immédiate du store
       updateStoreNodeData(nodeDataId, values);
@@ -97,7 +99,8 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
         toastError(error, "Error updating");
         return false;
       } finally {
-        isUpdatingRef.current = false;
+        activeUpdatesRef.current -= 1;
+        if (activeUpdatesRef.current === 0) setIsUpdating(false);
       }
     },
     [
@@ -111,6 +114,6 @@ export function useUpdateNodeDataValues(): UseUpdateNodeDataValuesReturn {
 
   return {
     updateNodeDataValues,
-    isUpdating: isUpdatingRef.current,
+    isUpdating,
   };
 }

@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { Minimize2, Minus, Save, X } from "lucide-react";
+import { Check, Minimize2, Minus, Save, X } from "lucide-react";
 import {
   TbDotsVertical,
   TbHistory,
@@ -13,7 +20,8 @@ import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
-import { WindowFrameContext } from "./WindowFrameContext";
+import { WindowFrameContext, type SaveHandler } from "./WindowFrameContext";
+import { Spinner } from "@/components/shadcn/spinner";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import {
   DropdownMenu,
@@ -57,7 +65,11 @@ export default function FullscreenWindowFrame({
   const goToNode = useGoToNode();
 
   const [isDirty, setDirty] = useState(false);
-  const [saveHandler, setSaveHandler] = useState<(() => void) | null>(null);
+  const [saveHandler, setSaveHandler] = useState<SaveHandler | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
   const [refreshHandler, setRefreshHandler] = useState<(() => void) | null>(
     null,
   );
@@ -65,6 +77,27 @@ export default function FullscreenWindowFrame({
   const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (saveState !== "saved") return;
+    const timeoutId = window.setTimeout(() => setSaveState("idle"), 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [saveState]);
+
+  const handleSave = useCallback(async () => {
+    if (!saveHandler || !isDirty || isSaving) return;
+
+    setIsSaving(true);
+    setSaveState("saving");
+    try {
+      const success = await saveHandler();
+      setSaveState(success === false ? "idle" : "saved");
+    } catch {
+      setSaveState("idle");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isDirty, isSaving, saveHandler]);
 
   useEffect(() => {
     if (isDirty) {
@@ -79,15 +112,18 @@ export default function FullscreenWindowFrame({
     "Mod+S",
     (e) => {
       e.preventDefault();
-      saveHandler?.();
+      void handleSave();
     },
-    { target: containerRef, enabled: !!saveHandler && isDirty },
+    { target: containerRef, enabled: !!saveHandler && isDirty && !isSaving },
   );
 
   const contextValue = useMemo(
     () => ({
-      setDirty,
-      setSaveHandler: (fn: (() => void) | null) => setSaveHandler(() => fn),
+      setDirty: (dirty: boolean) => {
+        setDirty(dirty);
+        if (dirty) setSaveState("idle");
+      },
+      setSaveHandler: (fn: SaveHandler | null) => setSaveHandler(() => fn),
       setRefreshHandler: (fn: (() => void) | null) =>
         setRefreshHandler(() => fn),
     }),
@@ -106,7 +142,7 @@ export default function FullscreenWindowFrame({
           onDoubleClick={(e) => {
             if ((e.target as HTMLElement).closest('[data-window-control="true"]'))
               return;
-            if (isDirty) saveHandler?.();
+            if (isDirty) void handleSave();
             exitFullscreen();
           }}
         >
@@ -130,19 +166,26 @@ export default function FullscreenWindowFrame({
           {saveHandler && (
             <button
               data-window-control="true"
-              className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-green-100 hover:text-green-800 disabled:pointer-events-none disabled:opacity-30"
-              onClick={saveHandler}
-              disabled={!isDirty}
+              className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-green-100 hover:text-green-800 disabled:pointer-events-none disabled:opacity-70"
+              onClick={() => void handleSave()}
+              disabled={!isDirty || isSaving}
+              aria-busy={isSaving}
             >
-              <Save size={12} />
-              Save
+              {isSaving ? (
+                <Spinner className="size-3" />
+              ) : saveState === "saved" ? (
+                <Check size={12} />
+              ) : (
+                <Save size={12} />
+              )}
+              {isSaving ? "Saving..." : saveState === "saved" ? "Saved" : "Save"}
             </button>
           )}
           <button
             data-window-control="true"
             className="shrink-0 rounded p-1 opacity-60 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
             onClick={() => {
-              if (isDirty) saveHandler?.();
+              if (isDirty) void handleSave();
               exitFullscreen();
             }}
             aria-label="Exit fullscreen"
@@ -201,7 +244,7 @@ export default function FullscreenWindowFrame({
             text="You have unsaved changes. Do you want to close this window?"
             onCancel={() => closeWindow(xyNodeId)}
             onConfirm={() => {
-              if (isDirty) saveHandler?.();
+              if (isDirty) void handleSave();
               closeWindow(xyNodeId);
             }}
             shouldConfirm={isDirty}

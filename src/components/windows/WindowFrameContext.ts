@@ -1,8 +1,10 @@
 import { createContext, useContext } from "react";
 
+export type SaveHandler = () => void | Promise<boolean | void>;
+
 interface WindowFrameContextValue {
   setDirty: (isDirty: boolean) => void;
-  setSaveHandler: (fn: (() => void) | null) => void;
+  setSaveHandler: (fn: SaveHandler | null) => void;
   setRefreshHandler: (fn: (() => void) | null) => void;
 }
 

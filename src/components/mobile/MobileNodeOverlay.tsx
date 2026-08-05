@@ -1,5 +1,13 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Save } from "lucide-react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Check, Save } from "lucide-react";
 import {
   TbArrowLeft,
   TbRefresh,
@@ -13,7 +21,10 @@ import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
-import { WindowFrameContext } from "@/components/windows/WindowFrameContext";
+import {
+  WindowFrameContext,
+  type SaveHandler,
+} from "@/components/windows/WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import {
   AlertDialog,
@@ -85,8 +96,10 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
   const { selectThread } = useMobileNoleChat();
 
   const [isDirty, setDirty] = useState(false);
-  const [saveHandler, setSaveHandlerState] = useState<(() => void) | null>(
-    null,
+  const [saveHandler, setSaveHandlerState] = useState<SaveHandler | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
+    "idle",
   );
   const [refreshHandler, setRefreshHandlerState] = useState<
     (() => void) | null
@@ -98,6 +111,27 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
   const title = useNodeDataTitle(nodeDataId);
   const nodeData = useNodeData(nodeDataId);
   const NodeIcon = getNodeIcon(nodeData?.type);
+
+  useEffect(() => {
+    if (saveState !== "saved") return;
+    const timeoutId = window.setTimeout(() => setSaveState("idle"), 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [saveState]);
+
+  const handleSave = useCallback(async () => {
+    if (!saveHandler || !isDirty || isSaving) return;
+
+    setIsSaving(true);
+    setSaveState("saving");
+    try {
+      const success = await saveHandler();
+      setSaveState(success === false ? "idle" : "saved");
+    } catch {
+      setSaveState("idle");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isDirty, isSaving, saveHandler]);
 
   useEffect(() => {
     if (isDirty) {
@@ -125,9 +159,6 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
   // Intercept the browser / OS back gesture while this overlay is visible.
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
-  const saveHandlerRef = useRef(saveHandler);
-  saveHandlerRef.current = saveHandler;
-
   useEffect(() => {
     const handlePopState = () => {
       if (isDirtyRef.current) {
@@ -141,12 +172,15 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [xyNodeId, closeWindow]);
+  }, [closeWindow, xyNodeId]);
 
   const contextValue = useMemo(
     () => ({
-      setDirty,
-      setSaveHandler: (fn: (() => void) | null) =>
+      setDirty: (dirty: boolean) => {
+        setDirty(dirty);
+        if (dirty) setSaveState("idle");
+      },
+      setSaveHandler: (fn: SaveHandler | null) =>
         setSaveHandlerState(() => fn),
       setRefreshHandler: (fn: (() => void) | null) =>
         setRefreshHandlerState(() => fn),
@@ -172,7 +206,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                saveHandlerRef.current?.();
+                void handleSave();
                 closeWindow(xyNodeId);
               }}
             >
@@ -193,7 +227,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
               text="You have unsaved changes. Do you want to close this window?"
               onCancel={() => closeWindow(xyNodeId)}
               onConfirm={() => {
-                if (isDirty) saveHandler?.();
+                if (isDirty) void handleSave();
                 closeWindow(xyNodeId);
               }}
               shouldConfirm={isDirty}
@@ -233,12 +267,19 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
               <Button
                 variant={isDirty ? "default" : "ghost"}
                 size="sm"
-                disabled={!isDirty}
-                onClick={saveHandler}
+                disabled={!isDirty || isSaving}
+                onClick={() => void handleSave()}
+                aria-busy={isSaving}
                 className={cn(!isDirty && "text-slate-400")}
               >
-                <Save size={14} />
-                Save
+                {isSaving ? (
+                  <Spinner className="size-4" />
+                ) : saveState === "saved" ? (
+                  <Check size={14} />
+                ) : (
+                  <Save size={14} />
+                )}
+                {isSaving ? "Saving..." : saveState === "saved" ? "Saved" : "Save"}
               </Button>
             )}
             <DropdownMenu>

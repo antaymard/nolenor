@@ -105,9 +105,10 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     lastHydratedSignatureRef.current = docSignature(docSource);
   }
 
-  const handleSaveClick = useCallback(async () => {
+  const handleSaveClick = useCallback(async (): Promise<boolean> => {
     const doc = latestDocRef.current ?? editor.document;
-    if (!doc) return;
+    if (!doc) return false;
+    const savedDocSignature = docSignature(doc);
     // Remember what we are writing: the optimistic store update and the server
     // echo both come back through `docSource`, and neither should re-hydrate.
     lastHydratedSignatureRef.current = docSignature(doc);
@@ -117,7 +118,12 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     });
     // Only clear dirty state once the server mutation has actually succeeded,
     // so a failed save keeps the unsaved-indicator on and the content editable.
-    if (success) setIsDirty(false);
+    const hasPendingEdits =
+      docSignature(latestDocRef.current) !== savedDocSignature;
+    if (success && !hasPendingEdits) {
+      setIsDirty(false);
+    }
+    return success && !hasPendingEdits;
   }, [editor, nodeDataId, updateNodeDataValues]);
 
   // Save is only wired up once any corruption banner has been acknowledged —

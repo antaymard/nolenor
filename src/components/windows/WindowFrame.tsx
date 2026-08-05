@@ -23,7 +23,7 @@ import { useNodeData } from "@/hooks/useNodeData";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import { useTemplate } from "@/stores/templatesStore";
-import { X, Minus, Save, Maximize2 } from "lucide-react";
+import { X, Minus, Save, Maximize2, Check } from "lucide-react";
 import { Spinner } from "@/components/shadcn/spinner";
 import {
   TbDotsVertical,
@@ -43,7 +43,7 @@ const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
 const TableWindow = lazy(() => import("./prebuilt/TableWindow"));
 const AppWindow = lazy(() => import("./prebuilt/AppWindow"));
 const CustomWindow = lazy(() => import("./prebuilt/CustomWindow"));
-import { WindowFrameContext } from "./WindowFrameContext";
+import { WindowFrameContext, type SaveHandler } from "./WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
@@ -136,7 +136,11 @@ export default function WindowFrame({
 }: WindowFrameProps) {
   const { xyNodeId, nodeDataId } = openedWindow;
   const [isDirty, setDirty] = useState(false);
-  const [saveHandler, setSaveHandler] = useState<(() => void) | null>(null);
+  const [saveHandler, setSaveHandler] = useState<SaveHandler | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
   const [refreshHandler, setRefreshHandler] = useState<(() => void) | null>(
     null,
   );
@@ -170,13 +174,34 @@ export default function WindowFrame({
   const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (saveState !== "saved") return;
+    const timeoutId = window.setTimeout(() => setSaveState("idle"), 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [saveState]);
+
+  const handleSave = useCallback(async () => {
+    if (!saveHandler || !isDirty || isSaving) return;
+
+    setIsSaving(true);
+    setSaveState("saving");
+    try {
+      const success = await saveHandler();
+      setSaveState(success === false ? "idle" : "saved");
+    } catch {
+      setSaveState("idle");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isDirty, isSaving, saveHandler]);
+
   useHotkey(
     "Mod+S",
     (e) => {
       e.preventDefault();
-      saveHandler?.();
+      void handleSave();
     },
-    { target: containerRef, enabled: !!saveHandler && isDirty },
+    { target: containerRef, enabled: !!saveHandler && isDirty && !isSaving },
   );
 
   useEffect(() => {
@@ -226,14 +251,14 @@ export default function WindowFrame({
       if ((e.target as HTMLElement).closest('[data-window-control="true"]'))
         return;
       if (!isFullscreenEligible(openedWindow.nodeType)) return;
-      if (isDirty) saveHandler?.();
+      if (isDirty) void handleSave();
       toggleFullscreenWindow(xyNodeId);
     },
     [
       openedWindow.nodeType,
       xyNodeId,
       isDirty,
-      saveHandler,
+      handleSave,
       toggleFullscreenWindow,
     ],
   );
@@ -378,12 +403,15 @@ export default function WindowFrame({
 
   const contextValue = useMemo(
     () => ({
-      setDirty,
-      setSaveHandler: (fn: (() => void) | null) => setSaveHandler(() => fn),
+      setDirty: (dirty: boolean) => {
+        setDirty(dirty);
+        if (dirty) setSaveState("idle");
+      },
+      setSaveHandler: (fn: SaveHandler | null) => setSaveHandler(() => fn),
       setRefreshHandler: (fn: (() => void) | null) =>
         setRefreshHandler(() => fn),
     }),
-    [setDirty],
+    [],
   );
 
   return (
@@ -488,13 +516,20 @@ export default function WindowFrame({
             {saveHandler && (
               <button
                 data-window-control="true"
-                className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-green-100 hover:text-green-800 disabled:pointer-events-none disabled:opacity-30 h-full"
+                className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-green-100 hover:text-green-800 disabled:pointer-events-none disabled:opacity-70 h-full"
                 onMouseDown={(e) => e.stopPropagation()}
-                onClick={saveHandler}
-                disabled={!isDirty}
+                onClick={() => void handleSave()}
+                disabled={!isDirty || isSaving}
+                aria-busy={isSaving}
               >
-                <Save size={12} />
-                Save
+                {isSaving ? (
+                  <Spinner className="size-3" />
+                ) : saveState === "saved" ? (
+                  <Check size={12} />
+                ) : (
+                  <Save size={12} />
+                )}
+                {isSaving ? "Saving..." : saveState === "saved" ? "Saved" : "Save"}
               </button>
             )}
             {fullscreenEligible && (
@@ -503,7 +538,7 @@ export default function WindowFrame({
                 className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => {
-                  if (isDirty) saveHandler?.();
+                  if (isDirty) void handleSave();
                   toggleFullscreenWindow(xyNodeId);
                 }}
                 aria-label="Expand to fullscreen"
@@ -572,7 +607,7 @@ export default function WindowFrame({
               text="You have unsaved changes. Do you want to close this window?"
               onCancel={() => closeWindow(xyNodeId)}
               onConfirm={() => {
-                if (isDirty) saveHandler?.();
+                if (isDirty) void handleSave();
                 closeWindow(xyNodeId);
               }}
               shouldConfirm={isDirty}

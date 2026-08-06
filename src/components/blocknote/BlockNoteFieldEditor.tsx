@@ -34,6 +34,11 @@ import { cn } from "@/lib/utils";
 
 const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
 
+// Monte les menus flottants de BlockNote sur document.body plutôt que dans
+// .bn-container par défaut, qui se trouve imbriqué dans la chrome de fenêtre
+// overflow:hidden/auto (WindowFrame) et les fait clipper à ses bords.
+const PORTAL_ELEMENTS = { default: null } as const;
+
 // Forme canonique d'une value stockée : la même donnée nous arrive tantôt en
 // `Block[]` (update optimiste du store) tantôt en string (écho Convex).
 // Comparer par référence traiterait les deux comme des changements distants.
@@ -179,9 +184,11 @@ function BlockNoteFieldEditor({
           onChange={handleChange}
           className={cn("nodrag", className)}
           slashMenu={false}
+          portalElements={PORTAL_ELEMENTS}
         >
           <SuggestionMenuController
             triggerCharacter="/"
+            portalElement={null}
             shouldOpen={(tr) =>
               !tr.selection.$from.parent.type.isInGroup("tableContent")
             }

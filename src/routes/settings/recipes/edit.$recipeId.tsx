@@ -16,6 +16,11 @@ import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { cn } from "@/lib/utils";
 
+// Monte les menus flottants de BlockNote sur document.body plutôt que dans
+// .bn-container par défaut, pour éviter qu'ils soient clippés par un ancêtre
+// overflow:hidden/auto.
+const PORTAL_ELEMENTS = { default: null } as const;
+
 export const Route = createFileRoute("/settings/recipes/edit/$recipeId")({
   component: RouteComponent,
 });
@@ -133,6 +138,7 @@ function RouteComponent() {
                     onChange={() => {
                       field.handleChange(JSON.stringify(editor.document));
                     }}
+                    portalElements={PORTAL_ELEMENTS}
                   />
                   {hasError && (
                     <span className="text-sm text-destructive">

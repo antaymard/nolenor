@@ -5,6 +5,10 @@ import { createCalloutBlockSpec, CalloutView } from "./callout-block";
 import { getCalloutSlashMenuItem } from "./calloutSlashMenuItem";
 import { dateInlineContentSpec, DatePillView } from "./date-inline-content";
 import { getDateSlashMenuItem } from "./dateSlashMenuItem";
+import {
+  nodeMentionInlineContentSpec,
+  MentionPillView,
+} from "./mention-inline-content";
 
 /**
  * Registry of custom BlockNote components — single source of truth.
@@ -42,6 +46,7 @@ export const customBlockSpecs = {
 
 export const customInlineContentSpecs = {
   date: dateInlineContentSpec,
+  mention: nodeMentionInlineContentSpec,
 };
 
 // ── Entries (source of truth for Views + slash menu + lookups) ──────────────
@@ -81,6 +86,13 @@ export const customInlineContent: CustomInlineContentEntry[] = [
     spec: customInlineContentSpecs.date,
     View: DatePillView,
     slashMenuItem: getDateSlashMenuItem,
+  },
+  {
+    // No slashMenuItem: mentions are only inserted via the "@" trigger (see
+    // nodeMentionSuggestions.tsx / BlocknoteWindow.tsx), not the "/" menu.
+    type: "mention",
+    spec: customInlineContentSpecs.mention,
+    View: MentionPillView,
   },
 ];
 

@@ -7,7 +7,6 @@ import { getNodeDataTitle } from "@/components/utils/nodeDataDisplayUtils";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWindowsStore } from "@/stores/windowsStore";
-import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 
 interface MentionedNodeCardProps {
   nodeId: string;
@@ -43,16 +42,11 @@ export function MentionedNodeCard({
     e.preventDefault();
     e.stopPropagation();
     if (isMobile) {
-      if (
-        nodeDataId &&
-        nodeData &&
-        canNodeTypeBeOpenedInWindow(nodeData.type)
-      ) {
+      // `openWindow` ne fait rien si ce node n'a pas de window.
+      if (nodeDataId) {
         openWindow({
           xyNodeId: nodeId,
-          nodeDataId: nodeDataId as Parameters<
-            typeof openWindow
-          >[0]["nodeDataId"],
+          nodeDataId,
           nodeType: nodeData.type,
         });
       }

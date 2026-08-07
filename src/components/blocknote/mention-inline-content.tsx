@@ -4,11 +4,9 @@ import { createReactInlineContentSpec } from "@blocknote/react";
 
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { useTemplatesStore, useTemplateHasWindow } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
-import { OPENABLE_PREBUILT_NODE_TYPES } from "@/components/nodes/prebuilt-nodes/nodeOpenability";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { cn } from "@/lib/utils";
 
@@ -76,13 +74,16 @@ export function MentionPillView({
 
 /**
  * Interactive editable-editor rendering: clicking opens the mentioned node's
- * window, or — for a node type that has no window (a `title`/`link`/`value`
- * node, or a custom node whose template has no windowLayout) — navigates to
- * it on the canvas instead. `useReactFlow`/`useGoToNode` require a
- * `ReactFlowProvider` ancestor; this component only ever mounts inside
- * BlocknoteWindow, which is always rendered within the canvas route's
- * provider, and the existing BlockNoteErrorBoundary around every editor is
- * the safety net if a pasted document ever displaced it elsewhere.
+ * window, falling back to navigating to it on the canvas when that node has
+ * no window to open (a `title`/`link`/`value` node, or a custom node whose
+ * template has no windowLayout). `openWindow` owns that decision and reports
+ * it back, so this handler never has to know the rule.
+ *
+ * `useReactFlow`/`useGoToNode` require a `ReactFlowProvider` ancestor; this
+ * component only ever mounts inside BlocknoteWindow, which is always rendered
+ * within the canvas route's provider, and the existing BlockNoteErrorBoundary
+ * around every editor is the safety net if a pasted document ever displaced
+ * it elsewhere.
  */
 function InteractiveMentionPill({
   nodeDataId,
@@ -92,7 +93,6 @@ function InteractiveMentionPill({
   title?: string;
 }) {
   const { id, nodeData, label, Icon } = useMentionPillData(nodeDataId);
-  const templateHasWindow = useTemplateHasWindow(nodeData?.templateId);
   const openWindow = useWindowsStore((s) => s.openWindow);
   const goToNode = useGoToNode();
   const { getNodes } = useReactFlow();
@@ -104,33 +104,13 @@ function InteractiveMentionPill({
     );
     if (!xyNode) return;
 
-    if (nodeData.type === "custom") {
-      if (!templateHasWindow) {
-        goToNode(xyNode.id);
-        return;
-      }
-      // windowSize only matters at click time, not for the render — read it
-      // directly from the store rather than subscribing (same pattern as
-      // NodeFrame.tsx's double-click handler).
-      const windowSize = nodeData.templateId
-        ? useTemplatesStore.getState().templates.get(nodeData.templateId)
-            ?.windowSize
-        : undefined;
-      openWindow({
-        xyNodeId: xyNode.id,
-        nodeDataId: id,
-        nodeType: "custom",
-        windowSize,
-      });
-      return;
-    }
-
-    if (OPENABLE_PREBUILT_NODE_TYPES.has(nodeData.type)) {
-      openWindow({ xyNodeId: xyNode.id, nodeDataId: id, nodeType: nodeData.type });
-    } else {
-      goToNode(xyNode.id);
-    }
-  }, [id, nodeData, templateHasWindow, getNodes, openWindow, goToNode]);
+    const opened = openWindow({
+      xyNodeId: xyNode.id,
+      nodeDataId: id,
+      nodeType: nodeData.type,
+    });
+    if (!opened) goToNode(xyNode.id);
+  }, [id, nodeData, getNodes, openWindow, goToNode]);
 
   if (!nodeData) {
     return (

@@ -8,7 +8,7 @@ import { useTemplatesStore, useTemplateHasWindow } from "@/stores/templatesStore
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
-import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
+import { OPENABLE_PREBUILT_NODE_TYPES } from "@/components/nodes/prebuilt-nodes/nodeOpenability";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { cn } from "@/lib/utils";
 
@@ -125,7 +125,7 @@ function InteractiveMentionPill({
       return;
     }
 
-    if (canNodeTypeBeOpenedInWindow(nodeData.type)) {
+    if (OPENABLE_PREBUILT_NODE_TYPES.has(nodeData.type)) {
       openWindow({ xyNodeId: xyNode.id, nodeDataId: id, nodeType: nodeData.type });
     } else {
       goToNode(xyNode.id);

@@ -5,6 +5,7 @@ import type { Node } from "@xyflow/react";
 import { nodeDataConfig } from "@/../convex/config/nodeConfig";
 import type { NodeDataConfigItem } from "@/../convex/config/nodeConfig";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
+import { OPENABLE_PREBUILT_NODE_TYPES } from "./nodeOpenability";
 import BlocknoteNode from "./BlocknoteNode";
 import TitleNode from "./TitleNode";
 import ImageNode from "./ImageNode";
@@ -32,68 +33,68 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
   title: {
     nodeComponent: TitleNode,
     nodeIcon: NODE_TYPE_ICON_MAP.title,
-    canBeOpenInWindow: false,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("title"),
     creatable: true,
   },
   link: {
     nodeComponent: LinkNode,
     nodeIcon: NODE_TYPE_ICON_MAP.link,
-    canBeOpenInWindow: false,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("link"),
     creatable: true,
   },
   image: {
     nodeComponent: ImageNode,
     nodeIcon: NODE_TYPE_ICON_MAP.image,
-    canBeOpenInWindow: true,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("image"),
     creatable: true,
   },
   blocknote: {
     nodeComponent: BlocknoteNode,
     nodeIcon: NODE_TYPE_ICON_MAP.blocknote,
-    canBeOpenInWindow: true,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("blocknote"),
     creatable: true,
   },
   value: {
     nodeComponent: ValueNode,
     nodeIcon: NODE_TYPE_ICON_MAP.value,
-    canBeOpenInWindow: false,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("value"),
     creatable: true,
   },
   embed: {
     nodeComponent: EmbedNode,
     nodeIcon: NODE_TYPE_ICON_MAP.embed,
-    canBeOpenInWindow: true,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("embed"),
     creatable: true,
   },
   pdf: {
     nodeComponent: PdfNode,
     nodeIcon: NODE_TYPE_ICON_MAP.pdf,
-    canBeOpenInWindow: true,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("pdf"),
     creatable: true,
   },
   // fetch is frontend-only (not yet implemented as a backend node type)
   fetch: {
     nodeComponent: FetchNode,
     nodeIcon: NODE_TYPE_ICON_MAP.fetch,
-    canBeOpenInWindow: false,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("fetch"),
     creatable: true,
   },
   table: {
     nodeComponent: TableNode,
     nodeIcon: NODE_TYPE_ICON_MAP.table,
-    canBeOpenInWindow: true,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("table"),
     creatable: true,
   },
   app: {
     nodeComponent: AppNode,
     nodeIcon: NODE_TYPE_ICON_MAP.app,
-    canBeOpenInWindow: true,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("app"),
     creatable: true,
   },
   audio: {
     nodeComponent: AudioNode,
     nodeIcon: NODE_TYPE_ICON_MAP.audio,
-    canBeOpenInWindow: false,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("audio"),
     creatable: true,
   },
 };

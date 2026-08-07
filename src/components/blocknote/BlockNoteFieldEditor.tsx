@@ -7,6 +7,7 @@ import {
 import { BlockNoteView } from "@blocknote/shadcn";
 import {
   getDefaultReactSlashMenuItems,
+  SideMenuController,
   SuggestionMenuController,
 } from "@blocknote/react";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
@@ -16,6 +17,7 @@ import {
   groupSuggestionItems,
 } from "@/components/blocknote/registry";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 import { Spinner } from "@/components/shadcn/spinner";
@@ -184,8 +186,13 @@ function BlockNoteFieldEditor({
           onChange={handleChange}
           className={cn("nodrag", className)}
           slashMenu={false}
+          sideMenu={false}
           portalElements={PORTAL_ELEMENTS}
         >
+          <SideMenuController
+            sideMenu={SideMenuWithoutAddButton}
+            portalElement={null}
+          />
           <SuggestionMenuController
             triggerCharacter="/"
             portalElement={null}

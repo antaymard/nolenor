@@ -11,9 +11,11 @@ import TextInput from "@/components/ts-form/TextInput";
 import "@blocknote/core/fonts/inter.css";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { BlockNoteEditor, type PartialBlock } from "@blocknote/core";
+import { SideMenuController } from "@blocknote/react";
 import "@blocknote/shadcn/style.css";
 import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
+import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import { cn } from "@/lib/utils";
 
 // Monte les menus flottants de BlockNote sur document.body plutôt que dans
@@ -138,8 +140,14 @@ function RouteComponent() {
                     onChange={() => {
                       field.handleChange(JSON.stringify(editor.document));
                     }}
+                    sideMenu={false}
                     portalElements={PORTAL_ELEMENTS}
-                  />
+                  >
+                    <SideMenuController
+                      sideMenu={SideMenuWithoutAddButton}
+                      portalElement={null}
+                    />
+                  </BlockNoteView>
                   {hasError && (
                     <span className="text-sm text-destructive">
                       {errors[0]}

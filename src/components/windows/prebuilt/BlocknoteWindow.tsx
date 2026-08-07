@@ -3,6 +3,7 @@ import { filterSuggestionItems, type PartialBlock } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/shadcn";
 import {
   getDefaultReactSlashMenuItems,
+  SideMenuController,
   SuggestionMenuController,
 } from "@blocknote/react";
 import type { Block } from "@blocknote/core";
@@ -17,6 +18,7 @@ import {
   groupSuggestionItems,
 } from "@/components/blocknote/registry";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 import { Spinner } from "@/components/shadcn/spinner";
@@ -278,8 +280,13 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
           onChange={handleChange}
           className={cn("nodrag h-full")}
           slashMenu={false}
+          sideMenu={false}
           portalElements={PORTAL_ELEMENTS}
         >
+          <SideMenuController
+            sideMenu={SideMenuWithoutAddButton}
+            portalElement={null}
+          />
           <SuggestionMenuController
             triggerCharacter="/"
             portalElement={null}

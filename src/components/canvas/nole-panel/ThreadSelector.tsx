@@ -1,5 +1,3 @@
-import { useQuery, useAction } from "convex/react";
-import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -9,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { TbMessageSearch, TbTrash } from "react-icons/tb";
-import { toastError } from "@/components/utils/errorUtils";
+import { useCanvasThreads } from "./useCanvasThreads";
 
 interface ThreadSelectorProps {
   canvasId: Id<"canvases"> | undefined;
@@ -22,11 +20,7 @@ export default function ThreadSelector({
   currentThreadId,
   onSelectThread,
 }: ThreadSelectorProps) {
-  const threads = useQuery(
-    api.threads.listCanvasThreads,
-    canvasId ? { canvasId } : "skip",
-  );
-  const deleteThread = useAction(api.threads.deleteThread);
+  const { threads, deleteThread } = useCanvasThreads(canvasId);
 
   return (
     <DropdownMenu>
@@ -62,13 +56,9 @@ export default function ThreadSelector({
               <button
                 type="button"
                 className="p-1 rounded hover:text-red-500 shrink-0"
-                onClick={async (e) => {
+                onClick={(e) => {
                   e.stopPropagation();
-                  try {
-                    await deleteThread({ threadId: thread.threadId });
-                  } catch (error) {
-                    toastError(error, "Error deleting thread.");
-                  }
+                  void deleteThread(thread.threadId);
                 }}
               >
                 <TbTrash size={14} />

@@ -1,11 +1,10 @@
 import { Button } from "@/components/shadcn/button";
-import { TbCloudCheck, TbCloudUp, TbCloudX } from "react-icons/tb";
 import { HiOutlineCog } from "react-icons/hi";
 import { Link } from "@tanstack/react-router";
 import { memo } from "react";
-import { useCanvasStore } from "@/stores/canvasStore";
 import { useConvexAuth } from "convex/react";
 import SharingModal from "./SharingModal";
+import CanvasStatus from "./CanvasStatus";
 
 function TopRightToolbar() {
   const { isAuthenticated } = useConvexAuth();
@@ -28,36 +27,6 @@ function TopRightToolbar() {
       </Button>
     </div>
   );
-}
-
-function CanvasStatus() {
-  const status = useCanvasStore((state) => state.status);
-  const size = 16;
-
-  switch (status) {
-    case "idle":
-    case "saved":
-      return (
-        <span className="text-green-500" title="Synced">
-          <TbCloudCheck size={size} />
-        </span>
-      );
-    case "unsynced":
-    case "saving":
-      return (
-        <span className="text-yellow-500" title="Saving...">
-          <TbCloudUp size={size} />
-        </span>
-      );
-    case "error":
-      return (
-        <span className="text-red-500" title="Sync error">
-          <TbCloudX size={size} />
-        </span>
-      );
-    default:
-      return null;
-  }
 }
 
 export default memo(TopRightToolbar);

@@ -7,6 +7,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import type { colorsEnum } from "@/types/domain";
 import type { CanvasNode } from "@/types";
 import { toastError } from "@/components/utils/errorUtils";
+import { trackCanvasSync } from "@/lib/trackCanvasSync";
 
 interface ConvexNodeProps {
   locked?: boolean;
@@ -176,10 +177,12 @@ export function useUpdateCanvasNode(): UseUpdateCanvasNodeReturn {
         ...(data && { data }),
       }));
 
-      await updateCanvasNodesMutation({
-        canvasId,
-        nodeProps,
-      });
+      await trackCanvasSync(() =>
+        updateCanvasNodesMutation({
+          canvasId,
+          nodeProps,
+        }),
+      );
     },
     [canvasId, updateCanvasNodesMutation],
   );

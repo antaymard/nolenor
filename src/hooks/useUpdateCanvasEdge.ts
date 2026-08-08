@@ -6,6 +6,7 @@ import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { Edge as CanvasEdge } from "@/types/convex";
 import { toastError } from "@/components/utils/errorUtils";
+import { trackCanvasSync } from "@/lib/trackCanvasSync";
 
 interface UpdateEdgeInput {
   edgeId: string;
@@ -132,10 +133,12 @@ export function useUpdateCanvasEdge(): UseUpdateCanvasEdgeReturn {
         data: data as Record<string, unknown>,
       }));
 
-      await updateCanvasEdgesMutation({
-        canvasId,
-        edgeUpdates,
-      });
+      await trackCanvasSync(() =>
+        updateCanvasEdgesMutation({
+          canvasId,
+          edgeUpdates,
+        }),
+      );
     },
     [canvasId, updateCanvasEdgesMutation],
   );

@@ -46,17 +46,13 @@ function CustomNode(xyNode: Node) {
 
   // Seul CustomNode fournit onEscalate (cf. LayoutRenderer) : un champ
   // edit:"window" (aujourd'hui rich_text.link) ouvre la window du node au
-  // clic. Sans windowLayout, le handler ne fait rien et le shell rend une vue
-  // statique — jamais une window vide.
+  // clic. Sans windowLayout, `openWindow` ne fait rien (il résout le template
+  // lui-même, taille comprise) et le shell rend une vue statique — jamais une
+  // window vide.
   const handleEscalate = useCallback(() => {
-    if (!nodeDataId || !template?.windowLayout) return;
-    openWindow({
-      xyNodeId: xyNode.id,
-      nodeDataId,
-      nodeType: "custom",
-      windowSize: template.windowSize,
-    });
-  }, [nodeDataId, template?.windowLayout, template?.windowSize, xyNode.id, openWindow]);
+    if (!nodeDataId) return;
+    openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "custom" });
+  }, [nodeDataId, xyNode.id, openWindow]);
 
   return (
     <NodeFrame

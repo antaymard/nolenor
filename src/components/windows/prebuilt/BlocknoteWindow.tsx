@@ -17,6 +17,7 @@ import {
   getCustomSlashMenuItems,
   groupSuggestionItems,
 } from "@/components/blocknote/registry";
+import { getNodeMentionSuggestionItems } from "@/components/blocknote/nodeMentionSuggestions";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
@@ -301,6 +302,12 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
                 ]),
                 query,
               )
+            }
+          />
+          <SuggestionMenuController
+            triggerCharacter="@"
+            getItems={async (query) =>
+              getNodeMentionSuggestionItems(editor, query)
             }
           />
         </BlockNoteView>

@@ -43,14 +43,20 @@ export const BLOCKNOTE_XML_VERSION = "1";
 
 // ── Frontend-only custom types ──────────────────────────────────────────────
 //
-// `date` (inline) and `callout` (block) are declared by the frontend schema
-// (src/components/blocknote/). The headless editor runs the DEFAULT schema and
-// throws "node type X not found in schema" on them, so both are rewritten
-// before anything is handed to it.
+// `date` (inline), `mention` (inline) and `callout` (block) are declared by
+// the frontend schema (src/components/blocknote/). The headless editor runs
+// the DEFAULT schema and throws "node type X not found in schema" on them, so
+// all three are rewritten before anything is handed to it.
 //
 //  • callouts → paragraphs. Lossless for the agent: icon/color live in props,
 //    which the XML carries independently of the headless editor.
 //  • date pills → a text stand-in, in one of two flavours (see below).
+//  • mention pills (a reference to another canvas node, see
+//    src/components/blocknote/mention-inline-content.tsx) → the snapshot
+//    title stored in their own props at insertion time. This codec is pure
+//    (no `ctx.db`), so it cannot resolve the mentioned node's live title —
+//    unlike date pills there is no round-trip token, an agent cannot author
+//    one back from text.
 
 /**
  * How a `date` pill is rendered when handed to the headless editor.
@@ -79,7 +85,18 @@ function datePillStandIn(props: unknown, mode: DatePillMode): string {
   return iso ? formatDateToken(iso) : "📅";
 }
 
-function datePillsToText(content: unknown, mode: DatePillMode): unknown {
+/**
+ * Text stand-in for a `mention` pill: the snapshot title taken when the pill
+ * was inserted (see mention-inline-content.tsx). No `mode` distinction like
+ * date pills — there is no token form to round-trip, so this is always the
+ * readable form.
+ */
+function mentionStandIn(props: unknown): string {
+  const title = (props as Record<string, unknown> | undefined)?.title;
+  return typeof title === "string" && title.trim() ? title.trim() : "Node";
+}
+
+function frontendOnlyInlineToText(content: unknown, mode: DatePillMode): unknown {
   if (typeof content === "string" || content === undefined || content === null) {
     return content;
   }
@@ -90,8 +107,11 @@ function datePillsToText(content: unknown, mode: DatePillMode): unknown {
       if (n.type === "date") {
         return { type: "text", text: datePillStandIn(n.props, mode) };
       }
+      if (n.type === "mention") {
+        return { type: "text", text: mentionStandIn(n.props) };
+      }
       if (n.content !== undefined) {
-        return { ...n, content: datePillsToText(n.content, mode) };
+        return { ...n, content: frontendOnlyInlineToText(n.content, mode) };
       }
       return node;
     });
@@ -105,12 +125,12 @@ function datePillsToText(content: unknown, mode: DatePillMode): unknown {
           isTableCellObj(cell)
             ? {
                 ...cell,
-                content: datePillsToText(
+                content: frontendOnlyInlineToText(
                   cell.content,
                   mode,
                 ) as BlockNoteInlineContent[],
               }
-            : datePillsToText(cell, mode),
+            : frontendOnlyInlineToText(cell, mode),
         ),
       })),
     };
@@ -191,7 +211,9 @@ function sanitizeBlockShallow(block: BlockNoteBlock, mode: DatePillMode): BlockN
     delete out.props;
   }
   if (out.content !== undefined) {
-    out.content = normalizeEmphasisWhitespace(datePillsToText(out.content, mode));
+    out.content = normalizeEmphasisWhitespace(
+      frontendOnlyInlineToText(out.content, mode),
+    );
   }
   return out;
 }
@@ -380,7 +402,9 @@ function inlineContentToMarkdown(
         {
           id: "tmp",
           type: "paragraph",
-          content: normalizeEmphasisWhitespace(datePillsToText(content, "token")),
+          content: normalizeEmphasisWhitespace(
+            frontendOnlyInlineToText(content, "token"),
+          ),
         },
       ])
       .trim();

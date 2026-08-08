@@ -215,7 +215,7 @@ function generateUniqueBlockId(existing: Set<string>): string {
 // src/components/blocknote/registry.tsx `customInlineContentSpecs`). Duplicated
 // here rather than imported so this module stays free of any React/BlockNote
 // dependency — keep in sync with the registry when adding a new inline type.
-const CUSTOM_INLINE_CONTENT_TYPES = ["date"] as const;
+const CUSTOM_INLINE_CONTENT_TYPES = ["date", "mention"] as const;
 
 // The only inline leaf types BlockNote's real schema can ever produce: "text"
 // and "link" (@blocknote/core's `defaultInlineContentSpecs`) plus the app's

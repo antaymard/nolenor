@@ -2,14 +2,11 @@ import { NodeResizer, type Node } from "@xyflow/react";
 import { memo, useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { colors } from "@/components/ui/styles";
-import type { colorsEnum } from "@/types/domain";
+import type { colorsEnum, NodeType } from "@/types/domain";
 import type { Id } from "@/../convex/_generated/dataModel";
 import NodeHandles from "./NodeHandles";
 import { useWindowsStore } from "@/stores/windowsStore";
-import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useIsNodeAttached } from "@/stores/noleStore";
-import { useTemplateHasWindow, useTemplatesStore } from "@/stores/templatesStore";
-import type { Id as ConvexId } from "@/../convex/_generated/dataModel";
 
 function NodeFrame({
   xyNode,
@@ -27,53 +24,21 @@ function NodeFrame({
   const isAttachedToNole = useIsNodeAttached(xyNode.id);
   const nodeType = xyNode.type;
 
-  // Custom nodes : l'ouvrabilité en window dépend du template (présence
-  // d'un windowLayout), pas du type. Hook inconditionnel — templateId est
-  // undefined pour les prébuilts, le sélecteur renvoie undefined.
-  // Sélecteur booléen dédié (pas `useTemplate`) : NodeFrame ne doit re-rendre
-  // que quand ce booléen change, pas à chaque édition du template (rename
-  // de champ, changement de layout…) — sinon tous les nodes d'un template
-  // re-rendraient à chaque modification, même sans rapport avec la window.
-  const templateId = xyNode.data?.templateId as
-    | ConvexId<"nodeTemplates">
-    | undefined;
-  const templateHasWindow = useTemplateHasWindow(templateId);
-
+  // `openWindow` tranche lui-même si ce node a une window (type prébuilt
+  // ouvrable, ou custom dont le template a un windowLayout) et ne fait rien
+  // sinon — inutile de refaire le test ici. C'est aussi ce qui évite à
+  // NodeFrame de s'abonner au template : il ne re-rend plus du tout sur ses
+  // éditions.
   const handleDoubleClick = useCallback(() => {
     const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
-    if (!nodeDataId) return;
+    if (!nodeDataId || !nodeType) return;
 
-    if (nodeType === "custom") {
-      if (!templateHasWindow) return;
-      // windowSize n'est nécessaire qu'au moment du clic, pas pour le
-      // rendu : lu directement dans le store (pas de souscription).
-      const windowSize = templateId
-        ? useTemplatesStore.getState().templates.get(templateId)?.windowSize
-        : undefined;
-      openWindow({
-        xyNodeId: xyNode.id,
-        nodeDataId,
-        nodeType: "custom",
-        windowSize,
-      });
-      return;
-    }
-
-    if (canNodeTypeBeOpenedInWindow(nodeType)) {
-      openWindow({
-        xyNodeId: xyNode.id,
-        nodeDataId,
-        nodeType,
-      });
-    }
-  }, [
-    xyNode.data?.nodeDataId,
-    xyNode.id,
-    nodeType,
-    openWindow,
-    templateHasWindow,
-    templateId,
-  ]);
+    openWindow({
+      xyNodeId: xyNode.id,
+      nodeDataId,
+      nodeType: nodeType as NodeType,
+    });
+  }, [xyNode.data?.nodeDataId, xyNode.id, nodeType, openWindow]);
 
   if (!xyNode) return null;
 

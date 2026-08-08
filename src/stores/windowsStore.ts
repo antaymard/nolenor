@@ -1,7 +1,13 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { useCanvasStore } from "./canvasStore";
+import { useNodeDataStore } from "./nodeDataStore";
+import { useTemplatesStore } from "./templatesStore";
 import { isTabletPortrait } from "@/hooks/useTabletMode";
+// Leaf module with no component imports — importing prebuiltNodesConfig here
+// instead would close a cycle (it pulls in every node component, and those
+// import this store for their own openWindow).
+import { OPENABLE_PREBUILT_NODE_TYPES } from "@/components/nodes/prebuilt-nodes/nodeOpenability";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { NodeType } from "@/types/domain/nodeTypes";
 
@@ -196,10 +202,53 @@ type OpenedWindowPayload = Pick<
   OpenedWindow,
   "xyNodeId" | "nodeDataId" | "nodeType"
 > & {
-  // Taille définie par le template pour les custom nodes ; fallback sur
-  // WINDOW_SIZE_BY_TYPE / DEFAULT_WINDOW_SIZE sinon.
+  // Override explicite. Inutile pour les custom nodes : `openWindow` résout
+  // lui-même la taille définie par leur template (cf. resolveOpenability).
+  // Fallback sur WINDOW_SIZE_BY_TYPE / DEFAULT_WINDOW_SIZE sinon.
   windowSize?: WindowSize;
 };
+
+type Openability =
+  | { canOpen: false }
+  | { canOpen: true; windowSize?: WindowSize };
+
+/**
+ * Peut-on ouvrir une window pour ce node ? Autorité unique, côté store, pour
+ * une question que chaque appelant de `openWindow` se posait auparavant de
+ * son côté (et pouvait donc oublier).
+ *
+ * La contrainte réelle vient de `WindowFrame`/`WindowBody` : son switch ne
+ * sait rendre que blocknote / embed / app / pdf / image / table / custom. Pour
+ * tout autre type il tombe sur un `default` qui n'affiche que le nom du type —
+ * une fenêtre vide, jamais un crash, mais inutile. Les custom nodes ajoutent
+ * une condition : sans `windowLayout`, leur template n'a rien à rendre.
+ *
+ * Lectures ponctuelles via `getState()` : on répond à un clic, pas à un rendu.
+ * Un template (ou un nodeData) pas encore résolu répond `false` — même
+ * prudence que l'ancien test de NodeFrame, où `useTemplateHasWindow` renvoyait
+ * `undefined` tant que le template n'était pas chargé.
+ */
+function resolveOpenability(
+  nodeType: NodeType,
+  nodeDataId: Id<"nodeDatas">,
+): Openability {
+  if (nodeType !== "custom") {
+    return OPENABLE_PREBUILT_NODE_TYPES.has(nodeType)
+      ? { canOpen: true }
+      : { canOpen: false };
+  }
+
+  // `nodeDatas.templateId` est le lien autoritaire (la copie dans
+  // canvasNodes[].data.templateId n'est qu'un miroir write-once).
+  const templateId = useNodeDataStore.getState().nodeDatas.get(nodeDataId)
+    ?.templateId;
+  if (!templateId) return { canOpen: false };
+
+  const template = useTemplatesStore.getState().templates.get(templateId);
+  if (!template || template.windowLayout === undefined) return { canOpen: false };
+
+  return { canOpen: true, windowSize: template.windowSize };
+}
 
 interface WindowsStore {
   openedWindows: OpenedWindow[];
@@ -208,7 +257,10 @@ interface WindowsStore {
   fullscreenNodeId: string | null;
   addDirtyNode: (xyNodeId: string) => void;
   removeDirtyNode: (xyNodeId: string) => void;
-  openWindow: (payload: OpenedWindowPayload) => void;
+  // Renvoie `false` (et ne fait rien) si ce node n'a pas de window à ouvrir.
+  // Les appelants qui ont un repli — naviguer vers le node sur le canvas —
+  // testent ce retour ; les autres appellent et ignorent.
+  openWindow: (payload: OpenedWindowPayload) => boolean;
   bringWindowToFront: (xyNodeId: string) => void;
   closeWindow: (xyNodeId: string) => void;
   closeWindowsForNodeIds: (xyNodeIds: string[]) => void;
@@ -254,6 +306,12 @@ export const useWindowsStore = create<WindowsStore>()(
         nodeType,
         windowSize,
       }: OpenedWindowPayload) => {
+        // Décidé AVANT le `set` : l'action doit renvoyer le verdict, et un
+        // updater zustand n'est pas l'endroit pour lire d'autres stores.
+        const openability = resolveOpenability(nodeType, nodeDataId);
+        if (!openability.canOpen) return false;
+        const effectiveWindowSize = windowSize ?? openability.windowSize;
+
         set((store) => {
           const existingWindowIndex = store.openedWindows.findIndex(
             (window) => window.xyNodeId === xyNodeId,
@@ -288,8 +346,8 @@ export const useWindowsStore = create<WindowsStore>()(
           }
 
           // If the window is not open, create a new one
-          const { width, height } = windowSize
-            ? resolveWindowSize(windowSize)
+          const { width, height } = effectiveWindowSize
+            ? resolveWindowSize(effectiveWindowSize)
             : getDefaultWindowSize(nodeType);
           const nextTopZIndex = store.topZIndex + 1;
           const newWindow: OpenedWindow = {
@@ -308,6 +366,8 @@ export const useWindowsStore = create<WindowsStore>()(
             topZIndex: nextTopZIndex,
           };
         });
+
+        return true;
       },
       bringWindowToFront: (xyNodeId: string) => {
         set((store) => {

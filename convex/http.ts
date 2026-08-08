@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
 import { hashApiToken } from "./lib/apiTokenCrypto";
+import { rateLimiter } from "./lib/rateLimits";
 import { buildMcpServer } from "./mcp/server";
 
 const http = httpRouter();
@@ -34,16 +35,37 @@ function getRequestSourceHostname(request: Request): string | null {
   return getHostnameFromHeader(request.headers.get("referer"));
 }
 
-function buildWishlistResponse(
-  payload: Record<string, unknown>,
-  request: Request,
-  status = 200,
-) {
+/**
+ * Le garde exigeait auparavant seulement que le hostname, *s'il était présent*,
+ * soit dans l'allowlist — donc n'importe quel `curl` sans `Origin` ni `Referer`
+ * passait sur un endpoint non authentifié qui écrit en base. On exige
+ * désormais un en-tête présent ET allowlisté.
+ */
+function isAllowedWishlistSource(request: Request): boolean {
+  const sourceHostname = getRequestSourceHostname(request);
+  return sourceHostname !== null && ALLOWED_WISHLIST_HOSTNAMES.has(sourceHostname);
+}
+
+// Assez strict pour écarter les saisies invalides, assez large pour ne pas
+// refuser une adresse légitime : la vérification réelle se fait à l'envoi.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+
+/**
+ * IP de l'appelant, pour la clé de rate limiting. Convex place l'IP réelle du
+ * client dans `x-forwarded-for` ; on prend le premier maillon de la chaîne.
+ */
+function getClientIp(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const first = forwarded?.split(",")[0]?.trim();
+  return first && first.length > 0 ? first : "unknown";
+}
+
+function buildWishlistHeaders(request: Request, extraHeaders?: Record<string, string>) {
   const headers = new Headers({
-    "Content-Type": "application/json",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     Vary: "Origin",
+    ...extraHeaders,
   });
 
   const origin = request.headers.get("origin");
@@ -57,6 +79,18 @@ function buildWishlistResponse(
     headers.set("Access-Control-Allow-Origin", origin);
   }
 
+  return headers;
+}
+
+function buildWishlistResponse(
+  payload: Record<string, unknown>,
+  request: Request,
+  status = 200,
+  extraHeaders?: Record<string, string>,
+) {
+  const headers = buildWishlistHeaders(request, extraHeaders);
+  headers.set("Content-Type", "application/json");
+
   return new Response(JSON.stringify(payload), {
     status,
     headers,
@@ -64,9 +98,7 @@ function buildWishlistResponse(
 }
 
 const wishlistCapture = httpAction(async (ctx, request) => {
-  const sourceHostname = getRequestSourceHostname(request);
-
-  if (sourceHostname && !ALLOWED_WISHLIST_HOSTNAMES.has(sourceHostname)) {
+  if (!isAllowedWishlistSource(request)) {
     return buildWishlistResponse(
       {
         success: false,
@@ -98,7 +130,8 @@ const wishlistCapture = httpAction(async (ctx, request) => {
     }
   }
 
-  if (!email || !email.trim()) {
+  const trimmedEmail = email?.trim() ?? "";
+  if (!trimmedEmail) {
     return buildWishlistResponse(
       {
         success: false,
@@ -109,8 +142,33 @@ const wishlistCapture = httpAction(async (ctx, request) => {
     );
   }
 
+  if (trimmedEmail.length > 254 || !EMAIL_PATTERN.test(trimmedEmail)) {
+    return buildWishlistResponse(
+      { success: false, message: "Invalid email." },
+      request,
+      400,
+    );
+  }
+
+  // Endpoint public et non authentifié : sans borne, il suffisait d'une boucle
+  // pour remplir la table. La clé est l'IP, faute d'identité.
+  const { ok, retryAfter } = await rateLimiter.limit(ctx, "wishlistSubscribe", {
+    key: getClientIp(request),
+  });
+  if (!ok) {
+    return buildWishlistResponse(
+      {
+        success: false,
+        message: "Too many requests. Please try again later.",
+      },
+      request,
+      429,
+      { "Retry-After": String(Math.max(1, Math.ceil(retryAfter / 1000))) },
+    );
+  }
+
   const result = await ctx.runMutation(internal.wishlist.upsertWishlistEmail, {
-    email,
+    email: trimmedEmail,
     referral: referralParam?.trim() || undefined,
   });
 
@@ -125,9 +183,7 @@ const wishlistCapture = httpAction(async (ctx, request) => {
 });
 
 const wishlistOptions = httpAction(async (_ctx, request) => {
-  const sourceHostname = getRequestSourceHostname(request);
-
-  if (sourceHostname && !ALLOWED_WISHLIST_HOSTNAMES.has(sourceHostname)) {
+  if (!isAllowedWishlistSource(request)) {
     return buildWishlistResponse(
       {
         success: false,
@@ -138,7 +194,12 @@ const wishlistOptions = httpAction(async (_ctx, request) => {
     );
   }
 
-  return buildWishlistResponse({}, request, 204);
+  // Un 204 ne doit pas porter de corps : l'ancienne version en renvoyait un
+  // (`{}`), ce qui fait tousser certains clients HTTP.
+  return new Response(null, {
+    status: 204,
+    headers: buildWishlistHeaders(request),
+  });
 });
 
 // ============================================================================

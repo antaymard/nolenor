@@ -2,6 +2,7 @@ import { v, ConvexError } from "convex/values";
 import { action, internalAction } from "./_generated/server";
 import { generatePresignedUrl, getPublicUrl, deleteObject } from "./lib/r2";
 import { requireAuth } from "./lib/auth";
+import { enforceRateLimit } from "./lib/rateLimits";
 import errors from "./config/errorsConfig";
 import {
   MAX_UPLOAD_FILES_PER_REQUEST,
@@ -64,6 +65,7 @@ export const generateUploadUrl = action({
   returns: uploadUrlValidator,
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
+    await enforceRateLimit(ctx, "uploadUrl", userId);
     return buildUpload(userId, args);
   },
 });
@@ -96,6 +98,8 @@ export const generateUploadUrls = action({
     if (args.files.length > MAX_UPLOAD_FILES_PER_REQUEST) {
       throw new ConvexError(errors.TOO_MANY_FILES);
     }
+
+    await enforceRateLimit(ctx, "uploadUrl", userId);
 
     return Promise.all(args.files.map((file) => buildUpload(userId, file)));
   },

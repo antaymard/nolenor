@@ -1,6 +1,7 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAuth } from "./lib/auth";
+import { enforceRateLimit } from "./lib/rateLimits";
 
 // Action pour récupérer les métadonnées d'un lien via LinkPreview API
 export const fetchLinkMetadata = action({
@@ -14,7 +15,8 @@ export const fetchLinkMetadata = action({
     url: v.string(),
   }),
   handler: async (ctx, { url }) => {
-    await requireAuth(ctx);
+    const userId = await requireAuth(ctx);
+    await enforceRateLimit(ctx, "linkMetadata", userId);
 
     const apiKey = process.env.LINK_PREVIEW_APIKEY;
 

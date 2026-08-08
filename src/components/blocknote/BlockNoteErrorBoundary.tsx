@@ -1,6 +1,7 @@
 import { Component, Fragment, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/shadcn/button";
 import { TbAlertTriangle } from "react-icons/tb";
+import { reportError } from "@/lib/analytics";
 
 /**
  * Guards against a render or update-time crash (a custom block view throwing,
@@ -35,7 +36,10 @@ export class BlockNoteErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error("[BlockNoteErrorBoundary] Rendering crash:", error, info);
+    reportError(error, {
+      source: "BlockNoteErrorBoundary",
+      componentStack: info.componentStack,
+    });
   }
 
   componentDidUpdate(prevProps: BlockNoteErrorBoundaryProps): void {

@@ -1,0 +1,46 @@
+name: CI
+
+# `yarn lint` et `yarn typecheck` existaient déjà mais rien ne les exécutait :
+# le seul hook du repo (.githooks/pre-commit.ps1) ne fait que convertir des
+# fichiers UTF-16 en UTF-8. Une régression de types pouvait donc arriver sur
+# master sans que personne ne la voie.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+# Une PR poussée plusieurs fois d'affilée n'a pas besoin de garder ses runs
+# précédents en vie.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      # `predev`/`prebuild` le lancent en local ; la CI n'exécute ni l'un ni
+      # l'autre, donc on l'appelle explicitement avant de typer.
+      - name: Generate system skills registry
+        run: yarn gen:system-skills
+
+      - name: Typecheck (app)
+        run: yarn typecheck
+
+      # tsconfig.app.json ne couvre que `src` : sans ce second passage, tout le
+      # backend Convex n'est jamais typé par la CI.
+      - name: Typecheck (convex)
+        run: yarn typecheck:convex
+
+      - name: Lint
+        run: yarn lint

@@ -1,77 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  SelectionMode,
-  MarkerType,
-  Panel,
-  Background,
-  BackgroundVariant,
-  useReactFlow,
-} from "@xyflow/react";
+import { ReactFlowProvider, Panel } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
-import { api } from "@/../convex/_generated/api";
 import { cn } from "@/lib/utils";
-import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
-import useRichQuery from "@/components/utils/useRichQuery";
-import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { useTemplatesStore } from "@/stores/templatesStore";
-import { useNoleStore } from "@/stores/noleStore";
-import { useWindowsStore } from "@/stores/windowsStore";
-import { useCanvasStore } from "@/stores/canvasStore";
 import ErrorDisplay from "@/components/ui/ErrorDisplay";
 import { Button } from "@/components/shadcn/button";
-import ContextMenu from "@/components/canvas/context-menus";
-import { useContextMenu } from "@/hooks/useContextMenu";
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  type MouseEvent,
-} from "react";
+import { lazy, Suspense } from "react";
 import type { CanvasNode } from "@/types/convex";
-import { nodeTypes } from "@/components/nodes/nodeTypes";
-import { edgeTypes } from "@/components/edges/edgeTypes";
-import { useEdgeEditorStore } from "@/stores/edgeEditorStore";
-import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
 import WindowsContainer from "@/components/windows/WindowsContainer";
-import "@xyflow/react/dist/style.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CanvasSidebar from "@/components/canvas/CanvasSidebar";
-import { useCanvasNodes } from "@/hooks/useCanvasNodes";
-import { useCanvasEdges } from "@/hooks/useCanvasEdges";
-import { injectMarkerColor } from "@/components/edges/edgeStyleUtils";
+import CanvasFlow from "@/components/canvas/CanvasFlow";
+import { useCanvasBootstrap } from "@/hooks/useCanvasBootstrap";
 import { Spinner } from "@/components/shadcn/spinner";
 import NoleCanvasPanel from "@/components/canvas/NoleCanvasPanel";
 import MinimizedWindowsStack from "@/components/windows/MinimizedWindowsStack";
 import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
 import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
 import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanner";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvexAuth } from "convex/react";
 import OnboardingModal from "@/components/ui/OnboardingModal";
-import { generateLlmId } from "@/../convex/lib/llmId";
 import SearchModale from "@/components/canvas/search-modale/SearchModale";
-import { useHotkey } from "@tanstack/react-hotkeys";
-import { useDuplicateNode } from "@/hooks/useDuplicateNode";
-import { useHotspotHotkeys } from "@/hooks/useHotspotHotkeys";
 // Mobile-only surface: don't ship it to desktop sessions.
 const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
-import { useIsTouchFirst } from "@/hooks/useTabletMode";
-
-// Additional helper to prevent hotkeys from triggering when typing in inputs, textareas, selects or contenteditable elements
-function isEditableTarget(target: EventTarget | null): target is HTMLElement {
-  return (
-    target instanceof HTMLElement &&
-    (target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.tagName === "SELECT" ||
-      target.isContentEditable)
-  );
-}
 
 export const Route = createFileRoute("/canvas/$canvasId")({
   component: RouteComponent,
@@ -126,227 +77,13 @@ function CanvasContent({
   canvasId: Id<"canvases">;
   isAuthenticated: boolean;
 }) {
-  const setNodeDatas = useNodeDataStore((state) => state.setNodeDatas);
-  const clearNodeDatas = useNodeDataStore((state) => state.clear);
-  const setCanvas = useCanvasStore((state) => state.setCanvas);
-  const upsertTemplates = useTemplatesStore((state) => state.upsertTemplates);
-  const setMyTemplateIds = useTemplatesStore((state) => state.setMyTemplateIds);
-  const setOwnedTemplateIds = useTemplatesStore(
-    (state) => state.setOwnedTemplateIds,
-  );
-  const clearTemplates = useTemplatesStore((state) => state.clear);
-  const lastCanvasSnapshotRef = useRef<string | null>(null);
-
-  // Cleanup stores on canvas switch
-  useEffect(() => {
-    useWindowsStore.getState().closeAllWindows();
-    useCanvasStore.getState().setStatus("idle");
-    setCanvas(null);
-    clearNodeDatas();
-    clearTemplates();
-    lastCanvasSnapshotRef.current = null;
-  }, [canvasId, clearNodeDatas, clearTemplates, setCanvas]);
-
-  // Handle paste events (images, URLs)
-  useCanvasPasteHandler();
-
-  // Fetch canvas
   const {
-    isError: isCanvasError,
-    data: canvas,
-    error: canvasError,
-  } = useRichQuery(api.canvases.readCanvas, {
-    canvasId,
-  });
-
-  // Fetch nodeDatas for this canvas
-  const {
-    isError: isNodeDatasError,
-    data: nodeDatas,
-    error: nodeDatasError,
-  } = useRichQuery(
-    api.nodeDatas.listByCanvasId,
-    canvasId ? { canvasId } : "skip",
-  );
-
-  // Custom node templates : ceux référencés par le canvas (viewers de
-  // canvases partagés inclus) + ceux du user (menu d'ajout, nouveaux nodes).
-  // Mergés dans templatesStore pour des sélecteurs granulaires par node.
-  const canvasTemplates = useQuery(
-    api.nodeTemplates.listForCanvas,
-    canvasId ? { canvasId } : "skip",
-  );
-  const myTemplates = useQuery(
-    api.nodeTemplates.listMine,
-    isAuthenticated ? { includeArchived: true } : "skip",
-  );
-
-  useEffect(() => {
-    if (canvasTemplates) upsertTemplates(canvasTemplates);
-  }, [canvasTemplates, upsertTemplates]);
-
-  useEffect(() => {
-    if (!myTemplates) return;
-    upsertTemplates(myTemplates);
-    // Les archivés sont bien chargés (leurs instances vivantes doivent rendre)
-    // mais ne sont pas proposables : le menu d'ajout lit `myTemplateIds`, pas
-    // la map. L'ordre est celui du serveur (tri par nom).
-    setMyTemplateIds(
-      myTemplates
-        .filter((template) => template.archivedAt === undefined)
-        .map((template) => template._id),
-    );
-    // Propriété : archivés inclus — un template archivé reste éditable, il
-    // n'est simplement plus proposé à l'ajout.
-    setOwnedTemplateIds(myTemplates.map((template) => template._id));
-  }, [myTemplates, upsertTemplates, setMyTemplateIds, setOwnedTemplateIds]);
-
-  // Context menu management
-  const {
-    contextMenu,
-    setContextMenu,
-    onPaneContextMenu,
-    onNodeContextMenu,
-    onSelectionContextMenu,
-    onEdgeContextMenu,
-  } = useContextMenu();
-
-  const isMobile = useIsMobile();
-  const isTouchFirst = useIsTouchFirst();
-  // On touch-first devices (phones, tablets like the Boox), dragging on the
-  // pane should pan the canvas instead of drawing a selection rectangle.
-  const panWithFinger = isMobile || isTouchFirst;
-  const { screenToFlowPosition, getNodes } = useReactFlow();
-  const addNoleAttachments = useNoleStore((state) => state.addAttachments);
-  const focus = useCanvasStore((state) => state.focus);
-  const { duplicateNode } = useDuplicateNode();
-  const canDuplicateNodes = !!canvas && canvas._permission !== "viewer";
-
-  const onNodeClick = useCallback(
-    (event: MouseEvent, node: Parameters<typeof fromXyNodeToCanvasNode>[0]) => {
-      if (!event.altKey) {
-        return;
-      }
-
-      event.preventDefault();
-      addNoleAttachments({ nodes: [fromXyNodeToCanvasNode(node)] }, true);
-    },
-    [addNoleAttachments],
-  );
-
-  const onPaneClick = useCallback(
-    (event: MouseEvent) => {
-      if (!event.altKey || event.button !== 0) {
-        return;
-      }
-
-      event.preventDefault();
-      const position = screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-      addNoleAttachments({ position });
-    },
-    [addNoleAttachments, screenToFlowPosition],
-  );
-
-  useHotkey(
-    "Mod+D",
-    (event) => {
-      if (!canDuplicateNodes || event.repeat || focus !== "canvas") {
-        return;
-      }
-
-      if (isEditableTarget(event.target)) {
-        return;
-      }
-
-      const selectedNodes = getNodes().filter((node) => node.selected);
-      if (selectedNodes.length !== 1) {
-        return;
-      }
-
-      event.preventDefault();
-      void duplicateNode(selectedNodes[0]);
-    },
-    { enabled: canDuplicateNodes && focus === "canvas" },
-  );
-
-  // Hotspot keyboard shortcuts (Alt+1 … Alt+9)
-  useHotspotHotkeys();
-
-  // Canvas nodes management
-  const { nodes, handleNodeChange } = useCanvasNodes(
-    canvasId,
-    canvas?.nodes as CanvasNode[] | undefined,
-  );
-
-  // Canvas edges management
-  const { edges, handleEdgeChange } = useCanvasEdges(canvasId, canvas?.edges);
-
-  // Inject edge color into marker objects so React Flow renders colored arrows
-  const edgesWithColoredMarkers = useMemo(
-    () => injectMarkerColor(edges),
-    [edges],
-  );
-
-  // Double-click an edge → enter label edit mode (handled inside CustomEdge
-  // via the edgeEditorStore).
-  const onEdgeDoubleClick = useCallback(
-    (_e: MouseEvent, edge: { id: string }) => {
-      useEdgeEditorStore.getState().setEditingEdgeId(edge.id);
-    },
-    [],
-  );
-
-  // ======= Put canvas in store, if it changes (besides nodes and edges)
-  // Keep only non-flow fields in canvas store (no nodes/edges)
-  const canvasForStore = useMemo(() => {
-    if (!canvas) {
-      return null;
-    }
-
-    const canvasWithoutFlowData = { ...canvas };
-    delete canvasWithoutFlowData.nodes;
-    delete canvasWithoutFlowData.edges;
-
-    return canvasWithoutFlowData;
-  }, [canvas]);
-  // Sync convex canvas -> zustand canvas store without pointless store updates
-  useEffect(() => {
-    if (!canvasForStore) {
-      return;
-    }
-
-    const nextSnapshot = JSON.stringify(canvasForStore);
-    if (lastCanvasSnapshotRef.current === nextSnapshot) {
-      return;
-    }
-
-    lastCanvasSnapshotRef.current = nextSnapshot;
-    setCanvas(canvasForStore);
-  }, [canvasForStore, setCanvas]);
-  // ======
-
-  // Sync convex nodeDatas -> zustand store
-  useEffect(() => {
-    if (nodeDatas) {
-      setNodeDatas(nodeDatas);
-    }
-  }, [nodeDatas, setNodeDatas]);
-
-  useEffect(() => {
-    if (isNodeDatasError) {
-      clearNodeDatas();
-    }
-  }, [clearNodeDatas, isNodeDatasError]);
-
-  // Sync document title
-  useEffect(() => {
-    if (canvas?.name) {
-      document.title = canvas.name;
-    }
-  }, [canvas?.name]);
+    canvas,
+    isCanvasError,
+    canvasError,
+    isNodeDatasError,
+    nodeDatasError,
+  } = useCanvasBootstrap(canvasId, { isAuthenticated });
 
   if (isCanvasError && canvasError) {
     if (!isAuthenticated) {
@@ -382,61 +119,13 @@ function CanvasContent({
     <div className="flex-1 w-full h-full">
       <SearchModale />
       <WindowsContainer />
-      <ReactFlow
-        panOnScroll
-        panOnDrag={panWithFinger ? true : [1]}
-        defaultViewport={{
-          x: 0,
-          y: 0,
-          zoom: 0.75,
-        }}
-        minZoom={0.1}
-        maxZoom={4}
-        selectNodesOnDrag={false}
-        selectionMode={SelectionMode.Partial}
-        selectionOnDrag={!panWithFinger}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onPaneClick={onPaneClick}
-        onPaneContextMenu={onPaneContextMenu}
-        onNodeContextMenu={onNodeContextMenu}
-        onNodeClick={onNodeClick}
-        onSelectionContextMenu={onSelectionContextMenu}
-        onEdgeContextMenu={onEdgeContextMenu}
-        onEdgeDoubleClick={onEdgeDoubleClick}
-        deleteKeyCode={null}
-        nodes={nodes}
-        edges={edgesWithColoredMarkers}
-        onEdgesChange={handleEdgeChange}
-        onNodesChange={handleNodeChange}
-        onConnect={(params) => {
-          handleEdgeChange([
-            {
-              type: "add" as const,
-              item: {
-                id: generateLlmId(),
-                source: params.source,
-                target: params.target,
-                sourceHandle: params.sourceHandle ?? undefined,
-                targetHandle: params.targetHandle ?? undefined,
-                markerEnd: {
-                  type: MarkerType.Arrow,
-                  width: 30,
-                  height: 30,
-                  strokeWidth: 1,
-                },
-              },
-            },
-          ]);
-        }}
+      <CanvasFlow
+        canvasId={canvasId}
+        canvasNodes={canvas.nodes as CanvasNode[] | undefined}
+        canvasEdges={canvas.edges}
+        canEdit={canvas._permission !== "viewer"}
+        variant="desktop"
       >
-        <Background
-          variant={BackgroundVariant.Lines}
-          color="#e2e8f0"
-          bgColor="#f8fafc"
-          gap={20}
-          lineWidth={0.3}
-        />
         {isAuthenticated ? (
           <Panel position="top-right">
             <TopRightToolbar />
@@ -459,13 +148,7 @@ function CanvasContent({
             <AuthUpgradeBanner />
           </Panel>
         )}
-        {contextMenu.type && (
-          <ContextMenu
-            contextMenu={contextMenu}
-            setContextMenu={setContextMenu}
-          />
-        )}
-      </ReactFlow>
+      </CanvasFlow>
     </div>
   );
 }

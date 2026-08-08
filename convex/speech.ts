@@ -1,8 +1,16 @@
 "use node";
 
 import { action } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { requireAuth } from "./lib/auth";
+import errors from "./config/errorsConfig";
+
+/**
+ * Borne sur l'audio envoyé à Mistral. `v.bytes()` n'a pas de limite propre :
+ * sans ça, un client pouvait pousser des dizaines de Mo par appel vers une API
+ * facturée à la durée.
+ */
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
 const segmentValidator = v.object({
   text: v.string(),
@@ -30,6 +38,10 @@ export const transcribe = action({
   }),
   handler: async (ctx, args) => {
     await requireAuth(ctx);
+
+    if (args.audio.byteLength > MAX_AUDIO_BYTES) {
+      throw new ConvexError(errors.AUDIO_TOO_LARGE);
+    }
 
     const apiKey = process.env.MISTRAL_API_KEY;
     if (!apiKey) {

@@ -16,6 +16,11 @@ const errors = {
   TOKEN_NOT_FOUND: "This API token does not exist.",
   TOKEN_NAME_REQUIRED: "Token name is required.",
   TOKEN_REVOKED: "This token has been revoked and can no longer be edited.",
+  UNSUPPORTED_FILE_TYPE: "This file type is not allowed.",
+  INVALID_FILE_SIZE: "This file size could not be read.",
+  FILE_TOO_LARGE: "This file is too large.",
+  TOO_MANY_FILES: "Too many files in a single upload.",
+  AUDIO_TOO_LARGE: "This recording is too long to be transcribed.",
 };
 
 export default errors;

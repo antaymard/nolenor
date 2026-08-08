@@ -1,34 +1,70 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { action, internalAction } from "./_generated/server";
 import { generatePresignedUrl, getPublicUrl, deleteObject } from "./lib/r2";
 import { requireAuth } from "./lib/auth";
+import errors from "./config/errorsConfig";
+import {
+  MAX_UPLOAD_FILES_PER_REQUEST,
+  normalizeMimeType,
+  resolveUploadPolicy,
+} from "./config/uploadsConfig";
+
+const uploadTargetValidator = v.object({
+  filename: v.string(),
+  mimeType: v.string(),
+  // Taille réelle du fichier : elle est signée dans l'URL présignée, donc R2
+  // refuse un PUT dont le corps ne fait pas exactement cette taille.
+  size: v.number(),
+});
+
+const uploadUrlValidator = v.object({
+  uploadUrl: v.string(),
+  publicUrl: v.string(),
+  key: v.string(),
+  // À poser tels quels sur le PUT : ils font partie de la signature.
+  headers: v.record(v.string(), v.string()),
+});
+
+type UploadTarget = { filename: string; mimeType: string; size: number };
+
+async function buildUpload(userId: string, file: UploadTarget) {
+  const policy = resolveUploadPolicy(file.mimeType);
+  if (!policy) {
+    throw new ConvexError(errors.UNSUPPORTED_FILE_TYPE);
+  }
+  if (!Number.isFinite(file.size) || file.size <= 0) {
+    throw new ConvexError(errors.INVALID_FILE_SIZE);
+  }
+  if (file.size > policy.maxBytes) {
+    throw new ConvexError(errors.FILE_TOO_LARGE);
+  }
+
+  const mimeType = normalizeMimeType(file.mimeType);
+  const uniqueId = crypto.randomUUID();
+  const sanitizedFilename = file.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const key = `${userId}/${uniqueId}_${sanitizedFilename}`;
+
+  const { url, headers } = await generatePresignedUrl(key, {
+    mimeType,
+    size: file.size,
+    disposition: policy.disposition,
+  });
+
+  return {
+    uploadUrl: url, // Pour le PUT du client
+    publicUrl: getPublicUrl(key), // À sauvegarder dans le node après upload
+    key, // Pour référence/delete futur
+    headers,
+  };
+}
 
 // Single file upload - Action publique
 export const generateUploadUrl = action({
-  args: {
-    filename: v.string(),
-    mimeType: v.string(),
-  },
-  returns: v.object({
-    uploadUrl: v.string(),
-    publicUrl: v.string(),
-    key: v.string(),
-  }),
+  args: uploadTargetValidator.fields,
+  returns: uploadUrlValidator,
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
-
-    const uniqueId = crypto.randomUUID();
-    const sanitizedFilename = args.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const key = `${userId}/${uniqueId}_${sanitizedFilename}`;
-
-    const uploadUrl = await generatePresignedUrl(key, args.mimeType);
-    const publicUrl = getPublicUrl(key);
-
-    return {
-      uploadUrl, // Pour le PUT du client
-      publicUrl, // À sauvegarder dans le node après upload
-      key, // Pour référence/delete futur
-    };
+    return buildUpload(userId, args);
   },
 });
 
@@ -50,36 +86,17 @@ export const deleteR2Files = internalAction({
 // Multiple files upload - Action publique
 export const generateUploadUrls = action({
   args: {
-    files: v.array(
-      v.object({
-        filename: v.string(),
-        mimeType: v.string(),
-      })
-    ),
+    files: v.array(uploadTargetValidator),
   },
-  returns: v.array(v.object({
-    uploadUrl: v.string(),
-    publicUrl: v.string(),
-    key: v.string(),
-  })),
+  returns: v.array(uploadUrlValidator),
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
 
-    return Promise.all(
-      args.files.map(async (file) => {
-        const uniqueId = crypto.randomUUID();
-        const sanitizedFilename = file.filename.replace(
-          /[^a-zA-Z0-9._-]/g,
-          "_"
-        );
-        const key = `${userId}/${uniqueId}_${sanitizedFilename}`;
+    if (args.files.length === 0) return [];
+    if (args.files.length > MAX_UPLOAD_FILES_PER_REQUEST) {
+      throw new ConvexError(errors.TOO_MANY_FILES);
+    }
 
-        const uploadUrl = await generatePresignedUrl(key, file.mimeType);
-        const publicUrl = getPublicUrl(key);
-
-        return { uploadUrl, publicUrl, key };
-      })
-    );
+    return Promise.all(args.files.map((file) => buildUpload(userId, file)));
   },
 });
-

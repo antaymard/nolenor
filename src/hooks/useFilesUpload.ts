@@ -48,16 +48,17 @@ export const useFileUpload = () => {
 
       try {
         // 1. Générer URL signée via Convex action
-        const { uploadUrl, publicUrl, key } = await generateUploadUrl({
+        const { uploadUrl, publicUrl, key, headers } = await generateUploadUrl({
           filename: file.name,
           mimeType: file.type,
+          size: file.size,
         });
 
-        // 2. Upload vers R2 avec suivi de progression
+        // 2. Upload vers R2 avec suivi de progression.
+        // Les en-têtes viennent du serveur : ils font partie de la signature
+        // (type, disposition), R2 refuse le PUT si on en change un.
         await axios.put(uploadUrl, file, {
-          headers: {
-            "Content-Type": file.type,
-          },
+          headers,
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
               const percent =
@@ -128,19 +129,18 @@ export const useFileUpload = () => {
         files: files.map((f) => ({
           filename: f.name,
           mimeType: f.type,
+          size: f.size,
         })),
       });
 
       // 2. Upload tous les fichiers en parallèle
       const uploadPromises = files.map(async (file, index) => {
         const fileId = fileIds[index];
-        const { uploadUrl, publicUrl, key } = uploadData[index];
+        const { uploadUrl, publicUrl, key, headers } = uploadData[index];
 
         try {
           await axios.put(uploadUrl, file, {
-            headers: {
-              "Content-Type": file.type,
-            },
+            headers,
             onUploadProgress: (progressEvent) => {
               if (progressEvent.total) {
                 const percent =

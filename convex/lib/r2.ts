@@ -18,18 +18,53 @@ const r2Client = new S3Client({
 const BUCKET_NAME = process.env.R2_BUCKET_NAME!;
 const PUBLIC_URL = process.env.R2_PUBLIC_URL!; // ex: https://files.entropie.app
 
+export interface PresignedUpload {
+  url: string;
+  /**
+   * En-têtes que le client DOIT envoyer tels quels sur son PUT. Ils font partie
+   * de la signature : R2 rejette la requête si l'un d'eux diffère.
+   */
+  headers: Record<string, string>;
+}
+
 export async function generatePresignedUrl(
   key: string,
-  mimeType: string,
-): Promise<string> {
+  {
+    mimeType,
+    size,
+    disposition,
+  }: { mimeType: string; size: number; disposition: "inline" | "attachment" },
+): Promise<PresignedUpload> {
+  const contentDisposition = disposition === "inline" ? "inline" : "attachment";
+
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
     ContentType: mimeType,
+    ContentLength: size,
+    ContentDisposition: contentDisposition,
   });
 
-  // URL valide 15 minutes
-  return await getSignedUrl(r2Client, command, { expiresIn: 900 });
+  // `content-type` et `content-disposition` sont retirés de la signature par
+  // défaut par le presigner S3 : sans ce `signableHeaders`, le client pourrait
+  // envoyer ce qu'il veut et la validation côté Convex ne servirait à rien.
+  // `content-length` signé fait respecter la taille par R2 lui-même.
+  const url = await getSignedUrl(r2Client, command, {
+    expiresIn: 900, // 15 minutes
+    signableHeaders: new Set([
+      "content-type",
+      "content-length",
+      "content-disposition",
+    ]),
+  });
+
+  return {
+    url,
+    headers: {
+      "Content-Type": mimeType,
+      "Content-Disposition": contentDisposition,
+    },
+  };
 }
 
 // Directly upload a buffer to R2 and return the public URL

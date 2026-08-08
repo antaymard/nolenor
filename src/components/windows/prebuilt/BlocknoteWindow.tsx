@@ -3,6 +3,7 @@ import { filterSuggestionItems, type PartialBlock } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/shadcn";
 import {
   getDefaultReactSlashMenuItems,
+  SideMenuController,
   SuggestionMenuController,
 } from "@blocknote/react";
 import type { Block } from "@blocknote/core";
@@ -18,6 +19,7 @@ import {
 } from "@/components/blocknote/registry";
 import { getNodeMentionSuggestionItems } from "@/components/blocknote/nodeMentionSuggestions";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 import { Spinner } from "@/components/shadcn/spinner";
@@ -35,6 +37,12 @@ interface BlocknoteWindowProps {
 // document, and a no-op save is skipped because the dirty flag is only set by
 // genuine user edits.
 const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
+
+// Mounts BlockNote's floating menus (side menu, formatting toolbar, slash
+// menu...) on document.body instead of the default .bn-container, which
+// otherwise sits inside this app's overflow:hidden/auto window chrome
+// (WindowFrame) and clips them at the window's edges.
+const PORTAL_ELEMENTS = { default: null } as const;
 
 /**
  * Canonical form of a stored doc, used to tell "the server sent something new"
@@ -271,11 +279,18 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
           editor={editor}
           theme="light"
           onChange={handleChange}
-          className={cn("nodrag h-full overflow-auto")}
+          className={cn("nodrag h-full")}
           slashMenu={false}
+          sideMenu={false}
+          portalElements={PORTAL_ELEMENTS}
         >
+          <SideMenuController
+            sideMenu={SideMenuWithoutAddButton}
+            portalElement={null}
+          />
           <SuggestionMenuController
             triggerCharacter="/"
+            portalElement={null}
             shouldOpen={(tr) =>
               !tr.selection.$from.parent.type.isInGroup("tableContent")
             }

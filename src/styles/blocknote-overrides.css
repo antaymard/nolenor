@@ -556,3 +556,45 @@
       (var(--doc-h6-lh) + 2 * var(--doc-heading-gap-h6-scale))
   );
 }
+
+/* ---------------------------------------------------------------------------
+ * Color picker dropdown — two columns (text | background) instead of one
+ * flat 22-row list.
+ *
+ * ColorPicker.tsx (@blocknote/react) renders a text-color section then a
+ * background-color section as flat sibling elements, with no wrapping div per
+ * section: 1 label + 10 color items, then another label + 10 color items —
+ * both sections iterating the SAME 10-color array in the SAME order. Once
+ * that flat list exceeds the height @blocknote/shadcn computes
+ * (`.bn-color-picker-dropdown { overflow: auto }`, keyed off
+ * --radix-dropdown-menu-content-available-height), it grows its own internal
+ * scrollbar on top of the document's scroll.
+ *
+ * `grid-auto-flow: column` with exactly 11 rows (1 label + 10 colors) turns
+ * those same 22 flat children into 2 columns of 11 with zero markup/React
+ * changes: column 1 = text section, column 2 = background section. Because
+ * both sections share the same color order, row N always lands on the same
+ * color name in both columns. The `11` is coupled to BlockNote's current
+ * palette size (see the `colors` array in
+ * @blocknote/react/src/components/ColorPicker/ColorPicker.tsx) — revisit if a
+ * future version changes it.
+ * ------------------------------------------------------------------------- */
+.bn-shadcn .bn-color-picker-dropdown {
+  /* @blocknote/shadcn's own `overflow: auto` rule outweighs the
+   * `overflow-x-hidden` Tailwind utility class also present on this element
+   * (higher selector specificity), so the horizontal axis is actually `auto`
+   * today — dormant only because a single column never grows wide enough to
+   * trigger it. Two columns roughly double that width, so this must be
+   * reasserted or a horizontal scrollbar appears instead of the intended
+   * single-column fallback below. */
+  overflow-x: hidden;
+}
+
+@media (min-width: 480px) {
+  .bn-shadcn .bn-color-picker-dropdown {
+    display: grid;
+    grid-template-rows: repeat(11, auto);
+    grid-auto-flow: column;
+    column-gap: 1rem;
+  }
+}

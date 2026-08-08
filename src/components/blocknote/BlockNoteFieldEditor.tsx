@@ -7,6 +7,7 @@ import {
 import { BlockNoteView } from "@blocknote/shadcn";
 import {
   getDefaultReactSlashMenuItems,
+  SideMenuController,
   SuggestionMenuController,
 } from "@blocknote/react";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
@@ -16,6 +17,7 @@ import {
   groupSuggestionItems,
 } from "@/components/blocknote/registry";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 import { Spinner } from "@/components/shadcn/spinner";
@@ -33,6 +35,11 @@ import { cn } from "@/lib/utils";
 // renvoyer en écho ce qu'on vient d'écrire.
 
 const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
+
+// Monte les menus flottants de BlockNote sur document.body plutôt que dans
+// .bn-container par défaut, qui se trouve imbriqué dans la chrome de fenêtre
+// overflow:hidden/auto (WindowFrame) et les fait clipper à ses bords.
+const PORTAL_ELEMENTS = { default: null } as const;
 
 // Forme canonique d'une value stockée : la même donnée nous arrive tantôt en
 // `Block[]` (update optimiste du store) tantôt en string (écho Convex).
@@ -179,9 +186,16 @@ function BlockNoteFieldEditor({
           onChange={handleChange}
           className={cn("nodrag", className)}
           slashMenu={false}
+          sideMenu={false}
+          portalElements={PORTAL_ELEMENTS}
         >
+          <SideMenuController
+            sideMenu={SideMenuWithoutAddButton}
+            portalElement={null}
+          />
           <SuggestionMenuController
             triggerCharacter="/"
+            portalElement={null}
             shouldOpen={(tr) =>
               !tr.selection.$from.parent.type.isInGroup("tableContent")
             }

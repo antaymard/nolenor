@@ -192,7 +192,7 @@ export default function FullscreenBlocknoteWindow({
 
         {/* Middle: editor (full width container, content centered) */}
         <main className="flex min-w-0 flex-1 overflow-hidden [&_.bn-editor]:px-[max(2rem,calc((100%-56rem)/2))]!">
-          <div ref={editorScrollRef} className="h-full w-full">
+          <div ref={editorScrollRef} className="h-full w-full overflow-y-auto">
             <BlocknoteWindow
               nodeDataId={nodeDataId}
               onDocChange={handleDocChange}

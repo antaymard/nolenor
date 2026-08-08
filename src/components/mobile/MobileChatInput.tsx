@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
 
 const INPUT_MAX_HEIGHT_PX = 140;
-const MOBILE_INPUT_HEIGHT_VAR = "--mobile-chat-input-h";
 
 export default function MobileChatInput() {
   const {
@@ -51,9 +50,6 @@ export default function MobileChatInput() {
     hasDirtyWindows,
   } = useMobileNoleChat();
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  useExposeHeightAsCssVar(containerRef);
-
   const handleSend = useCallback(() => {
     if (hasDirtyWindows) {
       toast.error(
@@ -71,7 +67,7 @@ export default function MobileChatInput() {
     !!userInput.trim() && !isAssistantResponding && !isSending && !sttBusy;
 
   return (
-    <div ref={containerRef} className="fixed bottom-0 left-0 right-0 z-50 p-2 pt-0">
+    <div className="shrink-0 p-2 pt-0">
       <div
         className={cn(
           "bg-slate-100 border shadow-md rounded-lg flex flex-col gap-2",
@@ -170,31 +166,6 @@ export default function MobileChatInput() {
       </div>
     </div>
   );
-}
-
-/**
- * Publish the composer's height as a CSS var so the chat content / node overlay
- * can pad for it while the input stays pinned above everything.
- */
-function useExposeHeightAsCssVar(ref: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const root = document.documentElement;
-    const setVar = () => {
-      root.style.setProperty(
-        MOBILE_INPUT_HEIGHT_VAR,
-        `${node.getBoundingClientRect().height}px`,
-      );
-    };
-    setVar();
-    const observer = new ResizeObserver(setVar);
-    observer.observe(node);
-    return () => {
-      observer.disconnect();
-      root.style.removeProperty(MOBILE_INPUT_HEIGHT_VAR);
-    };
-  }, [ref]);
 }
 
 /** Press-and-hold microphone gesture for touch devices. */

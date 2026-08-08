@@ -1,12 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Save } from "lucide-react";
 import {
   TbArrowLeft,
@@ -18,13 +10,11 @@ import {
 import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
-import { useNodeData } from "@/hooks/useNodeData";
-import { useNodeDataTitle } from "@/hooks/useNodeTitle";
-import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
-import {
-  WindowFrameContext,
-  type SaveHandler,
-} from "@/components/windows/WindowFrameContext";
+import { WindowFrameContext } from "@/components/windows/WindowFrameContext";
+import NodeWindowContent from "@/components/windows/NodeWindowContent";
+import NodeWindowDialogs from "@/components/windows/NodeWindowDialogs";
+import { useNodeWindowIdentity } from "@/components/windows/useNodeWindowIdentity";
+import { useWindowFrameState } from "@/components/windows/useWindowFrameState";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import {
   AlertDialog,
@@ -42,34 +32,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/shadcn/dialog";
-import VersionHistoryViewer from "@/components/windows/VersionHistoryViewer";
-import AssociatedThreadsViewer from "@/components/windows/AssociatedThreadsViewer";
-// Same lazy boundaries as WindowFrame: keep the heavy editors out of the
-// canvas chunk on mobile too.
-const BlocknoteWindow = lazy(
-  () => import("@/components/windows/prebuilt/BlocknoteWindow"),
-);
-const EmbedWindow = lazy(
-  () => import("@/components/windows/prebuilt/EmbedWindow"),
-);
-const ImageWindow = lazy(
-  () => import("@/components/windows/prebuilt/ImageWindow"),
-);
-const PdfWindow = lazy(() => import("@/components/windows/prebuilt/PdfWindow"));
-const TableWindow = lazy(
-  () => import("@/components/windows/prebuilt/TableWindow"),
-);
-const AppWindow = lazy(() => import("@/components/windows/prebuilt/AppWindow"));
-const CustomWindow = lazy(
-  () => import("@/components/windows/prebuilt/CustomWindow"),
-);
 import { cn } from "@/lib/utils";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
 
@@ -91,56 +53,23 @@ export default function MobileNodeOverlay() {
 function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
   const { xyNodeId, nodeDataId, nodeType } = openedWindow;
   const closeWindow = useWindowsStore((s) => s.closeWindow);
-  const addDirtyNode = useWindowsStore((s) => s.addDirtyNode);
-  const removeDirtyNode = useWindowsStore((s) => s.removeDirtyNode);
   const { selectThread } = useMobileNoleChat();
 
-  const [isDirty, setDirty] = useState(false);
-  const [saveHandler, setSaveHandlerState] = useState<SaveHandler | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
-    "idle",
-  );
-  const [refreshHandler, setRefreshHandlerState] = useState<
-    (() => void) | null
-  >(null);
+  const {
+    isDirty,
+    isSaving,
+    saveState,
+    saveHandler,
+    refreshHandler,
+    handleSave,
+    contextValue,
+  } = useWindowFrameState(xyNodeId);
+
   const [showBackConfirm, setShowBackConfirm] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
 
-  const title = useNodeDataTitle(nodeDataId);
-  const nodeData = useNodeData(nodeDataId);
-  const NodeIcon = getNodeIcon(nodeData?.type);
-
-  useEffect(() => {
-    if (saveState !== "saved") return;
-    const timeoutId = window.setTimeout(() => setSaveState("idle"), 1500);
-    return () => window.clearTimeout(timeoutId);
-  }, [saveState]);
-
-  const handleSave = useCallback(async () => {
-    if (!saveHandler || !isDirty || isSaving) return;
-
-    setIsSaving(true);
-    setSaveState("saving");
-    try {
-      const success = await saveHandler();
-      setSaveState(success === false ? "idle" : "saved");
-    } catch {
-      setSaveState("idle");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [isDirty, isSaving, saveHandler]);
-
-  useEffect(() => {
-    if (isDirty) {
-      addDirtyNode(xyNodeId);
-    } else {
-      removeDirtyNode(xyNodeId);
-    }
-    return () => removeDirtyNode(xyNodeId);
-  }, [isDirty, xyNodeId, addDirtyNode, removeDirtyNode]);
+  const { title, NodeIcon } = useNodeWindowIdentity(nodeDataId);
 
   // Push a history entry when the overlay opens so the browser back button
   // navigates back to the chat instead of leaving the app.
@@ -174,22 +103,6 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [closeWindow, xyNodeId]);
 
-  const contextValue = useMemo(
-    () => ({
-      setDirty: (dirty: boolean) => {
-        setDirty(dirty);
-        if (dirty) setSaveState("idle");
-      },
-      setSaveHandler: (fn: SaveHandler | null) =>
-        setSaveHandlerState(() => fn),
-      setRefreshHandler: (fn: (() => void) | null) =>
-        setRefreshHandlerState(() => fn),
-    }),
-    [],
-  );
-
-  const containerRef = useRef<HTMLDivElement>(null);
-
   return (
     <WindowFrameContext.Provider value={contextValue}>
       <AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
@@ -215,11 +128,9 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <div
-        ref={containerRef}
-        className="fixed left-0 right-0 top-0 z-40 bg-white animate-in slide-in-from-bottom duration-200"
-        style={{ bottom: "var(--mobile-chat-input-h, 0px)" }}
-      >
+      {/* Un node ouvert recouvre tout, top bar et bottom nav comprises : on en
+          sort par le bouton retour du header ou par le geste OS. */}
+      <div className="fixed inset-0 z-50 bg-white animate-in slide-in-from-bottom duration-200">
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-2 border-b px-2 py-2 shrink-0">
             <ConfirmableButton
@@ -312,7 +223,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
             </DropdownMenu>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
-            <NodeContent
+            <NodeWindowContent
               xyNodeId={xyNodeId}
               nodeDataId={nodeDataId}
               nodeType={nodeType}
@@ -320,80 +231,18 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
           </div>
         </div>
       </div>
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="flex h-[80vh] max-h-175 flex-col">
-          <DialogHeader>
-            <DialogTitle>Version history</DialogTitle>
-            <DialogDescription>{title ?? "—"}</DialogDescription>
-          </DialogHeader>
-          <VersionHistoryViewer
-            nodeDataId={nodeDataId}
-            closeModale={() => setHistoryOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={associatedThreadsOpen}
-        onOpenChange={setAssociatedThreadsOpen}
-      >
-        <DialogContent className="flex h-[80vh] max-h-175 flex-col">
-          <DialogHeader>
-            <DialogTitle>Associated threads</DialogTitle>
-            <DialogDescription>{title ?? "—"}</DialogDescription>
-          </DialogHeader>
-          <AssociatedThreadsViewer
-            nodeDataId={nodeDataId}
-            closeModale={() => setAssociatedThreadsOpen(false)}
-            onOpenThread={(threadId) => {
-              selectThread(threadId);
-              closeWindow(xyNodeId);
-            }}
-          />
-        </DialogContent>
-      </Dialog>
+      <NodeWindowDialogs
+        nodeDataId={nodeDataId}
+        title={title}
+        historyOpen={historyOpen}
+        onHistoryOpenChange={setHistoryOpen}
+        threadsOpen={associatedThreadsOpen}
+        onThreadsOpenChange={setAssociatedThreadsOpen}
+        onOpenThread={(threadId) => {
+          selectThread(threadId);
+          closeWindow(xyNodeId);
+        }}
+      />
     </WindowFrameContext.Provider>
   );
-}
-
-function NodeContent(props: Pick<OpenedWindow, "xyNodeId" | "nodeDataId" | "nodeType">) {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <Spinner className="size-5 text-muted-foreground" />
-        </div>
-      }
-    >
-      <NodeContentBody {...props} />
-    </Suspense>
-  );
-}
-
-function NodeContentBody({
-  xyNodeId,
-  nodeDataId,
-  nodeType,
-}: Pick<OpenedWindow, "xyNodeId" | "nodeDataId" | "nodeType">) {
-  switch (nodeType) {
-    case "blocknote":
-      return <BlocknoteWindow nodeDataId={nodeDataId} />;
-    case "embed":
-      return <EmbedWindow nodeDataId={nodeDataId} />;
-    case "app":
-      return <AppWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
-    case "pdf":
-      return <PdfWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
-    case "image":
-      return <ImageWindow nodeDataId={nodeDataId} />;
-    case "table":
-      return <TableWindow nodeDataId={nodeDataId} />;
-    case "custom":
-      return <CustomWindow nodeDataId={nodeDataId} />;
-    default:
-      return (
-        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-          {nodeType}
-        </div>
-      );
-  }
 }

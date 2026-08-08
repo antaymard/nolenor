@@ -1,22 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ReactFlowProvider, useStoreApi } from "@xyflow/react";
+import { useCallback, useMemo, useState } from "react";
+import { ReactFlowProvider } from "@xyflow/react";
+import { useConvexAuth } from "convex/react";
 import type { Id } from "@/../convex/_generated/dataModel";
-import { api } from "@/../convex/_generated/api";
-import useRichQuery from "@/components/utils/useRichQuery";
-import { fromCanvasNodesToXyNodes } from "@/lib/node-types-converter";
-import { injectMarkerColor } from "@/components/edges/edgeStyleUtils";
 import type { CanvasNode } from "@/types";
-import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { useCanvasStore } from "@/stores/canvasStore";
-import { useWindowsStore } from "@/stores/windowsStore";
 import ErrorDisplay from "@/components/ui/ErrorDisplay";
 import { Spinner } from "@/components/shadcn/spinner";
-import MobileChatScreen from "./MobileChatScreen";
-import MobileChatInput from "./MobileChatInput";
-import MobileLeftSidebar from "./MobileLeftSidebar";
-import MobileSearchSidebar from "./MobileSearchSidebar";
-import MobileNodeOverlay from "./MobileNodeOverlay";
+import { useCanvasBootstrap } from "@/hooks/useCanvasBootstrap";
 import { MobileNoleProvider } from "./MobileNoleContext";
+import { MobileShellContext, type MobileTab } from "./mobileShellContext";
+import MobileTopBar from "./MobileTopBar";
+import MobileBottomNav from "./MobileBottomNav";
+import MobileTabPanel from "./MobileTabPanel";
+import MobileChatTab from "./MobileChatTab";
+import MobileSearchTab from "./MobileSearchTab";
+import MobileCanvasTab from "./MobileCanvasTab";
+import MobileCanvasSwitcherSheet from "./MobileCanvasSwitcherSheet";
+import MobileNodeOverlay from "./MobileNodeOverlay";
 
 export default function MobileCanvas({
   canvasId,
@@ -25,90 +24,35 @@ export default function MobileCanvas({
 }) {
   return (
     <ReactFlowProvider key={canvasId}>
-      <MobileCanvasContent canvasId={canvasId} />
+      <MobileCanvasShell canvasId={canvasId} />
     </ReactFlowProvider>
   );
 }
 
-function MobileCanvasContent({ canvasId }: { canvasId: Id<"canvases"> }) {
-  const setNodeDatas = useNodeDataStore((state) => state.setNodeDatas);
-  const clearNodeDatas = useNodeDataStore((state) => state.clear);
-  const setCanvas = useCanvasStore((state) => state.setCanvas);
-  const lastCanvasSnapshotRef = useRef<string | null>(null);
-
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);
-  const [searchSidebarOpen, setSearchSidebarOpen] = useState(false);
-
-  const flowStore = useStoreApi();
-
-  useEffect(() => {
-    useWindowsStore.getState().closeAllWindows();
-    useCanvasStore.getState().setStatus("idle");
-    setCanvas(null);
-    clearNodeDatas();
-    lastCanvasSnapshotRef.current = null;
-  }, [canvasId, clearNodeDatas, setCanvas]);
-
+function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
+  const { isAuthenticated } = useConvexAuth();
   const {
-    isError: isCanvasError,
-    data: canvas,
-    error: canvasError,
-  } = useRichQuery(api.canvases.readCanvas, { canvasId });
+    canvas,
+    isCanvasError,
+    canvasError,
+    isNodeDatasError,
+    nodeDatasError,
+  } = useCanvasBootstrap(canvasId, { isAuthenticated });
 
-  const {
-    isError: isNodeDatasError,
-    data: nodeDatas,
-    error: nodeDatasError,
-  } = useRichQuery(
-    api.nodeDatas.listByCanvasId,
-    canvasId ? { canvasId } : "skip",
+  const [activeTab, setActiveTabState] = useState<MobileTab>("chat");
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  // Les portails Radix rendent dans <body> : une sheet ouverte survivrait au
+  // changement d'onglet. On les ferme en même temps qu'on bascule.
+  const setActiveTab = useCallback((tab: MobileTab) => {
+    setSwitcherOpen(false);
+    setActiveTabState(tab);
+  }, []);
+
+  const shellValue = useMemo(
+    () => ({ activeTab, setActiveTab }),
+    [activeTab, setActiveTab],
   );
-
-  // Inject canvas nodes/edges directly into the xy-flow store so that hooks
-  // like `useStore`, `useNodes` keep working even though we don't render
-  // <ReactFlow>. `useReactFlow().setNodes()` is a no-op in that case (the
-  // queue is only flushed when ReactFlow holds the nodes), so we write to
-  // the store directly. We must also convert Convex CanvasNode -> xy-flow
-  // Node so `data.nodeDataId` (read by mention cards) is populated.
-  useEffect(() => {
-    const xyNodes = canvas?.nodes
-      ? fromCanvasNodesToXyNodes(canvas.nodes as CanvasNode[])
-      : [];
-    const state = flowStore.getState();
-    state.setNodes(xyNodes);
-    const edges = injectMarkerColor(
-      (canvas?.edges ?? []) as Parameters<typeof state.setEdges>[0],
-    );
-    state.setEdges(edges);
-  }, [canvas?.nodes, canvas?.edges, flowStore]);
-
-  const canvasForStore = useMemo(() => {
-    if (!canvas) return null;
-    const next = { ...canvas };
-    delete next.nodes;
-    delete next.edges;
-    return next;
-  }, [canvas]);
-
-  useEffect(() => {
-    if (!canvasForStore) return;
-    const nextSnapshot = JSON.stringify(canvasForStore);
-    if (lastCanvasSnapshotRef.current === nextSnapshot) return;
-    lastCanvasSnapshotRef.current = nextSnapshot;
-    setCanvas(canvasForStore);
-  }, [canvasForStore, setCanvas]);
-
-  useEffect(() => {
-    if (nodeDatas) setNodeDatas(nodeDatas);
-  }, [nodeDatas, setNodeDatas]);
-
-  useEffect(() => {
-    if (isNodeDatasError) clearNodeDatas();
-  }, [clearNodeDatas, isNodeDatasError]);
-
-  useEffect(() => {
-    if (canvas?.name) document.title = canvas.name;
-  }, [canvas?.name]);
 
   if (isCanvasError && canvasError) {
     return <ErrorDisplay error={canvasError} />;
@@ -118,33 +62,58 @@ function MobileCanvasContent({ canvasId }: { canvasId: Id<"canvases"> }) {
   }
   if (!canvas) {
     return (
-      <div className="flex items-center justify-center h-dvh">
+      <div className="flex h-dvh items-center justify-center">
         <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }
 
+  const canEdit = canvas._permission !== "viewer";
+
   return (
-    <MobileNoleProvider>
-      <div className="h-dvh w-screen overflow-hidden bg-white">
-        <MobileChatScreen
-          canvasName={canvas.name}
-          onOpenLeft={() => setLeftSidebarOpen(true)}
-          onOpenSearch={() => setSearchSidebarOpen(true)}
+    <MobileShellContext.Provider value={shellValue}>
+      <MobileNoleProvider>
+        <div className="flex h-dvh w-screen flex-col overflow-hidden bg-white">
+          <MobileTopBar
+            canvasName={canvas.name}
+            onOpenCanvasSwitcher={() => setSwitcherOpen(true)}
+          />
+
+          {/* Les trois panneaux restent montés : le canvas alimente le store
+              xy-flow que lisent la barre de pièces jointes du chat et les cartes
+              de mention, et chaque onglet garde son état d'un aller-retour à
+              l'autre. */}
+          <div className="relative min-h-0 flex-1">
+            <MobileTabPanel active={activeTab === "chat"}>
+              <MobileChatTab canvasId={canvasId} />
+            </MobileTabPanel>
+            <MobileTabPanel active={activeTab === "search"}>
+              <MobileSearchTab
+                canvasId={canvasId}
+                active={activeTab === "search"}
+              />
+            </MobileTabPanel>
+            <MobileTabPanel active={activeTab === "canvas"}>
+              <MobileCanvasTab
+                canvasId={canvasId}
+                canvasNodes={canvas.nodes as CanvasNode[] | undefined}
+                canvasEdges={canvas.edges}
+                canEdit={canEdit}
+              />
+            </MobileTabPanel>
+          </div>
+
+          <MobileBottomNav active={activeTab} onChange={setActiveTab} />
+        </div>
+
+        <MobileCanvasSwitcherSheet
+          canvasId={canvasId}
+          open={switcherOpen}
+          onOpenChange={setSwitcherOpen}
         />
+        {/* Hors de la colonne flex : un node ouvert recouvre tout l'écran. */}
         <MobileNodeOverlay />
-        <MobileChatInput />
-        <MobileLeftSidebar
-          canvasId={canvasId}
-          open={leftSidebarOpen}
-          onOpenChange={setLeftSidebarOpen}
-        />
-        <MobileSearchSidebar
-          canvasId={canvasId}
-          open={searchSidebarOpen}
-          onOpenChange={setSearchSidebarOpen}
-        />
-      </div>
-    </MobileNoleProvider>
+      </MobileNoleProvider>
+    </MobileShellContext.Provider>
   );
 }

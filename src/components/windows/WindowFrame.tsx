@@ -1,12 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useCallback,
-  useState,
-  useMemo,
-  lazy,
-  Suspense,
-} from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { cn } from "@/lib/utils";
 import {
@@ -18,11 +10,6 @@ import {
   MAX_MINIMIZED_WINDOWS,
 } from "@/stores/windowsStore";
 import toast from "react-hot-toast";
-import { useNodeDataTitle } from "@/hooks/useNodeTitle";
-import { useNodeData } from "@/hooks/useNodeData";
-import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
-import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
-import { useTemplate } from "@/stores/templatesStore";
 import { X, Minus, Save, Maximize2, Check } from "lucide-react";
 import { Spinner } from "@/components/shadcn/spinner";
 import {
@@ -34,16 +21,11 @@ import {
 } from "react-icons/tb";
 import { useReactFlow } from "@xyflow/react";
 import { useGoToNode } from "@/hooks/useGoToNode";
-// Window bodies are lazy-loaded: they pull heavy dependencies (BlockNote
-// editor, pdfjs, tanstack-table…) that shouldn't weigh down the canvas chunk.
-const BlocknoteWindow = lazy(() => import("./prebuilt/BlocknoteWindow"));
-const EmbedWindow = lazy(() => import("./prebuilt/EmbedWindow"));
-const ImageWindow = lazy(() => import("./prebuilt/ImageWindow"));
-const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
-const TableWindow = lazy(() => import("./prebuilt/TableWindow"));
-const AppWindow = lazy(() => import("./prebuilt/AppWindow"));
-const CustomWindow = lazy(() => import("./prebuilt/CustomWindow"));
-import { WindowFrameContext, type SaveHandler } from "./WindowFrameContext";
+import NodeWindowContent from "./NodeWindowContent";
+import NodeWindowDialogs from "./NodeWindowDialogs";
+import { useNodeWindowIdentity } from "./useNodeWindowIdentity";
+import { useWindowFrameState } from "./useWindowFrameState";
+import { WindowFrameContext } from "./WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
@@ -53,65 +35,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../shadcn/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "../shadcn/dialog";
-import VersionHistoryViewer from "./VersionHistoryViewer";
-import AssociatedThreadsViewer from "./AssociatedThreadsViewer";
-
-function WindowContent({ openedWindow }: { openedWindow: OpenedWindow }) {
-  const { nodeType, xyNodeId, nodeDataId } = openedWindow;
-
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <Spinner className="size-5 text-muted-foreground" />
-        </div>
-      }
-    >
-      <WindowBody
-        nodeType={nodeType}
-        xyNodeId={xyNodeId}
-        nodeDataId={nodeDataId}
-      />
-    </Suspense>
-  );
-}
-
-function WindowBody({
-  nodeType,
-  xyNodeId,
-  nodeDataId,
-}: Pick<OpenedWindow, "nodeType" | "xyNodeId" | "nodeDataId">) {
-  switch (nodeType) {
-    case "blocknote":
-      return <BlocknoteWindow nodeDataId={nodeDataId} />;
-    case "embed":
-      return <EmbedWindow nodeDataId={nodeDataId} />;
-    case "app":
-      return <AppWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
-    case "pdf":
-      return <PdfWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
-    case "image":
-      return <ImageWindow nodeDataId={nodeDataId} />;
-    case "table":
-      return <TableWindow nodeDataId={nodeDataId} />;
-    case "custom":
-      return <CustomWindow nodeDataId={nodeDataId} />;
-    default:
-      return (
-        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-          {nodeType}
-        </div>
-      );
-  }
-}
-
 type ResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 const RESIZE_CURSOR: Record<ResizeDirection, string> = {
@@ -135,15 +58,15 @@ export default function WindowFrame({
   onSnapPreviewChange,
 }: WindowFrameProps) {
   const { xyNodeId, nodeDataId } = openedWindow;
-  const [isDirty, setDirty] = useState(false);
-  const [saveHandler, setSaveHandler] = useState<SaveHandler | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
-    "idle",
-  );
-  const [refreshHandler, setRefreshHandler] = useState<(() => void) | null>(
-    null,
-  );
+  const {
+    isDirty,
+    isSaving,
+    saveState,
+    saveHandler,
+    refreshHandler,
+    handleSave,
+    contextValue,
+  } = useWindowFrameState(xyNodeId);
   const moveWindow = useWindowsStore((s) => s.moveWindow);
   const resizeWindow = useWindowsStore((s) => s.resizeWindow);
   const closeWindow = useWindowsStore((s) => s.closeWindow);
@@ -152,48 +75,17 @@ export default function WindowFrame({
     (s) => s.toggleFullscreenWindow,
   );
   const snapWindow = useWindowsStore((s) => s.snapWindow);
-  const addDirtyNode = useWindowsStore((s) => s.addDirtyNode);
-  const removeDirtyNode = useWindowsStore((s) => s.removeDirtyNode);
   const addAttachments = useNoleStore((s) => s.addAttachments);
   const isAttachedToConversation = useIsNodeAttached(xyNodeId);
   const { getNode } = useReactFlow();
   const goToNode = useGoToNode();
 
-  const title = useNodeDataTitle(nodeDataId);
-  const nodeData = useNodeData(nodeDataId);
-  // Custom nodes : icône du template (templateId undefined pour les
-  // prébuilts → le hook renvoie undefined).
-  const template = useTemplate(nodeData?.templateId);
-  const NodeIcon =
-    nodeData?.type === "custom"
-      ? getTemplateIcon(template?.icon)
-      : getNodeIcon(nodeData?.type);
+  const { title, NodeIcon } = useNodeWindowIdentity(nodeDataId);
 
   const [isDraggingOrResizing, setIsDraggingOrResizing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (saveState !== "saved") return;
-    const timeoutId = window.setTimeout(() => setSaveState("idle"), 1500);
-    return () => window.clearTimeout(timeoutId);
-  }, [saveState]);
-
-  const handleSave = useCallback(async () => {
-    if (!saveHandler || !isDirty || isSaving) return;
-
-    setIsSaving(true);
-    setSaveState("saving");
-    try {
-      const success = await saveHandler();
-      setSaveState(success === false ? "idle" : "saved");
-    } catch {
-      setSaveState("idle");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [isDirty, isSaving, saveHandler]);
 
   useHotkey(
     "Mod+S",
@@ -203,15 +95,6 @@ export default function WindowFrame({
     },
     { target: containerRef, enabled: !!saveHandler && isDirty && !isSaving },
   );
-
-  useEffect(() => {
-    if (isDirty) {
-      addDirtyNode(xyNodeId);
-    } else {
-      removeDirtyNode(xyNodeId);
-    }
-    return () => removeDirtyNode(xyNodeId);
-  }, [isDirty, xyNodeId, addDirtyNode, removeDirtyNode]);
 
   // Stored as refs to avoid stale closures in the event listeners
   const dragRef = useRef<{ startX: number; startY: number } | null>(null);
@@ -400,19 +283,6 @@ export default function WindowFrame({
     updateSnapPreview,
     setIsDraggingOrResizing,
   ]);
-
-  const contextValue = useMemo(
-    () => ({
-      setDirty: (dirty: boolean) => {
-        setDirty(dirty);
-        if (dirty) setSaveState("idle");
-      },
-      setSaveHandler: (fn: SaveHandler | null) => setSaveHandler(() => fn),
-      setRefreshHandler: (fn: (() => void) | null) =>
-        setRefreshHandler(() => fn),
-    }),
-    [],
-  );
 
   return (
     <WindowFrameContext.Provider value={contextValue}>
@@ -628,39 +498,25 @@ export default function WindowFrame({
 
           {/* ── Body (non-draggable) ──────────────────────────────────── */}
           <div className="relative min-h-0 flex-1 overflow-auto">
-            <WindowContent openedWindow={openedWindow} />
+            <NodeWindowContent
+              nodeType={openedWindow.nodeType}
+              xyNodeId={xyNodeId}
+              nodeDataId={nodeDataId}
+            />
             {isDraggingOrResizing && <div className="absolute inset-0 z-10" />}
           </div>
         </div>
       </div>
 
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Version history</DialogTitle>
-            <DialogDescription>{title ?? "—"}</DialogDescription>
-          </DialogHeader>
-          <VersionHistoryViewer
-            nodeDataId={nodeDataId}
-            closeModale={() => setHistoryOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={associatedThreadsOpen}
-        onOpenChange={setAssociatedThreadsOpen}
-      >
-        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Associated threads</DialogTitle>
-            <DialogDescription>{title ?? "—"}</DialogDescription>
-          </DialogHeader>
-          <AssociatedThreadsViewer
-            nodeDataId={nodeDataId}
-            closeModale={() => setAssociatedThreadsOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      <NodeWindowDialogs
+        nodeDataId={nodeDataId}
+        title={title}
+        historyOpen={historyOpen}
+        onHistoryOpenChange={setHistoryOpen}
+        threadsOpen={associatedThreadsOpen}
+        onThreadsOpenChange={setAssociatedThreadsOpen}
+        contentClassName="sm:max-w-3xl"
+      />
     </WindowFrameContext.Provider>
   );
 }

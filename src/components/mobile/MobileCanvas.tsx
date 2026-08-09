@@ -39,7 +39,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
     nodeDatasError,
   } = useCanvasBootstrap(canvasId, { isAuthenticated });
 
-  const [activeTab, setActiveTabState] = useState<MobileTab>("chat");
+  const [activeTab, setActiveTabState] = useState<MobileTab>("canvas");
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   // Les portails Radix rendent dans <body> : une sheet ouverte survivrait au

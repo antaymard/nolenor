@@ -180,6 +180,7 @@ const FULLSCREEN_ELIGIBLE_NODE_TYPES: ReadonlySet<NodeType> = new Set([
   "blocknote",
   "table",
   "pdf",
+  "app",
 ]);
 
 export function isFullscreenEligible(nodeType: NodeType): boolean {

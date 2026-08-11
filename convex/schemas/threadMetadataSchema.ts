@@ -11,6 +11,7 @@ import { v } from "convex/values";
  */
 const threadAgentNames = {
   nole: "Nolë",
+  worker: "Worker",
 } as const;
 
 const threadMetadataValidator = v.object({
@@ -26,6 +27,9 @@ const threadMetadataValidator = v.object({
   touchedNodeDataIds: v.optional(v.array(v.id("nodeDatas"))), // Nodedata that have been modified during the thread, by the agent
   agentName: v.string(),
   lastMessageTime: v.optional(v.number()),
+  // Nombre de messages envoyés par l'utilisateur sur ce thread, incrémenté par
+  // `threadMetadataWrappers.touch`. À ne pas confondre avec le nombre de steps
+  // LLM, qui vit dans `aiUsageDaily.eventsCount`.
   roundsNb: v.optional(v.number()),
 });
 

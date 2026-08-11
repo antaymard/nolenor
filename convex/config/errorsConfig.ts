@@ -16,6 +16,8 @@ const errors = {
   TOKEN_NOT_FOUND: "This API token does not exist.",
   TOKEN_NAME_REQUIRED: "Token name is required.",
   TOKEN_REVOKED: "This token has been revoked and can no longer be edited.",
+  INVALID_USAGE_PERIOD:
+    "Invalid usage period. Expected two YYYY-MM-DD dates, in order, at most 366 days apart.",
 };
 
 export default errors;

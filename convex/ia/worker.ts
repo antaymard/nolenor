@@ -7,6 +7,7 @@ import {createThread} from "@convex-dev/agent";
 import generateWorkerSystemPrompt from "./systemPrompts/workerSystemPrompt";
 import {type Id} from "../_generated/dataModel";
 import {asSubAgentErrorData, subAgentConvexError} from "./subAgentErrors";
+import {threadAgentNames} from "../schemas/threadMetadataSchema";
 
 export const startWorkerTask = internalAction({
   args: {
@@ -17,8 +18,12 @@ export const startWorkerTask = internalAction({
     // crosses back to the parent tool.
     canvasId: v.string(),
     instructions: v.string(),
+    // Thread Nolë qui a déclenché ce worker, quand il est connu. Permet
+    // d'agréger le coût d'un tour et de sa descendance via l'index
+    // `by_masterThreadId`.
+    masterThreadId: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, canvasId, instructions }) => {
+  handler: async (ctx, { userId, canvasId, instructions, masterThreadId }) => {
     // --- Phase 1: authorize the target canvas -----------------------------
     // A malformed id trips the query's `v.id` validator (→ invalid_arguments);
     // a valid-but-unauthorized id returns false (→ access_denied).
@@ -62,6 +67,18 @@ export const startWorkerTask = internalAction({
       const threadId = await createThread(ctx, components.agent, {
         userId,
         title: `__WORKER__`,
+      });
+
+      // Sans cette ligne, la consommation du worker n'a aucun thread à créditer
+      // et son coût disparaît du total de la conversation parente. `agentName`
+      // fait partie de la clé d'index utilisée par le listing des
+      // conversations d'un canvas : les threads worker n'y apparaîtront pas.
+      await ctx.runMutation(internal.wrappers.threadMetadataWrappers.create, {
+        threadId,
+        userId,
+        canvasId: canvasId as Id<"canvases">,
+        agentName: threadAgentNames.worker,
+        masterThreadId,
       });
 
       const { messageId } = await baseAgent.saveMessage(ctx, {

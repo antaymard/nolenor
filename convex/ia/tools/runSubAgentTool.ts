@@ -95,6 +95,8 @@ export default function runSubAgent({ threadCtx }: { threadCtx: ThreadCtx }) {
           userId: threadCtx.authUserId,
           canvasId: targetCanvasId as Id<"canvases">,
           instructions: brief,
+          // Rattache la dépense du worker à la conversation qui l'a déclenché.
+          masterThreadId: ctx.threadId,
         });
 
         return {

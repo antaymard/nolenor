@@ -16,6 +16,8 @@ import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
 import { recipesValidor } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
+import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
+import { aiUsageDailyValidator } from "./schemas/aiUsageDailySchema";
 import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
 
 const schema = defineSchema({
@@ -131,6 +133,18 @@ const schema = defineSchema({
       "agentName",
     ])
     .index("by_masterThreadId", ["masterThreadId"]),
+
+  // ============================================================================
+  // AI USAGE (ledger append-only + rollup journalier dénormalisé)
+  // ============================================================================
+  aiUsageEvents: defineTable(aiUsageEventsValidator)
+    .index("by_userId_and_day", ["userId", "day"])
+    .index("by_threadId", ["threadId"]),
+
+  aiUsageDaily: defineTable(aiUsageDailyValidator)
+    // Sert l'upsert (eq/eq/eq + .unique()) ET le scan de plage de la page
+    // (eq userId + gte/lte day) : un seul index couvre les deux usages.
+    .index("by_userId_and_day_and_model", ["userId", "day", "model"]),
 
   // ============================================================================
   // API TOKENS

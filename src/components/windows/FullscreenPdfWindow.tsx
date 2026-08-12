@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "convex/react";
 import { List } from "lucide-react";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { type OpenedWindow } from "@/stores/windowsStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useNodeDataValues } from "@/hooks/useNodeData";
-import { useDebounce } from "@/hooks/use-debounce";
+import { usePdfZoom } from "@/hooks/usePdfZoom";
 import { useIsTabletPortrait } from "@/hooks/useTabletMode";
 import type { FileFieldType } from "@/components/fields/file-fields/FileNameField";
 import { api } from "@/../convex/_generated/api";
@@ -23,6 +23,7 @@ import {
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import FullscreenWindowFrame from "./FullscreenWindowFrame";
+import PdfZoomControls from "./PdfZoomControls";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -59,30 +60,25 @@ export default function FullscreenPdfWindow({
   const [isChatOpen, setIsChatOpen] = useState(false);
   useHotkey("N", () => setIsChatOpen((v) => !v));
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const pageContainerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
 
-  const [pageWidth, setPageWidth] = useState<number | undefined>(undefined);
   const [numPages, setNumPages] = useState<number>(0);
-  const debouncedWidth = useDebounce(pageWidth, 150);
-
-  useEffect(() => {
-    const container = pageContainerRef.current;
-    if (!container) return;
-
-    const measure = () => {
-      const available = container.clientWidth;
-      const target = Math.min(available, 960);
-      setPageWidth(Math.max(320, target));
-    };
-
-    const resizeObserver = new ResizeObserver(measure);
-    resizeObserver.observe(container);
-    measure();
-
-    return () => resizeObserver.disconnect();
-  }, []);
+  // horizontalPadding compense le px-8 du conteneur de pages ; maxBaseWidth
+  // reproduit à 100 % la largeur de lecture confortable d'avant le zoom.
+  const {
+    scrollRef,
+    zoom,
+    renderWidth,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    canZoomIn,
+    canZoomOut,
+  } = usePdfZoom({
+    horizontalPadding: 64,
+    minBaseWidth: 320,
+    maxBaseWidth: 960,
+  });
 
   const onDocumentLoadSuccess = useCallback(
     ({ numPages: n }: { numPages: number }) => {
@@ -189,15 +185,11 @@ export default function FullscreenPdfWindow({
         )}
 
         {/* Middle: PDF viewer */}
-        <main className="flex min-w-0 flex-1 overflow-hidden">
-          <div
-            ref={scrollRef}
-            className="h-full w-full overflow-y-auto"
-          >
-            <div
-              ref={pageContainerRef}
-              className="mx-auto flex w-full max-w-[60rem] flex-col items-center gap-4 px-8 py-8"
-            >
+        <main className="relative flex min-w-0 flex-1 overflow-hidden">
+          <div ref={scrollRef} className="h-full w-full overflow-auto">
+            {/* w-fit autorise le débordement horizontal au-delà de 100 % de zoom,
+                min-w-full + items-center gardent les pages centrées en deçà. */}
+            <div className="flex w-fit min-w-full flex-col items-center gap-4 px-8 py-8">
               {pdfUrl ? (
                 <Document
                   file={pdfUrl}
@@ -211,7 +203,7 @@ export default function FullscreenPdfWindow({
                         pageRefs.current[index] = el;
                       }}
                     >
-                      <Page pageNumber={index + 1} width={debouncedWidth} />
+                      <Page pageNumber={index + 1} width={renderWidth} />
                     </div>
                   ))}
                 </Document>
@@ -222,6 +214,18 @@ export default function FullscreenPdfWindow({
               )}
             </div>
           </div>
+
+          {pdfUrl && (
+            <PdfZoomControls
+              className="absolute bottom-4 right-4"
+              zoom={zoom}
+              canZoomIn={canZoomIn}
+              canZoomOut={canZoomOut}
+              onZoomIn={zoomIn}
+              onZoomOut={zoomOut}
+              onReset={resetZoom}
+            />
+          )}
         </main>
 
         {/* Right: outline */}

@@ -1,15 +1,24 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { Canvas } from "@/types";
-import type { CanvasNode } from "@/types/convex";
+import type { CanvasNode, ChatModelValues } from "@/types/convex";
 import { useShallow } from "zustand/react/shallow";
 
 export type NolePanelLayout = "minimized" | "expanded";
+
+/** Choix de modèle explicite, rattaché à une conversation. */
+export type NoleModelSelection = {
+  threadKey: string;
+  model: ChatModelValues;
+};
 
 interface NoleStore {
   canvas: Omit<Canvas, "nodes" | "edges"> | null;
   panelLayout: NolePanelLayout;
   activeThreadId: string | null;
+  // Vit ici, et non dans le hook, pour survivre au démontage du panel : celui-ci
+  // est en rendu conditionnel, le réduire détruirait le choix de l'utilisateur.
+  modelSelection: NoleModelSelection | null;
   attachedNodes: CanvasNode[];
   attachedPosition: { x: number; y: number } | null;
 
@@ -18,6 +27,8 @@ interface NoleStore {
   togglePanelLayout: () => void;
   // null → on retombe sur le thread initial résolu par useNoleThread.
   setActiveThreadId: (id: string | null) => void;
+  // null → aucun choix explicite, on retombe sur la résolution par défaut.
+  setModelSelection: (selection: NoleModelSelection | null) => void;
   addAttachments: (
     attachments: { nodes?: CanvasNode[]; position?: { x: number; y: number } },
     removeIfPresent?: boolean,
@@ -37,6 +48,7 @@ export const useNoleStore = create<NoleStore>()(
       canvas: null,
       panelLayout: "minimized",
       activeThreadId: null,
+      modelSelection: null,
       attachedNodes: [],
       attachedPosition: null,
 
@@ -50,6 +62,10 @@ export const useNoleStore = create<NoleStore>()(
 
       setActiveThreadId: (id: string | null) => {
         set({ activeThreadId: id });
+      },
+
+      setModelSelection: (selection: NoleModelSelection | null) => {
+        set({ modelSelection: selection });
       },
 
       togglePanelLayout: () => {

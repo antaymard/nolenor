@@ -386,7 +386,12 @@ export default function WindowFrame({
             {saveHandler && (
               <button
                 data-window-control="true"
-                className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-green-100 hover:text-green-800 disabled:pointer-events-none disabled:opacity-70 h-full"
+                className={cn(
+                  "flex h-full shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium transition-colors disabled:pointer-events-none",
+                  isDirty
+                    ? "bg-green-100 text-green-800 hover:bg-green-200"
+                    : "text-slate-400",
+                )}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => void handleSave()}
                 disabled={!isDirty || isSaving}

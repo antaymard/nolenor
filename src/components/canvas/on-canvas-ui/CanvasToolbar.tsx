@@ -6,8 +6,9 @@ import SlideshowProgressToolbar from "./slideshow/SlideshowProgressToolbar";
 import HotspotContainer from "./hotspot/HotspotContainer";
 import HotspotAltOverlay from "./hotspot/HotspotAltOverlay";
 import { BiSlideshow } from "react-icons/bi";
-import { TbGps, TbPlus, TbSearch, TbX } from "react-icons/tb";
+import { TbCommand, TbGps, TbPlus, TbSearch, TbX } from "react-icons/tb";
 import { Kbd } from "@/components/shadcn/kbd";
+import { useCommandCenterStore } from "@/stores/commandCenterStore";
 import { useSlideshowStore } from "@/stores/slideshowStore";
 import {
   DropdownMenu,
@@ -27,6 +28,8 @@ export default function CanvasToolbar({
   const setTool = useCanvasStore((state) => state.setTool);
   const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
   const toggleSearchModal = useCanvasStore((state) => state.toggleSearchModal);
+  const isCommandCenterOpen = useCommandCenterStore((state) => state.isOpen);
+  const toggleCommandCenter = useCommandCenterStore((state) => state.toggle);
   const isPlaying = useSlideshowStore(
     (state) => state.playback.status === "playing",
   );
@@ -73,6 +76,16 @@ export default function CanvasToolbar({
         >
           <TbSearch size={20} />
           <Kbd>Ctrl + K</Kbd>
+        </Button>
+        <Button
+          variant={isCommandCenterOpen ? "default" : "ghost"}
+          size="default"
+          onClick={() => toggleCommandCenter()}
+          aria-label="Ouvrir le command center"
+          title="Command center : aller à un canvas"
+        >
+          <TbCommand size={20} />
+          <Kbd>Ctrl + P</Kbd>
         </Button>
         <Button
           variant={tool === "slides" ? "default" : "ghost"}

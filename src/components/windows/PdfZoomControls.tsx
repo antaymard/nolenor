@@ -1,29 +1,28 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { Minus, Plus } from "lucide-react";
+import {
+  useControls,
+  useTransformComponent,
+  type ReactZoomPanPinchContextState,
+} from "react-zoom-pan-pinch";
 import { cn } from "@/lib/utils";
-
-interface PdfZoomControlsProps {
-  zoom: number;
-  canZoomIn: boolean;
-  canZoomOut: boolean;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset: () => void;
-  className?: string;
-}
+import { PDF_MAX_ZOOM, PDF_MIN_ZOOM, PDF_ZOOM_STEP } from "@/lib/pdfZoom";
 
 const buttonClass =
   "flex items-center justify-center rounded-full p-1.5 transition-colors hover:bg-white/20 disabled:pointer-events-none disabled:opacity-40";
 
-function PdfZoomControls({
-  zoom,
-  canZoomIn,
-  canZoomOut,
-  onZoomIn,
-  onZoomOut,
-  onReset,
-  className,
-}: PdfZoomControlsProps) {
+const selectScale = (ref: ReactZoomPanPinchContextState) => ref.state.scale;
+
+/** À rendre à l'intérieur d'un <TransformWrapper>. */
+function PdfZoomControls({ className }: { className?: string }) {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+  // S'abonne à l'échelle sans faire re-rendre le <Document> à chaque frame.
+  const scale = useTransformComponent(selectScale);
+
+  const handleZoomIn = useCallback(() => zoomIn(PDF_ZOOM_STEP), [zoomIn]);
+  const handleZoomOut = useCallback(() => zoomOut(PDF_ZOOM_STEP), [zoomOut]);
+  const handleReset = useCallback(() => resetTransform(), [resetTransform]);
+
   return (
     <div
       className={cn(
@@ -36,8 +35,8 @@ function PdfZoomControls({
       <button
         type="button"
         className={buttonClass}
-        onClick={onZoomOut}
-        disabled={!canZoomOut}
+        onClick={handleZoomOut}
+        disabled={scale <= PDF_MIN_ZOOM}
         aria-label="Zoom out"
         title="Zoom out"
       >
@@ -46,17 +45,17 @@ function PdfZoomControls({
       <button
         type="button"
         className="min-w-11 rounded-full px-1 py-1 text-xs tabular-nums transition-colors hover:bg-white/20"
-        onClick={onReset}
+        onClick={handleReset}
         aria-label="Reset zoom"
         title="Reset zoom"
       >
-        {Math.round(zoom * 100)}%
+        {Math.round(scale * 100)}%
       </button>
       <button
         type="button"
         className={buttonClass}
-        onClick={onZoomIn}
-        disabled={!canZoomIn}
+        onClick={handleZoomIn}
+        disabled={scale >= PDF_MAX_ZOOM}
         aria-label="Zoom in"
         title="Zoom in"
       >

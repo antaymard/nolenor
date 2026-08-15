@@ -15,9 +15,26 @@ import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 // `set_node_data` payload, so a schema minimap would be misleading.
 // (Named "dedicated tools" rather than "custom" to avoid colliding with the
 // "custom" node type, whose schema is template-derived — see below.)
+//
+// The blocknote entry carries a syntax card, not just a tool list. Its wire
+// format is hand-written by the model on every edit, and the failures observed
+// in production were format failures — a table nobody knew how to spell, blocks
+// left unclosed — not tool-choice failures. This is the one surface the model
+// sees every time it looks at a blocknote, so the format belongs here.
+const BLOCKNOTE_XML_CARD = `blocknote-xml-v1 — one <block type="TYPE" props='{…}'>markdown</block> per block, each closed by </block>.
+  text: plain Markdown (bold, italic, links, code); write & and < literally, no XML escaping needed.
+  types: paragraph | heading (level 1-6) | bulletListItem | numberedListItem | checkListItem (checked) | toggleListItem | quote | codeBlock (language) | callout (icon, color) | divider | table | image/video/audio/file (url, caption).
+  table: write a Markdown pipe table as the block text —
+    <block type="table">| Nom | Rôle |
+    | --- | --- |
+    | Alice | Dev |</block>
+  nesting: <block type="bulletListItem">parent<children><block type="bulletListItem">child</block></children></block>
+  date pill: [[date:YYYY-MM-DD]]`;
+
 const DEDICATED_TOOLS_SCHEMA_BY_TYPE: Record<string, string> = {
   blocknote:
-    '<schema type="blocknote" readFormat="blocknote-xml-v1" setFormat="markdown" blockEditFormat="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text" />',
+    '<schema type="blocknote" readFormat="blocknote-xml-v1" setFormat="markdown" blockEditFormat="blocknote-xml-v1" tools="set_node_data,insert_blocks,replace_block,delete_blocks,update_block_props,patch_block_text">\n' +
+    `${BLOCKNOTE_XML_CARD}\n</schema>`,
   table:
     '<schema type="table" tools="table_update_schema,table_insert_rows,table_update_rows,table_delete_rows" />',
 };

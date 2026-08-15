@@ -38,6 +38,18 @@ const NODE_ID_FIELD = z
 const BLOCK_ID_FIELD = (what: string) =>
   z.string().describe(`The id of the block ${what} (as seen in read_nodes output).`);
 
+/**
+ * The `blocks` / `block` argument description, shared by insert_blocks and
+ * replace_block. It spells the wire format out rather than naming it: this
+ * string and the `<schema type="blocknote">` card from read_nodes are the
+ * model's only documentation of a format it hand-writes on every edit, and the
+ * failures seen in production were format failures — blocks left unclosed, and
+ * a table nobody knew how to spell. Each tool states its own id rule, which
+ * differs between insert and replace.
+ */
+const XML_PAYLOAD_HINT = (shape: string) =>
+  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from read_nodes output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Nom | Rôle |\n| --- | --- |\n| Alice | Dev |</block>`;
+
 // ── Shared execution path ───────────────────────────────────────────────────
 //
 // The five tools only differ in their input schema and in the `edit` payload
@@ -154,11 +166,7 @@ const insertBlocksSchema = z
       .describe(
         'Required when position is "before"/"after" (the id of the reference block). Ignored for "start"/"end".',
       ),
-    blocks: z
-      .string()
-      .describe(
-        'BlockNote XML v1: one or more <block> elements. The <blocknote> wrapper from read_nodes output is accepted but not required. Omit the id attribute — the server assigns fresh ids to every inserted block — and omit empty <children/>. The XML carries type, props, content and children; colors, alignment and tables are preserved. Example: <block type="heading" props=\'{"level":2}\'>Some **markdown**</block>',
-      ),
+    blocks: z.string().describe(XML_PAYLOAD_HINT("one or more <block> elements")),
     explanation: EXPLANATION_FIELD,
   })
   .refine(
@@ -175,7 +183,7 @@ const insertBlocksSchema = z
 function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
-      'Insert new block(s) into a blocknote node. `blocks` is one or more BlockNote XML v1 <block> elements — the <blocknote> wrapper is optional, so you can either copy blocks straight from read_nodes output or write bare <block> elements. Use position "start"/"end" or "before"/"after" a reference block id. Do not write id attributes: every inserted block gets a fresh server-assigned id.',
+      'Insert new block(s) into a blocknote node. `blocks` is one or more BlockNote XML v1 <block> elements — the <blocknote> wrapper is optional, so you can either copy blocks straight from read_nodes output or write bare <block> elements. Use position "start"/"end" or "before"/"after" a reference block id. Do not write id attributes: every inserted block gets a fresh server-assigned id, so re-read the node before addressing an inserted block by id.',
     inputSchema: insertBlocksSchema,
     execute: (ctx, input): Promise<string> =>
       runBlockNoteEdit({
@@ -190,8 +198,12 @@ function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           referenceBlockId: input.referenceBlockId,
           blocks: await parseXmlBlocks(input.blocks),
         }),
+        // The ids are deliberately NOT echoed back: a fresh nanoid per block is
+        // pure token cost on every insert, and an agent that needs to address
+        // one has to re-read the node anyway (the insert may have been
+        // reshaped by a concurrent edit).
         describeResult: ({ insertedBlockIds = [] }) =>
-          `Inserted ${insertedBlockIds.length} block(s) (ids: ${insertedBlockIds.join(", ")}).`,
+          `Inserted ${insertedBlockIds.length} block(s).`,
       }),
   });
 }
@@ -214,7 +226,7 @@ function blocknoteReplaceBlockTool({ threadCtx }: { threadCtx: ThreadCtx }) {
       block: z
         .string()
         .describe(
-          'BlockNote XML v1: exactly one top-level <block> element (the replacement). The <blocknote> wrapper is accepted but not required. Example: <block type="paragraph">Some **markdown**</block>',
+          XML_PAYLOAD_HINT("exactly one top-level <block> element (the replacement)"),
         ),
       explanation: EXPLANATION_FIELD,
     }),

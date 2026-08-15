@@ -84,7 +84,28 @@ export function useNoleChat() {
   // `isAssistantResponding` is lifted from ChatInterface (which already
   // subscribes to useUIMessages) to avoid a duplicate streaming subscription
   // re-rendering this hook's consumers on every token.
-  const [isAssistantResponding, setIsAssistantResponding] = useState(false);
+  //
+  // On mémorise *quel* thread répond, pas un simple booléen : ChatInterface est
+  // démonté dès qu'on ouvre une conversation vierge, il n'a alors plus aucun
+  // moyen de remettre le drapeau à false. Un booléen restait donc bloqué à true
+  // et désactivait le bouton d'envoi de la nouvelle conversation.
+  const [respondingThreadId, setRespondingThreadId] = useState<string | null>(
+    null,
+  );
+  const isAssistantResponding =
+    respondingThreadId !== null && respondingThreadId === threadId;
+
+  const setIsAssistantResponding = useCallback(
+    (responding: boolean, forThreadId: string) => {
+      setRespondingThreadId((current) => {
+        if (responding) return forThreadId;
+        // Un « je ne réponds plus » venant d'un autre thread ne doit pas
+        // effacer le thread qui, lui, est réellement en train de répondre.
+        return current === forThreadId ? null : current;
+      });
+    },
+    [],
+  );
 
   const sendMessage = useMutation(api.ia.nole.saveMessage).withOptimisticUpdate(
     optimisticallySendMessage(api.threads.listMessages),

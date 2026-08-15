@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { optimisticallySendMessage } from "@convex-dev/agent/react";
 import { useReactFlow } from "@xyflow/react";
@@ -42,6 +42,7 @@ export function useNoleChat() {
   } = useNoleThread({ canvasId });
   const overrideThreadId = useNoleStore((state) => state.activeThreadId);
   const setOverrideThreadId = useNoleStore((state) => state.setActiveThreadId);
+  const setModelSelection = useNoleStore((state) => state.setModelSelection);
   const threadId = overrideThreadId ?? initialThreadId;
 
   // Le store survit au démontage du panel : on réinitialise l'override au
@@ -59,13 +60,25 @@ export function useNoleChat() {
     api.messageMetadata.getThreadMessageMetadata,
     threadId ? { threadId } : "skip",
   );
-  const { selectedModel, setSelectedModel } = useNoleModelSelection({
-    threadId,
-    modelOptions,
-    lastUsedModel: threadMessageMetadata?.lastModelUsed as
-      | ChatModelValues
-      | undefined,
-  });
+
+  // `lastModelUsed` est la chaîne rapportée par le provider, pas forcément un
+  // slug encore proposé. Le renvoyer tel quel à `saveMessage`, dont le
+  // validateur est une union stricte, ferait échouer l'envoi sur un thread dont
+  // le modèle a depuis quitté le catalogue : on ne le retient que s'il en fait
+  // toujours partie, sinon on retombe sur le défaut.
+  const lastUsedModel = useMemo<ChatModelValues | undefined>(() => {
+    const last = threadMessageMetadata?.lastModelUsed;
+    if (!last) return undefined;
+    return modelOptions?.find((option) => option.value === last)?.value;
+  }, [threadMessageMetadata?.lastModelUsed, modelOptions]);
+
+  const { selectedModel, setSelectedModel, adoptDraftSelection } =
+    useNoleModelSelection({
+      canvasId,
+      threadId,
+      modelOptions,
+      lastUsedModel,
+    });
 
   // Speech-to-text → composer input (live streaming, fallback batch).
   const speech = useNoleSpeechInput(userInput, setUserInput);
@@ -165,6 +178,10 @@ export function useNoleChat() {
       // Une conversation reprise depuis l'historique prime ; sinon on résout le
       // thread du canvas, quitte à le créer maintenant.
       const activeThreadId = overrideThreadId ?? (await ensureThread());
+      // Le message part déjà avec le bon modèle (`selectedModel` est capturé
+      // avant l'await) ; on rattache le choix au thread qui vient de naître pour
+      // que l'UI ne retombe pas sur le défaut dans la foulée.
+      adoptDraftSelection(activeThreadId);
       await sendMessage({
         threadId: activeThreadId,
         prompt,
@@ -199,6 +216,7 @@ export function useNoleChat() {
     nodeDatas,
     overrideThreadId,
     ensureThread,
+    adoptDraftSelection,
     sendMessage,
     selectedModel,
     resetAttachments,
@@ -228,10 +246,11 @@ export function useNoleChat() {
   // créé au premier message.
   const startNewThread = useCallback(() => {
     setOverrideThreadId(null);
+    setModelSelection(null);
     setUserInput("");
     resetAttachments();
     resetThread();
-  }, [resetAttachments, resetThread, setOverrideThreadId]);
+  }, [resetAttachments, resetThread, setOverrideThreadId, setModelSelection]);
 
   const selectThread = useCallback(
     (selectedThreadId: string | null) => {

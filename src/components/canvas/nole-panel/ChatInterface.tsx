@@ -33,7 +33,7 @@ const ChatInterface = memo(function ChatInterface({
   );
 
   const modelOptions = useQuery(api.ia.nole.listChatModels, {});
-  const getMetadata = useThreadMessageMetadata(threadId, messages);
+  const getMetadata = useThreadMessageMetadata(threadId);
   const { scrollViewportRef, handleScroll } = useChatAutoScroll(messages);
 
   const activity = useAssistantActivity(messages);

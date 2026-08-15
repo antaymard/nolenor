@@ -38,6 +38,7 @@ import {
   type DomGlobals,
   type HeadlessBlockNoteEditor,
 } from "./headlessBlockNote";
+import { repairBlockNoteXml } from "./blockNoteXmlRepair";
 
 export const BLOCKNOTE_XML_VERSION = "1";
 
@@ -550,15 +551,25 @@ function tableToXml(
 // only one root", then `<blocks>`, then `<blocknote>` without a version) before
 // a fourth attempt landed. All three of those now parse.
 //
-// What is still rejected: anything that is not well-formed XML, a root whose
-// children are not `<block>`, an explicit `version` other than the current one,
-// and every per-block error (bad props JSON, unknown child elements, content
-// spanning several blocks).
+// The same liberality extends to the payload's own well-formedness. A model
+// writing prose into XML text nodes will sooner or later write `R&D` or
+// `a < b`, or run out of `</block>` tags on a long document — and the DOM
+// parser reports all three as something else entirely, at a line far from the
+// cause (see blockNoteXmlRepair.ts). Those are repaired mechanically rather
+// than bounced back as a diagnostic the model has to reverse-engineer.
+//
+// What is still rejected: a root whose children are not `<block>`/`<table>`,
+// an explicit `version` other than the current one, and every per-block error
+// (bad props JSON, unknown child elements, content spanning several blocks).
 //
 // Parsing logic per <block>:
 //   - <table> child element → table content
 //   - <children> child element → nested blocks
-//   - text nodes (concatenated, trimmed) → inline Markdown, parsed via editor
+//   - text nodes (concatenated, trimmed) → inline Markdown, parsed via editor.
+//     A Markdown pipe table there becomes table content and retypes the block
+//     to `table` — writing one is by far the most natural way to ask for a
+//     table, and the structured <table> element is unreachable to a model that
+//     has never seen one in read_nodes output.
 
 /**
  * Appended to every parse failure. A tool error is the only feedback the model
@@ -566,11 +577,26 @@ function tableToXml(
  * otherwise the next attempt is another guess.
  */
 const XML_FORMAT_HINT =
-  'Expected: one or more <block> elements, optionally wrapped in <blocknote>. ' +
-  'Example: <block type="paragraph">Some **markdown**</block>';
+  "Expected: one or more <block> elements, optionally wrapped in <blocknote>; " +
+  "each <block> closed by </block>, its text content plain Markdown " +
+  '(& and < need no escaping). Example: <block type="paragraph">Some ' +
+  '**markdown**</block>. Tables: <block type="table">| A | B |\n| --- | --- |\n| 1 | 2 |</block>';
 
 function xmlError(message: string): Error {
   return new Error(`Invalid BlockNote XML: ${message} ${XML_FORMAT_HINT}`);
+}
+
+/**
+ * DOM parser diagnostics come prefixed with `line:column:` into a payload the
+ * model wrote as one long JSON string — a position it cannot map back to its
+ * own text. Quoting the line is what makes the diagnosis actionable.
+ */
+function describeXmlParseError(xml: string, message: string): string {
+  const position = /^(\d+):\d+:\s*/.exec(message);
+  if (!position) return message;
+  const line = xml.split("\n")[Number(position[1]) - 1];
+  if (line === undefined) return message;
+  return `${message.slice(position[0].length)} (at line ${position[1]}: ${line.trim().slice(0, 120)})`;
 }
 
 type ParsedXml = { root: Element } | { error: string };
@@ -591,18 +617,30 @@ function parseXmlDocument(dom: DomGlobals, xml: string): ParsedXml {
  * elements — the most natural thing to write — only parses once wrapped.
  * Trying as-is first is what lets a real container root (`<blocknote>`,
  * `<blocks>`, …) stay the root instead of being nested inside the wrapper.
+ *
+ * Only once BOTH raw shapes have failed is the repair pass applied, so a
+ * payload that was already well-formed is never rewritten.
  */
 function parseFragmentOrDocument(dom: DomGlobals, xml: string): ParsedXml {
+  const wrap = (payload: string) =>
+    `<blocknote version="${BLOCKNOTE_XML_VERSION}">${payload}</blocknote>`;
+
   const direct = parseXmlDocument(dom, xml);
   if ("root" in direct) return direct;
 
-  const wrapped = parseXmlDocument(
-    dom,
-    `<blocknote version="${BLOCKNOTE_XML_VERSION}">${xml}</blocknote>`,
-  );
-  // Report the original diagnosis: if the wrapped form fails too, the payload
-  // is genuinely malformed and the error about it is the useful one.
-  return "root" in wrapped ? wrapped : direct;
+  const wrapped = parseXmlDocument(dom, wrap(xml));
+  if ("root" in wrapped) return wrapped;
+
+  const repaired = repairBlockNoteXml(xml);
+  const repairedDirect = parseXmlDocument(dom, repaired);
+  if ("root" in repairedDirect) return repairedDirect;
+
+  const repairedWrapped = parseXmlDocument(dom, wrap(repaired));
+  if ("root" in repairedWrapped) return repairedWrapped;
+
+  // Report the ORIGINAL diagnosis: its line numbers point into the text the
+  // model actually wrote, whereas the repaired payload's do not.
+  return { error: describeXmlParseError(xml, direct.error) };
 }
 
 export async function parseBlockNoteXml(
@@ -613,8 +651,10 @@ export async function parseBlockNoteXml(
     if ("error" in parsed) throw xmlError(parsed.error);
     const { root } = parsed;
 
-    // A lone `<block>` is a valid XML document in its own right.
+    // A lone `<block>` is a valid XML document in its own right, and so is a
+    // lone `<table>` — the shorthand for a document that is just one table.
     if (root.tagName === "block") return [parseBlockElement(editor, root)];
+    if (root.tagName === "table") return [tableBlock(editor, root)];
 
     // Otherwise the root is just an envelope. `<blocknote>` is what the
     // serializer emits, but any container the model reaches for (`<blocks>`,
@@ -630,7 +670,8 @@ export async function parseBlockNoteXml(
       }
     }
 
-    return Array.from(root.children).map((child) => {
+    const blocks = Array.from(root.children).map((child) => {
+      if (child.tagName === "table") return tableBlock(editor, child);
       if (child.tagName !== "block") {
         throw xmlError(
           `unexpected element <${child.tagName}> inside <${root.tagName}>.`,
@@ -638,7 +679,29 @@ export async function parseBlockNoteXml(
       }
       return parseBlockElement(editor, child);
     });
+
+    // A payload that reads as well-formed XML yet yields nothing means every
+    // `<block` in it degraded to text — a malformed start tag the repair pass
+    // could not recover. Returning `[]` would drop the content silently; say
+    // so instead, since the tool's own "produced no blocks" is the same
+    // message for an empty payload and for a lost one.
+    if (blocks.length === 0 && /<\s*block\b/i.test(xml)) {
+      throw xmlError(
+        "no <block> element could be read, although the payload contains " +
+          "`<block`. Check the start tags — most often an attribute value " +
+          "whose quoting is broken by a quote inside it.",
+      );
+    }
+    return blocks;
   });
+}
+
+/** A bare `<table>` element standing in for `<block type="table">…</block>`. */
+function tableBlock(
+  editor: HeadlessBlockNoteEditor,
+  el: Element,
+): BlockNoteBlockWithOptionalId {
+  return { type: "table", content: parseTableElement(editor, el) };
 }
 
 /** Parse a `props="…"` attribute into an object, or undefined when absent. */
@@ -697,6 +760,13 @@ function parseBlockElement(
           children.push(parseBlockElement(editor, grandChild));
         }
         break;
+      // A `<block>` written directly inside another one, without the
+      // `<children>` wrapper. It can only mean nesting — there is nothing else
+      // a block inside a block could be — so honour it instead of rejecting a
+      // payload whose intent is unambiguous.
+      case "block":
+        children.push(parseBlockElement(editor, elem));
+        break;
       default:
         throw xmlError(`unexpected <${elem.tagName}> inside <block>.`);
     }
@@ -704,40 +774,158 @@ function parseBlockElement(
 
   // Parse the accumulated text as Markdown to produce inline content.
   const trimmedMd = markdownText.trim();
-  const content =
-    tableContent !== undefined
-      ? tableContent
-      : trimmedMd
-        ? parseMarkdownToInline(editor, trimmedMd)
-        : undefined;
+  const parsedText =
+    tableContent === undefined && trimmedMd
+      ? parseMarkdownBlockContent(editor, trimmedMd)
+      : undefined;
 
-  const block: BlockNoteBlockWithOptionalId = { type };
+  const table =
+    tableContent ?? (parsedText?.kind === "table" ? parsedText.content : undefined);
+  const content = table ?? (parsedText?.kind === "inline" ? parsedText.content : undefined);
+
+  // Table content only belongs on a `table` block: a paragraph carrying it is
+  // structurally invalid and crashes editor construction on the client. The
+  // model asked for a table, so give it one rather than persisting the wreck.
+  const retyped = table !== undefined && type !== "table";
+  const block: BlockNoteBlockWithOptionalId = {
+    type: retyped ? "table" : type,
+  };
   if (id) block.id = id;
-  if (props) block.props = props;
+  // A retyped block's props described the type it no longer has (a heading's
+  // `level`, say), which `table` has no schema entry for.
+  if (props && !retyped) block.props = props;
   if (content !== undefined) block.content = content;
   if (children.length > 0) block.children = children;
   return block;
 }
 
 /**
- * Parse a Markdown string into inline content (InlineContent[]).
- * The Markdown must produce exactly one paragraph block; its content is
- * extracted, and `[[date:…]]` tokens become real date pills. Covers both block
- * content and table cells, the two places inline Markdown appears in the XML.
+ * A `<block>`'s (or `<cell>`'s) Markdown text, parsed. The Markdown must
+ * produce exactly one block: either an ordinary one, whose inline content is
+ * extracted (with `[[date:…]]` tokens becoming real date pills), or a pipe
+ * table, whose whole table content is taken as-is.
  */
+type ParsedBlockContent =
+  | { kind: "inline"; content: unknown[] }
+  | { kind: "table"; content: BlockNoteTableContent };
+
+function parseMarkdownBlockContent(
+  editor: HeadlessBlockNoteEditor,
+  md: string,
+): ParsedBlockContent {
+  const blocks = editor.tryParseMarkdownToBlocks(md);
+  if (!blocks || blocks.length === 0) return { kind: "inline", content: [] };
+  if (blocks.length > 1) {
+    const types = blocks
+      .map((b) => (b as { type?: string }).type ?? "?")
+      .join(", ");
+    throw xmlError(
+      `block content produced ${blocks.length} blocks (${types}). Use one <block> element per block.`,
+    );
+  }
+  const content = (blocks[0] as { content?: unknown }).content;
+  // BlockNote's own Markdown parser emits the fully structured `tableContent`
+  // (header row, per-cell props), so a pipe table needs no conversion here.
+  if (isTableContent(content)) return { kind: "table", content };
+  return {
+    kind: "inline",
+    content: expandDateTokens((content ?? []) as unknown[]) as unknown[],
+  };
+}
+
+/** `parseMarkdownBlockContent` for the places that can only hold inline content. */
 function parseMarkdownToInline(
   editor: HeadlessBlockNoteEditor,
   md: string,
+  context: string,
 ): unknown[] {
-  const blocks = editor.tryParseMarkdownToBlocks(md);
-  if (!blocks || blocks.length === 0) return [];
-  if (blocks.length > 1) {
+  const parsed = parseMarkdownBlockContent(editor, md);
+  if (parsed.kind === "table") {
     throw xmlError(
-      `block content produced ${blocks.length} blocks. Use separate <block> elements for multiple blocks.`,
+      `${context} contains a Markdown table, which cannot be used as inline content.`,
     );
   }
-  const content = ((blocks[0] as { content?: unknown[] }).content ?? []) as unknown[];
-  return expandDateTokens(content) as unknown[];
+  return parsed.content;
+}
+
+// The serializer emits `<row>`/`<cell>`, but a model that has never seen a
+// table in read_nodes output writes the HTML it knows. Accepting both spellings
+// costs two lookups and removes a whole class of rejected payloads.
+const ROW_TAGS: ReadonlySet<string> = new Set(["row", "tr"]);
+const CELL_TAGS: ReadonlySet<string> = new Set(["cell", "td", "th"]);
+const ROW_GROUP_TAGS: ReadonlySet<string> = new Set(["thead", "tbody", "tfoot"]);
+
+function parseTableCell(
+  editor: HeadlessBlockNoteEditor,
+  cell: Element,
+): BlockNoteTableCell {
+  const cellProps = parsePropsAttribute(cell.getAttribute("props"), "<cell>") ?? {};
+  // Walk childNodes explicitly rather than reading `cell.textContent`:
+  // that getter silently concatenates all descendant text regardless of
+  // intervening tags, so a stray element (e.g. an LLM writing a nested
+  // <blocks><block>...</block></blocks> wrapper instead of plain
+  // Markdown) would be laundered away instead of rejected. A cell's
+  // content is always plain Markdown text — the serializer (tableToXml)
+  // never emits element children inside <cell> — so any element here is
+  // malformed input, consistent with the discipline parseBlockElement
+  // already applies to <block>/<children>.
+  let cellMd = "";
+  for (const child of Array.from(cell.childNodes)) {
+    if (child.nodeType === 3 /* TEXT */) {
+      cellMd += child.textContent ?? "";
+      continue;
+    }
+    if (child.nodeType !== 1 /* ELEMENT */) continue;
+    throw xmlError(
+      `<cell> contains unexpected <${(child as Element).tagName}> element; cell content must be plain Markdown text, not nested elements.`,
+    );
+  }
+  cellMd = cellMd.trim();
+  return {
+    type: "tableCell",
+    props: {
+      ...BLOCK_NOTE_DEFAULT_CELL_PROPS,
+      ...cellProps,
+    } as BlockNoteTableCell["props"],
+    content: (cellMd
+      ? parseMarkdownToInline(editor, cellMd, "<cell>")
+      : []) as BlockNoteInlineContent[],
+  } satisfies BlockNoteTableCell;
+}
+
+function parseTableRow(
+  editor: HeadlessBlockNoteEditor,
+  row: Element,
+): { cells: BlockNoteTableCell[] } {
+  return {
+    cells: Array.from(row.children).map((cell) => {
+      if (!CELL_TAGS.has(cell.tagName)) {
+        throw xmlError(`unexpected <${cell.tagName}> inside <${row.tagName}>.`);
+      }
+      return parseTableCell(editor, cell);
+    }),
+  };
+}
+
+function emptyTableCell(): BlockNoteTableCell {
+  return {
+    type: "tableCell",
+    props: { ...BLOCK_NOTE_DEFAULT_CELL_PROPS },
+    content: [],
+  };
+}
+
+/** True as soon as any cell declares a span, which makes row width implicit. */
+function hasSpans(rows: Array<{ cells: BlockNoteTableCell[] }>): boolean {
+  return rows.some((row) =>
+    row.cells.some((cell) => {
+      const props = cell.props as Record<string, unknown> | undefined;
+      return (
+        (typeof props?.colspan === "number" && props.colspan > 1) ||
+        (typeof props?.rowspan === "number" && props.rowspan > 1)
+      );
+    }),
+  );
 }
 
 function parseTableElement(
@@ -749,6 +937,17 @@ function parseTableElement(
 
   let columnWidths: (number | undefined)[] = [];
   const rows: Array<{ cells: BlockNoteTableCell[] }> = [];
+  // `<th>` in the first row is how HTML spells `headerRows="1"`.
+  let firstRowIsHeader = false;
+
+  const collectRow = (row: Element) => {
+    if (rows.length === 0) {
+      firstRowIsHeader =
+        row.children.length > 0 &&
+        Array.from(row.children).every((cell) => cell.tagName === "th");
+    }
+    rows.push(parseTableRow(editor, row));
+  };
 
   for (const child of Array.from(el.children)) {
     if (child.tagName === "columns") {
@@ -759,48 +958,32 @@ function parseTableElement(
         const widthAttr = col.getAttribute("width");
         return widthAttr !== null ? Number(widthAttr) : undefined;
       });
-    } else if (child.tagName === "row") {
-      const cells = Array.from(child.children).map((cell) => {
-        if (cell.tagName !== "cell") {
-          throw xmlError(`unexpected <${cell.tagName}> inside <row>.`);
+    } else if (ROW_TAGS.has(child.tagName)) {
+      collectRow(child);
+    } else if (ROW_GROUP_TAGS.has(child.tagName)) {
+      for (const row of Array.from(child.children)) {
+        if (!ROW_TAGS.has(row.tagName)) {
+          throw xmlError(`unexpected <${row.tagName}> inside <${child.tagName}>.`);
         }
-        const cellProps = parsePropsAttribute(cell.getAttribute("props"), "<cell>") ?? {};
-        // Walk childNodes explicitly rather than reading `cell.textContent`:
-        // that getter silently concatenates all descendant text regardless of
-        // intervening tags, so a stray element (e.g. an LLM writing a nested
-        // <blocks><block>...</block></blocks> wrapper instead of plain
-        // Markdown) would be laundered away instead of rejected. A cell's
-        // content is always plain Markdown text — the serializer (tableToXml)
-        // never emits element children inside <cell> — so any element here is
-        // malformed input, consistent with the discipline parseBlockElement
-        // already applies to <block>/<children>.
-        let cellMd = "";
-        for (const child of Array.from(cell.childNodes)) {
-          if (child.nodeType === 3 /* TEXT */) {
-            cellMd += child.textContent ?? "";
-            continue;
-          }
-          if (child.nodeType !== 1 /* ELEMENT */) continue;
-          throw xmlError(
-            `<cell> contains unexpected <${(child as Element).tagName}> element; cell content must be plain Markdown text, not nested elements.`,
-          );
-        }
-        cellMd = cellMd.trim();
-        return {
-          type: "tableCell",
-          props: {
-            ...BLOCK_NOTE_DEFAULT_CELL_PROPS,
-            ...cellProps,
-          } as BlockNoteTableCell["props"],
-          content: (cellMd
-            ? parseMarkdownToInline(editor, cellMd)
-            : []) as BlockNoteInlineContent[],
-        } satisfies BlockNoteTableCell;
-      });
-      rows.push({ cells });
+        collectRow(row);
+      }
     } else {
       throw xmlError(`unexpected <${child.tagName}> inside <table>.`);
     }
+  }
+
+  // A ragged table (rows of unequal length) is what a hand-written one looks
+  // like when a cell is forgotten. BlockNote lays cells out on a fixed grid, so
+  // pad the short rows instead of leaving the client to render a hole. Skipped
+  // when any span is declared: there, a short row is the correct encoding.
+  if (rows.length > 0 && !hasSpans(rows)) {
+    const width = Math.max(...rows.map((row) => row.cells.length));
+    for (const row of rows) {
+      while (row.cells.length < width) row.cells.push(emptyTableCell());
+    }
+    // The serializer always writes <columns>, but a hand-written table rarely
+    // does; BlockNote expects one entry per column.
+    while (columnWidths.length < width) columnWidths.push(undefined);
   }
 
   const result: BlockNoteTableContent = {
@@ -809,6 +992,7 @@ function parseTableElement(
     rows,
   };
   if (headerRows !== null) result.headerRows = Number(headerRows);
+  else if (firstRowIsHeader) result.headerRows = 1;
   if (headerCols !== null) result.headerCols = Number(headerCols);
   return result;
 }

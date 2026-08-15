@@ -10,6 +10,7 @@ import type { ConvexReactClient } from "convex/react";
 import { useEffect } from "react";
 import { z } from "zod";
 import TemplateEditorModal from "@/components/settings/templates/TemplateEditorModal";
+import CommandCenter from "@/components/command-center/CommandCenter";
 
 export interface RouterContext {
   convex: ConvexReactClient;
@@ -53,6 +54,9 @@ function RootComponent() {
       {/* Monté une seule fois, ici : l'éditeur de template s'ouvre depuis le
           canvas (clic droit sur un custom node) comme depuis les settings. */}
       <TemplateEditorModal />
+      {/* Idem : le command center (Ctrl/Cmd + P) doit répondre depuis
+          n'importe quelle route, pas seulement depuis un canvas. */}
+      <CommandCenter />
       {/* <TanStackRouterDevtools position="bottom-right" /> */}
     </div>
   );

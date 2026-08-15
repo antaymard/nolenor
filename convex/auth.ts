@@ -1,6 +1,7 @@
 import Google from "@auth/core/providers/google";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 import { ResendOTP } from "./ResendOTP";
 import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
@@ -109,6 +110,33 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   ],
 
   callbacks: {
+    /**
+     * Provisionne le premier canvas d'un compte qui vient d'être créé.
+     *
+     * `existingUserId === null` signifie exactement « une ligne `users` vient
+     * d'être insérée » (cf. `implementation/users.js`) : c'est le seul signal
+     * d'inscription fiable de l'app, et il vaut pour Google comme pour le mot
+     * de passe. Le client, lui, ne peut plus le produire — l'inscription par
+     * mot de passe se termine sur l'étape de vérification d'email et le retour
+     * de Google ne repasse pas par `/signin`.
+     *
+     * Planifié plutôt qu'exécuté ici : ce callback tourne DANS la transaction
+     * d'inscription. Y cloner un canvas entier la ferait grossir de tous les
+     * `nodeDatas` du tuto, et surtout la moindre erreur de clonage ferait
+     * échouer la création du compte. Un `runAfter(0, …)` isole les deux : au
+     * pire le canvas manque, et la home affiche son écran de bienvenue, qui
+     * sait déjà en créer un.
+     */
+    async afterUserCreatedOrUpdated(ctx, { userId, existingUserId }) {
+      if (existingUserId !== null) return;
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.onboarding.provisionForNewUser,
+        { userId },
+      );
+    },
+
     /**
      * Où renvoyer l'utilisateur une fois Google passé.
      *

@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import CanvasFormModal from "../components/canvas/CanvasFormModal";
 import { Dialog } from "@/components/shadcn/dialog";
 import { useConvexAuth, useConvex } from "convex/react";
+import { toastError } from "@/components/utils/errorUtils";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
@@ -26,16 +27,25 @@ function RouteComponent() {
 
     // Si authentifié, vérifier s'il existe un canvas
     if (!isLoading && isAuthenticated) {
-      convex.query(api.canvases.getLastModified, {}).then((result) => {
-        if (result?.success && result.canvas) {
-          navigate({
-            to: "/canvas/$canvasId",
-            params: { canvasId: result.canvas._id },
-          });
-        } else {
+      convex
+        .query(api.canvases.getLastModified, {})
+        .then((result) => {
+          if (result?.success && result.canvas) {
+            navigate({
+              to: "/canvas/$canvasId",
+              params: { canvasId: result.canvas._id },
+            });
+          } else {
+            setIsGettingLastCanvas(false);
+          }
+        })
+        .catch((error: unknown) => {
+          // Sans ce catch, un échec de la query laissait `isGettingLastCanvas`
+          // à true : « Loading... » indéfiniment, et une unhandled rejection
+          // que personne n'observait.
           setIsGettingLastCanvas(false);
-        }
-      });
+          toastError(error, "Could not load your workspaces");
+        });
     }
   }, [isLoading, isAuthenticated, convex, navigate]);
 

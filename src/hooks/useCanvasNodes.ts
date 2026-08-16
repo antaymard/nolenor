@@ -20,6 +20,28 @@ import {
 import type { CanvasNode } from "@/types";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { pendingAutoSizeIds } from "@/components/nodes/prebuilt-nodes/useTitleNodeSizing";
+import { toastError } from "@/components/utils/errorUtils";
+import { trackCanvasSync } from "@/lib/trackCanvasSync";
+
+/**
+ * Écriture serveur d'un changement de nœud.
+ *
+ * Ces mutations partaient jusqu'ici sans aucun `catch` : un ajout, une
+ * suppression ou un déplacement refusé par le serveur échouait en silence —
+ * l'utilisateur voyait seulement son nœud revenir à sa place, sans savoir
+ * pourquoi. On centralise ici le suivi du statut de synchro (`CanvasStatus`)
+ * et le retour visuel.
+ */
+function persistNodeChange(
+  operation: () => Promise<unknown>,
+  failureMessage: string,
+): Promise<void> {
+  return trackCanvasSync(operation)
+    .then(() => undefined)
+    .catch((error: unknown) => {
+      toastError(error, failureMessage);
+    });
+}
 
 const DEBUG_TITLE_SIZING = false;
 
@@ -335,20 +357,28 @@ export function useCanvasNodes(
       // ADD NODES
       if (addedChanges.length > 0) {
         // Directly persist add operations to Convex.
-        return addCanvasNodesToConvex({
-          canvasNodes: fromXyNodesToCanvasNodes(
-            addedChanges.map((c) => c.item) as Node[],
-          ),
-          canvasId,
-        });
+        return persistNodeChange(
+          () =>
+            addCanvasNodesToConvex({
+              canvasNodes: fromXyNodesToCanvasNodes(
+                addedChanges.map((c) => c.item) as Node[],
+              ),
+              canvasId,
+            }),
+          "Could not add the node",
+        );
       } else if (removedChanges.length > 0) {
         // REMOVE NODES
         closeWindowsForNodeIds(removedChanges.map((change) => change.id));
         // Directly persist remove operations to Convex.
-        return removeCanvasNodesToConvex({
-          nodeCanvasIds: removedChanges.map((c) => c.id),
-          canvasId,
-        });
+        return persistNodeChange(
+          () =>
+            removeCanvasNodesToConvex({
+              nodeCanvasIds: removedChanges.map((c) => c.id),
+              canvasId,
+            }),
+          "Could not delete the node",
+        );
       } else if (dimensionChanges.length > 0) {
         // UPDATE NODE DIMENSIONS
         const titleDimensionChanges = dimensionChanges.filter((change) =>
@@ -459,10 +489,14 @@ export function useCanvasNodes(
             };
           });
 
-          updateCanvasNodesPositionOrDimensionsInConvex({
-            canvasId,
-            nodeChanges: mergedChanges,
-          });
+          void persistNodeChange(
+            () =>
+              updateCanvasNodesPositionOrDimensionsInConvex({
+                canvasId,
+                nodeChanges: mergedChanges,
+              }),
+            "Could not save the node size",
+          );
           const titleMergedChanges = mergedChanges.filter((change) =>
             canvasNodes?.some((n) => n.id === change.id && n.type === "title"),
           );
@@ -505,15 +539,23 @@ export function useCanvasNodes(
               descendantSet: new Set(),
               initialOffsets: new Map(),
             };
-            return updateCanvasNodesPositionOrDimensionsInConvex({
-              canvasId,
-              nodeChanges: [...positionChanges, ...descendantChanges],
-            });
+            return persistNodeChange(
+              () =>
+                updateCanvasNodesPositionOrDimensionsInConvex({
+                  canvasId,
+                  nodeChanges: [...positionChanges, ...descendantChanges],
+                }),
+              "Could not save the node position",
+            );
           }
-          return updateCanvasNodesPositionOrDimensionsInConvex({
-            canvasId,
-            nodeChanges: positionChanges,
-          });
+          return persistNodeChange(
+            () =>
+              updateCanvasNodesPositionOrDimensionsInConvex({
+                canvasId,
+                nodeChanges: positionChanges,
+              }),
+            "Could not save the node position",
+          );
         }
       }
     },

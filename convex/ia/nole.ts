@@ -4,6 +4,7 @@ import { baseAgent, chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import { internal } from "../_generated/api";
 import * as MessageMetadataModels from "../models/messageMetadataModels";
+import { enforceRateLimit } from "../lib/rateLimits";
 
 export const vMetadata = v.optional(
   v.object({
@@ -31,6 +32,10 @@ export const saveMessage = mutation({
   },
   handler: async (ctx, { threadId, prompt, metadata, canvasId }) => {
     const authUserId = await requireAuth(ctx);
+
+    // Un message = un run d'agent complet, donc de l'argent réel. C'est la
+    // surface la plus chère de l'app et elle n'avait aucune borne.
+    await enforceRateLimit(ctx, "noleMessage", authUserId);
 
     // The full agent toolset includes canvas write tools, so we require editor
     // access up front (matching the worker path). Without this, an authenticated

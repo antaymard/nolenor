@@ -32,6 +32,17 @@ interface CanvasStore {
 
   setCanvas: (canvas: CanvasInStore | null) => void;
   setStatus: (status: Status) => void;
+  /**
+   * Nombre d'écritures serveur en vol. Les mutations canvas partent en rafale
+   * (un drag produit une écriture par frame throttlée), donc le statut ne peut
+   * pas être piloté par un simple booléen : il faut attendre que la dernière
+   * soit retombée avant d'annoncer "saved".
+   */
+  pendingWrites: number;
+  beginSync: () => void;
+  endSync: (outcome: "ok" | "error") => void;
+  /** Remise à zéro au changement de canvas : le compteur ne doit pas fuiter. */
+  resetSync: () => void;
   setFocus: (focus: Focus) => void;
   setTool: (tool: Tool) => void;
   openSearchModal: (query?: string) => void;
@@ -46,6 +57,7 @@ export const useCanvasStore = create<CanvasStore>()(
     (set) => ({
       canvas: null,
       status: "idle",
+      pendingWrites: 0,
       focus: "canvas",
       tool: "edit",
       isSearchModalOpen: false,
@@ -62,6 +74,25 @@ export const useCanvasStore = create<CanvasStore>()(
       },
       setStatus: (status) => {
         set({ status });
+      },
+      beginSync: () => {
+        set((state) => ({
+          pendingWrites: state.pendingWrites + 1,
+          status: "saving",
+        }));
+      },
+      endSync: (outcome) => {
+        set((state) => {
+          const pendingWrites = Math.max(0, state.pendingWrites - 1);
+          if (outcome === "error") return { pendingWrites, status: "error" };
+          // Une écriture réussie ne "répare" pas l'affichage tant que d'autres
+          // sont en vol : on n'annonce "saved" qu'une fois la file vide.
+          if (pendingWrites > 0) return { pendingWrites };
+          return { pendingWrites, status: "saved" };
+        });
+      },
+      resetSync: () => {
+        set({ pendingWrites: 0, status: "idle" });
       },
       openSearchModal: (query) => {
         set((state) => ({

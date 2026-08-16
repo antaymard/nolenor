@@ -151,8 +151,32 @@ export function compactErrorResult(
   return `[${toolName} error: ${str.slice(0, 80)}]`;
 }
 
+// ── Error shaping ───────────────────────────────────────────────────────────
+//
+// A tool error is read by the model, and every character of it is context it
+// pays for on every subsequent turn of the thread. Two things make an
+// unshaped error enormous:
+//
+//  • Convex's value-validation errors embed the ENTIRE argument object after
+//    "in original object" — for a blocknote edit that is the whole document,
+//    thousands of tokens, none of them actionable. The diagnosis (the value
+//    and its path) comes BEFORE the dump, so cutting there loses nothing.
+//  • Anything else that happens to be long. A hard cap bounds the worst case.
+
+const CONVEX_ARGUMENT_DUMP = / in original object [\s\S]*$/;
+
+/** Generous enough for the longest useful message (BlockNotFoundError's id list). */
+const MAX_TOOL_ERROR_CHARS = 1000;
+
+function compactErrorMessage(message: string): string {
+  const compacted = message.replace(CONVEX_ARGUMENT_DUMP, ").");
+  return compacted.length > MAX_TOOL_ERROR_CHARS
+    ? `${compacted.slice(0, MAX_TOOL_ERROR_CHARS)}… [truncated]`
+    : compacted;
+}
+
 export function toolError(message: string): string {
-  return JSON.stringify({ success: false, message });
+  return JSON.stringify({ success: false, message: compactErrorMessage(message) });
 }
 
 // Re-exported so the existing tool call sites keep importing it from here,

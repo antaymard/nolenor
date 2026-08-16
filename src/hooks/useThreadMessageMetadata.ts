@@ -9,12 +9,13 @@ import type { Doc } from "@/../convex/_generated/dataModel";
  * returns a lookup keyed to the streamed UI messages.
  *
  * User metadata is matched by message id; assistant metadata has no stable id
- * on the streamed messages, so it is aligned by creation order instead.
+ * on the streamed messages, so it is joined on the turn index (`order`), which
+ * `recordAssistantUsage` writes for exactly that purpose. A turn writes a
+ * single row but can render several messages (tool calls), and an aborted
+ * stream writes none: aligning by position would drift for good and show an
+ * earlier turn's model.
  */
-export function useThreadMessageMetadata(
-  threadId: string | undefined,
-  messages: readonly UIMessage[],
-) {
+export function useThreadMessageMetadata(threadId: string | undefined) {
   const data = useQuery(
     api.messageMetadata.getThreadMessageMetadata,
     threadId ? { threadId } : "skip",
@@ -27,25 +28,23 @@ export function useThreadMessageMetadata(
     return map;
   }, [rows]);
 
-  const assistantMetadataByKey = useMemo(() => {
-    const assistantRows = rows
-      .filter((row) => row.role === "assistant")
-      .sort((a, b) => a._creationTime - b._creationTime);
-    const map = new Map<string, Doc<"messageMetadata">>();
-    messages
-      .filter((m) => m.role === "assistant")
-      .forEach((message, index) => {
-        const row = assistantRows[index];
-        if (row) map.set(message.key, row);
-      });
+  const assistantMetadataByOrder = useMemo(() => {
+    const map = new Map<number, Doc<"messageMetadata">>();
+    for (const row of rows) {
+      // `order` is optional: rows written before it existed are skipped, and
+      // the footer simply isn't rendered for those messages.
+      if (row.role === "assistant" && row.order !== undefined) {
+        map.set(row.order, row);
+      }
+    }
     return map;
-  }, [rows, messages]);
+  }, [rows]);
 
   return useCallback(
     (message: UIMessage): Doc<"messageMetadata"> | undefined =>
       message.role === "user"
         ? userMetadataById.get(message.id)
-        : assistantMetadataByKey.get(message.key),
-    [userMetadataById, assistantMetadataByKey],
+        : assistantMetadataByOrder.get(message.order),
+    [userMetadataById, assistantMetadataByOrder],
   );
 }

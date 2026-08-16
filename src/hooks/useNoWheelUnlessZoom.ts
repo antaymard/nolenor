@@ -1,12 +1,16 @@
 import { useEffect, type RefObject } from "react";
+import { isCanvasMoving } from "@/lib/canvasPanGesture";
 
 /**
- * Blocks wheel events from bubbling to React Flow (preventing canvas pan)
- * unless Ctrl/Meta is held (allowing zoom).
+ * Arbitre la molette entre le contenu scrollable d'un node et le canvas React Flow.
  *
- * Replaces the `nowheel` CSS class with selective behavior:
- * - Normal wheel → stopPropagation → text scrolls, canvas doesn't pan
- * - Ctrl/Meta + wheel → event bubbles → React Flow zooms
+ * Remplace la classe `nowheel` par un comportement sélectif :
+ * - Ctrl/Meta + molette → l'événement remonte → React Flow zoome
+ * - geste démarré sur l'élément → stopPropagation → le contenu scrolle, le canvas
+ *   ne bouge pas
+ * - geste de pan déjà en cours sur le canvas (démarré ailleurs, le curseur ne fait
+ *   que survoler le node) → l'événement remonte pour que le pan continue, et le
+ *   scroll interne est neutralisé
  */
 export function useNoWheelUnlessZoom(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
@@ -14,12 +18,20 @@ export function useNoWheelUnlessZoom(ref: RefObject<HTMLElement | null>) {
     if (!el) return;
 
     const handler = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) {
-        e.stopPropagation();
+      if (e.ctrlKey || e.metaKey) return;
+
+      if (isCanvasMoving()) {
+        // Pan commencé hors du node et toujours en cours : on ne le coupe pas.
+        // preventDefault empêche le contenu de défiler en même temps.
+        e.preventDefault();
+        return;
       }
+
+      e.stopPropagation();
     };
 
-    el.addEventListener("wheel", handler, { passive: true });
+    // Non passif : preventDefault est nécessaire dans la branche « pan en cours ».
+    el.addEventListener("wheel", handler, { passive: false });
     return () => el.removeEventListener("wheel", handler);
   }, [ref]);
 }

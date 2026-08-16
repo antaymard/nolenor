@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 import type { MobileTab } from "./mobileShellContext";
 
 const TABS: Array<{ id: MobileTab; label: string; Icon: IconType }> = [
-  { id: "chat", label: "Chat", Icon: TbMessageCircle },
-  { id: "search", label: "Recherche", Icon: TbSearch },
   { id: "canvas", label: "Canvas", Icon: TbLayoutBoardSplit },
+  { id: "search", label: "Recherche", Icon: TbSearch },
+  { id: "chat", label: "Chat", Icon: TbMessageCircle },
 ];
 
 export default function MobileBottomNav({

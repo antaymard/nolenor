@@ -10,9 +10,16 @@ import { toastError } from "@/components/utils/errorUtils";
  *
  * Partagé par la sidebar desktop et le switcher mobile : seul le markup diffère
  * (liens repliables d'un côté, sheet de l'autre), la donnée et les actions non.
+ *
+ * `enabled: false` coupe la requête : la query exige une session, donc les
+ * appelants montés hors zone authentifiée (command center global) doivent
+ * attendre l'auth avant de la déclencher.
  */
-export function useUserCanvases() {
-  const userCanvases = useQuery(api.canvases.listUserCanvases);
+export function useUserCanvases({ enabled = true }: { enabled?: boolean } = {}) {
+  const userCanvases = useQuery(
+    api.canvases.listUserCanvases,
+    enabled ? {} : "skip",
+  );
   const deleteCanvasMutation = useMutation(api.canvases.deleteCanvas);
 
   const { ownCanvases, sharedCanvases } = useMemo(() => {
@@ -38,7 +45,7 @@ export function useUserCanvases() {
     userCanvases,
     ownCanvases,
     sharedCanvases,
-    isLoading: userCanvases === undefined,
+    isLoading: enabled && userCanvases === undefined,
     deleteCanvas,
   };
 }

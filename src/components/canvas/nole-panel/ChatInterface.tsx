@@ -12,7 +12,9 @@ import ChatStatusOverlay from "./ChatStatusOverlay";
 type ChatInterfaceProps = {
   threadId: string;
   onRetry?: (userMessage: string) => void;
-  onAssistantRespondingChange?: (responding: boolean) => void;
+  /** Le threadId est renvoyé avec l'état : le conteneur doit pouvoir ignorer
+   *  un signal qui ne concerne plus la conversation affichée. */
+  onAssistantRespondingChange?: (responding: boolean, threadId: string) => void;
 };
 
 const ChatInterface = memo(function ChatInterface({
@@ -31,7 +33,7 @@ const ChatInterface = memo(function ChatInterface({
   );
 
   const modelOptions = useQuery(api.ia.nole.listChatModels, {});
-  const getMetadata = useThreadMessageMetadata(threadId, messages);
+  const getMetadata = useThreadMessageMetadata(threadId);
   const { scrollViewportRef, handleScroll } = useChatAutoScroll(messages);
 
   const activity = useAssistantActivity(messages);
@@ -40,8 +42,8 @@ const ChatInterface = memo(function ChatInterface({
   // Lift the "is the assistant responding" signal up to the container so it can
   // drive the composer without subscribing to the stream a second time.
   useEffect(() => {
-    onAssistantRespondingChange?.(showThinking);
-  }, [showThinking, onAssistantRespondingChange]);
+    onAssistantRespondingChange?.(showThinking, threadId);
+  }, [showThinking, threadId, onAssistantRespondingChange]);
 
   const handleRetry = useCallback(() => {
     if (lastUserText) onRetry?.(lastUserText);

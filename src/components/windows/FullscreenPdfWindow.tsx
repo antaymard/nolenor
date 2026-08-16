@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "convex/react";
 import { List } from "lucide-react";
+import {
+  TransformComponent,
+  TransformWrapper,
+  type ReactZoomPanPinchContentRef,
+} from "react-zoom-pan-pinch";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -9,7 +14,13 @@ import { cn } from "@/lib/utils";
 import { type OpenedWindow } from "@/stores/windowsStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useNodeDataValues } from "@/hooks/useNodeData";
-import { useDebounce } from "@/hooks/use-debounce";
+import { usePdfViewport } from "@/hooks/usePdfViewport";
+import {
+  PDF_MAX_ZOOM,
+  PDF_MIN_ZOOM,
+  pdfPixelRatio,
+  pdfRenderScale,
+} from "@/lib/pdfZoom";
 import { useIsTabletPortrait } from "@/hooks/useTabletMode";
 import type { FileFieldType } from "@/components/fields/file-fields/FileNameField";
 import { api } from "@/../convex/_generated/api";
@@ -23,6 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import FullscreenWindowFrame from "./FullscreenWindowFrame";
+import PdfZoomControls from "./PdfZoomControls";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -59,30 +71,27 @@ export default function FullscreenPdfWindow({
   const [isChatOpen, setIsChatOpen] = useState(false);
   useHotkey("N", () => setIsChatOpen((v) => !v));
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const pageContainerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const transformRef = useRef<ReactZoomPanPinchContentRef>(null);
 
-  const [pageWidth, setPageWidth] = useState<number | undefined>(undefined);
   const [numPages, setNumPages] = useState<number>(0);
-  const debouncedWidth = useDebounce(pageWidth, 150);
+  const [renderScale, setRenderScale] = useState(1);
+  // horizontalPadding compense le px-8 du conteneur de pages ; maxBaseWidth
+  // reproduit à 100 % la largeur de lecture confortable d'avant le zoom.
+  const { viewportRef, baseWidth, visiblePages } = usePdfViewport({
+    numPages,
+    horizontalPadding: 64,
+    minBaseWidth: 320,
+    maxBaseWidth: 960,
+  });
 
-  useEffect(() => {
-    const container = pageContainerRef.current;
-    if (!container) return;
-
-    const measure = () => {
-      const available = container.clientWidth;
-      const target = Math.min(available, 960);
-      setPageWidth(Math.max(320, target));
-    };
-
-    const resizeObserver = new ResizeObserver(measure);
-    resizeObserver.observe(container);
-    measure();
-
-    return () => resizeObserver.disconnect();
-  }, []);
+  const handleTransformed = useCallback(
+    (_ref: unknown, state: { scale: number }) => {
+      const next = pdfRenderScale(state.scale);
+      setRenderScale((prev) => (prev === next ? prev : next));
+    },
+    [],
+  );
 
   const onDocumentLoadSuccess = useCallback(
     ({ numPages: n }: { numPages: number }) => {
@@ -123,10 +132,13 @@ export default function FullscreenPdfWindow({
 
   const displayedOutline = outline.length > 0 ? outline : fallbackOutline;
 
+  // Sous transform il n'y a plus de conteneur scrollable : scrollIntoView ne
+  // viserait pas juste. On passe par le recadrage de la lib, à échelle constante.
   const scrollToPage = useCallback((pageIndex: number) => {
     const target = pageRefs.current[pageIndex];
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    const controls = transformRef.current;
+    if (!target || !controls) return;
+    controls.zoomToElement(target, controls.instance.transformState.scale);
   }, []);
 
   // On portrait tablets, drop the chat + outline side columns for a focused,
@@ -189,39 +201,71 @@ export default function FullscreenPdfWindow({
         )}
 
         {/* Middle: PDF viewer */}
-        <main className="flex min-w-0 flex-1 overflow-hidden">
-          <div
-            ref={scrollRef}
-            className="h-full w-full overflow-y-auto"
-          >
-            <div
-              ref={pageContainerRef}
-              className="mx-auto flex w-full max-w-[60rem] flex-col items-center gap-4 px-8 py-8"
+        <main
+          ref={viewportRef}
+          className="relative flex min-w-0 flex-1 overflow-hidden"
+        >
+          {pdfUrl ? (
+            <TransformWrapper
+              ref={transformRef}
+              minScale={PDF_MIN_ZOOM}
+              maxScale={PDF_MAX_ZOOM}
+              centerZoomedOut
+              // Molette seule → défilement ; ctrl/⌘ + molette et pinch → zoom.
+              wheel={{ wheelDisabled: true }}
+              // Le clic gauche reste à la sélection de texte, pas au pan.
+              panning={{
+                wheelPanning: true,
+                velocityDisabled: true,
+                allowLeftClickPan: false,
+              }}
+              doubleClick={{ disabled: true }}
+              onTransformed={handleTransformed}
             >
-              {pdfUrl ? (
-                <Document
-                  file={pdfUrl}
-                  className="flex flex-col gap-4"
-                  onLoadSuccess={onDocumentLoadSuccess}
-                >
-                  {Array.from({ length: numPages }, (_, index) => (
-                    <div
-                      key={`page_${index + 1}`}
-                      ref={(el) => {
-                        pageRefs.current[index] = el;
-                      }}
-                    >
-                      <Page pageNumber={index + 1} width={debouncedWidth} />
-                    </div>
-                  ))}
-                </Document>
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  No PDF available
+              <TransformComponent
+                // select-text annule le user-select:none imposé par la lib.
+                wrapperClass="h-full w-full select-text!"
+                wrapperStyle={{ width: "100%", height: "100%" }}
+                // Le contenu transformé est en fit-content par défaut, donc calé
+                // à gauche : on le force pleine largeur pour que les pages
+                // restent centrées quand elles sont plus étroites que la vue.
+                contentStyle={{ width: "100%" }}
+              >
+                <div className="flex w-full flex-col items-center gap-4 px-8 py-8">
+                  <Document
+                    file={pdfUrl}
+                    className="flex flex-col gap-4"
+                    onLoadSuccess={onDocumentLoadSuccess}
+                  >
+                    {Array.from({ length: numPages }, (_, index) => (
+                      <div
+                        key={`page_${index + 1}`}
+                        data-page-index={index}
+                        ref={(el) => {
+                          pageRefs.current[index] = el;
+                        }}
+                      >
+                        <Page
+                          pageNumber={index + 1}
+                          width={baseWidth}
+                          devicePixelRatio={pdfPixelRatio(
+                            renderScale,
+                            visiblePages.has(index),
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </Document>
                 </div>
-              )}
+              </TransformComponent>
+
+              <PdfZoomControls className="absolute bottom-4 right-4" />
+            </TransformWrapper>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+              No PDF available
             </div>
-          </div>
+          )}
         </main>
 
         {/* Right: outline */}

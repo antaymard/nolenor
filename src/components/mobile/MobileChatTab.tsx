@@ -65,6 +65,9 @@ export default function MobileChatTab({
         {/* Pas de thread tant que le premier message n'est pas parti. */}
         {threadId ? (
           <ChatInterface
+            // Remonter à chaque conversation : l'état interne (scroll, flash
+            // « Done », activité) ne doit pas déborder d'un thread sur l'autre.
+            key={threadId}
             threadId={threadId}
             onRetry={handleRetry}
             onAssistantRespondingChange={setIsAssistantResponding}

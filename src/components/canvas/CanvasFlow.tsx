@@ -21,6 +21,8 @@ import { useContextMenu } from "@/hooks/useContextMenu";
 import { useCanvasNodes } from "@/hooks/useCanvasNodes";
 import { useCanvasEdges } from "@/hooks/useCanvasEdges";
 import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
+import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
+import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useHotspotHotkeys } from "@/hooks/useHotspotHotkeys";
 import { withTouchDragGate } from "./touchDragGate";
@@ -83,6 +85,9 @@ export default function CanvasFlow({
 
   // Handle paste events (images, URLs)
   useCanvasPasteHandler();
+
+  // Handle files/links/text dropped anywhere on the window
+  const { isDraggingOver } = useCanvasDropHandler({ canEdit });
 
   // Context menu management
   const {
@@ -182,71 +187,77 @@ export default function CanvasFlow({
   );
 
   return (
-    <ReactFlow
-      panOnScroll
-      // Au doigt, le drag sur le pane pan toujours. À la souris, on garde le
-      // clic molette pour panner et on laisse le clic gauche au lasso.
-      panOnDrag={panWithFinger ? true : [1]}
-      defaultViewport={{
-        x: 0,
-        y: 0,
-        zoom: 0.75,
-      }}
-      minZoom={0.1}
-      maxZoom={4}
-      selectNodesOnDrag={false}
-      selectionMode={SelectionMode.Partial}
-      selectionOnDrag={!panWithFinger}
-      // Tactile : draggable est accordé node par node via withTouchDragGate.
-      nodesDraggable={!isTouch}
-      // Tactile : le double-tap sert à ouvrir un node, pas à zoomer.
-      zoomOnDoubleClick={!isTouch}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      onPaneClick={onPaneClick}
-      onPaneContextMenu={onPaneContextMenu}
-      onNodeContextMenu={onNodeContextMenu}
-      onNodeClick={onNodeClick}
-      onSelectionContextMenu={onSelectionContextMenu}
-      onEdgeContextMenu={onEdgeContextMenu}
-      onEdgeDoubleClick={onEdgeDoubleClick}
-      deleteKeyCode={null}
-      nodes={flowNodes}
-      edges={edgesWithColoredMarkers}
-      onEdgesChange={handleEdgeChange}
-      onNodesChange={handleNodeChange}
-      onConnect={(params) => {
-        handleEdgeChange([
-          {
-            type: "add" as const,
-            item: {
-              id: generateLlmId(),
-              source: params.source,
-              target: params.target,
-              sourceHandle: params.sourceHandle ?? undefined,
-              targetHandle: params.targetHandle ?? undefined,
-              markerEnd: {
-                type: MarkerType.Arrow,
-                width: 30,
-                height: 30,
-                strokeWidth: 1,
+    <>
+      {isDraggingOver && <CanvasDropOverlay />}
+      <ReactFlow
+        panOnScroll
+        // Au doigt, le drag sur le pane pan toujours. À la souris, on garde le
+        // clic molette pour panner et on laisse le clic gauche au lasso.
+        panOnDrag={panWithFinger ? true : [1]}
+        defaultViewport={{
+          x: 0,
+          y: 0,
+          zoom: 0.75,
+        }}
+        minZoom={0.1}
+        maxZoom={4}
+        selectNodesOnDrag={false}
+        selectionMode={SelectionMode.Partial}
+        selectionOnDrag={!panWithFinger}
+        // Tactile : draggable est accordé node par node via withTouchDragGate.
+        nodesDraggable={!isTouch}
+        // Tactile : le double-tap sert à ouvrir un node, pas à zoomer.
+        zoomOnDoubleClick={!isTouch}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onPaneClick={onPaneClick}
+        onPaneContextMenu={onPaneContextMenu}
+        onNodeContextMenu={onNodeContextMenu}
+        onNodeClick={onNodeClick}
+        onSelectionContextMenu={onSelectionContextMenu}
+        onEdgeContextMenu={onEdgeContextMenu}
+        onEdgeDoubleClick={onEdgeDoubleClick}
+        deleteKeyCode={null}
+        nodes={flowNodes}
+        edges={edgesWithColoredMarkers}
+        onEdgesChange={handleEdgeChange}
+        onNodesChange={handleNodeChange}
+        onConnect={(params) => {
+          handleEdgeChange([
+            {
+              type: "add" as const,
+              item: {
+                id: generateLlmId(),
+                source: params.source,
+                target: params.target,
+                sourceHandle: params.sourceHandle ?? undefined,
+                targetHandle: params.targetHandle ?? undefined,
+                markerEnd: {
+                  type: MarkerType.Arrow,
+                  width: 30,
+                  height: 30,
+                  strokeWidth: 1,
+                },
               },
             },
-          },
-        ]);
-      }}
-    >
-      <Background
-        variant={BackgroundVariant.Lines}
-        color="#e2e8f0"
-        bgColor="#f8fafc"
-        gap={20}
-        lineWidth={0.3}
-      />
-      {children}
-      {contextMenu.type && (
-        <ContextMenu contextMenu={contextMenu} setContextMenu={setContextMenu} />
-      )}
-    </ReactFlow>
+          ]);
+        }}
+      >
+        <Background
+          variant={BackgroundVariant.Lines}
+          color="#e2e8f0"
+          bgColor="#f8fafc"
+          gap={20}
+          lineWidth={0.3}
+        />
+        {children}
+        {contextMenu.type && (
+          <ContextMenu
+            contextMenu={contextMenu}
+            setContextMenu={setContextMenu}
+          />
+        )}
+      </ReactFlow>
+    </>
   );
 }

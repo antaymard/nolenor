@@ -16,6 +16,7 @@ import { Route as SettingsTemplatesRouteImport } from './routes/settings/templat
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsExportRouteImport } from './routes/settings/export'
 import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
+import { Route as SettingsAiUsageRouteImport } from './routes/settings/ai-usage'
 import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
 import { Route as SettingsRecipesIndexRouteImport } from './routes/settings/recipes/index'
 import { Route as SettingsRecipesEditRecipeIdRouteImport } from './routes/settings/recipes/edit.$recipeId'
@@ -55,6 +56,11 @@ const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
   path: '/api-tokens',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsAiUsageRoute = SettingsAiUsageRouteImport.update({
+  id: '/ai-usage',
+  path: '/ai-usage',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const CanvasCanvasIdRoute = CanvasCanvasIdRouteImport.update({
   id: '/canvas/$canvasId',
   path: '/canvas/$canvasId',
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
     | '/settings/skills'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
     | '/settings/skills'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
     | '/settings/skills'
@@ -206,6 +218,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsApiTokensRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/ai-usage': {
+      id: '/settings/ai-usage'
+      path: '/ai-usage'
+      fullPath: '/settings/ai-usage'
+      preLoaderRoute: typeof SettingsAiUsageRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/canvas/$canvasId': {
       id: '/canvas/$canvasId'
       path: '/canvas/$canvasId'
@@ -231,6 +250,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface SettingsRouteRouteChildren {
+  SettingsAiUsageRoute: typeof SettingsAiUsageRoute
   SettingsApiTokensRoute: typeof SettingsApiTokensRoute
   SettingsExportRoute: typeof SettingsExportRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
@@ -240,6 +260,7 @@ interface SettingsRouteRouteChildren {
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsAiUsageRoute: SettingsAiUsageRoute,
   SettingsApiTokensRoute: SettingsApiTokensRoute,
   SettingsExportRoute: SettingsExportRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,

@@ -1,5 +1,5 @@
 import type { Doc, Id } from "../_generated/dataModel";
-import type { QueryCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { threadAgentNames } from "../schemas/threadMetadataSchema";
 
 type ThreadMetadata = Doc<"threadMetadata">;
@@ -45,4 +45,27 @@ export async function listNoleThreadsByUserAndCanvas(
  */
 export function lastActivityTime(metadata: ThreadMetadata): number {
   return metadata.lastMessageTime ?? metadata._creationTime;
+}
+
+/**
+ * Ajoute un coût au total du thread. Prend la ligne déjà lue plutôt que de la
+ * re-query : l'appelant (aiUsageModels.recordUsage) en a besoin de toute façon
+ * pour dénormaliser le canvasId.
+ *
+ * No-op silencieux quand la ligne n'existe pas : la comptabilité ne doit jamais
+ * faire échouer un tour dont la réponse est déjà partie. C'est ce que l'ancien
+ * `threadMetadataWrappers.updateUsage` faisait de travers, en throwant.
+ */
+export async function addUsage(
+  ctx: MutationCtx,
+  {
+    threadRow,
+    costUsd,
+  }: { threadRow: ThreadMetadata | null; costUsd: number },
+): Promise<void> {
+  if (!threadRow) return;
+  await ctx.db.patch("threadMetadata", threadRow._id, {
+    totalUsageUsd: threadRow.totalUsageUsd + costUsd,
+    lastMessageTime: Date.now(),
+  });
 }

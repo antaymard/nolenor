@@ -1,4 +1,4 @@
-import { components, internal } from "../_generated/api";
+import { components } from "../_generated/api";
 import { Agent } from "@convex-dev/agent";
 import { openrouter } from "@openrouter/ai-sdk-provider";
 import { v } from "convex/values";
@@ -7,7 +7,11 @@ import type { ToolSet } from "ai";
 import { stepCountIs } from "ai";
 import { toolAgentNames, type ThreadCtx } from "./agentConfig";
 import { getToolsForAgent } from "./tools";
-import { generateSupervisorSystemPrompt } from "./systemPrompts/supervisorSystemPrompt";
+import { createUsageHandler } from "./usage";
+import {
+  aiUsageSources,
+  type AiUsageSource,
+} from "../schemas/aiUsageSourceSchema";
 
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
@@ -21,7 +25,7 @@ export const chatModelOptions = [
   {
     label: "GPT-5.6 Luna Pro",
     value: "openai/gpt-5.6-luna-pro",
-    price: "0.10 _0.60",
+    price: "0.10_0.60",
     isMultimodal: true,
     maxContext: 1000000,
   },
@@ -60,10 +64,26 @@ export type ChatModelValues = typeof vChatModelValues.type;
 
 export type ChatModelOption = (typeof chatModelOptions)[number];
 
+/**
+ * Point de passage UNIQUE vers OpenRouter.
+ *
+ * `usage: { include: true }` active l'usage accounting : c'est la seule façon
+ * d'obtenir le champ `cost` dans la réponse, et c'est un réglage du modèle, pas
+ * de l'appel. Sans lui, tout le suivi de coût retombe silencieusement à zéro —
+ * c'était le bug. Tout nouveau modèle doit passer par ici.
+ *
+ * `.chat(...)` plutôt que `openrouter(...)` : l'appel direct résout d'abord
+ * vers la surcharge TypeScript « completion », alors que c'est bien un modèle
+ * chat qui est construit au runtime.
+ */
+function openRouterModel(modelId: string): LanguageModelV3 {
+  return openrouter.chat(modelId, { usage: { include: true } });
+}
+
 export function getChatModel(
   modelPreference: ChatModelValues,
 ): LanguageModelV3 {
-  return openrouter(modelPreference);
+  return openRouterModel(modelPreference);
 }
 
 export function isModelMultimodal(model: LanguageModelV3): boolean {
@@ -74,16 +94,29 @@ export function isModelMultimodal(model: LanguageModelV3): boolean {
 const defaultModels = {
   nole: getChatModel(defaultChatModelValue),
   worker: getChatModel("deepseek/deepseek-v4-flash-0731"),
-  fast: openrouter("mistralai/mistral-small-2603"),
+  // Hors de `chatModelOptions` (donc pas proposé à l'utilisateur), mais il
+  // passe par le même helper : c'est ce qui évite que la génération de titre
+  // reparte silencieusement sans coût.
+  fast: openRouterModel("mistralai/mistral-small-2603"),
 };
 
 // AGENTS CONF =================================================================
 
-// Minimal agent used for utility operations (e.g. saveMessage) that don't require a specific model.
-export function createBaseAgent({ model }: { model?: LanguageModelV3 } = {}) {
+/**
+ * Agent minimal pour les opérations utilitaires. Attention : il sert à la fois
+ * à des appels sans LLM (`saveMessage`, cf. ia/nole.ts et ia/worker.ts) et à un
+ * vrai appel LLM (la génération de titre, cf. threads.ts). D'où `usageSource`
+ * explicite plutôt qu'une valeur par défaut : marquer les `saveMessage` comme
+ * de la consommation IA serait un mensonge dans le ledger.
+ */
+export function createBaseAgent({
+  model,
+  usageSource,
+}: { model?: LanguageModelV3; usageSource?: AiUsageSource } = {}) {
   return new Agent(components.agent, {
     name: "base",
     languageModel: model ?? defaultModels.fast,
+    usageHandler: usageSource ? createUsageHandler(usageSource) : undefined,
   });
 }
 export const baseAgent = createBaseAgent();
@@ -108,76 +141,15 @@ export function createNoleAgent({
       extraTools,
       isMultimodal: isModelMultimodal(languageModel),
     }),
-    usageHandler: async (ctx, args) => {
-      // Called once per LLM step. Per-message metadata (model/usage/cost) is
-      // recorded once per turn after the stream completes (see noleCompletion);
-      // here we only accumulate the thread-level cost across all steps.
-      if (
-        !args.threadId ||
-        !args.usage ||
-        !args.usage.raw ||
-        typeof args.usage.raw.cost !== "number"
-      ) {
-        console.error(`Cannot update usage. Wrong `);
-        return;
-      }
-      await ctx.runMutation(
-        internal.wrappers.threadMetadataWrappers.updateUsage,
-        {
-          threadId: args.threadId,
-          additionalUsageUsd: args.usage.raw.cost || 0, // Use the cost from usage data, default to 0 if not available
-        },
-      );
-    },
+    usageHandler: createUsageHandler(aiUsageSources.nole),
   });
 }
 
-export function createCloneAgent({
-  threadCtx,
-  extraTools = {},
-  model,
-}: {
-  threadCtx: ThreadCtx;
-  extraTools?: ToolSet;
-  model?: LanguageModelV3;
-}) {
-  const languageModel = model ?? defaultModels.nole;
-  return new Agent(components.agent, {
-    name: "Clone",
-    stopWhen: stepCountIs(25),
-    languageModel,
-    tools: getToolsForAgent({
-      agentName: toolAgentNames.clone,
-      threadCtx,
-      extraTools,
-      isMultimodal: isModelMultimodal(languageModel),
-    }),
-  });
-}
-
-export function createSupervisorAgent({
-  threadCtx,
-  extraTools = {},
-  model,
-}: {
-  threadCtx: ThreadCtx;
-  extraTools?: ToolSet;
-  model?: LanguageModelV3;
-}) {
-  const languageModel = model ?? defaultModels.nole;
-  return new Agent(components.agent, {
-    name: "Supervisor",
-    stopWhen: stepCountIs(25),
-    instructions: generateSupervisorSystemPrompt(),
-    languageModel,
-    tools: getToolsForAgent({
-      agentName: toolAgentNames.supervisor,
-      threadCtx,
-      extraTools,
-      isMultimodal: isModelMultimodal(languageModel),
-    }),
-  });
-}
+// `createCloneAgent` et `createSupervisorAgent` vivaient ici. Aucun appelant, et
+// tous deux étaient des points d'entrée LLM sans `usageHandler` : les garder,
+// c'était préparer le prochain chemin de dépense non compté. Les entrées
+// `clone`/`supervisor` de `toolAgentNames` restent en place, les ToolConfig les
+// référencent encore.
 
 export function createWorkerAgent({
   threadCtx,
@@ -199,5 +171,6 @@ export function createWorkerAgent({
       extraTools,
       isMultimodal: isModelMultimodal(languageModel),
     }),
+    usageHandler: createUsageHandler(aiUsageSources.worker),
   });
 }

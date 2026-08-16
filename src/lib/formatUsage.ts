@@ -16,3 +16,16 @@ export function formatCost(n: number): string {
   if (n < 0.01) return `$${n.toFixed(4)}`;
   return `$${n.toFixed(3)}`;
 }
+
+/**
+ * Same idea as `formatCost` but for aggregates, where three decimals on a
+ * dollar-scale total reads as noise (`$12.400`). Kept separate rather than
+ * folded into `formatCost`, whose current precision the thread badge and the
+ * message footer depend on.
+ */
+export function formatCostCompact(n: number): string {
+  if (n === 0) return "$0";
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  if (n < 1) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(2)}`;
+}

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as aiUsage from "../aiUsage.js";
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
 import type * as canvasEdges from "../canvasEdges.js";
@@ -19,6 +20,7 @@ import type * as config_fieldVariants from "../config/fieldVariants.js";
 import type * as config_nodeConfig from "../config/nodeConfig.js";
 import type * as config_optionDescriptors from "../config/optionDescriptors.js";
 import type * as config_templateConfig from "../config/templateConfig.js";
+import type * as config_uploadsConfig from "../config/uploadsConfig.js";
 import type * as crons from "../crons.js";
 import type * as dataExport from "../dataExport.js";
 import type * as hotposts from "../hotposts.js";
@@ -27,6 +29,7 @@ import type * as ia_agentConfig from "../ia/agentConfig.js";
 import type * as ia_agents from "../ia/agents.js";
 import type * as ia_helpers__externalDeps from "../ia/helpers/_externalDeps.js";
 import type * as ia_helpers_blockNoteMarkdown from "../ia/helpers/blockNoteMarkdown.js";
+import type * as ia_helpers_blockNoteXmlRepair from "../ia/helpers/blockNoteXmlRepair.js";
 import type * as ia_helpers_composioSanitizer from "../ia/helpers/composioSanitizer.js";
 import type * as ia_helpers_customFieldLLMCodecs from "../ia/helpers/customFieldLLMCodecs.js";
 import type * as ia_helpers_customTemplateHelpers from "../ia/helpers/customTemplateHelpers.js";
@@ -68,6 +71,7 @@ import type * as ia_tools_tableUpdateSchemaTool from "../ia/tools/tableUpdateSch
 import type * as ia_tools_toolHelpers from "../ia/tools/toolHelpers.js";
 import type * as ia_tools_viewImageTool from "../ia/tools/viewImageTool.js";
 import type * as ia_tools_websearchTool from "../ia/tools/websearchTool.js";
+import type * as ia_usage from "../ia/usage.js";
 import type * as ia_worker from "../ia/worker.js";
 import type * as lib_apiTokenCrypto from "../lib/apiTokenCrypto.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -80,9 +84,11 @@ import type * as lib_parseModelPrice from "../lib/parseModelPrice.js";
 import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js";
 import type * as lib_r2 from "../lib/r2.js";
 import type * as lib_r2Keys from "../lib/r2Keys.js";
+import type * as lib_rateLimits from "../lib/rateLimits.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
 import type * as lib_text from "../lib/text.js";
 import type * as lib_textSanitize from "../lib/textSanitize.js";
+import type * as lib_usageDay from "../lib/usageDay.js";
 import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
 import type * as mcp_access from "../mcp/access.js";
@@ -92,6 +98,7 @@ import type * as mcp_registry from "../mcp/registry.js";
 import type * as mcp_server from "../mcp/server.js";
 import type * as memories from "../memories.js";
 import type * as messageMetadata from "../messageMetadata.js";
+import type * as models_aiUsageModels from "../models/aiUsageModels.js";
 import type * as models_canvasEdgeModels from "../models/canvasEdgeModels.js";
 import type * as models_canvasModels from "../models/canvasModels.js";
 import type * as models_canvasNodeModels from "../models/canvasNodeModels.js";
@@ -108,6 +115,10 @@ import type * as nodeDataVersions from "../nodeDataVersions.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as nodeTemplates from "../nodeTemplates.js";
 import type * as recipes from "../recipes.js";
+import type * as schemas_aiUsageDailySchema from "../schemas/aiUsageDailySchema.js";
+import type * as schemas_aiUsageEventsSchema from "../schemas/aiUsageEventsSchema.js";
+import type * as schemas_aiUsageSourceSchema from "../schemas/aiUsageSourceSchema.js";
+import type * as schemas_aiUsageTokensSchema from "../schemas/aiUsageTokensSchema.js";
 import type * as schemas_apiTokensSchema from "../schemas/apiTokensSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_fieldTypeSchema from "../schemas/fieldTypeSchema.js";
@@ -138,6 +149,7 @@ import type * as uploads from "../uploads.js";
 import type * as users from "../users.js";
 import type * as voice from "../voice.js";
 import type * as wishlist from "../wishlist.js";
+import type * as wrappers_aiUsageWrappers from "../wrappers/aiUsageWrappers.js";
 import type * as wrappers_canvasEdgeWrappers from "../wrappers/canvasEdgeWrappers.js";
 import type * as wrappers_canvasNodeWrappers from "../wrappers/canvasNodeWrappers.js";
 import type * as wrappers_canvasWrappers from "../wrappers/canvasWrappers.js";
@@ -157,6 +169,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  aiUsage: typeof aiUsage;
   apiTokens: typeof apiTokens;
   auth: typeof auth;
   canvasEdges: typeof canvasEdges;
@@ -168,6 +181,7 @@ declare const fullApi: ApiFromModules<{
   "config/nodeConfig": typeof config_nodeConfig;
   "config/optionDescriptors": typeof config_optionDescriptors;
   "config/templateConfig": typeof config_templateConfig;
+  "config/uploadsConfig": typeof config_uploadsConfig;
   crons: typeof crons;
   dataExport: typeof dataExport;
   hotposts: typeof hotposts;
@@ -176,6 +190,7 @@ declare const fullApi: ApiFromModules<{
   "ia/agents": typeof ia_agents;
   "ia/helpers/_externalDeps": typeof ia_helpers__externalDeps;
   "ia/helpers/blockNoteMarkdown": typeof ia_helpers_blockNoteMarkdown;
+  "ia/helpers/blockNoteXmlRepair": typeof ia_helpers_blockNoteXmlRepair;
   "ia/helpers/composioSanitizer": typeof ia_helpers_composioSanitizer;
   "ia/helpers/customFieldLLMCodecs": typeof ia_helpers_customFieldLLMCodecs;
   "ia/helpers/customTemplateHelpers": typeof ia_helpers_customTemplateHelpers;
@@ -217,6 +232,7 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/toolHelpers": typeof ia_tools_toolHelpers;
   "ia/tools/viewImageTool": typeof ia_tools_viewImageTool;
   "ia/tools/websearchTool": typeof ia_tools_websearchTool;
+  "ia/usage": typeof ia_usage;
   "ia/worker": typeof ia_worker;
   "lib/apiTokenCrypto": typeof lib_apiTokenCrypto;
   "lib/auth": typeof lib_auth;
@@ -229,9 +245,11 @@ declare const fullApi: ApiFromModules<{
   "lib/parseSkillFrontmatter": typeof lib_parseSkillFrontmatter;
   "lib/r2": typeof lib_r2;
   "lib/r2Keys": typeof lib_r2Keys;
+  "lib/rateLimits": typeof lib_rateLimits;
   "lib/searchScoring": typeof lib_searchScoring;
   "lib/text": typeof lib_text;
   "lib/textSanitize": typeof lib_textSanitize;
+  "lib/usageDay": typeof lib_usageDay;
   "lib/xml": typeof lib_xml;
   links: typeof links;
   "mcp/access": typeof mcp_access;
@@ -241,6 +259,7 @@ declare const fullApi: ApiFromModules<{
   "mcp/server": typeof mcp_server;
   memories: typeof memories;
   messageMetadata: typeof messageMetadata;
+  "models/aiUsageModels": typeof models_aiUsageModels;
   "models/canvasEdgeModels": typeof models_canvasEdgeModels;
   "models/canvasModels": typeof models_canvasModels;
   "models/canvasNodeModels": typeof models_canvasNodeModels;
@@ -257,6 +276,10 @@ declare const fullApi: ApiFromModules<{
   nodeDatas: typeof nodeDatas;
   nodeTemplates: typeof nodeTemplates;
   recipes: typeof recipes;
+  "schemas/aiUsageDailySchema": typeof schemas_aiUsageDailySchema;
+  "schemas/aiUsageEventsSchema": typeof schemas_aiUsageEventsSchema;
+  "schemas/aiUsageSourceSchema": typeof schemas_aiUsageSourceSchema;
+  "schemas/aiUsageTokensSchema": typeof schemas_aiUsageTokensSchema;
   "schemas/apiTokensSchema": typeof schemas_apiTokensSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/fieldTypeSchema": typeof schemas_fieldTypeSchema;
@@ -287,6 +310,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   voice: typeof voice;
   wishlist: typeof wishlist;
+  "wrappers/aiUsageWrappers": typeof wrappers_aiUsageWrappers;
   "wrappers/canvasEdgeWrappers": typeof wrappers_canvasEdgeWrappers;
   "wrappers/canvasNodeWrappers": typeof wrappers_canvasNodeWrappers;
   "wrappers/canvasWrappers": typeof wrappers_canvasWrappers;

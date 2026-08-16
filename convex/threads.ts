@@ -15,6 +15,7 @@ import z from "zod";
 import { createBaseAgent } from "./ia/agents";
 import errors from "./config/errorsConfig";
 import { threadAgentNames } from "./schemas/threadMetadataSchema";
+import { aiUsageSources } from "./schemas/aiUsageSourceSchema";
 import {
   lastActivityTime,
   listNoleThreadsByUserAndCanvas,
@@ -296,7 +297,11 @@ export const updateThreadTitle = action({
       throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
     }
 
-    const basicAgent = createBaseAgent();
+    // `usageSource` explicite : c'est le seul usage de `createBaseAgent` qui
+    // appelle réellement un LLM, et sa consommation était jusqu'ici invisible.
+    const basicAgent = createBaseAgent({
+      usageSource: aiUsageSources.threadTitle,
+    });
     const { thread } = await basicAgent.continueThread(ctx, { threadId });
 
     if (onlyIfUntitled) {

@@ -60,9 +60,14 @@ export const remove = internalMutation({
 });
 
 /**
- * Marque une interaction utilisateur. `updateUsage` ne stampe `lastMessageTime`
- * qu'une fois l'assistant passé ; on veut aussi dater l'envoi, sinon un tour
- * qui échoue laisse le thread paraître plus vieux qu'il ne l'est.
+ * Marque une interaction utilisateur. La comptabilité d'usage ne stampe
+ * `lastMessageTime` qu'une fois l'assistant passé ; on veut aussi dater
+ * l'envoi, sinon un tour qui échoue laisse le thread paraître plus vieux qu'il
+ * ne l'est.
+ *
+ * C'est aussi ici, et pas dans la comptabilité de coût, qu'on incrémente
+ * `roundsNb` : le `usageHandler` du composant agent est appelé une fois par
+ * step LLM, donc y compter les rounds revenait à compter des steps.
  */
 export const touch = internalMutation({
   args: {
@@ -72,68 +77,18 @@ export const touch = internalMutation({
     const threadMetadata = await findByThreadId(ctx, {
       threadId: args.threadId,
     });
-    // Pas de ligne pour les threads sans metadata (sous-agents actuels) : no-op.
+    // Pas de ligne pour les threads sans metadata : no-op.
     if (!threadMetadata) return;
     await ctx.db.patch("threadMetadata", threadMetadata._id, {
       lastMessageTime: Date.now(),
+      roundsNb: (threadMetadata.roundsNb ?? 0) + 1,
     });
   },
 });
 
-export const updateUsage = internalMutation({
-  args: {
-    threadId: v.string(),
-    additionalUsageUsd: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const { threadId, additionalUsageUsd } = args;
-
-    // Query the threadMetadata by threadId using the index
-    const threadMetadata = await ctx.db
-      .query("threadMetadata")
-      .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
-      .unique();
-
-    if (!threadMetadata) {
-      throw new Error(`Thread metadata not found for threadId: ${threadId}`);
-    }
-
-    // Update the threadMetadata with the new totalUsageUsd, lastMessageTime, roundsNb, and unique touchedNodeDataIds
-    await ctx.db.patch("threadMetadata", threadMetadata._id, {
-      totalUsageUsd: threadMetadata.totalUsageUsd + (additionalUsageUsd ?? 0),
-      lastMessageTime: Date.now(),
-      roundsNb: threadMetadata.roundsNb ? threadMetadata.roundsNb + 1 : 1,
-    });
-  },
-});
-
-export const updateTouchNodeData = internalMutation({
-  args: {
-    threadId: v.string(),
-    additionalTouchedNodeDataIds: v.array(v.id("nodeDatas")),
-  },
-  handler: async (ctx, args) => {
-    const { threadId, additionalTouchedNodeDataIds } = args;
-
-    // Query the threadMetadata by threadId using the index
-    const threadMetadata = await ctx.db
-      .query("threadMetadata")
-      .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
-      .unique();
-
-    if (!threadMetadata) {
-      throw new Error(`Thread metadata not found for threadId: ${threadId}`);
-    }
-
-    // Create a new set of unique touchedNodeDataIds by combining existing and additional ones
-    const existingTouchedNodeDataIds = threadMetadata.touchedNodeDataIds || [];
-    const uniqueTouchedNodeDataIds = Array.from(
-      new Set([...existingTouchedNodeDataIds, ...additionalTouchedNodeDataIds]),
-    );
-
-    await ctx.db.patch("threadMetadata", threadMetadata._id, {
-      touchedNodeDataIds: uniqueTouchedNodeDataIds,
-    });
-    return;
-  },
-});
+// `updateUsage` et `updateTouchNodeData` vivaient ici. Le premier throwait
+// quand le thread n'avait pas de ligne de metadata (cas des sous-agents), ce
+// qui aurait fait échouer un tour déjà streamé ; il est remplacé par
+// `ThreadMetadataModels.addUsage`, appelé depuis `aiUsageModels.recordUsage`
+// pour que le total du thread et le ledger soient écrits dans la même
+// transaction. Le second n'avait aucun appelant.

@@ -4,7 +4,6 @@ import {
   HOUR,
   MINUTE,
   type RateLimitConfig,
-  type RateLimitReturns,
   type RunMutationCtx,
 } from "@convex-dev/rate-limiter";
 import { components } from "../_generated/api";
@@ -77,17 +76,7 @@ export async function enforceRateLimit(
   name: RateLimitName,
   key: string,
 ): Promise<void> {
-  // `limit` type ses options par un conditionnel sur le nom, qui ne se résout
-  // pas quand on lui passe l'union de nos noms plutôt qu'un littéral. Toutes
-  // nos limites sont nommées et prennent `{ key }`, donc on fixe la signature
-  // ici : le nom reste vérifié par `RateLimitName`.
-  const limit = rateLimiter.limit as (
-    ctx: RunMutationCtx,
-    name: RateLimitName,
-    options: { key: string },
-  ) => Promise<RateLimitReturns>;
-
-  const { ok, retryAfter } = await limit(ctx, name, { key });
+  const { ok, retryAfter } = await rateLimiter.limit(ctx, name, { key });
   if (ok) return;
 
   const seconds = Math.max(1, Math.ceil((retryAfter ?? 0) / 1000));

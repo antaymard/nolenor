@@ -18,6 +18,11 @@ const errors = {
   TOKEN_REVOKED: "This token has been revoked and can no longer be edited.",
   INVALID_USAGE_PERIOD:
     "Invalid usage period. Expected two YYYY-MM-DD dates, in order, at most 366 days apart.",
+  UNSUPPORTED_FILE_TYPE: "This file type is not allowed.",
+  INVALID_FILE_SIZE: "This file size could not be read.",
+  FILE_TOO_LARGE: "This file is too large.",
+  TOO_MANY_FILES: "Too many files in a single upload.",
+  AUDIO_TOO_LARGE: "This recording is too long to be transcribed.",
 };
 
 export default errors;

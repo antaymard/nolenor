@@ -36,7 +36,7 @@ export function useCanvasBootstrap(
   // ci-dessous doivent écrire *après* ce nettoyage.
   useEffect(() => {
     useWindowsStore.getState().closeAllWindows();
-    useCanvasStore.getState().setStatus("idle");
+    useCanvasStore.getState().resetSync();
     setCanvas(null);
     clearNodeDatas();
     clearTemplates();

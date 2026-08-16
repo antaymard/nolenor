@@ -93,6 +93,9 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
       <div className="w-full flex-1 min-h-0">
         {threadId ? (
           <ChatInterface
+            // Remonter à chaque conversation : l'état interne (scroll, flash
+            // « Done », activité) ne doit pas déborder d'un thread sur l'autre.
+            key={threadId}
             threadId={threadId}
             onRetry={handleRetry}
             onAssistantRespondingChange={chat.setIsAssistantResponding}

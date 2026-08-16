@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Secrets / config d'environnement. Le `.gitignore` racine n'en avait aucune
+# règle : `extension/.env` s'était retrouvé commité.
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

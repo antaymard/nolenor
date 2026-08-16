@@ -143,6 +143,7 @@ import type * as slideshows from "../slideshows.js";
 import type * as speech from "../speech.js";
 import type * as threads from "../threads.js";
 import type * as uploads from "../uploads.js";
+import type * as users from "../users.js";
 import type * as voice from "../voice.js";
 import type * as wishlist from "../wishlist.js";
 import type * as wrappers_aiUsageWrappers from "../wrappers/aiUsageWrappers.js";
@@ -300,6 +301,7 @@ declare const fullApi: ApiFromModules<{
   speech: typeof speech;
   threads: typeof threads;
   uploads: typeof uploads;
+  users: typeof users;
   voice: typeof voice;
   wishlist: typeof wishlist;
   "wrappers/aiUsageWrappers": typeof wrappers_aiUsageWrappers;
@@ -344,4 +346,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };

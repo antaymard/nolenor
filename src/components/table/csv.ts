@@ -221,3 +221,54 @@ export function coerceCsvValue(raw: string, type: ColumnType): CellValue {
       return null;
   }
 }
+
+// --------------------------------------------------------------------------
+// IMPORT — one-shot materialization (no mapping UI)
+// --------------------------------------------------------------------------
+
+/** How many values we sample per column when guessing its type. */
+const TYPE_INFERENCE_SAMPLE_SIZE = 50;
+
+/**
+ * Turn a parsed CSV into a ready-to-store table: one new column per CSV column,
+ * named after the header, typed by inference.
+ *
+ * This is the unattended counterpart of `TableImportDialog` — used when there is
+ * no existing table to map onto and no opportunity to ask (dropping a .csv on
+ * the canvas). The dialog keeps its own logic because it also has to handle
+ * append mode and mapping onto existing columns.
+ */
+export function buildTableFromParsedCsv(parsed: ParsedCsv): {
+  columns: TableColumn[];
+  rows: TableRowData[];
+} {
+  const columnCount = Math.max(
+    parsed.headers.length,
+    ...parsed.rows.map((row) => row.length),
+    0,
+  );
+
+  const columns: TableColumn[] = Array.from(
+    { length: columnCount },
+    (_, csvIndex) => {
+      const samples = parsed.rows
+        .slice(0, TYPE_INFERENCE_SAMPLE_SIZE)
+        .map((row) => row[csvIndex] ?? "");
+      return {
+        id: crypto.randomUUID(),
+        name: parsed.headers[csvIndex] || `Column ${csvIndex + 1}`,
+        type: inferColumnType(samples),
+      };
+    },
+  );
+
+  const rows: TableRowData[] = parsed.rows.map((row) => {
+    const cells: TableRowData["cells"] = {};
+    columns.forEach((col, csvIndex) => {
+      cells[col.id] = coerceCsvValue(row[csvIndex] ?? "", col.type);
+    });
+    return { id: crypto.randomUUID(), cells };
+  });
+
+  return { columns, rows };
+}

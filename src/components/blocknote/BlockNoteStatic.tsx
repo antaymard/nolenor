@@ -86,16 +86,15 @@ function renderStyledText(node: InlineNode, key: string): React.ReactNode {
   if (s.underline) el = <u>{el}</u>;
   if (s.strike) el = <s>{el}</s>;
 
-  const style: React.CSSProperties = {};
-  if (typeof s.textColor === "string" && s.textColor !== "default") {
-    style.color = s.textColor;
-  }
-  if (typeof s.backgroundColor === "string" && s.backgroundColor !== "default") {
-    style.backgroundColor = s.backgroundColor;
-  }
-  if (Object.keys(style).length > 0) {
+  const textColor = colorAttr(s.textColor);
+  const backgroundColor = colorAttr(s.backgroundColor);
+  if (textColor || backgroundColor) {
     return (
-      <span key={key} style={style}>
+      <span
+        key={key}
+        data-text-color={textColor}
+        data-background-color={backgroundColor}
+      >
         {el}
       </span>
     );

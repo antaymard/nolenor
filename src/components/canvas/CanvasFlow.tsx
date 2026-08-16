@@ -26,6 +26,7 @@ import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useHotspotHotkeys } from "@/hooks/useHotspotHotkeys";
 import { withTouchDragGate } from "./touchDragGate";
+import { markCanvasMoved } from "@/lib/canvasPanGesture";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useEdgeEditorStore } from "@/stores/edgeEditorStore";
 import { useNoleStore } from "@/stores/noleStore";
@@ -217,6 +218,12 @@ export default function CanvasFlow({
         onSelectionContextMenu={onSelectionContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
         onEdgeDoubleClick={onEdgeDoubleClick}
+        // Tient à jour le geste de pan en cours : les nodes qui capturent la
+        // molette s'en servent pour ne pas interrompre un pan démarré ailleurs.
+        // En pan-on-scroll, React Flow n'émet `onMove` qu'à partir du 2e événement
+        // du geste, d'où `onMoveStart` en plus.
+        onMoveStart={markCanvasMoved}
+        onMove={markCanvasMoved}
         deleteKeyCode={null}
         nodes={flowNodes}
         edges={edgesWithColoredMarkers}

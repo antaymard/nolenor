@@ -342,11 +342,49 @@ export async function markdownToBlockNoteBlocks(
   return withHeadlessEditor((editor) =>
     // `[[date:…]]` tokens are honoured here too, so a full Markdown replace can
     // author real date pills rather than leaving the literal text behind.
-    expandDateTokensInBlocks(
-      (editor.tryParseMarkdownToBlocks(markdown) ??
-        []) as BlockNoteBlockWithOptionalId[],
+    toWireSafe(
+      expandDateTokensInBlocks(
+        (editor.tryParseMarkdownToBlocks(markdown) ??
+          []) as BlockNoteBlockWithOptionalId[],
+      ),
     ),
   );
+}
+
+// ── Wire safety ─────────────────────────────────────────────────────────────
+
+/**
+ * Convex arguments cannot carry `undefined` inside an array: the mutation is
+ * rejected with `undefined is not a valid Convex value (present at path …)`,
+ * naming a path deep inside the payload.
+ *
+ * Every table the codec produces used to hit that. BlockNote's own Markdown
+ * parser emits `columnWidths: [undefined, undefined]` and `headerCols:
+ * undefined` for a pipe table, and a `<column/>` with no `width` — which is
+ * exactly what the serializer writes for a table read back from `read_nodes` —
+ * produces the same. So `set_node_data` with a Markdown table, `insert_blocks`
+ * with a Markdown table, and `insert_blocks` with a table copied verbatim out
+ * of `read_nodes` output all failed at the wire, after parsing successfully.
+ *
+ * Normalizing to the shape a STORED document already has fixes all of them at
+ * once: a stored doc has been through `JSON.stringify`, so an absent object
+ * value is dropped and an absent array slot is `null` (positions matter —
+ * `columnWidths[i]` belongs to column `i`, it cannot be compacted away).
+ */
+function toWireSafe<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      item === undefined ? null : toWireSafe(item),
+    ) as unknown as T;
+  }
+  if (!isPlainObject(value)) return value;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value)) {
+    if (val === undefined) continue;
+    out[key] = toWireSafe(val);
+  }
+  return out as T;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -646,6 +684,8 @@ function parseFragmentOrDocument(dom: DomGlobals, xml: string): ParsedXml {
 export async function parseBlockNoteXml(
   xml: string,
 ): Promise<BlockNoteBlockWithOptionalId[]> {
+  // Every return path goes through `toWireSafe`: these blocks are handed
+  // straight to a Convex mutation, which rejects `undefined` inside an array.
   return withHeadlessEditor((editor, dom) => {
     const parsed = parseFragmentOrDocument(dom, xml);
     if ("error" in parsed) throw xmlError(parsed.error);
@@ -653,8 +693,10 @@ export async function parseBlockNoteXml(
 
     // A lone `<block>` is a valid XML document in its own right, and so is a
     // lone `<table>` — the shorthand for a document that is just one table.
-    if (root.tagName === "block") return [parseBlockElement(editor, root)];
-    if (root.tagName === "table") return [tableBlock(editor, root)];
+    if (root.tagName === "block") {
+      return toWireSafe([parseBlockElement(editor, root)]);
+    }
+    if (root.tagName === "table") return toWireSafe([tableBlock(editor, root)]);
 
     // Otherwise the root is just an envelope. `<blocknote>` is what the
     // serializer emits, but any container the model reaches for (`<blocks>`,
@@ -692,7 +734,7 @@ export async function parseBlockNoteXml(
           "whose quoting is broken by a quote inside it.",
       );
     }
-    return blocks;
+    return toWireSafe(blocks);
   });
 }
 

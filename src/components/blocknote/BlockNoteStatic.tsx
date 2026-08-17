@@ -119,10 +119,22 @@ function renderInlineContent(
         return <View key={key} {...(node.props || {})} />;
       }
     }
-    // Link wraps styled text children.
+    // Link wraps styled text children. Tailwind's preflight resets bare `a`
+    // to `color:inherit;text-decoration:inherit`, which would otherwise
+    // render a link as plain body text here. `.bn-static-link` (declared
+    // alongside `.bn-shadcn .bn-editor a` in blocknote-overrides.css, one
+    // shared rule for both) restates the same brand-blue underline the live
+    // editor shows, so a link looks identical whether the document is open
+    // in a window or previewed on the canvas.
     if (node.type === "link" && node.href) {
       return (
-        <a key={key} href={node.href} target="_blank" rel="noopener noreferrer">
+        <a
+          key={key}
+          href={node.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bn-static-link"
+        >
           {renderInlineContent(node.content)}
         </a>
       );

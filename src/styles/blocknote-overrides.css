@@ -466,6 +466,30 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * Links — one explicit rule for both surfaces, instead of leaning on
+ * upstream/browser defaults that don't actually agree with each other:
+ *   - The live editor gets `.bn-shadcn .bn-editor a{color:revert}`
+ *     (@blocknote/shadcn/style.css), which fights Tailwind's preflight
+ *     `a{color:inherit}` by falling back to the *browser's* UA link color —
+ *     blue, but not a color this app chose.
+ *   - `BlockNoteStatic`'s bare `<a>` isn't scoped by `.bn-editor`, so that
+ *     shadcn rule never reaches it and preflight's `inherit` wins unopposed:
+ *     a link rendered as plain body text.
+ * Matching the shadcn rule's own selector prefix (`.bn-shadcn .bn-editor`)
+ * keeps specificity equal, so this file's later load order in main.tsx
+ * decides the tie — same technique the heading rules above use. `--brand`
+ * (also the selection-highlight color further down) replaces the arbitrary
+ * browser blue with one this app actually chose, and both surfaces end up
+ * identical instead of two independent almost-blues.
+ * ------------------------------------------------------------------------- */
+.bn-shadcn .bn-editor a,
+.bn-static-link {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
  * Marks, selection, placeholder
  * ------------------------------------------------------------------------- */
 

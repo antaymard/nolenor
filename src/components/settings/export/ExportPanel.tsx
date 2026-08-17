@@ -16,9 +16,9 @@ type Scope = { kind: "all" } | { kind: "canvas"; canvasId: Id<"canvases"> };
 function progressLabel(progress: ExportProgress): string {
   switch (progress.phase) {
     case "listing":
-      return `Inventaire des canvases (${progress.total})…`;
+      return `Listing canvases (${progress.total})…`;
     case "zipping":
-      return "Création de l'archive…";
+      return "Building the archive…";
     case "fetching":
       return `Canvas ${progress.done + 1} / ${progress.total}${
         progress.currentCanvasName ? ` — ${progress.currentCanvasName}` : ""
@@ -51,11 +51,11 @@ export default function ExportPanel() {
       );
       toast.success(
         canvasCount === 1
-          ? "Export terminé (1 canvas)"
-          : `Export terminé (${canvasCount} canvases)`,
+          ? "Export complete (1 canvas)"
+          : `Export complete (${canvasCount} canvases)`,
       );
     } catch (error) {
-      toastError(error, "L'export a échoué");
+      toastError(error, "Export failed");
     } finally {
       setProgress(null);
     }
@@ -64,7 +64,7 @@ export default function ExportPanel() {
   if (status === "LoadingFirstPage") {
     return (
       <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
-        <Spinner /> Chargement de vos canvases…
+        <Spinner /> Loading your canvases…
       </div>
     );
   }
@@ -72,7 +72,7 @@ export default function ExportPanel() {
   if (canvases.length === 0) {
     return (
       <div className="ml-2 mt-2 flex items-center gap-2">
-        <TbExclamationCircle /> Vous n'avez encore aucun canvas à exporter
+        <TbExclamationCircle /> You have no canvas to export yet
       </div>
     );
   }
@@ -89,10 +89,10 @@ export default function ExportPanel() {
             onChange={() => setScope({ kind: "all" })}
           />
           <span>
-            <span className="font-medium">Tout mon contenu</span>
+            <span className="font-medium">Everything</span>
             <span className="block text-muted-foreground">
-              Les {canvases.length} canvases que vous avez créés
-              {status === "CanLoadMore" ? " (et plus)" : ""}, avec tous leurs
+              The {canvases.length} canvases you created
+              {status === "CanLoadMore" ? " (and more)" : ""}, with all their
               nodes.
             </span>
           </span>
@@ -109,7 +109,7 @@ export default function ExportPanel() {
             }
           />
           <span className="w-full">
-            <span className="font-medium">Un canvas précis</span>
+            <span className="font-medium">A single canvas</span>
             {scope.kind === "canvas" && (
               <select
                 className="mt-2 block w-full max-w-md rounded-md border border-gray-300 bg-white p-2 text-sm"
@@ -140,14 +140,14 @@ export default function ExportPanel() {
           disabled={isExporting}
           onClick={() => loadMore(50)}
         >
-          Charger plus de canvases
+          Load more canvases
         </Button>
       )}
 
       <div className="flex items-center gap-3">
         <Button onClick={handleExport} disabled={isExporting}>
           {isExporting ? <Spinner /> : <TbDownload />}
-          Exporter
+          Export
         </Button>
         {progress && (
           <span className="text-sm text-muted-foreground">

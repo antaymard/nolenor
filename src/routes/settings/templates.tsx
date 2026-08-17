@@ -4,9 +4,11 @@ import { api } from "@/../convex/_generated/api";
 import { Button } from "@/components/shadcn/button";
 import TemplatesList from "@/components/settings/templates/TemplatesList";
 import { useTemplateEditor } from "@/hooks/useTemplateEditor";
+import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 import { TbPlus } from "react-icons/tb";
 
 export const Route = createFileRoute("/settings/templates")({
+  beforeLoad: guardDevOnlySettingsRoute,
   component: TemplatesSettingsPage,
 });
 

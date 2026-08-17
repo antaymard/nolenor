@@ -10,6 +10,7 @@ import {
   TbUser,
   TbX,
 } from "react-icons/tb";
+import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 
 export const Route = createFileRoute("/settings")({
   component: RouteComponent,
@@ -19,6 +20,8 @@ type SidebarButton = {
   label: string;
   icon: IconType;
   route: string;
+  /** Entrée réservée au dev, cf. lib/featureFlags.ts. */
+  devOnly?: boolean;
 };
 
 type SettingsSidebarSection = {
@@ -44,9 +47,19 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
   {
     label: "Customization",
     buttons: [
-      { label: "Custom nodes", icon: TbCategory, route: "/settings/templates" },
+      {
+        label: "Custom nodes",
+        icon: TbCategory,
+        route: "/settings/templates",
+        devOnly: true,
+      },
       { label: "Skills", icon: TbBulb, route: "/settings/skills" },
-      { label: "Recipes", icon: TbListDetails, route: "/settings/recipes" },
+      {
+        label: "Recipes",
+        icon: TbListDetails,
+        route: "/settings/recipes",
+        devOnly: true,
+      },
     ],
   },
   {
@@ -58,8 +71,19 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
 ];
 
 function RouteComponent() {
+  // Une section dont toutes les entrées sont réservées au dev disparaît avec
+  // elles, plutôt que de laisser un titre seul en production.
+  const visibleSections = settingsSidebarSections
+    .map((section) => ({
+      ...section,
+      buttons: section.buttons.filter(
+        (button) => !button.devOnly || SHOW_DEV_ONLY_SETTINGS,
+      ),
+    }))
+    .filter((section) => section.buttons.length > 0);
+
   const renderSettingsSidebar = () =>
-    settingsSidebarSections.map((section) => (
+    visibleSections.map((section) => (
       <div key={section.label} className="space-y-1">
         <h3 className="pl-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {section.label}

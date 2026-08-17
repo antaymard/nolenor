@@ -17,9 +17,11 @@ import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import { BLOCKNOTE_PORTAL_ELEMENTS } from "@/components/blocknote/portalElements";
+import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings/recipes/edit/$recipeId")({
+  beforeLoad: guardDevOnlySettingsRoute,
   component: RouteComponent,
 });
 

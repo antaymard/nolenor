@@ -1,6 +1,7 @@
 import type { Doc } from "@/../convex/_generated/dataModel";
 import { getNodeDataTitle } from "@/../convex/lib/getNodeDataTitle";
 import { nodeDataToMarkdown } from "./nodeDataToMarkdown";
+import { filenameSlug } from "@/lib/filenameSlug";
 import type { CanvasWithNodeDatas, ExportFile, ExportTemplate } from "./types";
 
 /**
@@ -9,20 +10,8 @@ import type { CanvasWithNodeDatas, ExportFile, ExportTemplate } from "./types";
  * Aucun accès réseau ici — `runExport` fournit les données déjà chargées.
  */
 
-const MAX_SLUG_LENGTH = 60;
-
 export function slugify(input: string): string {
-  const slug = input
-    .normalize("NFD")
-    // Retire les diacritiques (bloc Combining Diacritical Marks).
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, MAX_SLUG_LENGTH)
-    .replace(/-+$/g, "");
-
-  return slug || "sans-titre";
+  return filenameSlug(input, "untitled");
 }
 
 /** Un titre peut contenir des `[` / `]`, qui casseraient le lien du sommaire. */
@@ -74,7 +63,7 @@ function renderEdgeList(
     return `- ${source} → ${target}`;
   });
 
-  return ["", "## Connexions", "", ...lines];
+  return ["", "## Connections", "", ...lines];
 }
 
 export async function buildCanvasFiles(
@@ -125,17 +114,17 @@ export async function buildCanvasFiles(
     "",
     canvas.description ?? "",
     "",
-    `Mis à jour le ${new Date(canvas.updatedAt).toISOString().slice(0, 10)} · ${ordered.length} node(s)`,
+    `Updated ${new Date(canvas.updatedAt).toISOString().slice(0, 10)} · ${ordered.length} node(s)`,
     "",
     "## Nodes",
     "",
-    ...(summaryLines.length > 0 ? summaryLines : ["_Ce canvas ne contient aucun node._"]),
+    ...(summaryLines.length > 0 ? summaryLines : ["_This canvas has no node._"]),
     ...renderEdgeList(canvas, titleByCanvasNodeId),
     "",
     "---",
     "",
-    "`canvas.json` contient la structure complète (positions, connexions, slideshows, hotspots).",
-    "`nodes.json` contient le contenu brut de chaque node, sans perte.",
+    "`canvas.json` holds the full structure (positions, connections, slideshows, hotspots).",
+    "`nodes.json` holds the raw content of every node, losslessly.",
     "",
   ].join("\n");
 
@@ -149,33 +138,33 @@ export function buildRootReadme(
   exportedAt: Date,
 ): ExportFile {
   const content = [
-    "# Export nolënor",
+    "# nolënor export",
     "",
-    `Généré le ${exportedAt.toISOString().slice(0, 10)}.`,
+    `Generated on ${exportedAt.toISOString().slice(0, 10)}.`,
     "",
-    `${canvasNames.length} canvas exporté(s) :`,
+    `${canvasNames.length} canvas(es) exported:`,
     "",
     ...canvasNames.map((name, index) => `${index + 1}. ${name}`),
     "",
     "## Format",
     "",
-    "Chaque canvas a son dossier dans `canvases/`, contenant :",
+    "Each canvas gets its own folder under `canvases/`, containing:",
     "",
-    "- `README.md` — sommaire des nodes et liste des connexions",
-    "- `canvas.json` — la structure du canvas (positions, connexions, slideshows, hotspots)",
-    "- `nodes.json` — le contenu brut de tous les nodes, sans perte",
-    "- `nodes/` — un fichier Markdown lisible par node",
+    "- `README.md` — node index and list of connections",
+    "- `canvas.json` — the canvas structure (positions, connections, slideshows, hotspots)",
+    "- `nodes.json` — the raw content of every node, losslessly",
+    "- `nodes/` — one readable Markdown file per node",
     "",
-    "Le Markdown est là pour être relu et réutilisé ailleurs ; il est volontairement",
-    "simplifié (couleurs, alignements et mises en forme avancées ne survivent pas).",
-    "Le JSON à côté est la version fidèle : si un détail manque dans le Markdown,",
-    "il est dans le JSON.",
+    "The Markdown is there to be read and reused elsewhere; it is deliberately",
+    "simplified (colors, alignments and advanced formatting do not survive it).",
+    "The JSON next to it is the faithful version: whatever the Markdown drops,",
+    "the JSON still has.",
     "",
-    "## Fichiers joints",
+    "## Attachments",
     "",
-    "Les images, PDF et fichiers audio ne sont **pas** inclus dans cette archive :",
-    "ils sont référencés par leur URL. Pensez à télécharger ceux qui comptent tant",
-    "que votre compte est actif.",
+    "Images, PDFs and audio files are **not** bundled into this archive: they are",
+    "referenced by URL. Download the ones that matter while your account is",
+    "still active.",
     "",
   ].join("\n");
 

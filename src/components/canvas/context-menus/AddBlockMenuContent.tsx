@@ -12,6 +12,7 @@ import prebuiltNodesConfig, {
 } from "../../nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useMyTemplates } from "@/stores/templatesStore";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
+import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 
 export default function AddBlockMenuContent({
   getCreatePosition,
@@ -66,7 +67,11 @@ export default function AddBlockMenuContent({
           );
         })}
 
-      {isAuthenticated && (
+      {/* Custom nodes réservés au dev (cf. lib/featureFlags.ts) : c'est la
+          seule surface de CRÉATION d'un node custom, donc la seule à masquer.
+          Les custom nodes déjà posés sur un canvas continuent de s'afficher et
+          de s'éditer normalement. */}
+      {isAuthenticated && SHOW_DEV_ONLY_SETTINGS && (
         <>
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="whitespace-nowrap">

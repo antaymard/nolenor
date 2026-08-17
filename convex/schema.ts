@@ -1,4 +1,5 @@
 import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
 import { apiTokensValidator } from "./schemas/apiTokensSchema";
 import { canvasesValidator } from "./schemas/canvasesSchema";
@@ -22,6 +23,31 @@ import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
 
 const schema = defineSchema({
   ...authTables,
+
+  // ============================================================================
+  // AUTH — surcharge de la table `users` d'@convex-dev/auth
+  // ============================================================================
+  // `displayName` : le nom que l'utilisateur s'est lui-même donné (Settings →
+  // Account), et celui que Nolë utilise pour s'adresser à lui.
+  //
+  // Champ distinct de `name`, et non une écriture dans `name`, parce que
+  // `name` appartient au provider d'auth : pour un provider OAuth, le
+  // `createOrUpdateUser` par défaut d'@convex-dev/auth patche le document user
+  // avec TOUT le profil renvoyé (`implementation/users.js`) à chaque connexion
+  // sur un compte existant. Le profil Google contient `name` : un prénom choisi
+  // par l'utilisateur et rangé dans `name` serait donc silencieusement écrasé à
+  // chaque login. Ici les deux cases sont séparées — le provider écrit la
+  // sienne, nous la nôtre, et la lecture retombe de l'une sur l'autre
+  // (`resolveUserDisplayName`).
+  //
+  // Les index doivent être redéclarés : la surcharge remplace la définition
+  // d'authTables, elle ne s'y ajoute pas.
+  users: defineTable({
+    ...authTables.users.validator.fields,
+    displayName: v.optional(v.string()),
+  })
+    .index("email", ["email"])
+    .index("phone", ["phone"]),
 
   // ============================================================================
   // CANVAS

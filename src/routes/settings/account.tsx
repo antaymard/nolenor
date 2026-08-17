@@ -31,9 +31,19 @@ function Row({
   );
 }
 
-function NameField({ initialName }: { initialName: string }) {
-  const updateName = useMutation(api.users.updateName);
-  const [draft, setDraft] = useState(initialName);
+// Le champ édite `displayName` — le nom choisi par l'utilisateur — et non le
+// `name` posé par le provider d'auth, qu'un login OAuth réécrit à chaque
+// passage (cf. le commentaire de la table `users` dans convex/schema.ts).
+// Laissé vide, il rend la main au nom du provider, proposé en placeholder.
+function NameField({
+  customName,
+  providerName,
+}: {
+  customName: string;
+  providerName?: string;
+}) {
+  const updateDisplayName = useMutation(api.users.updateDisplayName);
+  const [draft, setDraft] = useState(customName);
   const [isSaving, setIsSaving] = useState(false);
 
   // Resynchronise sur la valeur serveur quand elle change réellement : après
@@ -41,17 +51,17 @@ function NameField({ initialName }: { initialName: string }) {
   // le même travail, mais en démontant le champ — donc en perdant le focus à
   // chaque sauvegarde.
   useEffect(() => {
-    setDraft(initialName);
-  }, [initialName]);
+    setDraft(customName);
+  }, [customName]);
 
   const trimmed = draft.trim();
-  const isDirty = trimmed !== initialName;
+  const isDirty = trimmed !== customName;
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateName({ name: trimmed });
-      toast.success("Name updated");
+      await updateDisplayName({ displayName: trimmed });
+      toast.success(trimmed ? "Name updated" : "Name cleared");
     } catch (error) {
       toastError(error, "Could not update your name");
     } finally {
@@ -60,25 +70,33 @@ function NameField({ initialName }: { initialName: string }) {
   };
 
   return (
-    <form
-      className="flex items-center gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (isDirty && !isSaving) void handleSave();
-      }}
-    >
-      <Input
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        placeholder="How Nolë should call you"
-        maxLength={80}
-        className="max-w-xs"
-        aria-label="Name"
-      />
-      <Button type="submit" size="sm" disabled={!isDirty || isSaving}>
-        {isSaving ? "Saving…" : "Save"}
-      </Button>
-    </form>
+    <div className="space-y-1">
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (isDirty && !isSaving) void handleSave();
+        }}
+      >
+        <Input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={providerName ?? "How Nolë should call you"}
+          maxLength={80}
+          className="max-w-xs"
+          aria-label="Name"
+        />
+        <Button type="submit" size="sm" disabled={!isDirty || isSaving}>
+          {isSaving ? "Saving…" : "Save"}
+        </Button>
+      </form>
+      {trimmed.length === 0 && providerName && (
+        <p className="text-xs text-muted-foreground">
+          Leave empty to keep “{providerName}”, the name your sign-in provider
+          gave us.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -119,7 +137,10 @@ function RouteComponent() {
         ) : (
           <>
             <Row label="Name">
-              <NameField initialName={me.name ?? ""} />
+              <NameField
+                customName={me.customName ?? ""}
+                providerName={me.providerName}
+              />
             </Row>
             <Row label="Email">{me.email ?? "—"}</Row>
             {/* Utile au support : c'est cet id qui apparaît dans les logs et

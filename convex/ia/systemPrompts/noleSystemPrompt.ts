@@ -2,6 +2,7 @@ import {type ActionCtx} from "../../_generated/server";
 import {type Id} from "../../_generated/dataModel";
 import {internal} from "../../_generated/api";
 import {escapeXmlText} from "../../lib/xml";
+import {resolveUserDisplayName} from "../../lib/userDisplayName";
 import {nodeTypesPresentation} from "./systemParts";
 import { formatTemplatesForPrompt } from "../helpers/customTemplateHelpers";
 
@@ -97,10 +98,12 @@ async function generateNoleSystemPrompt({
   const availableSkillsContext = formatAvailableSkills(availableSkills);
   const userCanvasesContext = formatUserCanvases(userCanvases);
   const userTemplatesContext = formatTemplatesForPrompt(userTemplates);
-  // Réglé par l'utilisateur lui-même (Settings → Account) ou hérité du provider
-  // d'auth. Échappé : c'est du texte libre qui atterrit dans le system prompt.
-  const userNameContext = user?.name?.trim()
-    ? escapeXmlText(user.name.trim())
+  // Réglé par l'utilisateur lui-même (Settings → Account), à défaut hérité du
+  // provider d'auth. Échappé : c'est du texte libre qui atterrit dans le system
+  // prompt.
+  const resolvedUserName = resolveUserDisplayName(user);
+  const userNameContext = resolvedUserName
+    ? escapeXmlText(resolvedUserName)
     : "Unknown — the user has not set a name.";
 
   return `

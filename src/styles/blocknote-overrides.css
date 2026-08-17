@@ -473,7 +473,13 @@
  * table rules above: this also backs the rich_text field views.
  * ------------------------------------------------------------------------- */
 .bn-static-link {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.3em;
   color: var(--brand);
+}
+
+.bn-static-link-text {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -481,9 +487,12 @@
 .bn-static-link-favicon {
   width: 0.85em;
   height: 0.85em;
-  margin-right: 0.25em;
-  vertical-align: -0.1em;
+  flex: none;
   border-radius: 2px;
+  /* Optically centre the icon on the text's first line rather than on its
+   * own glyph — same technique as .bn-static-check-item's checkbox above,
+   * keyed off the same line-height token instead of the icon's height. */
+  margin-top: calc((1em * var(--doc-line-height) - 0.85em) / 2);
 }
 
 /* ---------------------------------------------------------------------------

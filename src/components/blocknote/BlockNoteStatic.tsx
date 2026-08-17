@@ -141,6 +141,15 @@ function renderInlineContent(
     // link here read as plain body text. `.bn-static-link` restates the
     // intent explicitly and adds a favicon "head" so a link stands out
     // inline even before the eye reaches the underline.
+    //
+    // The text is wrapped in its own span rather than left as a direct flex
+    // child of `<a>`: a bare `<img>` next to a text run has an unconditional
+    // line-break opportunity between them (CSS Text Module 3 — atomic inline
+    // boxes always get one, whitespace or not), so the icon could end up
+    // orphaned on its own line above the text. Making `.bn-static-link` a
+    // flex row removes that internal break point — the icon and the *start*
+    // of the text can never separate — while the single text span still
+    // wraps normally across lines for long link text.
     if (node.type === "link" && node.href) {
       const favicon = faviconUrl(node.href);
       return (
@@ -161,7 +170,9 @@ function renderInlineContent(
               }}
             />
           )}
-          {renderInlineContent(node.content)}
+          <span className="bn-static-link-text">
+            {renderInlineContent(node.content)}
+          </span>
         </a>
       );
     }

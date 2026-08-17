@@ -75,20 +75,6 @@ interface InlineNode {
   props?: Record<string, unknown>;
 }
 
-/**
- * Same favicon source LinkNode.tsx uses for its link-preview chip, so a link
- * reads as "a link" the same way everywhere in the app. Returns null on an
- * unparsable href (e.g. a relative or malformed URL) so the caller renders
- * the link text alone rather than a broken image.
- */
-function faviconUrl(href: string): string | null {
-  try {
-    return `https://www.google.com/s2/favicons?domain=${new URL(href).hostname}&sz=16`;
-  } catch {
-    return null;
-  }
-}
-
 function renderStyledText(node: InlineNode, key: string): React.ReactNode {
   // Wrappers are applied inside-out; only the outermost one is a list child,
   // so the key goes on the final element rather than on every layer.
@@ -134,24 +120,13 @@ function renderInlineContent(
       }
     }
     // Link wraps styled text children. Tailwind's preflight resets bare `a`
-    // to `color:inherit;text-decoration:inherit` — the live editor fights
-    // this with its own `.bn-shadcn .bn-editor a{color:revert}` rule
-    // (@blocknote/shadcn/style.css), but that selector is scoped to
-    // `.bn-editor` and never reaches this static renderer, so an unstyled
-    // link here read as plain body text. `.bn-static-link` restates the
-    // intent explicitly and adds a favicon "head" so a link stands out
-    // inline even before the eye reaches the underline.
-    //
-    // The text is wrapped in its own span rather than left as a direct flex
-    // child of `<a>`: a bare `<img>` next to a text run has an unconditional
-    // line-break opportunity between them (CSS Text Module 3 — atomic inline
-    // boxes always get one, whitespace or not), so the icon could end up
-    // orphaned on its own line above the text. Making `.bn-static-link` a
-    // flex row removes that internal break point — the icon and the *start*
-    // of the text can never separate — while the single text span still
-    // wraps normally across lines for long link text.
+    // to `color:inherit;text-decoration:inherit`, which would otherwise
+    // render a link as plain body text here. `.bn-static-link` (declared
+    // alongside `.bn-shadcn .bn-editor a` in blocknote-overrides.css, one
+    // shared rule for both) restates the same brand-blue underline the live
+    // editor shows, so a link looks identical whether the document is open
+    // in a window or previewed on the canvas.
     if (node.type === "link" && node.href) {
-      const favicon = faviconUrl(node.href);
       return (
         <a
           key={key}
@@ -160,19 +135,7 @@ function renderInlineContent(
           rel="noopener noreferrer"
           className="bn-static-link"
         >
-          {favicon && (
-            <img
-              src={favicon}
-              alt=""
-              className="bn-static-link-favicon"
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-              }}
-            />
-          )}
-          <span className="bn-static-link-text">
-            {renderInlineContent(node.content)}
-          </span>
+          {renderInlineContent(node.content)}
         </a>
       );
     }

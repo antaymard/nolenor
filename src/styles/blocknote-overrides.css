@@ -466,33 +466,27 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Links (read-only surfaces) — see the comment next to `.bn-static-link` in
- * BlockNoteStatic.tsx for why this is needed at all. `--brand` matches the
- * selection-highlight color further down, so a link and a selection read as
- * the same "accent" family. Deliberately unprefixed, same reasoning as the
- * table rules above: this also backs the rich_text field views.
+ * Links — one explicit rule for both surfaces, instead of leaning on
+ * upstream/browser defaults that don't actually agree with each other:
+ *   - The live editor gets `.bn-shadcn .bn-editor a{color:revert}`
+ *     (@blocknote/shadcn/style.css), which fights Tailwind's preflight
+ *     `a{color:inherit}` by falling back to the *browser's* UA link color —
+ *     blue, but not a color this app chose.
+ *   - `BlockNoteStatic`'s bare `<a>` isn't scoped by `.bn-editor`, so that
+ *     shadcn rule never reaches it and preflight's `inherit` wins unopposed:
+ *     a link rendered as plain body text.
+ * Matching the shadcn rule's own selector prefix (`.bn-shadcn .bn-editor`)
+ * keeps specificity equal, so this file's later load order in main.tsx
+ * decides the tie — same technique the heading rules above use. `--brand`
+ * (also the selection-highlight color further down) replaces the arbitrary
+ * browser blue with one this app actually chose, and both surfaces end up
+ * identical instead of two independent almost-blues.
  * ------------------------------------------------------------------------- */
+.bn-shadcn .bn-editor a,
 .bn-static-link {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 0.3em;
   color: var(--brand);
-}
-
-.bn-static-link-text {
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-
-.bn-static-link-favicon {
-  width: 0.85em;
-  height: 0.85em;
-  flex: none;
-  border-radius: 2px;
-  /* Optically centre the icon on the text's first line rather than on its
-   * own glyph — same technique as .bn-static-check-item's checkbox above,
-   * keyed off the same line-height token instead of the icon's height. */
-  margin-top: calc((1em * var(--doc-line-height) - 0.85em) / 2);
 }
 
 /* ---------------------------------------------------------------------------

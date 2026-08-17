@@ -466,6 +466,27 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * Links (read-only surfaces) — see the comment next to `.bn-static-link` in
+ * BlockNoteStatic.tsx for why this is needed at all. `--brand` matches the
+ * selection-highlight color further down, so a link and a selection read as
+ * the same "accent" family. Deliberately unprefixed, same reasoning as the
+ * table rules above: this also backs the rich_text field views.
+ * ------------------------------------------------------------------------- */
+.bn-static-link {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bn-static-link-favicon {
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.25em;
+  vertical-align: -0.1em;
+  border-radius: 2px;
+}
+
+/* ---------------------------------------------------------------------------
  * Marks, selection, placeholder
  * ------------------------------------------------------------------------- */
 

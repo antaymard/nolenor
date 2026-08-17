@@ -189,10 +189,10 @@ function BlockNoteFieldEditor({
           sideMenu={false}
           portalElements={PORTAL_ELEMENTS}
         >
-          <SideMenuController
-            sideMenu={SideMenuWithoutAddButton}
-            portalElement={null}
-          />
+          {/* No `portalElement` override: it would bypass `editor.portalElement`
+              and break the drag handle's hover tracking — see the long
+              version in BlocknoteWindow.tsx next to the same controller. */}
+          <SideMenuController sideMenu={SideMenuWithoutAddButton} />
           <SuggestionMenuController
             triggerCharacter="/"
             portalElement={null}

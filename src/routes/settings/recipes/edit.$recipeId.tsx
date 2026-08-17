@@ -143,10 +143,11 @@ function RouteComponent() {
                     sideMenu={false}
                     portalElements={PORTAL_ELEMENTS}
                   >
-                    <SideMenuController
-                      sideMenu={SideMenuWithoutAddButton}
-                      portalElement={null}
-                    />
+                    {/* No `portalElement` override: it would bypass
+                        `editor.portalElement` and break the drag handle's
+                        hover tracking — see BlocknoteWindow.tsx for the
+                        full story next to the same controller. */}
+                    <SideMenuController sideMenu={SideMenuWithoutAddButton} />
                   </BlockNoteView>
                   {hasError && (
                     <span className="text-sm text-destructive">

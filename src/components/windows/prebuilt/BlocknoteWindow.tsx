@@ -284,10 +284,17 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
           sideMenu={false}
           portalElements={PORTAL_ELEMENTS}
         >
-          <SideMenuController
-            sideMenu={SideMenuWithoutAddButton}
-            portalElement={null}
-          />
+          {/* No `portalElement` override here: BlockNote's own mousemove
+              hide-tracking (SideMenuView.onMouseMove -> editor.isWithinEditor)
+              only recognizes elements inside `editor.portalElement`. Forcing
+              this popover straight into `document.body` (as the neighbouring
+              SuggestionMenuController does) puts the drag handle outside that
+              check, so the instant the cursor reaches the handle the menu
+              reads it as "left the editor" and hides it. Leaving this prop
+              unset falls back to `editor.portalElement`, which is already
+              mounted at document.body via `portalElements={PORTAL_ELEMENTS}`
+              above — same clipping fix, without breaking hover tracking. */}
+          <SideMenuController sideMenu={SideMenuWithoutAddButton} />
           <SuggestionMenuController
             triggerCharacter="/"
             portalElement={null}

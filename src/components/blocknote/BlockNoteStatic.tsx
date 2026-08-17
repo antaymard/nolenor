@@ -75,6 +75,20 @@ interface InlineNode {
   props?: Record<string, unknown>;
 }
 
+/**
+ * Same favicon source LinkNode.tsx uses for its link-preview chip, so a link
+ * reads as "a link" the same way everywhere in the app. Returns null on an
+ * unparsable href (e.g. a relative or malformed URL) so the caller renders
+ * the link text alone rather than a broken image.
+ */
+function faviconUrl(href: string): string | null {
+  try {
+    return `https://www.google.com/s2/favicons?domain=${new URL(href).hostname}&sz=16`;
+  } catch {
+    return null;
+  }
+}
+
 function renderStyledText(node: InlineNode, key: string): React.ReactNode {
   // Wrappers are applied inside-out; only the outermost one is a list child,
   // so the key goes on the final element rather than on every layer.
@@ -120,10 +134,34 @@ function renderInlineContent(
         return <View key={key} {...(node.props || {})} />;
       }
     }
-    // Link wraps styled text children.
+    // Link wraps styled text children. Tailwind's preflight resets bare `a`
+    // to `color:inherit;text-decoration:inherit` — the live editor fights
+    // this with its own `.bn-shadcn .bn-editor a{color:revert}` rule
+    // (@blocknote/shadcn/style.css), but that selector is scoped to
+    // `.bn-editor` and never reaches this static renderer, so an unstyled
+    // link here read as plain body text. `.bn-static-link` restates the
+    // intent explicitly and adds a favicon "head" so a link stands out
+    // inline even before the eye reaches the underline.
     if (node.type === "link" && node.href) {
+      const favicon = faviconUrl(node.href);
       return (
-        <a key={key} href={node.href} target="_blank" rel="noopener noreferrer">
+        <a
+          key={key}
+          href={node.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bn-static-link"
+        >
+          {favicon && (
+            <img
+              src={favicon}
+              alt=""
+              className="bn-static-link-favicon"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          )}
           {renderInlineContent(node.content)}
         </a>
       );

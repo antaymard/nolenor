@@ -19,6 +19,7 @@ import {
 } from "@/components/blocknote/registry";
 import { getNodeMentionSuggestionItems } from "@/components/blocknote/nodeMentionSuggestions";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import { BLOCKNOTE_PORTAL_ELEMENTS } from "@/components/blocknote/portalElements";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
@@ -38,11 +39,8 @@ interface BlocknoteWindowProps {
 // genuine user edits.
 const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
 
-// Mounts BlockNote's floating menus (side menu, formatting toolbar, slash
-// menu...) on document.body instead of the default .bn-container, which
-// otherwise sits inside this app's overflow:hidden/auto window chrome
-// (WindowFrame) and clips them at the window's edges.
-const PORTAL_ELEMENTS = { default: null } as const;
+// Où atterrit l'UI flottante de BlockNote (menus sur document.body, poignées
+// de table dans l'éditeur) : voir blocknote/portalElements.ts.
 
 /**
  * Canonical form of a stored doc, used to tell "the server sent something new"
@@ -282,7 +280,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
           className={cn("nodrag h-full")}
           slashMenu={false}
           sideMenu={false}
-          portalElements={PORTAL_ELEMENTS}
+          portalElements={BLOCKNOTE_PORTAL_ELEMENTS}
         >
           {/* No `portalElement` override here: BlockNote's own mousemove
               hide-tracking (SideMenuView.onMouseMove -> editor.isWithinEditor)
@@ -313,6 +311,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
           />
           <SuggestionMenuController
             triggerCharacter="@"
+            portalElement={null}
             getItems={async (query) =>
               getNodeMentionSuggestionItems(editor, query)
             }

@@ -18,6 +18,7 @@ import {
   type BlockNoteBlock,
 } from "@/../convex/lib/blockNoteDocument";
 import { blockNoteBlocksToMarkdown } from "@/lib/blockNoteMarkdownConverter";
+import { filenameSlug } from "@/lib/filenameSlug";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 
@@ -37,16 +38,7 @@ import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBou
 const NO_BLOCKS: BlockNoteBlock[] = [];
 
 function markdownFilename(title: string): string {
-  const slug = title
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
-    .replace(/-+$/g, "");
-
-  return `${slug || "blocknote"}.md`;
+  return `${filenameSlug(title, "blocknote")}.md`;
 }
 
 function BlocknoteNode(xyNode: Node) {

@@ -28,19 +28,28 @@ type WindowSizePreset = WindowSize | ViewportWindowSize;
 
 const DEFAULT_WINDOW_SIZE: WindowSizePreset = { width: 800, height: 520 };
 
+// Gabarit « document » : la colonne étroite et pleine hauteur du blocknote.
+// Partagé par tous les types dont la window est une surface de lecture ou
+// d'édition en pleine page — blocknote, embed, app, custom, pdf — pour qu'ils
+// s'ouvrent tous à la même taille plutôt qu'à trois formats arbitraires.
+const DOCUMENT_WINDOW_SIZE: WindowSizePreset = {
+  widthRatio: 1 / 2.3,
+  heightRatio: 0.9,
+};
+
 const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
-  blocknote: { widthRatio: 1 / 2.3, heightRatio: 0.9 },
+  blocknote: DOCUMENT_WINDOW_SIZE,
   image: { width: 600, height: 600 },
-  embed: { width: 500, height: 500 },
-  app: { widthRatio: 1 / 1.8, heightRatio: 0.9 },
+  embed: DOCUMENT_WINDOW_SIZE,
+  app: DOCUMENT_WINDOW_SIZE,
   link: { width: 480, height: 360 },
-  pdf: { widthRatio: 1 / 2.3, heightRatio: 0.9 },
+  pdf: DOCUMENT_WINDOW_SIZE,
   value: { width: 400, height: 300 },
   title: { width: 480, height: 320 },
   table: { widthRatio: 1 / 1.8, heightRatio: 0.9 },
   // Fallback pour les custom nodes dont le template ne définit pas de
   // windowSize (la taille passe normalement par le payload openWindow).
-  custom: { width: 520, height: 460 },
+  custom: DOCUMENT_WINDOW_SIZE,
 };
 
 function resolveWindowSize(preset: WindowSizePreset): WindowSize {

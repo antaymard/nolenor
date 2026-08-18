@@ -11,10 +11,10 @@ function RouteComponent() {
       <div className="space-y-1">
         <h1 className="text-xl font-bold">Export my data</h1>
         <i className="text-sm text-muted-foreground not-italic">
-          Téléchargez vos canvases sous forme d'archive ZIP : un Markdown
-          lisible par node, plus le JSON brut à côté pour ne rien perdre. Les
-          images, PDF et fichiers audio ne sont pas inclus dans l'archive — ils
-          y sont référencés par leur URL.
+          Download your canvases as a ZIP archive: one readable Markdown file
+          per node, with the raw JSON next to it so nothing is lost. Images,
+          PDFs and audio files are not bundled in — the archive references them
+          by URL.
         </i>
       </div>
 

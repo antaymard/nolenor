@@ -12,8 +12,10 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { useNavigate } from "@tanstack/react-router";
+import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 
 export const Route = createFileRoute("/settings/recipes/")({
+  beforeLoad: guardDevOnlySettingsRoute,
   component: RouteComponent,
 });
 

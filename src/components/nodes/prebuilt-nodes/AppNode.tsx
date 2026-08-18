@@ -17,12 +17,13 @@ import {
 } from "@/components/shadcn/popover";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
-import { TbPencil, TbMaximize, TbRefresh } from "react-icons/tb";
+import { TbDownload, TbPencil, TbMaximize, TbRefresh } from "react-icons/tb";
 import { colors } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import { useAppNodeRunner } from "@/hooks/useAppNodeRunner";
 import { useIframeCtrlOverlay } from "@/hooks/useIframeCtrlOverlay";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
+import { filenameSlug } from "@/lib/filenameSlug";
 
 function AppNode(xyNode: Node) {
   const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
@@ -47,6 +48,23 @@ function AppNode(xyNode: Node) {
     if (!nodeDataId) return;
     openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "app" });
   }, [nodeDataId, openWindow, xyNode.id]);
+
+  // Le code de l'app est du JSX brut (composant `App`) : on le télécharge tel
+  // qu'il est stocké, sans le HTML d'exécution que `buildSrcdoc` fabrique
+  // autour — c'est la source, pas le bundle, qui est utile hors du canvas.
+  const appCode = (values?.code as string | undefined) ?? "";
+
+  const handleDownloadCode = useCallback(() => {
+    const blob = new Blob([appCode], { type: "text/jsx;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filenameSlug(appTitle, "app")}.jsx`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [appCode, appTitle]);
 
   const handleSaveTitle = useCallback(() => {
     if (!nodeDataId || !inputTitle.trim()) return;
@@ -79,6 +97,16 @@ function AppNode(xyNode: Node) {
         >
           <TbMaximize />
         </Button>
+        {appCode.trim().length > 0 && (
+          <Button
+            size="icon"
+            variant="outline"
+            title="Download code"
+            onClick={handleDownloadCode}
+          >
+            <TbDownload />
+          </Button>
+        )}
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="icon" title="Edit app title">

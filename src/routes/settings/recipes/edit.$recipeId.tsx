@@ -16,6 +16,7 @@ import "@blocknote/shadcn/style.css";
 import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
+import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 
 // Monte les menus flottants de BlockNote sur document.body plutôt que dans
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 const PORTAL_ELEMENTS = { default: null } as const;
 
 export const Route = createFileRoute("/settings/recipes/edit/$recipeId")({
+  beforeLoad: guardDevOnlySettingsRoute,
   component: RouteComponent,
 });
 

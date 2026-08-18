@@ -12,11 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsTemplatesRouteImport } from './routes/settings/templates'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsExportRouteImport } from './routes/settings/export'
 import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
 import { Route as SettingsAiUsageRouteImport } from './routes/settings/ai-usage'
+import { Route as SettingsAccountRouteImport } from './routes/settings/account'
 import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
 import { Route as SettingsRecipesIndexRouteImport } from './routes/settings/recipes/index'
 import { Route as SettingsRecipesEditRecipeIdRouteImport } from './routes/settings/recipes/edit.$recipeId'
@@ -35,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsTemplatesRoute = SettingsTemplatesRouteImport.update({
   id: '/templates',
@@ -61,6 +68,11 @@ const SettingsAiUsageRoute = SettingsAiUsageRouteImport.update({
   path: '/ai-usage',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsAccountRoute = SettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const CanvasCanvasIdRoute = CanvasCanvasIdRouteImport.update({
   id: '/canvas/$canvasId',
   path: '/canvas/$canvasId',
@@ -83,24 +95,27 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
+  '/settings/': typeof SettingsIndexRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
+  '/settings': typeof SettingsIndexRoute
   '/settings/recipes': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -110,11 +125,13 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
+  '/settings/': typeof SettingsIndexRoute
   '/settings/recipes/': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
@@ -125,24 +142,27 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
     | '/settings/skills'
     | '/settings/templates'
+    | '/settings/'
     | '/settings/recipes'
     | '/settings/recipes/edit/$recipeId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
     | '/settings/skills'
     | '/settings/templates'
+    | '/settings'
     | '/settings/recipes'
     | '/settings/recipes/edit/$recipeId'
   id:
@@ -151,11 +171,13 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signin'
     | '/canvas/$canvasId'
+    | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
     | '/settings/skills'
     | '/settings/templates'
+    | '/settings/'
     | '/settings/recipes/'
     | '/settings/recipes/edit/$recipeId'
   fileRoutesById: FileRoutesById
@@ -189,6 +211,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRouteRoute
     }
     '/settings/templates': {
       id: '/settings/templates'
@@ -225,6 +254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAiUsageRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/account': {
+      id: '/settings/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof SettingsAccountRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/canvas/$canvasId': {
       id: '/canvas/$canvasId'
       path: '/canvas/$canvasId'
@@ -250,21 +286,25 @@ declare module '@tanstack/react-router' {
 }
 
 interface SettingsRouteRouteChildren {
+  SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsAiUsageRoute: typeof SettingsAiUsageRoute
   SettingsApiTokensRoute: typeof SettingsApiTokensRoute
   SettingsExportRoute: typeof SettingsExportRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsTemplatesRoute: typeof SettingsTemplatesRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
   SettingsRecipesIndexRoute: typeof SettingsRecipesIndexRoute
   SettingsRecipesEditRecipeIdRoute: typeof SettingsRecipesEditRecipeIdRoute
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsAccountRoute: SettingsAccountRoute,
   SettingsAiUsageRoute: SettingsAiUsageRoute,
   SettingsApiTokensRoute: SettingsApiTokensRoute,
   SettingsExportRoute: SettingsExportRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsTemplatesRoute: SettingsTemplatesRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
   SettingsRecipesIndexRoute: SettingsRecipesIndexRoute,
   SettingsRecipesEditRecipeIdRoute: SettingsRecipesEditRecipeIdRoute,
 }

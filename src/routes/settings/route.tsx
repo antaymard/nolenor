@@ -1,12 +1,16 @@
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import type { IconType } from "react-icons";
 import {
-  createFileRoute,
-  Link,
-  Outlet,
-  useNavigate,
-} from "@tanstack/react-router";
-import { useAuthActions } from "@convex-dev/auth/react";
-import toast from "react-hot-toast";
-import { TbX } from "react-icons/tb";
+  TbCategory,
+  TbChartBar,
+  TbFileExport,
+  TbKey,
+  TbListDetails,
+  TbBulb,
+  TbUser,
+  TbX,
+} from "react-icons/tb";
+import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 
 export const Route = createFileRoute("/settings")({
   component: RouteComponent,
@@ -14,10 +18,10 @@ export const Route = createFileRoute("/settings")({
 
 type SidebarButton = {
   label: string;
-  icon: string;
-  route?: string;
-  action?: "logout";
-  variant?: "danger";
+  icon: IconType;
+  route: string;
+  /** Entrée réservée au dev, cf. lib/featureFlags.ts. */
+  devOnly?: boolean;
 };
 
 type SettingsSidebarSection = {
@@ -25,124 +29,78 @@ type SettingsSidebarSection = {
   buttons: SidebarButton[];
 };
 
+// Trois groupes, et rien d'autre : ce qu'on est (Account), ce qu'on fabrique
+// pour le canvas (Customization), ce qu'on branche dessus (Developer).
+// « Sign out » a quitté la liste — c'est une action, pas une page, et elle
+// vit maintenant sur la page Account. Les entrées mortes ont disparu avec :
+// « Default nodes » et « Account information » pointaient sur /settings, qui
+// n'a jamais eu de page, et « Subscription » sur une route inexistante.
 const settingsSidebarSections: SettingsSidebarSection[] = [
+  {
+    label: "Account",
+    buttons: [
+      { label: "Account", icon: TbUser, route: "/settings/account" },
+      { label: "AI usage", icon: TbChartBar, route: "/settings/ai-usage" },
+      { label: "Export my data", icon: TbFileExport, route: "/settings/export" },
+    ],
+  },
   {
     label: "Customization",
     buttons: [
       {
-        label: "Default nodes",
-        icon: "settings",
-        route: "/settings/",
+        label: "Custom nodes",
+        icon: TbCategory,
+        route: "/settings/templates",
+        devOnly: true,
       },
+      { label: "Skills", icon: TbBulb, route: "/settings/skills" },
       {
         label: "Recipes",
-        icon: "recipes",
+        icon: TbListDetails,
         route: "/settings/recipes",
-      },
-      {
-        label: "Skills",
-        icon: "settings",
-        route: "/settings/skills",
-      },
-      {
-        label: "Custom nodes",
-        icon: "settings",
-        route: "/settings/templates",
+        devOnly: true,
       },
     ],
   },
   {
     label: "Developer",
     buttons: [
-      {
-        label: "API tokens",
-        icon: "settings",
-        route: "/settings/api-tokens",
-      },
-    ],
-  },
-  {
-    label: "Account",
-    buttons: [
-      {
-        label: "Account information",
-        icon: "settings",
-        route: "/settings/",
-      },
-      {
-        label: "Export my data",
-        icon: "settings",
-        route: "/settings/export",
-      },
-      {
-        label: "Sign out",
-        icon: "logout",
-        action: "logout",
-        variant: "danger",
-      },
-    ],
-  },
-  {
-    label: "Billing",
-    buttons: [
-      {
-        label: "AI usage",
-        icon: "usage",
-        route: "/settings/ai-usage",
-      },
-      {
-        label: "Subscription",
-        icon: "billing",
-        route: "/settings/subscription",
-      },
+      { label: "API tokens", icon: TbKey, route: "/settings/api-tokens" },
     ],
   },
 ];
 
 function RouteComponent() {
-  const { signOut } = useAuthActions();
-  const navigate = useNavigate();
+  // Une section dont toutes les entrées sont réservées au dev disparaît avec
+  // elles, plutôt que de laisser un titre seul en production.
+  const visibleSections = settingsSidebarSections
+    .map((section) => ({
+      ...section,
+      buttons: section.buttons.filter(
+        (button) => !button.devOnly || SHOW_DEV_ONLY_SETTINGS,
+      ),
+    }))
+    .filter((section) => section.buttons.length > 0);
 
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      toast.success("You have been signed out");
-      navigate({ to: "/signin" });
-    } catch (error) {
-      console.error("Logout error:", error);
-      toast.error("Error signing out");
-    }
-  };
-
-  const renderSettingsSidebar = () => {
-    return settingsSidebarSections.map((section, index) => (
-      <div key={index} className="space-y-1">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase pl-2 ">
+  const renderSettingsSidebar = () =>
+    visibleSections.map((section) => (
+      <div key={section.label} className="space-y-1">
+        <h3 className="pl-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {section.label}
         </h3>
-        <div className="divide-y divide-gray-300 border border-gray-300 bg-gray-50 rounded-md">
-          {section.buttons.map((button, btnIndex) => {
-            // If it's an action button (like logout)
-            if (button.action === "logout") {
-              return (
-                <button
-                  key={btnIndex}
-                  type="button"
-                  onClick={handleLogout}
-                  className="flex items-center p-2 first:rounded-t-md last:rounded-b-md text-red-600 hover:bg-red-50 w-full text-left transition-colors"
-                >
-                  {button.label}
-                </button>
-              );
-            }
-
-            // Regular link button
+        <div className="flex flex-col gap-0.5">
+          {section.buttons.map((button) => {
+            const Icon = button.icon;
             return (
               <Link
                 key={button.route}
-                to={button.route!}
-                className="flex items-center p-2 first:rounded-t-md last:rounded-b-md text-gray-700 hover:bg-gray-200"
+                to={button.route}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-200"
+                activeProps={{
+                  className: "bg-gray-200 font-medium text-gray-900",
+                }}
               >
+                <Icon size={16} className="shrink-0 text-gray-500" />
                 {button.label}
               </Link>
             );
@@ -150,14 +108,13 @@ function RouteComponent() {
         </div>
       </div>
     ));
-  };
 
   return (
-    <div className="h-screen w-screen bg-white grid grid-cols-[300px_auto]">
+    <div className="grid h-screen w-screen grid-cols-[260px_auto] bg-white">
       {/* Sidebar */}
-      <div className="flex flex-col gap-4 p-5 border-r border-gray-300">
+      <div className="flex flex-col gap-5 overflow-y-auto border-r border-gray-300 p-5">
         <span className="flex items-center gap-2">
-          <Link to="/" className="p-2 rounded-md bg-gray-100 hover:bg-gray-200">
+          <Link to="/" className="rounded-md bg-gray-100 p-2 hover:bg-gray-200">
             <TbX size={16} />
           </Link>
           <h1 className="text-lg font-bold">Settings</h1>
@@ -166,7 +123,7 @@ function RouteComponent() {
       </div>
 
       {/* Core */}
-      <div className="p-5">
+      <div className="min-h-0 overflow-y-auto p-5">
         <Outlet />
       </div>
     </div>

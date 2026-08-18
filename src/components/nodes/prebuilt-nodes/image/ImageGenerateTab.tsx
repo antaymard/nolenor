@@ -70,7 +70,7 @@ export default function ImageGenerateTab({
         model: selectedModel.value,
       });
     } catch (error) {
-      toastError(error, "La génération n'a pas pu démarrer");
+      toastError(error, "Could not start the generation");
     } finally {
       setIsSubmitting(false);
     }
@@ -83,7 +83,7 @@ export default function ImageGenerateTab({
         onChange={(event) => setPrompt(event.target.value)}
         disabled={isBusy}
         rows={4}
-        placeholder="Décrivez l'image à générer…"
+        placeholder="Describe the image to generate…"
         className="text-sm"
       />
 
@@ -94,7 +94,7 @@ export default function ImageGenerateTab({
           disabled={isBusy || !selectedModel}
         >
           <SelectTrigger size="sm" className="flex-1 min-w-0">
-            <SelectValue placeholder="Modèle" />
+            <SelectValue placeholder="Model" />
           </SelectTrigger>
           <SelectContent>
             {(modelOptions ?? []).map((option) => (
@@ -137,18 +137,18 @@ export default function ImageGenerateTab({
       >
         {isRunning ? (
           <>
-            <Spinner /> Génération en cours…
+            <Spinner /> Generating…
           </>
         ) : (
           <>
-            <TbSparkles /> Générer
+            <TbSparkles /> Generate
           </>
         )}
       </Button>
 
       {isRunning && (
         <p className="text-xs text-muted-foreground text-center">
-          Vous pouvez fermer cette fenêtre : les images arriveront sur le node.
+          You can close this window — the images will land on the node.
         </p>
       )}
 
@@ -156,7 +156,7 @@ export default function ImageGenerateTab({
         <p className="text-xs text-destructive flex items-start gap-1.5">
           <TbAlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
           <span className="min-w-0 break-words">
-            {generation.error ?? "La génération a échoué."}
+            {generation.error ?? "The generation failed."}
           </span>
         </p>
       )}

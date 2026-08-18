@@ -183,11 +183,11 @@ function ImageEditDialog({
         </DndContext>
       ) : (
         <p className="text-sm text-muted-foreground text-center py-2">
-          Aucune image
+          No image
         </p>
       )}
       <div className="border-t pt-3">
-        <p className="text-xs text-muted-foreground mb-2">Ajouter une image</p>
+        <p className="text-xs text-muted-foreground mb-2">Add an image</p>
         <UploadFile accept="image/*" onUploadComplete={onUploadComplete} />
       </div>
     </div>
@@ -316,7 +316,7 @@ function ImageNode(xyNode: Node) {
           <Button
             variant="outline"
             size="icon"
-            title="Télécharger"
+            title="Download"
             onClick={handleDownload}
           >
             <TbDownload />
@@ -324,19 +324,19 @@ function ImageNode(xyNode: Node) {
         )}
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" size="icon" title="Gérer les images">
+            <Button variant="outline" size="icon" title="Manage images">
               <TbPencil />
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Gérer les images</DialogTitle>
+              <DialogTitle>Manage images</DialogTitle>
             </DialogHeader>
             {nodeDataId && (
               <Tabs defaultValue="library">
                 <TabsList className="w-full">
-                  <TabsTrigger value="library">Bibliothèque</TabsTrigger>
-                  <TabsTrigger value="generate">Générer</TabsTrigger>
+                  <TabsTrigger value="library">Library</TabsTrigger>
+                  <TabsTrigger value="generate">Generate</TabsTrigger>
                 </TabsList>
                 <TabsContent value="library" className="pt-1">
                   <ImageEditDialog
@@ -366,7 +366,7 @@ function ImageNode(xyNode: Node) {
         {isGenerating && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[4px] bg-background/70 backdrop-blur-[1px]">
             <Spinner className="size-5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Génération…</span>
+            <span className="text-xs text-muted-foreground">Generating…</span>
           </div>
         )}
         {currentValue.length === 0 ? (

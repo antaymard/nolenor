@@ -149,11 +149,11 @@ function ChartView({ usage }: { usage: AiUsage }) {
 
   return (
     <div>
-      <div className="flex gap-3">
+      <div className="flex gap-2 sm:gap-3">
         {/* Graduations : elles portent les valeurs qu'on ne libelle pas
             directement sur les barres. */}
         <div
-          className="relative w-12 shrink-0"
+          className="relative w-10 shrink-0 sm:w-12"
           style={{ height: PLOT_HEIGHT_PX }}
           aria-hidden
         >
@@ -245,8 +245,8 @@ function TableView({ usage }: { usage: AiUsage }) {
   }
 
   return (
-    <div className="max-h-80 overflow-auto">
-      <table className="w-full text-sm tabular-nums">
+    <div className="-mx-3 max-h-80 overflow-auto px-3 sm:mx-0 sm:px-0">
+      <table className="w-full min-w-[26rem] text-sm tabular-nums">
         <thead className="sticky top-0 bg-white text-xs text-[#52514e]">
           <tr className="border-b border-slate-200">
             <th className="py-2 pr-2 text-left font-medium">Day (UTC)</th>
@@ -293,7 +293,7 @@ export default function AiUsageChart({ usage }: { usage: AiUsage }) {
   const [view, setView] = useState<"chart" | "table">("chart");
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4">
+    <div className="rounded-md border border-slate-200 bg-white p-3 sm:p-4">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-[#0b0b0b]">
           Cost per {usage.granularity === "month" ? "month" : "day"}

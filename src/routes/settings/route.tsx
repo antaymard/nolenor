@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import type { IconType } from "react-icons";
 import {
@@ -7,9 +8,16 @@ import {
   TbKey,
   TbListDetails,
   TbBulb,
+  TbMenu2,
   TbUser,
   TbX,
 } from "react-icons/tb";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/shadcn/sheet";
 import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 
 export const Route = createFileRoute("/settings")({
@@ -71,6 +79,10 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
 ];
 
 function RouteComponent() {
+  // Sur mobile la sidebar ne tient pas à côté du contenu : elle passe dans une
+  // sheet, ouverte depuis la barre du haut et refermée dès qu'on navigue.
+  const [navOpen, setNavOpen] = useState(false);
+
   // Une section dont toutes les entrées sont réservées au dev disparaît avec
   // elles, plutôt que de laisser un titre seul en production.
   const visibleSections = settingsSidebarSections
@@ -82,7 +94,7 @@ function RouteComponent() {
     }))
     .filter((section) => section.buttons.length > 0);
 
-  const renderSettingsSidebar = () =>
+  const renderSettingsSidebar = (onNavigate?: () => void) =>
     visibleSections.map((section) => (
       <div key={section.label} className="space-y-1">
         <h3 className="pl-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -95,7 +107,8 @@ function RouteComponent() {
               <Link
                 key={button.route}
                 to={button.route}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-200"
+                onClick={onNavigate}
+                className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-200 md:py-1.5"
                 activeProps={{
                   className: "bg-gray-200 font-medium text-gray-900",
                 }}
@@ -110,9 +123,43 @@ function RouteComponent() {
     ));
 
   return (
-    <div className="grid h-screen w-screen grid-cols-[260px_auto] bg-white">
+    <div className="flex h-dvh w-full flex-col bg-white md:grid md:grid-cols-[260px_auto]">
+      {/* Barre du haut, mobile seulement : le menu et la sortie des settings. */}
+      <div
+        className="flex shrink-0 items-center gap-2 border-b border-gray-300 px-3 py-2 md:hidden"
+        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
+      >
+        <button
+          type="button"
+          onClick={() => setNavOpen(true)}
+          className="rounded-md bg-gray-100 p-2 hover:bg-gray-200"
+          aria-label="Open settings menu"
+        >
+          <TbMenu2 size={16} />
+        </button>
+        <h1 className="min-w-0 flex-1 truncate text-lg font-bold">Settings</h1>
+        <Link
+          to="/"
+          className="rounded-md bg-gray-100 p-2 hover:bg-gray-200"
+          aria-label="Close settings"
+        >
+          <TbX size={16} />
+        </Link>
+      </div>
+
+      <Sheet open={navOpen} onOpenChange={setNavOpen}>
+        <SheetContent side="left" className="w-72 gap-0 p-0">
+          <SheetHeader className="border-b border-gray-200">
+            <SheetTitle>Settings</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 space-y-5 overflow-y-auto p-4">
+            {renderSettingsSidebar(() => setNavOpen(false))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Sidebar */}
-      <div className="flex flex-col gap-5 overflow-y-auto border-r border-gray-300 p-5">
+      <div className="hidden flex-col gap-5 overflow-y-auto border-r border-gray-300 p-5 md:flex">
         <span className="flex items-center gap-2">
           <Link to="/" className="rounded-md bg-gray-100 p-2 hover:bg-gray-200">
             <TbX size={16} />
@@ -123,7 +170,7 @@ function RouteComponent() {
       </div>
 
       {/* Core */}
-      <div className="min-h-0 overflow-y-auto p-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
         <Outlet />
       </div>
     </div>

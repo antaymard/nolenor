@@ -146,11 +146,11 @@ export default function SkillEditor({
   };
 
   return (
-    <div className="flex flex-col gap-4 h-full overflow-y-auto pr-2">
+    <div className="flex flex-col gap-4 h-full overflow-y-auto md:pr-2">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-200">
-        <div className="flex flex-col">
-          <h2 className="text-xl font-bold">
+      <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-gray-200">
+        <div className="flex min-w-0 flex-col">
+          <h2 className="text-xl font-bold break-words">
             {currentSkill?.name || "New skill"}
           </h2>
           <p className="text-sm text-gray-500">

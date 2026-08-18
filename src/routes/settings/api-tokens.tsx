@@ -32,7 +32,7 @@ function RouteComponent() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-xl font-bold">API tokens</h1>
           <i className="text-sm text-muted-foreground not-italic">
@@ -40,7 +40,7 @@ function RouteComponent() {
             servers) access the nolënor API on your behalf.
           </i>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {revokedCount > 0 && (
             <Button
               type="button"
@@ -59,7 +59,7 @@ function RouteComponent() {
         </div>
       </div>
 
-      <div className="mt-4 bg-slate-50 rounded p-2">
+      <div className="mt-4 rounded bg-slate-50 p-2">
         {visibleTokens && visibleTokens.length > 0 && (
           <ApiTokensList tokens={visibleTokens} />
         )}

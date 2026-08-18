@@ -23,6 +23,11 @@ const errors = {
   FILE_TOO_LARGE: "This file is too large.",
   TOO_MANY_FILES: "Too many files in a single upload.",
   AUDIO_TOO_LARGE: "This recording is too long to be transcribed.",
+  IMAGE_GENERATION_WRONG_NODE_TYPE:
+    "Images can only be generated on an image node.",
+  IMAGE_GENERATION_EMPTY_PROMPT: "A prompt is required to generate images.",
+  IMAGE_GENERATION_ALREADY_RUNNING:
+    "A generation is already running on this node.",
 };
 
 export default errors;

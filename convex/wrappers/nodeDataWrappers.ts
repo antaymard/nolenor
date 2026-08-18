@@ -259,3 +259,43 @@ export const editBlockNoteDocument = internalMutation({
     return result;
   },
 });
+
+/**
+ * Append d'images généré côté serveur. Le tableau existant est relu DANS la
+ * transaction, pour ne pas écraser un upload concurrent (cf. appendImages).
+ */
+export const appendImages = internalMutation({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    images: v.array(
+      v.object({
+        url: v.string(),
+        filename: v.optional(v.string()),
+        mimeType: v.optional(v.string()),
+        size: v.optional(v.number()),
+        uploadedAt: v.optional(v.number()),
+        key: v.optional(v.string()),
+      }),
+    ),
+    actor: nodeDataVersionActorValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await NodeDataModels.appendImages(ctx, args);
+    return null;
+  },
+});
+
+/** Statut de génération d'images (hors `values`, cf. setImageGeneration). */
+export const setImageGeneration = internalMutation({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    status: v.union(v.literal("running"), v.literal("error")),
+    error: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await NodeDataModels.setImageGeneration(ctx, args);
+    return null;
+  },
+});

@@ -30,6 +30,14 @@ const limits = {
     period: MINUTE,
     capacity: 10,
   },
+  // Génération d'images : facturée à l'image, et une requête peut en demander
+  // plusieurs d'un coup. Plus serré que `noleMessage` pour cette raison.
+  imageGeneration: {
+    kind: "token bucket",
+    rate: 15,
+    period: MINUTE,
+    capacity: 5,
+  },
   // Transcription Mistral, facturée à la durée d'audio.
   speechTranscribe: {
     kind: "token bucket",

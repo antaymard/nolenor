@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
-import { useNodeDataValues } from "@/hooks/useNodeData";
+import { useNodeData, useNodeDataValues } from "@/hooks/useNodeData";
 import type { Id } from "@/../convex/_generated/dataModel";
 import {
   TbChevronLeft,
@@ -16,6 +16,7 @@ import {
 } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import { Button } from "@/components/shadcn/button";
+import { Spinner } from "@/components/shadcn/spinner";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +24,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/shadcn/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/shadcn/tabs";
 import { UploadFile } from "@/components/fields/UploadFile";
+import ImageGenerateTab from "./image/ImageGenerateTab";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useWindowsStore } from "@/stores/windowsStore";
 import {
@@ -63,8 +71,14 @@ function SortableImageItem({
   image: ImageItem;
   onDelete: (url: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: image.url });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: image.url });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -183,6 +197,9 @@ function ImageEditDialog({
 function ImageNode(xyNode: Node) {
   const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
   const values = useNodeDataValues(nodeDataId);
+  // Le statut de génération est un champ top-level du document, pas une value :
+  // il faut donc le nodeData complet, pas seulement ses values.
+  const nodeData = useNodeData(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const openWindow = useWindowsStore((s) => s.openWindow);
 
@@ -246,6 +263,8 @@ function ImageNode(xyNode: Node) {
     },
     [nodeDataId, updateNodeDataValues],
   );
+
+  const isGenerating = nodeData?.imageGeneration?.status === "running";
 
   const hasMultiple = currentValue.length > 1;
   const safeIndex =
@@ -314,17 +333,42 @@ function ImageNode(xyNode: Node) {
               <DialogTitle>Gérer les images</DialogTitle>
             </DialogHeader>
             {nodeDataId && (
-              <ImageEditDialog
-                currentValue={currentValue}
-                onUploadComplete={handleUploadComplete}
-                onDelete={handleDelete}
-                onReorder={handleReorder}
-              />
+              <Tabs defaultValue="library">
+                <TabsList className="w-full">
+                  <TabsTrigger value="library">Bibliothèque</TabsTrigger>
+                  <TabsTrigger value="generate">Générer</TabsTrigger>
+                </TabsList>
+                <TabsContent value="library" className="pt-1">
+                  <ImageEditDialog
+                    currentValue={currentValue}
+                    onUploadComplete={handleUploadComplete}
+                    onDelete={handleDelete}
+                    onReorder={handleReorder}
+                  />
+                </TabsContent>
+                <TabsContent value="generate" className="pt-1">
+                  <ImageGenerateTab
+                    nodeDataId={nodeDataId}
+                    storedPrompt={
+                      typeof values?.imagePrompt === "string"
+                        ? values.imagePrompt
+                        : ""
+                    }
+                    generation={nodeData?.imageGeneration}
+                  />
+                </TabsContent>
+              </Tabs>
             )}
           </DialogContent>
         </Dialog>
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode}>
+        {isGenerating && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[4px] bg-background/70 backdrop-blur-[1px]">
+            <Spinner className="size-5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Génération…</span>
+          </div>
+        )}
         {currentValue.length === 0 ? (
           <div className="h-full w-full flex flex-col gap-2 items-center justify-center">
             <TbPhoto size={24} />

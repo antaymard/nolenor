@@ -399,8 +399,17 @@ export async function makeNodeDataLLMFriendly(
 
     case "image": {
       const images = values.images as Array<{ url: string }> | undefined;
-      if (!images || images.length === 0) return "(aucune image)";
-      return images.map((img) => `![image](${img.url})`).join("\n");
+      // Le prompt de génération est rendu même sans image : c'est ce que
+      // l'agent doit voir pour l'itérer plutôt que de l'écraser à l'aveugle.
+      const prompt =
+        typeof values.imagePrompt === "string" && values.imagePrompt.length > 0
+          ? `Prompt de génération : ${values.imagePrompt}`
+          : undefined;
+      const rendered =
+        !images || images.length === 0
+          ? "(aucune image)"
+          : images.map((img) => `![image](${img.url})`).join("\n");
+      return prompt ? `${rendered}\n\n${prompt}` : rendered;
     }
 
     case "title": {

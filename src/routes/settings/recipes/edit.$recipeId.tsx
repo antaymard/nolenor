@@ -16,9 +16,13 @@ import "@blocknote/shadcn/style.css";
 import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
-import { BLOCKNOTE_PORTAL_ELEMENTS } from "@/components/blocknote/portalElements";
 import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
+
+// Monte les menus flottants de BlockNote sur document.body plutôt que dans
+// .bn-container par défaut, pour éviter qu'ils soient clippés par un ancêtre
+// overflow:hidden/auto.
+const PORTAL_ELEMENTS = { default: null } as const;
 
 export const Route = createFileRoute("/settings/recipes/edit/$recipeId")({
   beforeLoad: guardDevOnlySettingsRoute,
@@ -139,7 +143,7 @@ function RouteComponent() {
                       field.handleChange(JSON.stringify(editor.document));
                     }}
                     sideMenu={false}
-                    portalElements={BLOCKNOTE_PORTAL_ELEMENTS}
+                    portalElements={PORTAL_ELEMENTS}
                   >
                     {/* No `portalElement` override: it would bypass
                         `editor.portalElement` and break the drag handle's

@@ -17,7 +17,6 @@ import {
   groupSuggestionItems,
 } from "@/components/blocknote/registry";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
-import { BLOCKNOTE_PORTAL_ELEMENTS } from "@/components/blocknote/portalElements";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
@@ -37,8 +36,10 @@ import { cn } from "@/lib/utils";
 
 const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
 
-// Où atterrit l'UI flottante de BlockNote (menus sur document.body, poignées
-// de table dans l'éditeur) : voir blocknote/portalElements.ts.
+// Monte les menus flottants de BlockNote sur document.body plutôt que dans
+// .bn-container par défaut, qui se trouve imbriqué dans la chrome de fenêtre
+// overflow:hidden/auto (WindowFrame) et les fait clipper à ses bords.
+const PORTAL_ELEMENTS = { default: null } as const;
 
 // Forme canonique d'une value stockée : la même donnée nous arrive tantôt en
 // `Block[]` (update optimiste du store) tantôt en string (écho Convex).
@@ -186,7 +187,7 @@ function BlockNoteFieldEditor({
           className={cn("nodrag", className)}
           slashMenu={false}
           sideMenu={false}
-          portalElements={BLOCKNOTE_PORTAL_ELEMENTS}
+          portalElements={PORTAL_ELEMENTS}
         >
           {/* No `portalElement` override: it would bypass `editor.portalElement`
               and break the drag handle's hover tracking — see the long

@@ -7,7 +7,6 @@ import {
   SuggestionMenuController,
 } from "@blocknote/react";
 import { markdownToBlockNoteBlocks } from "@/lib/blockNoteMarkdownConverter";
-import { BLOCKNOTE_PORTAL_ELEMENTS } from "@/components/blocknote/portalElements";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 
@@ -26,6 +25,11 @@ import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBou
 //
 // Le composant n'est pas contrôlé : `initialMarkdown` n'est lu qu'au montage.
 // L'appelant le remonte (via `key`) quand il change de skill.
+
+// Monte les menus flottants de BlockNote sur document.body plutôt que dans
+// .bn-container par défaut, pour éviter qu'ils soient clippés par un ancêtre
+// overflow:hidden/auto — même réglage que les autres éditeurs de l'app.
+const PORTAL_ELEMENTS = { default: null } as const;
 
 type SkillContentEditorProps = {
   initialMarkdown: string;
@@ -58,12 +62,12 @@ function SkillContentEditor({
         onChange={handleChange}
         slashMenu={false}
         sideMenu={false}
-        portalElements={BLOCKNOTE_PORTAL_ELEMENTS}
+        portalElements={PORTAL_ELEMENTS}
       >
-        <SideMenuController
-          sideMenu={SideMenuWithoutAddButton}
-          portalElement={null}
-        />
+        {/* No `portalElement` override: it would bypass `editor.portalElement`
+            and break the drag handle's hover tracking — see the long version
+            in BlocknoteWindow.tsx next to the same controller. */}
+        <SideMenuController sideMenu={SideMenuWithoutAddButton} />
         <SuggestionMenuController
           triggerCharacter="/"
           portalElement={null}

@@ -19,7 +19,7 @@ function RouteComponent() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="space-y-1">
           <h1 className="text-xl font-bold">AI usage</h1>
           <i className="text-sm text-muted-foreground not-italic">
@@ -27,7 +27,11 @@ function RouteComponent() {
             day. Amounts are the ones OpenRouter bills.
           </i>
         </div>
-        <AiUsagePeriodSelector value={period} onChange={setPeriod} />
+        {/* Le sélecteur ne se comprime pas : sur un écran étroit il défile
+            horizontalement plutôt que de casser ses libellés. */}
+        <div className="-mx-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
+          <AiUsagePeriodSelector value={period} onChange={setPeriod} />
+        </div>
       </div>
 
       {isEmpty ? (

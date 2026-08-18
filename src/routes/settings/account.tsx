@@ -23,7 +23,7 @@ function Row({
 }) {
   return (
     <div className="flex flex-col gap-1 border-b border-gray-200 px-3 py-2.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4">
-      <span className="w-40 shrink-0 text-sm text-muted-foreground">
+      <span className="shrink-0 text-sm text-muted-foreground sm:w-40">
         {label}
       </span>
       <div className="min-w-0 flex-1 text-sm">{children}</div>
@@ -72,7 +72,7 @@ function NameField({
   return (
     <div className="space-y-1">
       <form
-        className="flex items-center gap-2"
+        className="flex flex-wrap items-center gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (isDirty && !isSaving) void handleSave();
@@ -83,7 +83,7 @@ function NameField({
           onChange={(event) => setDraft(event.target.value)}
           placeholder={providerName ?? "How Nolë should call you"}
           maxLength={80}
-          className="max-w-xs"
+          className="min-w-0 flex-1 sm:max-w-xs"
           aria-label="Name"
         />
         <Button type="submit" size="sm" disabled={!isDirty || isSaving}>
@@ -142,11 +142,13 @@ function RouteComponent() {
                 providerName={me.providerName}
               />
             </Row>
-            <Row label="Email">{me.email ?? "—"}</Row>
+            <Row label="Email">
+              <span className="break-all">{me.email ?? "—"}</span>
+            </Row>
             {/* Utile au support : c'est cet id qui apparaît dans les logs et
                 les rapports d'erreur. */}
             <Row label="User ID">
-              <span className="font-mono text-xs">{me._id}</span>
+              <span className="font-mono text-xs break-all">{me._id}</span>
             </Row>
           </>
         )}

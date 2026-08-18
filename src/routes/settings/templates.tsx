@@ -35,7 +35,7 @@ function TemplatesSettingsPage() {
         the canvas and another for the window. Nolë can read and write them
         like any other node.
       </p>
-      <div className="max-w-2xl flex-1 overflow-y-auto pr-1">
+      <div className="min-h-0 max-w-2xl flex-1 overflow-y-auto pr-1">
         {templates === undefined ? (
           <p className="px-2 text-sm text-gray-500 italic">Loading…</p>
         ) : (

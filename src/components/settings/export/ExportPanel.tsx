@@ -144,7 +144,7 @@ export default function ExportPanel() {
         </Button>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button onClick={handleExport} disabled={isExporting}>
           {isExporting ? <Spinner /> : <TbDownload />}
           Export

@@ -14,13 +14,26 @@ export const Route = createFileRoute("/signin")({
 const INPUT_CLASSNAME =
   "bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 h-11 focus-visible:ring-0 focus-visible:border-gray-300";
 
+const SPINNER_CLASSNAME =
+  "h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin";
+
 /**
- * Un objet `{ email }` plutôt qu'une troisième chaîne : l'étape de saisie du
- * code doit reposter l'adresse (le code est court, le serveur a besoin de
- * savoir à quel compte le confronter), et on ne veut pas la redemander à
- * l'utilisateur.
+ * Les deux étapes de code portent l'adresse parce qu'elles doivent la reposter :
+ * le code est court, le serveur a besoin de savoir à quel compte le confronter.
+ * On ne va pas la redemander à l'utilisateur.
+ *
+ * `kind` les distingue : elles postent des `flow` différents et n'affichent pas
+ * les mêmes champs. Les confondre reviendrait à envoyer un code de
+ * réinitialisation sur le flux de vérification, que le backend refuserait —
+ * les deux providers OTP ont volontairement des `id` distincts (cf.
+ * `convex/ResendOTPPasswordReset.ts`).
  */
-type Step = "signUp" | "signIn" | { email: string };
+type Step =
+  | "signIn"
+  | "signUp"
+  | "forgot"
+  | { email: string; kind: "verify" }
+  | { email: string; kind: "reset" };
 
 function RouteComponent() {
   const { signIn } = useAuthActions();
@@ -35,11 +48,10 @@ function RouteComponent() {
   // d'authentification concurrents sur la même page.
   const isBusy = isSubmitting || isGoogleRedirecting;
   const codeStep = typeof step === "object" ? step : null;
-  // TypeScript ne déduit pas que `step` est une chaîne dans la branche « pas
-  // d'étape de code » du rendu : on nomme la valeur étroite plutôt que de
-  // caster à l'endroit où elle sert.
+  // TypeScript ne déduit pas que `step` est une chaîne dans les branches de
+  // rendu : on nomme la valeur étroite plutôt que de caster là où elle sert.
   const credentialsFlow: "signIn" | "signUp" =
-    typeof step === "string" ? step : "signIn";
+    step === "signUp" ? "signUp" : "signIn";
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -79,12 +91,12 @@ function RouteComponent() {
         // l'inscription, soit à la première connexion d'un compte créé avant
         // que la vérification n'existe.
         if (!result.signingIn) {
-          setStep({ email });
+          setStep({ email, kind: "verify" });
           toast.success("We sent a verification code to your email.");
           return;
         }
         toast.success(
-          step === "signIn"
+          credentialsFlow === "signIn"
             ? "Successfully signed in!"
             : "Account created successfully!",
         );
@@ -104,7 +116,7 @@ function RouteComponent() {
           // Couvre deux causes distinctes : mot de passe erroné à la connexion,
           // et mot de passe trop court à l'inscription (le serveur en exige 8).
           toast.error(
-            step === "signUp"
+            credentialsFlow === "signUp"
               ? "Password must be at least 8 characters."
               : "Incorrect password.",
           );
@@ -147,6 +159,80 @@ function RouteComponent() {
       });
   };
 
+  const handleForgot = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "");
+
+    signIn("password", formData)
+      .then(() => {
+        setStep({ email, kind: "reset" });
+        toast.success("We sent a reset code to your email.");
+      })
+      .catch((e) => {
+        console.error(e);
+        const errorMessage = e?.message || String(e);
+        // Message explicite plutôt que neutre : le formulaire de connexion dit
+        // déjà « No account found with this email », donc taire l'information
+        // ici ne fermerait rien. Surtout, un utilisateur inscrit via Google
+        // resterait sinon devant un champ de code, à attendre un email qui
+        // n'arrivera jamais.
+        if (errorMessage.includes("InvalidAccountId")) {
+          toast.error(
+            "No password sign-in for this email. If you signed up with Google, use Continue with Google.",
+          );
+        } else if (errorMessage.includes("Invalid email")) {
+          toast.error("Invalid email.");
+        } else {
+          toast.error("Could not send the reset code. Please try again.");
+        }
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
+  };
+
+  const handleResetVerification = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    const formData = new FormData(event.currentTarget);
+
+    signIn("password", formData)
+      .then((result) => {
+        if (!result.signingIn) {
+          toast.error("Invalid or expired code.");
+          return;
+        }
+        toast.success("Password updated!");
+      })
+      .catch((e) => {
+        console.error(e);
+        const errorMessage = e?.message || String(e);
+        // Le serveur valide la longueur AVANT de regarder le code : un mot de
+        // passe trop court échoue donc sans que le code soit en cause, et dire
+        // « code invalide » enverrait l'utilisateur corriger le mauvais champ.
+        if (errorMessage.includes("Invalid password")) {
+          toast.error("Password must be at least 8 characters.");
+        } else {
+          toast.error("Invalid or expired code.");
+        }
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
+  };
+
+  const heading = codeStep
+    ? codeStep.kind === "reset"
+      ? "Choose a new password"
+      : "Check your email"
+    : step === "forgot"
+      ? "Reset your password"
+      : credentialsFlow === "signIn"
+        ? "Welcome back"
+        : "Create an account";
+
   return (
     <div className="min-h-screen w-screen bg-[#f7f7f8] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-[360px] flex flex-col items-center gap-8">
@@ -162,20 +248,16 @@ function RouteComponent() {
           className="text-center flex flex-col gap-2 animate-appear-up"
           style={{ animationDelay: "80ms" }}
         >
-          <h1 className="text-2xl font-bold text-gray-900">
-            {codeStep
-              ? "Check your email"
-              : step === "signIn"
-                ? "Welcome back"
-                : "Create an account"}
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900">{heading}</h1>
           <p className="text-sm text-gray-500">
             {codeStep ? (
               <>
                 We sent a code to{" "}
                 <span className="text-gray-900">{codeStep.email}</span>
               </>
-            ) : step === "signIn" ? (
+            ) : step === "forgot" ? (
+              "We'll email you a code to choose a new password"
+            ) : credentialsFlow === "signIn" ? (
               "Sign in to your account to continue"
             ) : (
               "Sign up to get started for free"
@@ -183,7 +265,49 @@ function RouteComponent() {
           </p>
         </div>
 
-        {codeStep ? (
+        {codeStep?.kind === "reset" ? (
+          <form
+            className="w-full flex flex-col gap-3 animate-appear-up"
+            style={{ animationDelay: "160ms" }}
+            onSubmit={handleResetVerification}
+          >
+            <Input
+              name="code"
+              placeholder="8-digit code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              disabled={isSubmitting}
+              className={INPUT_CLASSNAME}
+            />
+            <Input
+              name="newPassword"
+              placeholder="New password"
+              type="password"
+              autoComplete="new-password"
+              required
+              disabled={isSubmitting}
+              minLength={8}
+              className={INPUT_CLASSNAME}
+            />
+            <input name="email" type="hidden" value={codeStep.email} />
+            <input name="flow" type="hidden" value="reset-verification" />
+
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="h-11 mt-1 bg-(--brand) hover:opacity-90 text-white font-medium border-0"
+            >
+              {isSubmitting ? (
+                <div className={SPINNER_CLASSNAME} />
+              ) : (
+                "Update password"
+              )}
+            </Button>
+          </form>
+        ) : codeStep ? (
           <form
             className="w-full flex flex-col gap-3 animate-appear-up"
             style={{ animationDelay: "160ms" }}
@@ -208,11 +332,32 @@ function RouteComponent() {
               disabled={isSubmitting}
               className="h-11 mt-1 bg-(--brand) hover:opacity-90 text-white font-medium border-0"
             >
-              {isSubmitting ? (
-                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                "Continue"
-              )}
+              {isSubmitting ? <div className={SPINNER_CLASSNAME} /> : "Continue"}
+            </Button>
+          </form>
+        ) : step === "forgot" ? (
+          <form
+            className="w-full flex flex-col gap-3 animate-appear-up"
+            style={{ animationDelay: "160ms" }}
+            onSubmit={handleForgot}
+          >
+            <Input
+              name="email"
+              placeholder="name@example.com"
+              type="email"
+              autoFocus
+              required
+              disabled={isSubmitting}
+              className={INPUT_CLASSNAME}
+            />
+            <input name="flow" type="hidden" value="reset" />
+
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="h-11 mt-1 bg-(--brand) hover:opacity-90 text-white font-medium border-0"
+            >
+              {isSubmitting ? <div className={SPINNER_CLASSNAME} /> : "Send code"}
             </Button>
           </form>
         ) : (
@@ -274,14 +419,27 @@ function RouteComponent() {
               />
               <input name="flow" type="hidden" value={credentialsFlow} />
 
+              {credentialsFlow === "signIn" && (
+                <div className="flex justify-end -mt-1">
+                  <button
+                    type="button"
+                    className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
+                    onClick={() => setStep("forgot")}
+                    disabled={isBusy}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+
               <Button
                 type="submit"
                 disabled={isBusy}
                 className="h-11 mt-1 bg-(--brand) hover:opacity-90 text-white font-medium border-0"
               >
                 {isSubmitting ? (
-                  <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : step === "signIn" ? (
+                  <div className={SPINNER_CLASSNAME} />
+                ) : credentialsFlow === "signIn" ? (
                   "Sign In"
                 ) : (
                   "Sign Up"
@@ -296,16 +454,16 @@ function RouteComponent() {
           className="text-sm text-gray-400 animate-appear"
           style={{ animationDelay: "300ms" }}
         >
-          {codeStep ? (
+          {codeStep || step === "forgot" ? (
             <button
               type="button"
               className="text-gray-600 underline underline-offset-2 hover:text-gray-900 transition-colors"
               onClick={() => setStep("signIn")}
               disabled={isSubmitting}
             >
-              Use a different email
+              Back to sign in
             </button>
-          ) : step === "signIn" ? (
+          ) : credentialsFlow === "signIn" ? (
             <>
               Don&apos;t have an account?{" "}
               <button

@@ -2,6 +2,7 @@ import Google from "@auth/core/providers/google";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
 import { ResendOTP } from "./ResendOTP";
+import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
 // ============================================================================
 // REDIRECTION DE RETOUR D'OAUTH
@@ -70,7 +71,16 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     // leur ligne `authAccounts` : le provider les envoie donc vers la
     // vérification à leur prochaine connexion, et ils deviennent fiables sans
     // qu'on ait à migrer quoi que ce soit en base.
-    Password({ verify: ResendOTP }),
+    // `reset` est le pendant obligé de `verify` : sans lui, un utilisateur qui
+    // oublie son mot de passe n'a aucun recours, et l'inscription par mot de
+    // passe devient un piège. Il réutilise la même machinerie OTP, avec un
+    // provider distinct pour que les deux sortes de codes ne se confondent pas
+    // (cf. le commentaire d'`id` dans ResendOTPPasswordReset).
+    //
+    // Effet de bord utile : réinitialiser son mot de passe marque aussi
+    // l'adresse comme vérifiée, donc c'est un second chemin pour qu'un vieux
+    // compte jamais vérifié devienne fusionnable avec Google.
+    Password({ verify: ResendOTP, reset: ResendOTPPasswordReset }),
 
     Google({
       profile(googleProfile) {

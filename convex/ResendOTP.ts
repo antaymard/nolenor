@@ -1,15 +1,9 @@
 import Resend from "@auth/core/providers/resend";
-import { generateRandomString, type RandomReader } from "@oslojs/crypto/random";
-import { Resend as ResendAPI } from "resend";
-
-/**
- * L'adresse d'expédition vient de l'environnement plutôt que du code : en dev
- * on se contente de `onboarding@resend.dev` (que Resend n'autorise à écrire
- * qu'au propriétaire du compte), en prod il faut une adresse d'un domaine
- * vérifié chez eux. Deux déploiements, deux valeurs, aucun changement de code.
- */
-const FROM_ADDRESS =
-  process.env.AUTH_EMAIL_FROM ?? "Nolenor <onboarding@resend.dev>";
+import {
+  AUTH_EMAIL_FROM_ADDRESS,
+  generateAuthOtp,
+  sendAuthEmail,
+} from "./lib/authEmail";
 
 /**
  * Code à usage unique envoyé par email pour vérifier une adresse à
@@ -27,28 +21,14 @@ const FROM_ADDRESS =
 export const ResendOTP = Resend({
   id: "resend-otp",
   apiKey: process.env.AUTH_RESEND_KEY,
-  from: FROM_ADDRESS,
+  from: AUTH_EMAIL_FROM_ADDRESS,
 
-  async generateVerificationToken() {
-    // `crypto.getRandomValues` plutôt que `Math.random` : le code est un
-    // secret d'authentification, il doit être imprévisible. `@oslojs/crypto`
-    // se charge du tirage sans biais sur l'alphabet (un simple modulo
-    // favoriserait les premiers chiffres).
-    const random: RandomReader = {
-      read(bytes) {
-        crypto.getRandomValues(bytes);
-      },
-    };
-
-    return generateRandomString(random, "0123456789", 8);
-  },
+  generateVerificationToken: generateAuthOtp,
 
   async sendVerificationRequest({ identifier: email, provider, token }) {
-    const resend = new ResendAPI(provider.apiKey);
-
-    const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: [email],
+    await sendAuthEmail({
+      apiKey: provider.apiKey,
+      to: email,
       subject: "Your Nolenor verification code",
       text: [
         `Your verification code is ${token}`,
@@ -56,11 +36,5 @@ export const ResendOTP = Resend({
         "It expires shortly. If you didn't try to sign in to Nolenor, you can ignore this email.",
       ].join("\n"),
     });
-
-    // Sans ce throw, l'échec d'envoi passerait pour un succès : l'utilisateur
-    // attendrait un code qui n'arrivera jamais, sans le moindre message.
-    if (error) {
-      throw new Error(`Could not send verification email: ${error.message}`);
-    }
   },
 });

@@ -42,7 +42,7 @@ export function AttachmentRow({
   const attachNode = (node: CanvasNode) => addAttachments({ nodes: [node] });
 
   return (
-    <div className="p-2 pb-0 flex flex-wrap gap-1">
+    <div className="flex flex-wrap gap-1 px-2 pt-2">
       {attachedPosition ? (
         <PositionAttachment
           position={attachedPosition}
@@ -79,16 +79,16 @@ function PositionAttachment({
   onRemove: () => void;
 }) {
   return (
-    <div className="group relative flex items-center gap-1 rounded-sm border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 max-w-55">
+    <div className="group relative flex max-w-55 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0.5 pr-2.5 pl-1.5 text-sm text-slate-600">
       <button
         type="button"
         onClick={onRemove}
         aria-label="Retirer la position jointe"
-        className="text-slate-500 hover:text-red-500"
+        className="rounded-full text-slate-400 transition-colors hover:text-red-500"
       >
         <HiMiniXMark size={14} />
       </button>
-      <LuMousePointerClick size={12} className="min-w-3" />
+      <LuMousePointerClick size={12} className="min-w-3 text-slate-400" />
       <span className="truncate">
         Position ({Math.round(position.x)}, {Math.round(position.y)})
       </span>
@@ -120,22 +120,26 @@ function NodeAttachment({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-1 rounded-sm border px-2 py-1 text-sm text-slate-700 max-w-55",
-        isAttached ? "border-slate-300 bg-white" : "italic opacity-70",
+        "group relative flex max-w-55 items-center gap-1 rounded-full border py-0.5 pr-2.5 pl-1.5 text-sm text-slate-600 transition-colors",
+        isAttached
+          ? "border-slate-200 bg-slate-50"
+          : "border-dashed border-slate-200 italic opacity-70 hover:opacity-100",
       )}
     >
       <button
         type="button"
         className={cn(
-          "text-slate-500",
-          isAttached ? "hover:text-red-500" : "hover:text-green-500",
+          "rounded-full text-slate-400 transition-colors",
+          isAttached ? "hover:text-red-500" : "hover:text-emerald-600",
         )}
         onClick={() => (isAttached ? onRemove(node.id) : onAttach(node))}
         aria-label={isAttached ? "Retirer la piece jointe" : "Attacher le node"}
       >
         {isAttached ? <TbX size={14} /> : <TbPlus size={14} />}
       </button>
-      {NodeIcon ? <NodeIcon size={12} className="min-w-3" /> : null}
+      {NodeIcon ? (
+        <NodeIcon size={12} className="min-w-3 text-slate-400" />
+      ) : null}
       <span className="truncate">{nodeTitle}</span>
     </div>
   );

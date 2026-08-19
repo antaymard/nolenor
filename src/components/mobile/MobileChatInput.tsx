@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
-import {
-  TbCloudExclamation,
-  TbExclamationCircle,
-  TbLoader,
-  TbMicrophone,
-  TbSend,
-  TbX,
-} from "react-icons/tb";
+import { TbCloudExclamation, TbMicrophone } from "react-icons/tb";
+import { ThinkingOrb } from "thinking-orbs";
 import toast from "react-hot-toast";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -17,11 +11,16 @@ import {
 import RichTextArea from "@/components/canvas/nole-panel/RichTextArea";
 import SoundWaveAnimation from "@/components/canvas/nole-panel/SoundWaveAnimation";
 import { AttachmentRow } from "@/components/canvas/nole-panel/chat-input/AttachmentChips";
+import ComposerShell from "@/components/canvas/nole-panel/chat-input/ComposerShell";
 import ModelSelect from "@/components/canvas/nole-panel/chat-input/ModelSelect";
+import SendStopButton from "@/components/canvas/nole-panel/chat-input/SendStopButton";
 import { cn } from "@/lib/utils";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
 
-const INPUT_MAX_HEIGHT_PX = 140;
+/** Une ligne au repos ; plafonné plus bas que le desktop, le clavier virtuel
+ *  mangeant déjà la moitié de l'écran. */
+const INPUT_MIN_ROWS = 1;
+const INPUT_MAX_ROWS = 7;
 
 export default function MobileChatInput() {
   const {
@@ -63,16 +62,16 @@ export default function MobileChatInput() {
 
   const mic = useHoldToRecord({ startSTT, stopSTT });
 
+  // Voir ChatInput : le blocage « fenêtres modifiées » laisse le bouton actif
+  // pour que le clic déclenche le toast explicatif.
   const canSend =
     !!userInput.trim() && !isAssistantResponding && !isSending && !sttBusy;
 
   return (
     <div className="shrink-0 p-2 pt-0">
-      <div
-        className={cn(
-          "bg-slate-100 border shadow-md rounded-lg flex flex-col gap-2",
-          hasDirtyWindows ? "border-red-300" : "border-slate-300",
-        )}
+      <ComposerShell
+        isPulsing={isAssistantResponding}
+        hasDirtyWindows={hasDirtyWindows}
       >
         <AttachmentRow
           selectableNodes={selectableNodes}
@@ -82,41 +81,45 @@ export default function MobileChatInput() {
           removeAttachments={removeAttachments}
         />
 
-        <div className="px-2 pt-2">
+        <div className="px-3 pt-2.5">
           <RichTextArea
             value={userInput}
             onChange={setUserInput}
             onSubmit={handleSend}
-            maxHeightPx={INPUT_MAX_HEIGHT_PX}
+            minRows={INPUT_MIN_ROWS}
+            maxRows={INPUT_MAX_ROWS}
           />
         </div>
 
-        <div className="flex items-center justify-between gap-2 pr-2 pb-2">
-          <div className="flex items-center gap-2 pl-2">
+        <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-2">
+          <div className="flex items-center gap-1">
             <ModelSelect
               modelOptions={modelOptions}
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               disabled={isSending || isAssistantResponding}
-              triggerClassName="h-9 w-9 px-0"
+              triggerClassName="size-9 rounded-full"
               iconSize={16}
             />
             <Button
-              variant={isRecording ? "default" : "ghost"}
+              type="button"
+              variant="ghost"
               size="icon"
               disabled={isTranscribing || isSending}
               className={cn(
-                "h-9 w-9 select-none touch-none",
-                isRecording && "bg-red-500 text-white hover:bg-red-500/90",
+                "size-9 touch-none rounded-full select-none",
+                isRecording
+                  ? "bg-red-500 text-white hover:bg-red-500/90"
+                  : "text-slate-500",
               )}
               onPointerDown={mic.onPointerDown}
               onPointerUp={mic.onPointerUp}
               onPointerCancel={mic.onPointerUp}
               onPointerLeave={mic.onPointerUp}
-              aria-label="Hold to record"
+              aria-label="Maintenir pour dicter"
             >
               {isTranscribing ? (
-                <TbLoader className="animate-spin" size={16} />
+                <ThinkingOrb state="listening" size={20} />
               ) : isRecording ? (
                 <SoundWaveAnimation level={micLevel} />
               ) : (
@@ -125,12 +128,12 @@ export default function MobileChatInput() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
             {hasDirtyWindows && (
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <span className="rounded flex gap-1 bg-white/50 px-2 py-1 text-red-400">
-                    <TbCloudExclamation size={16} className="stroke-2" />
+                  <span className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-500">
+                    <TbCloudExclamation size={14} className="stroke-2" />
                     {dirtyNodeIds.length}
                   </span>
                 </TooltipTrigger>
@@ -140,30 +143,19 @@ export default function MobileChatInput() {
                 </TooltipContent>
               </Tooltip>
             )}
-            {isAssistantResponding && (
-              <Button
-                disabled={isCancelling || isSending}
-                onClick={() => void stopAssistantResponse()}
-                variant="outline"
-                size="sm"
-              >
-                Stop
-                {isCancelling ? <TbLoader className="animate-spin" /> : <TbX />}
-              </Button>
-            )}
-            <Button disabled={!canSend} onClick={handleSend} size="sm">
-              Send
-              {isSending ? (
-                <TbLoader className="animate-spin" />
-              ) : hasDirtyWindows ? (
-                <TbExclamationCircle />
-              ) : (
-                <TbSend />
-              )}
-            </Button>
+            <SendStopButton
+              canSend={canSend}
+              onSend={handleSend}
+              isSending={isSending}
+              isAssistantResponding={isAssistantResponding}
+              isCancelling={isCancelling}
+              onStop={stopAssistantResponse}
+              hasDirtyWindows={hasDirtyWindows}
+              className="size-9"
+            />
           </div>
         </div>
-      </div>
+      </ComposerShell>
     </div>
   );
 }

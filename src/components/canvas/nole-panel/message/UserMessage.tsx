@@ -13,7 +13,7 @@ export function UserMessage({
 }) {
   return (
     <div className="flex flex-col items-end gap-1">
-      <div className="rounded whitespace-pre-wrap p-3 bg-slate-200 border border-slate-400 text-text max-w-4/5">
+      <div className="text-text max-w-4/5 rounded-2xl rounded-br-sm border border-slate-200 bg-slate-100 px-3 py-2 whitespace-pre-wrap">
         <MarkdownText>{extractUserMessageForDisplay(text)}</MarkdownText>
       </div>
       {metadata?.attachments ? (

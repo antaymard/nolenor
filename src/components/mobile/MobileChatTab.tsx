@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { TbHistory, TbLoader, TbPlus } from "react-icons/tb";
+import { TbHistory, TbPlus } from "react-icons/tb";
+import { ThinkingOrb } from "thinking-orbs";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import ChatInterface from "@/components/canvas/nole-panel/ChatInterface";
@@ -29,8 +30,8 @@ export default function MobileChatTab({
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center text-slate-500">
-        <TbLoader className="h-5 w-5 animate-spin" />
+      <div className="flex h-full items-center justify-center">
+        <ThinkingOrb state="breathing" size={20} aria-label="Chargement" />
       </div>
     );
   }

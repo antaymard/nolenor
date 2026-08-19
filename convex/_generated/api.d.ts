@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as ResendOTP from "../ResendOTP.js";
+import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as aiUsage from "../aiUsage.js";
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
@@ -75,6 +77,7 @@ import type * as ia_usage from "../ia/usage.js";
 import type * as ia_worker from "../ia/worker.js";
 import type * as lib_apiTokenCrypto from "../lib/apiTokenCrypto.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_authEmail from "../lib/authEmail.js";
 import type * as lib_blockNoteDocument from "../lib/blockNoteDocument.js";
 import type * as lib_datePill from "../lib/datePill.js";
 import type * as lib_getNodeDataTitle from "../lib/getNodeDataTitle.js";
@@ -89,6 +92,7 @@ import type * as lib_searchScoring from "../lib/searchScoring.js";
 import type * as lib_text from "../lib/text.js";
 import type * as lib_textSanitize from "../lib/textSanitize.js";
 import type * as lib_usageDay from "../lib/usageDay.js";
+import type * as lib_userDisplayName from "../lib/userDisplayName.js";
 import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
 import type * as mcp_access from "../mcp/access.js";
@@ -169,6 +173,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  ResendOTP: typeof ResendOTP;
+  ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   aiUsage: typeof aiUsage;
   apiTokens: typeof apiTokens;
   auth: typeof auth;
@@ -236,6 +242,7 @@ declare const fullApi: ApiFromModules<{
   "ia/worker": typeof ia_worker;
   "lib/apiTokenCrypto": typeof lib_apiTokenCrypto;
   "lib/auth": typeof lib_auth;
+  "lib/authEmail": typeof lib_authEmail;
   "lib/blockNoteDocument": typeof lib_blockNoteDocument;
   "lib/datePill": typeof lib_datePill;
   "lib/getNodeDataTitle": typeof lib_getNodeDataTitle;
@@ -250,6 +257,7 @@ declare const fullApi: ApiFromModules<{
   "lib/text": typeof lib_text;
   "lib/textSanitize": typeof lib_textSanitize;
   "lib/usageDay": typeof lib_usageDay;
+  "lib/userDisplayName": typeof lib_userDisplayName;
   "lib/xml": typeof lib_xml;
   links: typeof links;
   "mcp/access": typeof mcp_access;

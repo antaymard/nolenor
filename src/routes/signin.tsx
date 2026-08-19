@@ -6,6 +6,7 @@ import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import toast from "react-hot-toast";
 import { useConvexAuth } from "convex/react";
+import { ConvexError } from "convex/values";
 
 export const Route = createFileRoute("/signin")({
   component: RouteComponent,
@@ -103,6 +104,13 @@ function RouteComponent() {
       })
       .catch((e) => {
         console.error(e);
+        // Une `ConvexError` porte un message écrit pour l'utilisateur (quota
+        // d'envoi dépassé, avec le délai d'attente). Le laisser filer jusqu'aux
+        // branches génériques ci-dessous l'écraserait par un texte plus vague.
+        if (e instanceof ConvexError && typeof e.data === "string") {
+          toast.error(e.data);
+          return;
+        }
         const errorMessage = e?.message || String(e);
         if (errorMessage.includes("already exists")) {
           toast.error(
@@ -172,6 +180,13 @@ function RouteComponent() {
       })
       .catch((e) => {
         console.error(e);
+        // Une `ConvexError` porte un message écrit pour l'utilisateur (quota
+        // d'envoi dépassé, avec le délai d'attente). Le laisser filer jusqu'aux
+        // branches génériques ci-dessous l'écraserait par un texte plus vague.
+        if (e instanceof ConvexError && typeof e.data === "string") {
+          toast.error(e.data);
+          return;
+        }
         const errorMessage = e?.message || String(e);
         // Message explicite plutôt que neutre : le formulaire de connexion dit
         // déjà « No account found with this email », donc taire l'information
@@ -208,6 +223,13 @@ function RouteComponent() {
       })
       .catch((e) => {
         console.error(e);
+        // Une `ConvexError` porte un message écrit pour l'utilisateur (quota
+        // d'envoi dépassé, avec le délai d'attente). Le laisser filer jusqu'aux
+        // branches génériques ci-dessous l'écraserait par un texte plus vague.
+        if (e instanceof ConvexError && typeof e.data === "string") {
+          toast.error(e.data);
+          return;
+        }
         const errorMessage = e?.message || String(e);
         // Le serveur valide la longueur AVANT de regarder le code : un mot de
         // passe trop court échoue donc sans que le code soit en cause, et dire

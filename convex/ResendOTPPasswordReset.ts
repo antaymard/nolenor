@@ -3,6 +3,7 @@ import {
   AUTH_EMAIL_FROM_ADDRESS,
   generateAuthOtp,
   sendAuthEmail,
+  withAuthEmailCtx,
 } from "./lib/authEmail";
 
 /**
@@ -31,16 +32,18 @@ export const ResendOTPPasswordReset = Resend({
 
   generateVerificationToken: generateAuthOtp,
 
-  async sendVerificationRequest({ identifier: email, provider, token }) {
-    await sendAuthEmail({
-      apiKey: provider.apiKey,
-      to: email,
-      subject: "Reset your Nolenor password",
-      text: [
-        `Your password reset code is ${token}`,
-        "",
-        "It expires shortly. If you didn't ask to reset your Nolenor password, you can ignore this email — your password stays unchanged.",
-      ].join("\n"),
-    });
-  },
+  sendVerificationRequest: withAuthEmailCtx(
+    async ({ identifier: email, token }, ctx) => {
+      await sendAuthEmail({
+        ctx,
+        to: email,
+        subject: "Reset your Nolenor password",
+        text: [
+          `Your password reset code is ${token}`,
+          "",
+          "It expires shortly. If you didn't ask to reset your Nolenor password, you can ignore this email — your password stays unchanged.",
+        ].join("\n"),
+      });
+    },
+  ),
 });

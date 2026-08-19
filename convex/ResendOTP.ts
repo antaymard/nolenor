@@ -3,6 +3,7 @@ import {
   AUTH_EMAIL_FROM_ADDRESS,
   generateAuthOtp,
   sendAuthEmail,
+  withAuthEmailCtx,
 } from "./lib/authEmail";
 
 /**
@@ -25,16 +26,18 @@ export const ResendOTP = Resend({
 
   generateVerificationToken: generateAuthOtp,
 
-  async sendVerificationRequest({ identifier: email, provider, token }) {
-    await sendAuthEmail({
-      apiKey: provider.apiKey,
-      to: email,
-      subject: "Your Nolenor verification code",
-      text: [
-        `Your verification code is ${token}`,
-        "",
-        "It expires shortly. If you didn't try to sign in to Nolenor, you can ignore this email.",
-      ].join("\n"),
-    });
-  },
+  sendVerificationRequest: withAuthEmailCtx(
+    async ({ identifier: email, token }, ctx) => {
+      await sendAuthEmail({
+        ctx,
+        to: email,
+        subject: "Your Nolenor verification code",
+        text: [
+          `Your verification code is ${token}`,
+          "",
+          "It expires shortly. If you didn't try to sign in to Nolenor, you can ignore this email.",
+        ].join("\n"),
+      });
+    },
+  ),
 });

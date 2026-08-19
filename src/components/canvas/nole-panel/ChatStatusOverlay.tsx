@@ -1,5 +1,7 @@
-import { RiLoaderLine } from "react-icons/ri";
+import type { ReactNode } from "react";
+import { ThinkingOrb } from "thinking-orbs";
 import { TbAlertCircle, TbCheck } from "react-icons/tb";
+import { cn } from "@/lib/utils";
 
 type ChatStatusOverlayProps = {
   showThinking: boolean;
@@ -24,56 +26,81 @@ export default function ChatStatusOverlay({
   if (!showThinking && !showDone && !isFailed) return null;
 
   return (
-    <div className="absolute left-0 right-0 bottom-0 flex justify-center z-20 pb-2">
+    <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-20 flex justify-center pb-2">
       {showThinking && (
-        <div className="pointer-events-none">
-          <ThinkingIndicator
-            label={isThinking ? "Nole is thinking..." : "Waiting for response..."}
-          />
-        </div>
+        <ThinkingIndicator
+          // L'orbe nomme ce que fait l'assistant : elle tourne pendant qu'il
+          // rédige, elle respire tant qu'on attend encore le premier token.
+          state={isThinking ? "working" : "breathing"}
+          label={isThinking ? "Nolë is thinking..." : "Waiting for response..."}
+        />
       )}
-      {showDone && !showThinking && (
-        <div className="pointer-events-none">
-          <DoneIndicator />
-        </div>
-      )}
+      {showDone && !showThinking && <DoneIndicator />}
       {isFailed && !showThinking && <FailedIndicator onRetry={onRetry} />}
     </div>
   );
 }
 
-function ThinkingIndicator({ label }: { label: string }) {
+/** Pastille flottante commune aux trois états, posée au-dessus de la liste. */
+function StatusPill({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex items-center gap-2 text-xs text-slate-500 px-2 py-1">
-      <RiLoaderLine size={14} className="animate-spin" />
-      <span>{label}</span>
+    <div
+      className={cn(
+        "animate-appear-up flex items-center gap-1.5 rounded-full border py-1 pr-3 pl-2",
+        "text-xs shadow-sm backdrop-blur-sm",
+        className,
+      )}
+    >
+      {children}
     </div>
+  );
+}
+
+function ThinkingIndicator({
+  state,
+  label,
+}: {
+  state: "working" | "breathing";
+  label: string;
+}) {
+  return (
+    <StatusPill className="border-slate-200 bg-white/85 text-slate-500">
+      {/* Le texte à côté porte déjà l'information : l'orbe est décorative. */}
+      <ThinkingOrb state={state} size={20} aria-hidden />
+      <span>{label}</span>
+    </StatusPill>
   );
 }
 
 function DoneIndicator() {
   return (
-    <div className="flex items-center gap-2 text-xs text-green-600 px-2 py-1">
-      <TbCheck size={14} />
+    <StatusPill className="border-emerald-200 bg-emerald-50/90 text-emerald-700">
+      <TbCheck size={14} className="mx-[3px] shrink-0" />
       <span>Done</span>
-    </div>
+    </StatusPill>
   );
 }
 
 function FailedIndicator({ onRetry }: { onRetry?: () => void }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1 mx-3">
-      <TbAlertCircle size={14} className="shrink-0" />
-      <span className="flex-1">La réponse a échoué.</span>
+    <StatusPill className="pointer-events-auto mx-3 border-red-200 bg-red-50/95 text-red-700">
+      <TbAlertCircle size={14} className="mx-[3px] shrink-0 text-red-500" />
+      <span>La réponse a échoué.</span>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="underline text-red-700 hover:text-red-900 font-medium"
+          className="font-medium underline underline-offset-2 hover:text-red-900"
         >
           Réessayer
         </button>
       )}
-    </div>
+    </StatusPill>
   );
 }

@@ -29,12 +29,6 @@ const messageMetadataValidator = v.object({
         ),
       ),
       position: v.optional(v.object({ x: v.number(), y: v.number() })),
-      page: v.optional(
-        v.object({
-          title: v.optional(v.string()),
-          url: v.optional(v.string()),
-        }),
-      ),
     }),
   ),
 });

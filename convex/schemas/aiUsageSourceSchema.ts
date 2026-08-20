@@ -14,12 +14,14 @@ const aiUsageSources = {
   nole: "nole",
   worker: "worker",
   threadTitle: "threadTitle",
+  imageGeneration: "imageGeneration",
 } as const;
 
 const vAiUsageSource = v.union(
   v.literal(aiUsageSources.nole),
   v.literal(aiUsageSources.worker),
   v.literal(aiUsageSources.threadTitle),
+  v.literal(aiUsageSources.imageGeneration),
 );
 
 type AiUsageSource = typeof vAiUsageSource.type;

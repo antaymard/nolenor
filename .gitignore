@@ -12,8 +12,7 @@ dist
 dist-ssr
 *.local
 
-# Secrets / config d'environnement. Le `.gitignore` racine n'en avait aucune
-# règle : `extension/.env` s'était retrouvé commité.
+# Secrets / config d'environnement.
 .env
 .env.*
 !.env.example

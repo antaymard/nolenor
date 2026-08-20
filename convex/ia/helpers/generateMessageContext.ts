@@ -59,7 +59,6 @@ type StructuredMessageContext = {
   openNodes?: ContextNodeRef[];
   attachedPosition?: { x: number; y: number };
   attachedNodes?: ContextNodeRef[];
-  attachedPage?: { title?: string; url?: string; text?: string };
 };
 
 function formatStructuredMessageContext(
@@ -109,23 +108,6 @@ function formatStructuredMessageContext(
     }
   }
 
-  let attachedPageSection = "";
-  const attachedPage = context.attachedPage;
-  if (attachedPage && typeof attachedPage === "object") {
-    const { title, url, text } = attachedPage as {
-      title?: string;
-      url?: string;
-      text?: string;
-    };
-    let content = "";
-    if (title) content += `<title>${title}</title>\n  `;
-    if (url) content += `<url>${url}</url>\n  `;
-    if (text) content += `<content>${text.substring(0, 12000)}</content>`;
-    if (content) {
-      attachedPageSection = `<attached_page>\n  ${content.trim()}\n</attached_page>`;
-    }
-  }
-
   // Assemblage final via un template literal explicite
   const blocks = [
     "Note: Coordinates are provided as [top-left -> bottom-right], e.g., [100, 200 -> 300, 400].",
@@ -133,7 +115,6 @@ function formatStructuredMessageContext(
     openNodesSection,
     attachedPosTag,
     attachedNodesSection,
-    attachedPageSection,
   ].filter(Boolean); // Retire les chaînes vides
 
   const reminder = `<reminders>
@@ -165,7 +146,7 @@ export function generateMessageContext({
     if (
       typeof messageContext === "object" &&
       !Array.isArray(messageContext) &&
-      ("viewport" in messageContext || "attachedPage" in messageContext)
+      "viewport" in messageContext
     ) {
       runtimeParts.push(
         formatStructuredMessageContext(messageContext as StructuredMessageContext),

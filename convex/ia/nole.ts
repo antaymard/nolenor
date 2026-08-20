@@ -82,23 +82,11 @@ export const saveMessage = mutation({
               y: (mc.attachedPosition as { y: number }).y,
             }
           : undefined;
-      const pageRaw =
-        mc.attachedPage && typeof mc.attachedPage === "object"
-          ? (mc.attachedPage as Record<string, unknown>)
-          : undefined;
-      const page = pageRaw
-        ? {
-            title:
-              typeof pageRaw.title === "string" ? pageRaw.title : undefined,
-            url: typeof pageRaw.url === "string" ? pageRaw.url : undefined,
-          }
-        : undefined;
-
       await MessageMetadataModels.recordUserAttachments(ctx, {
         messageId: messageId,
         threadId,
         userId: authUserId,
-        attachments: { nodes, position, page },
+        attachments: { nodes, position },
       });
     }
 

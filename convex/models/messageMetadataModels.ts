@@ -23,7 +23,6 @@ export type AttachmentNodeRef = {
 export type AttachmentsPayload = {
   nodes?: AttachmentNodeRef[];
   position?: { x: number; y: number };
-  page?: { title?: string; url?: string };
 };
 
 export type UsagePayload = {
@@ -70,8 +69,7 @@ export async function recordUserAttachments(
 ): Promise<void> {
   const hasAny =
     (attachments.nodes && attachments.nodes.length > 0) ||
-    !!attachments.position ||
-    !!attachments.page;
+    !!attachments.position;
   if (!hasAny) return;
 
   const existing = await findByMessageId(ctx, { messageId });

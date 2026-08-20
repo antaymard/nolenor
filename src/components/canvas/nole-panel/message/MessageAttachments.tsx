@@ -1,19 +1,18 @@
-import { TbLink } from "react-icons/tb";
 import { LuMousePointerClick } from "react-icons/lu";
 import { MentionedNodeCard } from "@/components/canvas/nole-panel/MentionedNodeCard";
 import type { Doc } from "@/../convex/_generated/dataModel";
 
 type Attachments = NonNullable<Doc<"messageMetadata">["attachments"]>;
 
-/** Chips shown under a user message for its attached nodes / position / page. */
+/** Chips shown under a user message for its attached nodes / position. */
 export function MessageAttachments({
   attachments,
 }: {
   attachments: Attachments;
 }) {
   const nodes = attachments.nodes ?? [];
-  const { position, page } = attachments;
-  const hasAny = nodes.length > 0 || !!position || !!page;
+  const { position } = attachments;
+  const hasAny = nodes.length > 0 || !!position;
   if (!hasAny) return null;
 
   return (
@@ -26,17 +25,6 @@ export function MessageAttachments({
           <LuMousePointerClick size={11} />({Math.round(position.x)},{" "}
           {Math.round(position.y)})
         </span>
-      ) : null}
-      {page && (page.title || page.url) ? (
-        <a
-          href={page.url ?? "#"}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 rounded-sm border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50 max-w-55"
-        >
-          <TbLink size={11} className="shrink-0" />
-          <span className="truncate">{page.title ?? page.url}</span>
-        </a>
       ) : null}
     </div>
   );

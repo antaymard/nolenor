@@ -193,7 +193,7 @@ function CustomEdge({
                 transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
                 pointerEvents: "all",
                 fontSize: `${labelFontSize}px`,
-                fontWeight: 600,
+                fontWeight: 400,
                 color: hex,
                 background: "#ffffff",
                 padding: "1px 8px",

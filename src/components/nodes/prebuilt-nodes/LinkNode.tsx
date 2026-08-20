@@ -10,7 +10,13 @@ import {
 } from "@/components/shadcn/popover";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
-import { TbLink, TbExternalLink, TbPencil } from "react-icons/tb";
+import {
+  TbLink,
+  TbExternalLink,
+  TbPencil,
+  TbCopy,
+  TbCopyCheck,
+} from "react-icons/tb";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import type { Id } from "@/../convex/_generated/dataModel";
@@ -40,6 +46,19 @@ function LinkNode(xyNode: Node) {
   const [linkTitle, setLinkTitle] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyUrl = async () => {
+    if (!linkValue.href) return;
+    try {
+      await navigator.clipboard.writeText(linkValue.href);
+      setIsCopied(true);
+      toast.success("Link copied to clipboard");
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch {
+      toast.error("Unable to copy link");
+    }
+  };
   const fetchLinkMetadata = useAction(api.links.fetchLinkMetadata);
 
   const linkValue = (values?.link as LinkValueType | undefined) ?? defaultValue;
@@ -137,6 +156,16 @@ function LinkNode(xyNode: Node) {
             </div>
           </PopoverContent>
         </Popover>
+        {linkValue.href && (
+          <Button
+            variant="outline"
+            size="icon"
+            title="Copy link URL"
+            onClick={handleCopyUrl}
+          >
+            {isCopied ? <TbCopyCheck /> : <TbCopy />}
+          </Button>
+        )}
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode} resizable={isPreview}>
         {isPreview ? (

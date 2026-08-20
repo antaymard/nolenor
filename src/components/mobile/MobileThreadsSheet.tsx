@@ -9,6 +9,8 @@ import { Button } from "@/components/shadcn/button";
 import { TbPlus, TbTrash } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useCanvasThreads } from "@/components/canvas/nole-panel/useCanvasThreads";
+import { ThreadRunStatusPill } from "@/components/canvas/nole-panel/ThreadStatusPill";
+import type { ThreadRunFields } from "@/lib/threadRunStatus";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
 
 interface MobileThreadsSheetProps {
@@ -62,6 +64,7 @@ export default function MobileThreadsSheet({
                   key={thread.threadId}
                   active={thread.threadId === threadId}
                   title={thread.title}
+                  run={thread}
                   onSelect={() => {
                     selectThread(thread.threadId);
                     onOpenChange(false);
@@ -80,11 +83,13 @@ export default function MobileThreadsSheet({
 function ThreadRow({
   title,
   active,
+  run,
   onSelect,
   onDelete,
 }: {
   title: string | null;
   active: boolean;
+  run: ThreadRunFields;
   onSelect: () => void;
   onDelete: () => void;
 }) {
@@ -94,11 +99,12 @@ function ThreadRow({
         type="button"
         onClick={onSelect}
         className={cn(
-          "min-w-0 flex-1 truncate rounded-md px-2 py-3 text-left text-sm",
+          "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-3 text-left text-sm",
           active ? "bg-slate-200 font-medium" : "hover:bg-slate-100",
         )}
       >
-        {title || "Untitled"}
+        <span className="min-w-0 flex-1 truncate">{title || "Untitled"}</span>
+        <ThreadRunStatusPill thread={run} size="compact" />
       </button>
       <Button
         variant="ghost"

@@ -1,9 +1,15 @@
 import { v, ConvexError } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
 import { nodeTypeValidator } from "../schemas/nodeTypeSchema";
-import { nodeDataVersionActorValidator } from "../schemas/nodeDataVersionsSchema";
+import {
+  nodeDataVersionActorValidator,
+  type NodeDataVersionActor,
+} from "../schemas/nodeDataVersionsSchema";
 
 import * as NodeDataModels from "../models/nodeDataModels";
+import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
   type BlockNoteBlock,
   insertBlocks,
@@ -18,6 +24,32 @@ import {
   InvalidBlockNoteDocumentError,
 } from "../lib/blockNoteDocument";
 
+/**
+ * Rattache le node au thread qui vient de l'écrire.
+ *
+ * Posé ici, au niveau des wrappers, et non dans `maybeCheckpoint` : celui-ci
+ * coalesce les écritures d'un même acteur sur 15 minutes et n'insère alors
+ * aucune version, ce qui laisserait le lien troué exactement là où l'agent
+ * travaille le plus. Un point d'appel par wrapper couvre les onze sites qui
+ * construisent un actor `agent`, et les outils à venir sans rien demander.
+ *
+ * Silencieux hors agent : une écriture humaine ne concerne aucun thread, et
+ * une écriture MCP arrive sans `threadId` (cf. mcp/execute).
+ */
+async function trackAgentTouch(
+  ctx: MutationCtx,
+  {
+    actor,
+    nodeDataId,
+  }: { actor?: NodeDataVersionActor; nodeDataId: Id<"nodeDatas"> },
+): Promise<void> {
+  if (actor?.type !== "agent" || !actor.threadId) return;
+  await ThreadMetadataModels.addTouchedNode(ctx, {
+    threadId: actor.threadId,
+    nodeDataId,
+  });
+}
+
 export const create = internalMutation({
   args: {
     type: nodeTypeValidator,
@@ -25,10 +57,16 @@ export const create = internalMutation({
     canvasId: v.id("canvases"),
     // Requis pour type === "custom" : lien autoritaire vers le template.
     templateId: v.optional(v.id("nodeTemplates")),
+    // Sert uniquement à tracer le thread : une création n'a pas d'état
+    // antérieur, donc pas de version à horodater. Sans lui, un thread qui
+    // crée un node n'aurait aucun lien avec lui.
+    actor: v.optional(nodeDataVersionActorValidator),
   },
   returns: v.id("nodeDatas"),
-  handler: async (ctx, args) => {
-    return NodeDataModels.createNodeData(ctx, args);
+  handler: async (ctx, { actor, ...args }) => {
+    const nodeDataId = await NodeDataModels.createNodeData(ctx, args);
+    await trackAgentTouch(ctx, { actor, nodeDataId });
+    return nodeDataId;
   },
 });
 
@@ -42,7 +80,12 @@ export const updateValues = internalMutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    return NodeDataModels.updateValues(ctx, args);
+    const updated = await NodeDataModels.updateValues(ctx, args);
+    await trackAgentTouch(ctx, {
+      actor: args.actor,
+      nodeDataId: args._id,
+    });
+    return updated;
   },
 });
 
@@ -53,6 +96,12 @@ export const deleteWithCascade = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Tracé avant la cascade : après, la ligne n'existe plus. Le lien lui
+    // survit volontairement, comme les versions (corbeille de fait).
+    await trackAgentTouch(ctx, {
+      actor: args.actor,
+      nodeDataId: args.nodeDataId,
+    });
     await NodeDataModels.deleteNodeDataWithCascade(ctx, args);
     return null;
   },
@@ -254,6 +303,11 @@ export const editBlockNoteDocument = internalMutation({
       _id: args.nodeDataId,
       values: { doc: serialized },
       actor: args.actor,
+    });
+
+    await trackAgentTouch(ctx, {
+      actor: args.actor,
+      nodeDataId: args.nodeDataId,
     });
 
     return result;

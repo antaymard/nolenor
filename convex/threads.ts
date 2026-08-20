@@ -17,9 +17,15 @@ import errors from "./config/errorsConfig";
 import { threadAgentNames } from "./schemas/threadMetadataSchema";
 import { aiUsageSources } from "./schemas/aiUsageSourceSchema";
 import {
+  findByThreadId,
   lastActivityTime,
   listNoleThreadsByUserAndCanvas,
+  markRunEnded,
 } from "./models/threadMetadataModels";
+import {
+  threadRunStatuses,
+  threadRunStatusValidator,
+} from "./schemas/threadMetadataSchema";
 
 // Bornes de scan. Le nombre de conversations Nolë par canvas et par
 // utilisateur reste petit ; on lit une tranche récente et on trie en mémoire
@@ -113,6 +119,12 @@ export const listCanvasThreads = query({
       threadId: v.string(),
       title: v.union(v.string(), v.null()),
       lastActivityTime: v.number(),
+      // `runStartedAt` accompagne toujours `runStatus` : c'est lui qui permet
+      // à l'appelant de reconnaître un `running` que plus personne ne
+      // terminera. La péremption ne peut pas se décider ici — lire l'horloge
+      // dans une query donnerait un résultat qui ne se réévalue jamais.
+      runStatus: v.union(threadRunStatusValidator, v.null()),
+      runStartedAt: v.union(v.number(), v.null()),
     }),
   ),
   handler: async (ctx, { canvasId }) => {
@@ -137,6 +149,8 @@ export const listCanvasThreads = query({
           threadId: metadata.threadId,
           title: thread.title ?? null,
           lastActivityTime: lastActivityTime(metadata),
+          runStatus: metadata.runStatus ?? null,
+          runStartedAt: metadata.runStartedAt ?? null,
         };
       }),
     );
@@ -149,7 +163,18 @@ export const getThreadInfo = query({
   args: {
     threadId: v.string(),
   },
-  returns: v.any(),
+  returns: v.union(
+    v.object({
+      _id: v.string(),
+      _creationTime: v.number(),
+      title: v.union(v.string(), v.null()),
+      summary: v.union(v.string(), v.null()),
+      runStatus: v.union(threadRunStatusValidator, v.null()),
+      runStartedAt: v.union(v.number(), v.null()),
+      lastRunError: v.union(v.string(), v.null()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     const authUserId = await requireAuth(ctx);
     if (!authUserId) return null;
@@ -160,11 +185,17 @@ export const getThreadInfo = query({
 
     if (!thread || thread.userId !== authUserId) return null;
 
+    // L'état du run vit dans notre table, pas dans le composant agent.
+    const metadata = await findByThreadId(ctx, { threadId: args.threadId });
+
     return {
       _id: thread._id,
       _creationTime: thread._creationTime,
       title: thread.title ?? null,
       summary: thread.summary ?? null,
+      runStatus: metadata?.runStatus ?? null,
+      runStartedAt: metadata?.runStartedAt ?? null,
+      lastRunError: metadata?.lastRunError ?? null,
     };
   },
 });
@@ -248,6 +279,16 @@ export const abortStream = mutation({
         reason: "Cancelled by user",
       },
     );
+
+    // Sans jeton de run : l'utilisateur coupe le tour courant, quel qu'il
+    // soit. L'action de streaming écrira le même statut en sortant, mais elle
+    // peut mettre un instant à s'en apercevoir — et l'UI, elle, répond au clic.
+    if (aborted) {
+      await markRunEnded(ctx, {
+        threadId,
+        status: threadRunStatuses.aborted,
+      });
+    }
 
     return { aborted };
   },

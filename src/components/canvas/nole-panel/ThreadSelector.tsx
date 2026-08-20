@@ -8,6 +8,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { TbMessageSearch, TbTrash } from "react-icons/tb";
 import { useCanvasThreads } from "./useCanvasThreads";
+import { ThreadRunStatusPill } from "./ThreadStatusPill";
 
 interface ThreadSelectorProps {
   canvasId: Id<"canvases"> | undefined;
@@ -45,8 +46,13 @@ export default function ThreadSelector({
             onSelect={() => onSelectThread(thread.threadId)}
           >
             <div className="flex flex-col flex-1 min-w-0">
-              <span className="truncate text-sm font-medium">
-                {thread.title || "Sans titre"}
+              <span className="flex items-center gap-1.5">
+                <span className="truncate text-sm font-medium">
+                  {thread.title || "Sans titre"}
+                </span>
+                {/* Compact : dans une liste, la couleur suffit à repérer le
+                    thread qui travaille — le libellé reste au survol. */}
+                <ThreadRunStatusPill thread={thread} size="compact" />
               </span>
               <span className="text-xs text-muted-foreground">
                 {new Date(thread.lastActivityTime).toLocaleDateString()}

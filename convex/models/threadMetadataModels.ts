@@ -1,6 +1,11 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { threadAgentNames } from "../schemas/threadMetadataSchema";
+import {
+  RUN_ERROR_MAX_LENGTH,
+  threadAgentNames,
+  threadRunStatuses,
+  type ThreadRunEndStatus,
+} from "../schemas/threadMetadataSchema";
 
 type ThreadMetadata = Doc<"threadMetadata">;
 
@@ -67,5 +72,100 @@ export async function addUsage(
   await ctx.db.patch("threadMetadata", threadRow._id, {
     totalUsageUsd: threadRow.totalUsageUsd + costUsd,
     lastMessageTime: Date.now(),
+  });
+}
+
+/**
+ * Marque le début d'un tour, et date l'interaction.
+ *
+ * La comptabilité d'usage ne stampe `lastMessageTime` qu'une fois l'assistant
+ * passé ; on veut aussi dater l'envoi, sinon un tour qui échoue laisse le
+ * thread paraître plus vieux qu'il ne l'est. C'est aussi ici, et pas dans la
+ * comptabilité de coût, qu'on incrémente `roundsNb` : le `usageHandler` du
+ * composant agent est appelé une fois par step LLM, donc y compter les rounds
+ * revenait à compter des steps.
+ *
+ * Renvoie le `runStartedAt` écrit — le jeton que `markRunEnded` exigera pour
+ * conclure ce tour-là, et pas un autre parti entre-temps. `null` quand le
+ * thread n'a pas de ligne de metadata (rien à conclure non plus).
+ */
+export async function markRunStarted(
+  ctx: MutationCtx,
+  { threadId }: { threadId: string },
+): Promise<number | null> {
+  const threadRow = await findByThreadId(ctx, { threadId });
+  if (!threadRow) return null;
+
+  const runStartedAt = Date.now();
+  await ctx.db.patch("threadMetadata", threadRow._id, {
+    lastMessageTime: runStartedAt,
+    roundsNb: (threadRow.roundsNb ?? 0) + 1,
+    runStatus: threadRunStatuses.running,
+    runStartedAt,
+    runEndedAt: undefined,
+    lastRunError: undefined,
+  });
+  return runStartedAt;
+}
+
+/**
+ * Sort le thread de `running`.
+ *
+ * `runToken` est le `runStartedAt` rendu par `markRunStarted` : sans lui, la
+ * fin du tour N remettrait le thread au repos alors que le tour N+1, parti
+ * entre-temps, tourne encore. On ne conclut donc que le tour qu'on a soi-même
+ * ouvert.
+ *
+ * No-op silencieux quand la ligne n'existe pas : la traçabilité ne doit jamais
+ * faire échouer un tour dont la réponse est déjà partie — même prudence que
+ * `addUsage`.
+ */
+export async function markRunEnded(
+  ctx: MutationCtx,
+  {
+    threadId,
+    status,
+    runToken,
+    errorMessage,
+  }: {
+    threadId: string;
+    status: ThreadRunEndStatus;
+    runToken?: number;
+    errorMessage?: string;
+  },
+): Promise<void> {
+  const threadRow = await findByThreadId(ctx, { threadId });
+  if (!threadRow) return;
+  if (runToken !== undefined && threadRow.runStartedAt !== runToken) return;
+
+  await ctx.db.patch("threadMetadata", threadRow._id, {
+    runStatus: status,
+    runEndedAt: Date.now(),
+    lastRunError: errorMessage
+      ? errorMessage.slice(0, RUN_ERROR_MAX_LENGTH)
+      : undefined,
+  });
+}
+
+/**
+ * Enregistre qu'un node a été modifié par l'agent au cours de ce thread.
+ *
+ * Appelé depuis les wrappers de nodeDatas, à chaque write — et non depuis
+ * `maybeCheckpoint`, qui coalesce les écritures d'un même acteur sur 15 min et
+ * laisserait donc le lien troué. Dédupliqué, et no-op silencieux si la ligne
+ * manque (threads de sous-agents, écritures MCP sans threadId).
+ */
+export async function addTouchedNode(
+  ctx: MutationCtx,
+  { threadId, nodeDataId }: { threadId: string; nodeDataId: Id<"nodeDatas"> },
+): Promise<void> {
+  const threadRow = await findByThreadId(ctx, { threadId });
+  if (!threadRow) return;
+
+  const touched = threadRow.touchedNodeDataIds ?? [];
+  if (touched.includes(nodeDataId)) return;
+
+  await ctx.db.patch("threadMetadata", threadRow._id, {
+    touchedNodeDataIds: [...touched, nodeDataId],
   });
 }

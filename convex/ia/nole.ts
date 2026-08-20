@@ -102,11 +102,15 @@ export const saveMessage = mutation({
       });
     }
 
-    // 3) Dater l'interaction : c'est cette date qui décide, à la réouverture du
-    // panel, si la conversation du canvas est reprise ou laissée derrière.
-    await ctx.runMutation(internal.wrappers.threadMetadataWrappers.touch, {
-      threadId,
-    });
+    // 3) Ouvrir le tour : dater l'interaction — c'est cette date qui décide, à
+    // la réouverture du panel, si la conversation du canvas est reprise — et
+    // passer le thread en `running`. Écrit ici, dans la transaction du message,
+    // pour que toutes les surfaces voient le thread travailler dès l'envoi,
+    // sans attendre que l'action planifiée démarre.
+    const runToken = await ctx.runMutation(
+      internal.wrappers.threadMetadataWrappers.markRunStarted,
+      { threadId },
+    );
 
     // 4) Schedule the response generation in background.
     void ctx.scheduler.runAfter(0, internal.ia.noleCompletion.streamResponse, {
@@ -116,6 +120,9 @@ export const saveMessage = mutation({
       userPrompt: prompt,
       metadata,
       canvasId,
+      // Le tour que l'action devra conclure. Sans ce jeton, sa fin remettrait
+      // le thread au repos même si un envoi ultérieur l'a relancé entre-temps.
+      ...(runToken !== null ? { runToken } : {}),
     });
 
     return { messageId };

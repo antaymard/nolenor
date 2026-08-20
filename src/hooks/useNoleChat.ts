@@ -13,6 +13,7 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoleThread } from "@/hooks/useNoleThread";
+import { useResolvedRunStatus } from "@/hooks/useThreadRunStatus";
 import { useNoleModelSelection } from "@/hooks/useNoleModelSelection";
 import { useNoleSpeechInput } from "@/hooks/useNoleSpeechInput";
 import { useSelectableNodes } from "@/hooks/useSelectableNodes";
@@ -94,31 +95,6 @@ export function useNoleChat() {
   // Sending / cancellation.
   const [isSending, setIsSending] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  // `isAssistantResponding` is lifted from ChatInterface (which already
-  // subscribes to useUIMessages) to avoid a duplicate streaming subscription
-  // re-rendering this hook's consumers on every token.
-  //
-  // On mémorise *quel* thread répond, pas un simple booléen : ChatInterface est
-  // démonté dès qu'on ouvre une conversation vierge, il n'a alors plus aucun
-  // moyen de remettre le drapeau à false. Un booléen restait donc bloqué à true
-  // et désactivait le bouton d'envoi de la nouvelle conversation.
-  const [respondingThreadId, setRespondingThreadId] = useState<string | null>(
-    null,
-  );
-  const isAssistantResponding =
-    respondingThreadId !== null && respondingThreadId === threadId;
-
-  const setIsAssistantResponding = useCallback(
-    (responding: boolean, forThreadId: string) => {
-      setRespondingThreadId((current) => {
-        if (responding) return forThreadId;
-        // Un « je ne réponds plus » venant d'un autre thread ne doit pas
-        // effacer le thread qui, lui, est réellement en train de répondre.
-        return current === forThreadId ? null : current;
-      });
-    },
-    [],
-  );
 
   const sendMessage = useMutation(api.ia.nole.saveMessage).withOptimisticUpdate(
     optimisticallySendMessage(api.threads.listMessages),
@@ -129,6 +105,16 @@ export function useNoleChat() {
     api.threads.getThreadInfo,
     threadId ? { threadId } : "skip",
   );
+
+  // L'état du tour vient du serveur, pas du flux de messages : c'est ce qui
+  // permet de le connaître pour un thread dont aucune conversation n'est
+  // affichée, et ce qui met d'accord les cinq surfaces qui montent ce hook.
+  //
+  // Remplace un drapeau remonté de ChatInterface, qui devait mémoriser *quel*
+  // thread répondait : démonté à l'ouverture d'une conversation vierge, il
+  // n'avait plus aucun moyen de se remettre à false et bloquait l'envoi.
+  const runStatus = useResolvedRunStatus(threadInfo);
+  const isAssistantResponding = runStatus === "running";
 
   // Dirty windows block sending until saved/closed.
   const dirtyNodeIds = useWindowsStore((s) => s.dirtyNodeIds);
@@ -267,6 +253,7 @@ export function useNoleChat() {
     // thread
     threadId,
     threadInfo,
+    runStatus,
     isLoading,
     selectThread,
     startNewThread,
@@ -277,7 +264,6 @@ export function useNoleChat() {
     sendCurrentMessage,
     isSending,
     isAssistantResponding,
-    setIsAssistantResponding,
     isCancelling,
     stopAssistantResponse,
     // model

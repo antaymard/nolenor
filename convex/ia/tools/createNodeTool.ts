@@ -295,6 +295,13 @@ export default function createNodeTool({
             values: initialValues,
             canvasId,
             ...(template && { templateId: template._id }),
+            // Rattache le node créé au thread. Une création n'écrit pas de
+            // version, donc sans cet actor le lien n'existerait nulle part.
+            actor: {
+              type: "agent",
+              userId: threadCtx.authUserId,
+              threadId: ctx.threadId,
+            },
           },
         );
 

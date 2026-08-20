@@ -1,5 +1,5 @@
 import { useUIMessages } from "@convex-dev/agent/react";
-import { memo, useCallback, useEffect } from "react";
+import { memo, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import { cn } from "@/lib/utils";
@@ -12,15 +12,11 @@ import ChatStatusOverlay from "./ChatStatusOverlay";
 type ChatInterfaceProps = {
   threadId: string;
   onRetry?: (userMessage: string) => void;
-  /** Le threadId est renvoyé avec l'état : le conteneur doit pouvoir ignorer
-   *  un signal qui ne concerne plus la conversation affichée. */
-  onAssistantRespondingChange?: (responding: boolean, threadId: string) => void;
 };
 
 const ChatInterface = memo(function ChatInterface({
   threadId,
   onRetry,
-  onAssistantRespondingChange,
 }: ChatInterfaceProps) {
   const {
     results: messages,
@@ -36,14 +32,11 @@ const ChatInterface = memo(function ChatInterface({
   const getMetadata = useThreadMessageMetadata(threadId);
   const { scrollViewportRef, handleScroll } = useChatAutoScroll(messages);
 
+  // Le flux ne sert plus qu'au détail affiché ici — orbe, échec, relance.
+  // L'état grossier du tour, celui qui pilote le composer et se lit depuis les
+  // autres surfaces, vient du serveur (cf. `useNoleChat`).
   const activity = useAssistantActivity(messages);
-  const { showThinking, lastUserText } = activity;
-
-  // Lift the "is the assistant responding" signal up to the container so it can
-  // drive the composer without subscribing to the stream a second time.
-  useEffect(() => {
-    onAssistantRespondingChange?.(showThinking, threadId);
-  }, [showThinking, threadId, onAssistantRespondingChange]);
+  const { lastUserText } = activity;
 
   const handleRetry = useCallback(() => {
     if (lastUserText) onRetry?.(lastUserText);

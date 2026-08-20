@@ -45,6 +45,8 @@ import type * as ia_helpers_nodeFieldsAndTypesHelper from "../ia/helpers/nodeFie
 import type * as ia_helpers_nodeInputSchemaValidatorForLLM from "../ia/helpers/nodeInputSchemaValidatorForLLM.js";
 import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkFormatters.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
+import type * as ia_imageGeneration from "../ia/imageGeneration.js";
+import type * as ia_imageGenerationRun from "../ia/imageGenerationRun.js";
 import type * as ia_nole from "../ia/nole.js";
 import type * as ia_noleCompletion from "../ia/noleCompletion.js";
 import type * as ia_subAgentErrors from "../ia/subAgentErrors.js";
@@ -210,6 +212,8 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/nodeInputSchemaValidatorForLLM": typeof ia_helpers_nodeInputSchemaValidatorForLLM;
   "ia/helpers/pdfChunkFormatters": typeof ia_helpers_pdfChunkFormatters;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
+  "ia/imageGeneration": typeof ia_imageGeneration;
+  "ia/imageGenerationRun": typeof ia_imageGenerationRun;
   "ia/nole": typeof ia_nole;
   "ia/noleCompletion": typeof ia_noleCompletion;
   "ia/subAgentErrors": typeof ia_subAgentErrors;

@@ -292,10 +292,13 @@ export async function updateValues(
   if (existing.type === "custom" && !skipValidation && existing.templateId) {
     const template = await ctx.db.get(existing.templateId);
     if (template) {
-      const parsed = buildTemplateValuesSchema(template).safeParse(changedValues);
+      const parsed =
+        buildTemplateValuesSchema(template).safeParse(changedValues);
       if (!parsed.success) {
         const issues = parsed.error.issues
-          .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+          .map(
+            (issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
+          )
           .join("; ");
         throw new ConvexError(`Invalid value(s) for custom node: ${issues}`);
       }
@@ -391,4 +394,99 @@ export async function updateValues(
   );
 
   return true;
+}
+
+/** Une image telle que stockée dans `values.images` d'un node "image". */
+export type StoredImage = {
+  url: string;
+  filename?: string;
+  mimeType?: string;
+  size?: number;
+  uploadedAt?: number;
+  key?: string;
+};
+
+/**
+ * Ajoute des images à la fin de `values.images`, et éteint le statut de
+ * génération dans la même transaction.
+ *
+ * Le read-modify-write DOIT vivre ici, pas côté action : le client écrit
+ * `images` en remplaçant tout le tableau (cf. ImageNode), donc lire depuis
+ * l'action puis réécrire écraserait silencieusement un upload concurrent.
+ * Dans la transaction, Convex sérialise les writes en conflit.
+ *
+ * Note sur les références R2 : un append ne fait que grossir l'ensemble des
+ * clés, donc `syncRefs` (appelé par `updateValues`) n'en libère aucune et rien
+ * n'est supprimé. En revanche, restaurer une version antérieure à la
+ * génération repassera par `updateValues` avec un tableau plus court, et les
+ * blobs générés seront alors supprimés — les versions ne portent pas de
+ * référence R2. Comportement pré-existant, commun à tous les types de node
+ * porteurs de fichiers.
+ */
+export async function appendImages(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    images,
+    actor,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    images: StoredImage[];
+    actor: NodeDataVersionActor;
+  },
+): Promise<void> {
+  const existing = await ctx.db.get("nodeDatas", nodeDataId);
+  if (!existing) throw new ConvexError("NodeData not found");
+
+  const current = Array.isArray(existing.values?.images)
+    ? (existing.values.images as StoredImage[])
+    : [];
+
+  if (images.length > 0) {
+    await updateValues(ctx, {
+      _id: nodeDataId,
+      values: { images: [...current, ...images] },
+      actor,
+    });
+  }
+
+  await clearImageGeneration(ctx, { nodeDataId });
+}
+
+/**
+ * Écrit le statut de génération, hors `values` : un `ctx.db.patch` direct ne
+ * déclenche ni checkpoint de version, ni réconciliation R2, ni réindexation.
+ *
+ * `updatedAt` est obligatoire ici : le store client (nodeDataStore) n'accepte
+ * un document entrant que si son `updatedAt` diffère. Sans ce bump, la query
+ * se réinvalide mais l'UI ne voit jamais le changement de statut.
+ */
+export async function setImageGeneration(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    status,
+    error,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    status: "running" | "error";
+    error?: string;
+  },
+): Promise<void> {
+  const now = Date.now();
+  await ctx.db.patch("nodeDatas", nodeDataId, {
+    imageGeneration: { status, startedAt: now, error },
+    updatedAt: now,
+  });
+}
+
+/** Le succès n'est pas un état : on efface plutôt que de marquer "terminé". */
+export async function clearImageGeneration(
+  ctx: MutationCtx,
+  { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
+): Promise<void> {
+  await ctx.db.patch("nodeDatas", nodeDataId, {
+    imageGeneration: undefined,
+    updatedAt: Date.now(),
+  });
 }

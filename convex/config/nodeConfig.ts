@@ -114,7 +114,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     label: "Image",
     description: "Node for storing an image.",
     llmDescription:
-      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe required data value is 'images', an array of objects each with a 'url' (the URL of the image).",
+      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.",
     defaultDimensions: { width: 320, height: 320, resizable: true },
     dataValuesSchema: z
       .object({
@@ -129,10 +129,20 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
             }),
           )
           .default([]),
+        // Dernier prompt de génération, au niveau du node (un prompt par node,
+        // pas par image). Écrasé à chaque génération, pas de versionning propre.
+        imagePrompt: z
+          .string()
+          .optional()
+          .describe("The prompt the user generates images from."),
       })
       .default({ images: [] }),
     toolInputSchema: z
       .object({
+        // `images` et `imagePrompt` sont tous deux optionnels : updateValues
+        // merge clé par clé, donc écrire l'un seul préserve l'autre. Sans ça
+        // l'agent devrait renvoyer tout le tableau d'images pour toucher au
+        // prompt, et l'écraserait au passage.
         images: z
           .array(
             z
@@ -141,7 +151,14 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
               })
               .strict(),
           )
+          .optional()
           .describe("The images to display on the node."),
+        imagePrompt: z
+          .string()
+          .optional()
+          .describe(
+            "The image generation prompt stored on the node. Writing it does not start a generation.",
+          ),
       })
       .strict(),
   },

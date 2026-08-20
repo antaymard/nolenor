@@ -98,7 +98,7 @@ function RootComponent() {
   // n'est connecté (canvas public).
   useEffect(() => {
     if (!me) return;
-    identifyUser(me._id, { email: me.email, name: me.name });
+    identifyUser(me._id, { email: me.email, name: me.displayName ?? undefined });
   }, [me]);
 
   if (isLoading) {

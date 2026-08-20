@@ -90,7 +90,7 @@ async function blockNoteValueToMarkdown(
 
   const result = blockNoteBlocksToMarkdown(blocks as unknown as PartialBlock[]);
   if (result.status !== "ok") {
-    return "> Ce contenu n'a pas pu être relu par l'éditeur. Sa version brute est intacte dans `nodes.json`.";
+    return "> This content could not be read back by the editor. Its raw version is intact in `nodes.json`.";
   }
   return result.markdown || null;
 }
@@ -279,11 +279,11 @@ export async function nodeDataToMarkdown(
       error,
     );
     body = [
-      "> Ce node n'a pas pu être converti en Markdown. Voici ses données brutes.",
+      "> This node could not be converted to Markdown. Here is its raw data.",
       "",
       jsonBlock(nodeData.values),
     ].join("\n");
   }
 
-  return `# ${title}\n\n_${typeLabel} · mis à jour le ${updatedAt}_\n\n${body}\n`;
+  return `# ${title}\n\n_${typeLabel} · updated ${updatedAt}_\n\n${body}\n`;
 }

@@ -16,6 +16,7 @@ import "@blocknote/shadcn/style.css";
 import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
+import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 
 // Monte les menus flottants de BlockNote sur document.body plutôt que dans
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 const PORTAL_ELEMENTS = { default: null } as const;
 
 export const Route = createFileRoute("/settings/recipes/edit/$recipeId")({
+  beforeLoad: guardDevOnlySettingsRoute,
   component: RouteComponent,
 });
 
@@ -143,10 +145,11 @@ function RouteComponent() {
                     sideMenu={false}
                     portalElements={PORTAL_ELEMENTS}
                   >
-                    <SideMenuController
-                      sideMenu={SideMenuWithoutAddButton}
-                      portalElement={null}
-                    />
+                    {/* No `portalElement` override: it would bypass
+                        `editor.portalElement` and break the drag handle's
+                        hover tracking — see BlocknoteWindow.tsx for the
+                        full story next to the same controller. */}
+                    <SideMenuController sideMenu={SideMenuWithoutAddButton} />
                   </BlockNoteView>
                   {hasError && (
                     <span className="text-sm text-destructive">

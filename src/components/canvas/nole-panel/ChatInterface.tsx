@@ -55,15 +55,15 @@ const ChatInterface = memo(function ChatInterface({
     <div className="h-full flex flex-col w-full relative">
       <div
         ref={scrollViewportRef}
-        className="flex-1 overflow-y-auto p-3"
+        className="flex-1 overflow-y-auto px-3 py-4"
         onScroll={handleScroll}
       >
         {messages.length > 0 ? (
-          <div className={cn("flex flex-col gap-8", reserveOverlaySpace && "pb-12")}>
+          <div className={cn("flex flex-col gap-6", reserveOverlaySpace && "pb-12")}>
             {status === "CanLoadMore" && (
               <button
                 onClick={() => loadMore(10)}
-                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition font-medium mx-auto"
+                className="mx-auto rounded-full border border-slate-200 px-3 py-1 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
               >
                 Load more messages
               </button>
@@ -78,7 +78,7 @@ const ChatInterface = memo(function ChatInterface({
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+          <div className="flex h-full flex-col items-center justify-center text-sm text-slate-400">
             Start a conversation...
           </div>
         )}

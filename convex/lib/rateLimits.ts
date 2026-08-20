@@ -65,6 +65,26 @@ const limits = {
     rate: 5,
     period: HOUR,
   },
+  // Envoi d'un code par email (vérification à l'inscription, réinitialisation
+  // de mot de passe). Non authentifié, et ça envoie un vrai email : sans borne,
+  // n'importe qui peut inonder la boîte d'un utilisateur en rejouant le flux
+  // « mot de passe oublié » sur son adresse, et brûler le quota Resend au
+  // passage.
+  //
+  // Le rate limiting intégré d'@convex-dev/auth ne couvre pas ce chemin : il
+  // est indexé sur un compte existant (`retrieveAccountWithCredentials` sort
+  // sur `InvalidAccountId` AVANT d'y toucher), et le flux `reset` n'envoie
+  // aucun secret, donc il n'atteint jamais cette branche.
+  //
+  // La clé est l'adresse visée, pas l'appelant : c'est la boîte mail qu'on
+  // protège. Capacité 3 pour laisser renvoyer un code deux fois d'affilée quand
+  // le premier n'arrive pas, puis un toutes les dix minutes.
+  authEmailSend: {
+    kind: "token bucket",
+    rate: 6,
+    period: HOUR,
+    capacity: 3,
+  },
 } satisfies Record<string, RateLimitConfig>;
 
 export const rateLimiter = new RateLimiter(components.rateLimiter, limits);

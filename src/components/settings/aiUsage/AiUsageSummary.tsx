@@ -13,11 +13,13 @@ function StatTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4">
+    <div className="rounded-md border border-slate-200 bg-white p-3 sm:p-4">
       <div className="text-xs text-[#52514e]">{label}</div>
       {/* Chiffres proportionnels : `tabular-nums` fait paraître une grande
           valeur isolée trop lâche. Il est réservé aux colonnes du tableau. */}
-      <div className="mt-1 text-2xl font-semibold text-[#0b0b0b]">{value}</div>
+      <div className="mt-1 text-xl font-semibold text-[#0b0b0b] sm:text-2xl">
+        {value}
+      </div>
       {hint ? <div className="mt-1 text-xs text-[#898781]">{hint}</div> : null}
     </div>
   );

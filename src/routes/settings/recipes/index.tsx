@@ -12,8 +12,10 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { useNavigate } from "@tanstack/react-router";
+import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 
 export const Route = createFileRoute("/settings/recipes/")({
+  beforeLoad: guardDevOnlySettingsRoute,
   component: RouteComponent,
 });
 
@@ -59,7 +61,7 @@ function RouteComponent() {
     return (
       <div>
         {/*Header*/}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <h1 className="text-xl font-bold">Recipes</h1>
             {/*<i>
@@ -67,7 +69,7 @@ function RouteComponent() {
               instructions Nolë can use to execute reproductible tasks.
             </i>*/}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="icon">
               <TbQuestionMark />
             </Button>

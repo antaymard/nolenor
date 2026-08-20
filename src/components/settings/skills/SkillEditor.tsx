@@ -9,6 +9,7 @@ import { Input } from "@/components/shadcn/input";
 import { toastError } from "@/components/utils/errorUtils";
 import { parseSkillFrontmatter } from "@/../convex/lib/parseSkillFrontmatter";
 import SkillAttachments from "./SkillAttachments";
+import SkillContentEditor from "./SkillContentEditor";
 import { buildRawSkillContent } from "./skillSerialization";
 import { Textarea } from "@/components/shadcn/textarea";
 
@@ -36,6 +37,11 @@ export default function SkillEditor({
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
   const [draftContent, setDraftContent] = useState("");
+  // Le corps tel qu'il a été chargé, figé jusqu'à la prochaine hydratation.
+  // `draftContent` change à chaque frappe : le passer à l'éditeur BlockNote le
+  // ferait re-rendre pour rien (il n'est pas contrôlé, il ne lit son contenu
+  // qu'au montage).
+  const [hydratedContent, setHydratedContent] = useState("");
   const [hydratedFor, setHydratedFor] = useState<Id<"skills"> | string | null>(
     null,
   );
@@ -46,6 +52,7 @@ export default function SkillEditor({
       setDraftName(draftSkill.name);
       setDraftDescription(draftSkill.description);
       setDraftContent(draftSkill.content);
+      setHydratedContent(draftSkill.content);
       setHydratedFor("draft");
     }
   }, [isDraft, draftSkill, hydratedFor]);
@@ -56,6 +63,7 @@ export default function SkillEditor({
       setDraftName(meta.name || skill.name);
       setDraftDescription(meta.description || skill.description);
       setDraftContent(body);
+      setHydratedContent(body);
       setHydratedFor(skill._id);
     }
   }, [isExisting, skill, hydratedFor]);
@@ -87,6 +95,10 @@ export default function SkillEditor({
   const currentSkill =
     skill ||
     (isDraft ? { name: draftName, description: draftDescription } : null);
+
+  // Cible d'hydratation courante : la même valeur que l'effet ci-dessus écrit
+  // dans `hydratedFor` une fois `hydratedContent` rempli.
+  const hydrationKey: Id<"skills"> | string = isDraft ? "draft" : skillId!;
 
   const handleSave = async () => {
     if (!draftName.trim()) {
@@ -134,11 +146,11 @@ export default function SkillEditor({
   };
 
   return (
-    <div className="flex flex-col gap-4 h-full overflow-y-auto pr-2">
+    <div className="flex flex-col gap-4 h-full overflow-y-auto md:pr-2">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-200">
-        <div className="flex flex-col">
-          <h2 className="text-xl font-bold">
+      <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-gray-200">
+        <div className="flex min-w-0 flex-col">
+          <h2 className="text-xl font-bold break-words">
             {currentSkill?.name || "New skill"}
           </h2>
           <p className="text-sm text-gray-500">
@@ -208,18 +220,24 @@ export default function SkillEditor({
 
       {/* Content Field */}
       <div className="flex flex-col gap-1.5 flex-1 min-h-0">
-        <label htmlFor="skill-content" className="font-semibold text-gray-700">
-          Content
-        </label>
-        <textarea
-          id="skill-content"
-          value={draftContent}
-          onChange={(e) => setDraftContent(e.target.value)}
-          placeholder="The full prompt body loaded by Nolë…"
-          className="w-full font-mono border rounded-md px-3 py-2 bg-white flex-1 resize-none"
-        />
+        <label className="font-semibold text-gray-700">Content</label>
+        <div className="flex-1 min-h-[300px] overflow-y-auto rounded-md border bg-white py-2">
+          {/* Remonté à chaque changement de skill : l'éditeur n'est pas
+              contrôlé, il ne lit son contenu initial qu'au montage. On attend
+              que `hydratedFor` ait rattrapé la skill courante pour ne pas
+              monter l'éditeur sur le corps de la précédente. */}
+          {hydratedFor === hydrationKey ? (
+            <SkillContentEditor
+              key={hydrationKey}
+              initialMarkdown={hydratedContent}
+              onChange={setDraftContent}
+            />
+          ) : (
+            <p className="px-4 text-sm text-gray-500 italic">Loading…</p>
+          )}
+        </div>
         <p className="text-xs text-gray-500">
-          The body is the full prompt loaded by Nolë. Markdown format supported.
+          The body is the full prompt loaded by Nolë. Stored as Markdown.
         </p>
       </div>
 

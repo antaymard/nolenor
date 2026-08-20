@@ -1,5 +1,5 @@
 import type { UIMessage } from "@convex-dev/agent/react";
-import { RiLoaderLine } from "react-icons/ri";
+import { ThinkingOrb } from "thinking-orbs";
 import { cn } from "@/lib/utils";
 import type { Doc } from "@/../convex/_generated/dataModel";
 import type { ChatModelOption } from "@/types/convex";
@@ -44,8 +44,8 @@ export function AssistantMessage({
         ))}
 
         {isProcessing && (
-          <div className="flex items-center py-1 px-1">
-            <RiLoaderLine size={15} className="animate-spin text-slate-400" />
+          <div className="flex items-center px-1 py-1">
+            <ThinkingOrb state="working" size={20} aria-label="Nolë rédige" />
           </div>
         )}
 

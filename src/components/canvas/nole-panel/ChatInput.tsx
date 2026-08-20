@@ -1,27 +1,23 @@
-import {
-  TbCloudExclamation,
-  TbExclamationCircle,
-  TbLoader,
-  TbMicrophone,
-  TbSend,
-  TbX,
-} from "react-icons/tb";
+import { TbCloudExclamation, TbMicrophone } from "react-icons/tb";
+import { ThinkingOrb } from "thinking-orbs";
 import RichTextArea from "./RichTextArea";
 import SoundWaveAnimation from "./SoundWaveAnimation";
 import { AttachmentRow } from "./chat-input/AttachmentChips";
+import ComposerShell from "./chat-input/ComposerShell";
 import ModelSelect from "./chat-input/ModelSelect";
-import { Button } from "@/components/shadcn/button";
+import SendStopButton from "./chat-input/SendStopButton";
 import { Kbd } from "@/components/shadcn/kbd";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/shadcn/tooltip";
-import { cn } from "@/lib/utils";
 import type { CanvasNode } from "@/types";
 import type { ChatModelOption, ChatModelValues } from "@/types/convex";
 
-const INPUT_MAX_HEIGHT_PX = 182;
+/** Le champ s'ouvre sur une ligne et grandit jusqu'à dix, puis scrolle. */
+const INPUT_MIN_ROWS = 1;
+const INPUT_MAX_ROWS = 10;
 
 type ChatInputProps = {
   userInput: string;
@@ -72,16 +68,17 @@ export default function ChatInput({
   dirtyNodeIds,
   hasDirtyWindows,
 }: ChatInputProps) {
+  // `hasDirtyWindows` n'entre volontairement pas dans `canSend` : le bouton
+  // reste cliquable pour que le clic déclenche le toast qui explique le blocage,
+  // signalé au passage par l'icône d'alerte et le badge.
   const canSend =
     !!userInput.trim() && !isAssistantResponding && !isSending && !sttBusy;
 
   return (
     <div className="p-2 pt-0">
-      <div
-        className={cn(
-          "bg-slate-200 border shadow-lg rounded-lg flex flex-col gap-2 mt-2",
-          hasDirtyWindows ? "border-red-300" : "border-slate-400",
-        )}
+      <ComposerShell
+        isPulsing={isAssistantResponding}
+        hasDirtyWindows={hasDirtyWindows}
       >
         <AttachmentRow
           selectableNodes={selectableNodes}
@@ -91,24 +88,25 @@ export default function ChatInput({
           removeAttachments={removeAttachments}
         />
 
-        <div className="p-2">
+        <div className="px-3 pt-2.5">
           <RichTextArea
             value={userInput}
             onChange={setUserInput}
             onSubmit={onSend}
-            maxHeightPx={INPUT_MAX_HEIGHT_PX}
+            minRows={INPUT_MIN_ROWS}
+            maxRows={INPUT_MAX_ROWS}
           />
         </div>
 
-        <div className="flex items-center justify-between gap-2 pr-2 pb-2">
-          <div className="flex items-center gap-2 pl-2">
+        <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-2">
+          <div className="flex min-w-0 items-center gap-1">
             <ModelSelect
               modelOptions={modelOptions}
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               disabled={isSending || isAssistantResponding}
-              triggerClassName="h-8 px-2 text-xs gap-1"
-              iconSize={10}
+              triggerClassName="size-8 rounded-full"
+              iconSize={14}
             />
             <MicStatus
               isRecording={isRecording}
@@ -117,31 +115,20 @@ export default function ChatInput({
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
             {hasDirtyWindows && <DirtyWindowsBadge count={dirtyNodeIds.length} />}
-            {isAssistantResponding && (
-              <Button
-                disabled={isCancelling || isSending}
-                onClick={() => void onStopAssistantResponse()}
-                variant="outline"
-              >
-                Stop
-                {isCancelling ? <TbLoader className="animate-spin" /> : <TbX />}
-              </Button>
-            )}
-            <Button disabled={!canSend} onClick={onSend}>
-              Send
-              {isSending ? (
-                <TbLoader className="animate-spin" />
-              ) : hasDirtyWindows ? (
-                <TbExclamationCircle />
-              ) : (
-                <TbSend />
-              )}
-            </Button>
+            <SendStopButton
+              canSend={canSend}
+              onSend={onSend}
+              isSending={isSending}
+              isAssistantResponding={isAssistantResponding}
+              isCancelling={isCancelling}
+              onStop={onStopAssistantResponse}
+              hasDirtyWindows={hasDirtyWindows}
+            />
           </div>
         </div>
-      </div>
+      </ComposerShell>
     </div>
   );
 }
@@ -157,23 +144,23 @@ function MicStatus({
 }) {
   if (isRecording) {
     return (
-      <div className="flex items-center gap-1.5 text-red-500 text-xs">
+      <span className="flex items-center gap-1.5 text-xs text-red-500">
         <SoundWaveAnimation level={level} />
-        <span>Écoute...</span>
-      </div>
+        <span>Écoute…</span>
+      </span>
     );
   }
   if (isTranscribing) {
     return (
-      <div className="flex items-center gap-1.5 text-slate-500 text-xs">
-        <TbLoader className="animate-spin" size={14} />
-        <span>Transcription...</span>
-      </div>
+      <span className="flex items-center gap-1.5 text-xs text-slate-500">
+        <ThinkingOrb state="listening" size={20} />
+        <span>Transcription…</span>
+      </span>
     );
   }
   return (
-    <span className="text-slate-500 text-xs">
-      <TbMicrophone size={14} className="inline-block mr-1" />
+    <span className="flex items-center gap-1 text-xs text-slate-400">
+      <TbMicrophone size={14} className="shrink-0" />
       <Kbd>Alt + Ctrl</Kbd>
     </span>
   );
@@ -183,8 +170,8 @@ function DirtyWindowsBadge({ count }: { count: number }) {
   return (
     <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>
-        <span className="rounded flex gap-1 bg-white/50 h-full px-2 py-1 text-red-400">
-          <TbCloudExclamation size={16} className="stroke-2" />
+        <span className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-500">
+          <TbCloudExclamation size={14} className="stroke-2" />
           {count}
         </span>
       </TooltipTrigger>

@@ -1,7 +1,14 @@
 import { useCallback } from "react";
-import { TbLoader, TbPlus, TbX } from "react-icons/tb";
+import NoleIcon from "@/assets/svg-components/NoleIcon";
+import { TbPlus, TbX } from "react-icons/tb";
+import { ThinkingOrb } from "thinking-orbs";
 import toast from "react-hot-toast";
 import { Button } from "@/components/shadcn/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/shadcn/tooltip";
 import { useNoleChat } from "@/hooks/useNoleChat";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
 import ChatInput from "./ChatInput";
@@ -47,17 +54,17 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
 
   if (isLoading) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-slate-500">
-        <TbLoader className="h-5 w-5 animate-spin" />
+      <div className="flex h-full w-full items-center justify-center">
+        <ThinkingOrb state="breathing" size={20} aria-label="Chargement" />
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full flex flex-col shadow-2xl/10">
+    <div className="flex h-full w-full flex-col shadow-2xl/10">
       {/* Header */}
-      <div className="pl-2 rounded-t-lg border-b flex items-center justify-between gap-2">
-        <p className="text-sm font-medium truncate flex-1">
+      <div className="flex items-center gap-1 rounded-t-lg border-b border-slate-200 bg-white/60 py-1 pr-1 pl-3 backdrop-blur-sm">
+        <p className="flex-1 truncate text-sm font-medium text-slate-700">
           {threadId ? threadInfo?.title || "Untitled chat" : "New chat"}
         </p>
         <ThreadStatsBadge
@@ -65,28 +72,34 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
           selectedModel={chat.selectedModel}
           modelOptions={chat.modelOptions}
         />
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={chat.startNewThread}
-          >
-            <TbPlus size={14} />
-          </Button>
-          <ThreadSelector
-            canvasId={chat.canvasId}
-            currentThreadId={threadId}
-            onSelectThread={chat.selectThread}
-          />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onClose?.()}
-            aria-label="Close panel"
-          >
-            <TbX size={15} />
-          </Button>
-        </div>
+        <Tooltip delayDuration={400}>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-slate-400 hover:text-slate-700"
+              onClick={chat.startNewThread}
+              aria-label="Nouvelle conversation"
+            >
+              <TbPlus size={15} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Nouvelle conversation</TooltipContent>
+        </Tooltip>
+        <ThreadSelector
+          canvasId={chat.canvasId}
+          currentThreadId={threadId}
+          onSelectThread={chat.selectThread}
+        />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-slate-400 hover:text-slate-700"
+          onClick={() => onClose?.()}
+          aria-label="Close panel"
+        >
+          <TbX size={15} />
+        </Button>
       </div>
 
       {/* Messages — pas de thread tant que le premier message n'est pas parti */}
@@ -101,9 +114,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
             onAssistantRespondingChange={chat.setIsAssistantResponding}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center px-4 text-center text-sm text-slate-400">
-            Start talking to Nolë
-          </div>
+          <EmptyThreadState />
         )}
       </div>
 
@@ -131,6 +142,26 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
         dirtyNodeIds={chat.dirtyNodeIds}
         hasDirtyWindows={chat.hasDirtyWindows}
       />
+    </div>
+  );
+}
+
+/** Écran d'accueil d'une conversation vierge, avant le premier message. */
+function EmptyThreadState() {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
+      <span className="flex size-11 items-center justify-center rounded-full bg-slate-100 opacity-60">
+        <NoleIcon size={20} />
+      </span>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-medium text-slate-600">
+          Start talking to Nolë
+        </p>
+        <p className="text-sm text-slate-400">
+          Mention a node with <span className="font-medium">@</span> to give it
+          context.
+        </p>
+      </div>
     </div>
   );
 }

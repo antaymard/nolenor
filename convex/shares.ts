@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
+import { resolveUserDisplayName } from "./lib/userDisplayName";
 import errors from "./config/errorsConfig";
 
 export const shareCanvas = mutation({
@@ -107,7 +108,8 @@ export const listCanvasShares = query({
         return {
           _id: share._id,
           userId: share.userId,
-          userName: user?.name ?? user?.email ?? "Unknown user",
+          userName:
+            resolveUserDisplayName(user) ?? user?.email ?? "Unknown user",
           userEmail: user?.email ?? null,
           permission: share.permission,
           createdAt: share._creationTime,

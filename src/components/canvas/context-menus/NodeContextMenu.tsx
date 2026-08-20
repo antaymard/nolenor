@@ -19,6 +19,7 @@ import { colors } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
+import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 
 // Icons
 import { HiOutlineTrash } from "react-icons/hi";
@@ -77,6 +78,8 @@ export default function NodeContextMenu({
   // settings. Masquée si le template n'est pas le mien — seul son
   // propriétaire peut le sauvegarder (requireOwnedTemplate), l'afficher
   // mènerait un viewer de canvas partagé droit à une erreur de permission.
+  // Masquée aussi hors dev : l'éditeur de template qu'elle ouvre est la même
+  // surface que la page settings mise de côté (cf. lib/featureFlags.ts).
   const templateId = xyNode.data?.templateId as string | undefined;
   const ownsTemplate = useOwnsTemplate(templateId);
   const { openTemplateEditor } = useTemplateEditor();
@@ -165,7 +168,7 @@ export default function NodeContextMenu({
       ),
     },
     {
-      hidden: !templateId || !ownsTemplate,
+      hidden: !templateId || !ownsTemplate || !SHOW_DEV_ONLY_SETTINGS,
       label: "Edit template",
       icon: TbLayoutBoardSplit,
       onClick: () => {

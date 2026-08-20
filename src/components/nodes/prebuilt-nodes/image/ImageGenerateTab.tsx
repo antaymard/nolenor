@@ -32,7 +32,6 @@ export default function ImageGenerateTab({
 
   const [prompt, setPrompt] = useState(storedPrompt);
   const [model, setModel] = useState<ImageModelValues | undefined>(undefined);
-  const [count, setCount] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Le prompt vit en base : quand il change côté serveur (autre onglet, ou Nolë
@@ -53,11 +52,6 @@ export default function ImageGenerateTab({
 
   const isRunning = generation?.status === "running";
   const isBusy = isRunning || isSubmitting;
-  const maxImages = selectedModel?.maxImages ?? 1;
-
-  // Changer pour un modèle qui plafonne plus bas ne doit pas laisser une
-  // demande impossible dans le formulaire.
-  const safeCount = Math.min(count, maxImages);
 
   async function handleGenerate() {
     if (!selectedModel || prompt.trim().length === 0) return;
@@ -66,7 +60,7 @@ export default function ImageGenerateTab({
       await generateImages({
         nodeDataId,
         prompt,
-        count: safeCount,
+        count: 1,
         model: selectedModel.value,
       });
     } catch (error) {
@@ -107,25 +101,6 @@ export default function ImageGenerateTab({
                 </span>
               </SelectItem>
             ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={String(safeCount)}
-          onValueChange={(value) => setCount(Number(value))}
-          disabled={isBusy}
-        >
-          <SelectTrigger size="sm" className="w-[72px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Array.from({ length: maxImages }, (_, index) => index + 1).map(
-              (value) => (
-                <SelectItem key={value} value={String(value)}>
-                  {value}
-                </SelectItem>
-              ),
-            )}
           </SelectContent>
         </Select>
       </div>

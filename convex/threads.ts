@@ -17,9 +17,17 @@ import errors from "./config/errorsConfig";
 import { threadAgentNames } from "./schemas/threadMetadataSchema";
 import { aiUsageSources } from "./schemas/aiUsageSourceSchema";
 import {
+  findByThreadId,
   lastActivityTime,
   listNoleThreadsByUserAndCanvas,
+  markReviewed,
+  markRunEnded,
 } from "./models/threadMetadataModels";
+import {
+  threadNodeTouchValidator,
+  threadRunStatuses,
+  threadRunStatusValidator,
+} from "./schemas/threadMetadataSchema";
 
 // Bornes de scan. Le nombre de conversations Nolë par canvas et par
 // utilisateur reste petit ; on lit une tranche récente et on trie en mémoire
@@ -113,6 +121,12 @@ export const listCanvasThreads = query({
       threadId: v.string(),
       title: v.union(v.string(), v.null()),
       lastActivityTime: v.number(),
+      // `runStartedAt` accompagne toujours `runStatus` : c'est lui qui permet
+      // à l'appelant de reconnaître un `running` que plus personne ne
+      // terminera. La péremption ne peut pas se décider ici — lire l'horloge
+      // dans une query donnerait un résultat qui ne se réévalue jamais.
+      runStatus: v.union(threadRunStatusValidator, v.null()),
+      runStartedAt: v.union(v.number(), v.null()),
     }),
   ),
   handler: async (ctx, { canvasId }) => {
@@ -137,8 +151,96 @@ export const listCanvasThreads = query({
           threadId: metadata.threadId,
           title: thread.title ?? null,
           lastActivityTime: lastActivityTime(metadata),
+          runStatus: metadata.runStatus ?? null,
+          runStartedAt: metadata.runStartedAt ?? null,
         };
       }),
+    );
+
+    return hydrated.filter((thread) => thread !== null);
+  },
+});
+
+/**
+ * Filtre grossier du dock d'activité : les tours en cours, et les tours conclus
+ * dont personne n'a encore accusé réception.
+ *
+ * Grossier à dessein — il ne tranche pas la péremption. Décider ici qu'un
+ * `running` est trop vieux demanderait de lire l'horloge, et une query qui lit
+ * l'horloge donne un résultat qui ne se réévalue jamais (cf. `listCanvasThreads`
+ * ci-dessus). Un `running` périmé mais déjà revu part donc au client, qui
+ * l'écarte. Le seul travail de ce filtre est d'éviter d'hydrater trente threads
+ * auprès du composant agent pour n'en afficher qu'un.
+ *
+ * C'est `runEndedAt`, et non le statut, qui atteste qu'un tour s'est conclu :
+ * un thread jamais lancé n'a pas de `runStatus`, et le tenir pour « terminé,
+ * non revu » ferait entrer au dock tout l'historique du canvas.
+ */
+function isDockCandidate(metadata: Doc<"threadMetadata">): boolean {
+  if (metadata.runStatus === threadRunStatuses.running) return true;
+  if (metadata.runEndedAt === undefined) return false;
+  return metadata.reviewedAt === undefined;
+}
+
+/**
+ * Les tâches que le dock d'activité affiche : ce qui tourne, et ce qui attend
+ * d'être relu.
+ *
+ * Query distincte de `listCanvasThreads`, et non trois champs de plus : le dock
+ * est monté en permanence sur le canvas alors que le sélecteur ne vit qu'avec
+ * le panneau ouvert. Comme `addUsage` patche la ligne du thread une fois par
+ * step LLM, une query montée en permanence se réévalue une vingtaine de fois
+ * par tour — d'où le filtre avant l'hydratation, qui ramène en pratique zéro à
+ * trois lignes au lieu de trente.
+ */
+export const listPendingThreads = query({
+  args: {
+    canvasId: v.id("canvases"),
+  },
+  returns: v.array(
+    v.object({
+      threadId: v.string(),
+      title: v.union(v.string(), v.null()),
+      // Bruts, comme pour `listCanvasThreads` : c'est le client qui résout la
+      // péremption et l'admission finale.
+      runStatus: v.union(threadRunStatusValidator, v.null()),
+      runStartedAt: v.union(v.number(), v.null()),
+      runEndedAt: v.union(v.number(), v.null()),
+      reviewedAt: v.union(v.number(), v.null()),
+      touchedNodes: v.array(threadNodeTouchValidator),
+    }),
+  ),
+  handler: async (ctx, { canvasId }) => {
+    const authUserId = await requireAuth(ctx);
+    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer");
+
+    const threads = await listNoleThreadsByUserAndCanvas(ctx, {
+      userId: authUserId,
+      canvasId,
+      limit: CANVAS_THREADS_SCAN_LIMIT,
+    });
+
+    const hydrated = await Promise.all(
+      threads
+        .filter(isDockCandidate)
+        .sort(byLastActivityDesc)
+        .map(async (metadata) => {
+          const thread = await getThreadMetadata(ctx, components.agent, {
+            threadId: metadata.threadId,
+          }).catch(() => null);
+          // La ligne survit à la suppression du thread côté composant si le
+          // nettoyage a échoué : on l'ignore plutôt que d'afficher un fantôme.
+          if (!thread) return null;
+          return {
+            threadId: metadata.threadId,
+            title: thread.title ?? null,
+            runStatus: metadata.runStatus ?? null,
+            runStartedAt: metadata.runStartedAt ?? null,
+            runEndedAt: metadata.runEndedAt ?? null,
+            reviewedAt: metadata.reviewedAt ?? null,
+            touchedNodes: metadata.touchedNodes ?? [],
+          };
+        }),
     );
 
     return hydrated.filter((thread) => thread !== null);
@@ -149,7 +251,18 @@ export const getThreadInfo = query({
   args: {
     threadId: v.string(),
   },
-  returns: v.any(),
+  returns: v.union(
+    v.object({
+      _id: v.string(),
+      _creationTime: v.number(),
+      title: v.union(v.string(), v.null()),
+      summary: v.union(v.string(), v.null()),
+      runStatus: v.union(threadRunStatusValidator, v.null()),
+      runStartedAt: v.union(v.number(), v.null()),
+      lastRunError: v.union(v.string(), v.null()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     const authUserId = await requireAuth(ctx);
     if (!authUserId) return null;
@@ -160,11 +273,17 @@ export const getThreadInfo = query({
 
     if (!thread || thread.userId !== authUserId) return null;
 
+    // L'état du run vit dans notre table, pas dans le composant agent.
+    const metadata = await findByThreadId(ctx, { threadId: args.threadId });
+
     return {
       _id: thread._id,
       _creationTime: thread._creationTime,
       title: thread.title ?? null,
       summary: thread.summary ?? null,
+      runStatus: metadata?.runStatus ?? null,
+      runStartedAt: metadata?.runStartedAt ?? null,
+      lastRunError: metadata?.lastRunError ?? null,
     };
   },
 });
@@ -249,7 +368,52 @@ export const abortStream = mutation({
       },
     );
 
+    // Sans jeton de run : l'utilisateur coupe le tour courant, quel qu'il
+    // soit. L'action de streaming écrira le même statut en sortant, mais elle
+    // peut mettre un instant à s'en apercevoir — et l'UI, elle, répond au clic.
+    if (aborted) {
+      await markRunEnded(ctx, {
+        threadId,
+        status: threadRunStatuses.aborted,
+      });
+      // Appuyer sur stop est déjà un accusé de réception : la tâche ne doit pas
+      // resurgir au dock pour se faire relire. Après `markRunEnded`, et pas
+      // avant : `markReviewed` refuse un thread encore `running`.
+      await markReviewed(ctx, { threadId });
+    }
+
     return { aborted };
+  },
+});
+
+/**
+ * Accuse réception d'une tâche : l'utilisateur a ouvert la conversation depuis
+ * le dock, ou l'a écartée.
+ *
+ * Mutation publique, et non un wrapper interne : elle répond à un clic. Le
+ * refus d'un tour encore en cours et l'idempotence vivent dans
+ * `threadMetadataModels.markReviewed`.
+ */
+export const markThreadReviewed = mutation({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { threadId }) => {
+    const authUserId = await requireAuth(ctx);
+    if (!authUserId) {
+      throw new Error(errors.UNAUTHORIZED_USER);
+    }
+
+    const thread = await getThreadMetadata(ctx, components.agent, {
+      threadId,
+    });
+    if (!thread || thread.userId !== authUserId) {
+      throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
+    }
+
+    await markReviewed(ctx, { threadId });
+    return null;
   },
 });
 

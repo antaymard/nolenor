@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
+import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import { findByThreadId } from "../models/threadMetadataModels";
+import { threadRunStatuses } from "../schemas/threadMetadataSchema";
 
 export const read = internalQuery({
   args: {
@@ -60,35 +62,50 @@ export const remove = internalMutation({
 });
 
 /**
- * Marque une interaction utilisateur. La comptabilité d'usage ne stampe
- * `lastMessageTime` qu'une fois l'assistant passé ; on veut aussi dater
- * l'envoi, sinon un tour qui échoue laisse le thread paraître plus vieux qu'il
- * ne l'est.
- *
- * C'est aussi ici, et pas dans la comptabilité de coût, qu'on incrémente
- * `roundsNb` : le `usageHandler` du composant agent est appelé une fois par
- * step LLM, donc y compter les rounds revenait à compter des steps.
+ * Ouvre un tour : date l'interaction, incrémente `roundsNb`, et passe le
+ * thread en `running`. Renvoie le jeton de run que `markRunEnded` exigera
+ * pour le conclure (cf. `ThreadMetadataModels.markRunStarted`).
  */
-export const touch = internalMutation({
+export const markRunStarted = internalMutation({
   args: {
     threadId: v.string(),
   },
-  handler: async (ctx, args) => {
-    const threadMetadata = await findByThreadId(ctx, {
-      threadId: args.threadId,
-    });
-    // Pas de ligne pour les threads sans metadata : no-op.
-    if (!threadMetadata) return;
-    await ctx.db.patch("threadMetadata", threadMetadata._id, {
-      lastMessageTime: Date.now(),
-      roundsNb: (threadMetadata.roundsNb ?? 0) + 1,
-    });
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx, { threadId }) => {
+    return ThreadMetadataModels.markRunStarted(ctx, { threadId });
   },
 });
 
-// `updateUsage` et `updateTouchNodeData` vivaient ici. Le premier throwait
+/**
+ * Sort le thread de `running`. Appelé depuis l'action de streaming, qui ne
+ * peut pas toucher la base directement.
+ */
+export const markRunEnded = internalMutation({
+  args: {
+    threadId: v.string(),
+    status: v.union(
+      v.literal(threadRunStatuses.idle),
+      v.literal(threadRunStatuses.error),
+      v.literal(threadRunStatuses.aborted),
+    ),
+    runToken: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ThreadMetadataModels.markRunEnded(ctx, args);
+    return null;
+  },
+});
+
+// `touch` vivait ici : il est devenu `markRunStarted`, qui fait la même chose
+// et pose en plus l'état du run. Son unique appelant était `ia/nole.saveMessage`.
+//
+// `updateUsage` et `updateTouchNodeData` vivaient ici aussi. Le premier throwait
 // quand le thread n'avait pas de ligne de metadata (cas des sous-agents), ce
 // qui aurait fait échouer un tour déjà streamé ; il est remplacé par
 // `ThreadMetadataModels.addUsage`, appelé depuis `aiUsageModels.recordUsage`
 // pour que le total du thread et le ledger soient écrits dans la même
-// transaction. Le second n'avait aucun appelant.
+// transaction. Le second n'avait aucun appelant ; il revit sous la forme de
+// `ThreadMetadataModels.recordNodeTouch`, appelé cette fois depuis les wrappers
+// de nodeDatas, dans la transaction du write qu'il trace.

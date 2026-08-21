@@ -7,6 +7,10 @@ import { generateNoleSystemPrompt } from "./systemPrompts/noleSystemPrompt";
 import { components, internal } from "../_generated/api";
 import { generateMessageContext } from "./helpers/generateMessageContext";
 import { vMetadata } from "./nole";
+import {
+  threadRunStatuses,
+  type ThreadRunEndStatus,
+} from "../schemas/threadMetadataSchema";
 
 function isExpectedAbortedStreamError(error: unknown): boolean {
   if (!(error instanceof Error)) {
@@ -30,86 +34,104 @@ export const streamResponse = internalAction({
     threadId: v.string(),
     metadata: vMetadata,
     canvasId: v.id("canvases"),
+    // Jeton du tour ouvert par `nole.saveMessage`. Conclure sans lui
+    // remettrait le thread au repos même si un envoi ultérieur l'a relancé.
+    runToken: v.optional(v.number()),
   },
   handler: async (
     ctx,
-    { authUserId, promptMessageId, userPrompt, threadId, metadata, canvasId },
-  ) => {
-    // A) Build system prompt (long-lived context for this run).
-    const noleSystemPrompt = await generateNoleSystemPrompt({
-      canvasId,
-      userId: authUserId,
-      ctx,
-    });
-
-    // // Init composio
-    // let composioTools = {};
-    // try {
-    //   const composio = new Composio({ provider: new VercelProvider() });
-    //   const session = await composio.create(authUserId);
-    //   composioTools = sanitizeComposioTools(await session.tools());
-    // } catch (error) {
-    //   console.warn(
-    //     "Composio unavailable, continuing without external tools:",
-    //     error,
-    //   );
-    // }
-
-    // Create agents and give it extra tools
-    const noleAgent = createNoleAgent({
-      model: metadata?.model ? getChatModel(metadata.model) : undefined,
-      threadCtx: {
-        authUserId,
-        canvasId,
-      },
-      // extraTools: composioTools,
-    });
-
-    // B) Retrieve the immediately previous message in the thread.
-    // We request two messages including `promptMessageId`, then keep the other one.
-    const previousMessages = await ctx.runQuery(
-      components.agent.messages.listMessagesByThreadId,
-      {
-        threadId,
-        order: "desc",
-        excludeToolMessages: true,
-        upToAndIncludingMessageId: promptMessageId,
-        paginationOpts: {
-          cursor: null,
-          numItems: 2,
-        },
-      },
-    );
-
-    const previousMessage = previousMessages.page.find(
-      (message) => message._id !== promptMessageId,
-    );
-
-    // C) Compute canvas changes since that previous message.
-    // This is runtime-only context injected into the current prompt (not persisted).
-    const canvasChangesSinceLastMessage = previousMessage
-      ? await ctx.runQuery(
-          internal.ia.helpers.getCanvasChangesSinceLastMessage
-            .getCanvasChangesSinceLastMessage,
-          {
-            canvasId,
-            lastMessageAt: previousMessage._creationTime,
-          },
-        )
-      : "";
-
-    // D) Merge optional message metadata + computed canvas changes context.
-    const generatedMessageContext = generateMessageContext({
+    {
+      authUserId,
+      promptMessageId,
+      userPrompt,
+      threadId,
       metadata,
-      canvasChangesSinceLastMessage,
-    });
-
-    // E) Build final user prompt payload.
-    const llmPrompt = generatedMessageContext
-      ? `${generatedMessageContext}\n\n<user_message>\n${userPrompt}\n</user_message>`
-      : userPrompt;
+      canvasId,
+      runToken,
+    },
+  ) => {
+    // L'état dans lequel ce tour laissera le thread. Décidé dans le `catch`,
+    // écrit dans le `finally` : aucun chemin de sortie ne doit laisser le
+    // thread bloqué en `running` — un statut qui tourne indéfiniment est pire
+    // que pas de statut, l'utilisateur y croit.
+    let endStatus: ThreadRunEndStatus = threadRunStatuses.idle;
+    let endError: string | undefined;
 
     try {
+      // A) Build system prompt (long-lived context for this run).
+      const noleSystemPrompt = await generateNoleSystemPrompt({
+        canvasId,
+        userId: authUserId,
+        ctx,
+      });
+
+      // // Init composio
+      // let composioTools = {};
+      // try {
+      //   const composio = new Composio({ provider: new VercelProvider() });
+      //   const session = await composio.create(authUserId);
+      //   composioTools = sanitizeComposioTools(await session.tools());
+      // } catch (error) {
+      //   console.warn(
+      //     "Composio unavailable, continuing without external tools:",
+      //     error,
+      //   );
+      // }
+
+      // Create agents and give it extra tools
+      const noleAgent = createNoleAgent({
+        model: metadata?.model ? getChatModel(metadata.model) : undefined,
+        threadCtx: {
+          authUserId,
+          canvasId,
+        },
+        // extraTools: composioTools,
+      });
+
+      // B) Retrieve the immediately previous message in the thread.
+      // We request two messages including `promptMessageId`, then keep the other one.
+      const previousMessages = await ctx.runQuery(
+        components.agent.messages.listMessagesByThreadId,
+        {
+          threadId,
+          order: "desc",
+          excludeToolMessages: true,
+          upToAndIncludingMessageId: promptMessageId,
+          paginationOpts: {
+            cursor: null,
+            numItems: 2,
+          },
+        },
+      );
+
+      const previousMessage = previousMessages.page.find(
+        (message) => message._id !== promptMessageId,
+      );
+
+      // C) Compute canvas changes since that previous message.
+      // This is runtime-only context injected into the current prompt (not persisted).
+      const canvasChangesSinceLastMessage = previousMessage
+        ? await ctx.runQuery(
+            internal.ia.helpers.getCanvasChangesSinceLastMessage
+              .getCanvasChangesSinceLastMessage,
+            {
+              canvasId,
+              lastMessageAt: previousMessage._creationTime,
+            },
+          )
+        : "";
+
+      // D) Merge optional message metadata + computed canvas changes context.
+      const generatedMessageContext = generateMessageContext({
+        metadata,
+        canvasChangesSinceLastMessage,
+      });
+
+      // E) Build final user prompt payload.
+      const llmPrompt = generatedMessageContext
+        ? `${generatedMessageContext}\n\n<user_message>\n${userPrompt}\n</user_message>`
+        : userPrompt;
+
       // F) Stream assistant response and persist deltas progressively.
       const result = await noleAgent.streamText(
         ctx,
@@ -167,10 +189,35 @@ export const streamResponse = internalAction({
         );
       }
     } catch (error) {
+      // Une coupure demandée par l'utilisateur n'est pas un échec : elle sort
+      // par le même chemin qu'une erreur, mais ne doit ni s'afficher en rouge
+      // ni proposer de réessayer.
       if (isExpectedAbortedStreamError(error)) {
+        endStatus = threadRunStatuses.aborted;
         return null;
       }
+      endStatus = threadRunStatuses.error;
+      endError = error instanceof Error ? error.message : String(error);
       throw error;
+    } finally {
+      // Dans un `finally`, et non après le `try` : le `throw` ci-dessus, un
+      // timeout d'action ou une panne pendant la construction du prompt
+      // passeraient tous à côté d'une écriture placée sur le seul chemin
+      // heureux.
+      try {
+        await ctx.runMutation(
+          internal.wrappers.threadMetadataWrappers.markRunEnded,
+          {
+            threadId,
+            status: endStatus,
+            runToken,
+            errorMessage: endError,
+          },
+        );
+      } catch (statusError) {
+        // Ne jamais masquer l'erreur d'origine avec un incident de traçabilité.
+        console.error("Failed to record thread run status:", statusError);
+      }
     }
 
     return null;

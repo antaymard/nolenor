@@ -38,6 +38,16 @@ export default function MobileCanvasSwitcherSheet({
     });
   };
 
+  const handleDeleteCanvas = async (id: Id<"canvases">) => {
+    const deleted = await deleteCanvas(id);
+    // Supprimer le canvas affiché laissait l'écran sur une URL morte : plus
+    // rien à charger, et aucune sortie depuis le shell mobile.
+    if (deleted && id === canvasId) {
+      onOpenChange(false);
+      void navigate({ to: "/" });
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-[85vw] sm:max-w-sm p-0">
@@ -75,7 +85,7 @@ export default function MobileCanvasSwitcherSheet({
                   active={canvas._id === canvasId}
                   name={canvas.name}
                   onSelect={() => handleSelectCanvas(canvas._id)}
-                  onDelete={() => void deleteCanvas(canvas._id)}
+                  onDelete={() => void handleDeleteCanvas(canvas._id)}
                 />
               ))}
               {sharedCanvases.length > 0 && (

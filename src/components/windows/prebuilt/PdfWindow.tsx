@@ -14,6 +14,7 @@ import {
 } from "@/lib/pdfZoom";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { FileFieldType } from "@/components/fields/file-fields/FileNameField";
+import PdfPageControls from "../PdfPageControls";
 import PdfZoomControls from "../PdfZoomControls";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -38,7 +39,9 @@ function PdfWindow({
   // Échelle arrondie à un palier : le zoom lui-même est un transform CSS, on ne
   // re-rend les canvas que quand le gain de netteté en vaut la peine.
   const [renderScale, setRenderScale] = useState(1);
-  const { viewportRef, baseWidth, visiblePages } = usePdfViewport({ numPages });
+  const { viewportRef, baseWidth, visiblePages, activePage } = usePdfViewport({
+    numPages,
+  });
 
   const onDocumentLoadSuccess = useCallback(
     ({ numPages }: { numPages: number }) => {
@@ -105,6 +108,11 @@ function PdfWindow({
             </Document>
           </TransformComponent>
 
+          <PdfPageControls
+            className="absolute bottom-3 left-3"
+            activePage={activePage}
+            numPages={numPages}
+          />
           <PdfZoomControls className="absolute bottom-3 right-3" />
         </TransformWrapper>
       ) : (

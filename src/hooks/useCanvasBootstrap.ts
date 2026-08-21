@@ -65,7 +65,14 @@ export function useCanvasBootstrap(
   // Custom node templates : ceux référencés par le canvas (viewers de
   // canvases partagés inclus) + ceux du user (menu d'ajout, nouveaux nodes).
   // Mergés dans templatesStore pour des sélecteurs granulaires par node.
-  const canvasTemplates = useQuery(
+  //
+  // `useRichQuery` et pas `useQuery` : cette query exige le même accès canvas
+  // que `readCanvas`, donc elle échoue en même temps (canvas supprimé, droits
+  // révoqués). Un `useQuery` throw alors *pendant le render* et fait tomber
+  // toute la route sur l'errorComponent du routeur, avant que l'appelant ait pu
+  // rendre son écran d'erreur avec sa sortie de secours. Ici on absorbe :
+  // `isCanvasError` porte déjà le diagnostic.
+  const { data: canvasTemplates } = useRichQuery(
     api.nodeTemplates.listForCanvas,
     canvasId ? { canvasId } : "skip",
   );

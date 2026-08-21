@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { useWindowsStore, type SnapSide } from "@/stores/windowsStore";
 import { useStore } from "@xyflow/react";
 import WindowFrame from "./WindowFrame";
+import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
 
 // Fullscreen windows share the heavy editor dependencies of their windowed
 // counterparts; load them on demand instead of with the canvas chunk.
@@ -54,17 +55,23 @@ export default function WindowsContainer() {
       {fullscreenWindow &&
         existingNodeIds.includes(fullscreenWindow.xyNodeId) && (
           <div className="pointer-events-auto">
-            <Suspense fallback={null}>
-              {fullscreenWindow.nodeType === "blocknote" ? (
-                <FullscreenBlocknoteWindow openedWindow={fullscreenWindow} />
-              ) : fullscreenWindow.nodeType === "table" ? (
-                <FullscreenTableWindow openedWindow={fullscreenWindow} />
-              ) : fullscreenWindow.nodeType === "pdf" ? (
-                <FullscreenPdfWindow openedWindow={fullscreenWindow} />
-              ) : fullscreenWindow.nodeType === "app" ? (
-                <FullscreenAppWindow openedWindow={fullscreenWindow} />
-              ) : null}
-            </Suspense>
+            {/* Même raison qu'au-dessus de `NodeWindowContent` : sans boundary,
+                un chunk plein écran manquant emporte tout le canvas. */}
+            <WindowContentErrorBoundary
+              key={`${fullscreenWindow.nodeType}:${fullscreenWindow.nodeDataId}`}
+            >
+              <Suspense fallback={null}>
+                {fullscreenWindow.nodeType === "blocknote" ? (
+                  <FullscreenBlocknoteWindow openedWindow={fullscreenWindow} />
+                ) : fullscreenWindow.nodeType === "table" ? (
+                  <FullscreenTableWindow openedWindow={fullscreenWindow} />
+                ) : fullscreenWindow.nodeType === "pdf" ? (
+                  <FullscreenPdfWindow openedWindow={fullscreenWindow} />
+                ) : fullscreenWindow.nodeType === "app" ? (
+                  <FullscreenAppWindow openedWindow={fullscreenWindow} />
+                ) : null}
+              </Suspense>
+            </WindowContentErrorBoundary>
           </div>
         )}
 

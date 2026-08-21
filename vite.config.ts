@@ -52,7 +52,12 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
         navigateFallback: "/index.html",
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        // `mjs` compte : le worker pdf.js est émis en `.mjs` (cf. le
+        // `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)` de
+        // PdfWindow / FullscreenPdfWindow). Sans lui dans les patterns, il
+        // était le seul asset du build à ne jamais entrer dans le précache, et
+        // toute vue PDF partait au réseau pour le charger.
+        globPatterns: ["**/*.{js,mjs,css,html,ico,png,svg,woff,woff2}"],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

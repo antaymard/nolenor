@@ -114,6 +114,7 @@ import type * as models_messageMetadataModels from "../models/messageMetadataMod
 import type * as models_nodeDataModels from "../models/nodeDataModels.js";
 import type * as models_nodeDataVersionModels from "../models/nodeDataVersionModels.js";
 import type * as models_nodeTemplateModels from "../models/nodeTemplateModels.js";
+import type * as models_onboardingModels from "../models/onboardingModels.js";
 import type * as models_r2ObjectModels from "../models/r2ObjectModels.js";
 import type * as models_searchableChunkModels from "../models/searchableChunkModels.js";
 import type * as models_skillModels from "../models/skillModels.js";
@@ -121,6 +122,7 @@ import type * as models_threadMetadataModels from "../models/threadMetadataModel
 import type * as nodeDataVersions from "../nodeDataVersions.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as nodeTemplates from "../nodeTemplates.js";
+import type * as onboarding from "../onboarding.js";
 import type * as recipes from "../recipes.js";
 import type * as schemas_aiUsageDailySchema from "../schemas/aiUsageDailySchema.js";
 import type * as schemas_aiUsageEventsSchema from "../schemas/aiUsageEventsSchema.js";
@@ -282,6 +284,7 @@ declare const fullApi: ApiFromModules<{
   "models/nodeDataModels": typeof models_nodeDataModels;
   "models/nodeDataVersionModels": typeof models_nodeDataVersionModels;
   "models/nodeTemplateModels": typeof models_nodeTemplateModels;
+  "models/onboardingModels": typeof models_onboardingModels;
   "models/r2ObjectModels": typeof models_r2ObjectModels;
   "models/searchableChunkModels": typeof models_searchableChunkModels;
   "models/skillModels": typeof models_skillModels;
@@ -289,6 +292,7 @@ declare const fullApi: ApiFromModules<{
   nodeDataVersions: typeof nodeDataVersions;
   nodeDatas: typeof nodeDatas;
   nodeTemplates: typeof nodeTemplates;
+  onboarding: typeof onboarding;
   recipes: typeof recipes;
   "schemas/aiUsageDailySchema": typeof schemas_aiUsageDailySchema;
   "schemas/aiUsageEventsSchema": typeof schemas_aiUsageEventsSchema;

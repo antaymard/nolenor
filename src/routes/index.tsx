@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { api } from "../../convex/_generated/api";
 import { VscGithubProject } from "react-icons/vsc";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import CanvasFormModal from "../components/canvas/CanvasFormModal";
 import { Dialog } from "@/components/shadcn/dialog";
 import { useConvexAuth, useConvex } from "convex/react";
@@ -17,6 +17,10 @@ function RouteComponent() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const convex = useConvex();
   const navigate = useNavigate();
+  // Le provisioning est un one-shot. Le modèle serveur est déjà idempotent
+  // (il rend le canvas existant s'il y en a un), mais un re-run de l'effet
+  // relancerait un aller-retour inutile pendant que le premier est en vol.
+  const hasProvisionedRef = useRef(false);
 
   useEffect(() => {
     // Si pas authentifié, rediriger vers signin
@@ -35,14 +39,34 @@ function RouteComponent() {
               to: "/canvas/$canvasId",
               params: { canvasId: result.canvas._id },
             });
-          } else {
-            setIsGettingLastCanvas(false);
+            return;
           }
+
+          // Aucun canvas : le compte n'a jamais eu d'espace de travail. On
+          // provisionne ici plutôt que dans le flux d'inscription parce que
+          // TOUS les chemins d'authentification convergent sur cette route —
+          // /signin ne peut pas servir de point d'accroche : l'inscription par
+          // mot de passe s'y termine sur l'étape de vérification d'email (le
+          // `step` n'y vaut plus "signUp" quand la session s'ouvre), et le
+          // retour de redirection Google n'y repasse jamais.
+          if (hasProvisionedRef.current) {
+            setIsGettingLastCanvas(false);
+            return;
+          }
+          hasProvisionedRef.current = true;
+
+          return convex
+            .mutation(api.onboarding.provisionFirstCanvas, {})
+            .then((canvasId) => {
+              navigate({ to: "/canvas/$canvasId", params: { canvasId } });
+            });
         })
         .catch((error: unknown) => {
           // Sans ce catch, un échec de la query laissait `isGettingLastCanvas`
           // à true : « Loading... » indéfiniment, et une unhandled rejection
-          // que personne n'observait.
+          // que personne n'observait. Couvre aussi l'échec du provisioning :
+          // le repli est l'état vide ci-dessous, qui laisse créer un espace de
+          // travail à la main.
           setIsGettingLastCanvas(false);
           toastError(error, "Could not load your workspaces");
         });

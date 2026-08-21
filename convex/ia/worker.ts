@@ -1,12 +1,16 @@
 "use node";
 import {v, ConvexError} from "convex/values";
 import {internalAction} from "../_generated/server";
-import {baseAgent, createWorkerAgent} from "./agents";
+import {baseAgent, createWorkerAgent, WORKER_MAX_STEPS} from "./agents";
 import {components, internal} from "../_generated/api";
 import {createThread} from "@convex-dev/agent";
 import generateWorkerSystemPrompt from "./systemPrompts/workerSystemPrompt";
 import {type Id} from "../_generated/dataModel";
-import {asSubAgentErrorData, subAgentConvexError} from "./subAgentErrors";
+import {
+  asSubAgentErrorData,
+  classifyWorkerThrow,
+  subAgentConvexError,
+} from "./subAgentErrors";
 import {threadAgentNames} from "../schemas/threadMetadataSchema";
 
 export const startWorkerTask = internalAction({
@@ -22,8 +26,16 @@ export const startWorkerTask = internalAction({
     // d'agréger le coût d'un tour et de sa descendance via l'index
     // `by_masterThreadId`.
     masterThreadId: v.optional(v.string()),
+    // Identifiant de corrélation frappé par l'appelant. Quand l'action est tuée
+    // net (time limit, OOM), rien de ce qu'elle throw n'atteint le parent : ce
+    // sont ses logs qui portent la cause, et cet id est ce qui permet de les
+    // retrouver depuis l'erreur remontée côté tool.
+    runId: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, canvasId, instructions, masterThreadId }) => {
+  handler: async (
+    ctx,
+    { userId, canvasId, instructions, masterThreadId, runId },
+  ) => {
     // --- Phase 1: authorize the target canvas -----------------------------
     // A malformed id trips the query's `v.id` validator (→ invalid_arguments);
     // a valid-but-unauthorized id returns false (→ access_denied).
@@ -39,6 +51,7 @@ export const startWorkerTask = internalAction({
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("[startWorkerTask] invalid canvasId", {
+        runId,
         canvasId,
         userId,
         detail,
@@ -51,6 +64,7 @@ export const startWorkerTask = internalAction({
 
     if (!hasAccess) {
       console.warn("[startWorkerTask] canvas access denied", {
+        runId,
         canvasId,
         userId,
       });
@@ -61,10 +75,16 @@ export const startWorkerTask = internalAction({
     }
 
     // --- Phase 2: run the worker ------------------------------------------
-    // Anything thrown here is a worker/infra failure, not an argument problem
-    // the caller can fix, so it is reported as `worker_execution`.
+    // Nothing thrown here is an argument problem the caller can fix. What it is
+    // instead — step budget exhausted, provider refusal, worker crash — is
+    // decided below and shipped as a classified kind, because past this
+    // action's boundary the cause is no longer readable.
+    // Déclaré hors du `try` : le catch en a besoin pour dire quel thread worker
+    // a échoué, ce qui est le point d'entrée pour aller relire la conversation
+    // du worker dans le dashboard.
+    let threadId: string | undefined;
     try {
-      const threadId = await createThread(ctx, components.agent, {
+      threadId = await createThread(ctx, components.agent, {
         userId,
         title: `__WORKER__`,
       });
@@ -112,22 +132,83 @@ export const startWorkerTask = internalAction({
         },
       );
 
-      return result.text;
+      const text = result.text?.trim() ?? "";
+      const stepsUsed = result.steps?.length ?? 0;
+      const finishReason = result.finishReason;
+
+      console.log("[startWorkerTask] worker finished", {
+        runId,
+        threadId,
+        canvasId,
+        finishReason,
+        stepsUsed,
+        textLength: text.length,
+      });
+
+      // Épuiser `stopWhen` n'est pas une erreur pour l'AI SDK : la boucle rend
+      // la main en laissant le dernier step sur des tool calls jamais résolus.
+      // C'est la seule signature d'un budget consommé, et sans ce test le
+      // parent recevait `{ success: true, result: "" }` — un worker coupé en
+      // plein travail, maquillé en succès.
+      if (finishReason === "tool-calls") {
+        throw subAgentConvexError(
+          "step_limit",
+          `Worker stopped on unresolved tool calls after ${stepsUsed}/${WORKER_MAX_STEPS} steps: its step budget ran out before the brief was done.`,
+          text ? `Last output before the cut-off: ${text}` : undefined,
+        );
+      }
+
+      if (finishReason === "length") {
+        throw subAgentConvexError(
+          "model_error",
+          `Worker output hit the model's max token limit after ${stepsUsed} step(s) and was truncated mid-answer.`,
+          text || undefined,
+        );
+      }
+
+      if (finishReason === "content-filter") {
+        throw subAgentConvexError(
+          "model_error",
+          "The provider's content filter blocked the worker's response.",
+        );
+      }
+
+      // Un worker sans texte final n'a rien à rapporter, mais il a pu écrire
+      // sur le canvas avant d'en arriver là : c'est un échec pour l'appelant,
+      // pas un no-op.
+      if (text.length === 0) {
+        throw subAgentConvexError(
+          "empty_result",
+          `Worker ended with finishReason "${finishReason}" after ${stepsUsed} step(s) but returned no final message.`,
+        );
+      }
+
+      return text;
     } catch (error) {
-      // Preserve an already-classified error untouched (defensive — phase 2
-      // does not throw these itself), otherwise wrap the real reason so it
-      // survives the ctx.runAction boundary as a worker execution failure.
+      // Une erreur déjà classifiée traverse intacte : c'est ce chemin que
+      // prennent les quatre `subAgentConvexError` ci-dessus, qui sont levées
+      // dans ce même `try`.
       if (error instanceof ConvexError && asSubAgentErrorData(error.data)) {
         throw error;
       }
-      const detail = error instanceof Error ? error.message : String(error);
+      // Classifier ici, pas chez l'appelant : passé `ctx.runAction`, Convex
+      // redacte toute erreur qui n'est pas une `ConvexError` en « Server
+      // Error » et la cause réelle est perdue.
+      const classified = classifyWorkerThrow(error);
       console.error("[startWorkerTask] worker execution failed", {
+        runId,
+        threadId,
         canvasId,
         userId,
-        detail,
+        kind: classified.kind,
+        detail: classified.message,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      throw subAgentConvexError("worker_execution", detail);
+      throw subAgentConvexError(
+        classified.kind,
+        classified.message,
+        classified.details,
+      );
     }
   },
 });

@@ -274,6 +274,20 @@ const defaultModels = {
 // AGENTS CONF =================================================================
 
 /**
+ * Budgets de steps, sortis des appels à `stepCountIs` pour que les erreurs
+ * puissent citer le vrai chiffre. Un « step » au sens de l'AI SDK est un
+ * aller-retour LLM complet, pas un tool call : plusieurs outils appelés en
+ * parallèle dans le même message assistant n'en consomment qu'un.
+ *
+ * Atteindre ce plafond n'est pas une erreur pour l'AI SDK — la boucle s'arrête
+ * et rend la main avec `finishReason: "tool-calls"`. C'est ce qui rendait un
+ * worker à court de steps indiscernable d'un worker qui a fini son travail (cf.
+ * ia/worker.ts).
+ */
+export const NOLE_MAX_STEPS = 25;
+export const WORKER_MAX_STEPS = 15;
+
+/**
  * Agent minimal pour les opérations utilitaires. Attention : il sert à la fois
  * à des appels sans LLM (`saveMessage`, cf. ia/nole.ts et ia/worker.ts) et à un
  * vrai appel LLM (la génération de titre, cf. threads.ts). D'où `usageSource`
@@ -304,7 +318,7 @@ export function createNoleAgent({
   const languageModel = model ?? defaultModels.nole;
   return new Agent(components.agent, {
     name: "Nolë",
-    stopWhen: stepCountIs(25),
+    stopWhen: stepCountIs(NOLE_MAX_STEPS),
     languageModel,
     tools: getToolsForAgent({
       agentName: toolAgentNames.nole,
@@ -334,7 +348,7 @@ export function createWorkerAgent({
   const languageModel = model ?? defaultModels.worker;
   return new Agent(components.agent, {
     name: "Worker",
-    stopWhen: stepCountIs(15),
+    stopWhen: stepCountIs(WORKER_MAX_STEPS),
     languageModel,
     tools: getToolsForAgent({
       agentName: toolAgentNames.worker,

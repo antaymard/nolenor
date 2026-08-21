@@ -107,5 +107,5 @@ export const markRunEnded = internalMutation({
 // `ThreadMetadataModels.addUsage`, appelé depuis `aiUsageModels.recordUsage`
 // pour que le total du thread et le ledger soient écrits dans la même
 // transaction. Le second n'avait aucun appelant ; il revit sous la forme de
-// `ThreadMetadataModels.addTouchedNode`, appelé cette fois depuis les wrappers
+// `ThreadMetadataModels.recordNodeTouch`, appelé cette fois depuis les wrappers
 // de nodeDatas, dans la transaction du write qu'il trace.

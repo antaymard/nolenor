@@ -1,15 +1,15 @@
-import type { ThreadRunStatus } from "@/../convex/schemas/threadMetadataSchema";
+import {
+  RUN_STALE_MS,
+  type ThreadRunStatus,
+} from "@/../convex/schemas/threadMetadataSchema";
 
 /**
- * Au-delà de ce délai, un thread encore marqué `running` est tenu pour
- * interrompu. Le serveur écrit son état terminal dans un `finally`, mais rien
- * ne s'exécute quand l'action meurt avec son conteneur : sans cette borne, la
- * pastille tournerait indéfiniment — pire que pas de statut, l'utilisateur y
- * croit.
- *
- * Généreux à dessein : un tour Nolë va jusqu'à 25 steps, dont des sous-agents.
+ * Réexporté depuis le schéma Convex, où il vit désormais : le serveur en a
+ * besoin lui aussi, pour accepter de clore un tour périmé
+ * (`threadMetadataModels.markReviewed`). Deux constantes qui divergeraient, et
+ * une pastille « sans réponse » deviendrait indélogeable.
  */
-export const RUN_STALE_MS = 15 * 60 * 1000;
+export { RUN_STALE_MS };
 
 /**
  * Ce que l'interface affiche. `stale` n'existe pas en base : c'est un
@@ -103,4 +103,70 @@ export function getRunStatusAppearance(
   status: ResolvedRunStatus,
 ): RunStatusAppearance | null {
   return status === "idle" ? null : RUN_STATUS_APPEARANCE[status];
+}
+
+/**
+ * Ce que le dock d'activité sait d'un thread. `runEndedAt` s'ajoute au couple
+ * du statut parce que c'est lui, et non le statut résolu, qui atteste qu'un
+ * tour s'est réellement conclu (cf. `isPendingReview`).
+ */
+export type ThreadDockFields = ThreadRunFields & {
+  runEndedAt: number | null | undefined;
+  reviewedAt: number | null | undefined;
+};
+
+/**
+ * Le thread a-t-il sa place au dock d'activité ?
+ *
+ * Le dock est une boîte de réception, pas un flux d'activité récente : une
+ * tâche finie y reste jusqu'à ce qu'on l'ait vue, sans TTL. C'est la revue qui
+ * l'en sort, et rien d'autre.
+ *
+ * Le piège est `idle`. `resolveRunStatus` le rend aussi bien pour un tour qui
+ * s'est bien terminé que pour un thread qui n'a jamais été lancé — d'où le
+ * garde sur `runEndedAt`, sans lequel tout l'historique du canvas entrerait au
+ * dock au premier chargement.
+ */
+export function isPendingReview(
+  fields: ThreadDockFields,
+  now: number = Date.now(),
+): boolean {
+  const resolved = resolveRunStatus(fields, now);
+  // Un tour en cours ne se revoit pas : il n'est pas fini.
+  if (resolved === "running") return true;
+  // Un `running` qu'on a cessé de croire n'aura jamais son `runEndedAt` ; il
+  // reste pourtant à revoir, c'est même la tâche qui appelle le plus l'œil.
+  if (resolved === "stale") return fields.reviewedAt == null;
+  // Ni lancé, ni conclu : rien à faire relire.
+  if (fields.runEndedAt == null) return false;
+  return fields.reviewedAt == null;
+}
+
+/**
+ * L'apparence du cas que le header n'a jamais à afficher : une tâche qui a
+ * abouti, et qu'il reste à relire.
+ *
+ * Le vert dit déjà « enregistré » dans cette app (cf. le choix des teintes
+ * ci-dessus) ; « la tâche a abouti » en est le prolongement direct.
+ */
+const DOCK_DONE_APPEARANCE: RunStatusAppearance = {
+  label: "Terminé",
+  description: "Nolë a terminé cette tâche.",
+  className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  dotClassName: "bg-emerald-500",
+};
+
+/**
+ * Comme `getRunStatusAppearance`, mais ne rend jamais `null` : au dock, `idle`
+ * est le cas le plus fréquent — « terminé, pas encore revu » — et non un état
+ * de repos qu'il faudrait taire. Les quatre autres gardent leur apparence
+ * partagée : le dock, le header et la liste disent la même chose de la même
+ * couleur.
+ */
+export function getDockStatusAppearance(
+  status: ResolvedRunStatus,
+): RunStatusAppearance {
+  return status === "idle"
+    ? DOCK_DONE_APPEARANCE
+    : RUN_STATUS_APPEARANCE[status];
 }

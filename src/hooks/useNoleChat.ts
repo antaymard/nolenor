@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { optimisticallySendMessage } from "@convex-dev/agent/react";
 import { useReactFlow } from "@xyflow/react";
@@ -46,11 +46,11 @@ export function useNoleChat() {
   const setModelSelection = useNoleStore((state) => state.setModelSelection);
   const threadId = overrideThreadId ?? initialThreadId;
 
-  // Le store survit au démontage du panel : on réinitialise l'override au
-  // changement de canvas pour ne pas garder actif un thread d'un autre canvas.
-  useEffect(() => {
-    setOverrideThreadId(null);
-  }, [canvasId, setOverrideThreadId]);
+  // L'override est remis à zéro au changement de canvas par `useCanvasBootstrap`,
+  // et non ici : cet effet-ci se déclenchait au *montage du chat*, donc à chaque
+  // ouverture du panneau — il effaçait la conversation qu'on venait de désigner
+  // depuis l'extérieur (dock d'activité, threads associés d'un node) et ouvrait
+  // le dernier thread du canvas à la place.
 
   // Composer input.
   const [userInput, setUserInput] = useState("");

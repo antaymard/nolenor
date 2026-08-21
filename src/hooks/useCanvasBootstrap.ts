@@ -5,6 +5,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useNoleStore } from "@/stores/noleStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 
@@ -37,6 +38,12 @@ export function useCanvasBootstrap(
   useEffect(() => {
     useWindowsStore.getState().closeAllWindows();
     useCanvasStore.getState().resetSync();
+    // La conversation Nolë désignée depuis l'extérieur (dock d'activité,
+    // threads associés d'un node) appartient à *ce* canvas. Le nettoyage vit
+    // ici et non dans `useNoleChat` : le cycle de vie d'un hook de chat est
+    // celui du panneau, qui se monte et se démonte à chaque ouverture — s'y
+    // accrocher effaçait la sélection à l'instant même où on l'ouvrait.
+    useNoleStore.getState().setActiveThreadId(null);
     setCanvas(null);
     clearNodeDatas();
     clearTemplates();

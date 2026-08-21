@@ -109,16 +109,20 @@ export default function ChatInput({
               triggerClassName="size-8 rounded-full"
               iconSize={14}
             />
-            <VoiceProviderSelect
-              disabled={sttBusy}
-              triggerClassName="size-8 rounded-full"
-              iconSize={14}
-            />
-            <MicStatus
-              isRecording={isRecording}
-              isTranscribing={isTranscribing}
-              level={micLevel}
-            />
+            <VoiceProviderSelect disabled={sttBusy}>
+              <button
+                type="button"
+                disabled={sttBusy}
+                title="Dictation engine"
+                className="flex cursor-pointer items-center rounded-full px-1.5 py-1 transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <MicStatus
+                  isRecording={isRecording}
+                  isTranscribing={isTranscribing}
+                  level={micLevel}
+                />
+              </button>
+            </VoiceProviderSelect>
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">

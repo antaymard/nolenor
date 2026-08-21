@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { TbCloudExclamation, TbMicrophone } from "react-icons/tb";
+import { TbCloudExclamation, TbMicrophone, TbWaveSine } from "react-icons/tb";
 import { ThinkingOrb } from "thinking-orbs";
 import toast from "react-hot-toast";
 import { Button } from "@/components/shadcn/button";
@@ -102,11 +102,17 @@ export default function MobileChatInput() {
               triggerClassName="size-9 rounded-full"
               iconSize={16}
             />
-            <VoiceProviderSelect
-              disabled={sttBusy}
-              triggerClassName="size-9 rounded-full"
-              iconSize={16}
-            />
+            <VoiceProviderSelect disabled={sttBusy}>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={sttBusy}
+                title="Dictation engine"
+                className="size-9 rounded-full text-slate-500"
+              >
+                <TbWaveSine size={16} />
+              </Button>
+            </VoiceProviderSelect>
             <Button
               type="button"
               variant="ghost"

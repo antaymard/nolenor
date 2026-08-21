@@ -33,7 +33,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
+import { scrollToPdfPage } from "@/lib/pdfPageScroll";
 import FullscreenWindowFrame from "./FullscreenWindowFrame";
+import PdfPageControls from "./PdfPageControls";
 import PdfZoomControls from "./PdfZoomControls";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -71,14 +73,13 @@ export default function FullscreenPdfWindow({
   const [isChatOpen, setIsChatOpen] = useState(false);
   useHotkey("N", () => setIsChatOpen((v) => !v));
 
-  const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null);
 
   const [numPages, setNumPages] = useState<number>(0);
   const [renderScale, setRenderScale] = useState(1);
   // horizontalPadding compense le px-8 du conteneur de pages ; maxBaseWidth
   // reproduit à 100 % la largeur de lecture confortable d'avant le zoom.
-  const { viewportRef, baseWidth, visiblePages } = usePdfViewport({
+  const { viewportRef, baseWidth, visiblePages, activePage } = usePdfViewport({
     numPages,
     horizontalPadding: 64,
     minBaseWidth: 320,
@@ -132,13 +133,10 @@ export default function FullscreenPdfWindow({
 
   const displayedOutline = outline.length > 0 ? outline : fallbackOutline;
 
-  // Sous transform il n'y a plus de conteneur scrollable : scrollIntoView ne
-  // viserait pas juste. On passe par le recadrage de la lib, à échelle constante.
+  // Le sommaire et les contrôles de page visent la même chose — le haut de la
+  // page demandée — donc ils partagent le même recadrage.
   const scrollToPage = useCallback((pageIndex: number) => {
-    const target = pageRefs.current[pageIndex];
-    const controls = transformRef.current;
-    if (!target || !controls) return;
-    controls.zoomToElement(target, controls.instance.transformState.scale);
+    scrollToPdfPage(transformRef.current, pageIndex);
   }, []);
 
   // On portrait tablets, drop the chat + outline side columns for a focused,
@@ -238,13 +236,7 @@ export default function FullscreenPdfWindow({
                     onLoadSuccess={onDocumentLoadSuccess}
                   >
                     {Array.from({ length: numPages }, (_, index) => (
-                      <div
-                        key={`page_${index + 1}`}
-                        data-page-index={index}
-                        ref={(el) => {
-                          pageRefs.current[index] = el;
-                        }}
-                      >
+                      <div key={`page_${index + 1}`} data-page-index={index}>
                         <Page
                           pageNumber={index + 1}
                           width={baseWidth}
@@ -259,6 +251,11 @@ export default function FullscreenPdfWindow({
                 </div>
               </TransformComponent>
 
+              <PdfPageControls
+                className="absolute bottom-4 left-4"
+                activePage={activePage}
+                numPages={numPages}
+              />
               <PdfZoomControls className="absolute bottom-4 right-4" />
             </TransformWrapper>
           ) : (

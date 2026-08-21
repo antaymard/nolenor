@@ -30,12 +30,16 @@ export function useUserCanvases({ enabled = true }: { enabled?: boolean } = {}) 
     };
   }, [userCanvases]);
 
+  /** `true` si la suppression a abouti — l'appelant qui affiche le canvas
+   *  supprimé doit alors quitter son URL, devenue un cul-de-sac. */
   const deleteCanvas = useCallback(
-    async (canvasId: Id<"canvases">) => {
+    async (canvasId: Id<"canvases">): Promise<boolean> => {
       try {
         await deleteCanvasMutation({ canvasId });
+        return true;
       } catch (error) {
         toastError(error, "Error deleting workspace.");
+        return false;
       }
     },
     [deleteCanvasMutation],

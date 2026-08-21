@@ -3,7 +3,7 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { useConvexAuth } from "convex/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { CanvasNode } from "@/types";
-import ErrorDisplay from "@/components/ui/ErrorDisplay";
+import CanvasErrorScreen from "@/components/canvas/CanvasErrorScreen";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasBootstrap } from "@/hooks/useCanvasBootstrap";
 import { MobileNoleProvider } from "./MobileNoleContext";
@@ -55,10 +55,21 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
   );
 
   if (isCanvasError && canvasError) {
-    return <ErrorDisplay error={canvasError} />;
+    return (
+      <CanvasErrorScreen
+        error={canvasError}
+        isAuthenticated={isAuthenticated}
+      />
+    );
   }
   if (isNodeDatasError && nodeDatasError) {
-    return <ErrorDisplay error={nodeDatasError} />;
+    return (
+      <CanvasErrorScreen
+        error={nodeDatasError}
+        isAuthenticated={isAuthenticated}
+        title="This canvas could not be loaded"
+      />
+    );
   }
   if (!canvas) {
     return (

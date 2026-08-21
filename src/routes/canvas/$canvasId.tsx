@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
 import { ReactFlowProvider, Panel } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import ErrorDisplay from "@/components/ui/ErrorDisplay";
-import { Button } from "@/components/shadcn/button";
+import CanvasErrorScreen from "@/components/canvas/CanvasErrorScreen";
 import { lazy, Suspense } from "react";
 import type { CanvasNode } from "@/types/convex";
 import WindowsContainer from "@/components/windows/WindowsContainer";
@@ -86,25 +84,22 @@ function CanvasContent({
   } = useCanvasBootstrap(canvasId, { isAuthenticated });
 
   if (isCanvasError && canvasError) {
-    if (!isAuthenticated) {
-      return (
-        <ErrorDisplay
-          title="This canvas is private or unavailable"
-          message="Sign in to check whether you have access, or ask the owner to share it with you."
-          cta={
-            <Button asChild>
-              <Link to="/signin">Sign in / Create account</Link>
-            </Button>
-          }
-        />
-      );
-    }
-
-    return <ErrorDisplay error={canvasError} />;
+    return (
+      <CanvasErrorScreen
+        error={canvasError}
+        isAuthenticated={isAuthenticated}
+      />
+    );
   }
 
   if (isNodeDatasError && nodeDatasError) {
-    return <ErrorDisplay error={nodeDatasError} />;
+    return (
+      <CanvasErrorScreen
+        error={nodeDatasError}
+        isAuthenticated={isAuthenticated}
+        title="This canvas could not be loaded"
+      />
+    );
   }
 
   if (!canvas) {

@@ -43,6 +43,13 @@ export class AppErrorBoundary extends Component<
     window.location.reload();
   };
 
+  // Navigation dure plutôt que routeur : quand ce boundary rend, l'arbre React
+  // est déjà démonté, donc rien ne garantit qu'un `navigate` remonte une app
+  // saine. Un chargement complet repart d'un état propre.
+  handleBackHome = (): void => {
+    window.location.assign("/");
+  };
+
   render(): ReactNode {
     const { error } = this.state;
     if (!error) return this.props.children;
@@ -52,7 +59,14 @@ export class AppErrorBoundary extends Component<
         <ErrorDisplay
           title="Something went wrong"
           message="The app hit an unexpected error. Reloading usually fixes it — your work is saved on the server."
-          cta={<Button onClick={this.handleReload}>Reload the page</Button>}
+          cta={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" onClick={this.handleBackHome}>
+                Back to my canvases
+              </Button>
+              <Button onClick={this.handleReload}>Reload the page</Button>
+            </div>
+          }
         />
       </div>
     );

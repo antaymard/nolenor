@@ -53,9 +53,18 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
         title="This page could not be loaded"
         error={error instanceof Error ? error : null}
         cta={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-center gap-2">
             <Button variant="outline" onClick={reset}>
               Try again
+            </Button>
+            {/* Navigation dure : `reset` re-rend la *même* route, donc une route
+                définitivement cassée (canvas supprimé, accès révoqué) boucle sur
+                l'erreur. Repartir de `/` est la seule sortie fiable. */}
+            <Button
+              variant="outline"
+              onClick={() => window.location.assign("/")}
+            >
+              Back to my canvases
             </Button>
             <Button onClick={() => window.location.reload()}>Reload</Button>
           </div>

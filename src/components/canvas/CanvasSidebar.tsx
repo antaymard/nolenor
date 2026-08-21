@@ -12,7 +12,7 @@ import { Button } from "@/components/shadcn/button";
 import { api } from "@/../convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import type { Id } from "@/../convex/_generated/dataModel";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
 import CanvasFormModal from "./CanvasFormModal";
 import {
@@ -36,6 +36,7 @@ import { HiDotsVertical } from "react-icons/hi";
 import { TbPlus } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { toastError } from "@/components/utils/errorUtils";
 
 export default function CanvasSidebar({
   children,
@@ -44,6 +45,7 @@ export default function CanvasSidebar({
   children: React.ReactNode;
   canvasId: Id<"canvases">;
 }) {
+  const navigate = useNavigate();
   const deleteCanvas = useMutation(api.canvases.deleteCanvas);
   const userCanvases = useQuery(api.canvases.listUserCanvases);
 
@@ -62,8 +64,23 @@ export default function CanvasSidebar({
 
   const confirmDeleteCanvas = async () => {
     if (!canvasToDelete) return;
-    await deleteCanvas({ canvasId: canvasToDelete.id });
-    setCanvasToDelete(null);
+    const deletedId = canvasToDelete.id;
+
+    try {
+      await deleteCanvas({ canvasId: deletedId });
+    } catch (error) {
+      toastError(error, "Error deleting workspace.");
+      return;
+    } finally {
+      setCanvasToDelete(null);
+    }
+
+    // Supprimer le canvas ouvert laissait l'app sur son URL : les queries
+    // repassaient en erreur et on restait bloqué sur un écran « ce canvas
+    // n'existe pas ». `/` rebascule sur le dernier canvas ouvert.
+    if (deletedId === canvasId) {
+      void navigate({ to: "/" });
+    }
   };
 
   function renderUserCanvases() {

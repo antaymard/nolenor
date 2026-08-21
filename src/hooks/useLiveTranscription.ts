@@ -9,14 +9,47 @@ import {
  * Hook de transcription LIVE (streaming) via le voice-server.
  *
  * Le navigateur capte le micro, le ré-encode en PCM s16le mono et l'envoie au
- * fil de l'eau sur un WebSocket `wss://<voice-server>/v1/realtime`. Le serveur
- * renvoie des `delta` (texte interim) puis des `segment` finalisés, et enfin un
- * `done` avec le transcript complet.
+ * fil de l'eau sur un WebSocket vers le voice-server, qui relaie vers le moteur
+ * de transcription et renvoie des événements JSON.
+ *
+ * Deux moteurs (`provider`), avec des protocoles DIFFÉRENTS côté serveur — la
+ * capture audio, elle, est strictement identique :
+ *
+ * - `mistral` (`/v1/realtime`) : flux de `delta` cumulatifs (texte interim qui
+ *   s'ajoute), `segment` finalisés, event `language` séparé, `done` avec la
+ *   langue. Réglable via `targetDelayMs` (latence vs précision).
+ * - `gladia` (`/v1/gladia/realtime`) : découpage par utterance avec détection
+ *   de fin de parole. Les `partial` REMPLACENT l'hypothèse courante (ils ne
+ *   s'ajoutent pas), les `utterance` sont les segments définitifs, la langue
+ *   voyage sur ces événements et `done` ne la porte pas. En échange : hint de
+ *   langues et vocabulaire métier applicables en direct.
+ *
+ * Ces différences sont absorbées ici : le hook expose la même surface
+ * (`transcript` / `partial` / `segments` / `language`) quel que soit le moteur.
  *
  * Ce hook est "transport-only" : il reçoit `serverUrl` + `token` en paramètres.
  * Pour l'usage dans l'app, préférer `useNoleLiveTranscription` qui récupère la
- * config depuis Convex (token hors bundle).
+ * config depuis Convex (token hors bundle) et fixe le moteur.
  */
+
+/** Moteur de transcription servi par le voice-server. */
+export type LiveTranscriptionProvider = "mistral" | "gladia";
+
+/**
+ * Terme de vocabulaire métier (Gladia uniquement) : biaise phonétiquement la
+ * transcription vers les mots du domaine. La forme objet permet d'affiner —
+ * `pronunciations` = comment le terme sonne à l'oral, `intensity` (0..1) =
+ * agressivité du remplacement des quasi-correspondances, `language` = langue du
+ * terme lui-même (un nom anglais dans un transcript français, par exemple).
+ */
+export type LiveVocabularyEntry =
+  | string
+  | {
+      value: string;
+      pronunciations?: string[];
+      intensity?: number;
+      language?: string;
+    };
 
 export type LiveTranscriptionStatus =
   | "idle"
@@ -35,7 +68,11 @@ export type LiveTranscriptionErrorCode =
   | "config_missing"
   /** Micro refusé/absent, ou échec du setup audio local. */
   | "mic_error"
-  /** Serveur injoignable ou n'ayant jamais répondu `ready`. */
+  /**
+   * La session live n'a pas pu s'établir : serveur injoignable, jamais de
+   * `ready`, ou capture locale incompatible avec le moteur. Dans tous les cas
+   * le STT batch reste une alternative viable.
+   */
   | "connect_failed"
   /** Erreur renvoyée par le serveur ou coupure en cours de session. */
   | "server_error";
@@ -57,10 +94,33 @@ export interface UseLiveTranscriptionOptions {
   serverUrl?: string | null;
   /** Token Bearer du voice-server. */
   token?: string | null;
-  /** Latence cible (ms) envoyée au serveur, clampée 240–2400. Défaut 480. */
-  targetDelayMs?: number;
+  /** Moteur de transcription. Défaut `mistral`. */
+  provider?: LiveTranscriptionProvider;
   /** Sample rate de capture souhaité (Hz). Défaut 16000. */
   sampleRate?: number;
+  /**
+   * Latence cible (ms) envoyée au serveur, clampée 240–2400. Défaut 480.
+   * `mistral` uniquement — Gladia découpe par détection de fin de parole
+   * (cf. `endpointing`) et n'a pas d'équivalent.
+   */
+  targetDelayMs?: number;
+  /**
+   * `gladia` : langues candidates (ISO 639-1). Vide/absent = auto-détection,
+   * une seule = langue forcée, plusieurs = détection restreinte à la liste.
+   */
+  languages?: string[];
+  /** `gladia` : autorise le changement de langue en cours de session. */
+  codeSwitching?: boolean;
+  /** `gladia` : vocabulaire métier appliqué en direct. */
+  vocabulary?: LiveVocabularyEntry[];
+  /** `gladia` : intensité de remplacement par défaut (0..1). */
+  vocabularyIntensity?: number;
+  /**
+   * `gladia` : secondes de silence qui finalisent une utterance. Le défaut
+   * Gladia (0.05 s) découpe très fin ; ~0.3 s donne des segments plus longs,
+   * donc une meilleure ponctuation.
+   */
+  endpointing?: number;
   /** Appelé à chaque segment finalisé. */
   onSegment?: (segment: TranscriptSegment) => void;
   /** Appelé quand le flux est finalisé (transcript complet). */
@@ -100,6 +160,26 @@ const PCM_WORKLET_NAME = "nole-pcm-encoder";
 // Plafond de trames bufferisées avant le `ready` serveur (~20 s à 100 ms/trame).
 // Filet de sécurité contre une montée mémoire si `ready` n'arrive jamais.
 const MAX_PENDING_FRAMES = 200;
+
+// Sample rates acceptés par chaque moteur. Les listes diffèrent (Mistral prend
+// 22050 mais pas 32000, Gladia l'inverse) : envoyer une valeur hors liste fait
+// répondre `bad_message` et fermer en 4400, donc on snappe sur la plus proche.
+const SUPPORTED_SAMPLE_RATES: Record<
+  LiveTranscriptionProvider,
+  readonly number[]
+> = {
+  mistral: [8000, 16000, 22050, 44100, 48000],
+  gladia: [8000, 16000, 32000, 44100, 48000],
+};
+
+// Délai d'attente du `done` après un `stop`, par moteur. Le serveur laisse
+// respectivement 10 s et 15 s au moteur amont pour livrer son transcript
+// post-traité ; on n'attend pas autant côté composer (le texte déjà reçu est
+// livré à l'expiration), mais Gladia a besoin d'un peu plus d'air que Mistral.
+const DONE_TIMEOUT_MS: Record<LiveTranscriptionProvider, number> = {
+  mistral: 5000,
+  gladia: 8000,
+};
 
 // Si le serveur n'a pas envoyé `ready` dans ce délai, on abandonne avec une
 // erreur explicite plutôt que de rester en "connecting" indéfiniment (couvre
@@ -144,16 +224,62 @@ class PCMEncoder extends AudioWorkletProcessor {
 registerProcessor(${JSON.stringify(PCM_WORKLET_NAME)}, PCMEncoder);
 `;
 
-function buildRealtimeUrl(base: string, token: string): string {
+function buildRealtimeUrl(
+  base: string,
+  token: string,
+  provider: LiveTranscriptionProvider,
+): string {
   let u = base.trim().replace(/\/+$/, "");
   u = u.replace(/^http:/i, "ws:").replace(/^https:/i, "wss:");
   if (!/^wss?:/i.test(u)) u = "wss://" + u;
-  return `${u}/v1/realtime?token=${encodeURIComponent(token)}`;
+  const path = provider === "gladia" ? "/v1/gladia/realtime" : "/v1/realtime";
+  return `${u}${path}?token=${encodeURIComponent(token)}`;
 }
 
 function clampDelay(d: number | undefined): number {
   const n = d ?? 480;
   return Math.min(2400, Math.max(240, Math.round(n)));
+}
+
+/**
+ * Le taux déclaré dans la frame `start` doit être EXACTEMENT celui des trames
+ * PCM envoyées : le rabattre sur la valeur acceptée la plus proche ferait
+ * relire l'audio à la mauvaise vitesse (transcript pitché, donc inexploitable)
+ * au lieu de lever une erreur. On valide, on ne corrige pas.
+ *
+ * En pratique quasi inatteignable : l'AudioContext est demandé à 16 kHz, et le
+ * fallback `new Ctor()` sans argument donne le taux du device (44,1 ou 48 kHz),
+ * tous acceptés par les deux moteurs.
+ */
+function isSupportedRate(
+  rate: number,
+  provider: LiveTranscriptionProvider,
+): boolean {
+  return SUPPORTED_SAMPLE_RATES[provider].includes(rate);
+}
+
+/** Frame `start` du moteur visé (protocoles non interchangeables). */
+function buildStartMessage(
+  provider: LiveTranscriptionProvider,
+  sampleRate: number,
+  options: UseLiveTranscriptionOptions,
+): Record<string, unknown> {
+  if (provider === "gladia") {
+    const msg: Record<string, unknown> = { type: "start", sampleRate };
+    if (options.languages?.length) msg.languages = options.languages;
+    if (options.codeSwitching) msg.codeSwitching = true;
+    if (options.vocabulary?.length) msg.vocabulary = options.vocabulary;
+    if (options.vocabularyIntensity !== undefined) {
+      msg.vocabularyIntensity = options.vocabularyIntensity;
+    }
+    if (options.endpointing !== undefined) msg.endpointing = options.endpointing;
+    return msg;
+  }
+  return {
+    type: "start",
+    sampleRate,
+    targetDelayMs: clampDelay(options.targetDelayMs),
+  };
 }
 
 function joinText(a: string, b: string): string {
@@ -166,7 +292,8 @@ function joinText(a: string, b: string): string {
 export function useLiveTranscription(
   options: UseLiveTranscriptionOptions = {},
 ): UseLiveTranscription {
-  const { serverUrl, token, targetDelayMs, sampleRate } = options;
+  const { serverUrl, token, sampleRate } = options;
+  const provider: LiveTranscriptionProvider = options.provider ?? "mistral";
 
   const [status, setStatus] = useState<LiveTranscriptionStatus>("idle");
   const [transcript, setTranscript] = useState("");
@@ -209,6 +336,12 @@ export function useLiveTranscription(
   const pendingFramesRef = useRef<ArrayBuffer[]>([]);
   // Dernier prewarm (ms) — pour throttler les pings /healthz.
   const lastPrewarmRef = useRef(0);
+
+  // Options de session (frame `start`) tenues à jour sans re-créer `start` :
+  // un tableau `vocabulary` recréé à chaque render ne doit pas re-binder le
+  // push-to-talk. Lues seulement à l'ouverture de la session.
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   // Callbacks tenus à jour sans re-créer start/stop.
   const onSegmentRef = useRef(options.onSegment);
@@ -327,11 +460,11 @@ export function useLiveTranscription(
             "Le serveur vocal n'a pas renvoyé de transcription. Réessayez.",
           );
         }
-      }, 5000);
+      }, DONE_TIMEOUT_MS[provider]);
     } else {
       finalizeStop();
     }
-  }, [finalizeStop, failWith]);
+  }, [finalizeStop, failWith, provider]);
 
   const handleServerMessage = useCallback(
     (ev: MessageEvent) => {
@@ -368,13 +501,24 @@ export function useLiveTranscription(
           }
           break;
         }
+        // --- Mistral : texte interim cumulatif ---------------------------
         case "delta":
           if (typeof msg.text === "string") {
             const chunk = msg.text;
             setPartial((p) => p + chunk);
           }
           break;
-        case "segment": {
+        // --- Gladia : hypothèse de l'utterance courante -------------------
+        // Contrairement à `delta`, chaque `partial` REMPLACE le précédent :
+        // l'accumuler dupliquerait le texte à chaque frame.
+        case "partial":
+          if (typeof msg.text === "string") setPartial(msg.text);
+          if (typeof msg.language === "string") setLanguage(msg.language);
+          break;
+        // `segment` (Mistral) et `utterance` (Gladia) portent la même
+        // sémantique — texte définitif horodaté — et le même payload.
+        case "segment":
+        case "utterance": {
           const seg: TranscriptSegment = {
             text: typeof msg.text === "string" ? msg.text : "",
             start: typeof msg.start === "number" ? msg.start : 0,
@@ -383,6 +527,9 @@ export function useLiveTranscription(
           setSegments((s) => [...s, seg]);
           setTranscript((t) => joinText(t, seg.text));
           setPartial("");
+          // Gladia n'a pas d'événement `language` dédié : la langue voyage sur
+          // les utterances (et sur les `partial`).
+          if (typeof msg.language === "string") setLanguage(msg.language);
           if (seg.text) onSegmentRef.current?.(seg);
           break;
         }
@@ -392,8 +539,10 @@ export function useLiveTranscription(
         case "done": {
           const finalText =
             typeof msg.text === "string" ? msg.text.trim() : "";
+          // Le `done` de Gladia ne porte pas la langue : on retombe sur celle
+          // déjà détectée pendant la session plutôt que de renvoyer null.
           const lang =
-            typeof msg.language === "string" ? msg.language : null;
+            typeof msg.language === "string" ? msg.language : languageRef.current;
           if (finalText) setTranscript(finalText);
           if (lang) setLanguage(lang);
           setPartial("");
@@ -475,7 +624,20 @@ export function useLiveTranscription(
       await ctx.audioWorklet.addModule(url);
       if (gen !== genRef.current) return;
 
+      // Le sample rate demandé n'est pas toujours honoré (fallback
+      // `new Ctor()` sans argument, contraintes du device) : si le taux obtenu
+      // n'est pas dans la liste du moteur, la session live est impossible sur
+      // cet appareil. On abandonne avec `connect_failed`, qui fait basculer le
+      // composer sur le STT batch (MediaRecorder, insensible au taux) plutôt
+      // que de réessayer indéfiniment un live voué à échouer.
       const actualRate = Math.round(ctx.sampleRate);
+      if (!isSupportedRate(actualRate, provider)) {
+        failWith(
+          "connect_failed",
+          "La dictée en direct n'est pas disponible sur cet appareil.",
+        );
+        return;
+      }
       const frameSamples = Math.max(256, Math.round(ctx.sampleRate * 0.1)); // ~100 ms
 
       const node = new AudioWorkletNode(ctx, PCM_WORKLET_NAME, {
@@ -517,18 +679,16 @@ export function useLiveTranscription(
 
       // 2. WebSocket ouvert EN PARALLÈLE de l'acquisition micro (warm-up plus
       //    court ; `start` est envoyé dès l'ouverture).
-      const ws = new WebSocket(buildRealtimeUrl(serverUrl, token));
+      const ws = new WebSocket(buildRealtimeUrl(serverUrl, token, provider));
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
       ws.onopen = () => {
         if (gen !== genRef.current) return;
         ws.send(
-          JSON.stringify({
-            type: "start",
-            sampleRate: actualRate,
-            targetDelayMs: clampDelay(targetDelayMs),
-          }),
+          JSON.stringify(
+            buildStartMessage(provider, actualRate, optionsRef.current),
+          ),
         );
       };
       ws.onmessage = (event) => {
@@ -587,8 +747,8 @@ export function useLiveTranscription(
     status,
     serverUrl,
     token,
+    provider,
     sampleRate,
-    targetDelayMs,
     updateLevel,
     handleServerMessage,
     failWith,

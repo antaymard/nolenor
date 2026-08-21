@@ -6,6 +6,7 @@ import { AttachmentRow } from "./chat-input/AttachmentChips";
 import ComposerShell from "./chat-input/ComposerShell";
 import ModelSelect from "./chat-input/ModelSelect";
 import SendStopButton from "./chat-input/SendStopButton";
+import VoiceProviderSelect from "./chat-input/VoiceProviderSelect";
 import { Kbd } from "@/components/shadcn/kbd";
 import {
   Tooltip,
@@ -105,6 +106,11 @@ export default function ChatInput({
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               disabled={isSending || isAssistantResponding}
+              triggerClassName="size-8 rounded-full"
+              iconSize={14}
+            />
+            <VoiceProviderSelect
+              disabled={sttBusy}
               triggerClassName="size-8 rounded-full"
               iconSize={14}
             />

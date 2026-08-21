@@ -2,24 +2,11 @@ import { useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import {
   useLiveTranscription,
-  type LiveTranscriptionProvider,
   type LiveVocabularyEntry,
   type UseLiveTranscription,
   type UseLiveTranscriptionOptions,
 } from "./useLiveTranscription";
-
-/**
- * Moteur de transcription live utilisé par l'app.
- *
- * Hardcodé le temps de valider Gladia en conditions réelles ; l'étape suivante
- * est de le servir depuis Convex (`api.voice.realtimeConfig`) pour basculer
- * sans redéployer le front.
- *
- * Prérequis côté voice-server : `GLADIA_API_KEY` doit être renseignée, sinon
- * l'upgrade WebSocket `/v1/gladia/realtime` est rejeté (503) et le composer
- * retombe sur le STT batch après le message d'erreur.
- */
-const PROVIDER: LiveTranscriptionProvider = "gladia";
+import { useVoiceStore } from "@/stores/voiceStore";
 
 /**
  * Langues candidates de la dictée. L'app est en français mais les termes
@@ -63,9 +50,14 @@ export interface UseNoleLiveTranscription extends UseLiveTranscription {
 /**
  * Variante "app" de `useLiveTranscription` : récupère l'URL + le token du
  * voice-server depuis Convex (`api.voice.realtimeConfig`), de sorte que le token
- * ne soit jamais embarqué dans le bundle front, et fixe le moteur de
- * transcription ainsi que ses réglages. Le flux audio temps réel part ensuite en
- * direct du navigateur vers le voice-server (WebSocket).
+ * ne soit jamais embarqué dans le bundle front, et applique les réglages du
+ * moteur choisi dans `useVoiceStore` (sélecteur du composer). Le flux audio
+ * temps réel part ensuite en direct du navigateur vers le voice-server
+ * (WebSocket).
+ *
+ * Prérequis côté voice-server pour Gladia : `GLADIA_API_KEY` doit être
+ * renseignée, sinon l'upgrade WebSocket `/v1/gladia/realtime` est rejeté (503)
+ * et le composer retombe sur le STT batch après le message d'erreur.
  *
  * Exemple :
  *   const { start, stop, liveText, isListening } = useNoleLiveTranscription({
@@ -79,6 +71,9 @@ export function useNoleLiveTranscription(
   > = {},
 ): UseNoleLiveTranscription {
   const config = useQuery(api.voice.realtimeConfig);
+  // Lu au render : `useLiveTranscription` ne consulte le moteur qu'à
+  // l'ouverture de la session, et le sélecteur est désactivé pendant la dictée.
+  const provider = useVoiceStore((state) => state.provider);
 
   const live = useLiveTranscription({
     // Réglages du moteur d'abord : les options du caller restent prioritaires.
@@ -87,7 +82,7 @@ export function useNoleLiveTranscription(
     vocabulary: VOCABULARY,
     endpointing: ENDPOINTING_S,
     ...options,
-    provider: PROVIDER,
+    provider,
     serverUrl: config?.url ?? null,
     token: config?.token ?? null,
   });

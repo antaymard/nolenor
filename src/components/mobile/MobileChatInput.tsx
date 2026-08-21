@@ -13,6 +13,7 @@ import SoundWaveAnimation from "@/components/canvas/nole-panel/SoundWaveAnimatio
 import { AttachmentRow } from "@/components/canvas/nole-panel/chat-input/AttachmentChips";
 import ComposerShell from "@/components/canvas/nole-panel/chat-input/ComposerShell";
 import ModelSelect from "@/components/canvas/nole-panel/chat-input/ModelSelect";
+import VoiceProviderSelect from "@/components/canvas/nole-panel/chat-input/VoiceProviderSelect";
 import SendStopButton from "@/components/canvas/nole-panel/chat-input/SendStopButton";
 import { cn } from "@/lib/utils";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
@@ -98,6 +99,11 @@ export default function MobileChatInput() {
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               disabled={isSending || isAssistantResponding}
+              triggerClassName="size-9 rounded-full"
+              iconSize={16}
+            />
+            <VoiceProviderSelect
+              disabled={sttBusy}
               triggerClassName="size-9 rounded-full"
               iconSize={16}
             />

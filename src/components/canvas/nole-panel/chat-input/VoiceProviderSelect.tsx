@@ -9,7 +9,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { LiveTranscriptionProvider } from "@/hooks/useLiveTranscription";
-import { useVoiceStore } from "@/stores/voiceStore";
+import { useNoleStore } from "@/stores/noleStore";
 
 const PROVIDERS: ReadonlyArray<{
   value: LiveTranscriptionProvider;
@@ -39,17 +39,17 @@ type VoiceProviderSelectProps = {
  * Sélecteur du moteur de dictée, partagé par les composers desktop et mobile —
  * seul le dimensionnement du trigger diffère.
  *
- * Le choix est conservé par appareil (`useVoiceStore`, persisté en
- * localStorage). Il ne s'applique qu'à la dictée LIVE : le fallback batch passe
- * toujours par Mistral côté Convex.
+ * Le choix vit dans le store Nolë, comme celui du modèle : il survit au
+ * repliement du panel, mais pas à un rechargement. Il ne s'applique qu'à la
+ * dictée LIVE — le fallback batch passe toujours par Mistral côté Convex.
  */
 export default function VoiceProviderSelect({
   disabled,
   triggerClassName,
   iconSize = 12,
 }: VoiceProviderSelectProps) {
-  const provider = useVoiceStore((state) => state.provider);
-  const setProvider = useVoiceStore((state) => state.setProvider);
+  const provider = useNoleStore((state) => state.voiceProvider);
+  const setProvider = useNoleStore((state) => state.setVoiceProvider);
 
   return (
     <DropdownMenu>

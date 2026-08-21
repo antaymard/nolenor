@@ -6,7 +6,7 @@ import {
   type UseLiveTranscription,
   type UseLiveTranscriptionOptions,
 } from "./useLiveTranscription";
-import { useVoiceStore } from "@/stores/voiceStore";
+import { useNoleStore } from "@/stores/noleStore";
 
 /**
  * Langues candidates de la dictée. L'app est en français mais les termes
@@ -51,7 +51,7 @@ export interface UseNoleLiveTranscription extends UseLiveTranscription {
  * Variante "app" de `useLiveTranscription` : récupère l'URL + le token du
  * voice-server depuis Convex (`api.voice.realtimeConfig`), de sorte que le token
  * ne soit jamais embarqué dans le bundle front, et applique les réglages du
- * moteur choisi dans `useVoiceStore` (sélecteur du composer). Le flux audio
+ * moteur choisi dans le store Nolë (sélecteur du composer). Le flux audio
  * temps réel part ensuite en direct du navigateur vers le voice-server
  * (WebSocket).
  *
@@ -73,7 +73,7 @@ export function useNoleLiveTranscription(
   const config = useQuery(api.voice.realtimeConfig);
   // Lu au render : `useLiveTranscription` ne consulte le moteur qu'à
   // l'ouverture de la session, et le sélecteur est désactivé pendant la dictée.
-  const provider = useVoiceStore((state) => state.provider);
+  const provider = useNoleStore((state) => state.voiceProvider);
 
   const live = useLiveTranscription({
     // Réglages du moteur d'abord : les options du caller restent prioritaires.

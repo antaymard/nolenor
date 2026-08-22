@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Spinner } from "@/components/shadcn/spinner";
 import type { OpenedWindow } from "@/stores/windowsStore";
+import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
 
 // Window bodies are lazy-loaded: they pull heavy dependencies (BlockNote
 // editor, pdfjs, tanstack-table…) that shouldn't weigh down the canvas chunk.
@@ -21,15 +22,21 @@ type NodeWindowContentProps = Pick<
 
 export default function NodeWindowContent(props: NodeWindowContentProps) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <Spinner className="size-5 text-muted-foreground" />
-        </div>
-      }
-    >
-      <NodeWindowBody {...props} />
-    </Suspense>
+    // Boundary *au-dessus* du Suspense : c'est le render du composant `lazy`
+    // qui throw quand son chunk ne se charge pas, et Suspense n'attrape que
+    // les promesses, pas les erreurs. La `key` remet la fenêtre à zéro quand
+    // elle change de contenu, sinon un échec la figerait pour de bon.
+    <WindowContentErrorBoundary key={`${props.nodeType}:${props.nodeDataId}`}>
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center">
+            <Spinner className="size-5 text-muted-foreground" />
+          </div>
+        }
+      >
+        <NodeWindowBody {...props} />
+      </Suspense>
+    </WindowContentErrorBoundary>
   );
 }
 

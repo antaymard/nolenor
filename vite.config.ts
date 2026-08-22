@@ -15,7 +15,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
+      // `prompt` plutôt qu'`autoUpdate` : Cloudflare Pages ne sert que les
+      // assets du déploiement courant, donc un nouveau service worker qui
+      // s'active tout seul efface le précache d'un onglet dont les chunks
+      // n'existent déjà plus sur le serveur. En `prompt` il attend, l'onglet
+      // reste fonctionnel, et l'utilisateur bascule via le bandeau
+      // (cf. src/lib/appUpdate.ts).
+      registerType: "prompt",
       includeAssets: [
         "favicon.svg",
         "favicon.ico",
@@ -52,7 +58,12 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
         navigateFallback: "/index.html",
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        // `mjs` compte : le worker pdf.js est émis en `.mjs` (cf. le
+        // `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)` de
+        // PdfWindow / FullscreenPdfWindow). Sans lui dans les patterns, il
+        // était le seul asset du build à ne jamais entrer dans le précache, et
+        // toute vue PDF partait au réseau pour le charger.
+        globPatterns: ["**/*.{js,mjs,css,html,ico,png,svg,woff,woff2}"],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

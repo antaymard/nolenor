@@ -15,7 +15,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
+      // `prompt` plutôt qu'`autoUpdate` : Cloudflare Pages ne sert que les
+      // assets du déploiement courant, donc un nouveau service worker qui
+      // s'active tout seul efface le précache d'un onglet dont les chunks
+      // n'existent déjà plus sur le serveur. En `prompt` il attend, l'onglet
+      // reste fonctionnel, et l'utilisateur bascule via le bandeau
+      // (cf. src/lib/appUpdate.ts).
+      registerType: "prompt",
       includeAssets: [
         "favicon.svg",
         "favicon.ico",

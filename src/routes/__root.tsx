@@ -15,7 +15,6 @@ import ErrorDisplay from "@/components/ui/ErrorDisplay";
 import { Button } from "@/components/shadcn/button";
 import { api } from "@/../convex/_generated/api";
 import { identifyUser, reportError } from "@/lib/analytics";
-import { isChunkLoadError, reloadForUpdate } from "@/lib/appUpdate";
 import CommandCenter from "@/components/command-center/CommandCenter";
 
 export interface RouterContext {
@@ -47,25 +46,6 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
   useEffect(() => {
     reportError(error, { source: "router.errorComponent" });
   }, [error]);
-
-  // Chunk manquant après un déploiement : ni `reset` (React.lazy mémorise le
-  // rejet) ni un reload ordinaire (le service worker sert l'`index.html`
-  // précaché) n'en sortent. Seule la purge dure marche — cf. `lib/appUpdate.ts`.
-  if (isChunkLoadError(error)) {
-    return (
-      <div className="h-screen w-screen">
-        <ErrorDisplay
-          title="A new version is available"
-          message="Nolënor was updated while this tab was open, so part of the app is no longer available. Updating clears the old version — your work is saved on the server."
-          cta={
-            <Button onClick={() => void reloadForUpdate({ hard: true })}>
-              Update and reload
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="h-screen w-screen">

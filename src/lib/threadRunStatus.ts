@@ -143,6 +143,62 @@ export function isPendingReview(
 }
 
 /**
+ * Combien de temps une tâche conclue reste visible sur le canvas, ancrée aux
+ * nodes qu'elle a touchés.
+ *
+ * Assez long pour qu'on la voie finir en revenant d'un autre coin de l'écran,
+ * assez court pour que le canvas ne se couvre pas de pastilles. Passé ce délai
+ * la tâche n'a pas disparu : elle est au dock, qui la garde jusqu'à la revue.
+ */
+export const CANVAS_AFTERGLOW_MS = 45 * 1000;
+
+/**
+ * La tâche a-t-elle sa place sur le canvas, ancrée à ses nodes ?
+ *
+ * Le canvas et le dock ne font pas le même métier. Le canvas montre ce qui se
+ * passe **maintenant**, et où ; il se vide tout seul. Le dock est la boîte de
+ * réception : il garde ce qui attend d'être relu, y compris ce que le canvas ne
+ * peut pas ancrer — une tâche qui démarre n'a encore touché aucun node.
+ */
+export function isLiveOnCanvas(
+  fields: ThreadDockFields,
+  now: number = Date.now(),
+): boolean {
+  const resolved = resolveRunStatus(fields, now);
+  if (resolved === "running") return true;
+  // `stale` n'est pas « en cours » : c'est un tour que plus personne ne
+  // conclura. L'ancrer indéfiniment sur le canvas en ferait du décor, alors
+  // qu'il appelle une revue — le métier du dock.
+  if (resolved === "stale") return false;
+  if (fields.reviewedAt != null) return false;
+  if (fields.runEndedAt == null) return false;
+  return now - fields.runEndedAt < CANVAS_AFTERGLOW_MS;
+}
+
+/**
+ * L'instant où `isLiveOnCanvas` basculera à faux tout seul, ou `null` s'il n'y a
+ * rien à attendre.
+ *
+ * Contrairement au dock, dont l'admission ne change qu'avec les données, une
+ * tâche quitte le canvas sans qu'aucune donnée ne bouge : à la péremption d'un
+ * `running`, ou à la fin de sa rémanence. Sans réveil posé sur cet instant, la
+ * pastille resterait jusqu'au prochain rendu fortuit.
+ *
+ * Lit `runStatus` brut et non le statut résolu : quand la base dit `running`,
+ * la prochaine bascule est la péremption, qu'on l'ait déjà franchie ou non.
+ */
+export function getCanvasLiveExpiry(fields: ThreadDockFields): number | null {
+  if (fields.runStatus === "running") {
+    return fields.runStartedAt != null
+      ? fields.runStartedAt + RUN_STALE_MS
+      : null;
+  }
+  if (fields.reviewedAt != null) return null;
+  if (fields.runEndedAt == null) return null;
+  return fields.runEndedAt + CANVAS_AFTERGLOW_MS;
+}
+
+/**
  * L'apparence du cas que le header n'a jamais à afficher : une tâche qui a
  * abouti, et qu'il reste à relire.
  *

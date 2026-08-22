@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   RUN_STALE_MS,
+  getCanvasLiveExpiry,
+  isLiveOnCanvas,
   resolveRunStatus,
   type ResolvedRunStatus,
+  type ThreadDockFields,
   type ThreadRunFields,
 } from "@/lib/threadRunStatus";
 
@@ -43,4 +46,37 @@ export function useResolvedRunStatus(
     () => resolveRunStatus({ runStatus, runStartedAt }, now),
     [runStatus, runStartedAt, now],
   );
+}
+
+/**
+ * La tâche est-elle à afficher sur le canvas, ancrée à ses nodes ?
+ *
+ * Même travail temporel que `useResolvedRunStatus`, sur un autre instant : ici
+ * la pastille doit **disparaître** toute seule, à la péremption d'un `running`
+ * ou à la fin de la rémanence d'un tour conclu. Aucune donnée ne change à ce
+ * moment-là, donc sans réveil elle resterait jusqu'au prochain rendu fortuit.
+ *
+ * Un `setTimeout` unique posé sur l'instant exact, jamais un intervalle : c'est
+ * un événement daté d'avance, pas quelque chose à surveiller.
+ *
+ * Exister comme hook appelé par un composant *par tâche* est ce qui donne à
+ * chacune sa propre minuterie — même raison que `ThreadRunStatusPill` dans la
+ * liste de threads.
+ */
+export function useIsLiveOnCanvas(fields: ThreadDockFields): boolean {
+  const [now, setNow] = useState(() => Date.now());
+  const expiresAt = getCanvasLiveExpiry(fields);
+
+  useEffect(() => {
+    if (expiresAt == null) return;
+
+    const remaining = expiresAt - Date.now();
+    // Déjà échu au montage : le `now` initial le voit, rien à programmer.
+    if (remaining <= 0) return;
+
+    const timer = setTimeout(() => setNow(Date.now()), remaining);
+    return () => clearTimeout(timer);
+  }, [expiresAt]);
+
+  return isLiveOnCanvas(fields, now);
 }

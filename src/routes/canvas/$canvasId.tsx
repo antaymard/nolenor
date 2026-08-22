@@ -15,6 +15,7 @@ import { useCanvasBootstrap } from "@/hooks/useCanvasBootstrap";
 import { Spinner } from "@/components/shadcn/spinner";
 import NoleCanvasPanel from "@/components/canvas/NoleCanvasPanel";
 import ActivityDock from "@/components/canvas/on-canvas-ui/ActivityDock";
+import CanvasTaskMarkers from "@/components/canvas/on-canvas-ui/CanvasTaskMarkers";
 import MinimizedWindowsStack from "@/components/windows/MinimizedWindowsStack";
 import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
 import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
@@ -137,6 +138,10 @@ function CanvasContent({
         </Panel>
         {isAuthenticated ? (
           <>
+            {/* Enfant direct et non `Panel` : chaque marqueur est un
+                `NodeToolbar`, qui se portalise lui-même à la position de ses
+                nodes. Un `Panel` l'ancrerait dans un coin pour rien. */}
+            <CanvasTaskMarkers canvasId={canvasId} />
             <Panel position="bottom-left">
               {/* Le bouton Nolë reste à l'extrême gauche ; le dock le prolonge
                   horizontalement. La conversation étendue est un `absolute`

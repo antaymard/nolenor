@@ -1,83 +1,42 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { api } from "../../convex/_generated/api";
-import { VscGithubProject } from "react-icons/vsc";
-import { useState, useEffect } from "react";
-import CanvasFormModal from "../components/canvas/CanvasFormModal";
-import { Dialog } from "@/components/shadcn/dialog";
-import { useConvexAuth, useConvex } from "convex/react";
-import { toastError } from "@/components/utils/errorUtils";
+import { useEffect } from "react";
+import { useConvexAuth } from "convex/react";
+import HomePage from "@/components/home/HomePage";
+import { Spinner } from "@/components/shadcn/spinner";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
 });
 
+/**
+ * La page d'accueil.
+ *
+ * `/` était un aiguillage : il lisait le dernier canvas modifié et y
+ * redirigeait aussitôt. On ne voyait donc jamais ses workspaces, et tout ce qui
+ * renvoie ici — suppression du canvas courant, « Back to my canvases » d'un
+ * écran d'erreur, sortie des settings, retour de Google — atterrissait sur un
+ * autre canvas plutôt que sur une page. Le dernier canvas reste à un clic, via
+ * la carte « Pick up where you left off ».
+ */
 function RouteComponent() {
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isGettingLastCanvas, setIsGettingLastCanvas] = useState<boolean>(true);
   const { isAuthenticated, isLoading } = useConvexAuth();
-  const convex = useConvex();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Si pas authentifié, rediriger vers signin
     if (!isLoading && !isAuthenticated) {
-      navigate({ to: "/signin" });
-      return;
+      void navigate({ to: "/signin" });
     }
+  }, [isLoading, isAuthenticated, navigate]);
 
-    // Si authentifié, vérifier s'il existe un canvas
-    if (!isLoading && isAuthenticated) {
-      convex
-        .query(api.canvases.getLastModified, {})
-        .then((result) => {
-          if (result?.success && result.canvas) {
-            navigate({
-              to: "/canvas/$canvasId",
-              params: { canvasId: result.canvas._id },
-            });
-          } else {
-            setIsGettingLastCanvas(false);
-          }
-        })
-        .catch((error: unknown) => {
-          // Sans ce catch, un échec de la query laissait `isGettingLastCanvas`
-          // à true : « Loading... » indéfiniment, et une unhandled rejection
-          // que personne n'observait.
-          setIsGettingLastCanvas(false);
-          toastError(error, "Could not load your workspaces");
-        });
-    }
-  }, [isLoading, isAuthenticated, convex, navigate]);
-
-  // Afficher un loader pendant le chargement ou si une redirection est en cours
-  if (isLoading || !isAuthenticated || isGettingLastCanvas) {
+  // Le temps de savoir, et pendant la redirection : ni la home ni un écran
+  // vide, qui clignoteraient l'un comme l'autre.
+  if (isLoading || !isAuthenticated) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-gray-100">
-        <div className="animate-appear">Loading...</div>
+      <div className="flex h-dvh w-full items-center justify-center bg-[#f7f7f8]">
+        <Spinner className="animate-appear size-6 text-muted-foreground" />
       </div>
     );
   }
 
-  return (
-    <div className="h-screen w-screen bg-gray-100">
-      <div className="flex flex-col items-center justify-center h-full gap-5 animate-appear-up">
-        <p className="text-gray-500">
-          No workspace found. Create a new one!
-        </p>
-        <button
-          type="button"
-          className="flex items-center gap-2 bg-violet-500 px-3 py-2 rounded-md text-white hover:bg-violet-600"
-          onClick={() => {
-            setIsModalOpen(true);
-          }}
-        >
-          <VscGithubProject />
-          Create a workspace
-        </button>
-      </div>
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <CanvasFormModal mode="create" />
-      </Dialog>
-    </div>
-  );
+  return <HomePage />;
 }

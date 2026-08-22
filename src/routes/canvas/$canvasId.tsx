@@ -17,7 +17,6 @@ import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
 import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
 import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanner";
 import { useConvexAuth } from "convex/react";
-import OnboardingModal from "@/components/ui/OnboardingModal";
 import SearchModale from "@/components/canvas/search-modale/SearchModale";
 // Mobile-only surface: don't ship it to desktop sessions.
 const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
@@ -34,7 +33,6 @@ function RouteComponent() {
   if (isMobile && isAuthenticated) {
     return (
       <div className="bg-white">
-        <OnboardingModal />
         <Suspense
           fallback={
             <div className="flex h-screen items-center justify-center">
@@ -56,7 +54,6 @@ function RouteComponent() {
 
   return (
     <div className="bg-white">
-      <OnboardingModal />
       <ReactFlowProvider key={canvasId}>
         {isAuthenticated ? (
           <CanvasSidebar canvasId={canvasId}>{canvasContent}</CanvasSidebar>

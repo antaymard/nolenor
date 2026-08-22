@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { Id } from "@/../convex/_generated/dataModel";
 import {
   Sheet,
@@ -10,7 +10,7 @@ import { Button } from "@/components/shadcn/button";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
 import CanvasFormModal from "@/components/canvas/CanvasFormModal";
-import { TbPlus, TbTrash } from "react-icons/tb";
+import { TbHome, TbPlus, TbTrash } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
 
@@ -55,7 +55,18 @@ export default function MobileCanvasSwitcherSheet({
           <SheetTitle>Workspaces</SheetTitle>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          <div className="flex items-center justify-between mb-2">
+          {/* Sortie vers la home : sans elle, le shell mobile n'offre aucun
+              chemin vers la page d'accueil. */}
+          <Link
+            to="/"
+            onClick={() => onOpenChange(false)}
+            className="flex items-center gap-2 rounded-md px-2 py-3 text-sm font-medium hover:bg-slate-100"
+          >
+            <TbHome size={16} className="text-muted-foreground" />
+            All workspaces
+          </Link>
+
+          <div className="flex items-center justify-between mb-2 mt-1">
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground">
               Workspaces
             </h3>

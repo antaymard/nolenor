@@ -9,8 +9,6 @@ import {
   SidebarMenu,
 } from "@/components/shadcn/sidebar";
 import { Button } from "@/components/shadcn/button";
-import { api } from "@/../convex/_generated/api";
-import { useMutation, useQuery } from "convex/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
@@ -33,10 +31,10 @@ import {
 } from "@/components/shadcn/alert-dialog";
 import { buttonVariants } from "@/components/shadcn/button";
 import { HiDotsVertical } from "react-icons/hi";
-import { TbPlus } from "react-icons/tb";
+import { TbHome, TbPlus } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { toastError } from "@/components/utils/errorUtils";
+import { useUserCanvases } from "@/hooks/useUserCanvases";
 
 export default function CanvasSidebar({
   children,
@@ -46,8 +44,8 @@ export default function CanvasSidebar({
   canvasId: Id<"canvases">;
 }) {
   const navigate = useNavigate();
-  const deleteCanvas = useMutation(api.canvases.deleteCanvas);
-  const userCanvases = useQuery(api.canvases.listUserCanvases);
+  const { userCanvases, ownCanvases, sharedCanvases, deleteCanvas } =
+    useUserCanvases();
 
   const currentCanvas = userCanvases?.find((c) => c._id === canvasId);
 
@@ -66,18 +64,13 @@ export default function CanvasSidebar({
     if (!canvasToDelete) return;
     const deletedId = canvasToDelete.id;
 
-    try {
-      await deleteCanvas({ canvasId: deletedId });
-    } catch (error) {
-      toastError(error, "Error deleting workspace.");
-      return;
-    } finally {
-      setCanvasToDelete(null);
-    }
+    setCanvasToDelete(null);
+    const deleted = await deleteCanvas(deletedId);
+    if (!deleted) return;
 
     // Supprimer le canvas ouvert laissait l'app sur son URL : les queries
     // repassaient en erreur et on restait bloqué sur un écran « ce canvas
-    // n'existe pas ». `/` rebascule sur le dernier canvas ouvert.
+    // n'existe pas ». `/` ramène sur la page d'accueil.
     if (deletedId === canvasId) {
       void navigate({ to: "/" });
     }
@@ -89,9 +82,6 @@ export default function CanvasSidebar({
       return (
         <div className="p-4 text-sm text-muted-foreground">No workspaces</div>
       );
-
-    const ownCanvases = userCanvases.filter((c) => !("shared" in c));
-    const sharedCanvases = userCanvases.filter((c) => "shared" in c);
 
     return (
       <SidebarMenu>
@@ -189,6 +179,11 @@ export default function CanvasSidebar({
       <Sidebar variant="sidebar">
         <SidebarHeader className="flex flex-row items-center justify-between p-4">
           <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
+              <Link to="/" title="All workspaces" aria-label="All workspaces">
+                <TbHome size={16} />
+              </Link>
+            </Button>
             <span className="font-semibold text-lg truncate">
               {currentCanvas?.name ?? "..."}
             </span>

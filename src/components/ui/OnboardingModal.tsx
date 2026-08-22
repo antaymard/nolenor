@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -38,10 +38,44 @@ const slides = [
   },
 ];
 
-export default function OnboardingModal() {
-  const shouldShow = localStorage.getItem("hasSeenOnboarding") !== "true";
-  const [isOpen, setIsOpen] = useState(shouldShow);
+export const HAS_SEEN_ONBOARDING_KEY = "hasSeenOnboarding";
+
+interface OnboardingModalProps {
+  /**
+   * Pilotage externe, pour rejouer le tour à la demande (bouton « Take the
+   * tour » de la home). Omis, la modale garde son comportement d'origine :
+   * elle s'ouvre seule à la première visite et pas ensuite.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export default function OnboardingModal({
+  open,
+  onOpenChange,
+}: OnboardingModalProps = {}) {
+  const isControlled = open !== undefined;
+  const [autoOpen, setAutoOpen] = useState(
+    () => localStorage.getItem(HAS_SEEN_ONBOARDING_KEY) !== "true",
+  );
   const [currentSlide, setCurrentSlide] = useState(0);
+
+  const isOpen = isControlled ? open : autoOpen;
+
+  const setIsOpen = (next: boolean) => {
+    if (isControlled) onOpenChange?.(next);
+    else setAutoOpen(next);
+    // Une fermeture par la croix ou l'échap vaut « vu » autant qu'un « Done » :
+    // sans ça le tour resurgirait au rechargement suivant.
+    if (!next) localStorage.setItem(HAS_SEEN_ONBOARDING_KEY, "true");
+  };
+
+  // Un tour rejoué repart de la première slide, pas de celle où on l'avait
+  // laissé. Ici plutôt que dans `setIsOpen` : en mode contrôlé, l'ouverture
+  // vient du parent et ne passe pas par lui.
+  useEffect(() => {
+    if (isOpen) setCurrentSlide(0);
+  }, [isOpen]);
 
   const handleNext = () => {
     if (currentSlide < slides.length - 1) {
@@ -62,7 +96,6 @@ export default function OnboardingModal() {
   };
 
   const handleComplete = () => {
-    localStorage.setItem("hasSeenOnboarding", "true");
     setIsOpen(false);
   };
 

@@ -11,6 +11,9 @@ type UserCanvasListItem = {
   description?: string;
   shared?: boolean;
   permission?: "viewer" | "editor";
+  updatedAt: number;
+  /** Nombre de blocs, pour l'afficher sans charger le canvas. */
+  nodeCount: number;
 };
 
 async function getCanvasOrThrow(
@@ -39,7 +42,8 @@ export async function listUserCanvasesWithShares(
 ): Promise<Array<UserCanvasListItem>> {
   const ownCanvases = await ctx.db
     .query("canvases")
-    .withIndex("by_creator", (q) => q.eq("creatorId", authUserId))
+    .withIndex("by_creator_and_updatedAt", (q) => q.eq("creatorId", authUserId))
+    .order("desc")
     .collect();
 
   const shares = await ctx.db
@@ -58,17 +62,26 @@ export async function listUserCanvasesWithShares(
           name: canvas.name,
           shared: true as const,
           permission: share.permission,
+          updatedAt: canvas.updatedAt,
+          nodeCount: canvas.nodes?.length ?? 0,
         };
       }),
   );
 
   return [
+    // Les deux listes sont triées par récence, mais séparément : l'appelant
+    // qui les affiche l'une sous l'autre (sidebar, home) n'a rien à retrier,
+    // et celui qui les sépare garde chaque section dans le bon ordre.
     ...ownCanvases.map((canvas) => ({
       _id: canvas._id,
       name: canvas.name,
       description: canvas.description,
+      updatedAt: canvas.updatedAt,
+      nodeCount: canvas.nodes?.length ?? 0,
     })),
-    ...sharedCanvases.filter((canvas) => canvas !== null),
+    ...sharedCanvases
+      .filter((canvas) => canvas !== null)
+      .sort((a, b) => b.updatedAt - a.updatedAt),
   ];
 }
 

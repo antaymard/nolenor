@@ -1,9 +1,16 @@
 import { NodeToolbar, Position } from "@xyflow/react";
 import { useMemo } from "react";
-import type { PendingThread } from "./ActivityDockPill";
-import { useIsLiveOnCanvas, useResolvedRunStatus } from "@/hooks/useThreadRunStatus";
-import { getDockStatusAppearance } from "@/lib/threadRunStatus";
+import {
+  useIsLiveOnCanvas,
+  useResolvedRunStatus,
+} from "@/hooks/useThreadRunStatus";
+import {
+  getDockStatusAppearance,
+  getTaskPillLabel,
+  type PendingThread,
+} from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
+import TaskPillBody from "./TaskPill";
 
 /** Écart au bas de la boîte englobante, en pixels d'écran. */
 const TOOLBAR_OFFSET = 10;
@@ -65,25 +72,24 @@ export default function CanvasTaskMarker({
       <button
         type="button"
         onClick={() => onOpen(thread.threadId)}
-        title={appearance.description}
+        // Le libellé est tronqué dans une pastille étroite, et il n'y a pas de
+        // popover ici : le survol natif est le seul moyen de lire l'action
+        // entière sans ouvrir la conversation.
+        title={getTaskPillLabel(thread)}
         className={cn(
           "flex h-7 max-w-[220px] items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium shadow-sm",
           "animate-in fade-in zoom-in-95 duration-200",
           appearance.className,
         )}
       >
-        <span
-          aria-hidden
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            appearance.dotClassName,
-            isRunning && "animate-pulse",
-          )}
+        {/* Pas de puce de node, seule différence avec le dock : le node est
+            juste au-dessus de la pastille, la nommer n'apprendrait rien. Le
+            libellé, lui, est le même des deux côtés. */}
+        <TaskPillBody
+          thread={thread}
+          appearance={appearance}
+          isRunning={isRunning}
         />
-        {/* Le titre de la tâche, et non celui du node : le node est juste
-            au-dessus, son titre serait redondant. C'est la règle inverse de
-            celle du dock, où les nodes sont ailleurs. */}
-        <span className="min-w-0 truncate">{thread.title || "Nolë"}</span>
       </button>
     </NodeToolbar>
   );

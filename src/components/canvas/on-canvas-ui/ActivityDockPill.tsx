@@ -1,22 +1,20 @@
 import { useCallback, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { X } from "lucide-react";
-import type { FunctionReturnType } from "convex/server";
 import { api } from "@/../convex/_generated/api";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
-import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useResolvedRunStatus } from "@/hooks/useThreadRunStatus";
-import { getDockStatusAppearance } from "@/lib/threadRunStatus";
+import {
+  getDockStatusAppearance,
+  type PendingThread,
+} from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
 import ActivityDockNodes from "./ActivityDockNodes";
-
-export type PendingThread = FunctionReturnType<
-  typeof api.threads.listPendingThreads
->[number];
+import TaskPillBody from "./TaskPill";
 
 /** Laisse le temps d'aller cliquer une ligne dans le popover sans le perdre. */
 const HOVER_CLOSE_DELAY_MS = 150;
@@ -80,24 +78,18 @@ export default function ActivityDockPill({
             handleReview();
           }}
           className={cn(
-            "group relative flex h-7 max-w-[220px] items-center gap-1.5 rounded-full border pl-2.5 text-left text-xs font-medium",
+            "group relative flex h-7 max-w-[260px] items-center gap-1.5 rounded-full border pl-2.5 text-left text-xs font-medium",
             "animate-in fade-in slide-in-from-bottom-2 duration-200",
             isRunning ? "pr-2.5" : "pr-7",
             appearance.className,
           )}
         >
-          {/* Un point qui pulse, et non l'orbe : à cette taille elle serait
-              illisible, et elle reste la signature de l'overlay live au bas de
-              la conversation. */}
-          <span
-            aria-hidden
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              appearance.dotClassName,
-              isRunning && "animate-pulse",
-            )}
+          <TaskPillBody
+            thread={thread}
+            appearance={appearance}
+            isRunning={isRunning}
+            showNodeChip
           />
-          <PillLabel thread={thread} />
           {isRunning ? null : (
             // `span` et non `button` : la pastille en est déjà un, et les
             // imbriquer est invalide. Idiome de `MinimizedWindowPill`.
@@ -127,55 +119,23 @@ export default function ActivityDockPill({
         onOpenAutoFocus={(event) => event.preventDefault()}
         className="w-64 p-2"
       >
-        <p className="mb-1.5 px-1 text-xs font-medium text-slate-600">
+        {/* Le sujet de la conversation, que la pastille ne montre plus : elle
+            porte l'action en cours, qui est le plus utile là où la place manque.
+            Ici il y en a, et les deux se complètent. */}
+        <p className="px-1 text-xs font-medium text-slate-600">
           {thread.title || "Sans titre"}
         </p>
-        <ActivityDockNodes touchedNodes={thread.touchedNodes} />
+        {/* La même action que la pastille, mais entière : c'est la raison
+            d'être du survol, où la troncature n'a plus lieu d'être. */}
+        {thread.lastActivity ? (
+          <p className="mt-0.5 px-1 text-xs text-slate-400">
+            {thread.lastActivity.text}
+          </p>
+        ) : null}
+        <div className="mt-1.5">
+          <ActivityDockNodes touchedNodes={thread.touchedNodes} />
+        </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-/**
- * Le libellé s'adapte, parce qu'aucune source unique n'est bonne dans tous les
- * cas : un seul node touché, c'est son titre — le plus informatif et le cas
- * courant. Plusieurs, c'est le titre de la tâche et un compteur qui privilégie
- * la création. Aucun (tâche de lecture, ou tour qui vient de démarrer), c'est
- * le titre de la tâche seul.
- */
-function PillLabel({ thread }: { thread: PendingThread }) {
-  const { touchedNodes } = thread;
-  const single = touchedNodes.length === 1 ? touchedNodes[0] : undefined;
-  const singleTitle = useNodeDataTitle(single?.nodeDataId);
-
-  if (single) {
-    return (
-      <span className="min-w-0 flex-1 truncate">
-        {singleTitle ?? thread.title ?? "Nolë"}
-      </span>
-    );
-  }
-
-  const createdCount = touchedNodes.filter(
-    (touch) => touch.kind === "created",
-  ).length;
-  // « 3 créés » l'emporte sur « 5 nodes » : c'est la création qui appelle un
-  // coup d'œil.
-  const counter =
-    createdCount > 0
-      ? `${createdCount} créé${createdCount > 1 ? "s" : ""}`
-      : touchedNodes.length > 0
-        ? `${touchedNodes.length} nodes`
-        : null;
-
-  return (
-    <>
-      <span className="min-w-0 flex-1 truncate">
-        {thread.title || "Nolë"}
-      </span>
-      {counter ? (
-        <span className="shrink-0 opacity-70">{counter}</span>
-      ) : null}
-    </>
   );
 }

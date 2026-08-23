@@ -1,3 +1,5 @@
+import type { FunctionReturnType } from "convex/server";
+import type { api } from "@/../convex/_generated/api";
 import {
   RUN_STALE_MS,
   type ThreadRunStatus,
@@ -225,4 +227,26 @@ export function getDockStatusAppearance(
   return status === "idle"
     ? DOCK_DONE_APPEARANCE
     : RUN_STATUS_APPEARANCE[status];
+}
+
+/** Une tâche telle que le dock et les marqueurs du canvas la reçoivent. */
+export type PendingThread = FunctionReturnType<
+  typeof api.threads.listPendingThreads
+>[number];
+
+/**
+ * Ce que la pastille d'une tâche raconte, au dock comme sur le canvas.
+ *
+ * `lastActivity` d'abord : le titre d'un thread dit son sujet, pas où en est le
+ * travail — et sur une tâche qu'on regarde justement parce qu'on ne l'a pas
+ * sous les yeux, c'est l'avancement qui manque. Il tient pendant le tour comme
+ * après, parce que le tool est prié d'écrire un groupe nominal et non « je vais
+ * faire » (cf. `EXPLANATION_FIELD`).
+ *
+ * Le titre reste le repli des deux moments où il n'y a pas encore d'action à
+ * montrer : le tour qui vient de démarrer, et le thread d'avant cette
+ * fonctionnalité.
+ */
+export function getTaskPillLabel(thread: PendingThread): string {
+  return thread.lastActivity?.text || thread.title || "Nolë";
 }

@@ -98,6 +98,23 @@ export const markRunEnded = internalMutation({
   },
 });
 
+/**
+ * Trace de la dernière action de l'agent, appelée depuis l'enveloppe de tools
+ * (cf. ia/tools/index.ts). `internalMutation` et non une écriture directe : le
+ * point d'appel est une action, qui n'a pas d'accès à la base.
+ */
+export const recordActivity = internalMutation({
+  args: {
+    threadId: v.string(),
+    text: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ThreadMetadataModels.recordActivity(ctx, args);
+    return null;
+  },
+});
+
 // `touch` vivait ici : il est devenu `markRunStarted`, qui fait la même chose
 // et pose en plus l'état du run. Son unique appelant était `ia/nole.saveMessage`.
 //

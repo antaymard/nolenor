@@ -5,7 +5,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { useNoleStore } from "@/stores/noleStore";
 import { useNodeIdsByDataId } from "@/lib/nodeIdentity";
 import CanvasTaskMarker from "./CanvasTaskMarker";
-import type { PendingThread } from "./ActivityDockPill";
+import type { PendingThread } from "@/lib/threadRunStatus";
 
 /**
  * Les tâches Nolë en cours, ancrées sur le canvas aux nodes qu'elles touchent.

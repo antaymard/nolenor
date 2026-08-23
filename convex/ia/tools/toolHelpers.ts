@@ -2,10 +2,28 @@
 import { z } from "zod";
 import type { ToolAgentName } from "../agentConfig";
 
+/**
+ * L'étiquette lisible d'un tool call. Portée par l'entrée de tous les tools,
+ * affichée telle quelle à trois endroits : la conversation (`ToolPart`), le dock
+ * d'activité et les marqueurs du canvas.
+ *
+ * Un groupe nominal, et non une phrase à la première personne : l'étiquette est
+ * rédigée AVANT l'exécution mais reste affichée APRÈS, comme résumé de ce que la
+ * tâche a fait. « Je vais ajouter un paragraphe » se périme à la seconde où le
+ * paragraphe existe ; « Ajout d'un paragraphe » ne se périme jamais. C'est ce
+ * qui permet aux pastilles de garder le même libellé pendant et après le tour,
+ * sans deuxième champ ni réécriture.
+ */
 export const EXPLANATION_FIELD = z
   .string()
   .describe(
-    'Required. One first-person sentence stating what you are about to do with this call, e.g. "I will insert a new paragraph after the introduction."',
+    "Required. A short, dense label for this call, shown to the user as-is. " +
+      "Write a noun phrase, not a sentence: no first person, no verb tense — it " +
+      "is displayed both while the call runs and afterwards as a summary of what " +
+      "was done. Name the action and its target, under 60 characters, in the " +
+      "user's language. Good: \"Ajout d'un paragraphe après l'intro\", " +
+      "\"Recherche des sources 2024\", \"Lecture des 3 nodes sélectionnés\". " +
+      "Bad: \"I will insert a new paragraph after the introduction.\"",
   );
 
 export type NodeRect = {

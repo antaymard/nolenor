@@ -24,6 +24,7 @@ import {
   markRunEnded,
 } from "./models/threadMetadataModels";
 import {
+  threadLastActivityValidator,
   threadNodeTouchValidator,
   threadRunStatuses,
   threadRunStatusValidator,
@@ -208,6 +209,10 @@ export const listPendingThreads = query({
       runEndedAt: v.union(v.number(), v.null()),
       reviewedAt: v.union(v.number(), v.null()),
       touchedNodes: v.array(threadNodeTouchValidator),
+      // Ce que l'agent a formulé en dernier. Le libellé des pastilles, pendant
+      // le tour comme après : le titre du thread ne dit que le sujet, pas où
+      // en est le travail.
+      lastActivity: v.union(threadLastActivityValidator, v.null()),
     }),
   ),
   handler: async (ctx, { canvasId }) => {
@@ -239,6 +244,7 @@ export const listPendingThreads = query({
             runEndedAt: metadata.runEndedAt ?? null,
             reviewedAt: metadata.reviewedAt ?? null,
             touchedNodes: metadata.touchedNodes ?? [],
+            lastActivity: metadata.lastActivity ?? null,
           };
         }),
     );

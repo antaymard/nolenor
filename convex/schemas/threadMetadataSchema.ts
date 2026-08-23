@@ -73,6 +73,25 @@ const threadNodeTouchValidator = v.object({
   at: v.number(),
 });
 
+/**
+ * La dernière action de l'agent sur ce thread, telle qu'il l'a formulée
+ * lui-même : le champ `explanation` que porte l'entrée de chaque tool.
+ *
+ * C'est du détail fin, et le détail fin vit d'ordinaire dans le flux de
+ * messages, qui le donne gratuitement. Celui-ci fait exception parce qu'il est
+ * précisément ce qu'on veut lire quand la conversation n'est PAS à l'écran —
+ * au dock, sur le canvas. Le flux ne renseigne que le thread dont un composant
+ * est monté ; sans cette copie, une tâche qui travaille en arrière-plan n'a
+ * rien à dire d'elle-même.
+ *
+ * Une seule ligne conservée, la dernière : c'est un état, pas un journal.
+ * L'historique complet reste dans les messages.
+ */
+const threadLastActivityValidator = v.object({
+  text: v.string(),
+  at: v.number(),
+});
+
 const threadMetadataValidator = v.object({
   threadId: v.string(),
   userId: v.id("users"),
@@ -94,6 +113,12 @@ const threadMetadataValidator = v.object({
   // actor `agent` — et non depuis `maybeCheckpoint`, dont le coalescing
   // laisserait des trous.
   touchedNodes: v.optional(v.array(threadNodeTouchValidator)),
+  // Dernière action de l'agent, écrite à chaque tool call par l'enveloppe de
+  // `getToolsForAgent`. Effacée par `markRunStarted` : un thread relancé ne doit
+  // pas afficher une seconde la dernière action du tour précédent. Survit en
+  // revanche à `markRunEnded` — c'est le meilleur résumé de ce qui vient d'être
+  // fait, et le dock le montre jusqu'à la revue.
+  lastActivity: v.optional(threadLastActivityValidator),
   agentName: v.string(),
   lastMessageTime: v.optional(v.number()),
   // Nombre de messages envoyés par l'utilisateur sur ce thread, incrémenté par
@@ -127,6 +152,13 @@ type ThreadRunEndStatus = Exclude<ThreadRunStatus, "running">;
 const RUN_ERROR_MAX_LENGTH = 300;
 
 /**
+ * Borne de `lastActivity.text`. Le tool demande au modèle une étiquette courte,
+ * mais rien ne l'y oblige : la borne existe pour que la pastille reste une
+ * pastille même le jour où il rédige un paragraphe.
+ */
+const ACTIVITY_TEXT_MAX_LENGTH = 140;
+
+/**
  * Au-delà de ce délai, un thread encore marqué `running` est tenu pour
  * interrompu. Le serveur écrit son état terminal dans un `finally`, mais rien
  * ne s'exécute quand l'action meurt avec son conteneur : sans cette borne, la
@@ -149,6 +181,8 @@ export {
   threadRunStatusValidator,
   threadNodeTouchKinds,
   threadNodeTouchValidator,
+  threadLastActivityValidator,
+  ACTIVITY_TEXT_MAX_LENGTH,
   RUN_ERROR_MAX_LENGTH,
   RUN_STALE_MS,
   type ThreadRunStatus,

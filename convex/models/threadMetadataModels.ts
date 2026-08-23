@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import {
+  ACTIVITY_TEXT_MAX_LENGTH,
   RUN_ERROR_MAX_LENGTH,
   RUN_STALE_MS,
   threadAgentNames,
@@ -112,6 +113,11 @@ export async function markRunStarted(
     runEndedAt: undefined,
     lastRunError: undefined,
     reviewedAt: undefined,
+    // Le tour précédent laisse sa dernière action derrière lui, à dessein (elle
+    // résume la tâche au dock). Elle n'a plus rien à dire du tour qui démarre :
+    // la garder ferait afficher pendant quelques secondes un travail terminé
+    // comme s'il était en cours.
+    lastActivity: undefined,
   });
   return runStartedAt;
 }
@@ -256,5 +262,34 @@ export async function markReviewed(
 
   await ctx.db.patch("threadMetadata", threadRow._id, {
     reviewedAt: Date.now(),
+  });
+}
+
+/**
+ * Enregistre ce que l'agent est en train de faire, tel qu'il l'a formulé.
+ *
+ * Appelé une fois par tool call depuis l'enveloppe de `getToolsForAgent`, donc
+ * sur le même ordre de grandeur que `addUsage` (un step LLM appelle zéro ou un
+ * tool). C'est ce qui rend le coût acceptable : la ligne est déjà réécrite à ce
+ * rythme, on ne change pas la nature du trafic sur ce document.
+ *
+ * Ne throw jamais et n'écrit pas deux fois la même phrase : il s'exécute sur le
+ * chemin chaud d'un tour en cours, et une trace d'activité qui ferait échouer le
+ * travail qu'elle décrit serait absurde. No-op silencieux quand la ligne
+ * manque — threads de sous-agents, écritures MCP hors conversation.
+ */
+export async function recordActivity(
+  ctx: MutationCtx,
+  { threadId, text }: { threadId: string; text: string },
+): Promise<void> {
+  const trimmed = text.trim().slice(0, ACTIVITY_TEXT_MAX_LENGTH);
+  if (!trimmed) return;
+
+  const threadRow = await findByThreadId(ctx, { threadId });
+  if (!threadRow) return;
+  if (threadRow.lastActivity?.text === trimmed) return;
+
+  await ctx.db.patch("threadMetadata", threadRow._id, {
+    lastActivity: { text: trimmed, at: Date.now() },
   });
 }

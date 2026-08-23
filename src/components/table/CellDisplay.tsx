@@ -6,7 +6,6 @@ import {
   getNodeIcon,
 } from "@/components/utils/nodeDataDisplayUtils";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import type { Id } from "@/../convex/_generated/dataModel";
 import {
   SELECT_COLOR_CLASSES,
   type ColumnType,
@@ -17,6 +16,7 @@ import {
   type SelectOption,
 } from "./types";
 import { cn } from "@/lib/utils";
+import { getNodeDataId } from "@/lib/nodeIdentity";
 
 export interface CellDisplayProps {
   type: ColumnType;
@@ -33,7 +33,7 @@ export function CellDisplay({ type, value, options }: CellDisplayProps) {
     const node = nodeVal?.nodeId
       ? nodes.find((n) => n.id === nodeVal.nodeId)
       : undefined;
-    const nodeDataId = node?.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+    const nodeDataId = getNodeDataId(node);
     const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
     const title = nodeData
       ? getNodeDataTitle(nodeData)

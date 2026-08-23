@@ -1,5 +1,4 @@
 import { memo, useState } from "react";
-import type { Node } from "@xyflow/react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
@@ -19,10 +18,10 @@ import {
 } from "react-icons/tb";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataValues } from "@/hooks/useNodeData";
-import type { Id } from "@/../convex/_generated/dataModel";
 import { useAction } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import toast from "react-hot-toast";
+import type { XyNodeProps } from "@/types/domain";
 
 export type LinkValueType = {
   href: string;
@@ -37,8 +36,8 @@ const defaultValue: LinkValueType = {
   pageTitle: "",
 };
 
-function LinkNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function LinkNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
 

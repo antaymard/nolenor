@@ -1,9 +1,7 @@
 import { memo, useCallback, useRef } from "react";
-import type { Node } from "@xyflow/react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
-import type { Id } from "@/../convex/_generated/dataModel";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import NodeFrame from "../NodeFrame";
 import { Button } from "@/components/shadcn/button";
@@ -12,9 +10,10 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
 import { TablePreview } from "@/components/table";
 import type { TableData } from "@/components/table";
+import type { XyNodeProps } from "@/types/domain";
 
-function TableNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function TableNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const tableTitle = useNodeDataTitle(nodeDataId) ?? "Table";
   const openWindow = useWindowsStore((s) => s.openWindow);

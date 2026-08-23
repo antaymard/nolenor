@@ -1,12 +1,10 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
-import { type Node } from "@xyflow/react";
 import type { PartialBlock } from "@blocknote/core";
 import toast from "react-hot-toast";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
-import type { Id } from "@/../convex/_generated/dataModel";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import NodeFrame from "../NodeFrame";
 import { Button } from "@/components/shadcn/button";
@@ -21,6 +19,7 @@ import { blockNoteBlocksToMarkdown } from "@/lib/blockNoteMarkdownConverter";
 import { filenameSlug } from "@/lib/filenameSlug";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
+import type { XyNodeProps } from "@/types/domain";
 
 // ── View-only rendering ──────────────────────────────────────────────────
 // The canvas node renders the document via `BlockNoteStatic`, a read-only
@@ -41,8 +40,8 @@ function markdownFilename(title: string): string {
   return `${filenameSlug(title, "blocknote")}.md`;
 }
 
-function BlocknoteNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function BlocknoteNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
 
   const openWindow = useWindowsStore((s) => s.openWindow);

@@ -22,7 +22,6 @@ import type {
   EdgeStrokeWidth,
   colorsEnum,
 } from "@/types/domain";
-import type { Id } from "@/types";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import {
   getNodeDataTitle,
@@ -35,6 +34,7 @@ import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
 import { MAX_BEND_POINTS } from "@/components/edges/edgeStyleUtils";
 import { generateLlmId } from "@/../convex/lib/llmId";
+import { getNodeDataId } from "@/lib/nodeIdentity";
 
 const STROKE_WIDTH_OPTIONS: { key: EdgeStrokeWidth; label: string }[] = [
   { key: "thin", label: "Thin" },
@@ -255,9 +255,9 @@ function EdgeEndpointMenuItem({
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
 
   const xyNode = nodes.find((n) => n.id === nodeId);
-  const nodeDataId = xyNode?.data?.nodeDataId as string | undefined;
+  const nodeDataId = getNodeDataId(xyNode);
   const nodeData = nodeDataId
-    ? nodeDatas.get(nodeDataId as Id<"nodeDatas">)
+    ? nodeDatas.get(nodeDataId)
     : undefined;
 
   const title = nodeData ? getNodeDataTitle(nodeData) : "Node";

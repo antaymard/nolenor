@@ -1,9 +1,8 @@
-import { NodeResizer, type Node } from "@xyflow/react";
+import { NodeResizer } from "@xyflow/react";
 import { memo, useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { colors } from "@/components/ui/styles";
-import type { colorsEnum, NodeType } from "@/types/domain";
-import type { Id } from "@/../convex/_generated/dataModel";
+import type { XyNodeProps } from "@/types/domain";
 import NodeHandles from "./NodeHandles";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
@@ -13,11 +12,12 @@ function NodeFrame({
   children,
   resizable = true,
 }: {
-  xyNode: Node;
+  xyNode: XyNodeProps;
   children: React.ReactNode;
   resizable?: boolean;
 }) {
-  const nodeColor = colors[(xyNode?.data?.color as colorsEnum) || "default"];
+  // `||` et non `??` : une couleur vide vaut "default", comme avant le typage.
+  const nodeColor = colors[xyNode.data.color || "default"];
   const [isResizing, setIsResizing] = useState(false);
   const canDrag = true;
   const openWindow = useWindowsStore((state) => state.openWindow);
@@ -29,18 +29,15 @@ function NodeFrame({
   // sinon — inutile de refaire le test ici. C'est aussi ce qui évite à
   // NodeFrame de s'abonner au template : il ne re-rend plus du tout sur ses
   // éditions.
+  // Dépendance sur le seul `nodeDataId`, pas sur `data` : Convex recrée l'objet
+  // à chaque sync (c'est pourquoi `areNodePropsEqual` le compare en surface),
+  // et s'en rendre dépendant recréerait le callback pour rien.
+  const { nodeDataId } = xyNode.data;
   const handleDoubleClick = useCallback(() => {
-    const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
     if (!nodeDataId || !nodeType) return;
 
-    openWindow({
-      xyNodeId: xyNode.id,
-      nodeDataId,
-      nodeType: nodeType as NodeType,
-    });
-  }, [xyNode.data?.nodeDataId, xyNode.id, nodeType, openWindow]);
-
-  if (!xyNode) return null;
+    openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType });
+  }, [nodeDataId, xyNode.id, nodeType, openWindow]);
 
   const hasDragAndResizeLatencyBug = nodeType === "app" || nodeType === "embed";
 

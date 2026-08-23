@@ -1,8 +1,7 @@
-import { useCallback } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
-import { useNoleStore } from "@/stores/noleStore";
+import { useOpenNoleThread } from "@/hooks/useOpenNoleThread";
 import { useNodeIdsByDataId } from "@/lib/nodeIdentity";
 import CanvasTaskMarker from "./CanvasTaskMarker";
 import type { PendingThread } from "@/lib/threadRunStatus";
@@ -24,24 +23,9 @@ export default function CanvasTaskMarkers({
 }: {
   canvasId: Id<"canvases">;
 }) {
-  const setActiveThreadId = useNoleStore((state) => state.setActiveThreadId);
-  const setPanelLayout = useNoleStore((state) => state.setPanelLayout);
-  const markReviewed = useMutation(api.threads.markThreadReviewed);
+  const openThread = useOpenNoleThread();
 
   const threads = useQuery(api.threads.listPendingThreads, { canvasId });
-
-  const openThread = useCallback(
-    (threadId: string) => {
-      setActiveThreadId(threadId);
-      setPanelLayout("expanded");
-      // Consulter, c'est revoir — même geste qu'au dock. No-op serveur sur un
-      // tour en cours, donc le même appel convient aux deux cas.
-      void markReviewed({ threadId }).catch(() => {
-        // Échec sans conséquence : la conversation s'ouvre quand même.
-      });
-    },
-    [markReviewed, setActiveThreadId, setPanelLayout],
-  );
 
   // Pré-filtre volontairement sans horloge : la péremption et la rémanence se
   // décident dans chaque marqueur, qui porte sa propre minuterie. Ici on écarte

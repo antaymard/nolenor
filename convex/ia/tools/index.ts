@@ -1,5 +1,4 @@
 import type { ToolSet } from "ai";
-import type { ToolCtx } from "@convex-dev/agent";
 import { internal } from "../../_generated/api";
 import { type ThreadCtx, type ToolAgentName } from "../agentConfig";
 import createConnectionTool, {
@@ -32,7 +31,7 @@ import tableUpdateRowsTool, {
 import tableUpdateSchemaTool, {
   tableUpdateSchemaToolConfig,
 } from "./tableUpdateSchemaTool";
-import { type ToolConfig } from "./toolHelpers";
+import { readToolCtx, type ToolConfig } from "./toolHelpers";
 import { websearchTool, websearchToolConfig } from "./websearchTool";
 import runSubAgent, { runSubAgentConfig } from "./runSubAgentTool";
 import listUserCanvasesTool, {
@@ -41,18 +40,6 @@ import listUserCanvasesTool, {
 
 type AgentTool = ToolSet[string];
 type ToolExecute = NonNullable<AgentTool["execute"]>;
-
-/**
- * Ce que le composant agent pose sur le tool au moment de l'appel.
- *
- * `createTool` ne garde pas le ctx à la définition : `wrapTools` recopie chaque
- * tool en y ajoutant `ctx` juste avant la génération, et l'`execute` du
- * composant le relit sur `this`. C'est pour ça que l'enveloppe ci-dessous est
- * une `function` et non une arrow, et qu'elle délègue avec `.call(this, …)` :
- * une arrow perdrait `this`, et TOUS les tools throwraient « you must provide
- * the ctx ».
- */
-type ToolThis = { ctx?: ToolCtx };
 
 function readExplanation(input: unknown): string | undefined {
   if (typeof input !== "object" || input === null) return undefined;
@@ -66,16 +53,11 @@ function readExplanation(input: unknown): string | undefined {
  * le dock et le canvas sachent dire ce que fait une tâche sans avoir sa
  * conversation à l'écran.
  *
- * Attendue, et non lancée en fond : une action Convex qui se termine emporte ses
- * promesses en vol, et celle qu'on perdrait serait justement la dernière du tour
- * — celle qui reste affichée. Le coût est un aller-retour de mutation par tool
- * call, négligeable devant le step LLM qui vient de le décider.
- *
  * N'échoue jamais : c'est une trace, elle n'a pas à faire tomber le travail
  * qu'elle décrit.
  */
 async function recordActivity(toolThis: unknown, input: unknown): Promise<void> {
-  const ctx = (toolThis as ToolThis | undefined)?.ctx;
+  const ctx = readToolCtx(toolThis);
   const text = readExplanation(input);
   if (!ctx?.threadId || !text) return;
 
@@ -92,23 +74,44 @@ async function recordActivity(toolThis: unknown, input: unknown): Promise<void> 
   }
 }
 
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as PromiseLike<unknown>).then === "function"
+  );
+}
+
 /**
- * Enveloppe un tool pour tracer son étiquette avant de l'exécuter.
+ * Enveloppe un tool pour tracer son étiquette.
  *
  * Ici et non dans chaque tool : les vingt tools partagent déjà
  * `EXPLANATION_FIELD`, et leur demander un appel de traçage de plus serait vingt
  * occasions de l'oublier — à commencer par le prochain tool écrit.
  *
- * Les tools sans `execute` (tools déclaratifs, à sortie fournie par le provider)
- * passent inchangés.
+ * Deux précautions, chacune contre une panne discrète :
+ *
+ * - Une `function` et un `.call(this, …)`, jamais une arrow. `createTool` relit
+ *   son ctx sur `this` (cf. `readToolCtx`) : une arrow le perdrait, et TOUS les
+ *   tools throwraient « you must provide the ctx ».
+ * - Le tool est lancé le premier, et la trace attendue *à côté* de lui plutôt
+ *   qu'avant. L'attendre n'ajoute donc aucune latence, tout en la mettant à
+ *   l'abri de la fin de l'action Convex, qui emporterait une promesse en vol —
+ *   or celle qu'on perdrait serait la dernière du tour, celle qui reste
+ *   affichée. Et un tool qui rendrait un `AsyncIterable` (cf. `resolveToolOutput`
+ *   côté MCP) traverse sans être emballé dans une promesse.
+ *
+ * Les tools sans `execute` (sortie fournie par le provider) passent inchangés.
  */
 function withActivityTracking(tool: AgentTool): AgentTool {
   const execute = tool.execute;
   if (typeof execute !== "function") return tool;
 
-  const tracked: ToolExecute = async function (this: unknown, input, options) {
-    await recordActivity(this, input);
-    return execute.call(this, input, options);
+  const tracked: ToolExecute = function (this: unknown, input, options) {
+    const output = execute.call(this, input, options);
+    const recorded = recordActivity(this, input);
+    if (!isPromiseLike(output)) return output;
+    return Promise.all([output, recorded]).then(([value]) => value);
   };
 
   return { ...tool, execute: tracked };

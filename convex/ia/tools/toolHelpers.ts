@@ -1,6 +1,34 @@
 // Shared helpers for tool error formatting and compaction logic
+import type { ToolCtx } from "@convex-dev/agent";
 import { z } from "zod";
 import type { ToolAgentName } from "../agentConfig";
+
+// ── Le ctx d'un tool ────────────────────────────────────────────────────────
+//
+// Il ne vit pas dans la définition du tool. Le composant agent recopie chaque
+// tool en y ajoutant `ctx` juste avant la génération (`wrapTools`, non
+// ré-exporté publiquement), et l'`execute` que produit `createTool` le relit
+// sur `this`.
+//
+// Deux chemins ont besoin de connaître ce détail d'implémentation : l'exécution
+// MCP, qui construit son ctx à la main, et l'enveloppe de traçage d'activité,
+// qui le lit. Il n'est écrit qu'ici.
+
+/** Pose le ctx sur un tool, comme le fait le composant agent avant d'appeler. */
+export function attachToolCtx<T extends object>(tool: T, ctx: ToolCtx): T {
+  return { ...tool, ctx };
+}
+
+/**
+ * Le pendant en lecture : le `this` d'un `execute` porte le ctx.
+ *
+ * Rend `undefined` plutôt que de throw — un tool appelé hors du composant agent
+ * n'a rien d'anormal, c'est le chemin MCP.
+ */
+export function readToolCtx(toolThis: unknown): ToolCtx | undefined {
+  if (typeof toolThis !== "object" || toolThis === null) return undefined;
+  return (toolThis as { ctx?: ToolCtx }).ctx;
+}
 
 /**
  * L'étiquette lisible d'un tool call. Portée par l'entrée de tous les tools,

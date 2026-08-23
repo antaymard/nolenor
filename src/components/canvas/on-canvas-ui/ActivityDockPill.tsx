@@ -1,12 +1,11 @@
 import { useCallback, useRef, useState } from "react";
-import { useMutation } from "convex/react";
 import { X } from "lucide-react";
-import { api } from "@/../convex/_generated/api";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
+import { useMarkThreadReviewed } from "@/hooks/useOpenNoleThread";
 import { useResolvedRunStatus } from "@/hooks/useThreadRunStatus";
 import {
   getDockStatusAppearance,
@@ -35,7 +34,7 @@ export default function ActivityDockPill({
 }) {
   const status = useResolvedRunStatus(thread);
   const appearance = getDockStatusAppearance(status);
-  const markReviewed = useMutation(api.threads.markThreadReviewed);
+  const markReviewed = useMarkThreadReviewed();
 
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -54,15 +53,6 @@ export default function ActivityDockPill({
   // s'affiche donc pas, et le serveur refuserait de toute façon.
   const isRunning = status === "running";
 
-  const handleReview = useCallback(() => {
-    // Le serveur refuserait de toute façon un tour en cours : autant ne pas
-    // faire l'aller-retour à chaque clic sur une tâche qui travaille.
-    if (isRunning) return;
-    void markReviewed({ threadId: thread.threadId }).catch(() => {
-      // Échec sans conséquence : la pastille reste, l'utilisateur recliquera.
-    });
-  }, [isRunning, markReviewed, thread.threadId]);
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -73,10 +63,9 @@ export default function ActivityDockPill({
             setOpen(true);
           }}
           onMouseLeave={scheduleClose}
-          onClick={() => {
-            onOpen(thread.threadId);
-            handleReview();
-          }}
+          // Accuser réception fait partie de l'ouverture (`useOpenNoleThread`) :
+          // rien à faire de plus ici.
+          onClick={() => onOpen(thread.threadId)}
           className={cn(
             "group relative flex h-7 max-w-[260px] items-center gap-1.5 rounded-full border pl-2.5 text-left text-xs font-medium",
             "animate-in fade-in slide-in-from-bottom-2 duration-200",
@@ -98,7 +87,7 @@ export default function ActivityDockPill({
               aria-label="Marquer comme vu"
               onClick={(event) => {
                 event.stopPropagation();
-                handleReview();
+                markReviewed(thread.threadId);
               }}
               onMouseDown={(event) => event.stopPropagation()}
               className="absolute right-1 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/10"

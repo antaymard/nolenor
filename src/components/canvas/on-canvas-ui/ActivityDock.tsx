@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
-import { useNoleStore } from "@/stores/noleStore";
+import { useOpenNoleThread } from "@/hooks/useOpenNoleThread";
 import { isPendingReview } from "@/lib/threadRunStatus";
 import ActivityDockPill from "./ActivityDockPill";
 
@@ -31,19 +31,17 @@ export default function ActivityDock({
 }: {
   canvasId: Id<"canvases">;
 }) {
-  const setActiveThreadId = useNoleStore((state) => state.setActiveThreadId);
-  const setPanelLayout = useNoleStore((state) => state.setPanelLayout);
+  const open = useOpenNoleThread();
   const [overflowOpen, setOverflowOpen] = useState(false);
 
   const threads = useQuery(api.threads.listPendingThreads, { canvasId });
 
   const openThread = useCallback(
     (threadId: string) => {
-      setActiveThreadId(threadId);
-      setPanelLayout("expanded");
+      open(threadId);
       setOverflowOpen(false);
     },
-    [setActiveThreadId, setPanelLayout],
+    [open],
   );
 
   // Le serveur filtre grossièrement (il ne peut pas lire l'horloge dans une

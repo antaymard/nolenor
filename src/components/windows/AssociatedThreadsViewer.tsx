@@ -5,7 +5,10 @@ import { api } from "@/../convex/_generated/api";
 import { formatDistanceToNow } from "@/lib/date-utils";
 import { TbMessage, TbExternalLink } from "react-icons/tb";
 import { cn } from "@/lib/utils";
-import { useNoleStore } from "@/stores/noleStore";
+import {
+  useMarkThreadReviewed,
+  useOpenNoleThread,
+} from "@/hooks/useOpenNoleThread";
 
 export default function AssociatedThreadsViewer({
   nodeDataId,
@@ -17,8 +20,8 @@ export default function AssociatedThreadsViewer({
   /** Override how a thread gets opened (e.g. on mobile, where there's no Nolë panel). */
   onOpenThread?: (threadId: string) => void;
 }) {
-  const setActiveThreadId = useNoleStore((state) => state.setActiveThreadId);
-  const setPanelLayout = useNoleStore((state) => state.setPanelLayout);
+  const openThread = useOpenNoleThread();
+  const markReviewed = useMarkThreadReviewed();
   const { data, isSuccess, isPending } = useRichQuery(
     api.nodeDataVersions.getThreadsThatCreatedVersions,
     { nodeDataId },
@@ -46,10 +49,12 @@ export default function AssociatedThreadsViewer({
     // Seuls les threads de l'utilisateur sont ouvrables (cf. isOwner).
     if (!selected.isOwner) return;
     if (onOpenThread) {
+      // Le mobile ouvre la conversation à sa façon, mais l'avoir consultée
+      // compte pareil : la tâche doit sortir du dock ici aussi.
+      markReviewed(selected._id);
       onOpenThread(selected._id);
     } else {
-      setActiveThreadId(selected._id);
-      setPanelLayout("expanded");
+      openThread(selected._id);
     }
     closeModale?.();
   };

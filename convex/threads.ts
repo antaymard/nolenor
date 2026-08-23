@@ -1,8 +1,8 @@
-import { action, mutation, query } from "./_generated/server";
+import { action, mutation, query, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import { components, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 import {
   createThread,
@@ -39,6 +39,55 @@ const CANVAS_THREADS_SCAN_LIMIT = 30;
 
 function byLastActivityDesc(a: Doc<"threadMetadata">, b: Doc<"threadMetadata">) {
   return lastActivityTime(b) - lastActivityTime(a);
+}
+
+/**
+ * Les conversations Nolë d'un canvas, hydratées de leur titre.
+ *
+ * Les deux queries de listing ne diffèrent que par leur filtre d'admission et
+ * leur projection ; tout le reste — l'autorisation, le scan borné, le tri sur
+ * la dernière activité, et l'écart des fantômes — est commun.
+ *
+ * Le filtre s'applique AVANT l'hydratation, et c'est ce qui fait la différence
+ * de coût entre les deux appelants : chaque hydratation est une lecture auprès
+ * du composant agent.
+ */
+async function loadNoleThreads<T>(
+  ctx: QueryCtx,
+  {
+    canvasId,
+    filter,
+    project,
+  }: {
+    canvasId: Id<"canvases">;
+    filter?: (metadata: Doc<"threadMetadata">) => boolean;
+    project: (metadata: Doc<"threadMetadata">, title: string | null) => T;
+  },
+): Promise<T[]> {
+  const authUserId = await requireAuth(ctx);
+  await requireCanvasAccess(ctx, canvasId, authUserId, "viewer");
+
+  const threads = await listNoleThreadsByUserAndCanvas(ctx, {
+    userId: authUserId,
+    canvasId,
+    limit: CANVAS_THREADS_SCAN_LIMIT,
+  });
+
+  const hydrated = await Promise.all(
+    (filter ? threads.filter(filter) : threads)
+      .sort(byLastActivityDesc)
+      .map(async (metadata) => {
+        const thread = await getThreadMetadata(ctx, components.agent, {
+          threadId: metadata.threadId,
+        }).catch(() => null);
+        // La ligne survit à la suppression du thread côté composant si le
+        // nettoyage a échoué : on l'ignore plutôt que d'afficher un fantôme.
+        if (!thread) return null;
+        return project(metadata, thread.title ?? null);
+      }),
+  );
+
+  return hydrated.filter((row) => row !== null);
 }
 
 /**
@@ -130,36 +179,17 @@ export const listCanvasThreads = query({
       runStartedAt: v.union(v.number(), v.null()),
     }),
   ),
-  handler: async (ctx, { canvasId }) => {
-    const authUserId = await requireAuth(ctx);
-    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer");
-
-    const threads = await listNoleThreadsByUserAndCanvas(ctx, {
-      userId: authUserId,
+  handler: async (ctx, { canvasId }) =>
+    loadNoleThreads(ctx, {
       canvasId,
-      limit: CANVAS_THREADS_SCAN_LIMIT,
-    });
-
-    const hydrated = await Promise.all(
-      threads.sort(byLastActivityDesc).map(async (metadata) => {
-        const thread = await getThreadMetadata(ctx, components.agent, {
-          threadId: metadata.threadId,
-        }).catch(() => null);
-        // La ligne survit à la suppression du thread côté composant si le
-        // nettoyage a échoué : on l'ignore plutôt que d'afficher un fantôme.
-        if (!thread) return null;
-        return {
-          threadId: metadata.threadId,
-          title: thread.title ?? null,
-          lastActivityTime: lastActivityTime(metadata),
-          runStatus: metadata.runStatus ?? null,
-          runStartedAt: metadata.runStartedAt ?? null,
-        };
+      project: (metadata, title) => ({
+        threadId: metadata.threadId,
+        title,
+        lastActivityTime: lastActivityTime(metadata),
+        runStatus: metadata.runStatus ?? null,
+        runStartedAt: metadata.runStartedAt ?? null,
       }),
-    );
-
-    return hydrated.filter((thread) => thread !== null);
-  },
+    }),
 });
 
 /**
@@ -215,42 +245,21 @@ export const listPendingThreads = query({
       lastActivity: v.union(threadLastActivityValidator, v.null()),
     }),
   ),
-  handler: async (ctx, { canvasId }) => {
-    const authUserId = await requireAuth(ctx);
-    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer");
-
-    const threads = await listNoleThreadsByUserAndCanvas(ctx, {
-      userId: authUserId,
+  handler: async (ctx, { canvasId }) =>
+    loadNoleThreads(ctx, {
       canvasId,
-      limit: CANVAS_THREADS_SCAN_LIMIT,
-    });
-
-    const hydrated = await Promise.all(
-      threads
-        .filter(isDockCandidate)
-        .sort(byLastActivityDesc)
-        .map(async (metadata) => {
-          const thread = await getThreadMetadata(ctx, components.agent, {
-            threadId: metadata.threadId,
-          }).catch(() => null);
-          // La ligne survit à la suppression du thread côté composant si le
-          // nettoyage a échoué : on l'ignore plutôt que d'afficher un fantôme.
-          if (!thread) return null;
-          return {
-            threadId: metadata.threadId,
-            title: thread.title ?? null,
-            runStatus: metadata.runStatus ?? null,
-            runStartedAt: metadata.runStartedAt ?? null,
-            runEndedAt: metadata.runEndedAt ?? null,
-            reviewedAt: metadata.reviewedAt ?? null,
-            touchedNodes: metadata.touchedNodes ?? [],
-            lastActivity: metadata.lastActivity ?? null,
-          };
-        }),
-    );
-
-    return hydrated.filter((thread) => thread !== null);
-  },
+      filter: isDockCandidate,
+      project: (metadata, title) => ({
+        threadId: metadata.threadId,
+        title,
+        runStatus: metadata.runStatus ?? null,
+        runStartedAt: metadata.runStartedAt ?? null,
+        runEndedAt: metadata.runEndedAt ?? null,
+        reviewedAt: metadata.reviewedAt ?? null,
+        touchedNodes: metadata.touchedNodes ?? [],
+        lastActivity: metadata.lastActivity ?? null,
+      }),
+    }),
 });
 
 export const getThreadInfo = query({

@@ -18,6 +18,24 @@ import TaskPillBody from "./TaskPill";
 /** Laisse le temps d'aller cliquer une ligne dans le popover sans le perdre. */
 const HOVER_CLOSE_DELAY_MS = 150;
 
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+/**
+ * Depuis combien de temps l'agent en est là, en français et à la grosse maille.
+ *
+ * Écrit ici plutôt que via `formatDistanceToNow`, qui est verrouillé sur la
+ * locale anglaise : « 4 minutes ago » au milieu du dock jurerait. Trois paliers
+ * suffisent — passé l'heure, une tâche est de toute façon périmée et c'est la
+ * pastille ambre qui le dit.
+ */
+function formatElapsed(at: number, now: number = Date.now()): string {
+  const elapsed = Math.max(0, now - at);
+  if (elapsed < MINUTE_MS) return "à l'instant";
+  if (elapsed < HOUR_MS) return `depuis ${Math.floor(elapsed / MINUTE_MS)} min`;
+  return `depuis ${Math.floor(elapsed / HOUR_MS)} h`;
+}
+
 /**
  * Une tâche du dock d'activité.
  *
@@ -115,10 +133,16 @@ export default function ActivityDockPill({
           {thread.title || "Sans titre"}
         </p>
         {/* La même action que la pastille, mais entière : c'est la raison
-            d'être du survol, où la troncature n'a plus lieu d'être. */}
+            d'être du survol, où la troncature n'a plus lieu d'être. Le temps
+            écoulé n'est utile que là aussi — c'est ce qui distingue une tâche
+            qui avance d'une tâche plantée sur une étape. */}
         {thread.lastActivity ? (
           <p className="mt-0.5 px-1 text-xs text-slate-400">
             {thread.lastActivity.text}
+            <span className="text-slate-300">
+              {" · "}
+              {formatElapsed(thread.lastActivity.at)}
+            </span>
           </p>
         ) : null}
         <div className="mt-1.5">

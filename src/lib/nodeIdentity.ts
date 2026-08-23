@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { useStore } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 
@@ -30,48 +30,45 @@ export function getNodeDataId(
     : undefined;
 }
 
-type NodeIdPair = [nodeDataId: Id<"nodeDatas">, xyNodeId: string];
+/**
+ * Deux Maps portent-elles les mêmes correspondances ?
+ *
+ * Le sélecteur ci-dessous rend une Map neuve à chaque tick du store : sans
+ * cette comparaison, l'appelant se re-rendrait à chaque frame de pan.
+ */
+function haveSameEntries<K, V>(a: Map<K, V>, b: Map<K, V>): boolean {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  for (const [key, value] of a) {
+    if (b.get(key) !== value) return false;
+  }
+  return true;
+}
 
 /**
- * Résout un lot de `nodeDataId` vers leurs ids React Flow, en une passe.
+ * La correspondance `nodeDataId` → id React Flow, pour tout le canvas.
  *
- * Les absents ne sont pas dans la Map rendue : un node supprimé depuis que le
- * thread l'a touché n'est plus navigable, et c'est à l'appelant d'en tirer les
+ * Les absents ne sont pas dans la Map : un node supprimé depuis que le thread
+ * l'a touché n'est plus navigable, et c'est à l'appelant d'en tirer les
  * conséquences — comme `MinimizedWindowsStack` le fait avec `existingNodeIds`.
  *
- * On ne souscrit qu'à la table des correspondances, sérialisée : pan, zoom,
- * drag et sélection ne doivent pas re-rendre l'appelant, qui est monté en
- * permanence sur le canvas. Même idiome que `MobileCanvasToolbar` et sa clé
- * d'ids sélectionnés — en JSON plutôt qu'en chaîne à séparateur, parce qu'un id
- * React Flow est une chaîne libre où n'importe quel séparateur peut se trouver.
+ * Le sélecteur s'exécute à chaque tick du store React Flow — donc à chaque
+ * frame de pan, de zoom et de drag, pas seulement quand la correspondance
+ * change. D'où deux choix : il construit une Map plutôt que de sérialiser
+ * (aucun échappement, aucun `JSON.parse` au retour, et plus de question de
+ * séparateur dans des ids qui sont des chaînes libres), et c'est
+ * `haveSameEntries` qui décide s'il y a lieu de re-rendre.
  */
-export function useNodeIdsByDataId(
-  nodeDataIds: readonly Id<"nodeDatas">[],
-): Map<Id<"nodeDatas">, string> {
-  const pairsKey = useStore(
+export function useNodeIdsByDataId(): Map<Id<"nodeDatas">, string> {
+  return useStore(
     useCallback((state) => {
-      const pairs: NodeIdPair[] = [];
+      const byDataId = new Map<Id<"nodeDatas">, string>();
       for (const node of state.nodes) {
         const dataId = getNodeDataId(node as NodeIdentityLike);
-        if (dataId) pairs.push([dataId, node.id]);
+        if (dataId) byDataId.set(dataId, node.id);
       }
-      return JSON.stringify(pairs);
+      return byDataId;
     }, []),
+    haveSameEntries,
   );
-
-  // `nodeDataIds` est un tableau neuf à chaque rendu chez la plupart des
-  // appelants : on se referme sur une clé stable plutôt que sur sa référence.
-  // Les ids Convex sont alphanumériques, la virgule ne peut pas s'y trouver.
-  const wantedKey = nodeDataIds.join(",");
-
-  return useMemo(() => {
-    const resolved = new Map<Id<"nodeDatas">, string>();
-    if (!wantedKey) return resolved;
-
-    const wanted = new Set(wantedKey.split(","));
-    for (const [dataId, xyNodeId] of JSON.parse(pairsKey) as NodeIdPair[]) {
-      if (wanted.has(dataId)) resolved.set(dataId, xyNodeId);
-    }
-    return resolved;
-  }, [pairsKey, wantedKey]);
 }

@@ -38,11 +38,7 @@ export default function CanvasTaskMarkers({
 
   // Une seule résolution pour toutes les tâches, plutôt qu'un abonnement au
   // store React Flow par marqueur.
-  const nodeIds = useNodeIdsByDataId(
-    candidates.flatMap((thread) =>
-      thread.touchedNodes.map((touch) => touch.nodeDataId),
-    ),
-  );
+  const nodeIds = useNodeIdsByDataId();
 
   // Le rang d'empilement se compte par ancrage, et non sur la liste entière :
   // deux tâches sur des régions différentes ne doivent pas se décaler l'une

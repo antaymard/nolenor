@@ -26,9 +26,7 @@ export default function ActivityDockNodes({
   touchedNodes: readonly ThreadNodeTouch[];
 }) {
   const goToNode = useGoToNode();
-  const nodeIds = useNodeIdsByDataId(
-    touchedNodes.map((touch) => touch.nodeDataId),
-  );
+  const nodeIds = useNodeIdsByDataId();
 
   if (touchedNodes.length === 0) {
     return (

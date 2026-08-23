@@ -14,8 +14,6 @@ export const setNodeDataToolConfig: ToolConfig = {
   name: "set_node_data",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "write" },

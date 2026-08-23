@@ -318,9 +318,8 @@ export function createNoleAgent({
 
 // `createCloneAgent` et `createSupervisorAgent` vivaient ici. Aucun appelant, et
 // tous deux étaient des points d'entrée LLM sans `usageHandler` : les garder,
-// c'était préparer le prochain chemin de dépense non compté. Les entrées
-// `clone`/`supervisor` de `toolAgentNames` restent en place, les ToolConfig les
-// référencent encore.
+// c'était préparer le prochain chemin de dépense non compté. Leurs entrées dans
+// `toolAgentNames` et les `authorized_agents` qui les citaient ont suivi.
 
 export function createWorkerAgent({
   threadCtx,

@@ -30,22 +30,6 @@ export function getNodeDataId(
     : undefined;
 }
 
-/**
- * L'id React Flow du node qui porte ce `nodeDataId`, ou `undefined` s'il n'est
- * plus sur le canvas.
- *
- * Pur : pour les callbacks qui lisent `getNodes()` ponctuellement. Quand on
- * rend, c'est `useNodeIdsByDataId` qu'il faut — même convention que
- * `getCanvasNodeTitle`, souscription au rendu et lecture ponctuelle ailleurs.
- */
-export function findNodeIdByDataId(
-  nodes: readonly NodeIdentityLike[],
-  nodeDataId: Id<"nodeDatas"> | undefined,
-): string | undefined {
-  if (!nodeDataId) return undefined;
-  return nodes.find((node) => getNodeDataId(node) === nodeDataId)?.id;
-}
-
 type NodeIdPair = [nodeDataId: Id<"nodeDatas">, xyNodeId: string];
 
 /**

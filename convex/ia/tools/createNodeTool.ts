@@ -27,8 +27,6 @@ export const createNodeToolConfig: ToolConfig = {
   name: "create_node",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "write" },

@@ -105,20 +105,10 @@ export function getClosestHandlesForDirectedEdge({
   };
 }
 
-export interface CompactionConfig {
-  compactAfterMessages: number;
-  compactAfterIterations: number; // -1 is never, 0 is always
-  toolUseCompaction?: (toolUse: unknown) => string;
-  toolResultCompaction?: (toolResult: unknown) => string;
-  hideCompletelyAfterMessages?: number;
-}
-
 export interface ToolConfig {
   name: string;
   authorized_agents: ToolAgentName[];
   requireMultiModal?: boolean;
-  compactionForSuccessResult?: CompactionConfig;
-  compactionForFailureResult?: CompactionConfig;
   /**
    * Présent = le tool est exposé sur le endpoint MCP (/mcp).
    * `access` est confronté à la permission du token API ("read" | "write") :
@@ -128,45 +118,6 @@ export interface ToolConfig {
    * chaque exécution.
    */
   mcp?: { access: "read" | "write" };
-}
-
-const defaultCompactionConfig: CompactionConfig = {
-  compactAfterMessages: 0,
-  compactAfterIterations: -1,
-};
-
-export function createDefaultToolConfig(
-  name: string,
-  agents: ToolAgentName[],
-): ToolConfig {
-  return {
-    name,
-    authorized_agents: agents,
-    compactionForSuccessResult: defaultCompactionConfig,
-    compactionForFailureResult: defaultCompactionConfig,
-  };
-}
-
-/** Extract compact error hint from the uniform {success:false, message} JSON error format. */
-export function compactErrorResult(
-  toolName: string,
-  toolResult: unknown,
-): string {
-  try {
-    const parsed =
-      typeof toolResult === "string" ? JSON.parse(toolResult) : toolResult;
-    if (parsed?.message) {
-      const msg =
-        parsed.message.length > 80
-          ? `${parsed.message.slice(0, 80)}…`
-          : parsed.message;
-      return `[${toolName} error: ${msg}]`;
-    }
-  } catch {
-    // not JSON
-  }
-  const str = typeof toolResult === "string" ? toolResult : String(toolResult);
-  return `[${toolName} error: ${str.slice(0, 80)}]`;
 }
 
 // ── Error shaping ───────────────────────────────────────────────────────────

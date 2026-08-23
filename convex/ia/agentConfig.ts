@@ -2,8 +2,6 @@ import {type Id} from "../_generated/dataModel";
 
 export const toolAgentNames = {
   nole: "nolë",
-  clone: "clone",
-  supervisor: "supervisor",
   worker: "worker",
   // Assistant tiers connecté via le endpoint MCP (/mcp). Jamais listé dans
   // authorized_agents : l'exposition MCP est gouvernée par ToolConfig.mcp.

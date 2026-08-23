@@ -10,8 +10,6 @@ export const fullTextSearchToolConfig: ToolConfig = {
   name: "full_text_search",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "read" },

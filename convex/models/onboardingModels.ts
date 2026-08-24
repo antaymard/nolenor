@@ -11,58 +11,105 @@ type CanvasNode = NonNullable<Doc<"canvases">["nodes"]>[number];
 // auth.config.ts, chunkBuilder.ts…), qui suit ce pattern partout. Introduire
 // le second mécanisme pour une seule variable ajouterait de l'incohérence
 // sans bénéfice réel ici.
-function readTutorialCanvasId(): Id<"canvases"> | null {
-  const raw = process.env.TUTORIAL_CANVAS_ID;
-  return raw ? (raw as Id<"canvases">) : null;
+//
+// Liste d'ids séparés par des virgules — tuto, templates, ce qu'on voudra :
+//   npx convex env set STARTER_CANVAS_IDS "jd7...,jh2...,jn9..."
+//
+// L'ORDRE COMPTE : le premier de la liste est estampillé comme le plus
+// récemment modifié, donc c'est lui que la home met en avant (« Pick up where
+// you left off » lit `ownCanvases[0]`, trié par `by_creator_and_updatedAt`
+// desc). Mettre le canvas de tuto en tête.
+function readStarterCanvasIds(): Array<Id<"canvases">> {
+  const raw = process.env.STARTER_CANVAS_IDS;
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0) as Array<Id<"canvases">>;
 }
 
-export async function provisionFirstCanvasForUser(
+/**
+ * Clone les canvases de démarrage pour un compte qui vient d'être créé.
+ *
+ * Rend les ids créés, dans l'ordre de `STARTER_CANVAS_IDS`. Tout est fait
+ * dans une seule transaction : soit le compte reçoit son jeu de départ, soit
+ * il n'en reçoit aucun et la home affiche son écran de bienvenue, qui sait
+ * déjà créer un workspace. Une liste déraisonnablement longue se heurterait
+ * aux limites de transaction Convex — l'échec serait propre (rien de
+ * committé), pas un demi-jeu.
+ */
+export async function provisionStarterCanvasesForUser(
   ctx: MutationCtx,
   { authUserId }: { authUserId: Id<"users"> },
-): Promise<Id<"canvases">> {
-  const tutorialCanvasId = readTutorialCanvasId();
-  // `.catch` parce qu'un id malformé fait lever `db.get` (un id valide mais
-  // supprimé rend simplement `null`) : `TUTORIAL_CANVAS_ID` est collée à la
-  // main, une coquille ne doit pas priver le compte de son canvas.
-  const tutorialCanvas = tutorialCanvasId
-    ? await ctx.db.get("canvases", tutorialCanvasId).catch(() => null)
-    : null;
+): Promise<Array<Id<"canvases">>> {
+  const sourceIds = readStarterCanvasIds();
+  const now = Date.now();
+  const created: Array<Id<"canvases">> = [];
 
-  // Pas de variable configurée, ou pointant sur un canvas supprimé depuis :
-  // repli sur le comportement actuel (canvas vide). Le signup ne doit jamais
-  // échouer faute de canvas de tuto.
-  if (!tutorialCanvas) {
-    return await CanvasModels.createCanvasForUser(ctx, {
-      authUserId,
-      name: "My first canvas",
-    });
+  for (const [index, sourceId] of sourceIds.entries()) {
+    // `.catch` parce qu'un id malformé fait lever `db.get` (un id valide mais
+    // supprimé rend simplement `null`) : ces ids sont collés à la main, une
+    // coquille dans l'un ne doit pas priver le compte des autres.
+    const source = await ctx.db.get("canvases", sourceId).catch(() => null);
+    if (!source) continue;
+
+    created.push(
+      await cloneCanvasForUser(ctx, {
+        authUserId,
+        source,
+        // Décroissant d'une milliseconde par rang : c'est ce qui rend l'ordre
+        // de la variable d'env observable dans l'app. Estampillé plutôt que
+        // laissé à l'ordre des écritures, parce que tout se passe dans une
+        // seule transaction et que les `Date.now()` internes des modèles n'y
+        // sont pas garantis croissants.
+        updatedAt: now - index,
+      }),
+    );
   }
 
-  return await cloneTutorialCanvas(ctx, { authUserId, tutorialCanvas });
+  // Rien de configuré, ou aucun id résolvable : repli sur un canvas vide,
+  // comme avant la feature. Le signup ne doit jamais échouer faute de
+  // canvases de démarrage.
+  if (created.length === 0) {
+    created.push(
+      await CanvasModels.createCanvasForUser(ctx, {
+        authUserId,
+        name: "My first canvas",
+      }),
+    );
+  }
+
+  return created;
 }
 
-async function cloneTutorialCanvas(
+async function cloneCanvasForUser(
   ctx: MutationCtx,
   {
     authUserId,
-    tutorialCanvas,
-  }: { authUserId: Id<"users">; tutorialCanvas: Doc<"canvases"> },
+    source,
+    updatedAt,
+  }: {
+    authUserId: Id<"users">;
+    source: Doc<"canvases">;
+    updatedAt: number;
+  },
 ): Promise<Id<"canvases">> {
   const canvasId = await CanvasModels.createCanvasForUser(ctx, {
     authUserId,
-    name: tutorialCanvas.name,
-    description: tutorialCanvas.description,
+    name: source.name,
+    description: source.description,
   });
 
   const sourceNodeDatas = await ctx.db
     .query("nodeDatas")
-    .withIndex("by_canvasId", (q) => q.eq("canvasId", tutorialCanvas._id))
+    .withIndex("by_canvasId", (q) => q.eq("canvasId", source._id))
     .collect();
 
   // Les nodes "custom" pointent un nodeTemplates scopé au compte source ; le
   // partage cross-utilisateur de ce lien après clonage n'est pas garanti côté
   // fenêtre (résolution du template, droits d'édition). Hors scope : on les
-  // saute plutôt que de cloner un node cassé.
+  // saute plutôt que de cloner un node cassé — et `createNodeData` lèverait
+  // de toute façon sur un custom sans templateId.
   const nodeDataIdMap = new Map<Id<"nodeDatas">, Id<"nodeDatas">>();
   for (const nodeData of sourceNodeDatas) {
     if (nodeData.type === "custom") continue;
@@ -74,7 +121,7 @@ async function cloneTutorialCanvas(
     nodeDataIdMap.set(nodeData._id, newNodeDataId);
   }
 
-  const clonedNodes: CanvasNode[] = (tutorialCanvas.nodes ?? [])
+  const clonedNodes: CanvasNode[] = (source.nodes ?? [])
     .filter((node) => !node.nodeDataId || nodeDataIdMap.has(node.nodeDataId))
     .map((node) => ({
       ...node,
@@ -95,18 +142,17 @@ async function cloneTutorialCanvas(
   // quels au clonage. Seuls les edges pointant un node sauté ci-dessus sont
   // filtrés.
   const survivingNodeIds = new Set(clonedNodes.map((node) => node.id));
-  const clonedEdges = (tutorialCanvas.edges ?? []).filter(
+  const clonedEdges = (source.edges ?? []).filter(
     (edge) =>
       survivingNodeIds.has(edge.source) && survivingNodeIds.has(edge.target),
   );
 
-  const patch: Partial<Doc<"canvases">> = {
-    edges: clonedEdges,
-    updatedAt: Date.now(),
-  };
-  if (tutorialCanvas.hotspots) patch.hotspots = tutorialCanvas.hotspots;
-  if (tutorialCanvas.slideshows) patch.slideshows = tutorialCanvas.slideshows;
+  const patch: Partial<Doc<"canvases">> = { edges: clonedEdges, updatedAt };
+  if (source.hotspots) patch.hotspots = source.hotspots;
+  if (source.slideshows) patch.slideshows = source.slideshows;
 
+  // Dernier write du clonage, donc c'est bien cet `updatedAt` qui reste :
+  // `addCanvasNodes` en pose un à `Date.now()` au passage.
   await ctx.db.patch("canvases", canvasId, patch);
 
   return canvasId;

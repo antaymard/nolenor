@@ -111,7 +111,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 
   callbacks: {
     /**
-     * Provisionne le canvas de tuto d'un compte qui vient d'être créé.
+     * Provisionne les canvases de démarrage d'un compte qui vient d'être créé.
      * `existingUserId === null` ⇒ une ligne `users` vient d'être insérée,
      * donc c'est une inscription et non une connexion — vrai pour Google
      * comme pour le mot de passe.

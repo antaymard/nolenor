@@ -20,15 +20,10 @@ export async function provisionFirstCanvasForUser(
   ctx: MutationCtx,
   { authUserId }: { authUserId: Id<"users"> },
 ): Promise<Id<"canvases">> {
-  // Défense en profondeur contre un double-appel (retry réseau, double clic) :
-  // cette fonction n'est censée être invoquée qu'une fois, à la création du
-  // compte, mais rien ne l'empêche structurellement d'être rejouée.
-  const existing = await CanvasModels.getLastModifiedForUser(ctx, {
-    authUserId,
-  });
-  if (existing) return existing._id;
-
   const tutorialCanvasId = readTutorialCanvasId();
+  // `.catch` parce qu'un id malformé fait lever `db.get` (un id valide mais
+  // supprimé rend simplement `null`) : `TUTORIAL_CANVAS_ID` est collée à la
+  // main, une coquille ne doit pas priver le compte de son canvas.
   const tutorialCanvas = tutorialCanvasId
     ? await ctx.db.get("canvases", tutorialCanvasId).catch(() => null)
     : null;

@@ -111,21 +111,17 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 
   callbacks: {
     /**
-     * Provisionne le premier canvas d'un compte qui vient d'être créé.
+     * Provisionne le canvas de tuto d'un compte qui vient d'être créé.
+     * `existingUserId === null` ⇒ une ligne `users` vient d'être insérée,
+     * donc c'est une inscription et non une connexion — vrai pour Google
+     * comme pour le mot de passe.
      *
-     * `existingUserId === null` signifie exactement « une ligne `users` vient
-     * d'être insérée » (cf. `implementation/users.js`) : c'est le seul signal
-     * d'inscription fiable de l'app, et il vaut pour Google comme pour le mot
-     * de passe. Le client, lui, ne peut plus le produire — l'inscription par
-     * mot de passe se termine sur l'étape de vérification d'email et le retour
-     * de Google ne repasse pas par `/signin`.
-     *
-     * Planifié plutôt qu'exécuté ici : ce callback tourne DANS la transaction
-     * d'inscription. Y cloner un canvas entier la ferait grossir de tous les
-     * `nodeDatas` du tuto, et surtout la moindre erreur de clonage ferait
-     * échouer la création du compte. Un `runAfter(0, …)` isole les deux : au
-     * pire le canvas manque, et la home affiche son écran de bienvenue, qui
-     * sait déjà en créer un.
+     * Planifié plutôt qu'exécuté ici, parce que ce callback tourne DANS la
+     * transaction d'inscription : une erreur de clonage y ferait échouer la
+     * création du compte, et la rattraper par un `try/catch` ne roulerait pas
+     * les écritures déjà faites en arrière — on committerait un canvas à
+     * moitié construit. Une transaction séparée échoue proprement : au pire
+     * le canvas manque et la home affiche son écran de bienvenue.
      */
     async afterUserCreatedOrUpdated(ctx, { userId, existingUserId }) {
       if (existingUserId !== null) return;

@@ -11,6 +11,7 @@ import {
 } from "@/components/utils/nodeDataDisplayUtils";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { getNodeDataId } from "@/lib/nodeIdentity";
 
 /** Pastille peinte derrière une mention. Uniquement du fond : le texte lui-même
  *  est rendu par le textarea posé au-dessus, et le `box-shadow` élargit la
@@ -123,7 +124,7 @@ export default function RichTextArea({
         style={MENTION_PILL_STYLE}
         renderSuggestion={(entry, _search, _highlightedDisplay, _index, focused) => {
           const node = canvasNodes.find((candidate) => candidate.id === entry.id);
-          const nodeDataId = node?.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+          const nodeDataId = getNodeDataId(node);
           const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
           const Icon = getNodeIcon(nodeData?.type);
           return (

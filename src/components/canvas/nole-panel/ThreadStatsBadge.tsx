@@ -7,6 +7,7 @@ import {
 import { useThreadStats } from "@/hooks/useThreadStats";
 import { getModelLabel } from "@/lib/getModelLabel";
 import { formatCost, formatTokens } from "@/lib/formatUsage";
+import { cn } from "@/lib/utils";
 import type { ChatModelOption } from "@/types/convex";
 
 type ThreadStatsBadgeProps = {
@@ -15,9 +16,30 @@ type ThreadStatsBadgeProps = {
   modelOptions: readonly ChatModelOption[] | undefined;
 };
 
+// Géométrie de l'anneau. Le rayon est calculé depuis la taille et l'épaisseur
+// pour que le trait reste entièrement dans la boîte, sans rognage aux bords.
+const RING_SIZE = 15;
+const RING_STROKE = 2.5;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+/** Seuils à partir desquels la fenêtre de contexte devient un sujet. */
+const CONTEXT_WARN_PERCENT = 75;
+const CONTEXT_DANGER_PERCENT = 90;
+
+function getRingColorClass(percent: number): string {
+  if (percent >= CONTEXT_DANGER_PERCENT) return "text-red-500";
+  if (percent >= CONTEXT_WARN_PERCENT) return "text-amber-500";
+  return "text-slate-400";
+}
+
 /**
- * Small badge in the chat header showing context-window usage and cost for the
- * current thread, with a per-model breakdown in the tooltip.
+ * Occupation de la fenêtre de contexte du thread, en anneau de progression.
+ *
+ * La forme porte l'information en continu — on voit le thread se remplir sans
+ * lire un chiffre — et libère la place que le pourcentage et le coût
+ * occupaient dans le header, désormais tenue par la pastille de statut. Le
+ * détail chiffré, coût compris, passe au survol.
  */
 export default function ThreadStatsBadge({
   threadId,
@@ -28,23 +50,35 @@ export default function ThreadStatsBadge({
 
   if (stats.isLoading || stats.contextWindowUsed === 0) return null;
 
+  const percent = stats.contextPercent;
+  const clampedPercent =
+    percent !== undefined ? Math.min(100, Math.max(0, percent)) : undefined;
   const percentLabel =
-    stats.contextPercent !== undefined
-      ? `${stats.contextPercent < 1 ? stats.contextPercent.toFixed(1) : Math.round(stats.contextPercent)}%`
+    percent !== undefined
+      ? `${percent < 1 ? percent.toFixed(1) : Math.round(percent)}%`
       : null;
 
   return (
     <Tooltip delayDuration={200}>
       <TooltipTrigger asChild>
-        <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 px-1.5 py-0.5 rounded-sm hover:bg-slate-100 cursor-default">
-          <TbDatabase size={10} />
-          {percentLabel ? <span>{percentLabel}</span> : null}
-          {stats.totalCostUsd > 0 ? (
-            <span>· {formatCost(stats.totalCostUsd)}</span>
-          ) : null}
+        <span
+          className="inline-flex shrink-0 cursor-default items-center rounded-sm p-1 hover:bg-slate-100"
+          aria-label={
+            percentLabel
+              ? `Contexte utilisé : ${percentLabel}`
+              : "Usage du thread"
+          }
+        >
+          {clampedPercent !== undefined ? (
+            <ContextRing percent={clampedPercent} />
+          ) : (
+            // Fenêtre de contexte inconnue (modèle hors catalogue) : il n'y a
+            // pas de fraction à dessiner, mais l'usage reste consultable.
+            <TbDatabase size={11} className="text-slate-400" />
+          )}
         </span>
       </TooltipTrigger>
-      <TooltipContent className="text-xs max-w-xs">
+      <TooltipContent className="max-w-xs text-xs">
         <div className="flex flex-col gap-1">
           <p className="font-medium">Thread usage</p>
           {stats.perModel.length > 0 ? (
@@ -59,12 +93,55 @@ export default function ThreadStatsBadge({
               ))}
             </div>
           ) : null}
-          <p className="text-slate-300 mt-1">
+          <p className="mt-1 text-slate-300">
             Contexte actuel : {formatTokens(stats.contextWindowUsed)} tk
             {stats.maxContext ? ` / ${formatTokens(stats.maxContext)} tk` : ""}
+            {percentLabel ? ` (${percentLabel})` : ""}
           </p>
+          {stats.totalCostUsd > 0 ? (
+            <p className="text-slate-300">
+              Coût : {formatCost(stats.totalCostUsd)}
+            </p>
+          ) : null}
         </div>
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+function ContextRing({ percent }: { percent: number }) {
+  const center = RING_SIZE / 2;
+
+  return (
+    <svg
+      width={RING_SIZE}
+      height={RING_SIZE}
+      viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+      className={cn("shrink-0", getRingColorClass(percent))}
+      aria-hidden
+    >
+      <circle
+        cx={center}
+        cy={center}
+        r={RING_RADIUS}
+        fill="none"
+        strokeWidth={RING_STROKE}
+        className="stroke-slate-200"
+      />
+      <circle
+        cx={center}
+        cy={center}
+        r={RING_RADIUS}
+        fill="none"
+        strokeWidth={RING_STROKE}
+        strokeLinecap="round"
+        stroke="currentColor"
+        strokeDasharray={RING_CIRCUMFERENCE}
+        strokeDashoffset={RING_CIRCUMFERENCE * (1 - percent / 100)}
+        // Départ à midi plutôt qu'à trois heures, sens horaire.
+        transform={`rotate(-90 ${center} ${center})`}
+        className="transition-[stroke-dashoffset] duration-500"
+      />
+    </svg>
   );
 }

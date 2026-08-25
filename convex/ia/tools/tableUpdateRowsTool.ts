@@ -15,8 +15,6 @@ export const tableUpdateRowsToolConfig: ToolConfig = {
   name: "table_update_rows",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "write" },

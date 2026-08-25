@@ -1,4 +1,5 @@
 import { NodeToolbar, type Node, useStore } from "@xyflow/react";
+import type { XyNodeProps } from "@/types/domain";
 import { memo } from "react";
 
 const selectedNodesCountSelector = (state: { nodes: Node[] }) =>
@@ -6,7 +7,7 @@ const selectedNodesCountSelector = (state: { nodes: Node[] }) =>
 
 interface CanvasNodeToolbarProps {
   children?: React.ReactNode;
-  xyNode: Node;
+  xyNode: XyNodeProps;
   className?: string;
   asSimpleDiv?: boolean;
 }
@@ -19,7 +20,7 @@ function CanvasNodeToolbar({
 }: CanvasNodeToolbarProps) {
   // Early return si le node n'est pas sélectionné — aucun hook avant ce point
   // pour éviter que les nodes non-sélectionnés souscrivent au store global
-  if (!xyNode?.selected && !asSimpleDiv) {
+  if (!xyNode.selected && !asSimpleDiv) {
     return null;
   }
 

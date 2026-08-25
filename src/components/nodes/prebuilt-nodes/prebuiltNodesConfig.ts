@@ -1,7 +1,5 @@
 import type { IconType } from "react-icons";
-import type { XyNodeData } from "@/types/domain";
-import type { NodeType } from "@/types/domain";
-import type { Node } from "@xyflow/react";
+import type { NodeType, XyNode, XyNodeProps } from "@/types/domain";
 import { nodeDataConfig } from "@/../convex/config/nodeConfig";
 import type { NodeDataConfigItem } from "@/../convex/config/nodeConfig";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
@@ -19,15 +17,14 @@ import AppNode from "./AppNode";
 import AudioNode from "./AudioNode";
 
 type NodeUiConfigItem = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  nodeComponent: React.ComponentType<any>;
+  nodeComponent: React.ComponentType<XyNodeProps>;
   nodeIcon: IconType;
   canBeOpenInWindow: boolean;
   creatable: boolean;
 };
 
 type PrebuiltNodeConfig = NodeDataConfigItem &
-  NodeUiConfigItem & { node: Node };
+  NodeUiConfigItem & { node: XyNode };
 
 const nodeUiConfig: Record<string, NodeUiConfigItem> = {
   title: {
@@ -116,10 +113,11 @@ const prebuiltNodesConfig: Array<PrebuiltNodeConfig> = nodeDataConfig
         height: config.defaultDimensions.height,
         width: config.defaultDimensions.width,
         position: { x: 0, y: 0 },
+        // Gabarit sans `nodeDataId` : il n'existe qu'à l'insertion réelle.
         data: {
           color: config.defaultColor ?? "default",
-        } as unknown as Omit<XyNodeData, "nodeDataId">,
-      } as Node,
+        } as XyNode["data"],
+      } as XyNode,
     };
   });
 

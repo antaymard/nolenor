@@ -26,8 +26,6 @@ type AgentTool = ToolSet[string];
 
 const BLOCKNOTE_AGENTS = [
   toolAgentNames.nole,
-  toolAgentNames.clone,
-  toolAgentNames.supervisor,
   toolAgentNames.worker,
 ] as const;
 

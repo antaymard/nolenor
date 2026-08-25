@@ -10,8 +10,6 @@ export const tableUpdateSchemaToolConfig: ToolConfig = {
   name: "table_update_schema",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "write" },

@@ -9,8 +9,6 @@ export const listUserCanvasesToolConfig: ToolConfig = {
   name: "list_user_canvases",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
   ],
 };
 

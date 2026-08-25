@@ -1,9 +1,19 @@
 import { v, ConvexError } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
 import { nodeTypeValidator } from "../schemas/nodeTypeSchema";
-import { nodeDataVersionActorValidator } from "../schemas/nodeDataVersionsSchema";
+import {
+  nodeDataVersionActorValidator,
+  type NodeDataVersionActor,
+} from "../schemas/nodeDataVersionsSchema";
+import {
+  threadNodeTouchKinds,
+  type ThreadNodeTouchKind,
+} from "../schemas/threadMetadataSchema";
 
 import * as NodeDataModels from "../models/nodeDataModels";
+import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
   type BlockNoteBlock,
   insertBlocks,
@@ -18,6 +28,46 @@ import {
   InvalidBlockNoteDocumentError,
 } from "../lib/blockNoteDocument";
 
+/**
+ * Rattache le node au thread qui vient de l'écrire, avec ce qui lui a été fait.
+ *
+ * Posé ici, au niveau des wrappers, et non dans `maybeCheckpoint` : celui-ci
+ * coalesce les écritures d'un même acteur sur 15 minutes et n'insère alors
+ * aucune version, ce qui laisserait le lien troué exactement là où l'agent
+ * travaille le plus.
+ *
+ * Le verbe est passé par l'appelant parce que c'est lui qui le connaît — chaque
+ * wrapper est déjà un chemin d'écriture distinct. Contrepartie : un wrapper
+ * neuf qui oublie l'appel ne trace rien, en silence. C'est exactement ce qui
+ * est arrivé à `appendImages`, arrivé de `master` avec un `actor` obligatoire
+ * et aucun appel ici. Le garde-fou durable serait de porter la trace au point
+ * de passage unique des écritures sur `nodeDatas` — il n'existe pas encore,
+ * `appendImages` court-circuitant `updateValues` pour relire ses images dans la
+ * transaction.
+ *
+ * Silencieux hors agent : une écriture humaine ne concerne aucun thread, et
+ * une écriture MCP arrive sans `threadId` (cf. mcp/execute).
+ */
+async function trackAgentTouch(
+  ctx: MutationCtx,
+  {
+    actor,
+    nodeDataId,
+    kind,
+  }: {
+    actor?: NodeDataVersionActor;
+    nodeDataId: Id<"nodeDatas">;
+    kind: ThreadNodeTouchKind;
+  },
+): Promise<void> {
+  if (actor?.type !== "agent" || !actor.threadId) return;
+  await ThreadMetadataModels.recordNodeTouch(ctx, {
+    threadId: actor.threadId,
+    nodeDataId,
+    kind,
+  });
+}
+
 export const create = internalMutation({
   args: {
     type: nodeTypeValidator,
@@ -25,10 +75,20 @@ export const create = internalMutation({
     canvasId: v.id("canvases"),
     // Requis pour type === "custom" : lien autoritaire vers le template.
     templateId: v.optional(v.id("nodeTemplates")),
+    // Sert uniquement à tracer le thread : une création n'a pas d'état
+    // antérieur, donc pas de version à horodater. Sans lui, un thread qui
+    // crée un node n'aurait aucun lien avec lui.
+    actor: v.optional(nodeDataVersionActorValidator),
   },
   returns: v.id("nodeDatas"),
-  handler: async (ctx, args) => {
-    return NodeDataModels.createNodeData(ctx, args);
+  handler: async (ctx, { actor, ...args }) => {
+    const nodeDataId = await NodeDataModels.createNodeData(ctx, args);
+    await trackAgentTouch(ctx, {
+      actor,
+      nodeDataId,
+      kind: threadNodeTouchKinds.created,
+    });
+    return nodeDataId;
   },
 });
 
@@ -42,7 +102,13 @@ export const updateValues = internalMutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    return NodeDataModels.updateValues(ctx, args);
+    const updated = await NodeDataModels.updateValues(ctx, args);
+    await trackAgentTouch(ctx, {
+      actor: args.actor,
+      nodeDataId: args._id,
+      kind: threadNodeTouchKinds.updated,
+    });
+    return updated;
   },
 });
 
@@ -53,6 +119,13 @@ export const deleteWithCascade = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Tracé avant la cascade : après, la ligne n'existe plus. Le lien lui
+    // survit volontairement, comme les versions (corbeille de fait).
+    await trackAgentTouch(ctx, {
+      actor: args.actor,
+      nodeDataId: args.nodeDataId,
+      kind: threadNodeTouchKinds.deleted,
+    });
     await NodeDataModels.deleteNodeDataWithCascade(ctx, args);
     return null;
   },
@@ -256,6 +329,12 @@ export const editBlockNoteDocument = internalMutation({
       actor: args.actor,
     });
 
+    await trackAgentTouch(ctx, {
+      actor: args.actor,
+      nodeDataId: args.nodeDataId,
+      kind: threadNodeTouchKinds.updated,
+    });
+
     return result;
   },
 });
@@ -282,6 +361,11 @@ export const appendImages = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     await NodeDataModels.appendImages(ctx, args);
+    await trackAgentTouch(ctx, {
+      actor: args.actor,
+      nodeDataId: args.nodeDataId,
+      kind: threadNodeTouchKinds.updated,
+    });
     return null;
   },
 });

@@ -7,11 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import {
-  type Node,
-  NodeResizeControl,
-  ResizeControlVariant,
-} from "@xyflow/react";
+import { NodeResizeControl, ResizeControlVariant } from "@xyflow/react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
@@ -21,13 +17,12 @@ import { BiParagraph } from "react-icons/bi";
 import { TbArrowAutofitWidth } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import { colors } from "@/components/ui/styles";
-import type { colorsEnum } from "@/types/domain";
+import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useTitleNodeSizing } from "./useTitleNodeSizing";
-import type { Id } from "@/../convex/_generated/dataModel";
 
 type SizingMode = "auto" | "manual";
 
@@ -71,8 +66,8 @@ function placeCaretAtEnd(el: HTMLElement) {
   sel.addRange(range);
 }
 
-function TitleNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function TitleNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const { updateCanvasNode } = useUpdateCanvasNode();

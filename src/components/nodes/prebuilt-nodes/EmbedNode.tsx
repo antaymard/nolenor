@@ -1,5 +1,4 @@
 import { memo, useCallback, useState } from "react";
-import type { Node } from "@xyflow/react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
@@ -14,11 +13,10 @@ import { TbMaximize, TbPencil, TbRefresh } from "react-icons/tb";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
-import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useIframeCtrlOverlay } from "@/hooks/useIframeCtrlOverlay";
 import { colors } from "@/components/ui/styles";
-import type { colorsEnum } from "@/types/domain";
+import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 
@@ -107,8 +105,8 @@ function parseEmbedInput(input: string): { embedUrl: string; type: EmbedType } {
   }
 }
 
-function EmbedNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function EmbedNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const openWindow = useWindowsStore((s) => s.openWindow);

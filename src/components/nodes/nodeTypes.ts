@@ -1,9 +1,17 @@
+import type { ComponentType } from "react";
+import type { XyNodeProps } from "@/types/domain";
 import prebuiltNodesConfig from "./prebuilt-nodes/prebuiltNodesConfig";
 import CustomNode from "./custom/CustomNode";
 
-const nodeTypes = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ...prebuiltNodesConfig.reduce<Record<string, React.ComponentType<any>>>(
+/**
+ * Les composants de node, par type.
+ *
+ * Typés `ComponentType<XyNodeProps>` et non `any` : depuis que les composants
+ * annoncent ce que React Flow leur passe réellement, il n'y a plus rien à
+ * contourner ici.
+ */
+const nodeTypes: Record<string, ComponentType<XyNodeProps>> = {
+  ...prebuiltNodesConfig.reduce<Record<string, ComponentType<XyNodeProps>>>(
     (acc, node) => {
       acc[node.type] = node.nodeComponent;
       return acc;
@@ -12,10 +20,7 @@ const nodeTypes = {
   ),
   // Volontairement hors de prebuiltNodesConfig : les menus itèrent la
   // config prébuilt, les custom nodes s'insèrent via leurs templates.
-  // Même contorsion de typage que le reduce ci-dessus : les composants
-  // node prennent un Node complet, pas les NodeProps de xyflow.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  custom: CustomNode as React.ComponentType<any>,
+  custom: CustomNode,
 };
 
 const nodeList = [...prebuiltNodesConfig];

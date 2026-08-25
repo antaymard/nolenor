@@ -1,7 +1,5 @@
 import NodeFrame from "@/components/nodes/NodeFrame";
 import { useNodeDataValues } from "@/hooks/useNodeData";
-import { type Node } from "@xyflow/react";
-import type { Id } from "@/../convex/_generated/dataModel";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import {
   Popover,
@@ -12,10 +10,11 @@ import { TbPencil } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import { memo, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
+import type { XyNodeProps } from "@/types/domain";
 
-function FetchNode(xyNode: Node) {
+function FetchNode(xyNode: XyNodeProps) {
   const nodeData = useNodeDataValues(
-    xyNode.data?.nodeDataId as Id<"nodeDatas">,
+    xyNode.data.nodeDataId,
   );
 
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);

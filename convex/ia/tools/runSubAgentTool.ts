@@ -16,8 +16,6 @@ export const runSubAgentConfig: ToolConfig = {
   name: "run_subAgent",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
   ],
 };
 

@@ -21,6 +21,7 @@ import { colors } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { getNodeDataId } from "@/lib/nodeIdentity";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -140,7 +141,7 @@ export default function SelectionContextMenu({
     const seen = new Set<string>();
     const mergedImages: Array<Record<string, unknown>> = [];
     for (const node of sorted) {
-      const nodeDataId = node.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+      const nodeDataId = getNodeDataId(node);
       if (!nodeDataId) continue;
       const data = getNodeData(nodeDataId);
       const images = (data?.values?.images as
@@ -165,7 +166,7 @@ export default function SelectionContextMenu({
     // that are now referenced by the target node.
     await Promise.all(
       others.map((n) => {
-        const id = n.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+        const id = getNodeDataId(n);
         if (!id) return Promise.resolve();
         return updateNodeDataValues({ nodeDataId: id, values: { images: [] } });
       }),

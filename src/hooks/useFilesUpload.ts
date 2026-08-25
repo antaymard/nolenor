@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import axios from "axios";
+import { mimeTypeForFile } from "@/lib/nodeTypeForFile";
 
 export interface FileUploadProgress {
   progress: number;
@@ -46,11 +47,16 @@ export const useFileUpload = () => {
         },
       }));
 
+      // Beaucoup de fichiers glissés depuis un explorateur arrivent avec un
+      // `type` vide — un .mov ou un .mkv sorti du Finder, typiquement. Le
+      // serveur refuse un type vide, donc on retombe sur l'extension.
+      const mimeType = mimeTypeForFile(file);
+
       try {
         // 1. Générer URL signée via Convex action
         const { uploadUrl, publicUrl, key, headers } = await generateUploadUrl({
           filename: file.name,
-          mimeType: file.type,
+          mimeType,
           size: file.size,
         });
 
@@ -81,7 +87,7 @@ export const useFileUpload = () => {
         const fileData: UploadedFileData = {
           url: publicUrl,
           filename: file.name,
-          mimeType: file.type,
+          mimeType,
           size: file.size,
           uploadedAt: Date.now(),
           key,
@@ -128,7 +134,7 @@ export const useFileUpload = () => {
       const uploadData = await generateUploadUrls({
         files: files.map((f) => ({
           filename: f.name,
-          mimeType: f.type,
+          mimeType: mimeTypeForFile(f),
           size: f.size,
         })),
       });
@@ -161,7 +167,7 @@ export const useFileUpload = () => {
           return {
             url: publicUrl,
             filename: file.name,
-            mimeType: file.type,
+            mimeType: mimeTypeForFile(file),
             size: file.size,
             uploadedAt: Date.now(),
             key,

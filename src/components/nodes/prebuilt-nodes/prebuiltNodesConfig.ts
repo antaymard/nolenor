@@ -17,6 +17,7 @@ import EmbedNode from "./EmbedNode";
 import TableNode from "./TableNode";
 import AppNode from "./AppNode";
 import AudioNode from "./AudioNode";
+import VideoNode from "./VideoNode";
 
 type NodeUiConfigItem = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,6 +96,12 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeComponent: AudioNode,
     nodeIcon: NODE_TYPE_ICON_MAP.audio,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("audio"),
+    creatable: true,
+  },
+  video: {
+    nodeComponent: VideoNode,
+    nodeIcon: NODE_TYPE_ICON_MAP.video,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("video"),
     creatable: true,
   },
 };

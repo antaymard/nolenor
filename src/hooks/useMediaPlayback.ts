@@ -51,15 +51,19 @@ interface UseMediaPlaybackOptions {
  * The loop is enforced in that same rAF because `timeupdate` only fires at
  * roughly 4 Hz — far too coarse for a tight loop.
  */
-export function useMediaPlayback({
+export function useMediaPlayback<
+  T extends HTMLMediaElement = HTMLMediaElement,
+>({
   nodeId,
   loop,
   playbackRate,
   onDurationDetected,
 }: UseMediaPlaybackOptions) {
-  // HTMLMediaElement, not HTMLAudioElement: everything below is shared by both
-  // tags, which is what lets the video node reuse this hook untouched.
-  const mediaRef = useRef<HTMLMediaElement | null>(null);
+  // Everything below only touches HTMLMediaElement, which is what lets the
+  // video node reuse this hook untouched. The ref stays generic all the same:
+  // HTMLVideoElement adds members of its own, so a ref typed on the base
+  // interface cannot be handed to a <video>.
+  const mediaRef = useRef<T | null>(null);
   const progressRef = useRef<HTMLElement | null>(null);
   const playheadRef = useRef<HTMLElement | null>(null);
   const timeLabelRef = useRef<HTMLElement | null>(null);

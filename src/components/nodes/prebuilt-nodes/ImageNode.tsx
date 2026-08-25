@@ -33,6 +33,7 @@ import {
 import { UploadFile } from "@/components/fields/UploadFile";
 import ImageGenerateTab from "./image/ImageGenerateTab";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
+import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { useWindowsStore } from "@/stores/windowsStore";
 import {
   DndContext,
@@ -201,6 +202,7 @@ function ImageNode(xyNode: Node) {
   // il faut donc le nodeData complet, pas seulement ses values.
   const nodeData = useNodeData(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const { downloadStoredFile } = useDownloadFile();
   const openWindow = useWindowsStore((s) => s.openWindow);
 
   const currentValue = (values?.images as Value | undefined) ?? defaultValue;
@@ -272,34 +274,17 @@ function ImageNode(xyNode: Node) {
       ? 0
       : Math.min(Math.max(currentIndex, 0), currentValue.length - 1);
 
-  const handleDownload = useCallback(async () => {
+  const handleDownload = useCallback(() => {
     const image = currentValue[safeIndex];
     if (!image) return;
-    const filename = image.filename ?? `image-${safeIndex + 1}`;
-    try {
-      const response = await fetch(image.url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      console.warn("Download via fetch failed, falling back to anchor", err);
-      const link = document.createElement("a");
-      link.href = image.url;
-      link.download = filename;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      document.body.append(link);
-      link.click();
-      link.remove();
-    }
-  }, [currentValue, safeIndex]);
+    // Les images fournies par l'agent n'ont pas de clé : le hook retombe alors
+    // sur le rapatriement de l'URL publique.
+    void downloadStoredFile({
+      key: image.key,
+      url: image.url,
+      filename: image.filename ?? `image-${safeIndex + 1}`,
+    });
+  }, [currentValue, downloadStoredFile, safeIndex]);
 
   return (
     <>

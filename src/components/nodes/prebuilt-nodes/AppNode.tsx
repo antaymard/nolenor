@@ -10,6 +10,7 @@ import NodeFrame from "../NodeFrame";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { cn } from "@/lib/utils";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { downloadBlob } from "@/lib/downloadFile";
 import {
   Popover,
   PopoverContent,
@@ -55,15 +56,10 @@ function AppNode(xyNode: Node) {
   const appCode = (values?.code as string | undefined) ?? "";
 
   const handleDownloadCode = useCallback(() => {
-    const blob = new Blob([appCode], { type: "text/jsx;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${filenameSlug(appTitle, "app")}.jsx`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(
+      new Blob([appCode], { type: "text/jsx;charset=utf-8" }),
+      `${filenameSlug(appTitle, "app")}.jsx`,
+    );
   }, [appCode, appTitle]);
 
   const handleSaveTitle = useCallback(() => {

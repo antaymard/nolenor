@@ -1,7 +1,13 @@
 import { v, ConvexError } from "convex/values";
-import { action, internalAction } from "./_generated/server";
-import { generatePresignedUrl, getPublicUrl, deleteObject } from "./lib/r2";
-import { requireAuth } from "./lib/auth";
+import { action, internalAction, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
+import {
+  generatePresignedUrl,
+  generatePresignedDownloadUrl,
+  getPublicUrl,
+  deleteObject,
+} from "./lib/r2";
+import { getCanvasAccess, requireAuth } from "./lib/auth";
 import { enforceRateLimit } from "./lib/rateLimits";
 import errors from "./config/errorsConfig";
 import {
@@ -67,6 +73,65 @@ export const generateUploadUrl = action({
     const userId = await requireAuth(ctx);
     await enforceRateLimit(ctx, "uploadUrl", userId);
     return buildUpload(userId, args);
+  },
+});
+
+/**
+ * Ce compte a-t-il le droit de télécharger cet objet ?
+ *
+ * La clé seule ne prouve rien : elle est préfixée par l'id de l'uploadeur,
+ * mais un fichier posé par le propriétaire d'un canvas partagé doit rester
+ * téléchargeable par ses viewers. On remonte donc la référence
+ * (`r2Objects.by_key`) jusqu'au canvas et on applique l'accès canvas normal.
+ *
+ * Une clé sans référence répond `false` : soit elle n'existe pas, soit elle
+ * date d'avant la table de refcount, et dans les deux cas on n'a rien pour
+ * décider.
+ */
+export const canUserDownloadKey = internalQuery({
+  args: { key: v.string(), userId: v.id("users") },
+  returns: v.boolean(),
+  handler: async (ctx, { key, userId }) => {
+    const refs = await ctx.db
+      .query("r2Objects")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .collect();
+
+    // Un objet dupliqué est référencé par plusieurs nodeDatas, éventuellement
+    // sur des canvases différents : l'accès à un seul d'entre eux suffit.
+    for (const ref of refs) {
+      const nodeData = await ctx.db.get(ref.nodeDataId);
+      if (!nodeData) continue;
+      const access = await getCanvasAccess(ctx, nodeData.canvasId, userId);
+      if (access) return true;
+    }
+
+    return false;
+  },
+});
+
+/**
+ * URL de téléchargement d'un objet stocké, valable 15 minutes.
+ *
+ * Le `filename` ne sert qu'à nommer le fichier chez l'utilisateur : c'est la
+ * `key` qui désigne l'objet, et elle est vérifiée avant signature.
+ */
+export const generateDownloadUrl = action({
+  args: { key: v.string(), filename: v.string() },
+  returns: v.object({ url: v.string() }),
+  handler: async (ctx, { key, filename }) => {
+    const userId = await requireAuth(ctx);
+    await enforceRateLimit(ctx, "uploadUrl", userId);
+
+    const allowed = await ctx.runQuery(internal.uploads.canUserDownloadKey, {
+      key,
+      userId,
+    });
+    if (!allowed) {
+      throw new ConvexError(errors.UNAUTHORIZED_USER);
+    }
+
+    return { url: await generatePresignedDownloadUrl(key, filename) };
   },
 });
 

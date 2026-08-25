@@ -8,6 +8,7 @@ import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
 import type { Id } from "@/../convex/_generated/dataModel";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { downloadBlob } from "@/lib/downloadFile";
 import NodeFrame from "../NodeFrame";
 import { Button } from "@/components/shadcn/button";
 import { TbDownload, TbMaximize, TbNotes } from "react-icons/tb";
@@ -73,17 +74,10 @@ function BlocknoteNode(xyNode: Node) {
       return;
     }
 
-    const blob = new Blob([result.markdown], {
-      type: "text/markdown;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = markdownFilename(blocknoteTitle);
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(
+      new Blob([result.markdown], { type: "text/markdown;charset=utf-8" }),
+      markdownFilename(blocknoteTitle),
+    );
   }, [blocknoteTitle, blocks]);
 
   // ── Visibility-gated rendering ──────────────────────────────────────────

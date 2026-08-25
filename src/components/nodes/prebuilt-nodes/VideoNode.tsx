@@ -103,6 +103,7 @@ function VideoNode(xyNode: Node) {
     isPlaying,
     duration: detectedDuration,
     toggle,
+    pause,
     seekToRatio,
     restart,
     handleLoadedMetadata,
@@ -203,6 +204,25 @@ function VideoNode(xyNode: Node) {
       filename: video.filename,
     });
   }, [downloadStoredFile, video]);
+
+  const notifyStopped = useAudioStore((s) => s.notifyStopped);
+
+  /**
+   * Two things take the <video> away mid-playback: switching to the title
+   * variant, and the file turning out to be undecodable.
+   *
+   * The element itself needs no help — removing a media element from the
+   * document pauses it, per spec. What does not clean itself up is our own
+   * state: `isPlaying` would stay true, so coming back to the player variant
+   * would show a pause button over a stopped video, and the playback slot
+   * would stay claimed by a node that is no longer playing anything.
+   */
+  const hasPlayer = !isTitleVariant && !loadFailed;
+  useEffect(() => {
+    if (hasPlayer) return;
+    pause();
+    notifyStopped(xyNode.id);
+  }, [hasPlayer, notifyStopped, pause, xyNode.id]);
 
   const stopMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();

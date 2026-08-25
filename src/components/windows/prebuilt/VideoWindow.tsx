@@ -69,7 +69,9 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
     applySettings();
   }, [applySettings]);
 
-  // Leaving the window playing would keep a slot nobody can see or stop.
+  // Closing the window pauses the element on its own (removing a media element
+  // from the document pauses it, per spec), but the slot it claimed is ours to
+  // hand back.
   useEffect(() => () => notifyStopped(slotKey), [notifyStopped, slotKey]);
 
   if (!values) return null;

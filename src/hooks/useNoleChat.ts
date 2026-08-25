@@ -56,8 +56,12 @@ export function useNoleChat() {
 
   // Model selection (driven by the thread's last-used model).
   const modelOptions = useQuery(api.ia.nole.listChatModels, {});
-  const threadMessageMetadata = useQuery(
-    api.messageMetadata.getThreadMessageMetadata,
+  // Le résumé, pas la liste des metadata : ce hook porte l'état de tout le
+  // panel, et il n'a besoin ici que de `lastModelUsed`. S'abonner à la liste le
+  // faisait re-rendre — composer et halo animé compris — à chaque
+  // réévaluation d'une query dont le payload croît avec le thread.
+  const threadUsageSummary = useQuery(
+    api.messageMetadata.getThreadUsageSummary,
     threadId ? { threadId } : "skip",
   );
 
@@ -67,10 +71,10 @@ export function useNoleChat() {
   // le modèle a depuis quitté le catalogue : on ne le retient que s'il en fait
   // toujours partie, sinon on retombe sur le défaut.
   const lastUsedModel = useMemo<ChatModelValues | undefined>(() => {
-    const last = threadMessageMetadata?.lastModelUsed;
+    const last = threadUsageSummary?.lastModelUsed;
     if (!last) return undefined;
     return modelOptions?.find((option) => option.value === last)?.value;
-  }, [threadMessageMetadata?.lastModelUsed, modelOptions]);
+  }, [threadUsageSummary?.lastModelUsed, modelOptions]);
 
   const { selectedModel, setSelectedModel, adoptDraftSelection } =
     useNoleModelSelection({

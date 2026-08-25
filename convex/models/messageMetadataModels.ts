@@ -42,6 +42,27 @@ export async function listByThreadId(
     .collect();
 }
 
+/**
+ * Les `limit` dernières lignes du thread, la plus récente d'abord.
+ *
+ * Existe pour que le résumé d'usage (cf. messageMetadata.ts) puisse retrouver
+ * le dernier modèle utilisé sans lire tout le thread : cette query-là est
+ * réévaluée à chaque step de génération, et un `collect()` complet y coûterait
+ * O(longueur du thread) lectures vingt-cinq fois par tour. Borner le scan borne
+ * aussi le read set, donc les invalidations : une ligne ancienne qui changerait
+ * ne réveille plus l'appelant.
+ */
+export async function listRecentByThreadId(
+  ctx: QueryCtx,
+  { threadId, limit }: { threadId: string; limit: number },
+): Promise<MessageMetadata[]> {
+  return await ctx.db
+    .query("messageMetadata")
+    .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
+    .order("desc")
+    .take(limit);
+}
+
 async function findByMessageId(
   ctx: QueryCtx,
   { messageId }: { messageId: string },

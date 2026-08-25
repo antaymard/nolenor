@@ -27,14 +27,22 @@ export function useThreadStats({
   selectedModel: string | undefined;
   modelOptions: readonly ChatModelOption[] | undefined;
 }): ThreadStats {
-  const data = useQuery(
-    api.messageMetadata.getThreadMessageMetadata,
+  // Deux abonnements parce que les deux moitiés changent à des rythmes très
+  // différents : le résumé est réévalué à chaque step de génération, la liste
+  // seulement quand une ligne est écrite. Les garder ensemble faisait relire
+  // tout le thread à chaque step (cf. convex/messageMetadata.ts).
+  const summary = useQuery(
+    api.messageMetadata.getThreadUsageSummary,
+    threadId ? { threadId } : "skip",
+  );
+  const rowsData = useQuery(
+    api.messageMetadata.listThreadMessageMetadata,
     threadId ? { threadId } : "skip",
   );
 
   return useMemo(() => {
-    const isLoading = data === undefined;
-    const rows = data?.messageMetadata ?? [];
+    const isLoading = summary === undefined || rowsData === undefined;
+    const rows = rowsData?.messageMetadata ?? [];
 
     const perModelMap = new Map<
       string,
@@ -61,8 +69,8 @@ export function useThreadStats({
       });
     }
 
-    const contextWindowUsed = data?.contextWindowUsed ?? 0;
-    const totalCostUsd = data?.totalCostUsd ?? 0;
+    const contextWindowUsed = summary?.contextWindowUsed ?? 0;
+    const totalCostUsd = summary?.totalCostUsd ?? 0;
     const maxContext = getModelMaxContext(selectedModel, modelOptions);
     const contextPercent =
       maxContext && maxContext > 0
@@ -80,5 +88,5 @@ export function useThreadStats({
         ...v,
       })),
     };
-  }, [data, selectedModel, modelOptions]);
+  }, [summary, rowsData, selectedModel, modelOptions]);
 }

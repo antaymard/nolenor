@@ -17,7 +17,7 @@ import type { Doc } from "@/../convex/_generated/dataModel";
  */
 export function useThreadMessageMetadata(threadId: string | undefined) {
   const data = useQuery(
-    api.messageMetadata.getThreadMessageMetadata,
+    api.messageMetadata.listThreadMessageMetadata,
     threadId ? { threadId } : "skip",
   );
   const rows = useMemo(() => data?.messageMetadata ?? [], [data]);

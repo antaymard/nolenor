@@ -281,6 +281,22 @@ async function buildChunks(
       ];
     }
 
+    case "video": {
+      // Same cheap branch as audio: the name is all we have until
+      // transcription lands, and it is what the user searches for.
+      const video = nodeData.values.video as
+        | { filename?: string; mimeType?: string; label?: string }
+        | null
+        | undefined;
+      if (!video?.filename) return [];
+      const parts = [video.label, video.filename, video.mimeType].filter(
+        Boolean,
+      );
+      return [
+        { ...base, chunkType: "node", order: 0, text: parts.join(" | ") },
+      ];
+    }
+
     case "image": {
       return await buildImageChunks(base, nodeData.values);
     }

@@ -621,6 +621,107 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       })
       .strict(),
   },
+  {
+    type: "video",
+    label: "Video",
+    description: "Node for playing an uploaded video file.",
+    llmDescription:
+      "For storing/playing a video file (screen recording, clip, filmed talk, footage). The user can play it inline on the canvas and double-click the node to open it in a window with full controls. \nThe data value 'video' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), 'width' and 'height' (the frame size in pixels), 'label' (a name set by the user, which overrides the filename), and 'poster' (a still frame captured at upload time, as an object with 'url' and 'key', or null). The node is titled by 'label' when set, otherwise by 'filename'. 'playbackRate' is the playback speed (1 = normal). \nYou cannot watch the video: you can reference it, rename it, move it and link it, but never describe what it shows. Do not invent its content.",
+    defaultDimensions: { width: 360, height: 250, resizable: true },
+    variants: {
+      player: {
+        label: "Player",
+        defaultWidth: 360,
+        defaultHeight: 250,
+        resizable: true,
+        isDefault: true,
+      },
+      title: {
+        label: "Title",
+        defaultWidth: 220,
+        defaultHeight: 33,
+        resizable: false,
+      },
+    },
+    dataValuesSchema: z
+      .object({
+        video: z
+          .object({
+            url: z.string().describe("The public URL of the video file."),
+            filename: z.string().describe("The display filename."),
+            mimeType: z.string().describe("The MIME type of the file."),
+            size: z.number().describe("The file size in bytes."),
+            uploadedAt: z
+              .number()
+              .describe("Upload timestamp (epoch milliseconds)."),
+            key: z.string().describe("The storage key/path of the file."),
+            duration: z
+              .number()
+              .describe("Duration of the video in seconds.")
+              .default(0),
+            width: z
+              .number()
+              .describe("Frame width in pixels.")
+              .default(0),
+            height: z
+              .number()
+              .describe("Frame height in pixels.")
+              .default(0),
+            label: z
+              .string()
+              .optional()
+              .describe(
+                "Name given by the user, which overrides the filename.",
+              ),
+            // Still frame captured client-side at upload time and stored as a
+            // second R2 object, like the audio node's cover art. Never inlined
+            // as a data URI: `values` is copied into every nodeDataVersions row.
+            poster: z
+              .object({
+                url: z.string().describe("Public URL of the poster frame."),
+                key: z.string().describe("Storage key of the poster frame."),
+              })
+              .nullable()
+              .default(null),
+          })
+          .nullable()
+          .default(null),
+        playbackRate: z
+          .number()
+          .min(0.25)
+          .max(4)
+          .describe("Playback speed, 1 being normal.")
+          .default(1),
+      })
+      .default({ video: null, playbackRate: 1 }),
+    // `key` and `poster` are deliberately absent: both are owned by the upload
+    // path, and the agent has no way to produce a valid one.
+    toolInputSchema: z
+      .object({
+        video: z
+          .object({
+            url: z.string().describe("The public URL of the video file."),
+            filename: z.string().describe("The display filename."),
+            mimeType: z.string().describe("The MIME type of the file."),
+            size: z.number().describe("The file size in bytes."),
+            duration: z
+              .number()
+              .optional()
+              .describe("Duration of the video in seconds."),
+            width: z.number().optional().describe("Frame width in pixels."),
+            height: z.number().optional().describe("Frame height in pixels."),
+            label: z
+              .string()
+              .optional()
+              .describe(
+                "Name given by the user, which overrides the filename.",
+              ),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict(),
+  },
 ];
 
 function getDefaultNodeDataValues(

@@ -1,15 +1,17 @@
 import { memo, useCallback, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { cn } from "@/lib/utils";
-import { formatTime } from "@/hooks/useAudioPlayback";
+import { formatTime } from "@/hooks/useMediaPlayback";
 
-interface AudioProgressBarProps {
+interface MediaProgressBarProps {
   duration: number;
   // Primitives rather than the loop object: Convex syncs hand back a fresh
   // object on every update, which would defeat memo on every canvas sync.
-  loopStart: number;
-  loopEnd: number;
-  loopEnabled: boolean;
+  // Omitted entirely by surfaces with no loop, such as video — the region
+  // highlight then never renders and everything else behaves the same.
+  loopStart?: number;
+  loopEnd?: number;
+  loopEnabled?: boolean;
   /** Filled by the rAF loop — never written from React. */
   progressRef: MutableRefObject<HTMLElement | null>;
   playheadRef: MutableRefObject<HTMLElement | null>;
@@ -25,16 +27,16 @@ interface AudioProgressBarProps {
  * no mutation and no store write behind the gesture, and `nodrag` already stops
  * React Flow from moving the node under the pointer.
  */
-function AudioProgressBar({
+function MediaProgressBar({
   duration,
-  loopStart,
-  loopEnd,
-  loopEnabled,
+  loopStart = 0,
+  loopEnd = 0,
+  loopEnabled = false,
   progressRef,
   playheadRef,
   onSeekRatio,
   className,
-}: AudioProgressBarProps) {
+}: MediaProgressBarProps) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const ghostLabelRef = useRef<HTMLDivElement | null>(null);
@@ -156,4 +158,4 @@ function AudioProgressBar({
   );
 }
 
-export default memo(AudioProgressBar);
+export default memo(MediaProgressBar);

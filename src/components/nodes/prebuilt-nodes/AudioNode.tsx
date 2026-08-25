@@ -18,7 +18,7 @@ import {
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
-import AudioProgressBar from "./audio/AudioProgressBar";
+import MediaProgressBar from "./media/MediaProgressBar";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import {
@@ -34,9 +34,9 @@ import { extractAudioMetadata } from "@/lib/audioMetadata";
 import {
   formatTime,
   isLoopSet,
-  useAudioPlayback,
-  type AudioLoop,
-} from "@/hooks/useAudioPlayback";
+  useMediaPlayback,
+  type MediaLoop,
+} from "@/hooks/useMediaPlayback";
 import { useAudioStore } from "@/stores/audioStore";
 import type { Id } from "@/../convex/_generated/dataModel";
 
@@ -70,7 +70,7 @@ function displayNameOf(audio: AudioValue | null): string {
   return audio.filename;
 }
 
-const DEFAULT_LOOP: AudioLoop = { start: 0, end: 0, enabled: false };
+const DEFAULT_LOOP: MediaLoop = { start: 0, end: 0, enabled: false };
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -83,7 +83,7 @@ function AudioNode(xyNode: Node) {
   // object, and vice versa.
   const audio =
     useNodeDataValuesField<AudioValue | null>(nodeDataId, "audio") ?? null;
-  const storedLoop = useNodeDataValuesField<AudioLoop>(nodeDataId, "loop");
+  const storedLoop = useNodeDataValuesField<MediaLoop>(nodeDataId, "loop");
   const playbackRate =
     useNodeDataValuesField<number>(nodeDataId, "playbackRate") ?? 1;
 
@@ -109,7 +109,7 @@ function AudioNode(xyNode: Node) {
   );
 
   const {
-    audioRef,
+    mediaRef: audioRef,
     progressRef,
     playheadRef,
     timeLabelRef,
@@ -121,7 +121,7 @@ function AudioNode(xyNode: Node) {
     getCurrentTime,
     handleLoadedMetadata,
     handleEnded,
-  } = useAudioPlayback({
+  } = useMediaPlayback({
     nodeId: xyNode.id,
     loop,
     playbackRate,
@@ -131,7 +131,7 @@ function AudioNode(xyNode: Node) {
   const duration = audio?.duration || detectedDuration;
 
   const writeLoop = useCallback(
-    (next: AudioLoop) => {
+    (next: MediaLoop) => {
       if (!nodeDataId) return;
       // The stored object is recreated on every sync, so compare the fields:
       // Object.is on the whole object would call every write a change.
@@ -298,7 +298,7 @@ function AudioNode(xyNode: Node) {
 
   const bar = useMemo(
     () => (
-      <AudioProgressBar
+      <MediaProgressBar
         duration={duration}
         loopStart={loop.start}
         loopEnd={loop.end}

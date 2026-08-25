@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAudioStore } from "@/stores/audioStore";
 
-export interface AudioLoop {
+export interface MediaLoop {
   start: number;
   end: number;
   enabled: boolean;
 }
 
 /** A loop only counts as set once it spans a real interval. */
-export function isLoopSet(loop: AudioLoop | undefined): boolean {
+export function isLoopSet(loop: MediaLoop | undefined): boolean {
   return !!loop && loop.end > loop.start;
 }
+
+/**
+ * What a surface with no loop at all runs on. Video nodes never pass a loop,
+ * and every loop test below is written so that this value is inert.
+ */
+const NO_LOOP: MediaLoop = { start: 0, end: 0, enabled: false };
 
 export function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -20,17 +26,22 @@ export function formatTime(seconds: number): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-interface UseAudioPlaybackOptions {
-  /** Canvas node id — the key used to claim the single playback slot. */
+interface UseMediaPlaybackOptions {
+  /**
+   * The key used to claim the single playback slot. Usually the canvas node
+   * id; a second surface for the same node (its window) must pass a distinct
+   * key so that opening it pauses the node on the canvas.
+   */
   nodeId: string;
-  loop: AudioLoop;
+  /** Omit entirely on surfaces with no loop UI, such as video. */
+  loop?: MediaLoop;
   playbackRate: number;
   /** Called once when the file's duration becomes known. */
   onDurationDetected?: (duration: number) => void;
 }
 
 /**
- * Drives a single `<audio>` element for one canvas node.
+ * Drives a single `<audio>` or `<video>` element for one canvas node.
  *
  * The playhead never goes through React: a requestAnimationFrame loop reads
  * `currentTime` and writes straight into the registered DOM nodes. Only
@@ -40,13 +51,15 @@ interface UseAudioPlaybackOptions {
  * The loop is enforced in that same rAF because `timeupdate` only fires at
  * roughly 4 Hz — far too coarse for a tight loop.
  */
-export function useAudioPlayback({
+export function useMediaPlayback({
   nodeId,
   loop,
   playbackRate,
   onDurationDetected,
-}: UseAudioPlaybackOptions) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+}: UseMediaPlaybackOptions) {
+  // HTMLMediaElement, not HTMLAudioElement: everything below is shared by both
+  // tags, which is what lets the video node reuse this hook untouched.
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
   const progressRef = useRef<HTMLElement | null>(null);
   const playheadRef = useRef<HTMLElement | null>(null);
   const timeLabelRef = useRef<HTMLElement | null>(null);
@@ -55,7 +68,7 @@ export function useAudioPlayback({
   const [duration, setDuration] = useState(0);
 
   // Read from inside the rAF, which would otherwise capture stale values.
-  const loopRef = useRef(loop);
+  const loopRef = useRef(loop ?? NO_LOOP);
   const prevTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
 
@@ -67,11 +80,11 @@ export function useAudioPlayback({
   const ownsPlaybackSlot = useAudioStore((s) => s.playingNodeId === nodeId);
 
   useEffect(() => {
-    loopRef.current = loop;
+    loopRef.current = loop ?? NO_LOOP;
   }, [loop]);
 
   const syncUi = useCallback(() => {
-    const el = audioRef.current;
+    const el = mediaRef.current;
     if (!el) return;
     const total = el.duration;
     const time = el.currentTime;
@@ -96,7 +109,7 @@ export function useAudioPlayback({
   const startRaf = useCallback(() => {
     stopRaf();
     const tick = () => {
-      const el = audioRef.current;
+      const el = mediaRef.current;
       if (!el) return;
       const current = loopRef.current;
       const time = el.currentTime;
@@ -122,7 +135,7 @@ export function useAudioPlayback({
   useEffect(() => stopRaf, [stopRaf]);
 
   const applyElementSettings = useCallback(() => {
-    const el = audioRef.current;
+    const el = mediaRef.current;
     if (!el) return;
     el.playbackRate = playbackRate;
     // Slowing a passage down to work on it must not transpose it.
@@ -139,7 +152,7 @@ export function useAudioPlayback({
   }, [applyElementSettings]);
 
   const pause = useCallback(() => {
-    const el = audioRef.current;
+    const el = mediaRef.current;
     if (el && !el.paused) el.pause();
     stopRaf();
     setIsPlaying(false);
@@ -151,7 +164,7 @@ export function useAudioPlayback({
   }, [ownsPlaybackSlot, isPlaying, pause]);
 
   const play = useCallback(async () => {
-    const el = audioRef.current;
+    const el = mediaRef.current;
     if (!el) return;
     const current = loopRef.current;
     // Starting outside an active loop would otherwise play an unrelated part
@@ -188,7 +201,7 @@ export function useAudioPlayback({
 
   const seekToTime = useCallback(
     (time: number) => {
-      const el = audioRef.current;
+      const el = mediaRef.current;
       if (!el) return;
       const total = Number.isFinite(el.duration) ? el.duration : 0;
       const next = Math.min(total, Math.max(0, time));
@@ -203,7 +216,7 @@ export function useAudioPlayback({
 
   const seekToRatio = useCallback(
     (ratio: number) => {
-      const el = audioRef.current;
+      const el = mediaRef.current;
       if (!el || !Number.isFinite(el.duration)) return;
       seekToTime(el.duration * Math.min(1, Math.max(0, ratio)));
     },
@@ -219,7 +232,7 @@ export function useAudioPlayback({
   }, [seekToTime]);
 
   const handleLoadedMetadata = useCallback(() => {
-    const el = audioRef.current;
+    const el = mediaRef.current;
     if (!el) return;
     applyElementSettings();
     if (!Number.isFinite(el.duration)) return;
@@ -233,10 +246,10 @@ export function useAudioPlayback({
     notifyStopped(nodeId);
   }, [nodeId, notifyStopped, pause]);
 
-  const getCurrentTime = useCallback(() => audioRef.current?.currentTime ?? 0, []);
+  const getCurrentTime = useCallback(() => mediaRef.current?.currentTime ?? 0, []);
 
   return {
-    audioRef,
+    mediaRef,
     progressRef,
     playheadRef,
     timeLabelRef,

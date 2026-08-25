@@ -102,12 +102,6 @@ const threadMetadataValidator = v.object({
   // de sa descendance.
   masterThreadId: v.optional(v.string()),
   totalUsageUsd: v.number(),
-  // Déprécié, ni écrit ni lu : le tableau d'ids plat du premier jet, où une
-  // suppression était indiscernable d'une édition. Remplacé par
-  // `touchedNodes`. Laissé déclaré le temps qu'un ménage vide les lignes qui le
-  // portent encore — la validation de schéma refuse le deploy tant qu'un
-  // document porte un champ non déclaré.
-  touchedNodeDataIds: v.optional(v.array(v.id("nodeDatas"))),
   // Nodes touchés par l'agent au cours du thread, dans l'ordre de première
   // rencontre. Écrit par les wrappers de nodeDatas, à chaque write portant un
   // actor `agent` — et non depuis `maybeCheckpoint`, dont le coalescing

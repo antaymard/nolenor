@@ -7,15 +7,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
-import { useOpenNoleThread } from "@/hooks/useOpenNoleThread";
+import {
+  useMarkThreadReviewed,
+  useOpenNoleThread,
+} from "@/hooks/useOpenNoleThread";
 import { isPendingReview } from "@/lib/threadRunStatus";
-import ActivityDockPill from "./ActivityDockPill";
+import TaskCard from "./TaskCard";
 
 /**
  * Au-delà, le dock percuterait `CanvasToolbar`, en `bottom-center`. Le reste
- * passe derrière un « +N ».
+ * passe derrière un « +N ». Trois et non quatre depuis que les blocs portent
+ * deux lignes : ils sont plus larges qu'une pastille.
  */
-const MAX_VISIBLE_PILLS = 4;
+const MAX_VISIBLE_CARDS = 3;
 
 /**
  * Le dock d'activité : ce que Nolë est en train de faire sur ce canvas, et ce
@@ -32,6 +36,7 @@ export default function ActivityDock({
   canvasId: Id<"canvases">;
 }) {
   const open = useOpenNoleThread();
+  const markReviewed = useMarkThreadReviewed();
   const [overflowOpen, setOverflowOpen] = useState(false);
 
   const threads = useQuery(api.threads.listPendingThreads, { canvasId });
@@ -47,8 +52,8 @@ export default function ActivityDock({
   // Le serveur filtre grossièrement (il ne peut pas lire l'horloge dans une
   // query) ; la décision finale se prend ici, avec l'heure du rendu. Pas de
   // minuterie à ce niveau : la seule transition temporelle est `running` →
-  // `stale`, et les deux sont admis — c'est la pastille, elle, qui change de
-  // couleur, et elle a sa propre minuterie.
+  // `stale`, et les deux sont admis — c'est le bloc, lui, qui change d'aspect,
+  // et il a ses propres minuteries.
   const pending = (threads ?? []).filter((thread) =>
     isPendingReview(thread, Date.now()),
   );
@@ -57,19 +62,21 @@ export default function ActivityDock({
   // quand aucune fenêtre n'est réduite.
   if (pending.length === 0) return null;
 
-  const visible = pending.slice(0, MAX_VISIBLE_PILLS);
-  const overflow = pending.slice(MAX_VISIBLE_PILLS);
+  const visible = pending.slice(0, MAX_VISIBLE_CARDS);
+  const overflow = pending.slice(MAX_VISIBLE_CARDS);
 
   return (
-    // `py-1!` plutôt qu'une hauteur en dur : la coque partage la classe du
-    // bouton Nolë, et 4px de part et d'autre d'une pastille `h-7` retombent
-    // exactement sur la hauteur de son `h-9`.
-    <div className="canvas-ui-container py-1! gap-1.5!">
+    // Pas de coque commune : chaque tâche est son propre bloc, avec sa bordure
+    // et son halo. Les enfermer dans un conteneur unique les faisait lire comme
+    // une barre d'outils plutôt que comme des choses en cours, distinctes.
+    <div className="flex items-center gap-2">
       {visible.map((thread) => (
-        <ActivityDockPill
+        <TaskCard
           key={thread.threadId}
           thread={thread}
+          showNodes
           onOpen={openThread}
+          onReview={markReviewed}
         />
       ))}
 
@@ -79,18 +86,20 @@ export default function ActivityDock({
             <button
               type="button"
               aria-label={`${overflow.length} tâches de plus`}
-              className="flex h-7 shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+              className="flex h-[46px] shrink-0 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
             >
               +{overflow.length}
             </button>
           </PopoverTrigger>
           <PopoverContent side="top" align="start" className="w-auto p-2">
-            <div className="flex flex-col items-start gap-1.5">
+            <div className="flex flex-col items-start gap-2">
               {overflow.map((thread) => (
-                <ActivityDockPill
+                <TaskCard
                   key={thread.threadId}
                   thread={thread}
+                  showNodes
                   onOpen={openThread}
+                  onReview={markReviewed}
                 />
               ))}
             </div>

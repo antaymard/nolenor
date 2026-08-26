@@ -235,18 +235,15 @@ export type PendingThread = FunctionReturnType<
 >[number];
 
 /**
- * Ce que la pastille d'une tâche raconte, au dock comme sur le canvas.
+ * La durée d'un tour, en une poignée de caractères.
  *
- * `lastActivity` d'abord : le titre d'un thread dit son sujet, pas où en est le
- * travail — et sur une tâche qu'on regarde justement parce qu'on ne l'a pas
- * sous les yeux, c'est l'avancement qui manque. Il tient pendant le tour comme
- * après, parce que le tool est prié d'écrire un groupe nominal et non « je vais
- * faire » (cf. `EXPLANATION_FIELD`).
- *
- * Le titre reste le repli des deux moments où il n'y a pas encore d'action à
- * montrer : le tour qui vient de démarrer, et le thread d'avant cette
- * fonctionnalité.
+ * Le bloc lui réserve un coin, pas une colonne : la précision au-delà de la
+ * minute n'apprendrait rien qu'on ne lise déjà dans l'ordre du dock.
  */
-export function getTaskPillLabel(thread: PendingThread): string {
-  return thread.lastActivity?.text || thread.title || "Nolë";
+export function formatRunDuration(ms: number): string {
+  const seconds = Math.floor(Math.max(0, ms) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}min`;
+  return `${Math.floor(minutes / 60)}h`;
 }

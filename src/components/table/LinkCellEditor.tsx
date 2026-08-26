@@ -151,7 +151,7 @@ export function LinkCellEditor({
               disabled={isLoading}
               className="flex-1"
             >
-              {isLoading ? "Chargement…" : "Enregistrer"}
+              {isLoading ? "Loading" : "Save"}
             </Button>
             {value?.href && (
               <Button

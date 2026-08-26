@@ -45,7 +45,7 @@ export function AssistantMessage({
 
         {isProcessing && (
           <div className="flex items-center px-1 py-1">
-            <ThinkingOrb state="working" size={20} aria-label="Nolë rédige" />
+            <ThinkingOrb state="solving" size={20} aria-label="Nolë rédige" />
           </div>
         )}
 

@@ -102,7 +102,7 @@ export default function MobileCanvasSwitcherSheet({
               {sharedCanvases.length > 0 && (
                 <>
                   <h4 className="px-2 pt-3 text-xs text-muted-foreground uppercase tracking-wider">
-                    Shared with me
+                    Shared with you
                   </h4>
                   {sharedCanvases.map((canvas) => (
                     <CanvasRow

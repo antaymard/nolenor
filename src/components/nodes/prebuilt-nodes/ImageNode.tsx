@@ -195,12 +195,49 @@ function ImageEditDialog({
 }
 
 /**
+ * Nombre de colonnes pour `count` tuiles dans une boîte de ratio `aspect`.
+ *
+ * On note le découpage plutôt que de le calculer : pour chaque nombre de
+ * colonnes possible, une tuile pleine vaut (L/colonnes) × (H/lignes), et on
+ * garde le découpage dont les tuiles sont les moins déformées. Une dernière
+ * ligne incomplète étire ses tuiles, d'où la pénalité qui, à cadrage égal,
+ * préfère un compte qui tombe juste. À égalité, le plus de colonnes gagne :
+ * c'est celui qui étire le moins.
+ */
+function pickColumns(count: number, aspect: number): number {
+  let best = 1;
+  let bestScore = Infinity;
+
+  for (let columns = 1; columns <= count; columns++) {
+    const rows = Math.ceil(count / columns);
+    const tileAspect = (aspect * rows) / columns;
+    const lastRow = count - (rows - 1) * columns;
+    const score =
+      Math.abs(Math.log(tileAspect)) +
+      0.5 * Math.abs(Math.log(lastRow / columns));
+
+    if (score < bestScore + 1e-9) {
+      bestScore = Math.min(bestScore, score);
+      best = columns;
+    }
+  }
+
+  return best;
+}
+
+/**
  * Variant "grid" : toutes les images d'un coup, en mosaïque.
  *
- * Colonnes = racine du nombre d'images, pour une grille aussi carrée que
- * possible, et la dernière tuile étale les colonnes restantes plutôt que de
- * laisser un trou en bas de ligne. Les lignes sont en `1fr` : la mosaïque
- * tient toujours dans le node, quel que soit le nombre d'images.
+ * Le nombre de colonnes suit le ratio du node (`aspect`) autant que le nombre
+ * d'images : un node en bandeau range tout sur une ligne, un node en colonne
+ * empile. Le reste tient dans le flux flex — les lignes se partagent la
+ * hauteur à parts égales (`content-stretch`) et les tuiles d'une ligne
+ * incomplète s'étalent au lieu de laisser un trou.
+ *
+ * La base des tuiles est en `cqw` et les gouttières sont posées par des
+ * container queries : la mosaïque se réajuste au redimensionnement à même le
+ * CSS, sans attendre un rendu React, et un petit node garde des filets d'un
+ * pixel là où un grand respire.
  *
  * Aucune tuile n'est en `nodrag` : elles couvrent tout le node, les marquer
  * ainsi rendrait celui-ci indéplaçable à la souris. Un clic sans déplacement
@@ -209,52 +246,53 @@ function ImageEditDialog({
  */
 function ImageGrid({
   images,
+  aspect,
   selectedIndex,
   showSelection,
   onSelect,
 }: {
   images: Value;
+  aspect: number;
   selectedIndex: number;
   showSelection: boolean;
   onSelect: (index: number) => void;
 }) {
-  const columns = Math.ceil(Math.sqrt(images.length));
-  const rows = Math.ceil(images.length / columns);
-  const remainder = images.length % columns;
-  const lastSpan = remainder === 0 ? 1 : columns - remainder + 1;
+  const columns = pickColumns(images.length, aspect);
 
   return (
-    <div
-      className="grid h-full w-full gap-1 p-1"
-      style={{
-        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-      }}
-    >
-      {images.map((image, i) => (
-        <div
-          key={`${image.url}-${i}`}
-          className="relative overflow-hidden rounded-[3px]"
-          style={
-            i === images.length - 1 && lastSpan > 1
-              ? { gridColumn: `span ${lastSpan}` }
-              : undefined
-          }
-          title={image.filename}
-          onClick={() => onSelect(i)}
-        >
-          <img
-            src={image.url}
-            alt={image.filename ?? `Image ${i + 1}`}
-            className="h-full w-full object-cover"
-          />
-          {/* En calque et non en `ring` sur la tuile : une ombre interne se
-              peint sous l'image, qui couvre toute la tuile. */}
-          {showSelection && i === selectedIndex && (
-            <div className="pointer-events-none absolute inset-0 rounded-[3px] ring-2 ring-inset ring-blue-500/80" />
-          )}
-        </div>
-      ))}
+    <div className="@container h-full w-full overflow-hidden rounded-[4px]">
+      <div
+        className={cn(
+          "flex h-full w-full flex-wrap content-stretch gap-[var(--tile-gap)]",
+          "[--tile-gap:1px] @min-[220px]:[--tile-gap:2px] @min-[420px]:[--tile-gap:3px]",
+        )}
+      >
+        {images.map((image, i) => (
+          <div
+            key={`${image.url}-${i}`}
+            className="relative min-w-0 grow overflow-hidden"
+            style={{
+              flexBasis: `calc(${(100 / columns).toFixed(4)}cqw - var(--tile-gap))`,
+            }}
+            title={image.filename}
+            onClick={() => onSelect(i)}
+          >
+            {/* En absolu : une image dans le flux donnerait sa hauteur propre
+                à la ligne flex, et les lignes ne se partageraient plus la
+                hauteur à parts égales. */}
+            <img
+              src={image.url}
+              alt={image.filename ?? `Image ${i + 1}`}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            {/* En calque et non en `ring` sur la tuile : une ombre interne se
+                peint sous l'image, qui couvre toute la tuile. */}
+            {showSelection && i === selectedIndex && (
+              <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-blue-500/80" />
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -262,6 +300,11 @@ function ImageGrid({
 function ImageNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
   const isGrid = xyNode.data.variant === "grid";
+  // Ratio du node, relu à chaque redimensionnement : React Flow republie
+  // width/height pendant le drag des poignées, donc la mosaïque se recompose
+  // en direct.
+  const aspect =
+    xyNode.width && xyNode.height ? xyNode.width / xyNode.height : 1;
   const values = useNodeDataValues(nodeDataId);
   // Le statut de génération est un champ top-level du document, pas une value :
   // il faut donc le nodeData complet, pas seulement ses values.
@@ -427,6 +470,7 @@ function ImageNode(xyNode: XyNodeProps) {
         ) : isGrid ? (
           <ImageGrid
             images={currentValue}
+            aspect={aspect}
             selectedIndex={safeIndex}
             // L'anneau ne sert qu'à désigner la cible du bouton Download :
             // inutile de le montrer quand la toolbar n'est pas là.

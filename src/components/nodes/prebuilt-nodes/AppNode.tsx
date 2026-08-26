@@ -20,7 +20,7 @@ import { TbDownload, TbPencil, TbMaximize, TbRefresh } from "react-icons/tb";
 import { colors } from "@/components/ui/styles";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { useAppNodeRunner } from "@/hooks/useAppNodeRunner";
-import { useIframeCtrlOverlay } from "@/hooks/useIframeCtrlOverlay";
+import IframeInteractionGate from "../IframeInteractionGate";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 import { filenameSlug } from "@/lib/filenameSlug";
 
@@ -41,7 +41,6 @@ function AppNode(xyNode: XyNodeProps) {
   const Icon = NODE_TYPE_ICON_MAP.app;
 
   const { iframeRef, srcdoc } = useAppNodeRunner(xyNode.id, nodeDataId, values, refreshKey);
-  const { showOverlay, onMouseEnter, onMouseLeave } = useIframeCtrlOverlay();
 
   const handleOpenWindow = useCallback(() => {
     if (!nodeDataId) return;
@@ -166,10 +165,11 @@ function AppNode(xyNode: XyNodeProps) {
                 <TbRefresh size={14} />
               </button>
             </div>
-            <div
-              className="relative flex-1 min-h-0"
-              onMouseEnter={onMouseEnter}
-              onMouseLeave={onMouseLeave}
+            <IframeInteractionGate
+              className="flex-1 min-h-0"
+              isNodeSelected={!!xyNode.selected}
+              isNodeDragging={!!xyNode.dragging}
+              label="Click to use this app"
             >
               <iframe
                 key={refreshKey}
@@ -179,8 +179,7 @@ function AppNode(xyNode: XyNodeProps) {
                 className="w-full h-full border-0"
                 title={appTitle ?? "App Node"}
               />
-              {showOverlay && <div className="absolute inset-0" />}
-            </div>
+            </IframeInteractionGate>
           </div>
         )}
       </NodeFrame>

@@ -1,3 +1,5 @@
+import { IFRAME_ZOOM_GUARD_SNIPPET } from "@/lib/browserZoomGuard";
+
 export function buildSrcdoc(
   code: string,
   state: unknown | null,
@@ -99,6 +101,11 @@ export function buildSrcdoc(
         });
       };
     })();
+
+    // Garde anti-zoom navigateur, jumeau de installBrowserZoomGuard (cf.
+    // src/lib/browserZoomGuard.ts). Ici et pas dans le bloc text/babel :
+    // celui-ci attend le telechargement de babel-standalone depuis le CDN.
+${IFRAME_ZOOM_GUARD_SNIPPET}
   </script>
   <script type="text/babel">
     const initialState = ${serializedState};

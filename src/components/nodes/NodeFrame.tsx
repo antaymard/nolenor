@@ -39,7 +39,12 @@ function NodeFrame({
     openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType });
   }, [nodeDataId, xyNode.id, nodeType, openWindow]);
 
-  const hasDragAndResizeLatencyBug = nodeType === "app" || nodeType === "embed";
+  // Une iframe déverrouillée (cf. IframeInteractionGate) avale les pointermove :
+  // drag et resize perdraient leurs frames dès que le curseur la survole. Le
+  // gate se reverrouille de lui-même sur `dragging`, mais pas sur le resize,
+  // dont l'état ne vit qu'ici.
+  const needsPointerShieldWhileMoving =
+    nodeType === "app" || nodeType === "embed";
 
   return (
     <>
@@ -81,7 +86,7 @@ function NodeFrame({
               : "bg-white/80",
           )}
         >
-          {hasDragAndResizeLatencyBug && (isResizing || xyNode.dragging) && (
+          {needsPointerShieldWhileMoving && (isResizing || xyNode.dragging) && (
             <div className="absolute inset-0 z-10" />
           )}
           {children}

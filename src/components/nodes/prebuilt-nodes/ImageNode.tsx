@@ -195,30 +195,71 @@ function ImageEditDialog({
 }
 
 /**
- * Nombre de colonnes pour `count` tuiles dans une boîte de ratio `aspect`.
- *
- * On note le découpage plutôt que de le calculer : pour chaque nombre de
- * colonnes possible, une tuile pleine vaut (L/colonnes) × (H/lignes), et on
- * garde le découpage dont les tuiles sont les moins déformées. Une dernière
- * ligne incomplète étire ses tuiles, d'où la pénalité qui, à cadrage égal,
- * préfère un compte qui tombe juste. À égalité, le plus de colonnes gagne :
- * c'est celui qui étire le moins.
+ * Découpe `weights` en `rowCount` lignes contiguës de poids aussi proches que
+ * possible. Les images gardent leur ordre : on ne réordonne pas une galerie.
  */
-function pickColumns(count: number, aspect: number): number {
-  let best = 1;
+function splitEvenly(weights: number[], rowCount: number): number[][] {
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const rows: number[][] = [];
+  let row: number[] = [];
+  let rowWeight = 0;
+  let placed = 0;
+
+  for (let i = 0; i < weights.length; i++) {
+    const rowsLeft = rowCount - rows.length;
+    const itemsLeft = weights.length - i;
+    const target = (total - placed) / rowsLeft;
+    // Fermer la ligne quand l'image de trop l'éloignerait de la cible, ou
+    // qu'il ne reste plus assez d'images pour en poser une par ligne restante.
+    const closeRow =
+      row.length > 0 &&
+      rowsLeft > 1 &&
+      (itemsLeft < rowsLeft ||
+        Math.abs(rowWeight + weights[i] - target) > Math.abs(rowWeight - target));
+
+    if (closeRow) {
+      rows.push(row);
+      placed += rowWeight;
+      row = [];
+      rowWeight = 0;
+    }
+
+    row.push(i);
+    rowWeight += weights[i];
+  }
+
+  rows.push(row);
+  return rows;
+}
+
+/**
+ * Range les images en lignes, façon galerie justifiée.
+ *
+ * Dans une ligne, chaque image occupe une largeur proportionnelle à son ratio
+ * — un portrait prend moins de place qu'un paysage, personne n'est recadré
+ * pour rentrer dans une case carrée. Une ligne de ratios r₁…rₙ posée sur toute
+ * la largeur est alors haute de 1/Σr (largeur prise pour 1), ce qui donne la
+ * hauteur naturelle d'un empilement. On essaie chaque nombre de lignes et on
+ * garde celui dont la hauteur naturelle colle le mieux à celle du node : le
+ * reste de l'écart est absorbé par un `object-cover` identique partout, donc
+ * un rognage minime au lieu d'un cadrage imposé.
+ */
+function packRows(weights: number[], boxAspect: number): number[][] {
+  let best: number[][] = [weights.map((_, i) => i)];
   let bestScore = Infinity;
 
-  for (let columns = 1; columns <= count; columns++) {
-    const rows = Math.ceil(count / columns);
-    const tileAspect = (aspect * rows) / columns;
-    const lastRow = count - (rows - 1) * columns;
-    const score =
-      Math.abs(Math.log(tileAspect)) +
-      0.5 * Math.abs(Math.log(lastRow / columns));
+  for (let rowCount = 1; rowCount <= weights.length; rowCount++) {
+    const rows = splitEvenly(weights, rowCount);
+    const height = rows.reduce(
+      (sum, row) => sum + 1 / row.reduce((acc, i) => acc + weights[i], 0),
+      0,
+    );
+    // La boîte est haute de 1/boxAspect pour une largeur de 1.
+    const score = Math.abs(Math.log(height * boxAspect));
 
-    if (score < bestScore + 1e-9) {
-      bestScore = Math.min(bestScore, score);
-      best = columns;
+    if (score < bestScore) {
+      bestScore = score;
+      best = rows;
     }
   }
 
@@ -226,18 +267,28 @@ function pickColumns(count: number, aspect: number): number {
 }
 
 /**
- * Variant "grid" : toutes les images d'un coup, en mosaïque.
+ * Répartit `count` facteurs `flex-grow` de somme confortablement supérieure à
+ * 1 : sous 1, la spec ne distribue que cette fraction de l'espace libre, et la
+ * mosaïque ne remplirait pas le node.
+ */
+function growFactors(values: number[]): number[] {
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return values.map((value) => (value / total) * values.length);
+}
+
+/**
+ * Variant "grid" : toutes les images d'un coup, en mosaïque justifiée.
  *
- * Le nombre de colonnes suit le ratio du node (`aspect`) autant que le nombre
- * d'images : un node en bandeau range tout sur une ligne, un node en colonne
- * empile. Le reste tient dans le flux flex — les lignes se partagent la
- * hauteur à parts égales (`content-stretch`) et les tuiles d'une ligne
- * incomplète s'étalent au lieu de laisser un trou.
+ * Le découpage suit à la fois les ratios des images et celui du node : un node
+ * en bandeau tient sur une ligne, un node en colonne empile. Les lignes se
+ * partagent la hauteur au prorata de leur hauteur naturelle et les images
+ * d'une ligne se partagent la largeur au prorata de leur ratio, le tout en
+ * `flex-grow` — donc pas de trou, pas de débordement, et un redimensionnement
+ * du node se répercute sans un pixel calculé en JS.
  *
- * La base des tuiles est en `cqw` et les gouttières sont posées par des
- * container queries : la mosaïque se réajuste au redimensionnement à même le
- * CSS, sans attendre un rendu React, et un petit node garde des filets d'un
- * pixel là où un grand respire.
+ * Les ratios sont mesurés à l'`onLoad` de chaque image : ils ne sont pas dans
+ * les données du node, et une image arrivée par l'agent n'en portera jamais.
+ * Tant qu'une image n'a pas chargé, elle compte pour un carré.
  *
  * Aucune tuile n'est en `nodrag` : elles couvrent tout le node, les marquer
  * ainsi rendrait celui-ci indéplaçable à la souris. Un clic sans déplacement
@@ -257,41 +308,70 @@ function ImageGrid({
   showSelection: boolean;
   onSelect: (index: number) => void;
 }) {
-  const columns = pickColumns(images.length, aspect);
+  const [ratios, setRatios] = useState<Record<string, number>>({});
+
+  const handleLoad = useCallback(
+    (url: string, event: React.SyntheticEvent<HTMLImageElement>) => {
+      const { naturalWidth, naturalHeight } = event.currentTarget;
+      if (!naturalWidth || !naturalHeight) return;
+      setRatios((previous) =>
+        previous[url] !== undefined
+          ? previous
+          : { ...previous, [url]: naturalWidth / naturalHeight },
+      );
+    },
+    [],
+  );
+
+  const weights = images.map((image) => ratios[image.url] ?? 1);
+  const rows = packRows(weights, aspect);
+  const rowGrows = growFactors(
+    rows.map((row) => 1 / row.reduce((sum, i) => sum + weights[i], 0)),
+  );
 
   return (
     <div className="@container h-full w-full overflow-hidden rounded-[4px]">
       <div
         className={cn(
-          "flex h-full w-full flex-wrap content-stretch gap-[var(--tile-gap)]",
+          "flex h-full w-full flex-col gap-[var(--tile-gap)]",
           "[--tile-gap:1px] @min-[220px]:[--tile-gap:2px] @min-[420px]:[--tile-gap:3px]",
         )}
       >
-        {images.map((image, i) => (
-          <div
-            key={`${image.url}-${i}`}
-            className="relative min-w-0 grow overflow-hidden"
-            style={{
-              flexBasis: `calc(${(100 / columns).toFixed(4)}cqw - var(--tile-gap))`,
-            }}
-            title={image.filename}
-            onClick={() => onSelect(i)}
-          >
-            {/* En absolu : une image dans le flux donnerait sa hauteur propre
-                à la ligne flex, et les lignes ne se partageraient plus la
-                hauteur à parts égales. */}
-            <img
-              src={image.url}
-              alt={image.filename ?? `Image ${i + 1}`}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-            {/* En calque et non en `ring` sur la tuile : une ombre interne se
-                peint sous l'image, qui couvre toute la tuile. */}
-            {showSelection && i === selectedIndex && (
-              <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-blue-500/80" />
-            )}
-          </div>
-        ))}
+        {rows.map((row, rowIndex) => {
+          const tileGrows = growFactors(row.map((i) => weights[i]));
+
+          return (
+            <div
+              key={rowIndex}
+              className="flex min-h-0 gap-[var(--tile-gap)]"
+              style={{ flex: `${rowGrows[rowIndex]} 1 0%` }}
+            >
+              {row.map((i, positionInRow) => (
+                <div
+                  key={`${images[i].url}-${i}`}
+                  className="relative min-w-0 overflow-hidden"
+                  style={{ flex: `${tileGrows[positionInRow]} 1 0%` }}
+                  title={images[i].filename}
+                  onClick={() => onSelect(i)}
+                >
+                  {/* En absolu : une image dans le flux imposerait sa hauteur
+                      propre à la ligne, qui ne suivrait plus son flex-grow. */}
+                  <img
+                    src={images[i].url}
+                    alt={images[i].filename ?? `Image ${i + 1}`}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onLoad={(event) => handleLoad(images[i].url, event)}
+                  />
+                  {/* En calque et non en `ring` sur la tuile : une ombre interne
+                      se peint sous l'image, qui couvre toute la tuile. */}
+                  {showSelection && i === selectedIndex && (
+                    <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-blue-500/80" />
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

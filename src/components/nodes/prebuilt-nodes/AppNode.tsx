@@ -1,8 +1,6 @@
 import { memo, useCallback, useState } from "react";
-import { type Node } from "@xyflow/react";
 import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
-import type { Id } from "@/../convex/_generated/dataModel";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useWindowsStore } from "@/stores/windowsStore";
@@ -20,14 +18,14 @@ import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { TbDownload, TbPencil, TbMaximize, TbRefresh } from "react-icons/tb";
 import { colors } from "@/components/ui/styles";
-import type { colorsEnum } from "@/types/domain";
+import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { useAppNodeRunner } from "@/hooks/useAppNodeRunner";
 import { useIframeCtrlOverlay } from "@/hooks/useIframeCtrlOverlay";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 import { filenameSlug } from "@/lib/filenameSlug";
 
-function AppNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function AppNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const openWindow = useWindowsStore((s) => s.openWindow);
 

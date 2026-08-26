@@ -16,8 +16,6 @@ export const tableInsertRowsToolConfig: ToolConfig = {
   name: "table_insert_rows",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "write" },

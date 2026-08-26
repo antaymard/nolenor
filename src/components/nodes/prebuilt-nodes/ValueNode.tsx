@@ -1,5 +1,4 @@
 import { memo, useState } from "react";
-import type { Node } from "@xyflow/react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
@@ -15,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { TbTag, TbCheck, TbX, TbPencil } from "react-icons/tb";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataValues } from "@/hooks/useNodeData";
-import type { Id } from "@/../convex/_generated/dataModel";
+import type { XyNodeProps } from "@/types/domain";
 
 export type ValueDataType = "text" | "number" | "boolean";
 
@@ -33,8 +32,8 @@ const defaultValue: ValueType = {
   label: "",
 };
 
-function ValueNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function ValueNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
 

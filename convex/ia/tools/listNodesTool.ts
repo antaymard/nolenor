@@ -12,8 +12,6 @@ export const listNodesToolConfig: ToolConfig = {
   name: "list_nodes",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "read" },

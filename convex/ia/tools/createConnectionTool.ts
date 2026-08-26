@@ -16,8 +16,6 @@ export const createConnectionToolConfig: ToolConfig = {
   name: "create_connection",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "write" },

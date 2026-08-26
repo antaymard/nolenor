@@ -7,8 +7,6 @@ export const viewImageToolConfig: ToolConfig = {
   name: "view_image",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   requireMultiModal: true,

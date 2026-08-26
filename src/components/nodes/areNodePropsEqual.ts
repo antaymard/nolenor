@@ -1,4 +1,4 @@
-import type { Node } from "@xyflow/react";
+import type { XyNodeProps } from "@/types/domain";
 
 /**
  * Shallow-compare two data objects by their own enumerable keys.
@@ -23,6 +23,9 @@ function shallowEqualData(
 
 /**
  * Custom comparator for React.memo on ReactFlow node components.
+ *
+ * Prend des `XyNodeProps` et non un `Node` : c'est bien ce que React Flow
+ * passe au composant, donc ce que memo compare.
  * ReactFlow passes internal props (measured, internals, etc.) that change
  * on every render cycle, defeating memo's shallow comparison.
  * This comparator only checks the props that actually affect rendering.
@@ -31,7 +34,10 @@ function shallowEqualData(
  * Convex syncs recreate new data objects even when the content is identical,
  * which would otherwise force every node to re-render on every sync.
  */
-export function areNodePropsEqual(prev: Node, next: Node): boolean {
+export function areNodePropsEqual(
+  prev: XyNodeProps,
+  next: XyNodeProps,
+): boolean {
   return (
     prev.id === next.id &&
     shallowEqualData(prev.data, next.data) &&

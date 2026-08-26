@@ -13,8 +13,6 @@ export const patchAppNodeCodeToolConfig: ToolConfig = {
   name: "patch_app_node_code",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "write" },

@@ -6,7 +6,7 @@ import type { ToolCtx } from "@convex-dev/agent";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
-import { toolError } from "../ia/tools/toolHelpers";
+import { attachToolCtx, toolError } from "../ia/tools/toolHelpers";
 import { buildTool, findMcpEntry, isAccessAllowed } from "./registry";
 
 async function resolveToolOutput(raw: unknown): Promise<unknown> {
@@ -64,10 +64,8 @@ export const run = internalAction({
       return toolError(`Tool "${args.toolName}" is not available.`);
     }
 
-    // Les tools créés par createTool lisent leur ctx sur `this.ctx` (c'est ce
-    // que fait wrapTools de @convex-dev/agent, non ré-exporté publiquement).
     const toolCtx: ToolCtx = { ...ctx, userId: args.userId };
-    const wrapped = { ...tool, ctx: toolCtx };
+    const wrapped = attachToolCtx(tool, toolCtx);
     if (!wrapped.execute) {
       return toolError(`Tool "${args.toolName}" is not executable.`);
     }

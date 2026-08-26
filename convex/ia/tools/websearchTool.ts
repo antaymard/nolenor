@@ -8,8 +8,6 @@ export const websearchToolConfig: ToolConfig = {
   name: "websearch",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
 };

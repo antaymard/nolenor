@@ -9,8 +9,6 @@ export const openWebPageToolConfig: ToolConfig = {
   name: "open_webpage",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
 };

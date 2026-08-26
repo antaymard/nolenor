@@ -5,6 +5,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import ChatInterface from "@/components/canvas/nole-panel/ChatInterface";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
+import ThreadStatusPill from "@/components/canvas/nole-panel/ThreadStatusPill";
 import MobileChatInput from "./MobileChatInput";
 import MobileThreadsSheet from "./MobileThreadsSheet";
 
@@ -16,9 +17,9 @@ export default function MobileChatTab({
   const {
     threadId,
     threadInfo,
+    runStatus,
     isLoading,
     setUserInput,
-    setIsAssistantResponding,
     startNewThread,
   } = useMobileNoleChat();
   const [threadsOpen, setThreadsOpen] = useState(false);
@@ -44,6 +45,7 @@ export default function MobileChatTab({
         <span className="min-w-0 flex-1 truncate text-sm text-slate-500">
           {threadInfo?.title || "Nouvelle conversation"}
         </span>
+        <ThreadStatusPill status={runStatus} size="compact" />
         <Button
           variant="ghost"
           size="icon"
@@ -71,7 +73,6 @@ export default function MobileChatTab({
             key={threadId}
             threadId={threadId}
             onRetry={handleRetry}
-            onAssistantRespondingChange={setIsAssistantResponding}
           />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">

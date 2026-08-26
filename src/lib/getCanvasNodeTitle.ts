@@ -2,6 +2,7 @@ import type { CanvasNode } from "@/types";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import type { Doc, Id } from "@/../convex/_generated/dataModel";
 import { getNodeDataTitle } from "@/../convex/lib/getNodeDataTitle";
+import { getNodeDataId } from "@/lib/nodeIdentity";
 
 type NodeDatasMap = Map<Id<"nodeDatas">, Doc<"nodeDatas">>;
 type TemplatesMap = Map<Id<"nodeTemplates">, Doc<"nodeTemplates">>;
@@ -20,8 +21,7 @@ export function getCanvasNodeTitle(
   const nodeConfig = prebuiltNodesConfig.find(
     (config) => config.type === node.type,
   );
-  const nodeDataId =
-    node.nodeDataId ?? (node.data?.nodeDataId as Id<"nodeDatas"> | undefined);
+  const nodeDataId = getNodeDataId(node);
   const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
 
   // Custom : le titre exact vient du template (titleFieldId, fallback nom

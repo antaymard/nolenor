@@ -15,6 +15,7 @@ import ChatInput from "./ChatInput";
 import ChatInterface from "./ChatInterface";
 import ThreadSelector from "./ThreadSelector";
 import ThreadStatsBadge from "./ThreadStatsBadge";
+import ThreadStatusPill from "./ThreadStatusPill";
 
 type ChatContainerProps = {
   onClose?: () => void;
@@ -64,9 +65,10 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
     <div className="flex h-full w-full flex-col shadow-2xl/10">
       {/* Header */}
       <div className="flex items-center gap-1 rounded-t-lg border-b border-slate-200 bg-white/60 py-1 pr-1 pl-3 backdrop-blur-sm">
-        <p className="flex-1 truncate text-sm font-medium text-slate-700">
+        <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
           {threadId ? threadInfo?.title || "Untitled chat" : "New chat"}
         </p>
+        <ThreadStatusPill status={chat.runStatus} />
         <ThreadStatsBadge
           threadId={threadId}
           selectedModel={chat.selectedModel}
@@ -111,7 +113,6 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
             key={threadId}
             threadId={threadId}
             onRetry={handleRetry}
-            onAssistantRespondingChange={chat.setIsAssistantResponding}
           />
         ) : (
           <EmptyThreadState />

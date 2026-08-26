@@ -1,9 +1,7 @@
 import { memo, useCallback, useEffect, useState } from "react";
-import type { Node } from "@xyflow/react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import { useNodeData, useNodeDataValues } from "@/hooks/useNodeData";
-import type { Id } from "@/../convex/_generated/dataModel";
 import {
   TbChevronLeft,
   TbChevronRight,
@@ -51,6 +49,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
+import type { XyNodeProps } from "@/types/domain";
 
 type ImageItem = {
   url: string;
@@ -195,8 +194,8 @@ function ImageEditDialog({
   );
 }
 
-function ImageNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function ImageNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   // Le statut de génération est un champ top-level du document, pas une value :
   // il faut donc le nodeData complet, pas seulement ses values.

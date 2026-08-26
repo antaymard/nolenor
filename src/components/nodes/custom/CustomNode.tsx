@@ -1,7 +1,5 @@
 import { memo, useCallback } from "react";
-import type { Node } from "@xyflow/react";
 import { TbTemplateOff } from "react-icons/tb";
-import type { Id } from "@/../convex/_generated/dataModel";
 import type { LayoutContainer } from "@/../convex/config/templateConfig";
 import NodeFrame from "@/components/nodes/NodeFrame";
 import { areNodePropsEqual } from "@/components/nodes/areNodePropsEqual";
@@ -12,15 +10,15 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useTemplate } from "@/stores/templatesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { colors } from "@/components/ui/styles";
-import type { colorsEnum } from "@/types/domain";
+import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { useWindowsStore } from "@/stores/windowsStore";
 
 // Node custom : rend le nodeLayout de son template. Le template est résolu
 // par id via le store (jamais embarqué dans les data React Flow), donc
 // éditer un template ne re-rend que ses instances.
 
-function CustomNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function CustomNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const templateId = xyNode.data?.templateId as string | undefined;
 
   const template = useTemplate(templateId);

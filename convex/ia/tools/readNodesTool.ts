@@ -365,8 +365,6 @@ export const readNodesToolConfig: ToolConfig = {
   name: "read_nodes",
   authorized_agents: [
     toolAgentNames.nole,
-    toolAgentNames.clone,
-    toolAgentNames.supervisor,
     toolAgentNames.worker,
   ],
   mcp: { access: "read" },

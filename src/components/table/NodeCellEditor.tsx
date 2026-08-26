@@ -19,6 +19,7 @@ import { openableNodeTypes } from "@/components/nodes/prebuilt-nodes/prebuiltNod
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { NodeType } from "@/types/domain/nodeTypes";
 import type { CellValue, NodeCellValue } from "./types";
+import { getNodeDataId } from "@/lib/nodeIdentity";
 
 export interface NodeCellEditorProps {
   value: NodeCellValue | null | undefined;
@@ -66,7 +67,7 @@ export function NodeCellEditor({
 
   const filteredNodes = nodes
     .filter((n) => {
-      const nodeDataId = n.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+      const nodeDataId = getNodeDataId(n);
       if (!nodeDataId) return false;
       const nodeData = nodeDatas.get(nodeDataId);
       if (!nodeData) return false;

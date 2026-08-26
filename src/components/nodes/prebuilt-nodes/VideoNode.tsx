@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { Node } from "@xyflow/react";
 import {
   TbDownload,
   TbGauge,
@@ -30,7 +29,7 @@ import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { captureVideoPoster, posterFileFrom } from "@/lib/videoPoster";
 import { formatTime, useMediaPlayback } from "@/hooks/useMediaPlayback";
 import { useAudioStore } from "@/stores/audioStore";
-import type { Id } from "@/../convex/_generated/dataModel";
+import type { XyNodeProps } from "@/types/domain";
 
 export type VideoValue = {
   url: string;
@@ -54,8 +53,8 @@ function displayNameOf(video: VideoValue | null): string {
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-function VideoNode(xyNode: Node) {
-  const nodeDataId = xyNode.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+function VideoNode(xyNode: XyNodeProps) {
+  const { nodeDataId } = xyNode.data;
   const variant = (xyNode.data?.variant as string | undefined) ?? "player";
   const isTitleVariant = variant === "title";
 

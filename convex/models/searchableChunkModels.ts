@@ -1,5 +1,13 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import {
+  type ExcludedNeedle,
+  haystacksContainToken,
+  matchesParsedQuery,
+  normalizeHaystacks,
+  parseSearchQuery,
+} from "../lib/searchQuery";
+import type { NodeType } from "../schemas/nodeTypeSchema";
 import { stripLoneSurrogates } from "../lib/textSanitize";
 
 type SearchableChunk = Doc<"searchableChunks">;
@@ -175,6 +183,10 @@ type FullTextSearchResult = {
   scanned: number;
   limit: number;
   truncated: boolean;
+  /** Aucun node ne satisfaisait toutes les contraintes : résultats élargis. */
+  relaxed: boolean;
+  /** Mots positifs de la requête, pour centrer les extraits côté appelant. */
+  terms: string[];
 };
 
 // Search defaults are intentionally conservative to keep tool calls predictable.
@@ -182,6 +194,16 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 250;
 const MAX_SCAN_CAP = 250;
 const SCAN_MULTIPLIER = 5;
+
+export const CHUNK_SEARCH_LIMITS = {
+  /**
+   * `filterFields` ne fait que de l'égalité : N types cochés = N recherches.
+   * Au-delà, on garde une seule recherche et on filtre en TS.
+   */
+  MAX_INDEXED_NODE_TYPES: 3,
+  /** Fenêtre de scan d'une recherche d'exclusion. */
+  EXCLUSION_SCAN: 50,
+} as const;
 
 // Clamp user-provided limit into a safe, bounded integer.
 function clampLimit(limit: number | undefined): number {
@@ -214,17 +236,135 @@ function getSectionTitle(metadata: unknown): string | undefined {
   return trimmed.length > 0 ? stripLoneSurrogates(trimmed) : undefined;
 }
 
+/**
+ * Recherche indexée sur le contenu ET le titre, scopée au canvas, dédupliquée.
+ * Le type de node est poussé dans l'index quand le fan-out reste raisonnable,
+ * et re-filtré en TS dans tous les cas (exact et gratuit).
+ */
+export async function searchChunks(
+  ctx: QueryCtx,
+  {
+    canvasId,
+    text,
+    nodeTypes,
+    limit,
+  }: {
+    canvasId: Id<"canvases">;
+    text: string;
+    nodeTypes?: NodeType[];
+    limit: number;
+  },
+): Promise<SearchableChunk[]> {
+  const types = nodeTypes ?? [];
+  const indexedTypes: Array<NodeType | undefined> =
+    types.length > 0 && types.length <= CHUNK_SEARCH_LIMITS.MAX_INDEXED_NODE_TYPES
+      ? types
+      : [undefined];
+
+  const batches = await Promise.all(
+    indexedTypes.flatMap((nodeType) => [
+      ctx.db
+        .query("searchableChunks")
+        .withSearchIndex("search_text", (q) => {
+          const scoped = q.search("text", text).eq("canvasId", canvasId);
+          return nodeType ? scoped.eq("nodeType", nodeType) : scoped;
+        })
+        .take(limit),
+      ctx.db
+        .query("searchableChunks")
+        .withSearchIndex("search_title", (q) => {
+          const scoped = q.search("title", text).eq("canvasId", canvasId);
+          return nodeType ? scoped.eq("nodeType", nodeType) : scoped;
+        })
+        .take(limit),
+    ]),
+  );
+
+  const deduped = Array.from(
+    new Map(
+      batches.flat().map((chunk) => [chunk._id, chunk] as const),
+    ).values(),
+  );
+
+  return types.length > 0
+    ? deduped.filter((chunk) => types.includes(chunk.nodeType))
+    : deduped;
+}
+
+/**
+ * Nodes portant l'un des mots exclus. Un post-filtre sur les seuls chunks
+ * remontés ne suffirait pas : le mot exclu vit souvent dans un AUTRE chunk du
+ * node, qui n'a pas matché la requête. On interroge donc l'index pour chaque
+ * exclusion, puis on confirme sur le texte réel — la recherche Convex tolère
+ * les approximations, et `-java` ne doit pas emporter « javascript ».
+ */
+export async function collectExcludedNodeIds(
+  ctx: QueryCtx,
+  {
+    canvasId,
+    excluded,
+    haystacksByNodeId,
+  }: {
+    canvasId: Id<"canvases">;
+    excluded: ExcludedNeedle[];
+    haystacksByNodeId: Map<string, string[]>;
+  },
+): Promise<Set<string>> {
+  const excludedNodeIds = new Set<string>();
+  if (excluded.length === 0 || haystacksByNodeId.size === 0) {
+    return excludedNodeIds;
+  }
+
+  // 1) Ce qui est déjà chargé : gratuit.
+  for (const [nodeId, haystacks] of haystacksByNodeId) {
+    if (
+      excluded.some((needle) =>
+        haystacksContainToken(haystacks, needle.normalized),
+      )
+    ) {
+      excludedNodeIds.add(nodeId);
+    }
+  }
+
+  // 2) Le reste du node, via l'index.
+  const batches = await Promise.all(
+    excluded.map(async (needle) => ({
+      needle,
+      chunks: await searchChunks(ctx, {
+        canvasId,
+        text: needle.original,
+        limit: CHUNK_SEARCH_LIMITS.EXCLUSION_SCAN,
+      }),
+    })),
+  );
+
+  for (const { needle, chunks } of batches) {
+    for (const chunk of chunks) {
+      if (!haystacksByNodeId.has(chunk.nodeId)) continue;
+      if (excludedNodeIds.has(chunk.nodeId)) continue;
+      const haystacks = normalizeHaystacks([chunk.title, chunk.text]);
+      if (haystacksContainToken(haystacks, needle.normalized)) {
+        excludedNodeIds.add(chunk.nodeId);
+      }
+    }
+  }
+
+  return excludedNodeIds;
+}
+
 export async function fullTextSearch(
   ctx: QueryCtx,
   {
     canvasId,
     query,
     nodeIds,
+    nodeTypes,
     limit,
   }: {
     canvasId: Id<"canvases">;
     query: string;
     nodeIds?: string[];
+    nodeTypes?: NodeType[];
     limit?: number;
   },
 ): Promise<FullTextSearchResult> {
@@ -234,46 +374,75 @@ export async function fullTextSearch(
   // Read more than we return so post-filtering (nodeIds) still has good recall.
   const scanLimit = Math.min(effectiveLimit * SCAN_MULTIPLIER, MAX_SCAN_CAP);
 
-  // 2) Run indexed full-text search scoped to the canvas, on both content and title.
-  const [textChunks, titleChunks] = await Promise.all([
-    ctx.db
-      .query("searchableChunks")
-      .withSearchIndex("search_text", (q) =>
-        q.search("text", query).eq("canvasId", canvasId),
-      )
-      .take(scanLimit),
-    ctx.db
-      .query("searchableChunks")
-      .withSearchIndex("search_title", (q) =>
-        q.search("title", query).eq("canvasId", canvasId),
-      )
-      .take(scanLimit),
-  ]);
+  // 2) Traduire les opérateurs de la requête en contraintes post-recherche.
+  const parsed = parseSearchQuery(query);
+  if (parsed.isEmpty) {
+    return {
+      hits: [],
+      scanned: 0,
+      limit: effectiveLimit,
+      truncated: false,
+      relaxed: false,
+      terms: parsed.highlightTerms,
+    };
+  }
 
-  const chunks = Array.from(
-    new Map(
-      [...textChunks, ...titleChunks].map(
-        (chunk) => [chunk._id, chunk] as const,
-      ),
-    ).values(),
-  );
+  // 3) Run indexed full-text search scoped to the canvas, on both content and title.
+  const chunks = await searchChunks(ctx, {
+    canvasId,
+    text: parsed.searchText,
+    nodeTypes,
+    limit: scanLimit,
+  });
 
-  // 3) Apply optional node-level filtering.
+  // 4) Apply optional node-level filtering.
   const nodeIdFilter =
     nodeIds && nodeIds.length > 0 ? new Set(nodeIds) : undefined;
 
-  const filtered = nodeIdFilter
+  const scoped = nodeIdFilter
     ? chunks.filter((chunk) => nodeIdFilter.has(chunk.nodeId))
     : chunks;
 
-  // 4) Truncate for payload size, then project to the compact response shape.
+  // 5) Les contraintes se jugent par node, pas par chunk.
+  const haystacksByNodeId = new Map<string, string[]>();
+  for (const chunk of scoped) {
+    const normalized = normalizeHaystacks([chunk.title, chunk.text]);
+    const existing = haystacksByNodeId.get(chunk.nodeId);
+    if (existing) {
+      existing.push(...normalized);
+    } else {
+      haystacksByNodeId.set(chunk.nodeId, normalized);
+    }
+  }
+
+  const excludedNodeIds = await collectExcludedNodeIds(ctx, {
+    canvasId,
+    excluded: parsed.excluded,
+    haystacksByNodeId,
+  });
+
+  const kept = scoped.filter((chunk) => !excludedNodeIds.has(chunk.nodeId));
+  const strictNodeIds = new Set(
+    Array.from(haystacksByNodeId.entries())
+      .filter(
+        ([nodeId, haystacks]) =>
+          !excludedNodeIds.has(nodeId) && matchesParsedQuery(haystacks, parsed),
+      )
+      .map(([nodeId]) => nodeId),
+  );
+
+  const strict = kept.filter((chunk) => strictNodeIds.has(chunk.nodeId));
+
+  // Le filtrage strict travaille sur une fenêtre bornée : plutôt que de rendre
+  // le vide, on élargit en le signalant. Les exclusions restent appliquées.
+  const relaxed = strict.length === 0 && kept.length > 0;
+  const filtered = relaxed ? kept : strict;
+
+  // 6) Truncate for payload size, then project to the compact response shape.
   const selected = filtered.slice(0, effectiveLimit);
 
-  // If we had more filtered hits than returned OR we hit scan cap on either index, signal truncation.
-  const truncated =
-    filtered.length > effectiveLimit ||
-    textChunks.length === scanLimit ||
-    titleChunks.length === scanLimit;
+  // If we had more filtered hits than returned OR we hit the scan cap, signal truncation.
+  const truncated = filtered.length > effectiveLimit || chunks.length >= scanLimit;
 
   return {
     hits: selected.map((chunk) => ({
@@ -290,5 +459,7 @@ export async function fullTextSearch(
     scanned: chunks.length,
     limit: effectiveLimit,
     truncated,
+    relaxed,
+    terms: parsed.highlightTerms,
   };
 }

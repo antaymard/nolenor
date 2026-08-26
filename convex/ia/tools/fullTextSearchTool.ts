@@ -3,6 +3,7 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import { type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { type ThreadCtx, toolAgentNames } from "../agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig } from "./toolHelpers";
 
@@ -18,6 +19,7 @@ export const fullTextSearchToolConfig: ToolConfig = {
 type SearchStatus =
   | "ok"
   | "no_results"
+  | "relaxed"
   | "truncated"
   | "invalid_query"
   | "error";
@@ -50,6 +52,8 @@ function hintForStatus(status: SearchStatus): string {
       return "Use a more specific token (at least 2 characters).";
     case "no_results":
       return "No exact match found; try spelling variants or a shorter token.";
+    case "relaxed":
+      return "No node satisfied every constraint, so results were widened to approximate matches; drop a term or an operator to tighten.";
     case "truncated":
       return "Results truncated; refine query or pass nodeIds to narrow scope.";
     case "error":
@@ -60,26 +64,22 @@ function hintForStatus(status: SearchStatus): string {
   }
 }
 
-function buildSnippet(text: string, query: string): string {
+/** Extrait centré sur les mots POSITIFS de la requête (jamais sur `-exclu`). */
+function buildSnippet(text: string, terms: string[]): string {
   const normalizedText = text.replace(/\s+/g, " ").trim();
   if (!normalizedText) return "";
 
   const lowerText = normalizedText.toLowerCase();
-  const lowerQuery = query.toLowerCase();
 
-  let matchStart = lowerText.indexOf(lowerQuery);
-  if (matchStart === -1) {
-    const terms = lowerQuery
-      .split(/\s+/)
-      .map((term) => term.trim())
-      .filter((term) => term.length >= 2);
-
-    for (const term of terms) {
-      const idx = lowerText.indexOf(term);
-      if (idx !== -1) {
-        matchStart = idx;
-        break;
-      }
+  let matchStart = -1;
+  let matchLength = 0;
+  for (const term of terms) {
+    const lowerTerm = term.toLowerCase();
+    const idx = lowerText.indexOf(lowerTerm);
+    if (idx !== -1) {
+      matchStart = idx;
+      matchLength = lowerTerm.length;
+      break;
     }
   }
 
@@ -90,10 +90,7 @@ function buildSnippet(text: string, query: string): string {
       : fallback;
   }
 
-  const matchEnd = Math.min(
-    matchStart + lowerQuery.length,
-    normalizedText.length,
-  );
+  const matchEnd = Math.min(matchStart + matchLength, normalizedText.length);
   const snippetStart = Math.max(0, matchStart - SNIPPET_RADIUS);
   const snippetEnd = Math.min(normalizedText.length, matchEnd + SNIPPET_RADIUS);
   const core = normalizedText.slice(snippetStart, snippetEnd);
@@ -114,16 +111,24 @@ export default function fullTextSearchTool({
 
   return createTool({
     description:
-      "Search exact tokens in the current canvas using full-text indexed chunks, every node type is searchable (pdf inclduded). Use this for precise lookup (names, acronyms, reference IDs, rare words). Returns compact snippets and metadata to quickly decide what to read next.",
+      "Search exact tokens in the current canvas using full-text indexed chunks, every node type is searchable (pdf included). Use this for precise lookup (names, acronyms, reference IDs, rare words). Supports Google-style operators: every bare word is required, \"quoted text\" must appear verbatim, -word excludes any node containing it, and `a OR b` accepts either. Returns compact snippets and metadata to quickly decide what to read next.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       query: z
         .string()
-        .describe("The exact token or short phrase to search for."),
+        .describe(
+          'The tokens to search for. All bare words must appear in the same node; use "quoted text" for a verbatim phrase, -word to exclude nodes containing it, and `a OR b` for alternatives.',
+        ),
       nodeIds: z
         .array(z.string())
         .optional()
         .describe("Optional node IDs to narrow the search scope."),
+      nodeTypes: z
+        .array(z.enum(nodeTypeValues))
+        .optional()
+        .describe(
+          'Optional node types to restrict the search to, e.g. ["pdf"]. Prefer this over adding words to the query.',
+        ),
       groupByNode: z
         .boolean()
         .optional()
@@ -181,13 +186,14 @@ export default function fullTextSearchTool({
             canvasId: canvasId as Id<"canvases">,
             query: normalizedQuery,
             nodeIds: input.nodeIds,
+            nodeTypes: input.nodeTypes,
             limit: searchLimit,
           },
         );
 
         const hits = result.hits.map((hit) => ({
           ...hit,
-          snippet: buildSnippet(hit.text, normalizedQuery),
+          snippet: buildSnippet(hit.text, result.terms),
         }));
 
         // De-duplicate same snippet per node to reduce repetitive noise.
@@ -218,9 +224,11 @@ export default function fullTextSearchTool({
           const status: SearchStatus =
             rankedFlat.length === 0
               ? "no_results"
-              : truncated
-                ? "truncated"
-                : "ok";
+              : result.relaxed
+                ? "relaxed"
+                : truncated
+                  ? "truncated"
+                  : "ok";
 
           return toJsonString({
             status,
@@ -230,6 +238,7 @@ export default function fullTextSearchTool({
             limit,
             scanned: result.scanned,
             truncated,
+            relaxed: result.relaxed,
             hint: hintForStatus(status),
             hits: rankedFlat,
           });
@@ -346,9 +355,11 @@ export default function fullTextSearchTool({
         const status: SearchStatus =
           groupedHits.length === 0
             ? "no_results"
-            : truncated
-              ? "truncated"
-              : "ok";
+            : result.relaxed
+              ? "relaxed"
+              : truncated
+                ? "truncated"
+                : "ok";
 
         return toJsonString({
           status,
@@ -358,6 +369,7 @@ export default function fullTextSearchTool({
           limit,
           scanned: result.scanned,
           truncated,
+          relaxed: result.relaxed,
           hint: hintForStatus(status),
           hits: groupedHits,
         });

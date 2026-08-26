@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   TbDownload,
   TbGauge,
+  TbMaximize,
   TbPencil,
   TbPlayerPause,
   TbPlayerPlay,
@@ -29,6 +30,8 @@ import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { captureVideoPoster, posterFileFrom } from "@/lib/videoPoster";
 import { formatTime, useMediaPlayback } from "@/hooks/useMediaPlayback";
 import { useAudioStore } from "@/stores/audioStore";
+import { useWindowsStore } from "@/stores/windowsStore";
+import { cn } from "@/lib/utils";
 import type { XyNodeProps } from "@/types/domain";
 
 export type VideoValue = {
@@ -195,6 +198,13 @@ function VideoNode(xyNode: XyNodeProps) {
     [displayName],
   );
 
+  const openWindow = useWindowsStore((s) => s.openWindow);
+
+  const handleOpenWindow = useCallback(() => {
+    if (!nodeDataId) return;
+    openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "video" });
+  }, [nodeDataId, openWindow, xyNode.id]);
+
   const handleDownload = useCallback(() => {
     if (!video) return;
     void downloadStoredFile({
@@ -236,6 +246,7 @@ function VideoNode(xyNode: XyNodeProps) {
     () => (
       <MediaProgressBar
         duration={duration}
+        tone="light"
         progressRef={progressRef}
         playheadRef={playheadRef}
         onSeekRatio={seekToRatio}
@@ -247,66 +258,43 @@ function VideoNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
+        <Button
+          size="icon"
+          variant="outline"
+          disabled={!nodeDataId}
+          title="Open in window"
+          onClick={handleOpenWindow}
+        >
+          <TbMaximize />
+        </Button>
         {video && (
           <>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" title="Speed and volume">
+                <Button variant="outline" size="icon" title="Playback speed">
                   <TbGauge />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56">
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <p className="mb-1.5 text-xs text-muted-foreground">
-                      Speed
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {PLAYBACK_RATES.map((rate) => (
-                        <Button
-                          key={rate}
-                          size="sm"
-                          variant={
-                            rate === playbackRate ? "default" : "outline"
-                          }
-                          onClick={() => handleRateChange(rate)}
-                        >
-                          {rate}x
-                        </Button>
-                      ))}
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">
-                      Pitch is preserved.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs text-muted-foreground">
-                      Volume
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={toggleMuted}
-                        title={muted ? "Unmute" : "Mute"}
-                      >
-                        {muted ? (
-                          <TbVolumeOff size={16} />
-                        ) : (
-                          <TbVolume size={16} />
-                        )}
-                      </button>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={volume}
-                        onChange={(e) => setVolume(Number(e.target.value))}
-                        className="flex-1"
-                      />
-                    </div>
-                  </div>
+                {/* Le volume vit dans la ligne de contrôles du lecteur, pas
+                    ici : un même réglage à deux endroits est pire qu'un
+                    réglage mal placé. */}
+                <p className="mb-1.5 text-xs text-muted-foreground">Speed</p>
+                <div className="flex flex-wrap gap-1">
+                  {PLAYBACK_RATES.map((rate) => (
+                    <Button
+                      key={rate}
+                      size="sm"
+                      variant={rate === playbackRate ? "default" : "outline"}
+                      onClick={() => handleRateChange(rate)}
+                    >
+                      {rate}x
+                    </Button>
+                  ))}
                 </div>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Pitch is preserved.
+                </p>
               </PopoverContent>
             </Popover>
             <Button
@@ -359,7 +347,7 @@ function VideoNode(xyNode: XyNodeProps) {
 
       <NodeFrame xyNode={xyNode} resizable={!isTitleVariant}>
         {!video ? (
-          <div className="flex h-full w-full items-center gap-2 px-2">
+          <div className="flex h-full w-full items-center justify-center gap-2 px-2">
             <TbVideo size={18} className="shrink-0" />
             <p className="text-sm text-muted-foreground">No video</p>
           </div>
@@ -372,7 +360,10 @@ function VideoNode(xyNode: XyNodeProps) {
           </div>
         ) : (
           <div className="flex h-full w-full min-w-0 flex-col gap-1 p-2">
-            <div className="relative min-h-0 flex-1 overflow-hidden rounded bg-black/90">
+            {/* `group/player` nommé : le survol pilote la surimpression en CSS
+                pur, sans état React — un node en cours de lecture ne doit pas
+                se re-rendre chaque fois que la souris le traverse. */}
+            <div className="group/player relative min-h-0 flex-1 overflow-hidden rounded bg-black/90">
               {loadFailed ? (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-3 text-center">
                   <TbVideo size={20} className="text-white/70" />
@@ -389,58 +380,100 @@ function VideoNode(xyNode: XyNodeProps) {
                   </button>
                 </div>
               ) : (
-                <video
-                  ref={mediaRef}
-                  // With a poster, `preload="none"` means not one byte of the
-                  // video is fetched until playback starts: a canvas full of
-                  // video nodes costs what a canvas of images costs. Without
-                  // one, the media fragment makes the browser paint a frame.
-                  src={
-                    video.poster?.url ? video.url : `${video.url}#t=0.1`
-                  }
-                  poster={video.poster?.url}
-                  preload={video.poster?.url ? "none" : "metadata"}
-                  playsInline
-                  className="h-full w-full object-contain"
-                  onLoadedMetadata={handleLoadedMetadata}
-                  onEnded={handleEnded}
-                  onError={() => setLoadFailed(true)}
-                />
+                <>
+                  <video
+                    ref={mediaRef}
+                    // With a poster, `preload="none"` means not one byte of
+                    // the video is fetched until playback starts: a canvas
+                    // full of video nodes costs what a canvas of images
+                    // costs. Without one, the media fragment makes the
+                    // browser paint a frame.
+                    src={video.poster?.url ? video.url : `${video.url}#t=0.1`}
+                    poster={video.poster?.url}
+                    preload={video.poster?.url ? "none" : "metadata"}
+                    playsInline
+                    className="h-full w-full object-contain"
+                    onLoadedMetadata={handleLoadedMetadata}
+                    onEnded={handleEnded}
+                    onError={() => setLoadFailed(true)}
+                  />
+
+                  {/* Les contrôles sont posés sur l'image, donc sur un dégradé
+                      qui les garde lisibles quelle que soit la frame. Masqués,
+                      ils perdent aussi les pointer events : un bouton
+                      invisible ne doit pas rester cliquable. */}
+                  <div
+                    className={cn(
+                      "absolute inset-x-0 bottom-0 flex flex-col gap-1 px-2 pb-1.5 pt-8",
+                      "bg-gradient-to-t from-black/80 via-black/40 to-transparent",
+                      "opacity-0 transition-opacity duration-150",
+                      "pointer-events-none group-hover/player:pointer-events-auto group-hover/player:opacity-100",
+                    )}
+                  >
+                    {bar}
+
+                    <div className="nodrag flex items-center gap-1.5 text-xs text-white">
+                      <button
+                        type="button"
+                        className="text-white/80 hover:text-white"
+                        onMouseDown={stopMouseDown}
+                        onClick={restart}
+                        title="Back to start"
+                      >
+                        <TbPlayerTrackPrev size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="text-white hover:text-white/80"
+                        onMouseDown={stopMouseDown}
+                        onClick={toggle}
+                        title={isPlaying ? "Pause" : "Play"}
+                      >
+                        {isPlaying ? (
+                          <TbPlayerPause size={18} />
+                        ) : (
+                          <TbPlayerPlay size={18} />
+                        )}
+                      </button>
+                      <span className="tabular-nums text-white/80">
+                        <span ref={timeLabelRef}>0:00</span>
+                        {" / "}
+                        {formatTime(duration)}
+                      </span>
+
+                      <span className="ml-auto flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          className="text-white/80 hover:text-white"
+                          onMouseDown={stopMouseDown}
+                          onClick={toggleMuted}
+                          title={muted ? "Unmute" : "Mute"}
+                        >
+                          {muted ? (
+                            <TbVolumeOff size={15} />
+                          ) : (
+                            <TbVolume size={15} />
+                          )}
+                        </button>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={muted ? 0 : volume}
+                          onMouseDown={stopMouseDown}
+                          onChange={(e) => setVolume(Number(e.target.value))}
+                          title="Volume"
+                          className="h-1 w-14 accent-white"
+                        />
+                      </span>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
-            {bar}
-
-            <div className="nodrag flex items-center gap-1.5 text-xs">
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground"
-                onMouseDown={stopMouseDown}
-                onClick={restart}
-                title="Back to start"
-              >
-                <TbPlayerTrackPrev size={15} />
-              </button>
-              <button
-                type="button"
-                className="text-blue-700 hover:text-blue-900 disabled:opacity-40"
-                onMouseDown={stopMouseDown}
-                onClick={toggle}
-                disabled={loadFailed}
-                title={isPlaying ? "Pause" : "Play"}
-              >
-                {isPlaying ? (
-                  <TbPlayerPause size={18} />
-                ) : (
-                  <TbPlayerPlay size={18} />
-                )}
-              </button>
-              <span className="tabular-nums text-muted-foreground">
-                <span ref={timeLabelRef}>0:00</span>
-                {" / "}
-                {formatTime(duration)}
-              </span>
-            </div>
+            <p className="truncate text-sm font-medium">{displayName}</p>
           </div>
         )}
       </NodeFrame>

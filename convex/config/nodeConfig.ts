@@ -627,12 +627,15 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description: "Node for playing an uploaded video file.",
     llmDescription:
       "For storing/playing a video file (screen recording, clip, filmed talk, footage). The user can play it inline on the canvas and double-click the node to open it in a window with full controls. \nThe data value 'video' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), 'width' and 'height' (the frame size in pixels), 'label' (a name set by the user, which overrides the filename), and 'poster' (a still frame captured at upload time, as an object with 'url' and 'key', or null). The node is titled by 'label' when set, otherwise by 'filename'. 'playbackRate' is the playback speed (1 = normal). \nYou cannot watch the video: you can reference it, rename it, move it and link it, but never describe what it shows. Do not invent its content.",
-    defaultDimensions: { width: 360, height: 250, resizable: true },
+    // 16/9 (202px de haut pour 360 de large) plus la ligne de titre. Les
+    // contrôles sont en surimpression sur l'image, ils ne prennent pas de
+    // hauteur propre.
+    defaultDimensions: { width: 360, height: 230, resizable: true },
     variants: {
       player: {
         label: "Player",
         defaultWidth: 360,
-        defaultHeight: 250,
+        defaultHeight: 230,
         resizable: true,
         isDefault: true,
       },

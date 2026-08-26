@@ -192,6 +192,11 @@ const FULLSCREEN_ELIGIBLE_NODE_TYPES: ReadonlySet<NodeType> = new Set([
   "table",
   "pdf",
   "app",
+  // Ajouter un type ici ne suffit pas : WindowsContainer retire la fenêtre
+  // normale de la liste dès qu'elle passe en plein écran, et sa chaîne de
+  // dispatch doit donc savoir quoi rendre à la place. Sans les deux, la
+  // fenêtre disparaît au lieu de s'agrandir.
+  "video",
 ]);
 
 export function isFullscreenEligible(nodeType: NodeType): boolean {

@@ -12,6 +12,12 @@ interface MediaProgressBarProps {
   loopStart?: number;
   loopEnd?: number;
   loopEnabled?: boolean;
+  /**
+   * Sur quel fond la barre est posée. `dark` (défaut) pour la surface claire
+   * d'un node ; `light` quand elle est en surimpression sur une image, où une
+   * piste noire à 10 % serait invisible.
+   */
+  tone?: "dark" | "light";
   /** Filled by the rAF loop — never written from React. */
   progressRef: MutableRefObject<HTMLElement | null>;
   playheadRef: MutableRefObject<HTMLElement | null>;
@@ -32,6 +38,7 @@ function MediaProgressBar({
   loopStart = 0,
   loopEnd = 0,
   loopEnabled = false,
+  tone = "dark",
   progressRef,
   playheadRef,
   onSeekRatio,
@@ -95,6 +102,8 @@ function MediaProgressBar({
     [],
   );
 
+  const isLight = tone === "light";
+
   const hasLoop = loopEnd > loopStart && duration > 0;
   const loopLeft = hasLoop ? (loopStart / duration) * 100 : 0;
   const loopWidth = hasLoop ? ((loopEnd - loopStart) / duration) * 100 : 0;
@@ -110,7 +119,8 @@ function MediaProgressBar({
       onDoubleClick={(e) => e.stopPropagation()}
       style={{ touchAction: "none" }}
       className={cn(
-        "nodrag nopan relative h-2 w-full cursor-pointer rounded-full bg-black/10",
+        "nodrag nopan relative h-2 w-full cursor-pointer rounded-full",
+        isLight ? "bg-white/25" : "bg-black/10",
         className,
       )}
     >
@@ -128,14 +138,20 @@ function MediaProgressBar({
         ref={(el) => {
           progressRef.current = el;
         }}
-        className="pointer-events-none absolute inset-y-0 left-0 w-0 rounded-full bg-blue-500/70"
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-0 rounded-full",
+          isLight ? "bg-white/90" : "bg-blue-500/70",
+        )}
       />
 
       <div
         ref={(el) => {
           playheadRef.current = el;
         }}
-        className="pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-0.5 -translate-x-1/2 rounded-full bg-blue-700"
+        className={cn(
+          "pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-0.5 -translate-x-1/2 rounded-full",
+          isLight ? "bg-white" : "bg-blue-700",
+        )}
       />
 
       {/* Always mounted so the refs exist and the position is already correct
@@ -143,7 +159,8 @@ function MediaProgressBar({
       <div
         ref={ghostRef}
         className={cn(
-          "pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-px -translate-x-1/2 bg-black/40",
+          "pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-px -translate-x-1/2",
+          isLight ? "bg-white/70" : "bg-black/40",
           isHovering && duration > 0 ? "opacity-100" : "opacity-0",
         )}
       />

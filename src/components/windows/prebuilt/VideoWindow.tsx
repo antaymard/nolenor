@@ -5,6 +5,20 @@ import { useAudioStore } from "@/stores/audioStore";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { VideoValue } from "@/components/nodes/prebuilt-nodes/VideoNode";
 
+/**
+ * Où en était la lecture, le temps d'une bascule.
+ *
+ * Passer en plein écran ne déplace pas la fenêtre : il en démonte une et en
+ * monte une autre ailleurs dans l'arbre React. L'élément `<video>` est donc
+ * neuf, et repartirait à 0:00 — indolore pour un tableau, pénible sur une
+ * vidéo de quarante minutes.
+ *
+ * Un module-level Map plutôt qu'un store : l'information ne survit pas à la
+ * session, n'intéresse personne d'autre, et n'a aucune raison de déclencher
+ * un rendu. Une entrée par vidéo ouverte, retirée dès qu'elle est consommée.
+ */
+const lastPositionByNode = new Map<Id<"nodeDatas">, number>();
+
 interface VideoWindowProps {
   xyNodeId: string;
   nodeDataId: Id<"nodeDatas">;
@@ -23,6 +37,27 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
   const video = (values?.video as VideoValue | null | undefined) ?? null;
 
   const elementRef = useRef<HTMLVideoElement | null>(null);
+  const hasRestoredRef = useRef(false);
+
+  /**
+   * Ref callback plutôt que `elementRef` posé directement.
+   *
+   * La position doit être relevée sur l'élément *sortant*, et un cleanup de
+   * `useEffect` arrive trop tard : React détache les refs pendant la phase de
+   * mutation, donc `elementRef.current` y est déjà `null`. Le callback, lui,
+   * est appelé avec `null` alors que la ref pointe encore sur l'élément qui
+   * s'en va.
+   */
+  const attachVideo = useCallback(
+    (el: HTMLVideoElement | null) => {
+      const previous = elementRef.current;
+      if (!el && previous && previous.currentTime > 0) {
+        lastPositionByNode.set(nodeDataId, previous.currentTime);
+      }
+      elementRef.current = el;
+    },
+    [nodeDataId],
+  );
 
   const requestPlay = useAudioStore((s) => s.requestPlay);
   const notifyStopped = useAudioStore((s) => s.notifyStopped);
@@ -60,6 +95,25 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
     el.muted = muted;
   }, [muted, volume]);
 
+  /**
+   * Reprise à l'endroit quitté, une seule fois par montage. En pause : on
+   * rend la position, pas la lecture — un plein écran qui démarre tout seul
+   * surprend plus qu'il n'aide.
+   */
+  const handleLoadedMetadata = useCallback(() => {
+    applySettings();
+
+    const el = elementRef.current;
+    if (!el || hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
+
+    const saved = lastPositionByNode.get(nodeDataId);
+    lastPositionByNode.delete(nodeDataId);
+    if (saved === undefined) return;
+    if (!Number.isFinite(el.duration) || saved >= el.duration) return;
+    el.currentTime = saved;
+  }, [applySettings, nodeDataId]);
+
   // This effect only covers later changes: on the first render `values` is
   // still undefined, so the element does not exist yet and the effect would
   // have nothing to write to — and it never re-runs on its own once the
@@ -88,14 +142,14 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
   return (
     <div className="flex h-full w-full items-center justify-center bg-black">
       <video
-        ref={elementRef}
+        ref={attachVideo}
         src={video.url}
         poster={video.poster?.url}
         controls
         playsInline
         preload="metadata"
         className="max-h-full max-w-full"
-        onLoadedMetadata={applySettings}
+        onLoadedMetadata={handleLoadedMetadata}
         onPlay={handlePlay}
         onPause={handleStopped}
         onEnded={handleStopped}

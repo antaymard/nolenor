@@ -2444,12 +2444,35 @@
     "@posthog/core" "^1.46.8"
     "@posthog/types" "^1.402.0"
 
+"@posthog/cli@~0.14.1":
+  version "0.14.1"
+  resolved "https://registry.yarnpkg.com/@posthog/cli/-/cli-0.14.1.tgz#a301df24dc307fbcf626ab9f53e0e558f24a42e6"
+  integrity sha512-gTzcKpl9TZLf0LrlLHEjChlPc9LIK1gdQG0alMnX6+b+W1mTD+6nTN0W/MeEzjT4DiKDeK8FPhc1n7dT1tWKFw==
+  dependencies:
+    detect-libc "^2.1.2"
+
 "@posthog/core@^1.46.8", "@posthog/core@^1.46.9":
   version "1.46.9"
   resolved "https://registry.yarnpkg.com/@posthog/core/-/core-1.46.9.tgz#c76ee98638ce263efec83e1dc974552a02b9674e"
   integrity sha512-EXO6y5ih+jBkTCpUCuYgQmajuDZuvy6vMvflkub6pLQyi0GPlCPWVSvZZkOeQw9e2MxoD5GteeGCt9R8+UJ/yQ==
   dependencies:
     "@posthog/types" "^1.402.2"
+
+"@posthog/plugin-utils@^1.2.0":
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/@posthog/plugin-utils/-/plugin-utils-1.2.0.tgz#aa81860d120ea632e6764576d1fef3c58e422fb3"
+  integrity sha512-SXG2oVxPnliYKmixyIYqPv1CA4UYPZy9fQL5H+mvN/OQpKioRTawp8I2ofQmf6SfiYpnf+KAzLiRUlK7S3rOCw==
+  dependencies:
+    cross-spawn "^7.0.6"
+
+"@posthog/rollup-plugin@^1.5.1":
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/@posthog/rollup-plugin/-/rollup-plugin-1.5.1.tgz#6a5db916e0003f3d1fa104e074ddfd99731793e2"
+  integrity sha512-4ZNhhgnMEdRXP5YlLngHEwaaobrpNhHMT7JY4kZ1uLjGeURRbq7OjWNNg2MGN6iJgR8iIbvbt4Kho1WxflCz6A==
+  dependencies:
+    "@posthog/cli" "~0.14.1"
+    "@posthog/plugin-utils" "^1.2.0"
+    magic-string "^0.30.17"
 
 "@posthog/types@^1.402.0", "@posthog/types@^1.402.2":
   version "1.402.2"
@@ -5632,7 +5655,7 @@ dequal@^2.0.0, dequal@^2.0.3:
   resolved "https://registry.npmjs.org/dequal/-/dequal-2.0.3.tgz"
   integrity sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==
 
-detect-libc@^2.0.3:
+detect-libc@^2.0.3, detect-libc@^2.1.2:
   version "2.1.2"
   resolved "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz"
   integrity sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==
@@ -7263,7 +7286,7 @@ magic-string@^0.25.0, magic-string@^0.25.7:
   dependencies:
     sourcemap-codec "^1.4.8"
 
-magic-string@^0.30.21:
+magic-string@^0.30.17, magic-string@^0.30.21:
   version "0.30.21"
   resolved "https://registry.npmjs.org/magic-string/-/magic-string-0.30.21.tgz"
   integrity sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==

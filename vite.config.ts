@@ -1,9 +1,24 @@
 import path from "path";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import posthog from "@posthog/rollup-plugin";
+
+// Merge .env / .env.local into process.env so the PostHog source-map plugin
+// can read POSTHOG_* vars that Vite normally excludes from process.env.
+const _buildEnv = loadEnv("", process.cwd(), "");
+Object.assign(process.env, _buildEnv);
+
+const posthogSourceMaps = process.env.POSTHOG_API_KEY
+  ? posthog({
+      personalApiKey: process.env.POSTHOG_API_KEY!,
+      projectId: process.env.POSTHOG_PROJECT_ID,
+      host: process.env.POSTHOG_HOST,
+      sourcemaps: { enabled: true, deleteAfterUpload: true },
+    })
+  : null;
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,6 +29,7 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
+    posthogSourceMaps,
     VitePWA({
       // `prompt` plutôt qu'`autoUpdate` : Cloudflare Pages ne sert que les
       // assets du déploiement courant, donc un nouveau service worker qui
@@ -112,6 +128,7 @@ export default defineConfig({
       },
     }),
   ],
+  build: { sourcemap: true },
   // Shadcn aliasing
   resolve: {
     alias: {

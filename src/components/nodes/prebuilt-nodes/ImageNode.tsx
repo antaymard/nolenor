@@ -194,8 +194,74 @@ function ImageEditDialog({
   );
 }
 
+/**
+ * Variant "grid" : toutes les images d'un coup, en mosaïque.
+ *
+ * Colonnes = racine du nombre d'images, pour une grille aussi carrée que
+ * possible, et la dernière tuile étale les colonnes restantes plutôt que de
+ * laisser un trou en bas de ligne. Les lignes sont en `1fr` : la mosaïque
+ * tient toujours dans le node, quel que soit le nombre d'images.
+ *
+ * Aucune tuile n'est en `nodrag` : elles couvrent tout le node, les marquer
+ * ainsi rendrait celui-ci indéplaçable à la souris. Un clic sans déplacement
+ * passe quand même — c'est lui qui désigne l'image sur laquelle agit la
+ * toolbar.
+ */
+function ImageGrid({
+  images,
+  selectedIndex,
+  showSelection,
+  onSelect,
+}: {
+  images: Value;
+  selectedIndex: number;
+  showSelection: boolean;
+  onSelect: (index: number) => void;
+}) {
+  const columns = Math.ceil(Math.sqrt(images.length));
+  const rows = Math.ceil(images.length / columns);
+  const remainder = images.length % columns;
+  const lastSpan = remainder === 0 ? 1 : columns - remainder + 1;
+
+  return (
+    <div
+      className="grid h-full w-full gap-1 p-1"
+      style={{
+        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+      }}
+    >
+      {images.map((image, i) => (
+        <div
+          key={`${image.url}-${i}`}
+          className="relative overflow-hidden rounded-[3px]"
+          style={
+            i === images.length - 1 && lastSpan > 1
+              ? { gridColumn: `span ${lastSpan}` }
+              : undefined
+          }
+          title={image.filename}
+          onClick={() => onSelect(i)}
+        >
+          <img
+            src={image.url}
+            alt={image.filename ?? `Image ${i + 1}`}
+            className="h-full w-full object-cover"
+          />
+          {/* En calque et non en `ring` sur la tuile : une ombre interne se
+              peint sous l'image, qui couvre toute la tuile. */}
+          {showSelection && i === selectedIndex && (
+            <div className="pointer-events-none absolute inset-0 rounded-[3px] ring-2 ring-inset ring-blue-500/80" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ImageNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
+  const isGrid = xyNode.data.variant === "grid";
   const values = useNodeDataValues(nodeDataId);
   // Le statut de génération est un champ top-level du document, pas une value :
   // il faut donc le nodeData complet, pas seulement ses values.
@@ -358,6 +424,15 @@ function ImageNode(xyNode: XyNodeProps) {
             <TbPhoto size={24} />
             No image
           </div>
+        ) : isGrid ? (
+          <ImageGrid
+            images={currentValue}
+            selectedIndex={safeIndex}
+            // L'anneau ne sert qu'à désigner la cible du bouton Download :
+            // inutile de le montrer quand la toolbar n'est pas là.
+            showSelection={Boolean(xyNode.selected) && hasMultiple}
+            onSelect={setCurrentIndex}
+          />
         ) : hasMultiple ? (
           <div className="group/carousel relative h-full w-full">
             <img

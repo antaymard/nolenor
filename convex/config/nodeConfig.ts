@@ -116,6 +116,23 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     llmDescription:
       "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.",
     defaultDimensions: { width: 320, height: 320, resizable: true },
+    variants: {
+      // Clé `default` et non `carousel` : les nodes image déjà en base portent
+      // `variant: "default"`, posé à la création avant l'existence des variants.
+      default: {
+        label: "Carousel",
+        defaultWidth: 320,
+        defaultHeight: 320,
+        resizable: true,
+        isDefault: true,
+      },
+      grid: {
+        label: "Grid",
+        defaultWidth: 320,
+        defaultHeight: 320,
+        resizable: true,
+      },
+    },
     dataValuesSchema: z
       .object({
         images: z

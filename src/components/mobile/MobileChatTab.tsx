@@ -32,7 +32,7 @@ export default function MobileChatTab({
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <ThinkingOrb state="breathing" size={20} aria-label="Chargement" />
+        <ThinkingOrb state="breathing" size={20} aria-label="Loading" />
       </div>
     );
   }

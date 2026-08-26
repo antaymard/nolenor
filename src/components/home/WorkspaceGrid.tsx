@@ -98,7 +98,7 @@ export default function WorkspaceGrid({
       {sharedCanvases.length > 0 && (
         <section>
           <h2 className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase">
-            Shared with me
+            Shared with you
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sharedCanvases.map((canvas, index) => (

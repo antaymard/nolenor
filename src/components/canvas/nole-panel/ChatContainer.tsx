@@ -56,7 +56,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
   if (isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <ThinkingOrb state="breathing" size={20} aria-label="Chargement" />
+        <ThinkingOrb state="breathing" size={20} aria-label="Loading" />
       </div>
     );
   }

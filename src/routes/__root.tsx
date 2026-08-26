@@ -107,13 +107,16 @@ function RootComponent() {
   // n'est connecté (canvas public).
   useEffect(() => {
     if (!me) return;
-    identifyUser(me._id, { email: me.email, name: me.displayName ?? undefined });
+    identifyUser(me._id, {
+      email: me.email,
+      name: me.displayName ?? undefined,
+    });
   }, [me]);
 
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center">
-        <div>Chargement...</div>
+        <div>Loading...</div>
       </div>
     );
   }

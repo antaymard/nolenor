@@ -17,7 +17,7 @@ export default function NoleCanvasPanel() {
       {layout === "expanded" && (
         // `bottom-14` et non `bottom-10` : le bouton a grandi pour s'aligner
         // sur les blocs du dock, et la conversation le recouvrait.
-        <div className="absolute bottom-14 canvas-ui-container p-0! w-95 h-[calc(100dvh-6rem)] animate-appear-zoom origin-bottom-left">
+        <div className="absolute bottom-12.5 canvas-ui-container p-0! w-95 h-[calc(100dvh-6.5rem)] animate-appear-zoom origin-bottom-left">
           <ChatContainer onClose={() => setPanelLayout("minimized")} />
         </div>
       )}

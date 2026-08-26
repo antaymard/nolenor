@@ -102,7 +102,9 @@ export default function TaskCard({
         {/* Rien à dire tant qu'aucun tool n'a parlé : la ligne disparaît plutôt
             que d'afficher un vide, et `min-h` tient la hauteur du bloc. */}
         {activity ? (
-          <span className="truncate text-[11px] text-slate-500">{activity}</span>
+          <span className="truncate text-[11px] text-slate-500">
+            {activity}
+          </span>
         ) : null}
       </div>
 
@@ -155,12 +157,7 @@ export default function TaskCard({
 function TaskStatusIndicator({ status }: { status: ResolvedRunStatus }) {
   if (status === "running") {
     return (
-      <ThinkingOrb
-        state="working"
-        size={20}
-        aria-hidden
-        className="shrink-0"
-      />
+      <ThinkingOrb state="solving" size={20} aria-hidden className="shrink-0" />
     );
   }
 

@@ -31,7 +31,7 @@ export default function ChatStatusOverlay({
         <ThinkingIndicator
           // L'orbe nomme ce que fait l'assistant : elle tourne pendant qu'il
           // rédige, elle respire tant qu'on attend encore le premier token.
-          state={isThinking ? "working" : "breathing"}
+          state={isThinking ? "solving" : "breathing"}
           label={isThinking ? "Nolë is thinking..." : "Waiting for response..."}
         />
       )}
@@ -66,7 +66,7 @@ function ThinkingIndicator({
   state,
   label,
 }: {
-  state: "working" | "breathing";
+  state: "solving" | "breathing";
   label: string;
 }) {
   return (
@@ -81,7 +81,7 @@ function ThinkingIndicator({
 function DoneIndicator() {
   return (
     <StatusPill className="border-emerald-200 bg-emerald-50/90 text-emerald-700">
-      <TbCheck size={14} className="mx-[3px] shrink-0" />
+      <TbCheck size={14} className="mx-0.75 shrink-0" />
       <span>Done</span>
     </StatusPill>
   );
@@ -90,7 +90,7 @@ function DoneIndicator() {
 function FailedIndicator({ onRetry }: { onRetry?: () => void }) {
   return (
     <StatusPill className="pointer-events-auto mx-3 border-red-200 bg-red-50/95 text-red-700">
-      <TbAlertCircle size={14} className="mx-[3px] shrink-0 text-red-500" />
+      <TbAlertCircle size={14} className="mx-0.75 shrink-0 text-red-500" />
       <span>La réponse a échoué.</span>
       {onRetry && (
         <button

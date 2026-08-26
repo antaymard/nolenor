@@ -484,6 +484,37 @@ export async function makeNodeDataLLMFriendly(
       })`;
     }
 
+    case "video": {
+      const video = values.video as
+        | {
+            url?: string;
+            filename?: string;
+            mimeType?: string;
+            duration?: number;
+            width?: number;
+            height?: number;
+            label?: string;
+          }
+        | null
+        | undefined;
+      if (!video?.url) return "(aucun fichier vidéo)";
+
+      // Never fall through to the default branch: it JSON.stringifies the raw
+      // values, poster object included.
+      const name = video.label ?? video.filename ?? "video";
+      const details = [
+        video.mimeType,
+        video.duration ? formatSeconds(video.duration) : undefined,
+        video.width && video.height
+          ? `${video.width}×${video.height}`
+          : undefined,
+      ].filter(Boolean);
+
+      return `- [${name}](${video.url})${
+        details.length > 0 ? ` (${details.join(", ")})` : ""
+      }`;
+    }
+
     case "table": {
       return makeTableNodeDataLLMFriendly(values.table, values.title);
     }

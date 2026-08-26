@@ -44,6 +44,19 @@ export function extractR2Keys(
       break;
     }
 
+    case "video": {
+      const video = values.video;
+      const key = keyOf(video);
+      if (key) keys.push(key);
+      // The poster is a second blob of its own, captured from the file at
+      // upload time.
+      if (video && typeof video === "object") {
+        const posterKey = keyOf((video as Record<string, unknown>).poster);
+        if (posterKey) keys.push(posterKey);
+      }
+      break;
+    }
+
     case "image": {
       const images = values.images;
       if (Array.isArray(images)) {

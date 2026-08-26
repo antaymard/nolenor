@@ -10,6 +10,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import type { NodeType } from "@/types/domain";
 import { markdownToBlockNoteBlocks } from "@/lib/blockNoteMarkdownConverter";
 import { extractAudioMetadata } from "@/lib/audioMetadata";
+import { captureVideoPoster, posterFileFrom } from "@/lib/videoPoster";
 import { buildTableFromParsedCsv, parseCsvFile } from "@/components/table/csv";
 import { isImageUrl, resolveFileNodeType } from "@/lib/nodeTypeForFile";
 
@@ -287,6 +288,61 @@ export function useCanvasContentIngest() {
   );
 
   /**
+   * Handle a video file: node first, then upload + poster frame.
+   */
+  const createVideoNodeFromFile = useCallback(
+    async (file: File, position: XYPosition) => {
+      const videoNodeConfig = getNodeConfig("video");
+      if (!videoNodeConfig) {
+        toast.error("Error: VideoNode configuration not found");
+        return;
+      }
+
+      const { nodeId, nodeDataId } = await createNode({
+        node: videoNodeConfig.node,
+        position,
+      });
+
+      try {
+        // The capture reads the local file, so it costs nothing to run it
+        // alongside the upload rather than after it.
+        const [fileData, captured] = await Promise.all([
+          uploadFile(file),
+          captureVideoPoster(file),
+        ]);
+
+        let poster: { url: string; key: string } | null = null;
+        if (captured.poster) {
+          try {
+            const uploaded = await uploadFile(posterFileFrom(captured.poster));
+            poster = { url: uploaded.url, key: uploaded.key };
+          } catch (error) {
+            console.warn("Poster upload failed", error);
+          }
+        }
+
+        await updateNodeDataValues({
+          _id: nodeDataId,
+          values: {
+            video: {
+              ...fileData,
+              duration: captured.duration ?? 0,
+              width: captured.width ?? 0,
+              height: captured.height ?? 0,
+              poster,
+            },
+          },
+        });
+      } catch (error) {
+        console.error("Upload failed:", error);
+        setNodes((nodes) => nodes.filter((n) => n.id !== nodeId));
+        throw error;
+      }
+    },
+    [createNode, uploadFile, updateNodeDataValues, setNodes],
+  );
+
+  /**
    * Handle a PDF — or any file type we don't have a dedicated node for. The
    * `pdf` node is the generic file holder: it stores `values.files` and knows
    * how to preview PDFs and download the rest.
@@ -330,6 +386,8 @@ export function useCanvasContentIngest() {
           return createImageNodeFromFile(file, position);
         case "audio":
           return createAudioNodeFromFile(file, position);
+        case "video":
+          return createVideoNodeFromFile(file, position);
         case "table":
           await createTableNodeFromCsv(file, position);
           return;
@@ -343,6 +401,7 @@ export function useCanvasContentIngest() {
     [
       createImageNodeFromFile,
       createAudioNodeFromFile,
+      createVideoNodeFromFile,
       createTableNodeFromCsv,
       createBlocknoteNode,
       createFileNodeFromFile,

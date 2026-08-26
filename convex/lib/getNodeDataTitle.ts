@@ -80,6 +80,22 @@ export function getNodeDataTitle(
       return str(audio?.filename) ?? "Audio";
     }
 
+    case "video": {
+      const video = nodeData.values.video as
+        | { label?: unknown; filename?: unknown }
+        | null
+        | undefined;
+
+      const str = (value: unknown): string | undefined =>
+        typeof value === "string" && value.trim().length > 0
+          ? value.trim()
+          : undefined;
+
+      // A video file carries no tags worth trusting, so it is just the name
+      // the user typed, then the filename.
+      return str(video?.label) ?? str(video?.filename) ?? "Video";
+    }
+
     case "image": {
       const images = nodeData.values.images as
         | Array<{ filename?: unknown }>

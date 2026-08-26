@@ -17,7 +17,7 @@ import {
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
-import AudioProgressBar from "./audio/AudioProgressBar";
+import MediaProgressBar from "./media/MediaProgressBar";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import {
@@ -29,13 +29,14 @@ import { UploadFile } from "@/components/fields/UploadFile";
 import { useNodeDataValuesField } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useFileUpload } from "@/hooks/useFilesUpload";
+import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { extractAudioMetadata } from "@/lib/audioMetadata";
 import {
   formatTime,
   isLoopSet,
-  useAudioPlayback,
-  type AudioLoop,
-} from "@/hooks/useAudioPlayback";
+  useMediaPlayback,
+  type MediaLoop,
+} from "@/hooks/useMediaPlayback";
 import { useAudioStore } from "@/stores/audioStore";
 import type { XyNodeProps } from "@/types/domain";
 
@@ -69,7 +70,7 @@ function displayNameOf(audio: AudioValue | null): string {
   return audio.filename;
 }
 
-const DEFAULT_LOOP: AudioLoop = { start: 0, end: 0, enabled: false };
+const DEFAULT_LOOP: MediaLoop = { start: 0, end: 0, enabled: false };
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -82,7 +83,7 @@ function AudioNode(xyNode: XyNodeProps) {
   // object, and vice versa.
   const audio =
     useNodeDataValuesField<AudioValue | null>(nodeDataId, "audio") ?? null;
-  const storedLoop = useNodeDataValuesField<AudioLoop>(nodeDataId, "loop");
+  const storedLoop = useNodeDataValuesField<MediaLoop>(nodeDataId, "loop");
   const playbackRate =
     useNodeDataValuesField<number>(nodeDataId, "playbackRate") ?? 1;
 
@@ -90,6 +91,7 @@ function AudioNode(xyNode: XyNodeProps) {
 
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const { uploadFile } = useFileUpload();
+  const { downloadStoredFile } = useDownloadFile();
 
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -108,7 +110,7 @@ function AudioNode(xyNode: XyNodeProps) {
   );
 
   const {
-    audioRef,
+    mediaRef: audioRef,
     progressRef,
     playheadRef,
     timeLabelRef,
@@ -120,7 +122,7 @@ function AudioNode(xyNode: XyNodeProps) {
     getCurrentTime,
     handleLoadedMetadata,
     handleEnded,
-  } = useAudioPlayback({
+  } = useMediaPlayback({
     nodeId: xyNode.id,
     loop,
     playbackRate,
@@ -130,7 +132,7 @@ function AudioNode(xyNode: XyNodeProps) {
   const duration = audio?.duration || detectedDuration;
 
   const writeLoop = useCallback(
-    (next: AudioLoop) => {
+    (next: MediaLoop) => {
       if (!nodeDataId) return;
       // The stored object is recreated on every sync, so compare the fields:
       // Object.is on the whole object would call every write a change.
@@ -257,32 +259,16 @@ function AudioNode(xyNode: XyNodeProps) {
     [displayName],
   );
 
-  const handleDownload = useCallback(async () => {
+  const handleDownload = useCallback(() => {
     if (!audio) return;
-    try {
-      const response = await fetch(audio.url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = audio.filename;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      console.warn("Download via fetch failed, falling back to anchor", err);
-      const link = document.createElement("a");
-      link.href = audio.url;
-      link.download = audio.filename;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      document.body.append(link);
-      link.click();
-      link.remove();
-    }
-  }, [audio]);
+    // `filename`, jamais `label` : le nom affiché sur le node ne doit pas
+    // renommer le fichier sur le disque.
+    void downloadStoredFile({
+      key: audio.key,
+      url: audio.url,
+      filename: audio.filename,
+    });
+  }, [audio, downloadStoredFile]);
 
   const stopMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -297,7 +283,7 @@ function AudioNode(xyNode: XyNodeProps) {
 
   const bar = useMemo(
     () => (
-      <AudioProgressBar
+      <MediaProgressBar
         duration={duration}
         loopStart={loop.start}
         loopEnd={loop.end}

@@ -13,6 +13,9 @@ const FullscreenBlocknoteWindow = lazy(
 const FullscreenTableWindow = lazy(() => import("./FullscreenTableWindow"));
 const FullscreenPdfWindow = lazy(() => import("./FullscreenPdfWindow"));
 const FullscreenAppWindow = lazy(() => import("./FullscreenAppWindow"));
+const FullscreenVideoWindow = lazy(
+  () => import("./FullscreenVideoWindow"),
+);
 
 export default function WindowsContainer() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
@@ -69,6 +72,8 @@ export default function WindowsContainer() {
                   <FullscreenPdfWindow openedWindow={fullscreenWindow} />
                 ) : fullscreenWindow.nodeType === "app" ? (
                   <FullscreenAppWindow openedWindow={fullscreenWindow} />
+                ) : fullscreenWindow.nodeType === "video" ? (
+                  <FullscreenVideoWindow openedWindow={fullscreenWindow} />
                 ) : null}
               </Suspense>
             </WindowContentErrorBoundary>

@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/shadcn/input";
 import { UploadFile } from "@/components/fields/UploadFile";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
+import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { useWindowsStore } from "@/stores/windowsStore";
 import type { XyNodeProps } from "@/types/domain";
 
@@ -32,6 +33,7 @@ function PdfNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const { downloadStoredFile } = useDownloadFile();
   const openWindow = useWindowsStore((s) => s.openWindow);
 
   const currentValue =
@@ -93,30 +95,14 @@ function PdfNode(xyNode: XyNodeProps) {
   const isPdf = file?.mimeType === "application/pdf";
 
   const handleDownload = async () => {
+    // Séquentiel : plusieurs téléchargements déclenchés dans la même frame se
+    // font désarmer par les navigateurs.
     for (const f of currentValue) {
-      try {
-        const response = await fetch(f.url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = f.filename;
-        document.body.append(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(blobUrl);
-      } catch (err) {
-        console.warn("Download via fetch failed, falling back to anchor", err);
-        const link = document.createElement("a");
-        link.href = f.url;
-        link.download = f.filename;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        document.body.append(link);
-        link.click();
-        link.remove();
-      }
+      await downloadStoredFile({
+        key: f.key,
+        url: f.url,
+        filename: f.filename,
+      });
     }
   };
 

@@ -207,6 +207,21 @@ async function renderBody(
       return lines.join("\n");
     }
 
+    case "video": {
+      const video = asRecord(values.video);
+      if (!video) return "_Aucune vidéo_";
+      const lines = [
+        `- ${link(
+          asString(video.label) || asString(video.filename),
+          asString(video.url),
+        )}`,
+      ];
+      const poster = asRecord(video.poster);
+      const posterUrl = asString(poster?.url);
+      if (posterUrl) lines.push(`- Aperçu : ${link("poster", posterUrl)}`);
+      return lines.join("\n");
+    }
+
     case "app": {
       const code = asString(values.code);
       if (!code) return "_Aucun code_";

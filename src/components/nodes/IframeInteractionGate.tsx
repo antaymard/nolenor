@@ -10,10 +10,15 @@ import { cn } from "@/lib/utils";
  * cross-origin n'atteint jamais le nôtre, aucun bouclier *réactif* ne peut
  * marcher : il faut que l'iframe soit déjà neutralisée quand le geste commence.
  *
- * D'où l'activation explicite, modèle Miro : tant que le bouclier est en place,
- * molette, pinch, sélection et drag tombent sur notre propre DOM et remontent
- * normalement à React Flow. Un clic sur un node **déjà sélectionné** rend la
- * main à l'iframe ; la désélection la reprend.
+ * D'où l'activation explicite : tant que le bouclier est en place, molette,
+ * pinch, sélection et drag tombent sur notre propre DOM et remontent
+ * normalement à React Flow. Un clic rend la main à l'iframe ; sortir du node,
+ * le désélectionner, le déplacer ou Escape la reprennent.
+ *
+ * Le déverrouillage est volontairement étroit — le pointeur doit rester dans le
+ * node — parce qu'une iframe vive est un trou : au-dessus d'un document tiers,
+ * le geste de zoom échappe de nouveau au canvas. Les AppNode, dont on possède
+ * le srcdoc, sont armés de l'intérieur et n'ont pas ce trou.
  *
  * Le bouclier filtre l'*entrée*, pas l'exécution : l'iframe reste montée et son
  * JS continue de tourner (une vidéo verrouillée continue de jouer).
@@ -33,12 +38,7 @@ const CLICK_SLOP_PX = 4;
  */
 const UNLOCK_DELAY_MS = 300;
 
-type PressOrigin = {
-  x: number;
-  y: number;
-  /** La sélection *au moment du press* : c'est elle qui autorise l'activation. */
-  wasSelected: boolean;
-};
+type PressOrigin = { x: number; y: number };
 
 export default function IframeInteractionGate({
   isNodeSelected,
@@ -99,13 +99,9 @@ export default function IframeInteractionGate({
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent) => {
-      pressRef.current = {
-        x: event.clientX,
-        y: event.clientY,
-        wasSelected: isNodeSelected,
-      };
+      pressRef.current = { x: event.clientX, y: event.clientY };
     },
-    [isNodeSelected],
+    [],
   );
 
   const handleClick = useCallback(
@@ -113,8 +109,7 @@ export default function IframeInteractionGate({
       const press = pressRef.current;
       pressRef.current = null;
 
-      // Premier clic sur un node non sélectionné : il sélectionne, point.
-      if (!press?.wasSelected) return;
+      if (!press) return;
 
       // Fin de drag : le pointeur a bougé, ce n'est pas une intention de clic.
       if (
@@ -133,6 +128,14 @@ export default function IframeInteractionGate({
     [cancelPendingUnlock],
   );
 
+  // Le pointeur qui quitte le node reverrouille : c'est ce qui garde le geste de
+  // zoom au canvas partout ailleurs. `mouseleave` ne se déclenche pas en entrant
+  // dans l'iframe, qui est un descendant — seulement en sortant pour de bon.
+  const handleMouseLeave = useCallback(() => {
+    cancelPendingUnlock();
+    setIsUnlocked(false);
+  }, [cancelPendingUnlock]);
+
   const handleUnlockNow = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation();
@@ -150,6 +153,7 @@ export default function IframeInteractionGate({
         isActive && "ring-1 ring-inset ring-emerald-400/70",
         className,
       )}
+      onMouseLeave={handleMouseLeave}
     >
       {children}
       {!isActive && (
@@ -159,16 +163,13 @@ export default function IframeInteractionGate({
         // et rester hors du jeu des z-index laisse l'overlay de NodeFrame
         // au-dessus pendant les resize.
         <div
-          className={cn(
-            "group/gate absolute inset-0",
-            isNodeSelected && "cursor-pointer",
-          )}
+          className="group/gate absolute inset-0 cursor-pointer"
           onPointerDown={handlePointerDown}
           onClick={handleClick}
           // Laisse remonter jusqu'à `NodeFrame`, qui ouvre la fenêtre.
           onDoubleClick={cancelPendingUnlock}
         >
-          {label && isNodeSelected && (
+          {label && (
             <button
               type="button"
               className="absolute bottom-2 right-2 select-none rounded bg-slate-900/75 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity duration-150 group-hover/gate:opacity-100 focus-visible:opacity-100"

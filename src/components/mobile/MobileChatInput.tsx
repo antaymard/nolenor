@@ -16,6 +16,7 @@ import ModelSelect from "@/components/canvas/nole-panel/chat-input/ModelSelect";
 import VoiceProviderSelect from "@/components/canvas/nole-panel/chat-input/VoiceProviderSelect";
 import SendStopButton from "@/components/canvas/nole-panel/chat-input/SendStopButton";
 import { cn } from "@/lib/utils";
+import { useHasUserInput } from "@/stores/noleStore";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
 
 /** Une ligne au repos ; plafonné plus bas que le desktop, le clavier virtuel
@@ -25,8 +26,6 @@ const INPUT_MAX_ROWS = 7;
 
 export default function MobileChatInput() {
   const {
-    userInput,
-    setUserInput,
     sendCurrentMessage,
     isSending,
     isAssistantResponding,
@@ -50,6 +49,10 @@ export default function MobileChatInput() {
     hasDirtyWindows,
   } = useMobileNoleChat();
 
+  // Voir ChatInput : booléen dérivé, pour ne pas re-rendre tout le composer à
+  // chaque caractère. Seul `RichTextArea` lit le brouillon.
+  const hasUserInput = useHasUserInput();
+
   const handleSend = useCallback(() => {
     if (hasDirtyWindows) {
       toast.error(
@@ -66,7 +69,7 @@ export default function MobileChatInput() {
   // Voir ChatInput : le blocage « fenêtres modifiées » laisse le bouton actif
   // pour que le clic déclenche le toast explicatif.
   const canSend =
-    !!userInput.trim() && !isAssistantResponding && !isSending && !sttBusy;
+    hasUserInput && !isAssistantResponding && !isSending && !sttBusy;
 
   return (
     <div className="shrink-0 p-2 pt-0">
@@ -84,8 +87,6 @@ export default function MobileChatInput() {
 
         <div className="px-3 pt-2.5">
           <RichTextArea
-            value={userInput}
-            onChange={setUserInput}
             onSubmit={handleSend}
             minRows={INPUT_MIN_ROWS}
             maxRows={INPUT_MAX_ROWS}

@@ -121,8 +121,6 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
 
       {/* Composer */}
       <ChatInput
-        userInput={chat.userInput}
-        setUserInput={chat.setUserInput}
         onSend={handleSend}
         isSending={chat.isSending}
         isAssistantResponding={chat.isAssistantResponding}

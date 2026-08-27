@@ -11,13 +11,17 @@ const TOOLBAR_OFFSET = 10;
 const STACK_STEP = 56;
 
 /**
- * Une tâche Nolë, ancrée aux nodes qu'elle travaille.
+ * Une tâche Nolë, ancrée au node qu'elle travaille.
  *
  * `NodeToolbar` pan avec le canvas mais ne subit pas le zoom : le bloc reste
- * lisible à toute échelle. `nodeId` reçoit ici **tous** les nodes touchés, et
- * l'ancrage se fait sur leur boîte englobante — une tâche qui a créé cinq nodes
- * porte un bloc, pas cinq. On ne désigne donc aucun node « principal » : le bloc
- * dit « cette tâche concerne cette région ».
+ * lisible à toute échelle.
+ *
+ * Il ne paraît en revanche que sur une ancre unique. Les ancres arrivent bien
+ * ici en liste, et `nodeId` en accepte plusieurs — c'est le placement qui ne
+ * suit pas : `NodeToolbar` vise le centre de la boîte englobante, un point qui
+ * n'appartient à aucun node et qui, dès que les nodes s'éloignent, flotte dans
+ * le vide au milieu de rien. En attendant un placement qui tienne à plusieurs,
+ * la liste reste telle quelle et seul l'affichage se retient.
  *
  * C'est le même bloc qu'au dock, à la ligne de nodes près : elle nommerait ce
  * qui est déjà juste au-dessus.
@@ -46,8 +50,10 @@ export default function CanvasTaskMarker({
   );
 
   // Rien à ancrer — tâche qui vient de démarrer, tâche de pure lecture, ou nodes
-  // tous supprimés depuis. Le dock, lui, la montre : c'est son rôle.
-  if (!isLive || nodeIds.length === 0) return null;
+  // tous supprimés depuis. Le dock, lui, la montre : c'est son rôle. Plusieurs
+  // ancres : rien à ancrer non plus, faute d'un endroit honnête où poser le bloc
+  // (cf. l'en-tête). Même report sur le dock, qui lui nomme les nodes touchés.
+  if (!isLive || nodeIds.length !== 1) return null;
 
   return (
     <NodeToolbar

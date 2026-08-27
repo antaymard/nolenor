@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -21,10 +22,17 @@ export default function ThreadSelector({
   currentThreadId,
   onSelectThread,
 }: ThreadSelectorProps) {
-  const { threads, deleteThread } = useCanvasThreads(canvasId);
+  // La liste n'est chargée qu'à l'ouverture du menu. Montée en permanence, sa
+  // query hydrate jusqu'à 30 threads via le composant agent — et comme elle lit
+  // `threadMetadata`, elle était réinvalidée à chaque step LLM du tour en cours.
+  const [isOpen, setIsOpen] = useState(false);
+  const { threads, deleteThread } = useCanvasThreads(
+    isOpen ? canvasId : undefined,
+  );
+  const isLoading = threads === undefined;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon-sm" className="text-slate-400">
           <TbMessageSearch size={16} />
@@ -34,7 +42,12 @@ export default function ThreadSelector({
         align="start"
         className="w-64 max-h-80 overflow-y-auto"
       >
-        {(!threads || threads.length === 0) && (
+        {isLoading && (
+          <div className="p-3 text-sm text-muted-foreground text-center">
+            Chargement…
+          </div>
+        )}
+        {!isLoading && threads.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground text-center">
             Aucune conversation sur ce canvas
           </div>

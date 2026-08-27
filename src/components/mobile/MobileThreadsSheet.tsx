@@ -26,7 +26,12 @@ export default function MobileThreadsSheet({
   onOpenChange,
 }: MobileThreadsSheetProps) {
   const { threadId, selectThread, startNewThread } = useMobileNoleChat();
-  const { threads, deleteThread } = useCanvasThreads(canvasId);
+  // Comme sur desktop : la liste ne se charge qu'à l'ouverture. Sa query
+  // hydrate 30 threads via le composant agent et lit `threadMetadata`, donc
+  // montée en permanence elle se réinvalidait à chaque step du tour en cours.
+  const { threads, deleteThread } = useCanvasThreads(
+    open ? canvasId : undefined,
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

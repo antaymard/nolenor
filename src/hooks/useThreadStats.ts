@@ -27,14 +27,25 @@ export function useThreadStats({
   selectedModel: string | undefined;
   modelOptions: readonly ChatModelOption[] | undefined;
 }): ThreadStats {
-  const data = useQuery(
-    api.messageMetadata.getThreadMessageMetadata,
+  // Deux abonnements plutôt qu'un : le récapitulatif est minuscule mais
+  // réinvalidé à chaque step LLM, les lignes grossissent avec la conversation
+  // mais ne bougent qu'à l'insertion. Les mélanger faisait repasser tout
+  // l'historique sur le websocket une quarantaine de fois par tour.
+  //
+  // `listThreadMessageMetadata` est déjà souscrit par `useThreadMessageMetadata`
+  // dans la liste de messages : le client Convex déduplique, ce hook n'ajoute
+  // pas de souscription.
+  const summary = useQuery(
+    api.messageMetadata.getThreadUsageSummary,
+    threadId ? { threadId } : "skip",
+  );
+  const rows = useQuery(
+    api.messageMetadata.listThreadMessageMetadata,
     threadId ? { threadId } : "skip",
   );
 
   return useMemo(() => {
-    const isLoading = data === undefined;
-    const rows = data?.messageMetadata ?? [];
+    const isLoading = summary === undefined;
 
     const perModelMap = new Map<
       string,
@@ -45,7 +56,7 @@ export function useThreadStats({
       }
     >();
 
-    for (const row of rows) {
+    for (const row of rows ?? []) {
       if (row.role !== "assistant" || !row.usage) continue;
 
       const modelKey = row.model ?? "unknown";
@@ -61,8 +72,8 @@ export function useThreadStats({
       });
     }
 
-    const contextWindowUsed = data?.contextWindowUsed ?? 0;
-    const totalCostUsd = data?.totalCostUsd ?? 0;
+    const contextWindowUsed = summary?.contextWindowUsed ?? 0;
+    const totalCostUsd = summary?.totalCostUsd ?? 0;
     const maxContext = getModelMaxContext(selectedModel, modelOptions);
     const contextPercent =
       maxContext && maxContext > 0
@@ -80,5 +91,5 @@ export function useThreadStats({
         ...v,
       })),
     };
-  }, [data, selectedModel, modelOptions]);
+  }, [summary, rows, selectedModel, modelOptions]);
 }

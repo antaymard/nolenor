@@ -11,7 +11,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { formatDistanceToNow } from "@/lib/date-utils";
+import type { HomePendingThread } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
+import { PendingTaskBadge } from "./PendingTasks";
 
 export interface WorkspaceCardCanvas {
   _id: Id<"canvases">;
@@ -28,6 +30,9 @@ interface WorkspaceCardProps {
   /** Absents sur les canvases partagés : on n'y a pas ces droits. */
   onEdit?: (canvas: WorkspaceCardCanvas) => void;
   onDelete?: (canvas: WorkspaceCardCanvas) => void;
+  /** Ce que Nolë y a laissé en plan, résumé en une pastille. Le détail est
+   *  réservé à la carte de reprise — ici on signale, on ne raconte pas. */
+  pendingTasks?: HomePendingThread[];
   className?: string;
   style?: CSSProperties;
 }
@@ -36,6 +41,7 @@ export default function WorkspaceCard({
   canvas,
   onEdit,
   onDelete,
+  pendingTasks,
   className,
   style,
 }: WorkspaceCardProps) {
@@ -103,21 +109,31 @@ export default function WorkspaceCard({
         </p>
       )}
 
-      <div className="mt-auto flex items-center gap-2 pt-4 text-xs text-gray-400">
-        {canvas.shared ? (
-          <TbUsers size={13} className="shrink-0" />
-        ) : (
-          <TbLayoutBoard size={13} className="shrink-0" />
+      <div className="mt-auto flex flex-col gap-2 pt-4">
+        {/* Au-dessus du pied de carte, et non dedans : la ligne du bas date le
+            canvas, celle-ci date le travail de Nolë. Les mêler ferait deux
+            « il y a deux heures » qui ne parlent pas de la même chose. */}
+        {pendingTasks && pendingTasks.length > 0 && (
+          <PendingTaskBadge tasks={pendingTasks} />
         )}
-        <span>
-          {canvas.nodeCount} {canvas.nodeCount === 1 ? "block" : "blocks"}
-        </span>
-        <span aria-hidden>·</span>
-        <span className="truncate">
-          edited {formatDistanceToNow(new Date(canvas.updatedAt), {
-            addSuffix: true,
-          })}
-        </span>
+
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          {canvas.shared ? (
+            <TbUsers size={13} className="shrink-0" />
+          ) : (
+            <TbLayoutBoard size={13} className="shrink-0" />
+          )}
+          <span>
+            {canvas.nodeCount} {canvas.nodeCount === 1 ? "block" : "blocks"}
+          </span>
+          <span aria-hidden>·</span>
+          <span className="truncate">
+            edited{" "}
+            {formatDistanceToNow(new Date(canvas.updatedAt), {
+              addSuffix: true,
+            })}
+          </span>
+        </div>
       </div>
     </div>
   );

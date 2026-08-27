@@ -50,6 +50,32 @@ export async function listNoleThreadsByUserAndCanvas(
 }
 
 /**
+ * Conversations Nolë d'un utilisateur, tous canvas confondus, les plus
+ * récemment créées d'abord.
+ *
+ * Sert la home, qui n'a pas de canvas courant : lui faire appeler
+ * `listNoleThreadsByUserAndCanvas` une fois par workspace multiplierait les
+ * scans par le nombre de canvas du compte, pour n'en garder au bout du compte
+ * qu'une poignée de lignes.
+ *
+ * Ordonnée par date de création, comme son homologue par canvas : une
+ * conversation ancienne relancée aujourd'hui se range donc loin dans le scan.
+ * L'appelant borne, et trie ensuite sur la dernière activité.
+ */
+export async function listNoleThreadsByUser(
+  ctx: QueryCtx,
+  { userId, limit }: { userId: Id<"users">; limit: number },
+): Promise<ThreadMetadata[]> {
+  return await ctx.db
+    .query("threadMetadata")
+    .withIndex("by_userId_and_agentName", (q) =>
+      q.eq("userId", userId).eq("agentName", threadAgentNames.nole),
+    )
+    .order("desc")
+    .take(limit);
+}
+
+/**
  * Dernière activité connue d'un thread : l'envoi/réponse le plus récent, ou à
  * défaut sa création (un thread créé mais jamais utilisé).
  */

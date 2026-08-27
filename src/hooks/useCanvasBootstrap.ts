@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "convex/react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import useRichQuery from "@/components/utils/useRichQuery";
+import { useMarkThreadReviewed } from "@/hooks/useOpenNoleThread";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useNoleStore } from "@/stores/noleStore";
@@ -49,6 +51,43 @@ export function useCanvasBootstrap(
     clearTemplates();
     lastCanvasSnapshotRef.current = null;
   }, [canvasId, clearNodeDatas, clearTemplates, setCanvas]);
+
+  // Ouverture d'une conversation désignée par l'URL (`?thread=`) : c'est par là
+  // qu'arrivent les tâches en attente de la home, qui ne peut pas écrire dans le
+  // store d'un canvas qu'elle n'a pas encore ouvert.
+  //
+  // Déclaré après le nettoyage ci-dessus, et c'est ce qui le fait marcher :
+  // React joue les effets dans l'ordre de déclaration, donc la remise à zéro de
+  // `activeThreadId` passe d'abord, et la désignation ensuite.
+  const navigate = useNavigate();
+  const markReviewed = useMarkThreadReviewed();
+  const threadParam = useSearch({
+    strict: false,
+    select: (search) => (search as { thread?: string }).thread,
+  });
+
+  useEffect(() => {
+    if (!threadParam) return;
+
+    useNoleStore.getState().setActiveThreadId(threadParam);
+    useNoleStore.getState().setPanelLayout("expanded");
+    // Ouvrir, c'est revoir — même règle qu'au dock (cf. `useOpenNoleThread`) :
+    // la tâche ne doit pas rester en attente sur la home une fois consultée.
+    markReviewed(threadParam);
+
+    // Le param est consommé : on l'efface pour qu'il ne rouvre pas la
+    // conversation au moindre retour arrière, et pour qu'une URL copiée depuis
+    // la barre d'adresse pointe le canvas, pas une conversation d'hier.
+    // `replace` : la désignation n'est pas une étape de navigation.
+    void navigate({
+      to: ".",
+      replace: true,
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        thread: undefined,
+      }),
+    });
+  }, [threadParam, markReviewed, navigate]);
 
   // Fetch canvas
   const {

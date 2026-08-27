@@ -150,9 +150,13 @@ const schema = defineSchema({
     .index("by_threadId", ["threadId"]),
   threadMetadata: defineTable(threadMetadataValidator)
     .index("by_threadId", ["threadId"])
-    .index("by_userId", ["userId"])
-    // `agentName` est dans la clé pour que le listing des conversations d'un
-    // canvas ne scanne pas les threads de sous-agents (cf. threadMetadataSchema).
+    // `agentName` est dans la clé pour que les listings de conversations ne
+    // scannent pas les threads de sous-agents (cf. threadMetadataSchema). Le
+    // premier sert la home, qui regarde tous les canvas à la fois ; le second
+    // les surfaces d'un canvas donné. L'index par `userId` seul qu'ils
+    // remplacent n'avait aucun lecteur, et un index se paie à chaque écriture
+    // sur la ligne — celle-ci est réécrite une fois par step LLM.
+    .index("by_userId_and_agentName", ["userId", "agentName"])
     .index("by_userId_and_canvasId_and_agentName", [
       "userId",
       "canvasId",

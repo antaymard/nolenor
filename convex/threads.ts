@@ -19,6 +19,7 @@ import { aiUsageSources } from "./schemas/aiUsageSourceSchema";
 import {
   findByThreadId,
   lastActivityTime,
+  listNoleThreadsByUser,
   listNoleThreadsByUserAndCanvas,
   markReviewed,
   markRunEnded,
@@ -36,21 +37,71 @@ import {
 // donne pas).
 const LATEST_THREAD_SCAN_LIMIT = 20;
 const CANVAS_THREADS_SCAN_LIMIT = 30;
+/**
+ * Bornes de la home, qui regarde tous les canvas d'un coup : le scan couvre
+ * plusieurs workspaces, d'où une tranche plus large que celle d'un canvas seul.
+ * La seconde borne, elle, protège l'hydratation — un compte qui n'accuse jamais
+ * réception accumule des tâches en attente, et chacune coûte une lecture auprès
+ * du composant agent.
+ */
+const USER_THREADS_SCAN_LIMIT = 80;
+const USER_PENDING_HYDRATE_LIMIT = 24;
 
 function byLastActivityDesc(a: Doc<"threadMetadata">, b: Doc<"threadMetadata">) {
   return lastActivityTime(b) - lastActivityTime(a);
 }
 
 /**
- * Les conversations Nolë d'un canvas, hydratées de leur titre.
+ * Trie, filtre, hydrate et projette une tranche de lignes `threadMetadata`.
  *
- * Les deux queries de listing ne diffèrent que par leur filtre d'admission et
- * leur projection ; tout le reste — l'autorisation, le scan borné, le tri sur
- * la dernière activité, et l'écart des fantômes — est commun.
+ * Les queries de listing ne diffèrent que par leur périmètre de scan, leur
+ * filtre d'admission et leur projection ; tout le reste — le tri sur la
+ * dernière activité, l'hydratation du titre et l'écart des fantômes — est
+ * commun.
  *
  * Le filtre s'applique AVANT l'hydratation, et c'est ce qui fait la différence
- * de coût entre les deux appelants : chaque hydratation est une lecture auprès
- * du composant agent.
+ * de coût entre les appelants : chaque hydratation est une lecture auprès du
+ * composant agent.
+ */
+async function hydrateNoleThreads<T>(
+  ctx: QueryCtx,
+  {
+    threads,
+    filter,
+    limit,
+    project,
+  }: {
+    threads: Doc<"threadMetadata">[];
+    filter?: (metadata: Doc<"threadMetadata">) => boolean;
+    /** Borne posée après le filtre, sur ce qu'on accepte d'hydrater. */
+    limit?: number;
+    project: (metadata: Doc<"threadMetadata">, title: string | null) => T;
+  },
+): Promise<T[]> {
+  const admitted = (filter ? threads.filter(filter) : threads).sort(
+    byLastActivityDesc,
+  );
+
+  const hydrated = await Promise.all(
+    (limit === undefined ? admitted : admitted.slice(0, limit)).map(
+      async (metadata) => {
+        const thread = await getThreadMetadata(ctx, components.agent, {
+          threadId: metadata.threadId,
+        }).catch(() => null);
+        // La ligne survit à la suppression du thread côté composant si le
+        // nettoyage a échoué : on l'ignore plutôt que d'afficher un fantôme.
+        if (!thread) return null;
+        return project(metadata, thread.title ?? null);
+      },
+    ),
+  );
+
+  return hydrated.filter((row) => row !== null);
+}
+
+/**
+ * Les conversations Nolë d'un canvas, hydratées de leur titre. L'autorisation
+ * et le scan borné s'ajoutent au traitement commun.
  */
 async function loadNoleThreads<T>(
   ctx: QueryCtx,
@@ -73,21 +124,7 @@ async function loadNoleThreads<T>(
     limit: CANVAS_THREADS_SCAN_LIMIT,
   });
 
-  const hydrated = await Promise.all(
-    (filter ? threads.filter(filter) : threads)
-      .sort(byLastActivityDesc)
-      .map(async (metadata) => {
-        const thread = await getThreadMetadata(ctx, components.agent, {
-          threadId: metadata.threadId,
-        }).catch(() => null);
-        // La ligne survit à la suppression du thread côté composant si le
-        // nettoyage a échoué : on l'ignore plutôt que d'afficher un fantôme.
-        if (!thread) return null;
-        return project(metadata, thread.title ?? null);
-      }),
-  );
-
-  return hydrated.filter((row) => row !== null);
+  return await hydrateNoleThreads(ctx, { threads, filter, project });
 }
 
 /**
@@ -260,6 +297,68 @@ export const listPendingThreads = query({
         lastActivity: metadata.lastActivity ?? null,
       }),
     }),
+});
+
+/**
+ * Les tâches en attente de revue, tous canvas confondus : ce que la home
+ * affiche sur chaque workspace.
+ *
+ * Même règle d'admission que le dock (`isDockCandidate` ici, `isPendingReview`
+ * côté client) — une tâche relue depuis un canvas doit disparaître de la home,
+ * et réciproquement.
+ *
+ * `touchedNodes` ne sort pas d'ici, seulement son compte : la home ne peut pas
+ * nommer les nodes (leurs titres vivent dans le store d'un canvas ouvert), et
+ * les envoyer serait payer un tableau pour n'en afficher que la taille.
+ *
+ * Pas de contrôle d'accès par canvas : ces threads sont ceux de l'utilisateur,
+ * l'index part de son `userId`. Un partage révoqué laisse donc des lignes qui
+ * pointent vers un canvas qu'il ne voit plus — la home ne rendant que les
+ * tâches des workspaces qu'elle liste, elles n'apparaissent nulle part.
+ */
+export const listPendingThreadsForUser = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      threadId: v.string(),
+      // Ce qui rattache la tâche à sa carte : la home groupe là-dessus.
+      canvasId: v.id("canvases"),
+      title: v.union(v.string(), v.null()),
+      // Bruts, comme pour `listPendingThreads` : c'est le client qui résout la
+      // péremption et l'admission finale.
+      runStatus: v.union(threadRunStatusValidator, v.null()),
+      runStartedAt: v.union(v.number(), v.null()),
+      runEndedAt: v.union(v.number(), v.null()),
+      reviewedAt: v.union(v.number(), v.null()),
+      touchedNodesCount: v.number(),
+      lastActivity: v.union(threadLastActivityValidator, v.null()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const authUserId = await requireAuth(ctx);
+
+    const threads = await listNoleThreadsByUser(ctx, {
+      userId: authUserId,
+      limit: USER_THREADS_SCAN_LIMIT,
+    });
+
+    return await hydrateNoleThreads(ctx, {
+      threads,
+      filter: isDockCandidate,
+      limit: USER_PENDING_HYDRATE_LIMIT,
+      project: (metadata, title) => ({
+        threadId: metadata.threadId,
+        canvasId: metadata.canvasId,
+        title,
+        runStatus: metadata.runStatus ?? null,
+        runStartedAt: metadata.runStartedAt ?? null,
+        runEndedAt: metadata.runEndedAt ?? null,
+        reviewedAt: metadata.reviewedAt ?? null,
+        touchedNodesCount: metadata.touchedNodes?.length ?? 0,
+        lastActivity: metadata.lastActivity ?? null,
+      }),
+    });
+  },
 });
 
 export const getThreadInfo = query({

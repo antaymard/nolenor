@@ -1,11 +1,9 @@
-import { Link } from "@tanstack/react-router";
 import {
   TbAlertCircle,
   TbAlertTriangle,
   TbCheck,
   TbLoader2,
 } from "react-icons/tb";
-import type { Id } from "@/../convex/_generated/dataModel";
 import { useResolvedRunStatus } from "@/hooks/useThreadRunStatus";
 import { formatDistanceToNowStrict } from "@/lib/date-utils";
 import {
@@ -28,9 +26,14 @@ import { cn } from "@/lib/utils";
  * Les cartes de la grille demandent « y a-t-il quelque chose ? » et répondent
  * d'un signe : une pastille, un compte, une date.
  *
- * Le vocabulaire visuel est celui du dock d'activité, à dessein : mêmes
- * icônes, mêmes teintes (cf. `threadRunStatus`). Une tâche vue depuis la home
- * doit se reconnaître au même coup d'œil qu'au-dessus du canvas.
+ * Rien ici n'est cliquable. Ces blocs disent où en est le travail ; c'est la
+ * carte qui les porte qui mène au canvas, et là le dock d'activité reprend les
+ * mêmes tâches en sachant, lui, ouvrir la conversation. Un raccourci direct
+ * d'ici ferait un second chemin pour un geste qui en a déjà un.
+ *
+ * Le vocabulaire visuel est celui de ce dock, à dessein : mêmes icônes, mêmes
+ * teintes (cf. `threadRunStatus`). Une tâche vue depuis la home doit se
+ * reconnaître au même coup d'œil qu'au-dessus du canvas.
  *
  * Aucun libellé d'état n'est écrit : la couleur et l'icône le disent, et la
  * home parle anglais quand le vocabulaire des tâches, lui, est français.
@@ -77,36 +80,26 @@ function formatTaskAge(task: HomePendingThread): string | null {
 }
 
 /**
- * Une tâche en attente, en une ligne cliquable : elle ouvre le canvas sur cette
- * conversation-là (cf. le param `?thread=`, consommé par `useCanvasBootstrap`).
+ * Une tâche en attente, en une ligne.
+ *
+ * Pas de lien propre : la carte entière mène au canvas, où le dock d'activité
+ * reprend ces mêmes tâches et sait, lui, ouvrir la conversation. Un raccourci
+ * vers un thread précis ferait un second chemin pour le même geste.
  *
  * Composant à part entière, et non une ligne rendue en boucle, pour que chaque
  * tâche ait sa propre minuterie de péremption (`useResolvedRunStatus`) — un
  * `running` qu'on a cessé de croire doit virer à l'ambre tout seul.
  */
-function PendingTaskRow({
-  canvasId,
-  task,
-}: {
-  canvasId: Id<"canvases">;
-  task: HomePendingThread;
-}) {
+function PendingTaskRow({ task }: { task: HomePendingThread }) {
   const status = useResolvedRunStatus(task);
   const age = formatTaskAge(task);
   const activity = task.lastActivity?.text;
   const nodeCount = task.touchedNodesCount;
 
   return (
-    <Link
-      to="/canvas/$canvasId"
-      params={{ canvasId }}
-      search={{ thread: task.threadId }}
-      // `relative z-10` : la carte de reprise porte un lien étiré sur toute sa
-      // surface, qu'il faut repasser devant, sinon le clic ouvre le canvas sans
-      // la conversation.
+    <div
       className={cn(
-        "relative z-10 flex items-center gap-2.5 rounded-lg border bg-white px-3 py-2",
-        "transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--brand)",
+        "flex items-center gap-2.5 rounded-lg border bg-white px-3 py-2",
         RUN_STATUS_BORDER[status],
       )}
     >
@@ -136,20 +129,14 @@ function PendingTaskRow({
           {age}
         </span>
       )}
-    </Link>
+    </div>
   );
 }
 
 /**
  * Le détail : une ligne par tâche, pour la carte de reprise.
  */
-export function PendingTaskList({
-  canvasId,
-  tasks,
-}: {
-  canvasId: Id<"canvases">;
-  tasks: HomePendingThread[];
-}) {
+export function PendingTaskList({ tasks }: { tasks: HomePendingThread[] }) {
   if (tasks.length === 0) return null;
 
   const visible = tasks.slice(0, MAX_VISIBLE_TASKS);
@@ -164,7 +151,7 @@ export function PendingTaskList({
       </p>
 
       {visible.map((task) => (
-        <PendingTaskRow key={task.threadId} canvasId={canvasId} task={task} />
+        <PendingTaskRow key={task.threadId} task={task} />
       ))}
 
       {hidden > 0 && (

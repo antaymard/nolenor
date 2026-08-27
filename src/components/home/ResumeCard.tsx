@@ -24,18 +24,11 @@ interface ResumeCardProps {
  */
 export default function ResumeCard({ canvas, pendingTasks }: ResumeCardProps) {
   return (
-    // Lien étiré plutôt que carte enroulée dans un lien, depuis que les tâches
-    // en attente s'affichent ici : chacune est un lien vers sa conversation, et
-    // un <a> dans un <a> n'est pas du HTML valide (même raison que
-    // `WorkspaceCard` avec son menu).
-    <div className="group relative flex flex-col rounded-xl border border-gray-200 bg-white p-5 transition-colors hover:border-(--brand)/40 hover:bg-gray-50/60">
-      <Link
-        to="/canvas/$canvasId"
-        params={{ canvasId: canvas._id }}
-        className="absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--brand)"
-        aria-label={`Open ${canvas.name}`}
-      />
-
+    <Link
+      to="/canvas/$canvasId"
+      params={{ canvasId: canvas._id }}
+      className="group flex flex-col rounded-xl border border-gray-200 bg-white p-5 transition-colors hover:border-(--brand)/40 hover:bg-gray-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--brand)"
+    >
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs font-medium tracking-wide text-(--brand) uppercase">
@@ -58,11 +51,14 @@ export default function ResumeCard({ canvas, pendingTasks }: ResumeCardProps) {
         </span>
       </div>
 
+      {/* Dans le lien, et non à côté : les lignes ne sont que de l'affichage,
+          et le seul geste de la carte reste d'ouvrir le canvas — où le dock
+          d'activité reprend ces tâches et sait les ouvrir une à une. */}
       {pendingTasks.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
-          <PendingTaskList canvasId={canvas._id} tasks={pendingTasks} />
+          <PendingTaskList tasks={pendingTasks} />
         </div>
       )}
-    </div>
+    </Link>
   );
 }

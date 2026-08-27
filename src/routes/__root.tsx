@@ -21,19 +21,12 @@ export interface RouterContext {
   convex: ConvexReactClient;
 }
 
-// Params de recherche globaux, déclarés ici plutôt que sur chaque route parce
-// qu'ils sont posés depuis un écran et lus depuis un autre. Tolérés partout,
-// ignorés par les routes qui n'en font rien.
-//
-// `template` vaut un id de template, ou "new" pour une création : l'éditeur
-// s'ouvre depuis le canvas comme depuis les settings.
-//
-// `thread` désigne une conversation Nolë à ouvrir en arrivant sur un canvas.
-// C'est ce qui rend cliquables les tâches en attente de la home, qui ne
-// connaît que des URL — et un lien vers une conversation précise se partage.
+// Param de recherche global : l'éditeur de template s'ouvre depuis le canvas
+// comme depuis les settings, donc son schéma est déclaré ici plutôt que sur
+// chaque route. `template` vaut un id de template, ou "new" pour une
+// création. Toléré partout, ignoré par les routes qui n'en font rien.
 const rootSearchSchema = z.object({
   template: z.string().optional(),
-  thread: z.string().optional(),
 });
 
 export const Route = createRootRoute({

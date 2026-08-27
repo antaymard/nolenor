@@ -14,7 +14,7 @@ import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useWindowsStore } from "@/stores/windowsStore";
-import { useIframeCtrlOverlay } from "@/hooks/useIframeCtrlOverlay";
+import IframeInteractionGate from "../IframeInteractionGate";
 import { colors } from "@/components/ui/styles";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
@@ -120,7 +120,6 @@ function EmbedNode(xyNode: XyNodeProps) {
   const embedValue = values?.embed as EmbedValueType | undefined;
   const isTitleVariant = xyNode.data.variant === "title";
   const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];
-  const { showOverlay, onMouseEnter, onMouseLeave } = useIframeCtrlOverlay();
 
   const Icon = NODE_TYPE_ICON_MAP.embed;
 
@@ -244,10 +243,11 @@ function EmbedNode(xyNode: XyNodeProps) {
                 <TbRefresh size={14} />
               </button>
             </div>
-            <div
-              className="relative flex-1 min-h-0"
-              onMouseEnter={onMouseEnter}
-              onMouseLeave={onMouseLeave}
+            <IframeInteractionGate
+              className="flex-1 min-h-0"
+              isNodeSelected={!!xyNode.selected}
+              isNodeDragging={!!xyNode.dragging}
+              label="Click to interact"
             >
               <iframe
                 key={refreshKey}
@@ -258,8 +258,7 @@ function EmbedNode(xyNode: XyNodeProps) {
                 allowFullScreen
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
               />
-              {showOverlay && <div className="absolute inset-0" />}
-            </div>
+            </IframeInteractionGate>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground select-none">

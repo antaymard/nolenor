@@ -15,6 +15,7 @@ import { AppErrorBoundary } from "./components/ui/AppErrorBoundary";
 import { initAnalytics } from "./lib/analytics";
 import { installGlobalErrorHandlers } from "./lib/globalErrorHandlers";
 import { installAppUpdateHandlers } from "./lib/appUpdate";
+import { installBrowserZoomGuard } from "./lib/browserZoomGuard";
 
 // Avant tout le reste : une erreur au montage doit déjà être capturée.
 initAnalytics();
@@ -22,6 +23,9 @@ installGlobalErrorHandlers();
 // Idem : un chunk manquant peut faire échouer le tout premier `import()` de la
 // route, donc la récupération doit être armée avant le render.
 installAppUpdateHandlers();
+// Le zoom natif du navigateur n'a aucun sens dans une app canvas : on le
+// neutralise avant le render pour qu'aucune surface ne puisse y échapper.
+installBrowserZoomGuard();
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 

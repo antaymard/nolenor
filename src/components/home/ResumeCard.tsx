@@ -2,6 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { TbArrowRight } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { formatDistanceToNow } from "@/lib/date-utils";
+import type { HomePendingThread } from "@/lib/threadRunStatus";
+import { PendingTaskList } from "./PendingTasks";
 
 interface ResumeCardProps {
   canvas: {
@@ -11,36 +13,52 @@ interface ResumeCardProps {
     updatedAt: number;
     nodeCount: number;
   };
+  /** Ce que Nolë y a laissé en plan. Le détail vit ici et nulle part ailleurs
+   *  sur la page : c'est la carte où l'on reprend le travail. */
+  pendingTasks: HomePendingThread[];
 }
 
 /**
  * Le raccourci vers le dernier canvas touché — ce que `/` faisait
  * automatiquement avant d'être une page. On le propose au lieu de l'imposer.
  */
-export default function ResumeCard({ canvas }: ResumeCardProps) {
+export default function ResumeCard({ canvas, pendingTasks }: ResumeCardProps) {
   return (
     <Link
       to="/canvas/$canvasId"
       params={{ canvasId: canvas._id }}
-      className="group flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-5 transition-colors hover:border-(--brand)/40 hover:bg-gray-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--brand)"
+      className="group flex flex-col rounded-xl border border-gray-200 bg-white p-5 transition-colors hover:border-(--brand)/40 hover:bg-gray-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--brand)"
     >
-      <div className="min-w-0">
-        <p className="text-xs font-medium tracking-wide text-(--brand) uppercase">
-          Pick up where you left off
-        </p>
-        <h2 className="mt-1 truncate text-lg font-semibold text-gray-900">
-          {canvas.name}
-        </h2>
-        <p className="mt-0.5 truncate text-sm text-gray-500">
-          {canvas.nodeCount} {canvas.nodeCount === 1 ? "block" : "blocks"} ·
-          edited{" "}
-          {formatDistanceToNow(new Date(canvas.updatedAt), { addSuffix: true })}
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium tracking-wide text-(--brand) uppercase">
+            Pick up where you left off
+          </p>
+          <h2 className="mt-1 truncate text-lg font-semibold text-gray-900">
+            {canvas.name}
+          </h2>
+          <p className="mt-0.5 truncate text-sm text-gray-500">
+            {canvas.nodeCount} {canvas.nodeCount === 1 ? "block" : "blocks"} ·
+            edited{" "}
+            {formatDistanceToNow(new Date(canvas.updatedAt), {
+              addSuffix: true,
+            })}
+          </p>
+        </div>
+
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors group-hover:bg-(--brand) group-hover:text-white">
+          <TbArrowRight size={18} />
+        </span>
       </div>
 
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors group-hover:bg-(--brand) group-hover:text-white">
-        <TbArrowRight size={18} />
-      </span>
+      {/* Dans le lien, et non à côté : les lignes ne sont que de l'affichage,
+          et le seul geste de la carte reste d'ouvrir le canvas — où le dock
+          d'activité reprend ces tâches et sait les ouvrir une à une. */}
+      {pendingTasks.length > 0 && (
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <PendingTaskList tasks={pendingTasks} />
+        </div>
+      )}
     </Link>
   );
 }

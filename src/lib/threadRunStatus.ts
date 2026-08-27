@@ -98,6 +98,26 @@ export const RUN_STATUS_APPEARANCE: Record<
 };
 
 /**
+ * La bordure d'un bloc de tâche, par statut.
+ *
+ * Vit ici plutôt que dans `TaskCard` depuis que la home affiche elle aussi des
+ * tâches : le dock et la home doivent se teinter de la même façon, et deux
+ * tables qui divergent, c'est un même « terminé » vert d'un côté, émeraude de
+ * l'autre.
+ *
+ * Le bloc reste blanc quel que soit son état, seule sa bordure prend la teinte
+ * (cf. `TaskCard` : un fond coloré noyait le halo du run et rendait un dock de
+ * trois blocs très bruyant).
+ */
+export const RUN_STATUS_BORDER: Record<ResolvedRunStatus, string> = {
+  running: "border-violet-200",
+  idle: "border-emerald-200",
+  error: "border-red-200",
+  aborted: "border-amber-200",
+  stale: "border-amber-200",
+};
+
+/**
  * `idle` n'a pas d'apparence : l'absence de pastille dit « rien en cours »
  * mieux qu'une pastille grise permanente, qui deviendrait du bruit.
  */
@@ -233,6 +253,60 @@ export function getDockStatusAppearance(
 export type PendingThread = FunctionReturnType<
   typeof api.threads.listPendingThreads
 >[number];
+
+/**
+ * Une tâche telle que la home la reçoit : rattachée à son canvas, et sans le
+ * détail des nodes touchés — hors d'un canvas ouvert, leurs titres sont
+ * inaccessibles (cf. `threads.listPendingThreadsForUser`).
+ */
+export type HomePendingThread = FunctionReturnType<
+  typeof api.threads.listPendingThreadsForUser
+>[number];
+
+/**
+ * Ordre d'urgence des statuts : ce qui a besoin de l'utilisateur d'abord.
+ *
+ * Sert là où plusieurs tâches doivent tenir en un seul signe — la pastille de
+ * carte, sur la home. Un échec l'emporte sur le reste : c'est la seule tâche
+ * qui demande une décision. Le travail en cours vient après ce qui a mal
+ * tourné, mais avant ce qui s'est bien passé : il est vivant, on peut aller le
+ * regarder.
+ */
+const RUN_STATUS_URGENCY: Record<ResolvedRunStatus, number> = {
+  error: 4,
+  stale: 3,
+  aborted: 3,
+  running: 2,
+  idle: 1,
+};
+
+/**
+ * Le statut qui parle pour tout un lot de tâches : le plus urgent d'entre eux.
+ *
+ * `idle` quand le lot est vide — l'appelant n'affiche alors rien, et n'a pas à
+ * démêler un `null` de plus.
+ */
+export function pickDominantRunStatus(
+  statuses: readonly ResolvedRunStatus[],
+): ResolvedRunStatus {
+  return statuses.reduce<ResolvedRunStatus>(
+    (worst, status) =>
+      RUN_STATUS_URGENCY[status] > RUN_STATUS_URGENCY[worst] ? status : worst,
+    "idle",
+  );
+}
+
+/**
+ * L'instant que la home date : la fin du tour, ou son départ à défaut.
+ *
+ * Un tour en cours n'a pas de fin, et un `stale` n'en aura jamais — personne ne
+ * conclura ce tour-là. Les dater par leur départ vaut mieux que de ne pas les
+ * dater : « lancé il y a trois heures » est précisément ce qui donne envie
+ * d'aller voir.
+ */
+export function runTimeAnchor(fields: ThreadDockFields): number | null {
+  return fields.runEndedAt ?? fields.runStartedAt ?? null;
+}
 
 /**
  * La durée d'un tour, en une poignée de caractères.

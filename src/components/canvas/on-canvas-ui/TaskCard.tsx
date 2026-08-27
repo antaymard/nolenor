@@ -7,29 +7,16 @@ import {
   useResolvedRunStatus,
   useRunDuration,
 } from "@/hooks/useThreadRunStatus";
-import type { PendingThread, ResolvedRunStatus } from "@/lib/threadRunStatus";
+import {
+  RUN_STATUS_BORDER,
+  type PendingThread,
+  type ResolvedRunStatus,
+} from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
 import TaskNodePills from "./TaskNodePills";
 
 /** Rayon du bloc, partagé avec le halo pour que les deux arrondis coïncident. */
 const CARD_RADIUS_PX = 12;
-
-/**
- * Le bloc est blanc quel que soit son état, et seule sa bordure se teinte.
- *
- * Un fond coloré était l'idée de départ ; à l'écran il noyait le halo, qui est
- * de la même famille de violets, et rendait un dock de trois blocs très
- * bruyant. Le blanc est aussi ce qui fait exister le halo — c'est déjà pourquoi
- * `ComposerShell` pose une carte blanche sous le sien. L'état se lit à
- * l'indicateur, à gauche, où l'œil va d'abord.
- */
-const CARD_BORDER: Record<ResolvedRunStatus, string> = {
-  running: "border-violet-200",
-  idle: "border-emerald-200",
-  error: "border-red-200",
-  aborted: "border-amber-200",
-  stale: "border-amber-200",
-};
 
 /**
  * Une tâche Nolë, en un bloc. Le même au dock et sur le canvas.
@@ -86,7 +73,13 @@ export default function TaskCard({
         // Le halo, quand il est là, rogne l'ombre d'un enfant : elle passe sur
         // son wrapper (cf. `ComposerShell`), pas ici.
         !isRunning && "shadow-sm",
-        CARD_BORDER[status],
+        // Le bloc est blanc quel que soit son état, et seule sa bordure se
+        // teinte. Un fond coloré était l'idée de départ ; à l'écran il noyait le
+        // halo, qui est de la même famille de violets, et rendait un dock de
+        // trois blocs très bruyant. Le blanc est aussi ce qui fait exister le
+        // halo — c'est déjà pourquoi `ComposerShell` pose une carte blanche sous
+        // le sien. L'état se lit à l'indicateur, à gauche, où l'œil va d'abord.
+        RUN_STATUS_BORDER[status],
       )}
     >
       <TaskStatusIndicator status={status} />

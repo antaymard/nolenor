@@ -46,7 +46,7 @@ const BLOCK_ID_FIELD = (what: string) =>
  * differs between insert and replace.
  */
 const XML_PAYLOAD_HINT = (shape: string) =>
-  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from read_nodes output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Nom | Rôle |\n| --- | --- |\n| Alice | Dev |</block>`;
+  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from read_nodes output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Name | Role |\n| --- | --- |\n| Alice | Dev |</block>`;
 
 // ── Shared execution path ───────────────────────────────────────────────────
 //

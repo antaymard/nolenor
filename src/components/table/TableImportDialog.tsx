@@ -264,7 +264,7 @@ export function TableImportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TbFileSpreadsheet />
-            Importer un CSV
+            Import CSV
           </DialogTitle>
           <DialogDescription>
             {!parsed
@@ -314,7 +314,7 @@ export function TableImportDialog({
               mappings.every((m) => m.target === TARGET_SKIP)
             }
           >
-            Importer {parsed ? `(${parsed.rows.length} lignes)` : ""}
+            Import {parsed ? `(${parsed.rows.length} lines)` : ""}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -267,6 +267,16 @@
   cursor: default !important;
 }
 
+/* NodeToolbar se pose à `zIndex = max(z des nodes sélectionnés) + 1` et se
+   portalise dans `.react-flow__renderer`, en frère de `.react-flow__viewport`
+   (z-index: 2). Avec `elevateNodesOnSelect={false}` (cf. CanvasFlow), le +1000
+   de la sélection disparaît : la toolbar du node du fond retomberait à 1, donc
+   sous le viewport, donc invisible. 1001 est exactement la valeur qu'elle avait
+   avant. `!important` parce que React Flow écrit le z en style inline. */
+.react-flow__node-toolbar {
+  z-index: 1001 !important;
+}
+
 /* LinkNode preview: masquer la description quand le noeud est petit */
 .link-preview-container {
   container-type: size;

@@ -203,6 +203,11 @@ export default function CanvasFlow({
         minZoom={0.1}
         maxZoom={4}
         selectNodesOnDrag={false}
+        // Sans ça React Flow ajoute +1000 au z d'un node sélectionné : le
+        // "send to back" ne se verrait pas tant que le node reste sélectionné.
+        // La sélection reste signalée par le ring de NodeFrame, qui ne dépend
+        // pas du z. Cf. l'override de .react-flow__node-toolbar dans index.css.
+        elevateNodesOnSelect={false}
         selectionMode={SelectionMode.Partial}
         selectionOnDrag={!panWithFinger}
         // Tactile : draggable est accordé node par node via withTouchDragGate.

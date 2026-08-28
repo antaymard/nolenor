@@ -9,6 +9,7 @@ import { getDefaultValuesForTemplate } from "@/../convex/config/fieldConfig";
 import { generateLlmId } from "@/../convex/lib/llmId";
 import { useParams } from "@tanstack/react-router";
 import { useTemplatesStore } from "@/stores/templatesStore";
+import { nextTopZIndex } from "@/lib/nodeLayering";
 
 type CreateNodeOptions = {
   node: Node;
@@ -22,7 +23,7 @@ type CreateNodeResult = {
 };
 
 export function useCreateNode() {
-  const { addNodes, setNodes } = useReactFlow();
+  const { addNodes, getNodes, setNodes } = useReactFlow();
   const createNodeData = useMutation(api.nodeDatas.create);
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
@@ -68,6 +69,10 @@ export function useCreateNode() {
       id: nodeId,
       position,
       selected: true,
+      // Un node sans zIndex vaut 0, donc le fond de la pile dès qu'une commande
+      // de plan a renuméroté le canvas. On le pose explicitement au-dessus pour
+      // garder le "le dernier créé est au-dessus".
+      zIndex: nextTopZIndex(getNodes()),
       // Add measured dimensions if width/height are known to prevent
       // React Flow from triggering a dimension change event after adding
       ...(node.width &&

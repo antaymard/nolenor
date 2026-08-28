@@ -30,10 +30,13 @@ import {
   TbLayoutBoardSplit,
   TbPalette,
   TbSpaces,
+  TbStack2,
 } from "react-icons/tb";
 import { useOwnsTemplate } from "@/stores/templatesStore";
 import { useTemplateEditor } from "@/hooks/useTemplateEditor";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
+import { useNodeLayering } from "@/hooks/useNodeLayering";
+import { LAYER_COMMANDS } from "@/lib/nodeLayering";
 import { useState } from "react";
 import type { IconType } from "react-icons";
 import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
@@ -67,6 +70,7 @@ export default function NodeContextMenu({
   const { deleteElements, updateNode } = useReactFlow();
   const { duplicateNode } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
+  const { applyLayerCommand } = useNodeLayering();
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
   });
@@ -166,6 +170,16 @@ export default function NodeContextMenu({
           ))}
         </div>
       ),
+    },
+    {
+      label: "Layer",
+      icon: TbStack2,
+      subMenu: LAYER_COMMANDS.map(({ command, label }) => ({
+        label,
+        onClick: () => {
+          applyLayerCommand(command, [xyNode.id]);
+        },
+      })),
     },
     {
       hidden: !templateId || !ownsTemplate || !SHOW_DEV_ONLY_SETTINGS,

@@ -126,7 +126,9 @@ export default function ChatInput({
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            {hasDirtyWindows && <DirtyWindowsBadge count={dirtyNodeIds.length} />}
+            {hasDirtyWindows && (
+              <DirtyWindowsBadge count={dirtyNodeIds.length} />
+            )}
             <SendStopButton
               canSend={canSend}
               onSend={onSend}
@@ -156,7 +158,7 @@ function MicStatus({
     return (
       <span className="flex items-center gap-1.5 text-xs text-red-500">
         <SoundWaveAnimation level={level} />
-        <span>Écoute…</span>
+        <span>Listening...</span>
       </span>
     );
   }

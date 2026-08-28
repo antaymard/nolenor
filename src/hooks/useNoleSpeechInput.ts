@@ -1,12 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { useNoleStore } from "@/stores/noleStore";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { useNoleLiveTranscription } from "@/hooks/useNoleLiveTranscription";
 
@@ -41,10 +35,13 @@ const LIVE_COOLDOWN_MS = 60_000;
  * `startSTT` / `stopSTT` ont une identité STABLE (le statut live évolue en cours
  * de session, mais on ne veut pas re-binder `usePushToTalk` en plein appui).
  */
-export function useNoleSpeechInput(
-  userInput: string,
-  setUserInput: Dispatch<SetStateAction<string>>,
-) {
+export function useNoleSpeechInput() {
+  // Le brouillon vit dans le store Nolë : la dictée l'écrit ici, et le lit à
+  // l'appui sur le micro (cf. `startSTT`). Le passer en argument depuis
+  // `useNoleChat` n'apporterait rien — l'action zustand a déjà une identité
+  // stable, et le getter vient de toute façon du store.
+  const setUserInput = useNoleStore((state) => state.setUserInput);
+
   // --- Moteur live (streaming) -------------------------------------------
   const baseRef = useRef("");
   const liveDisabledUntilRef = useRef(0);
@@ -106,8 +103,6 @@ export function useNoleSpeechInput(
 
   // Refs "latest" : startSTT/stopSTT restent stables tout en appelant la version
   // courante des moteurs.
-  const userInputRef = useRef(userInput);
-  userInputRef.current = userInput;
   const useLiveRef = useRef(useLive);
   useLiveRef.current = useLive;
   const liveStartRef = useRef(live.start);
@@ -127,7 +122,10 @@ export function useNoleSpeechInput(
     activeEngineRef.current = engine;
     setActiveEngine(engine);
     if (engine === "live") {
-      baseRef.current = userInputRef.current;
+      // Lecture ponctuelle à l'appui (pas un rendu) : `getState()` garde
+      // `startSTT` stable, ce qu'exige `usePushToTalk` — il ne doit pas se
+      // re-binder en plein appui.
+      baseRef.current = useNoleStore.getState().userInput;
       await liveStartRef.current();
     } else {
       await batchStartRef.current();

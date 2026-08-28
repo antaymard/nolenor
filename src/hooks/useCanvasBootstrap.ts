@@ -44,6 +44,10 @@ export function useCanvasBootstrap(
     // celui du panneau, qui se monte et se démonte à chaque ouverture — s'y
     // accrocher effaçait la sélection à l'instant même où on l'ouvrait.
     useNoleStore.getState().setActiveThreadId(null);
+    // Le brouillon du composer vit dans le store depuis qu'il ne doit plus
+    // re-rendre le chat à chaque frappe : sans ce nettoyage, il suivrait
+    // l'utilisateur d'un canvas à l'autre.
+    useNoleStore.getState().setUserInput("");
     setCanvas(null);
     clearNodeDatas();
     clearTemplates();

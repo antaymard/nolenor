@@ -2,6 +2,7 @@
 // canvas (dropdown de suggestions, pill sur la mention insérée).
 
 import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useNoleStore } from "@/stores/noleStore";
 import { useMemo } from "react";
 import { MentionsInput, Mention } from "react-mentions";
 import { useNodes } from "@xyflow/react";
@@ -31,8 +32,6 @@ const DEFAULT_MIN_ROWS = 1;
 const DEFAULT_MAX_ROWS = 10;
 
 interface RichTextAreaProps {
-  value: string;
-  onChange: (value: string) => void;
   onSubmit?: () => void;
   /** Hauteur au repos, en lignes de texte. */
   minRows?: number;
@@ -53,14 +52,17 @@ interface RichTextAreaProps {
  * vidée (envoi du message), sans réinitialisation explicite.
  */
 export default function RichTextArea({
-  value,
-  onChange,
   onSubmit,
   minRows = DEFAULT_MIN_ROWS,
   maxRows = DEFAULT_MAX_ROWS,
   placeholder = "Ask Nolë, @ to mention a node",
   autoFocus = true,
 }: RichTextAreaProps) {
+  // Le brouillon est lu ici et pas plus haut : c'est le seul composant qui a
+  // besoin du texte lui-même, donc le seul qui doive re-rendre à chaque
+  // caractère. Le reste du composer se contente de `useHasUserInput`.
+  const value = useNoleStore((state) => state.userInput);
+  const onChange = useNoleStore((state) => state.setUserInput);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
   const canvasNodes = useNodes();
 

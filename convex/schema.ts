@@ -147,7 +147,12 @@ const schema = defineSchema({
   // ============================================================================
   messageMetadata: defineTable(messageMetadataValidator)
     .index("by_messageId", ["messageId"])
-    .index("by_threadId", ["threadId"]),
+    .index("by_threadId", ["threadId"])
+    // Le badge de stats ne veut que la dernière ligne assistant du thread
+    // (modèle et fenêtre de contexte courants). Sans `role` dans la clé, il
+    // fallait collecter tout l'historique pour la trouver — et donc le relire
+    // à chaque patch d'usage, soit une fois par step LLM.
+    .index("by_threadId_and_role", ["threadId", "role"]),
   threadMetadata: defineTable(threadMetadataValidator)
     .index("by_threadId", ["threadId"])
     // `agentName` est dans la clé pour que les listings de conversations ne

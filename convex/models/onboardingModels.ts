@@ -70,6 +70,10 @@ export async function provisionStarterCanvasesForUser(
   // Rien de configuré, ou aucun id résolvable : repli sur un canvas vide,
   // comme avant la feature. Le signup ne doit jamais échouer faute de
   // canvases de démarrage.
+  //
+  // Volontairement SANS `isSystem` : ce canvas ne porte aucun contenu système,
+  // c'est un workspace vide identique à celui qu'on obtient en cliquant
+  // « Create a workspace ». Le badger induirait l'UI en erreur.
   if (created.length === 0) {
     created.push(
       await CanvasModels.createCanvasForUser(ctx, {
@@ -147,7 +151,11 @@ async function cloneCanvasForUser(
       survivingNodeIds.has(edge.source) && survivingNodeIds.has(edge.target),
   );
 
-  const patch: Partial<Doc<"canvases">> = { edges: clonedEdges, updatedAt };
+  const patch: Partial<Doc<"canvases">> = {
+    edges: clonedEdges,
+    updatedAt,
+    isSystem: true,
+  };
   if (source.hotspots) patch.hotspots = source.hotspots;
   if (source.slideshows) patch.slideshows = source.slideshows;
 

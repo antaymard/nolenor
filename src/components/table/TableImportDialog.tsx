@@ -148,7 +148,7 @@ export function TableImportDialog({
         setMappings(initial);
       } catch (err) {
         setParseError(
-          err instanceof Error ? err.message : "Erreur de lecture du fichier.",
+          err instanceof Error ? err.message : "Could not read the file",
         );
       }
     },

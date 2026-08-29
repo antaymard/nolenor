@@ -50,7 +50,7 @@ export function AssistantMessage({
         )}
 
         {isFailed && (
-          <ErrorInline message={messageError || "Une erreur est survenue."} />
+          <ErrorInline message={messageError || "An error occured."} />
         )}
 
         {!isProcessing && metadata?.model ? (

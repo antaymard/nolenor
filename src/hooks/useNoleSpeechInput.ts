@@ -48,7 +48,7 @@ export function useNoleSpeechInput() {
   const live = useNoleLiveTranscription({
     onDone: ({ text }) => {
       if (text) setUserInput(appendText(baseRef.current, text));
-      else toast("Aucune parole détectée.", TOAST_POSITION);
+      else toast("No speech detected.", TOAST_POSITION);
     },
     onError: (error) => {
       console.error("Live transcription error:", error.code, error.message);
@@ -84,7 +84,7 @@ export function useNoleSpeechInput() {
   const onBatchTranscript = useCallback(
     (text: string) => {
       if (text) setUserInput((prev) => appendText(prev, text));
-      else toast("Aucune parole détectée.", TOAST_POSITION);
+      else toast("No speech detected.", TOAST_POSITION);
     },
     [setUserInput],
   );

@@ -64,8 +64,8 @@ export function getToolFallbackLabel(
   state: ToolPartState,
   name: string,
 ): string {
-  if (state === "input-streaming") return `Tool en cours: ${name}`;
-  if (state === "output-error") return `Tool en erreur: ${name}`;
+  if (state === "input-streaming") return `Using tool: ${name}`;
+  if (state === "output-error") return `Error using tool: ${name}`;
   return `Tool execute: ${name}`;
 }
 

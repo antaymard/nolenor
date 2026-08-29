@@ -75,6 +75,7 @@ export default function MobileCanvasToolbar({
           <AddBlockMenuContent
             getCreatePosition={getCreatePosition}
             onCreated={() => setIsAddMenuOpen(false)}
+            showShortcuts={false}
           />
         </DropdownMenuContent>
       </DropdownMenu>

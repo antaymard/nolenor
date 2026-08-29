@@ -6,6 +6,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/shadcn/dropdown-menu";
+import { Kbd } from "@/components/shadcn/kbd";
 import { useCreateNode } from "@/hooks/useCreateNode";
 import prebuiltNodesConfig, {
   canNodeTypeBeCreated,
@@ -17,9 +18,12 @@ import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 export default function AddBlockMenuContent({
   getCreatePosition,
   onCreated,
+  showShortcuts = true,
 }: {
   getCreatePosition: () => { x: number; y: number };
   onCreated?: () => void;
+  /** Faux sur les surfaces tactiles : un hint clavier n'y mène nulle part. */
+  showShortcuts?: boolean;
 }) {
   const { createNode } = useCreateNode();
   const navigate = useNavigate();
@@ -63,6 +67,9 @@ export default function AddBlockMenuContent({
               }}
             >
               <Icon /> {nodeConfig.label}
+              {showShortcuts && nodeConfig.creationShortcut && (
+                <Kbd className="ml-auto">{nodeConfig.creationShortcut}</Kbd>
+              )}
             </DropdownMenuItem>
           );
         })}

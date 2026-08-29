@@ -129,6 +129,7 @@ export function useCreateNodeHotkeys({
           x: point.x - (nodeToCreate.width ?? 0) / 2,
           y: point.y - (nodeToCreate.height ?? 0) / 2,
         },
+        autoEdit: true,
       }).finally(() => {
         isCreatingRef.current = false;
       });

@@ -59,11 +59,17 @@ export default function AddBlockMenuContent({
                     nodeConfig.variants.default.defaultWidth;
                 }
 
+                // Fermer AVANT de créer : Radix rend le focus à son trigger
+                // en se fermant, ce qui volerait le curseur au titre qui
+                // s'ouvre en édition (cf. `autoEdit`). La fermeture part donc
+                // tout de suite, la création la suit — et le menu ne reste
+                // plus ouvert le temps de l'aller-retour Convex.
+                onCreated?.();
                 await createNode({
                   node: nodeToCreate,
                   position: getCreatePosition(),
+                  autoEdit: true,
                 });
-                onCreated?.();
               }}
             >
               <Icon /> {nodeConfig.label}
@@ -91,6 +97,7 @@ export default function AddBlockMenuContent({
                 key={template._id}
                 className="w-48"
                 onClick={async () => {
+                  onCreated?.();
                   await createNode({
                     node: {
                       id: "",
@@ -105,7 +112,6 @@ export default function AddBlockMenuContent({
                     },
                     position: getCreatePosition(),
                   });
-                  onCreated?.();
                 }}
               >
                 <Icon /> {template.name}

@@ -31,6 +31,62 @@ export function getNodeDataId(
 }
 
 /**
+ * Le `nodeDataId` d'un node désigné par son id React Flow.
+ *
+ * Sélecteur ciblé plutôt qu'un `useStore((s) => s.nodes)` suivi d'un `.find()`
+ * dans le corps du composant : `state.nodes` change de référence à chaque frame
+ * de drag, donc chaque instance se re-rendait et rebalayait la liste — O(N×M)
+ * par frame pour M cartes de mention ou M cellules `node`. Ici le sélecteur
+ * rend une chaîne, stable tant que ce node précis ne change pas.
+ */
+export function useNodeDataIdOf(
+  nodeId: string | undefined,
+): Id<"nodeDatas"> | undefined {
+  return useStore(
+    useCallback(
+      (state) => {
+        if (!nodeId) return undefined;
+        return getNodeDataId(
+          state.nodes.find((node) => node.id === nodeId) as NodeIdentityLike,
+        );
+      },
+      [nodeId],
+    ),
+  );
+}
+
+/**
+ * Deux Sets portent-ils les mêmes éléments ?
+ *
+ * Même rôle que `haveSameEntries` ci-dessous, pour `useExistingNodeIds`.
+ */
+function haveSameMembers<T>(a: Set<T>, b: Set<T>): boolean {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  for (const value of a) {
+    if (!b.has(value)) return false;
+  }
+  return true;
+}
+
+/**
+ * Les ids React Flow de tous les nodes vivants du canvas.
+ *
+ * Rend un `Set` — les appelants ne font que des tests d'appartenance — et,
+ * surtout, passe par `haveSameMembers`. Sans comparateur, le sélecteur rendrait
+ * une collection neuve à chaque tick du store et l'appelant se re-rendrait à
+ * **chaque frame de pan et de drag** : c'était le cas de `WindowsContainer`
+ * (qui re-rendait alors toutes les fenêtres ouvertes) et de
+ * `MinimizedWindowsStack`, tous deux sur un `state.nodes.map((n) => n.id)` nu.
+ */
+export function useExistingNodeIds(): ReadonlySet<string> {
+  return useStore(
+    useCallback((state) => new Set(state.nodes.map((node) => node.id)), []),
+    haveSameMembers,
+  );
+}
+
+/**
  * Deux Maps portent-elles les mêmes correspondances ?
  *
  * Le sélecteur ci-dessous rend une Map neuve à chaque tick du store : sans
@@ -50,7 +106,8 @@ function haveSameEntries<K, V>(a: Map<K, V>, b: Map<K, V>): boolean {
  *
  * Les absents ne sont pas dans la Map : un node supprimé depuis que le thread
  * l'a touché n'est plus navigable, et c'est à l'appelant d'en tirer les
- * conséquences — comme `MinimizedWindowsStack` le fait avec `existingNodeIds`.
+ * conséquences — comme `MinimizedWindowsStack` le fait avec
+ * `useExistingNodeIds`.
  *
  * Le sélecteur s'exécute à chaque tick du store React Flow — donc à chaque
  * frame de pan, de zoom et de drag, pas seulement quand la correspondance

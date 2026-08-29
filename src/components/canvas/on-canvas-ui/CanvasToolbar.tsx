@@ -15,8 +15,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { useCallback, useState } from "react";
-import { useViewport } from "@xyflow/react";
+import { useState } from "react";
+import { useViewportCenter } from "@/hooks/useViewportCenter";
 import AddBlockMenuContent from "../context-menus/AddBlockMenuContent";
 
 export default function CanvasToolbar({
@@ -34,17 +34,7 @@ export default function CanvasToolbar({
     (state) => state.playback.status === "playing",
   );
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  const { x: canvasX, y: canvasY, zoom: canvasZoom } = useViewport();
-
-  const getViewportCenterPosition = useCallback(() => {
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
-
-    return {
-      x: (screenWidth / 2 - canvasX) / canvasZoom,
-      y: (screenHeight / 2 - canvasY) / canvasZoom,
-    };
-  }, [canvasX, canvasY, canvasZoom]);
+  const getViewportCenterPosition = useViewportCenter();
 
   if (isPlaying) {
     return <SlideshowProgressToolbar />;

@@ -6,6 +6,7 @@ import {
   Background,
   BackgroundVariant,
   useReactFlow,
+  type Connection,
   type Edge,
 } from "@xyflow/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
@@ -187,6 +188,35 @@ export default function CanvasFlow({
     [],
   );
 
+  // Mémoïsé, et pas une arrow dans le JSX : `<ReactFlow>` repousse ses props
+  // dans le store à chaque rendu, donc une nouvelle référence par rendu ajoute
+  // une notification du store — donc un tour de tous les sélecteurs de tous les
+  // nodes. Pendant un drag, `setNodes` re-rend ce composant à chaque frame :
+  // c'était une notification de trop, par frame.
+  const onConnect = useCallback(
+    (params: Connection) => {
+      handleEdgeChange([
+        {
+          type: "add" as const,
+          item: {
+            id: generateLlmId(),
+            source: params.source,
+            target: params.target,
+            sourceHandle: params.sourceHandle ?? undefined,
+            targetHandle: params.targetHandle ?? undefined,
+            markerEnd: {
+              type: MarkerType.Arrow,
+              width: 30,
+              height: 30,
+              strokeWidth: 1,
+            },
+          },
+        },
+      ]);
+    },
+    [handleEdgeChange],
+  );
+
   return (
     <>
       {isDraggingOver && <CanvasDropOverlay />}
@@ -234,26 +264,7 @@ export default function CanvasFlow({
         edges={edgesWithColoredMarkers}
         onEdgesChange={handleEdgeChange}
         onNodesChange={handleNodeChange}
-        onConnect={(params) => {
-          handleEdgeChange([
-            {
-              type: "add" as const,
-              item: {
-                id: generateLlmId(),
-                source: params.source,
-                target: params.target,
-                sourceHandle: params.sourceHandle ?? undefined,
-                targetHandle: params.targetHandle ?? undefined,
-                markerEnd: {
-                  type: MarkerType.Arrow,
-                  width: 30,
-                  height: 30,
-                  strokeWidth: 1,
-                },
-              },
-            },
-          ]);
-        }}
+        onConnect={onConnect}
       >
         <Background
           variant={BackgroundVariant.Lines}

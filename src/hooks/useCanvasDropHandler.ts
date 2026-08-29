@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useReactFlow, useViewport, type XYPosition } from "@xyflow/react";
+import { useReactFlow, type XYPosition } from "@xyflow/react";
 import { useCanvasContentIngest } from "./useCanvasContentIngest";
+import { useViewportCenter } from "./useViewportCenter";
 
 /**
  * Les types de `DataTransfer` qu'on sait ingérer. Tout drag qui n'annonce que
@@ -39,7 +40,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
  */
 export function useCanvasDropHandler({ canEdit }: { canEdit: boolean }) {
   const { screenToFlowPosition } = useReactFlow();
-  const { x: canvasX, y: canvasY, zoom: canvasZoom } = useViewport();
+  const getViewportCenter = useViewportCenter();
   const { createNodesFromFiles, createNodeFromText } = useCanvasContentIngest();
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   // `dragenter`/`dragleave` se déclenchent à chaque passage de frontière entre
@@ -67,12 +68,9 @@ export function useCanvasDropHandler({ canEdit }: { canEdit: boolean }) {
         }
       }
 
-      return {
-        x: (window.innerWidth / 2 - canvasX) / canvasZoom,
-        y: (window.innerHeight / 2 - canvasY) / canvasZoom,
-      };
+      return getViewportCenter();
     },
-    [screenToFlowPosition, canvasX, canvasY, canvasZoom],
+    [screenToFlowPosition, getViewportCenter],
   );
 
   const shouldHandle = useCallback(

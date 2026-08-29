@@ -143,8 +143,22 @@ export const streamResponse = internalAction({
         },
         {
           saveStreamDeltas: {
-            chunking: "word", // Stream word by word
-            throttleMs: 200, // 200ms between each update
+            // Le découpage reste au mot : c'est lui qui donne le rendu « à la
+            // machine à écrire », et il ne pilote que la taille des deltas, pas
+            // leur nombre.
+            chunking: "word",
+            // La cadence d'écriture, elle, pilote le nombre de deltas — et
+            // c'est le seul terme encore quadratique du streaming : à chaque
+            // arrivée, le client retrie tout le tableau accumulé
+            // (`getParts`) et le recopie (`[...old, ...new]`). Deux fois moins
+            // d'écritures, quatre fois moins de travail sur la durée d'un tour.
+            //
+            // Invisible à l'œil : `useSmoothText` lisse l'affichage à 20 FPS en
+            // s'adaptant au débit, donc c'est lui qui décide de la fluidité, pas
+            // la cadence réseau. Et le premier delta part sans attendre — le
+            // throttle ne s'applique qu'entre deux écritures — donc le temps
+            // jusqu'au premier token ne bouge pas.
+            throttleMs: 400,
           },
         },
       );

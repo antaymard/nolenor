@@ -23,6 +23,7 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useTitleNodeSizing } from "./useTitleNodeSizing";
+import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 
 type SizingMode = "auto" | "manual";
 
@@ -121,6 +122,20 @@ function TitleNode(xyNode: XyNodeProps) {
   });
 
   // ── Edit lifecycle ──────────────────────────────────────────────────────
+  // Un node fraîchement créé à la main s'ouvre directement en édition. Le
+  // sélecteur renvoie un booléen, donc seuls les deux nodes concernés par un
+  // changement re-rendent, pas tous les titres du canvas.
+  const shouldAutoEdit = useNodeEditorStore(
+    (state) => state.editingNodeId === xyNode.id,
+  );
+  useEffect(() => {
+    if (!shouldAutoEdit) return;
+    // Consommé aussitôt : le signal ne vaut que pour ce montage, sinon revenir
+    // sur le canvas rouvrirait l'édition.
+    useNodeEditorStore.getState().setEditingNodeId(null);
+    setIsEditing(true);
+  }, [shouldAutoEdit]);
+
   // When entering edit, populate the contentEditable imperatively and focus.
   useLayoutEffect(() => {
     if (!isEditing) return;

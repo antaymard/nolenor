@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useCanvasContentIngest } from "./useCanvasContentIngest";
-import { useViewportCenter } from "./useViewportCenter";
+import { useFlowPosition } from "./useCanvasPointerPosition";
 
 const PASTE_GUARD_WINDOW_MS = 300;
 
@@ -54,7 +54,7 @@ function runWithPasteGuard(
  * et le filtre de focus.
  */
 export function useCanvasPasteHandler() {
-  const getViewportCenter = useViewportCenter();
+  const { getViewportCenter } = useFlowPosition();
   const { createNodesFromFiles, createNodeFromText } = useCanvasContentIngest();
   const focus = useCanvasStore((s) => s.focus);
   const pasteGuardRef = useRef<PasteGuardState>({

@@ -10,11 +10,19 @@ import { generateLlmId } from "@/../convex/lib/llmId";
 import { useParams } from "@tanstack/react-router";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { nextTopZIndex } from "@/lib/nodeLayering";
+import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 
 type CreateNodeOptions = {
   node: Node;
   position: { x: number; y: number };
   initialValues?: Record<string, unknown>;
+  /**
+   * Poser le curseur dans le node dès son montage. Réservé aux créations
+   * manuelles (menu « Add a block », raccourcis) : un node dupliqué ou ingéré
+   * depuis un fichier ne doit pas voler le focus. Seuls les types qui savent
+   * s'éditer sur place le consomment — aujourd'hui `title`.
+   */
+  autoEdit?: boolean;
 };
 
 type CreateNodeResult = {
@@ -33,6 +41,7 @@ export function useCreateNode() {
     node,
     position,
     initialValues = {},
+    autoEdit = false,
   }: CreateNodeOptions): Promise<CreateNodeResult> => {
     const nodeId = generateLlmId();
 
@@ -85,6 +94,10 @@ export function useCreateNode() {
         nodeDataId,
       },
     });
+
+    // Toujours écrit, y compris à `null` : sans ça, un id non consommé (type
+    // qui ne s'édite pas sur place) resterait dans le store.
+    useNodeEditorStore.getState().setEditingNodeId(autoEdit ? nodeId : null);
 
     return { nodeId, nodeDataId };
   };

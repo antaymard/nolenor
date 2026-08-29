@@ -26,6 +26,8 @@ import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useHotspotHotkeys } from "@/hooks/useHotspotHotkeys";
+import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
+import { isEditableTarget } from "@/lib/editableTarget";
 import { withTouchDragGate } from "./touchDragGate";
 import { markCanvasMoved } from "@/lib/canvasPanGesture";
 import { useCanvasStore } from "@/stores/canvasStore";
@@ -42,17 +44,6 @@ import "@xyflow/react/dist/style.css";
  *             zoom au double-clic.
  */
 export type CanvasFlowVariant = "desktop" | "touch";
-
-// Additional helper to prevent hotkeys from triggering when typing in inputs, textareas, selects or contenteditable elements
-function isEditableTarget(target: EventTarget | null): target is HTMLElement {
-  return (
-    target instanceof HTMLElement &&
-    (target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.tagName === "SELECT" ||
-      target.isContentEditable)
-  );
-}
 
 interface CanvasFlowProps {
   canvasId: Id<"canvases">;
@@ -159,6 +150,9 @@ export default function CanvasFlow({
 
   // Hotspot keyboard shortcuts (Alt+1 … Alt+9)
   useHotspotHotkeys();
+
+  // Création d'un node au curseur (T titre, B blocknote, I image, A table)
+  useCreateNodeHotkeys({ canEdit, isTouch });
 
   // Canvas nodes management
   const { nodes, handleNodeChange } = useCanvasNodes(canvasId, canvasNodes);

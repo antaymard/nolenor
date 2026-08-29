@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useReactFlow, useViewport, type XYPosition } from "@xyflow/react";
 import { useCanvasContentIngest } from "./useCanvasContentIngest";
+import { useFlowPosition } from "./useCanvasPointerPosition";
+import { isEditableTarget } from "@/lib/editableTarget";
 
 /**
  * Les types de `DataTransfer` qu'on sait ingérer. Tout drag qui n'annonce que
@@ -13,15 +14,6 @@ function carriesDroppableContent(dataTransfer: DataTransfer | null): boolean {
   if (!dataTransfer) return false;
   return ACCEPTED_TRANSFER_TYPES.some((type) =>
     dataTransfer.types.includes(type),
-  );
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.isContentEditable)
   );
 }
 
@@ -38,42 +30,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
  * Doit être appelé à l'intérieur d'un `ReactFlowProvider`.
  */
 export function useCanvasDropHandler({ canEdit }: { canEdit: boolean }) {
-  const { screenToFlowPosition } = useReactFlow();
-  const { x: canvasX, y: canvasY, zoom: canvasZoom } = useViewport();
   const { createNodesFromFiles, createNodeFromText } = useCanvasContentIngest();
+  // Le point de drop en coordonnées canvas, avec le repli sur le centre du
+  // viewport quand il tombe hors du conteneur React Flow (sidebar, panneaux
+  // flottants). Même conversion que les raccourcis de création.
+  const { toFlowPosition: getDropPosition } = useFlowPosition();
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   // `dragenter`/`dragleave` se déclenchent à chaque passage de frontière entre
   // éléments enfants : on compte les entrées pour ne masquer l'overlay qu'en
   // sortant réellement de la fenêtre.
   const dragDepthRef = useRef(0);
-
-  /**
-   * Le point de drop en coordonnées canvas. Hors du conteneur React Flow
-   * (sidebar, panneaux flottants), `screenToFlowPosition` renverrait un point
-   * hors écran : on retombe alors sur le centre du viewport.
-   */
-  const getDropPosition = useCallback(
-    (clientX: number, clientY: number): XYPosition => {
-      const pane = document.querySelector(".react-flow");
-      if (pane) {
-        const rect = pane.getBoundingClientRect();
-        const isInsidePane =
-          clientX >= rect.left &&
-          clientX <= rect.right &&
-          clientY >= rect.top &&
-          clientY <= rect.bottom;
-        if (isInsidePane) {
-          return screenToFlowPosition({ x: clientX, y: clientY });
-        }
-      }
-
-      return {
-        x: (window.innerWidth / 2 - canvasX) / canvasZoom,
-        y: (window.innerHeight / 2 - canvasY) / canvasZoom,
-      };
-    },
-    [screenToFlowPosition, canvasX, canvasY, canvasZoom],
-  );
 
   const shouldHandle = useCallback(
     (event: DragEvent): boolean => {

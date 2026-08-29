@@ -29,7 +29,7 @@
     "@blocknote/shadcn": "^0.51.3",
     "@composio/core": "^0.9.0",
     "@composio/vercel": "^0.9.0",
-    "@convex-dev/agent": "^0.6.1",
+    "@convex-dev/agent": "^0.6.4",
     "@convex-dev/auth": "^0.0.92",
     "@convex-dev/rate-limiter": "^0.3.2",
     "@dnd-kit/core": "^6.3.1",

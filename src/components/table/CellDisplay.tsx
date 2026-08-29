@@ -1,5 +1,4 @@
 import { TbCalendar, TbLink, TbNetwork } from "react-icons/tb";
-import { useStore } from "@xyflow/react";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   getNodeDataTitle,
@@ -16,7 +15,7 @@ import {
   type SelectOption,
 } from "./types";
 import { cn } from "@/lib/utils";
-import { getNodeDataId } from "@/lib/nodeIdentity";
+import { useNodeDataIdOf } from "@/lib/nodeIdentity";
 
 export interface CellDisplayProps {
   type: ColumnType;
@@ -25,15 +24,15 @@ export interface CellDisplayProps {
 }
 
 export function CellDisplay({ type, value, options }: CellDisplayProps) {
-  const nodes = useStore((state) => state.nodes);
+  const nodeVal = value as NodeCellValue | null | undefined;
+  // Appelé inconditionnellement : c'est un hook, et seule la branche `node`
+  // s'en sert. `useNodeDataIdOf(undefined)` ne lit rien.
+  const nodeDataId = useNodeDataIdOf(
+    type === "node" ? nodeVal?.nodeId : undefined,
+  );
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
 
   if (type === "node") {
-    const nodeVal = value as NodeCellValue | null | undefined;
-    const node = nodeVal?.nodeId
-      ? nodes.find((n) => n.id === nodeVal.nodeId)
-      : undefined;
-    const nodeDataId = getNodeDataId(node);
     const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
     const title = nodeData
       ? getNodeDataTitle(nodeData)

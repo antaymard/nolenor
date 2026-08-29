@@ -1,4 +1,3 @@
-import { useStore } from "@xyflow/react";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
@@ -6,7 +5,7 @@ import { getNodeDataTitle } from "@/components/utils/nodeDataDisplayUtils";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWindowsStore } from "@/stores/windowsStore";
-import { getNodeDataId } from "@/lib/nodeIdentity";
+import { useNodeDataIdOf } from "@/lib/nodeIdentity";
 
 interface MentionedNodeCardProps {
   nodeId: string;
@@ -19,17 +18,15 @@ export function MentionedNodeCard({
   inline,
   fallback,
 }: MentionedNodeCardProps) {
-  const nodes = useStore((state) => state.nodes);
+  const nodeDataId = useNodeDataIdOf(nodeId);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
   const goToNode = useGoToNode();
   const isMobile = useIsMobile();
   const openWindow = useWindowsStore((state) => state.openWindow);
 
-  const xyNode = nodes.find((n) => n.id === nodeId);
-  const nodeDataId = getNodeDataId(xyNode);
   const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
 
-  if (!xyNode || !nodeData) {
+  if (!nodeData) {
     // Pas de node correspondant : on tombe en fallback sur le texte d'origine
     // pour ne pas faire disparaître un faux positif du parseur de node IDs.
     return fallback !== undefined ? <>{fallback}</> : null;

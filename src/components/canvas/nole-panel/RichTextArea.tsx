@@ -5,14 +5,12 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useNoleStore } from "@/stores/noleStore";
 import { useMemo } from "react";
 import { MentionsInput, Mention } from "react-mentions";
-import { useNodes } from "@xyflow/react";
 import {
   getNodeDataTitle,
   getNodeIcon,
 } from "@/components/utils/nodeDataDisplayUtils";
-import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { getNodeDataId } from "@/lib/nodeIdentity";
+import { useNodeIdsByDataId } from "@/lib/nodeIdentity";
 
 /** Pastille peinte derrière une mention. Uniquement du fond : le texte lui-même
  *  est rendu par le textarea posé au-dessus, et le `box-shadow` élargit la
@@ -64,18 +62,28 @@ export default function RichTextArea({
   const value = useNoleStore((state) => state.userInput);
   const onChange = useNoleStore((state) => state.setUserInput);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
-  const canvasNodes = useNodes();
+  // `useNodeIdsByDataId` et non `useNodes()` : ce dernier rend un tableau neuf
+  // à chaque frame de drag, alors que ce hook-ci compare son résultat par
+  // contenu. Sans ça, le composer — qui se re-rend déjà à chaque caractère
+  // frappé, puisqu'il lit `userInput` — rebalayait tous les nodes du canvas à
+  // chaque frappe *et* à chaque frame de drag.
+  const nodeIdsByDataId = useNodeIdsByDataId();
 
-  const nodesToMention = canvasNodes
-    .filter((node) => node.data?.nodeDataId)
-    .map((node) => {
-      const nodeDataId = node.data.nodeDataId as Id<"nodeDatas">;
+  // Un seul balayage, mémoïsé : la liste des mentions ne dépend ni du texte en
+  // cours de saisie ni de la position des nodes.
+  const { nodesToMention, nodeTypeById } = useMemo(() => {
+    const entries: { id: string; display: string }[] = [];
+    const typeById = new Map<string, string | undefined>();
+    for (const [nodeDataId, nodeId] of nodeIdsByDataId) {
       const nodeData = nodeDatas.get(nodeDataId);
-      return {
-        id: node.id,
-        display: nodeData ? getNodeDataTitle(nodeData) : node.id,
-      };
-    });
+      entries.push({
+        id: nodeId,
+        display: nodeData ? getNodeDataTitle(nodeData) : nodeId,
+      });
+      typeById.set(nodeId, nodeData?.type);
+    }
+    return { nodesToMention: entries, nodeTypeById: typeById };
+  }, [nodeIdsByDataId, nodeDatas]);
 
   const style = useMemo(
     () => buildStyle(minRows, maxRows),
@@ -125,10 +133,7 @@ export default function RichTextArea({
         // la pastille sans déplacer le texte.
         style={MENTION_PILL_STYLE}
         renderSuggestion={(entry, _search, _highlightedDisplay, _index, focused) => {
-          const node = canvasNodes.find((candidate) => candidate.id === entry.id);
-          const nodeDataId = getNodeDataId(node);
-          const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
-          const Icon = getNodeIcon(nodeData?.type);
+          const Icon = getNodeIcon(nodeTypeById.get(String(entry.id)));
           return (
             <div
               className={cn(

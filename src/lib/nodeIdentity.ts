@@ -31,6 +31,31 @@ export function getNodeDataId(
 }
 
 /**
+ * Le `nodeDataId` d'un node désigné par son id React Flow.
+ *
+ * Sélecteur ciblé plutôt qu'un `useStore((s) => s.nodes)` suivi d'un `.find()`
+ * dans le corps du composant : `state.nodes` change de référence à chaque frame
+ * de drag, donc chaque instance se re-rendait et rebalayait la liste — O(N×M)
+ * par frame pour M cartes de mention ou M cellules `node`. Ici le sélecteur
+ * rend une chaîne, stable tant que ce node précis ne change pas.
+ */
+export function useNodeDataIdOf(
+  nodeId: string | undefined,
+): Id<"nodeDatas"> | undefined {
+  return useStore(
+    useCallback(
+      (state) => {
+        if (!nodeId) return undefined;
+        return getNodeDataId(
+          state.nodes.find((node) => node.id === nodeId) as NodeIdentityLike,
+        );
+      },
+      [nodeId],
+    ),
+  );
+}
+
+/**
  * Deux Sets portent-ils les mêmes éléments ?
  *
  * Même rôle que `haveSameEntries` ci-dessous, pour `useExistingNodeIds`.

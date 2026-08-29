@@ -1,12 +1,25 @@
+import { memo } from "react";
 import { cn } from "@/lib/utils";
-import {
-  Handle,
-  Position,
-  useConnection,
-  type ConnectionState,
-} from "@xyflow/react";
+import { Handle, Position, useStore } from "@xyflow/react";
 
-export default function NodeHandles({
+/**
+ * Vrai tant qu'une connexion est en cours d'établissement.
+ *
+ * `useStore` et non `useConnection()` : ce dernier passe par un sélecteur qui
+ * fait `{ ...s.connection }`, donc alloue un objet de onze champs — puis le
+ * compare en surface — **à chaque tick du store**, c'est-à-dire à chaque frame
+ * de pan, de zoom et de drag. Pour lire un seul booléen, et une fois par node.
+ * Ici le sélecteur rend le booléen lui-même, comparé en `Object.is` : aucune
+ * allocation.
+ *
+ * Passer un sélecteur à `useConnection` ne suffirait pas : il applique le
+ * spread *avant* le sélecteur, donc l'allocation a lieu quand même.
+ */
+const connectionInProgressSelector = (state: {
+  connection: { inProgress: boolean };
+}) => state.connection.inProgress;
+
+function NodeHandles({
   // hasDataHandles = false,
   showSourceHandles = false,
   nodeId,
@@ -15,7 +28,7 @@ export default function NodeHandles({
   showSourceHandles?: boolean;
   nodeId: string;
 }) {
-  const connection = useConnection() as ConnectionState;
+  const isConnecting = useStore(connectionInProgressSelector);
 
   const handles = [
     {
@@ -45,25 +58,25 @@ export default function NodeHandles({
     {
       type: "target" as const,
       position: Position.Left,
-      visible: connection.inProgress,
+      visible: isConnecting,
       id: `${nodeId}_tl`,
     },
     {
       type: "target" as const,
       position: Position.Right,
-      visible: connection.inProgress,
+      visible: isConnecting,
       id: `${nodeId}_tr`,
     },
     {
       type: "target" as const,
       position: Position.Top,
-      visible: connection.inProgress,
+      visible: isConnecting,
       id: `${nodeId}_tt`,
     },
     {
       type: "target" as const,
       position: Position.Bottom,
-      visible: connection.inProgress,
+      visible: isConnecting,
       id: `${nodeId}_tb`,
     },
   ];
@@ -96,3 +109,9 @@ export default function NodeHandles({
 
   return null;
 }
+
+// Props primitives (`nodeId`, `showSourceHandles`) : la comparaison par défaut
+// suffit. `NodeFrame` re-rend à chaque rendu de son node — son propre `memo` ne
+// mord pas, il reçoit `children` — donc sans ça les huit `<Handle>` seraient
+// reconstruits pour rien à chaque fois.
+export default memo(NodeHandles);

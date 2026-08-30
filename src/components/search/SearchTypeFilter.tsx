@@ -16,6 +16,7 @@ const NODE_TYPE_LABELS: Record<NodeType, string> = {
   table: "Tableaux",
   app: "Apps",
   audio: "Audio",
+  video: "Vidéos",
   custom: "Custom",
 };
 

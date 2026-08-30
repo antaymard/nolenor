@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useHotkey } from "@tanstack/react-hotkeys";
 import { List } from "lucide-react";
 import type { Block } from "@blocknote/core";
 import {
@@ -11,16 +10,13 @@ import { type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeDataValuesField } from "@/hooks/useNodeData";
 import { useIsTabletPortrait } from "@/hooks/useTabletMode";
 import BlocknoteWindow from "./prebuilt/BlocknoteWindow";
-import ChatContainer from "@/components/canvas/nole-panel/ChatContainer";
-import NoleIcon from "@/assets/svg-components/NoleIcon";
-import { Button } from "@/components/shadcn/button";
-import { Kbd } from "@/components/shadcn/kbd";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import FullscreenWindowFrame from "./FullscreenWindowFrame";
+import { NoleAside } from "./FullscreenNolePanel";
 
 interface FullscreenBlocknoteWindowProps {
   openedWindow: OpenedWindow;
@@ -82,10 +78,7 @@ export default function FullscreenBlocknoteWindow({
 }: FullscreenBlocknoteWindowProps) {
   const { nodeDataId } = openedWindow;
 
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const editorScrollRef = useRef<HTMLDivElement>(null);
-
-  useHotkey("N", () => setIsChatOpen((v) => !v));
 
   // Seed the outline from the stored document so it is already populated on
   // open — the editor is mounted behind a `requestAnimationFrame`, so there is
@@ -172,23 +165,8 @@ export default function FullscreenBlocknoteWindow({
       }
     >
       <div className="flex min-h-0 flex-1">
-        {/* Left: Nolë chat (always reserved to keep content centered) */}
-        {!isTabletPortrait && (
-          <aside className="relative flex w-95 shrink-0 flex-col border-r bg-white [&>div]:shadow-none!">
-            {isChatOpen ? (
-              <ChatContainer onClose={() => setIsChatOpen(false)} />
-            ) : (
-              <div className="absolute bottom-4 left-4">
-                <div className="canvas-ui-container px-0!">
-                  <Button variant="ghost" onClick={() => setIsChatOpen(true)}>
-                    <NoleIcon /> Nolë
-                    <Kbd>N</Kbd>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </aside>
-        )}
+        {/* Left: Nolë chat */}
+        {!isTabletPortrait && <NoleAside />}
 
         {/* Middle: editor (full width container, content centered) */}
         <main className="flex min-w-0 flex-1 overflow-hidden [&_.bn-editor]:px-[max(2rem,calc((100%-56rem)/2))]!">

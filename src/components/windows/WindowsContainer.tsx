@@ -16,6 +16,9 @@ const FullscreenAppWindow = lazy(() => import("./FullscreenAppWindow"));
 const FullscreenVideoWindow = lazy(
   () => import("./FullscreenVideoWindow"),
 );
+const FullscreenImageWindow = lazy(
+  () => import("./FullscreenImageWindow"),
+);
 
 export default function WindowsContainer() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
@@ -72,6 +75,8 @@ export default function WindowsContainer() {
                   <FullscreenAppWindow openedWindow={fullscreenWindow} />
                 ) : fullscreenWindow.nodeType === "video" ? (
                   <FullscreenVideoWindow openedWindow={fullscreenWindow} />
+                ) : fullscreenWindow.nodeType === "image" ? (
+                  <FullscreenImageWindow openedWindow={fullscreenWindow} />
                 ) : null}
               </Suspense>
             </WindowContentErrorBoundary>

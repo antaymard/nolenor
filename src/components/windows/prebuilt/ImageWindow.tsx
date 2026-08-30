@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import ImageField from "@/components/fields/ImageField";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataValues } from "@/hooks/useNodeData";
@@ -17,10 +17,44 @@ type ImageWindowValue = Array<{
   };
 }>;
 
+/**
+ * Quelle image on regardait, le temps d'une bascule.
+ *
+ * Passer en plein écran ne déplace pas la fenêtre : il en démonte une et en
+ * monte une autre ailleurs dans l'arbre React. L'état local repart donc de
+ * zéro, et une galerie reviendrait à sa première image au moment précis où on
+ * demande à mieux voir la neuvième. Même remède que la position de lecture de
+ * VideoWindow : une Map de module — l'information ne survit pas à la session,
+ * n'intéresse personne d'autre et n'a aucune raison de déclencher un rendu.
+ */
+const lastIndexByNode = new Map<Id<"nodeDatas">, number>();
+
 function ImageWindow({ nodeDataId }: ImageWindowProps) {
   const nodeDataValues = useNodeDataValues(nodeDataId);
   const value = (nodeDataValues?.images as ImageWindowValue | undefined) ?? [];
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // Lecture seule dans l'initialiseur : StrictMode l'appelle deux fois, et un
+  // `delete` posé ici rendrait le second appel bredouille. L'entrée est
+  // consommée juste après, dans un effet.
+  const [currentIndex, setCurrentIndex] = useState(
+    () => lastIndexByNode.get(nodeDataId) ?? 0,
+  );
+
+  // Relu au démontage, donc via une ref : le cleanup d'un effet ne verrait que
+  // l'index du rendu où il a été créé.
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
+
+  useEffect(() => {
+    // La position restaurée est consommée : seule la bascule plein écran la
+    // reporte, rouvrir la fenêtre plus tard repart de la première image.
+    lastIndexByNode.delete(nodeDataId);
+
+    return () => {
+      if (currentIndexRef.current > 0) {
+        lastIndexByNode.set(nodeDataId, currentIndexRef.current);
+      }
+    };
+  }, [nodeDataId]);
 
   useEffect(() => {
     if (value.length > 0 && currentIndex >= value.length) {

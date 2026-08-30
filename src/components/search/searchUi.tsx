@@ -10,38 +10,32 @@ import {
 } from "@/components/shadcn/empty";
 import type { SearchSnippet as SearchSnippetType } from "./useSearch";
 
-/** Termes de la requête utilisables pour le surlignage (longueur >= 2). */
-function highlightTerms(query: string): string[] {
-  return Array.from(
-    new Set(
-      query
-        .trim()
-        .split(/\s+/)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2),
-    ),
-  );
-}
-
-/** Surligne (insensible à la casse) tous les termes de la requête dans `text`. */
+/**
+ * Surligne (insensible à la casse) les termes dans `text`.
+ *
+ * `terms` vient du serveur, qui a parsé la requête : découper la saisie brute
+ * ici surlignerait `-brouillon` ou un guillemet.
+ */
 export function HighlightedText({
   text,
-  query,
+  terms,
   className,
 }: {
   text: string;
-  query: string;
+  terms: string[];
   className?: string;
 }) {
   const parts = useMemo(() => {
-    const terms = highlightTerms(query);
-    if (terms.length === 0) return [text];
-    const escaped = terms.map((term) =>
+    const usable = Array.from(
+      new Set(terms.map((term) => term.trim()).filter((term) => term.length >= 2)),
+    );
+    if (usable.length === 0) return [text];
+    const escaped = usable.map((term) =>
       term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
     );
     const regex = new RegExp(`(${escaped.join("|")})`, "ig");
     return text.split(regex);
-  }, [text, query]);
+  }, [text, terms]);
 
   return (
     <span className={className}>
@@ -64,11 +58,11 @@ export function HighlightedText({
 /** Une ligne d'extrait avec surlignage + badge page/type (masqué en compact). */
 export function SearchSnippet({
   snippet,
-  query,
+  terms,
   compact = false,
 }: {
   snippet: SearchSnippetType;
-  query: string;
+  terms: string[];
   compact?: boolean;
 }) {
   const pageLabel =
@@ -78,7 +72,7 @@ export function SearchSnippet({
     return (
       <HighlightedText
         text={snippet.snippet}
-        query={query}
+        terms={terms}
         className="line-clamp-2 text-xs text-muted-foreground"
       />
     );
@@ -88,7 +82,7 @@ export function SearchSnippet({
     <div className="flex items-center gap-2 text-sm">
       <HighlightedText
         text={snippet.snippet}
-        query={query}
+        terms={terms}
         className="line-clamp-2 min-w-0 flex-1 overflow-hidden leading-snug text-muted-foreground"
       />
       <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">

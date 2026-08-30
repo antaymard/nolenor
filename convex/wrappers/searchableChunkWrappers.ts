@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
 import * as SearchableChunkModels from "../models/searchableChunkModels";
 import { searchableChunksValidator } from "../schemas/searchableChunksSchema";
+import { nodeTypeValidator } from "../schemas/nodeTypeSchema";
 
 const chunkInputValidator = v.object(searchableChunksValidator.fields);
 
@@ -76,6 +77,7 @@ export const fullTextSearch = internalQuery({
     canvasId: v.id("canvases"),
     query: v.string(),
     nodeIds: v.optional(v.array(v.string())),
+    nodeTypes: v.optional(v.array(nodeTypeValidator)),
     limit: v.optional(v.number()),
   },
   returns: v.object({
@@ -99,6 +101,8 @@ export const fullTextSearch = internalQuery({
     scanned: v.number(),
     limit: v.number(),
     truncated: v.boolean(),
+    relaxed: v.boolean(),
+    terms: v.array(v.string()),
   }),
   handler: async (ctx, args) => SearchableChunkModels.fullTextSearch(ctx, args),
 });

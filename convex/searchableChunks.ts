@@ -2,13 +2,14 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import { chunkTypeValidator } from "./schemas/searchableChunksSchema";
+import { nodeTypeValidator } from "./schemas/nodeTypeSchema";
 import * as SearchableChunkModels from "./models/searchableChunkModels";
+import { RANKING, scoreNode } from "./lib/searchScoring";
 import {
-  RANKING,
-  extractSearchTerms,
-  normalizedPhrase,
-  scoreNode,
-} from "./lib/searchScoring";
+  matchesParsedQuery,
+  normalizeHaystacks,
+  parseSearchQuery,
+} from "./lib/searchQuery";
 import { stripLoneSurrogates } from "./lib/textSanitize";
 
 const SNIPPET_RADIUS = 90;
@@ -20,62 +21,62 @@ export const search = query({
   args: {
     query: v.string(),
     canvasId: v.id("canvases"),
+    /** Filtre de type piloté par les chips de l'UI (pas par la syntaxe). */
+    nodeTypes: v.optional(v.array(nodeTypeValidator)),
   },
-  returns: v.array(
-    v.object({
-      type: v.string(),
-      nodeId: v.string(),
-      nodeDataId: v.id("nodeDatas"),
-      title: v.optional(v.string()),
-      images: v.array(
-        v.object({
-          imageUrl: v.string(),
-          page: v.optional(v.number()),
-        }),
-      ),
-      snippets: v.array(
-        v.object({
-          snippet: v.string(),
-          chunkType: chunkTypeValidator,
-          order: v.number(),
-          page: v.optional(v.number()),
-          imageUrl: v.optional(v.string()),
-          matchStart: v.number(),
-          matchEnd: v.number(),
-        }),
-      ),
-    }),
-  ),
+  returns: v.object({
+    results: v.array(
+      v.object({
+        type: v.string(),
+        nodeId: v.string(),
+        nodeDataId: v.id("nodeDatas"),
+        title: v.optional(v.string()),
+        images: v.array(
+          v.object({
+            imageUrl: v.string(),
+            page: v.optional(v.number()),
+          }),
+        ),
+        snippets: v.array(
+          v.object({
+            snippet: v.string(),
+            chunkType: chunkTypeValidator,
+            order: v.number(),
+            page: v.optional(v.number()),
+            imageUrl: v.optional(v.string()),
+            matchStart: v.number(),
+            matchEnd: v.number(),
+          }),
+        ),
+      }),
+    ),
+    /** Aucun node ne satisfaisait toutes les contraintes : on montre l'approchant. */
+    relaxed: v.boolean(),
+    /** Mots positifs de la requête : source unique du surlignage côté UI. */
+    terms: v.array(v.string()),
+  }),
   handler: async (ctx, args) => {
     const authUserId = await requireAuth(ctx);
 
     // Vérifier l'accès au canvas
     await requireCanvasAccess(ctx, args.canvasId, authUserId); // viewer required
 
-    // Rechercher les chunks correspondants dans le contenu ET dans le titre
-    const [textHits, titleHits] = await Promise.all([
-      ctx.db
-        .query("searchableChunks")
-        .withSearchIndex("search_text", (q) =>
-          q.search("text", args.query).eq("canvasId", args.canvasId),
-        )
-        .take(MAX_MATCHING_CHUNKS),
-      ctx.db
-        .query("searchableChunks")
-        .withSearchIndex("search_title", (q) =>
-          q.search("title", args.query).eq("canvasId", args.canvasId),
-        )
-        .take(MAX_MATCHING_CHUNKS),
-    ]);
+    // La saisie peut porter des opérateurs ("phrase", -exclusion, OR) que
+    // l'index ne connaît pas : on les traduit en contraintes appliquées après.
+    const parsed = parseSearchQuery(args.query);
+    if (parsed.isEmpty) {
+      return { results: [], relaxed: false, terms: parsed.highlightTerms };
+    }
 
-    const results = Array.from(
-      new Map(
-        [...textHits, ...titleHits].map((chunk) => [chunk._id, chunk] as const),
-      ).values(),
-    );
+    const chunks = await SearchableChunkModels.searchChunks(ctx, {
+      canvasId: args.canvasId,
+      text: parsed.searchText,
+      nodeTypes: args.nodeTypes,
+      limit: MAX_MATCHING_CHUNKS,
+    });
 
-    const groupedByNodeId = new Map<string, typeof results>();
-    for (const chunk of results) {
+    const groupedByNodeId = new Map<string, typeof chunks>();
+    for (const chunk of chunks) {
       const existing = groupedByNodeId.get(chunk.nodeId);
       if (existing) {
         existing.push(chunk);
@@ -84,46 +85,83 @@ export const search = query({
       }
     }
 
-    const terms = extractSearchTerms(args.query);
-    const phrase = normalizedPhrase(args.query);
+    // Les contraintes se jugent au niveau du NODE : « ce document contient tous
+    // les mots », pas « ce passage les contient ».
+    const haystacksByNodeId = new Map<string, string[]>();
+    for (const [nodeId, nodeChunks] of groupedByNodeId) {
+      haystacksByNodeId.set(
+        nodeId,
+        normalizeHaystacks([
+          // Les chunks d'un même node partagent leur titre : le dédupliquer
+          // évite de le normaliser 50 fois pour un PDF.
+          ...new Set(nodeChunks.map((chunk) => chunk.title)),
+          ...nodeChunks.map((chunk) => chunk.text),
+        ]),
+      );
+    }
 
-    const scored = Array.from(groupedByNodeId.entries()).map(
-      ([nodeId, chunks]) => {
-        const result = {
-          type: chunks[0].nodeType,
-          nodeId,
-          nodeDataId: chunks[0].nodeDataId,
-          title: chunks[0].title
-            ? stripLoneSurrogates(chunks[0].title)
-            : chunks[0].title,
-          images: Array.from(
-            new Map(
-              chunks
-                .flatMap((chunk) =>
-                  getImageUrlsFromMetadata(chunk.metadata).map(
-                    (imageUrl) =>
-                      [
+    const excludedNodeIds = await SearchableChunkModels.collectExcludedNodeIds(
+      ctx,
+      {
+        canvasId: args.canvasId,
+        excluded: parsed.excluded,
+        haystacksByNodeId,
+      },
+    );
+
+    const candidates = Array.from(groupedByNodeId.entries()).filter(
+      ([nodeId]) => !excludedNodeIds.has(nodeId),
+    );
+    const strict = candidates.filter(([nodeId]) =>
+      matchesParsedQuery(haystacksByNodeId.get(nodeId) ?? [], parsed),
+    );
+
+    // Le filtrage strict s'appuie sur les chunks remontés (bornés) : quand il
+    // ne laisse rien, mieux vaut l'approchant que le vide — les exclusions,
+    // elles, restent toujours appliquées.
+    const relaxed = strict.length === 0 && candidates.length > 0;
+    const selected = relaxed ? candidates : strict;
+
+    const terms = parsed.normalizedTerms;
+    const phrase = parsed.phrases[0] ?? terms.join(" ");
+
+    const scored = selected.map(([nodeId, nodeChunks]) => {
+      const result = {
+        type: nodeChunks[0].nodeType,
+        nodeId,
+        nodeDataId: nodeChunks[0].nodeDataId,
+        title: nodeChunks[0].title
+          ? stripLoneSurrogates(nodeChunks[0].title)
+          : nodeChunks[0].title,
+        images: Array.from(
+          new Map(
+            nodeChunks
+              .flatMap((chunk) =>
+                getImageUrlsFromMetadata(chunk.metadata).map(
+                  (imageUrl) =>
+                    [
+                      imageUrl,
+                      {
                         imageUrl,
-                        {
-                          imageUrl,
-                          page: getPageFromMetadata(chunk.metadata),
-                        },
-                      ] as const,
-                  ),
-                )
-                .filter(
-                  (
-                    item,
-                  ): item is readonly [
-                    string,
-                    { imageUrl: string; page: number | undefined },
-                  ] => item !== null,
+                        page: getPageFromMetadata(chunk.metadata),
+                      },
+                    ] as const,
                 ),
-            ).values(),
-          ),
-          snippets: chunks
-            .flatMap((chunk) =>
-              buildChunkSnippets(chunk.text, args.query).map((match) => ({
+              )
+              .filter(
+                (
+                  item,
+                ): item is readonly [
+                  string,
+                  { imageUrl: string; page: number | undefined },
+                ] => item !== null,
+              ),
+          ).values(),
+        ),
+        snippets: nodeChunks
+          .flatMap((chunk) =>
+            buildChunkSnippets(chunk.text, parsed.highlightTerms).map(
+              (match) => ({
                 snippet: stripLoneSurrogates(match.snippet),
                 chunkType: chunk.chunkType,
                 order: chunk.order,
@@ -131,25 +169,25 @@ export const search = query({
                 imageUrl: getImageUrlFromMetadata(chunk.metadata),
                 matchStart: match.matchStart,
                 matchEnd: match.matchEnd,
-              })),
-            )
-            .slice(0, MAX_SNIPPETS_PER_NODE),
-        };
+              }),
+            ),
+          )
+          .slice(0, MAX_SNIPPETS_PER_NODE),
+      };
 
-        // Score titre > body, pondéré par couverture + proximité des termes.
-        const score =
-          terms.length === 0
-            ? 0
-            : scoreNode({
-                title: chunks[0].title,
-                texts: chunks.map((chunk) => chunk.text),
-                terms,
-                phrase,
-              });
+      // Score titre > body, pondéré par couverture + proximité des termes.
+      const score =
+        terms.length === 0
+          ? 0
+          : scoreNode({
+              title: nodeChunks[0].title,
+              texts: nodeChunks.map((chunk) => chunk.text),
+              terms,
+              phrase,
+            });
 
-        return { result, score };
-      },
-    );
+      return { result, score };
+    });
 
     // Départage : score, puis nb de snippets, puis titre alphabétique.
     if (terms.length > 0) {
@@ -161,7 +199,11 @@ export const search = query({
       );
     }
 
-    return scored.map((entry) => entry.result).slice(0, RANKING.MAX_RESULTS);
+    return {
+      results: scored.map((entry) => entry.result).slice(0, RANKING.MAX_RESULTS),
+      relaxed,
+      terms: parsed.highlightTerms,
+    };
   },
 });
 
@@ -195,18 +237,13 @@ export const listPdfPages = query({
   },
 });
 
-function buildChunkSnippets(text: string, query: string) {
+/** Extraits centrés sur les mots POSITIFS de la requête (jamais sur `-exclu`). */
+function buildChunkSnippets(text: string, queryTerms: string[]) {
   const normalizedText = text.replace(/\s+/g, " ").trim();
   if (!normalizedText) return [];
 
   const terms = Array.from(
-    new Set(
-      query
-        .toLowerCase()
-        .split(/\s+/)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2),
-    ),
+    new Set(queryTerms.map((term) => term.toLowerCase())),
   );
 
   if (terms.length === 0) {

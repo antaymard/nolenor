@@ -19,6 +19,7 @@ import {
   SearchSnippet,
 } from "@/components/search/searchUi";
 import { formatRelative, sortSnippets } from "@/components/search/searchUtils";
+import { SearchTypeFilter } from "@/components/search/SearchTypeFilter";
 
 interface MobileSearchTabProps {
   canvasId: Id<"canvases">;
@@ -40,13 +41,17 @@ export default function MobileSearchTab({
   const openWindow = useWindowsStore((state) => state.openWindow);
 
   const {
-    debouncedQuery,
     hasQuery,
     results,
+    relaxed,
+    terms,
     recents,
     error,
     isInitialLoading,
     isStale,
+    nodeTypes,
+    toggleNodeType,
+    clearNodeTypes,
   } = useSearch({ canvasId, query, enabled: active });
 
   // Le node s'ouvre en plein écran via MobileNodeOverlay.
@@ -66,7 +71,7 @@ export default function MobileSearchTab({
         <Input
           type="text"
           aria-label="Rechercher"
-          placeholder="Rechercher des nodes…"
+          placeholder={'Rechercher — "phrase", -exclure, a OR b'}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="border-0 px-0 shadow-none focus-visible:ring-0"
@@ -86,6 +91,13 @@ export default function MobileSearchTab({
           </Button>
         ) : null}
       </div>
+      <div className="shrink-0 border-b px-3 py-2">
+        <SearchTypeFilter
+          selected={nodeTypes}
+          onToggle={toggleNodeType}
+          onClear={clearNodeTypes}
+        />
+      </div>
       <div className="flex-1 overflow-y-auto">
         {isInitialLoading ? (
           <SearchSkeleton compact />
@@ -101,11 +113,16 @@ export default function MobileSearchTab({
                 isStale && "opacity-60",
               )}
             >
+              {relaxed ? (
+                <div className="rounded-md border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                  Aucun résultat exact — voici les correspondances approchantes.
+                </div>
+              ) : null}
               {results.map((result) => (
                 <MobileResultRow
                   key={result.nodeId}
                   result={result}
-                  query={debouncedQuery}
+                  terms={terms}
                   onOpen={() =>
                     handleOpenNode({
                       nodeId: result.nodeId,
@@ -143,11 +160,11 @@ export default function MobileSearchTab({
 
 function MobileResultRow({
   result,
-  query,
+  terms,
   onOpen,
 }: {
   result: SearchResult;
-  query: string;
+  terms: string[];
   onOpen: () => void;
 }) {
   const fallbackTitle = useNodeDataTitle(result.nodeDataId);
@@ -185,7 +202,7 @@ function MobileResultRow({
         <SearchSnippet
           key={`${result.nodeId}-${index}`}
           snippet={snippet}
-          query={query}
+          terms={terms}
           compact
         />
       ))}

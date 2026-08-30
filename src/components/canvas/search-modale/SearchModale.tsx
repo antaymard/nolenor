@@ -39,6 +39,7 @@ import {
   SearchSnippet,
 } from "@/components/search/searchUi";
 import { formatRelative, sortSnippets } from "@/components/search/searchUtils";
+import { SearchTypeFilter } from "@/components/search/SearchTypeFilter";
 
 export default function SearchModale() {
   const isOpen = useCanvasStore((state) => state.isSearchModalOpen);
@@ -58,6 +59,8 @@ export default function SearchModale() {
     debouncedQuery,
     hasQuery,
     results,
+    relaxed,
+    terms,
     recents,
     error,
     isInitialLoading,
@@ -66,6 +69,9 @@ export default function SearchModale() {
     activeIndex,
     setActiveIndex,
     move,
+    nodeTypes,
+    toggleNodeType,
+    clearNodeTypes,
   } = useSearch({ canvasId, query: searchQuery, enabled: isOpen });
 
   const listboxId = useId();
@@ -174,7 +180,7 @@ export default function SearchModale() {
             aria-controls={listboxId}
             aria-activedescendant={activeDescendant}
             aria-label="Rechercher"
-            placeholder="Rechercher des nodes, documents…"
+            placeholder={'Rechercher — "phrase exacte", -exclure, a OR b'}
             className="min-w-0 flex-1 border-none bg-transparent outline-none placeholder:text-muted-foreground"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -203,6 +209,21 @@ export default function SearchModale() {
           >
             <TbX />
           </Button>
+        </div>
+
+        {/* Filtres de type + rappel de syntaxe */}
+        <div className="flex items-center gap-3 border-b px-3 py-2">
+          <SearchTypeFilter
+            selected={nodeTypes}
+            onToggle={toggleNodeType}
+            onClear={clearNodeTypes}
+            className="min-w-0 flex-1"
+          />
+          <span className="hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground lg:flex">
+            <code className="rounded bg-muted px-1">&quot;phrase exacte&quot;</code>
+            <code className="rounded bg-muted px-1">-exclure</code>
+            <code className="rounded bg-muted px-1">a OR b</code>
+          </span>
         </div>
 
         {/* Annonce lecteur d'écran */}
@@ -238,6 +259,12 @@ export default function SearchModale() {
               />
             ) : (
               <>
+                {relaxed ? (
+                  <div className="mx-2 mt-1 mb-2 rounded-md border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                    Aucun résultat exact — voici les correspondances
+                    approchantes.
+                  </div>
+                ) : null}
                 <div className="px-2 pt-1 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
                   {resultCount} résultat{resultCount > 1 ? "s" : ""}
                 </div>
@@ -246,7 +273,7 @@ export default function SearchModale() {
                     key={result.nodeId}
                     optionId={optionId(idx)}
                     result={result}
-                    query={debouncedQuery}
+                    terms={terms}
                     active={idx === activeIndex}
                     onSelect={() => setActiveIndex(idx)}
                     onOpen={() => handleOpenResult(result)}
@@ -313,7 +340,7 @@ export default function SearchModale() {
 function ResultCard({
   optionId,
   result,
-  query,
+  terms,
   active,
   onSelect,
   onOpen,
@@ -321,7 +348,7 @@ function ResultCard({
 }: {
   optionId: string;
   result: SearchResult;
-  query: string;
+  terms: string[];
   active: boolean;
   onSelect: () => void;
   onOpen: () => void;
@@ -401,7 +428,7 @@ function ResultCard({
             <SearchSnippet
               key={`${result.nodeId}-${snippet.order}-${index}`}
               snippet={snippet}
-              query={query}
+              terms={terms}
             />
           ))
         )}

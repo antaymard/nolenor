@@ -34,23 +34,6 @@ export function normalizeForSearch(input: string): string {
   return input.toLowerCase().normalize("NFD").replace(COMBINING_DIACRITICS, "");
 }
 
-/** Termes uniques de la requête (normalisés, longueur >= 2). */
-export function extractSearchTerms(query: string): string[] {
-  return Array.from(
-    new Set(
-      normalizeForSearch(query)
-        .split(/\s+/)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2),
-    ),
-  );
-}
-
-/** Requête complète normalisée et compactée (pour la phrase exacte). */
-export function normalizedPhrase(query: string): string {
-  return normalizeForSearch(query).replace(/\s+/g, " ").trim();
-}
-
 type Occurrence = { start: number; end: number; term: number };
 
 /**
@@ -89,7 +72,7 @@ function smallestWindowSpan(
 /**
  * Score d'un champ texte : combine la couverture (part des termes trouvés) et
  * la proximité (termes proches => meilleur), plus un bonus de phrase exacte.
- * `phrase` est la requête complète normalisée (cf. {@link normalizedPhrase}).
+ * `phrase` est la phrase à privilégier, déjà normalisée (cf. `parseSearchQuery`).
  */
 export function scoreText(
   text: string | undefined,

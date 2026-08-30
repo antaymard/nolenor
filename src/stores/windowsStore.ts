@@ -197,6 +197,7 @@ const FULLSCREEN_ELIGIBLE_NODE_TYPES: ReadonlySet<NodeType> = new Set([
   // dispatch doit donc savoir quoi rendre à la place. Sans les deux, la
   // fenêtre disparaît au lieu de s'agrandir.
   "video",
+  "image",
 ]);
 
 export function isFullscreenEligible(nodeType: NodeType): boolean {

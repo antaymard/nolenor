@@ -11,10 +11,12 @@ import { useMutation } from "convex/react";
 import { useParams } from "@tanstack/react-router";
 
 import { HiOutlineTrash } from "react-icons/hi";
-import { TbPalette, TbPhoto, TbSpaces } from "react-icons/tb";
+import { TbPalette, TbPhoto, TbSpaces, TbStack2 } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
+import { useNodeLayering } from "@/hooks/useNodeLayering";
+import { LAYER_COMMANDS } from "@/lib/nodeLayering";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { colors } from "@/components/ui/styles";
@@ -32,6 +34,7 @@ export default function SelectionContextMenu({
 }) {
   const { deleteElements, updateNode } = useReactFlow();
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
+  const { applyLayerCommand } = useNodeLayering();
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
@@ -235,6 +238,31 @@ export default function SelectionContextMenu({
               />
             ))}
           </div>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+
+      {/* Plan (z-index) */}
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger className="whitespace-nowrap">
+          <TbStack2 size={16} /> Layer
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {LAYER_COMMANDS.map(({ command, label }) => (
+            <DropdownMenuItem
+              className="whitespace-nowrap"
+              key={command}
+              onClick={() => {
+                if (!Array.isArray(elements)) return;
+                applyLayerCommand(
+                  command,
+                  elements.map((node) => node.id),
+                );
+                closeMenu();
+              }}
+            >
+              {label}
+            </DropdownMenuItem>
+          ))}
         </DropdownMenuSubContent>
       </DropdownMenuSub>
 

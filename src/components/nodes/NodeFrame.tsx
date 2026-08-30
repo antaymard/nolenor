@@ -39,7 +39,12 @@ function NodeFrame({
     openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType });
   }, [nodeDataId, xyNode.id, nodeType, openWindow]);
 
-  const hasDragAndResizeLatencyBug = nodeType === "app" || nodeType === "embed";
+  // Une iframe déverrouillée (cf. IframeInteractionGate) avale les pointermove :
+  // drag et resize perdraient leurs frames dès que le curseur la survole. Le
+  // gate se reverrouille de lui-même sur `dragging`, mais pas sur le resize,
+  // dont l'état ne vit qu'ici.
+  const needsPointerShieldWhileMoving =
+    nodeType === "app" || nodeType === "embed";
 
   return (
     <>
@@ -61,7 +66,12 @@ function NodeFrame({
       <div
         className={cn(
           "relative rounded-[5px] text-card-foreground",
-          "group h-full flex flex-col duration-150 border animate-node-appear",
+          // `transition-[…]` explicite, et pas un `duration-150` nu : la valeur
+          // initiale CSS de `transition-property` étant `all`, la durée seule
+          // rendait *toute* propriété animable sur chaque node — donc 150 ms de
+          // repaint au moindre changement de style, ring de survol compris.
+          "group h-full flex flex-col border animate-node-appear",
+          "transition-[box-shadow,border-color] duration-150",
           nodeColor.nodeBg,
           nodeColor.nodeBorder,
           isAttachedToNole &&
@@ -73,15 +83,22 @@ function NodeFrame({
         )}
         onDoubleClick={handleDoubleClick}
       >
+        {/* `content-visibility: auto` : le navigateur saute le layout et le
+            paint du contenu tant que le node est hors écran, ce qui borne le
+            coût d'un pan au seul contenu visible. Sur le conteneur interne et
+            non sur la racine du node : `content-visibility` implique
+            `contain: paint`, qui rognerait le ring de sélection et les poignées
+            du `NodeResizer`, tous deux rendus en dehors de ce div. Même patron
+            que `BlocknoteNode`, qui l'applique déjà à son propre contenu. */}
         <div
           className={cn(
-            "h-full rounded-[4px] relative",
+            "h-full rounded-[4px] relative [content-visibility:auto]",
             xyNode.data.color === "transparent"
               ? "bg-transparent"
               : "bg-white/80",
           )}
         >
-          {hasDragAndResizeLatencyBug && (isResizing || xyNode.dragging) && (
+          {needsPointerShieldWhileMoving && (isResizing || xyNode.dragging) && (
             <div className="absolute inset-0 z-10" />
           )}
           {children}

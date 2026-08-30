@@ -53,7 +53,7 @@ function EditorLoading() {
   return (
     <span className="flex items-center gap-2 text-sm text-slate-500">
       <Spinner className="size-4" />
-      Chargement de l'éditeur...
+      Loading editor
     </span>
   );
 }
@@ -127,7 +127,8 @@ function BlockNoteFieldEditor({
       const blocks = parseStoredBlockNoteDocument(value) as
         | PartialBlock[]
         | null;
-      const replacement = blocks && blocks.length > 0 ? blocks : [EMPTY_PARAGRAPH];
+      const replacement =
+        blocks && blocks.length > 0 ? blocks : [EMPTY_PARAGRAPH];
 
       skipNextChangeRef.current = true;
       try {
@@ -174,7 +175,10 @@ function BlockNoteFieldEditor({
 
   // Gèle les raccourcis canvas pendant la frappe : sans ça, taper dans un
   // champ peut déclencher un raccourci de suppression de node.
-  const handleFocus = useCallback(() => setFocus("richtext-editor"), [setFocus]);
+  const handleFocus = useCallback(
+    () => setFocus("richtext-editor"),
+    [setFocus],
+  );
   const handleBlur = useCallback(() => setFocus("canvas"), [setFocus]);
 
   return (

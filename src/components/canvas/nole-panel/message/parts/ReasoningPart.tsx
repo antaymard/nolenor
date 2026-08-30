@@ -19,12 +19,13 @@ export const ReasoningPart = memo(function ReasoningPart({
 }) {
   const isStreaming = part.state === "streaming";
   const [isExpanded, setIsExpanded] = useState(false);
-  const [visibleText] = useSmoothText(part.text ?? "", {
-    startStreaming: isStreaming,
-  });
-  const deferredText = useDeferredValue(visibleText);
 
-  if (!visibleText && !isStreaming) return null;
+  // Le lissage vit dans `ReasoningBody`, monté seulement quand le panneau est
+  // ouvert. Replié — son état par défaut — il n'y a rien à animer, et
+  // `useSmoothText` tournait quand même : un `slice` sur un texte de
+  // raisonnement qui grossit, plus un rendu, vingt fois par seconde, pendant
+  // toute la phase de réflexion. C'est le travail le plus inutile du fil.
+  if (!part.text && !isStreaming) return null;
 
   return (
     <div className="rounded border border-slate-300 bg-slate-50 text-xs text-slate-700">
@@ -48,15 +49,38 @@ export const ReasoningPart = memo(function ReasoningPart({
       </button>
 
       {isExpanded ? (
-        <div className="border-t border-slate-200 px-2 py-2 whitespace-pre-wrap overflow-x-auto">
-          <MarkdownText
-            components={markdownComponents}
-            remarkPlugins={[remarkNodeMentions]}
-          >
-            {deferredText || "..."}
-          </MarkdownText>
-        </div>
+        <ReasoningBody text={part.text ?? ""} isStreaming={isStreaming} />
       ) : null}
+    </div>
+  );
+});
+
+/**
+ * Le corps du panneau de raisonnement, monté à l'ouverture seulement.
+ *
+ * `startStreaming: false` : à l'ouverture en pleine réflexion, on veut lire ce
+ * qui est déjà écrit tout de suite, pas le voir se retaper depuis le début.
+ * `useSmoothText` affiche donc la valeur courante d'emblée, puis lisse la suite
+ * — son `isStreaming` interne bascule dès que le texte dépasse le curseur.
+ */
+const ReasoningBody = memo(function ReasoningBody({
+  text,
+  isStreaming,
+}: {
+  text: string;
+  isStreaming: boolean;
+}) {
+  const [visibleText] = useSmoothText(text, { startStreaming: false });
+  const deferredText = useDeferredValue(visibleText);
+
+  return (
+    <div className="border-t border-slate-200 px-2 py-2 whitespace-pre-wrap overflow-x-auto">
+      <MarkdownText
+        components={markdownComponents}
+        remarkPlugins={[remarkNodeMentions]}
+      >
+        {deferredText || (isStreaming ? "..." : "")}
+      </MarkdownText>
     </div>
   );
 });

@@ -9,6 +9,25 @@ import { useAssistantActivity } from "@/hooks/useAssistantActivity";
 import { Message } from "./message/Message";
 import ChatStatusOverlay from "./ChatStatusOverlay";
 
+/**
+ * Nombre de messages de fin laissés hors confinement.
+ *
+ * Le reste du fil porte `content-visibility: auto`, qui laisse le navigateur
+ * sauter style, layout et paint de ce qui est hors écran — sans quoi le coût de
+ * chaque frappe dans le composer (react-mentions force un layout par caractère)
+ * et de chaque lecture de `scrollHeight` par l'auto-scroll grandit avec la
+ * conversation, d'autant que shiki produit un `<span>` par token.
+ *
+ * Les derniers messages en sont exclus parce que ce sont ceux qu'on regarde :
+ * au premier rendu le navigateur leur donnerait la taille de repli, et le
+ * « scroll tout en bas » du montage atterrirait à côté une fois les vraies
+ * hauteurs connues. Plus haut le risque disparaît : `contain-intrinsic-size:
+ * auto` fait mémoriser au navigateur la hauteur réelle dès qu'un message a été
+ * affiché une fois, et 200px n'est que le repli pour ceux qui ne l'ont jamais
+ * été.
+ */
+const LIVE_MESSAGES_COUNT = 8;
+
 type ChatInterfaceProps = {
   threadId: string;
   onRetry?: (userMessage: string) => void;
@@ -61,13 +80,20 @@ const ChatInterface = memo(function ChatInterface({
                 Load more messages
               </button>
             )}
-            {messages.map((m) => (
-              <Message
+            {messages.map((m, index) => (
+              <div
                 key={m.key}
-                message={m}
-                metadata={getMetadata(m)}
-                modelOptions={modelOptions}
-              />
+                className={cn(
+                  index < messages.length - LIVE_MESSAGES_COUNT &&
+                    "[content-visibility:auto] [contain-intrinsic-size:auto_200px]",
+                )}
+              >
+                <Message
+                  message={m}
+                  metadata={getMetadata(m)}
+                  modelOptions={modelOptions}
+                />
+              </div>
             ))}
           </div>
         ) : (

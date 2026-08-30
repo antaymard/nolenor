@@ -1,15 +1,23 @@
 import { memo, useCallback, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { cn } from "@/lib/utils";
-import { formatTime } from "@/hooks/useAudioPlayback";
+import { formatTime } from "@/hooks/useMediaPlayback";
 
-interface AudioProgressBarProps {
+interface MediaProgressBarProps {
   duration: number;
   // Primitives rather than the loop object: Convex syncs hand back a fresh
   // object on every update, which would defeat memo on every canvas sync.
-  loopStart: number;
-  loopEnd: number;
-  loopEnabled: boolean;
+  // Omitted entirely by surfaces with no loop, such as video — the region
+  // highlight then never renders and everything else behaves the same.
+  loopStart?: number;
+  loopEnd?: number;
+  loopEnabled?: boolean;
+  /**
+   * Sur quel fond la barre est posée. `dark` (défaut) pour la surface claire
+   * d'un node ; `light` quand elle est en surimpression sur une image, où une
+   * piste noire à 10 % serait invisible.
+   */
+  tone?: "dark" | "light";
   /** Filled by the rAF loop — never written from React. */
   progressRef: MutableRefObject<HTMLElement | null>;
   playheadRef: MutableRefObject<HTMLElement | null>;
@@ -25,16 +33,17 @@ interface AudioProgressBarProps {
  * no mutation and no store write behind the gesture, and `nodrag` already stops
  * React Flow from moving the node under the pointer.
  */
-function AudioProgressBar({
+function MediaProgressBar({
   duration,
-  loopStart,
-  loopEnd,
-  loopEnabled,
+  loopStart = 0,
+  loopEnd = 0,
+  loopEnabled = false,
+  tone = "dark",
   progressRef,
   playheadRef,
   onSeekRatio,
   className,
-}: AudioProgressBarProps) {
+}: MediaProgressBarProps) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const ghostLabelRef = useRef<HTMLDivElement | null>(null);
@@ -93,6 +102,8 @@ function AudioProgressBar({
     [],
   );
 
+  const isLight = tone === "light";
+
   const hasLoop = loopEnd > loopStart && duration > 0;
   const loopLeft = hasLoop ? (loopStart / duration) * 100 : 0;
   const loopWidth = hasLoop ? ((loopEnd - loopStart) / duration) * 100 : 0;
@@ -108,7 +119,8 @@ function AudioProgressBar({
       onDoubleClick={(e) => e.stopPropagation()}
       style={{ touchAction: "none" }}
       className={cn(
-        "nodrag nopan relative h-2 w-full cursor-pointer rounded-full bg-black/10",
+        "nodrag nopan relative h-2 w-full cursor-pointer rounded-full",
+        isLight ? "bg-white/25" : "bg-black/10",
         className,
       )}
     >
@@ -126,14 +138,20 @@ function AudioProgressBar({
         ref={(el) => {
           progressRef.current = el;
         }}
-        className="pointer-events-none absolute inset-y-0 left-0 w-0 rounded-full bg-blue-500/70"
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-0 rounded-full",
+          isLight ? "bg-white/90" : "bg-blue-500/70",
+        )}
       />
 
       <div
         ref={(el) => {
           playheadRef.current = el;
         }}
-        className="pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-0.5 -translate-x-1/2 rounded-full bg-blue-700"
+        className={cn(
+          "pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-0.5 -translate-x-1/2 rounded-full",
+          isLight ? "bg-white" : "bg-blue-700",
+        )}
       />
 
       {/* Always mounted so the refs exist and the position is already correct
@@ -141,7 +159,8 @@ function AudioProgressBar({
       <div
         ref={ghostRef}
         className={cn(
-          "pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-px -translate-x-1/2 bg-black/40",
+          "pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-px -translate-x-1/2",
+          isLight ? "bg-white/70" : "bg-black/40",
           isHovering && duration > 0 ? "opacity-100" : "opacity-0",
         )}
       />
@@ -156,4 +175,4 @@ function AudioProgressBar({
   );
 }
 
-export default memo(AudioProgressBar);
+export default memo(MediaProgressBar);

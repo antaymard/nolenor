@@ -1,5 +1,5 @@
 import { useWindowsStore } from "@/stores/windowsStore";
-import { useStore } from "@xyflow/react";
+import { useExistingNodeIds } from "@/lib/nodeIdentity";
 import { useMemo } from "react";
 import { Trash2 } from "lucide-react";
 import MinimizedWindowPill from "./MinimizedWindowPill";
@@ -9,16 +9,15 @@ export default function MinimizedWindowsStack() {
   const closeAllMinimizedWindows = useWindowsStore(
     (s) => s.closeAllMinimizedWindows,
   );
-  const existingNodeIds = useStore((state) =>
-    state.nodes.map((node) => node.id),
-  );
+  const existingNodeIds = useExistingNodeIds();
 
-  const minimizedWindows = useMemo(() => {
-    const ids = new Set(existingNodeIds);
-    return openedWindows.filter(
-      (w) => w.windowState === "minimized" && ids.has(w.xyNodeId),
-    );
-  }, [openedWindows, existingNodeIds]);
+  const minimizedWindows = useMemo(
+    () =>
+      openedWindows.filter(
+        (w) => w.windowState === "minimized" && existingNodeIds.has(w.xyNodeId),
+      ),
+    [openedWindows, existingNodeIds],
+  );
 
   if (minimizedWindows.length === 0) return null;
 

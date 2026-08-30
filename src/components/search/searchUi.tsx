@@ -174,7 +174,7 @@ export function SearchEmpty({
 export function SearchError({ message }: { message?: string }) {
   return (
     <div className="p-6 text-center text-sm text-destructive">
-      Une erreur est survenue{message ? ` : ${message}` : ""}.
+      An error occured{message ? ` : ${message}` : ""}.
     </div>
   );
 }

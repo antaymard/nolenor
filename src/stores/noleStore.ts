@@ -1,3 +1,4 @@
+import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { LiveTranscriptionProvider } from "@/hooks/useLiveTranscription";
@@ -28,6 +29,17 @@ interface NoleStore {
   // revanche — le moteur de dictée est un réglage d'utilisateur, pas une
   // propriété de la conversation.
   voiceProvider: LiveTranscriptionProvider;
+  // Le brouillon du composer vit ici, et non dans `useNoleChat`, pour que la
+  // frappe ne re-rende pas tout ce que ce hook alimente. Il est monté par cinq
+  // surfaces, dont le provider de contexte mobile : un `useState` local y
+  // faisait re-rendre, à chaque caractère, l'en-tête, le sélecteur de
+  // conversation, le badge de stats et l'overlay de node du canvas.
+  //
+  // Deuxième raison, celle qui rend le découpage possible : `sendCurrentMessage`
+  // lit le brouillon. Tant qu'il le lisait depuis un state réactif, son
+  // `useCallback` changeait d'identité à chaque frappe et la propageait à tous
+  // ses consommateurs — aucune mémoïsation en aval n'y résistait.
+  userInput: string;
   attachedNodes: CanvasNode[];
   attachedPosition: { x: number; y: number } | null;
 
@@ -39,6 +51,9 @@ interface NoleStore {
   // null → aucun choix explicite, on retombe sur la résolution par défaut.
   setModelSelection: (selection: NoleModelSelection | null) => void;
   setVoiceProvider: (provider: LiveTranscriptionProvider) => void;
+  // Signature de `useState` : la dictée met à jour le brouillon en fonction du
+  // texte déjà saisi (`prev => prev + transcription`).
+  setUserInput: Dispatch<SetStateAction<string>>;
   addAttachments: (
     attachments: { nodes?: CanvasNode[]; position?: { x: number; y: number } },
     removeIfPresent?: boolean,
@@ -60,6 +75,7 @@ export const useNoleStore = create<NoleStore>()(
       activeThreadId: null,
       modelSelection: null,
       voiceProvider: DEFAULT_VOICE_PROVIDER,
+      userInput: "",
       attachedNodes: [],
       attachedPosition: null,
 
@@ -81,6 +97,12 @@ export const useNoleStore = create<NoleStore>()(
 
       setVoiceProvider: (provider: LiveTranscriptionProvider) => {
         set({ voiceProvider: provider });
+      },
+
+      setUserInput: (value) => {
+        set((state) => ({
+          userInput: typeof value === "function" ? value(state.userInput) : value,
+        }));
       },
 
       togglePanelLayout: () => {
@@ -151,6 +173,18 @@ export const useIsNodeAttached = (nodeId: string): boolean => {
   return useNoleStore(
     useShallow((state) => state.attachedNodes.some((n) => n.id === nodeId)),
   );
+};
+
+/**
+ * Le composer a-t-il quelque chose à envoyer ?
+ *
+ * Sélecteur dérivé plutôt que lecture du texte : la valeur ne bascule qu'au
+ * passage vide → non vide, donc le composer ne re-rend pas à chaque caractère
+ * pour rafraîchir l'état de son bouton d'envoi. Seul `RichTextArea`, qui affiche
+ * réellement le texte, s'abonne à `userInput`.
+ */
+export const useHasUserInput = (): boolean => {
+  return useNoleStore((state) => state.userInput.trim().length > 0);
 };
 
 export const useIsNolePanelExpanded = (): boolean => {

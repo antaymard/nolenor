@@ -2,6 +2,10 @@ import { useState } from "react";
 import { TbPlus } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import CanvasFormModal from "@/components/canvas/CanvasFormModal";
+import {
+  pendingTasksOf,
+  type PendingTasksByCanvas,
+} from "@/hooks/useHomePendingTasks";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
 import {
   AlertDialog,
@@ -19,6 +23,9 @@ import WorkspaceCard, { type WorkspaceCardCanvas } from "./WorkspaceCard";
 interface WorkspaceGridProps {
   ownCanvases: WorkspaceCardCanvas[];
   sharedCanvases: WorkspaceCardCanvas[];
+  /** Les tâches en attente de Nolë, par canvas : chaque carte y pioche les
+   *  siennes. Une carte sans entrée n'affiche rien. */
+  pendingTasks: PendingTasksByCanvas;
   onDelete: (canvasId: Id<"canvases">) => void;
 }
 
@@ -31,6 +38,7 @@ const appearDelay = (index: number) => ({
 export default function WorkspaceGrid({
   ownCanvases,
   sharedCanvases,
+  pendingTasks,
   onDelete,
 }: WorkspaceGridProps) {
   // Les deux dialogues vivent ici, montés une fois, et non dans chaque carte :
@@ -73,6 +81,7 @@ export default function WorkspaceGrid({
                 canvas={canvas}
                 onEdit={setCanvasToEdit}
                 onDelete={setCanvasToDelete}
+                pendingTasks={pendingTasksOf(pendingTasks, canvas._id)}
                 className="animate-appear-up"
                 style={appearDelay(index)}
               />
@@ -98,13 +107,14 @@ export default function WorkspaceGrid({
       {sharedCanvases.length > 0 && (
         <section>
           <h2 className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase">
-            Shared with me
+            Shared with you
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sharedCanvases.map((canvas, index) => (
               <WorkspaceCard
                 key={canvas._id}
                 canvas={canvas}
+                pendingTasks={pendingTasksOf(pendingTasks, canvas._id)}
                 className="animate-appear-up"
                 style={appearDelay(index)}
               />

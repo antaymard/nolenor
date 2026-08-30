@@ -42,6 +42,29 @@ export async function listByThreadId(
     .collect();
 }
 
+/**
+ * La dernière ligne assistant du thread — celle qui porte le modèle et la
+ * fenêtre de contexte courants.
+ *
+ * Lecture d'un seul document, via `by_threadId_and_role`. C'est le point : la
+ * query qui l'appelle est réinvalidée à chaque step LLM, donc son read set doit
+ * rester d'une taille fixe. La collecter depuis `listByThreadId` remettrait
+ * l'historique entier dans ce read set, et le ferait repasser sur le websocket
+ * une quarantaine de fois par tour.
+ */
+export async function findLastAssistantByThreadId(
+  ctx: QueryCtx,
+  { threadId }: { threadId: string },
+): Promise<MessageMetadata | null> {
+  return await ctx.db
+    .query("messageMetadata")
+    .withIndex("by_threadId_and_role", (q) =>
+      q.eq("threadId", threadId).eq("role", "assistant"),
+    )
+    .order("desc")
+    .first();
+}
+
 async function findByMessageId(
   ctx: QueryCtx,
   { messageId }: { messageId: string },

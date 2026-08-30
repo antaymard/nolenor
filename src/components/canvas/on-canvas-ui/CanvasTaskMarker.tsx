@@ -1,31 +1,30 @@
 import { NodeToolbar, Position } from "@xyflow/react";
 import { useMemo } from "react";
-import {
-  useIsLiveOnCanvas,
-  useResolvedRunStatus,
-} from "@/hooks/useThreadRunStatus";
-import {
-  getDockStatusAppearance,
-  getTaskPillLabel,
-  type PendingThread,
-} from "@/lib/threadRunStatus";
-import { cn } from "@/lib/utils";
-import TaskPillBody from "./TaskPill";
+import { useIsLiveOnCanvas } from "@/hooks/useThreadRunStatus";
+import type { PendingThread } from "@/lib/threadRunStatus";
+import TaskCard from "./TaskCard";
 
 /** Écart au bas de la boîte englobante, en pixels d'écran. */
 const TOOLBAR_OFFSET = 10;
 
 /** De combien on décale deux tâches ancrées exactement au même endroit. */
-const STACK_STEP = 30;
+const STACK_STEP = 56;
 
 /**
- * Une tâche Nolë, ancrée aux nodes qu'elle travaille.
+ * Une tâche Nolë, ancrée au node qu'elle travaille.
  *
- * `NodeToolbar` pan avec le canvas mais ne subit pas le zoom : la pastille reste
- * lisible à toute échelle. `nodeId` reçoit ici **tous** les nodes touchés, et
- * l'ancrage se fait sur leur boîte englobante — une tâche qui a créé cinq nodes
- * porte une pastille, pas cinq. On ne désigne donc aucun node « principal » : la
- * pastille dit « cette tâche concerne cette région ».
+ * `NodeToolbar` pan avec le canvas mais ne subit pas le zoom : le bloc reste
+ * lisible à toute échelle.
+ *
+ * Il ne paraît en revanche que sur une ancre unique. Les ancres arrivent bien
+ * ici en liste, et `nodeId` en accepte plusieurs — c'est le placement qui ne
+ * suit pas : `NodeToolbar` vise le centre de la boîte englobante, un point qui
+ * n'appartient à aucun node et qui, dès que les nodes s'éloignent, flotte dans
+ * le vide au milieu de rien. En attendant un placement qui tienne à plusieurs,
+ * la liste reste telle quelle et seul l'affichage se retient.
+ *
+ * C'est le même bloc qu'au dock, à la ligne de nodes près : elle nommerait ce
+ * qui est déjà juste au-dessus.
  */
 export default function CanvasTaskMarker({
   thread,
@@ -41,8 +40,6 @@ export default function CanvasTaskMarker({
   onOpen: (threadId: string) => void;
 }) {
   const isLive = useIsLiveOnCanvas(thread);
-  const status = useResolvedRunStatus(thread);
-  const appearance = getDockStatusAppearance(status);
 
   // `NodeToolbar` reconstruit son sélecteur de store quand `nodeId` change de
   // référence : sans ce mémo, il se réabonnerait à chaque rendu.
@@ -53,10 +50,10 @@ export default function CanvasTaskMarker({
   );
 
   // Rien à ancrer — tâche qui vient de démarrer, tâche de pure lecture, ou nodes
-  // tous supprimés depuis. Le dock, lui, la montre : c'est son rôle.
-  if (!isLive || nodeIds.length === 0) return null;
-
-  const isRunning = status === "running";
+  // tous supprimés depuis. Le dock, lui, la montre : c'est son rôle. Plusieurs
+  // ancres : rien à ancrer non plus, faute d'un endroit honnête où poser le bloc
+  // (cf. l'en-tête). Même report sur le dock, qui lui nomme les nodes touchés.
+  if (!isLive || nodeIds.length !== 1) return null;
 
   return (
     <NodeToolbar
@@ -69,28 +66,7 @@ export default function CanvasTaskMarker({
       position={Position.Bottom}
       offset={TOOLBAR_OFFSET + stackIndex * STACK_STEP}
     >
-      <button
-        type="button"
-        onClick={() => onOpen(thread.threadId)}
-        // Le libellé est tronqué dans une pastille étroite, et il n'y a pas de
-        // popover ici : le survol natif est le seul moyen de lire l'action
-        // entière sans ouvrir la conversation.
-        title={getTaskPillLabel(thread)}
-        className={cn(
-          "flex h-7 max-w-[220px] items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium shadow-sm",
-          "animate-in fade-in zoom-in-95 duration-200",
-          appearance.className,
-        )}
-      >
-        {/* Pas de puce de node, seule différence avec le dock : le node est
-            juste au-dessus de la pastille, la nommer n'apprendrait rien. Le
-            libellé, lui, est le même des deux côtés. */}
-        <TaskPillBody
-          thread={thread}
-          appearance={appearance}
-          isRunning={isRunning}
-        />
-      </button>
+      <TaskCard thread={thread} onOpen={onOpen} />
     </NodeToolbar>
   );
 }

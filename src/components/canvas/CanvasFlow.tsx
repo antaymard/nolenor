@@ -6,6 +6,7 @@ import {
   Background,
   BackgroundVariant,
   useReactFlow,
+  type Connection,
   type Edge,
 } from "@xyflow/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
@@ -25,6 +26,8 @@ import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useHotspotHotkeys } from "@/hooks/useHotspotHotkeys";
+import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
+import { isEditableTarget } from "@/lib/editableTarget";
 import { withTouchDragGate } from "./touchDragGate";
 import { markCanvasMoved } from "@/lib/canvasPanGesture";
 import { useCanvasStore } from "@/stores/canvasStore";
@@ -41,17 +44,6 @@ import "@xyflow/react/dist/style.css";
  *             zoom au double-clic.
  */
 export type CanvasFlowVariant = "desktop" | "touch";
-
-// Additional helper to prevent hotkeys from triggering when typing in inputs, textareas, selects or contenteditable elements
-function isEditableTarget(target: EventTarget | null): target is HTMLElement {
-  return (
-    target instanceof HTMLElement &&
-    (target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.tagName === "SELECT" ||
-      target.isContentEditable)
-  );
-}
 
 interface CanvasFlowProps {
   canvasId: Id<"canvases">;
@@ -159,6 +151,9 @@ export default function CanvasFlow({
   // Hotspot keyboard shortcuts (Alt+1 … Alt+9)
   useHotspotHotkeys();
 
+  // Création d'un node au curseur (T titre, B blocknote, I image, A table)
+  useCreateNodeHotkeys({ canEdit, isTouch });
+
   // Canvas nodes management
   const { nodes, handleNodeChange } = useCanvasNodes(canvasId, canvasNodes);
 
@@ -187,6 +182,35 @@ export default function CanvasFlow({
     [],
   );
 
+  // Mémoïsé, et pas une arrow dans le JSX : `<ReactFlow>` repousse ses props
+  // dans le store à chaque rendu, donc une nouvelle référence par rendu ajoute
+  // une notification du store — donc un tour de tous les sélecteurs de tous les
+  // nodes. Pendant un drag, `setNodes` re-rend ce composant à chaque frame :
+  // c'était une notification de trop, par frame.
+  const onConnect = useCallback(
+    (params: Connection) => {
+      handleEdgeChange([
+        {
+          type: "add" as const,
+          item: {
+            id: generateLlmId(),
+            source: params.source,
+            target: params.target,
+            sourceHandle: params.sourceHandle ?? undefined,
+            targetHandle: params.targetHandle ?? undefined,
+            markerEnd: {
+              type: MarkerType.Arrow,
+              width: 30,
+              height: 30,
+              strokeWidth: 1,
+            },
+          },
+        },
+      ]);
+    },
+    [handleEdgeChange],
+  );
+
   return (
     <>
       {isDraggingOver && <CanvasDropOverlay />}
@@ -203,6 +227,11 @@ export default function CanvasFlow({
         minZoom={0.1}
         maxZoom={4}
         selectNodesOnDrag={false}
+        // Sans ça React Flow ajoute +1000 au z d'un node sélectionné : le
+        // "send to back" ne se verrait pas tant que le node reste sélectionné.
+        // La sélection reste signalée par le ring de NodeFrame, qui ne dépend
+        // pas du z. Cf. l'override de .react-flow__node-toolbar dans index.css.
+        elevateNodesOnSelect={false}
         selectionMode={SelectionMode.Partial}
         selectionOnDrag={!panWithFinger}
         // Tactile : draggable est accordé node par node via withTouchDragGate.
@@ -229,26 +258,7 @@ export default function CanvasFlow({
         edges={edgesWithColoredMarkers}
         onEdgesChange={handleEdgeChange}
         onNodesChange={handleNodeChange}
-        onConnect={(params) => {
-          handleEdgeChange([
-            {
-              type: "add" as const,
-              item: {
-                id: generateLlmId(),
-                source: params.source,
-                target: params.target,
-                sourceHandle: params.sourceHandle ?? undefined,
-                targetHandle: params.targetHandle ?? undefined,
-                markerEnd: {
-                  type: MarkerType.Arrow,
-                  width: 30,
-                  height: 30,
-                  strokeWidth: 1,
-                },
-              },
-            },
-          ]);
-        }}
+        onConnect={onConnect}
       >
         <Background
           variant={BackgroundVariant.Lines}

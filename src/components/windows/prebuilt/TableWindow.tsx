@@ -315,20 +315,20 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
           variant="outline"
           onClick={() => setImportOpen(true)}
           disabled={isLocked}
-          title="Importer un fichier CSV"
+          title="Import a CSV file"
         >
           <TbUpload size={14} className="mr-1" />
-          Importer
+          Import
         </Button>
         <Button
           size="sm"
           variant="outline"
           onClick={handleExportCsv}
           disabled={localColumns.length === 0}
-          title="Exporter au format CSV"
+          title="Export in CSV"
         >
           <TbDownload size={14} className="mr-1" />
-          Exporter
+          Export
         </Button>
       </div>
       <TableImportDialog

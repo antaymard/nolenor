@@ -8,6 +8,7 @@ import ModelSelect from "./chat-input/ModelSelect";
 import SendStopButton from "./chat-input/SendStopButton";
 import VoiceProviderSelect from "./chat-input/VoiceProviderSelect";
 import { Kbd } from "@/components/shadcn/kbd";
+import { useHasUserInput } from "@/stores/noleStore";
 import {
   Tooltip,
   TooltipContent,
@@ -21,8 +22,6 @@ const INPUT_MIN_ROWS = 1;
 const INPUT_MAX_ROWS = 10;
 
 type ChatInputProps = {
-  userInput: string;
-  setUserInput: (value: string) => void;
   onSend: () => void;
   isSending: boolean;
   isAssistantResponding: boolean;
@@ -47,8 +46,6 @@ type ChatInputProps = {
 };
 
 export default function ChatInput({
-  userInput,
-  setUserInput,
   onSend,
   isSending,
   isAssistantResponding,
@@ -69,11 +66,16 @@ export default function ChatInput({
   dirtyNodeIds,
   hasDirtyWindows,
 }: ChatInputProps) {
+  // Booléen dérivé plutôt que le texte : il ne bascule qu'au passage vide → non
+  // vide, donc ce composant et ses enfants ne re-rendent pas à chaque caractère.
+  // Seul `RichTextArea` s'abonne au brouillon lui-même.
+  const hasUserInput = useHasUserInput();
+
   // `hasDirtyWindows` n'entre volontairement pas dans `canSend` : le bouton
   // reste cliquable pour que le clic déclenche le toast qui explique le blocage,
   // signalé au passage par l'icône d'alerte et le badge.
   const canSend =
-    !!userInput.trim() && !isAssistantResponding && !isSending && !sttBusy;
+    hasUserInput && !isAssistantResponding && !isSending && !sttBusy;
 
   return (
     <div className="p-2 pt-0">
@@ -91,8 +93,6 @@ export default function ChatInput({
 
         <div className="px-3 pt-2.5">
           <RichTextArea
-            value={userInput}
-            onChange={setUserInput}
             onSubmit={onSend}
             minRows={INPUT_MIN_ROWS}
             maxRows={INPUT_MAX_ROWS}
@@ -126,7 +126,9 @@ export default function ChatInput({
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            {hasDirtyWindows && <DirtyWindowsBadge count={dirtyNodeIds.length} />}
+            {hasDirtyWindows && (
+              <DirtyWindowsBadge count={dirtyNodeIds.length} />
+            )}
             <SendStopButton
               canSend={canSend}
               onSend={onSend}
@@ -156,7 +158,7 @@ function MicStatus({
     return (
       <span className="flex items-center gap-1.5 text-xs text-red-500">
         <SoundWaveAnimation level={level} />
-        <span>Écoute…</span>
+        <span>Listening...</span>
       </span>
     );
   }

@@ -47,6 +47,8 @@ const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
   value: { width: 400, height: 300 },
   title: { width: 480, height: 320 },
   table: { widthRatio: 1 / 1.8, heightRatio: 0.9 },
+  // 16/9 avec de la marge : la fenêtre est faite pour regarder, pas pour lire.
+  video: { width: 720, height: 480 },
   // Fallback pour les custom nodes dont le template ne définit pas de
   // windowSize (la taille passe normalement par le payload openWindow).
   custom: DOCUMENT_WINDOW_SIZE,
@@ -190,6 +192,11 @@ const FULLSCREEN_ELIGIBLE_NODE_TYPES: ReadonlySet<NodeType> = new Set([
   "table",
   "pdf",
   "app",
+  // Ajouter un type ici ne suffit pas : WindowsContainer retire la fenêtre
+  // normale de la liste dès qu'elle passe en plein écran, et sa chaîne de
+  // dispatch doit donc savoir quoi rendre à la place. Sans les deux, la
+  // fenêtre disparaît au lieu de s'agrandir.
+  "video",
 ]);
 
 export function isFullscreenEligible(nodeType: NodeType): boolean {

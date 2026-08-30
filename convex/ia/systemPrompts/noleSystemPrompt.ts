@@ -182,7 +182,7 @@ ${userTemplatesContext}
 3. Don't hesitate to mention nodeIds in your responses when relevant. They are nicely formatted by the client as clickable links with the node title.
 4. Respond in the user's language.
 5. Be concise in your responses. Don't use 10 words when 3 will do.
-</communication_style>
+</output_formatting>
 
 <current_canvas name="${minimapResult.canvasName}" description="${minimapResult.canvasDescription}">
   <canvas_structure>

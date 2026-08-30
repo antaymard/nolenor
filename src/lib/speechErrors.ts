@@ -1,44 +1,44 @@
 /**
- * Messages d'erreur user-friendly (FR) pour le speech-to-text.
+ * User-friendly (EN) error messages for speech-to-text.
  *
- * Centralise le mapping des erreurs navigateur (getUserMedia) et du protocole
- * voice-server (événements `error` + close codes WebSocket, cf. le README du
- * repo voice-server) vers du texte affichable, pour que les hooks STT ne
- * remontent jamais un message technique brut à l'utilisateur.
+ * Centralizes the mapping of browser errors (getUserMedia) and the voice-server
+ * protocol (`error` events + WebSocket close codes, cf. the voice-server repo
+ * README) to displayable text, so STT hooks never surface a raw technical
+ * message to the user.
  */
 
-/** Erreurs d'accès au micro / setup audio local (getUserMedia, AudioContext). */
+/** Microphone access / local audio setup errors (getUserMedia, AudioContext). */
 export function describeMicrophoneError(err: unknown): string {
   if (err instanceof DOMException) {
     switch (err.name) {
       case "NotAllowedError":
       case "PermissionDeniedError":
       case "SecurityError":
-        return "Accès au micro refusé. Autorisez le microphone dans les réglages du navigateur.";
+        return "Microphone access denied. Allow the microphone in your browser settings.";
       case "NotFoundError":
       case "DevicesNotFoundError":
-        return "Aucun microphone détecté.";
+        return "No microphone detected.";
       case "NotReadableError":
       case "TrackStartError":
-        return "Microphone indisponible (déjà utilisé par une autre application ?).";
+        return "Microphone unavailable (already in use by another application?).";
       case "OverconstrainedError":
-        return "Le microphone ne supporte pas les paramètres demandés.";
+        return "The microphone does not support the requested settings.";
       default:
         break;
     }
   }
-  return "Impossible d'accéder au microphone.";
+  return "Unable to access the microphone.";
 }
 
-/** Codes des événements `error` du voice-server (protocole /v1/realtime). */
+/** `error` event codes from the voice-server (/v1/realtime protocol). */
 const SERVER_ERROR_MESSAGES: Record<string, string> = {
-  bad_message: "Erreur de communication avec le serveur vocal.",
-  idle_timeout: "Session vocale fermée pour inactivité.",
-  session_too_long: "Durée maximale de dictée atteinte.",
-  upstream_error: "Le service de transcription est momentanément indisponible.",
-  backpressure: "Connexion trop lente pour la dictée en direct.",
-  server_shutdown: "Le serveur vocal redémarre, réessayez dans un instant.",
-  server_error: "Erreur interne du serveur vocal.",
+  bad_message: "Communication error with the voice server.",
+  idle_timeout: "Voice session closed due to inactivity.",
+  session_too_long: "Maximum dictation duration reached.",
+  upstream_error: "The transcription service is temporarily unavailable.",
+  backpressure: "Connection too slow for live dictation.",
+  server_shutdown: "The voice server is restarting, please try again in a moment.",
+  server_error: "Internal voice server error.",
 };
 
 export function describeVoiceServerError(
@@ -46,13 +46,13 @@ export function describeVoiceServerError(
   message: string | null,
 ): string {
   if (code && SERVER_ERROR_MESSAGES[code]) return SERVER_ERROR_MESSAGES[code];
-  return message || "Erreur du serveur vocal.";
+  return message || "Voice server error.";
 }
 
 /**
- * Close codes WebSocket du voice-server. Les upgrades rejetés (token invalide,
- * origine non allowlistée, limite de sessions) apparaissent côté navigateur
- * comme une fermeture opaque (1006) : ils tombent dans le `fallback`.
+ * Voice-server WebSocket close codes. Rejected upgrades (invalid token,
+ * non-allowlisted origin, session limit) surface in the browser as an opaque
+ * closure (1006): they fall through to the `fallback`.
  */
 export function describeVoiceServerClose(
   code: number,

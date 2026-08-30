@@ -63,7 +63,7 @@ function EditorLoading() {
   return (
     <span className="flex items-center gap-2 text-sm text-slate-500">
       <Spinner className="size-4" />
-      Chargement de l'éditeur...
+      Loading editor
     </span>
   );
 }
@@ -208,7 +208,9 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
         | PartialBlock[]
         | null;
       const replacement =
-        parsedBlocks && parsedBlocks.length > 0 ? parsedBlocks : [EMPTY_PARAGRAPH];
+        parsedBlocks && parsedBlocks.length > 0
+          ? parsedBlocks
+          : [EMPTY_PARAGRAPH];
 
       skipNextChangeRef.current = true;
       try {

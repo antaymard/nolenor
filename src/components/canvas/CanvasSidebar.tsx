@@ -142,7 +142,7 @@ export default function CanvasSidebar({
         {sharedCanvases.length > 0 && (
           <>
             <h4 className="px-4 pt-4 text-xs text-muted-foreground uppercase tracking-wider">
-              Shared with me
+              Shared with you
             </h4>
             {sharedCanvases.map((c, index) => (
               <div

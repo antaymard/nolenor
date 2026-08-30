@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from "react";
-import { useViewport } from "@xyflow/react";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useCanvasContentIngest } from "./useCanvasContentIngest";
+import { useFlowPosition } from "./useCanvasPointerPosition";
 
 const PASTE_GUARD_WINDOW_MS = 300;
 
@@ -54,7 +54,7 @@ function runWithPasteGuard(
  * et le filtre de focus.
  */
 export function useCanvasPasteHandler() {
-  const { x: canvasX, y: canvasY, zoom: canvasZoom } = useViewport();
+  const { getViewportCenter } = useFlowPosition();
   const { createNodesFromFiles, createNodeFromText } = useCanvasContentIngest();
   const focus = useCanvasStore((s) => s.focus);
   const pasteGuardRef = useRef<PasteGuardState>({
@@ -62,19 +62,6 @@ export function useCanvasPasteHandler() {
     lastSignature: "",
     lastAt: 0,
   });
-
-  /**
-   * Calculate the center position of the current viewport
-   */
-  const getViewportCenter = useCallback(() => {
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
-
-    return {
-      x: (screenWidth / 2 - canvasX) / canvasZoom,
-      y: (screenHeight / 2 - canvasY) / canvasZoom,
-    };
-  }, [canvasX, canvasY, canvasZoom]);
 
   /**
    * Main paste event handler

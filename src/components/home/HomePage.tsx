@@ -2,6 +2,10 @@ import { useCallback, useState } from "react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import OnboardingModal from "@/components/ui/OnboardingModal";
+import {
+  pendingTasksOf,
+  useHomePendingTasks,
+} from "@/hooks/useHomePendingTasks";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
 import HomeHeader from "./HomeHeader";
 import ResumeCard from "./ResumeCard";
@@ -11,6 +15,12 @@ import WorkspaceGrid from "./WorkspaceGrid";
 export default function HomePage() {
   const { ownCanvases, sharedCanvases, isLoading, deleteCanvas } =
     useUserCanvases();
+  // Ce que Nolë a laissé en plan, tous workspaces confondus. Chargé à part des
+  // canvases, et non greffé sur leur listing : la ligne `threadMetadata` d'un
+  // thread est réécrite une fois par step LLM, et une query qui les mêlerait
+  // rejouerait le listing complet des canvases à chaque battement d'un tour en
+  // cours.
+  const pendingTasks = useHomePendingTasks();
   // `undefined` = la modale décide seule (première visite) ; un booléen la
   // passe en piloté, pour rejouer le tour depuis les boutons de la page.
   const [replayTour, setReplayTour] = useState<boolean | undefined>(undefined);
@@ -53,16 +63,23 @@ export default function HomePage() {
               <WorkspaceGrid
                 ownCanvases={[]}
                 sharedCanvases={sharedCanvases}
+                pendingTasks={pendingTasks}
                 onDelete={handleDelete}
               />
             )}
           </>
         ) : (
           <>
-            {lastCanvas && <ResumeCard canvas={lastCanvas} />}
+            {lastCanvas && (
+              <ResumeCard
+                canvas={lastCanvas}
+                pendingTasks={pendingTasksOf(pendingTasks, lastCanvas._id)}
+              />
+            )}
             <WorkspaceGrid
               ownCanvases={ownCanvases}
               sharedCanvases={sharedCanvases}
+              pendingTasks={pendingTasks}
               onDelete={handleDelete}
             />
           </>

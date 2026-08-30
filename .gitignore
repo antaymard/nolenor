@@ -34,3 +34,4 @@ dist-ssr
 
 # PWA dev output (vite-plugin-pwa devOptions)
 dev-dist
+.env.local

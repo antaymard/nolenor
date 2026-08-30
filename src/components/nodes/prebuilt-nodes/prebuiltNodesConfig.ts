@@ -1,4 +1,5 @@
 import type { IconType } from "react-icons";
+import type { LetterKey } from "@tanstack/react-hotkeys";
 import type { NodeType, XyNode, XyNodeProps } from "@/types/domain";
 import { nodeDataConfig } from "@/../convex/config/nodeConfig";
 import type { NodeDataConfigItem } from "@/../convex/config/nodeConfig";
@@ -15,12 +16,20 @@ import EmbedNode from "./EmbedNode";
 import TableNode from "./TableNode";
 import AppNode from "./AppNode";
 import AudioNode from "./AudioNode";
+import VideoNode from "./VideoNode";
 
 type NodeUiConfigItem = {
   nodeComponent: React.ComponentType<XyNodeProps>;
   nodeIcon: IconType;
   canBeOpenInWindow: boolean;
   creatable: boolean;
+  /**
+   * La touche qui crée ce node au curseur, sans modificateur (cf.
+   * `useCreateNodeHotkeys`). Elle vit ici pour que le menu « Add a block » et
+   * les raccourcis lisent le même mapping. Les types sans raccourci restent
+   * créables à la souris.
+   */
+  creationShortcut?: LetterKey;
 };
 
 type PrebuiltNodeConfig = NodeDataConfigItem &
@@ -32,6 +41,7 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.title,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("title"),
     creatable: true,
+    creationShortcut: "T",
   },
   link: {
     nodeComponent: LinkNode,
@@ -44,12 +54,14 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.image,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("image"),
     creatable: true,
+    creationShortcut: "I",
   },
   blocknote: {
     nodeComponent: BlocknoteNode,
     nodeIcon: NODE_TYPE_ICON_MAP.blocknote,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("blocknote"),
     creatable: true,
+    creationShortcut: "B",
   },
   value: {
     nodeComponent: ValueNode,
@@ -81,6 +93,7 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.table,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("table"),
     creatable: true,
+    creationShortcut: "A",
   },
   app: {
     nodeComponent: AppNode,
@@ -92,6 +105,12 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeComponent: AudioNode,
     nodeIcon: NODE_TYPE_ICON_MAP.audio,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("audio"),
+    creatable: true,
+  },
+  video: {
+    nodeComponent: VideoNode,
+    nodeIcon: NODE_TYPE_ICON_MAP.video,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("video"),
     creatable: true,
   },
 };
@@ -152,11 +171,21 @@ function canNodeTypeBeCreated(
   return nodeType ? creatableNodeTypes.has(nodeType as NodeType) : false;
 }
 
+/**
+ * Les types qu'un raccourci clavier peut créer, dans l'ordre du menu
+ * « Add a block ». Source unique du mapping touche → type : `useCreateNodeHotkeys`
+ * pose les bindings, `AddBlockMenuContent` affiche le hint.
+ */
+const shortcutCreatableNodes = prebuiltNodesConfig.filter(
+  (config) => config.creatable && config.creationShortcut,
+);
+
 export default prebuiltNodesConfig;
 export {
   openableNodeTypes,
   canNodeTypeBeOpenedInWindow,
   creatableNodeTypes,
   canNodeTypeBeCreated,
+  shortcutCreatableNodes,
 };
 export type { PrebuiltNodeConfig };

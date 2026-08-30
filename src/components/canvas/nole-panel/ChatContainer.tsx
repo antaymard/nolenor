@@ -56,7 +56,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
   if (isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <ThinkingOrb state="breathing" size={20} aria-label="Chargement" />
+        <ThinkingOrb state="breathing" size={20} aria-label="Loading" />
       </div>
     );
   }
@@ -64,7 +64,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
   return (
     <div className="flex h-full w-full flex-col shadow-2xl/10">
       {/* Header */}
-      <div className="flex items-center gap-1 rounded-t-lg border-b border-slate-200 bg-white/60 py-1 pr-1 pl-3 backdrop-blur-sm">
+      <div className="flex items-center gap-1 rounded-t-lg border-b border-slate-200 bg-white/60 py-1 pr-1 pl-3">
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
           {threadId ? threadInfo?.title || "Untitled chat" : "New chat"}
         </p>
@@ -121,8 +121,6 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
 
       {/* Composer */}
       <ChatInput
-        userInput={chat.userInput}
-        setUserInput={chat.setUserInput}
         onSend={handleSend}
         isSending={chat.isSending}
         isAssistantResponding={chat.isAssistantResponding}

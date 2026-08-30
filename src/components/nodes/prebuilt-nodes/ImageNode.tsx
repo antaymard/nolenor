@@ -31,6 +31,7 @@ import {
 import { UploadFile } from "@/components/fields/UploadFile";
 import ImageGenerateTab from "./image/ImageGenerateTab";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
+import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { useWindowsStore } from "@/stores/windowsStore";
 import {
   DndContext,
@@ -193,13 +194,203 @@ function ImageEditDialog({
   );
 }
 
+/**
+ * Découpe `weights` en `rowCount` lignes contiguës de poids aussi proches que
+ * possible. Les images gardent leur ordre : on ne réordonne pas une galerie.
+ */
+function splitEvenly(weights: number[], rowCount: number): number[][] {
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const rows: number[][] = [];
+  let row: number[] = [];
+  let rowWeight = 0;
+  let placed = 0;
+
+  for (let i = 0; i < weights.length; i++) {
+    const rowsLeft = rowCount - rows.length;
+    const itemsLeft = weights.length - i;
+    const target = (total - placed) / rowsLeft;
+    // Fermer la ligne quand l'image de trop l'éloignerait de la cible, ou
+    // qu'il ne reste plus assez d'images pour en poser une par ligne restante.
+    const closeRow =
+      row.length > 0 &&
+      rowsLeft > 1 &&
+      (itemsLeft < rowsLeft ||
+        Math.abs(rowWeight + weights[i] - target) > Math.abs(rowWeight - target));
+
+    if (closeRow) {
+      rows.push(row);
+      placed += rowWeight;
+      row = [];
+      rowWeight = 0;
+    }
+
+    row.push(i);
+    rowWeight += weights[i];
+  }
+
+  rows.push(row);
+  return rows;
+}
+
+/**
+ * Range les images en lignes, façon galerie justifiée.
+ *
+ * Dans une ligne, chaque image occupe une largeur proportionnelle à son ratio
+ * — un portrait prend moins de place qu'un paysage, personne n'est recadré
+ * pour rentrer dans une case carrée. Une ligne de ratios r₁…rₙ posée sur toute
+ * la largeur est alors haute de 1/Σr (largeur prise pour 1), ce qui donne la
+ * hauteur naturelle d'un empilement. On essaie chaque nombre de lignes et on
+ * garde celui dont la hauteur naturelle colle le mieux à celle du node : le
+ * reste de l'écart est absorbé par un `object-cover` identique partout, donc
+ * un rognage minime au lieu d'un cadrage imposé.
+ */
+function packRows(weights: number[], boxAspect: number): number[][] {
+  let best: number[][] = [weights.map((_, i) => i)];
+  let bestScore = Infinity;
+
+  for (let rowCount = 1; rowCount <= weights.length; rowCount++) {
+    const rows = splitEvenly(weights, rowCount);
+    const height = rows.reduce(
+      (sum, row) => sum + 1 / row.reduce((acc, i) => acc + weights[i], 0),
+      0,
+    );
+    // La boîte est haute de 1/boxAspect pour une largeur de 1.
+    const score = Math.abs(Math.log(height * boxAspect));
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = rows;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Répartit `count` facteurs `flex-grow` de somme confortablement supérieure à
+ * 1 : sous 1, la spec ne distribue que cette fraction de l'espace libre, et la
+ * mosaïque ne remplirait pas le node.
+ */
+function growFactors(values: number[]): number[] {
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return values.map((value) => (value / total) * values.length);
+}
+
+/**
+ * Variant "grid" : toutes les images d'un coup, en mosaïque justifiée.
+ *
+ * Le découpage suit à la fois les ratios des images et celui du node : un node
+ * en bandeau tient sur une ligne, un node en colonne empile. Les lignes se
+ * partagent la hauteur au prorata de leur hauteur naturelle et les images
+ * d'une ligne se partagent la largeur au prorata de leur ratio, le tout en
+ * `flex-grow` — donc pas de trou, pas de débordement, et un redimensionnement
+ * du node se répercute sans un pixel calculé en JS.
+ *
+ * Les ratios sont mesurés à l'`onLoad` de chaque image : ils ne sont pas dans
+ * les données du node, et une image arrivée par l'agent n'en portera jamais.
+ * Tant qu'une image n'a pas chargé, elle compte pour un carré.
+ *
+ * Aucune tuile n'est en `nodrag` : elles couvrent tout le node, les marquer
+ * ainsi rendrait celui-ci indéplaçable à la souris. Un clic sans déplacement
+ * passe quand même — c'est lui qui désigne l'image sur laquelle agit la
+ * toolbar.
+ */
+function ImageGrid({
+  images,
+  aspect,
+  selectedIndex,
+  showSelection,
+  onSelect,
+}: {
+  images: Value;
+  aspect: number;
+  selectedIndex: number;
+  showSelection: boolean;
+  onSelect: (index: number) => void;
+}) {
+  const [ratios, setRatios] = useState<Record<string, number>>({});
+
+  const handleLoad = useCallback(
+    (url: string, event: React.SyntheticEvent<HTMLImageElement>) => {
+      const { naturalWidth, naturalHeight } = event.currentTarget;
+      if (!naturalWidth || !naturalHeight) return;
+      setRatios((previous) =>
+        previous[url] !== undefined
+          ? previous
+          : { ...previous, [url]: naturalWidth / naturalHeight },
+      );
+    },
+    [],
+  );
+
+  const weights = images.map((image) => ratios[image.url] ?? 1);
+  const rows = packRows(weights, aspect);
+  const rowGrows = growFactors(
+    rows.map((row) => 1 / row.reduce((sum, i) => sum + weights[i], 0)),
+  );
+
+  return (
+    <div className="@container h-full w-full overflow-hidden rounded-[4px]">
+      <div
+        className={cn(
+          "flex h-full w-full flex-col gap-[var(--tile-gap)]",
+          "[--tile-gap:1px] @min-[220px]:[--tile-gap:2px] @min-[420px]:[--tile-gap:3px]",
+        )}
+      >
+        {rows.map((row, rowIndex) => {
+          const tileGrows = growFactors(row.map((i) => weights[i]));
+
+          return (
+            <div
+              key={rowIndex}
+              className="flex min-h-0 gap-[var(--tile-gap)]"
+              style={{ flex: `${rowGrows[rowIndex]} 1 0%` }}
+            >
+              {row.map((i, positionInRow) => (
+                <div
+                  key={`${images[i].url}-${i}`}
+                  className="relative min-w-0 overflow-hidden"
+                  style={{ flex: `${tileGrows[positionInRow]} 1 0%` }}
+                  title={images[i].filename}
+                  onClick={() => onSelect(i)}
+                >
+                  {/* En absolu : une image dans le flux imposerait sa hauteur
+                      propre à la ligne, qui ne suivrait plus son flex-grow. */}
+                  <img
+                    src={images[i].url}
+                    alt={images[i].filename ?? `Image ${i + 1}`}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onLoad={(event) => handleLoad(images[i].url, event)}
+                  />
+                  {/* En calque et non en `ring` sur la tuile : une ombre interne
+                      se peint sous l'image, qui couvre toute la tuile. */}
+                  {showSelection && i === selectedIndex && (
+                    <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-blue-500/80" />
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ImageNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
+  const isGrid = xyNode.data.variant === "grid";
+  // Ratio du node, relu à chaque redimensionnement : React Flow republie
+  // width/height pendant le drag des poignées, donc la mosaïque se recompose
+  // en direct.
+  const aspect =
+    xyNode.width && xyNode.height ? xyNode.width / xyNode.height : 1;
   const values = useNodeDataValues(nodeDataId);
   // Le statut de génération est un champ top-level du document, pas une value :
   // il faut donc le nodeData complet, pas seulement ses values.
   const nodeData = useNodeData(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const { downloadStoredFile } = useDownloadFile();
   const openWindow = useWindowsStore((s) => s.openWindow);
 
   const currentValue = (values?.images as Value | undefined) ?? defaultValue;
@@ -271,34 +462,17 @@ function ImageNode(xyNode: XyNodeProps) {
       ? 0
       : Math.min(Math.max(currentIndex, 0), currentValue.length - 1);
 
-  const handleDownload = useCallback(async () => {
+  const handleDownload = useCallback(() => {
     const image = currentValue[safeIndex];
     if (!image) return;
-    const filename = image.filename ?? `image-${safeIndex + 1}`;
-    try {
-      const response = await fetch(image.url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      console.warn("Download via fetch failed, falling back to anchor", err);
-      const link = document.createElement("a");
-      link.href = image.url;
-      link.download = filename;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      document.body.append(link);
-      link.click();
-      link.remove();
-    }
-  }, [currentValue, safeIndex]);
+    // Les images fournies par l'agent n'ont pas de clé : le hook retombe alors
+    // sur le rapatriement de l'URL publique.
+    void downloadStoredFile({
+      key: image.key,
+      url: image.url,
+      filename: image.filename ?? `image-${safeIndex + 1}`,
+    });
+  }, [currentValue, downloadStoredFile, safeIndex]);
 
   return (
     <>
@@ -373,6 +547,16 @@ function ImageNode(xyNode: XyNodeProps) {
             <TbPhoto size={24} />
             No image
           </div>
+        ) : isGrid ? (
+          <ImageGrid
+            images={currentValue}
+            aspect={aspect}
+            selectedIndex={safeIndex}
+            // L'anneau ne sert qu'à désigner la cible du bouton Download :
+            // inutile de le montrer quand la toolbar n'est pas là.
+            showSelection={Boolean(xyNode.selected) && hasMultiple}
+            onSelect={setCurrentIndex}
+          />
         ) : hasMultiple ? (
           <div className="group/carousel relative h-full w-full">
             <img

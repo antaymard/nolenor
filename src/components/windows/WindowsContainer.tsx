@@ -1,7 +1,7 @@
 import { useState, useCallback, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { useWindowsStore, type SnapSide } from "@/stores/windowsStore";
-import { useStore } from "@xyflow/react";
+import { useExistingNodeIds } from "@/lib/nodeIdentity";
 import WindowFrame from "./WindowFrame";
 import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
 
@@ -13,14 +13,15 @@ const FullscreenBlocknoteWindow = lazy(
 const FullscreenTableWindow = lazy(() => import("./FullscreenTableWindow"));
 const FullscreenPdfWindow = lazy(() => import("./FullscreenPdfWindow"));
 const FullscreenAppWindow = lazy(() => import("./FullscreenAppWindow"));
+const FullscreenVideoWindow = lazy(
+  () => import("./FullscreenVideoWindow"),
+);
 
 export default function WindowsContainer() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
   const fullscreenNodeId = useWindowsStore((s) => s.fullscreenNodeId);
   const bringWindowToFront = useWindowsStore((s) => s.bringWindowToFront);
-  const existingNodeIds = useStore((state) =>
-    state.nodes.map((node) => node.id),
-  );
+  const existingNodeIds = useExistingNodeIds();
   const [snapPreview, setSnapPreview] = useState<SnapSide | null>(null);
 
   const fullscreenWindow = fullscreenNodeId
@@ -53,7 +54,7 @@ export default function WindowsContainer() {
     >
       {/* Fullscreen layer (rendered below regular windows) */}
       {fullscreenWindow &&
-        existingNodeIds.includes(fullscreenWindow.xyNodeId) && (
+        existingNodeIds.has(fullscreenWindow.xyNodeId) && (
           <div className="pointer-events-auto">
             {/* Même raison qu'au-dessus de `NodeWindowContent` : sans boundary,
                 un chunk plein écran manquant emporte tout le canvas. */}
@@ -69,6 +70,8 @@ export default function WindowsContainer() {
                   <FullscreenPdfWindow openedWindow={fullscreenWindow} />
                 ) : fullscreenWindow.nodeType === "app" ? (
                   <FullscreenAppWindow openedWindow={fullscreenWindow} />
+                ) : fullscreenWindow.nodeType === "video" ? (
+                  <FullscreenVideoWindow openedWindow={fullscreenWindow} />
                 ) : null}
               </Suspense>
             </WindowContentErrorBoundary>
@@ -95,7 +98,7 @@ export default function WindowsContainer() {
 
       {openedWindows
         .filter((openedWindow) =>
-          existingNodeIds.includes(openedWindow.xyNodeId),
+          existingNodeIds.has(openedWindow.xyNodeId),
         )
         .filter((openedWindow) => openedWindow.xyNodeId !== fullscreenNodeId)
         .map((openedWindow) => (

@@ -1,6 +1,7 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -65,6 +66,45 @@ export async function generatePresignedUrl(
       "Content-Disposition": contentDisposition,
     },
   };
+}
+
+/**
+ * Un nom de fichier sûr à poser dans un en-tête `Content-Disposition`.
+ *
+ * Le guillemet fermerait la valeur entre quotes, et un CR/LF terminerait
+ * l'en-tête : les deux laissent injecter ce qu'on veut dans la réponse. On
+ * garde donc le même jeu de caractères que les clés d'upload
+ * (`buildUpload`), et on borne la longueur.
+ */
+function sanitizeDispositionFilename(filename: string): string {
+  const cleaned = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200);
+  return cleaned.length > 0 ? cleaned : "download";
+}
+
+/**
+ * URL présignée de lecture qui force le téléchargement.
+ *
+ * Les objets sont servis en `Content-Disposition: inline` (cf.
+ * `uploadsConfig`), donc un simple lien vers l'URL publique se contente de
+ * lire le média dans un onglet. Le seul moyen de télécharger était de
+ * rapatrier le fichier en `fetch` puis d'en faire un blob — soit, pour une
+ * vidéo de 500 Mo, tout le fichier en mémoire. `ResponseContentDisposition`
+ * demande à R2 de renvoyer l'en-tête voulu au moment du GET : le navigateur
+ * télécharge en streaming, sans que rien ne transite par le JS.
+ */
+export async function generatePresignedDownloadUrl(
+  key: string,
+  filename: string,
+): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    ResponseContentDisposition: `attachment; filename="${sanitizeDispositionFilename(
+      filename,
+    )}"`,
+  });
+
+  return getSignedUrl(r2Client, command, { expiresIn: 900 });
 }
 
 // Directly upload a buffer to R2 and return the public URL

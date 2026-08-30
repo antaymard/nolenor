@@ -52,13 +52,16 @@ export function useNoleChat() {
   // depuis l'extérieur (dock d'activité, threads associés d'un node) et ouvrait
   // le dernier thread du canvas à la place.
 
-  // Composer input.
-  const [userInput, setUserInput] = useState("");
+  // Composer input. Le texte lui-même vit dans le store Nolë : le garder ici
+  // faisait re-rendre, à chaque caractère, tout ce que ce hook alimente — et
+  // changeait l'identité de `sendCurrentMessage`, donc de tout ce qui en
+  // dépend. Seul le setter, stable, transite encore par ici.
+  const setUserInput = useNoleStore((state) => state.setUserInput);
 
   // Model selection (driven by the thread's last-used model).
   const modelOptions = useQuery(api.ia.nole.listChatModels, {});
-  const threadMessageMetadata = useQuery(
-    api.messageMetadata.getThreadMessageMetadata,
+  const threadUsageSummary = useQuery(
+    api.messageMetadata.getThreadUsageSummary,
     threadId ? { threadId } : "skip",
   );
 
@@ -68,10 +71,10 @@ export function useNoleChat() {
   // le modèle a depuis quitté le catalogue : on ne le retient que s'il en fait
   // toujours partie, sinon on retombe sur le défaut.
   const lastUsedModel = useMemo<ChatModelValues | undefined>(() => {
-    const last = threadMessageMetadata?.lastModelUsed;
+    const last = threadUsageSummary?.lastModelUsed;
     if (!last) return undefined;
     return modelOptions?.find((option) => option.value === last)?.value;
-  }, [threadMessageMetadata?.lastModelUsed, modelOptions]);
+  }, [threadUsageSummary?.lastModelUsed, modelOptions]);
 
   const { selectedModel, setSelectedModel, adoptDraftSelection } =
     useNoleModelSelection({
@@ -82,7 +85,7 @@ export function useNoleChat() {
     });
 
   // Speech-to-text → composer input (live streaming, fallback batch).
-  const speech = useNoleSpeechInput(userInput, setUserInput);
+  const speech = useNoleSpeechInput();
 
   // Attachments (canvas nodes / position) from the Nolë store.
   const attachedNodes = useNoleStore((state) => state.attachedNodes);
@@ -125,6 +128,10 @@ export function useNoleChat() {
   const reactFlow = useReactFlow();
 
   const sendCurrentMessage = useCallback(async () => {
+    // Lecture ponctuelle à l'envoi (pas un rendu) : c'est ce qui garde ce
+    // callback stable d'une frappe à l'autre.
+    const userInput = useNoleStore.getState().userInput;
+
     // `threadId` peut être null : la conversation est vierge et le thread sera
     // créé par `ensureThread` ci-dessous.
     if (
@@ -190,7 +197,6 @@ export function useNoleChat() {
     }
   }, [
     canvasId,
-    userInput,
     isSending,
     isAssistantResponding,
     hasDirtyWindows,
@@ -207,6 +213,7 @@ export function useNoleChat() {
     selectedModel,
     resetAttachments,
     updateThreadTitle,
+    setUserInput,
   ]);
 
   const stopAssistantResponse = useCallback(async () => {
@@ -236,7 +243,13 @@ export function useNoleChat() {
     setUserInput("");
     resetAttachments();
     resetThread();
-  }, [resetAttachments, resetThread, setOverrideThreadId, setModelSelection]);
+  }, [
+    resetAttachments,
+    resetThread,
+    setOverrideThreadId,
+    setModelSelection,
+    setUserInput,
+  ]);
 
   const selectThread = useCallback(
     (selectedThreadId: string | null) => {
@@ -244,7 +257,7 @@ export function useNoleChat() {
       setUserInput("");
       resetAttachments();
     },
-    [resetAttachments, setOverrideThreadId],
+    [resetAttachments, setOverrideThreadId, setUserInput],
   );
 
   return {
@@ -257,8 +270,7 @@ export function useNoleChat() {
     isLoading,
     selectThread,
     startNewThread,
-    // input
-    userInput,
+    // input (le texte se lit depuis le store, cf. `useHasUserInput`)
     setUserInput,
     // sending
     sendCurrentMessage,

@@ -10,9 +10,10 @@ const nodeTypeValues = [
   "pdf",
   "table",
   "app",
+  "audio",
+  "video",
   // Node défini par l'utilisateur : la forme des values est portée par un
   // document nodeTemplates (cf. nodeDatas.templateId), pas par nodeConfig.
-  "audio",
   "custom",
 ] as const;
 

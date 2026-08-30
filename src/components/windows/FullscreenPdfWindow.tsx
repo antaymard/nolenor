@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "convex/react";
 import { List } from "lucide-react";
 import {
@@ -24,10 +23,6 @@ import {
 import { useIsTabletPortrait } from "@/hooks/useTabletMode";
 import type { FileFieldType } from "@/components/fields/file-fields/FileNameField";
 import { api } from "@/../convex/_generated/api";
-import ChatContainer from "@/components/canvas/nole-panel/ChatContainer";
-import NoleIcon from "@/assets/svg-components/NoleIcon";
-import { Button } from "@/components/shadcn/button";
-import { Kbd } from "@/components/shadcn/kbd";
 import {
   Popover,
   PopoverContent,
@@ -35,6 +30,7 @@ import {
 } from "@/components/shadcn/popover";
 import { scrollToPdfPage } from "@/lib/pdfPageScroll";
 import FullscreenWindowFrame from "./FullscreenWindowFrame";
+import { NoleAside } from "./FullscreenNolePanel";
 import PdfPageControls from "./PdfPageControls";
 import PdfZoomControls from "./PdfZoomControls";
 
@@ -69,9 +65,6 @@ export default function FullscreenPdfWindow({
     api.searchableChunks.listPdfPages,
     canvasId ? { nodeDataId, canvasId } : "skip",
   );
-
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  useHotkey("N", () => setIsChatOpen((v) => !v));
 
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null);
 
@@ -181,22 +174,7 @@ export default function FullscreenPdfWindow({
     >
       <div className="flex min-h-0 flex-1">
         {/* Left: Nolë chat */}
-        {!isTabletPortrait && (
-          <aside className="relative flex w-95 shrink-0 flex-col border-r bg-white [&>div]:shadow-none!">
-            {isChatOpen ? (
-              <ChatContainer onClose={() => setIsChatOpen(false)} />
-            ) : (
-              <div className="absolute bottom-4 left-4">
-                <div className="canvas-ui-container px-0!">
-                  <Button variant="ghost" onClick={() => setIsChatOpen(true)}>
-                    <NoleIcon /> Nolë
-                    <Kbd>N</Kbd>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </aside>
-        )}
+        {!isTabletPortrait && <NoleAside />}
 
         {/* Middle: PDF viewer */}
         <main

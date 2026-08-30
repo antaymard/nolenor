@@ -144,21 +144,28 @@ export const streamResponse = internalAction({
         {
           saveStreamDeltas: {
             // Le découpage reste au mot : c'est lui qui donne le rendu « à la
-            // machine à écrire », et il ne pilote que la taille des deltas, pas
-            // leur nombre.
+            // machine à écrire ».
             chunking: "word",
-            // La cadence d'écriture, elle, pilote le nombre de deltas — et
-            // c'est le seul terme encore quadratique du streaming : à chaque
-            // arrivée, le client retrie tout le tableau accumulé
-            // (`getParts`) et le recopie (`[...old, ...new]`). Deux fois moins
-            // d'écritures, quatre fois moins de travail sur la durée d'un tour.
+            // Ne pas monter cette valeur. Elle a l'air d'être un simple réglage
+            // de perf — moins d'écritures, moins de travail client — mais elle
+            // pilote surtout la LATENCE D'APPARITION DES TOOL CALLS.
             //
-            // Invisible à l'œil : `useSmoothText` lisse l'affichage à 20 FPS en
-            // s'adaptant au débit, donc c'est lui qui décide de la fluidité, pas
-            // la cadence réseau. Et le premier delta part sans attendre — le
-            // throttle ne s'applique qu'entre deux écritures — donc le temps
-            // jusqu'au premier token ne bouge pas.
-            throttleMs: 400,
+            // `DeltaStreamer.addParts` empile les chunks dans `#nextParts` et
+            // n'écrit que si `Date.now() - #latestWrite >= throttleMs`. Un
+            // `tool-input-start` attend donc jusqu'à `throttleMs` avant
+            // d'atteindre le client. Pendant ce temps le dock, lui, est déjà à
+            // jour : `withActivityTracking` écrit `lastActivity` par une
+            // mutation directe au démarrage de `execute`.
+            //
+            // Si le tool se termine dans la fenêtre, l'entrée et la sortie
+            // partent dans le même delta : la carte du tool apparaît d'emblée
+            // terminée, l'utilisateur voit une attente sans savoir ce qui la
+            // cause, et le chat contredit le dock.
+            //
+            // Essayé à 400 pour réduire le résiduel quadratique côté client
+            // (`getParts` retrie le tableau accumulé) : le gain était marginal,
+            // le coût UX bien réel.
+            throttleMs: 200,
           },
         },
       );

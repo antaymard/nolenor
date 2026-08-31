@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Save } from "lucide-react";
 import {
   TbArrowLeft,
   TbRefresh,
   TbDotsVertical,
   TbHistory,
+  TbLocation,
   TbMessageSearch,
 } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
@@ -15,6 +16,7 @@ import NodeWindowContent from "@/components/windows/NodeWindowContent";
 import NodeWindowDialogs from "@/components/windows/NodeWindowDialogs";
 import { useNodeWindowIdentity } from "@/components/windows/useNodeWindowIdentity";
 import { useWindowFrameState } from "@/components/windows/useWindowFrameState";
+import { useGoToNode } from "@/hooks/useGoToNode";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import {
   AlertDialog,
@@ -34,6 +36,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
+import { useMobileShell } from "./mobileShellContext";
 
 export default function MobileNodeOverlay() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
@@ -50,10 +53,21 @@ export default function MobileNodeOverlay() {
   return <NodeOverlayInner key={topWindow.xyNodeId} window={topWindow} />;
 }
 
+/**
+ * Ce qui doit se passer une fois la fermeture tranchée : simplement quitter la
+ * fenêtre, ou la quitter pour aller cadrer son node sur le canvas.
+ */
+type PendingExit = "close" | "navigate";
+
 function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
   const { xyNodeId, nodeDataId, nodeType } = openedWindow;
   const closeWindow = useWindowsStore((s) => s.closeWindow);
+  const closeWindowsForNodeIds = useWindowsStore(
+    (s) => s.closeWindowsForNodeIds,
+  );
   const { selectThread } = useMobileNoleChat();
+  const goToNode = useGoToNode();
+  const shell = useMobileShell();
 
   const {
     isDirty,
@@ -65,11 +79,45 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
     contextValue,
   } = useWindowFrameState(xyNodeId);
 
-  const [showBackConfirm, setShowBackConfirm] = useState(false);
+  const [pendingExit, setPendingExit] = useState<PendingExit | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
 
   const { title, NodeIcon } = useNodeWindowIdentity(nodeDataId);
+
+  /**
+   * « Navigate to node » depuis le plein écran mobile.
+   *
+   * Le canvas n'est jamais démonté quand une window s'ouvre : `MobileTabPanel`
+   * masque l'onglet inactif en `opacity`, et le `ReactFlowProvider` de
+   * `MobileCanvas` enveloppe aussi cet overlay. `fitView` opère donc sur une
+   * surface aux vraies dimensions, même pendant que le node couvre l'écran.
+   *
+   * On ferme toute la pile visible et pas seulement cette fenêtre : sur mobile
+   * une window recouvre tout l'écran, donc la fenêtre parente (celle d'où on a
+   * suivi une mention) masquerait le canvas qu'on vient de cadrer. Les
+   * fenêtres du dessous ne sont pas montées — seule celle du dessus l'est —
+   * donc aucune d'elles ne porte de brouillon à perdre.
+   */
+  const navigateToNode = useCallback(() => {
+    goToNode(xyNodeId);
+    shell?.setActiveTab("canvas");
+    const visibleIds = useWindowsStore
+      .getState()
+      .openedWindows.filter((w) => w.windowState !== "minimized")
+      .map((w) => w.xyNodeId);
+    closeWindowsForNodeIds(visibleIds);
+  }, [goToNode, shell, xyNodeId, closeWindowsForNodeIds]);
+
+  const runPendingExit = useCallback(
+    (save: boolean) => {
+      if (save) void handleSave();
+      if (pendingExit === "navigate") navigateToNode();
+      else closeWindow(xyNodeId);
+      setPendingExit(null);
+    },
+    [closeWindow, handleSave, navigateToNode, pendingExit, xyNodeId],
+  );
 
   // Push a history entry when the overlay opens so the browser back button
   // navigates back to the chat instead of leaving the app.
@@ -93,7 +141,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
       if (isDirtyRef.current) {
         // Re-push state to cancel the navigation, then ask the user.
         history.pushState({ mobileNodeOverlay: xyNodeId }, "");
-        setShowBackConfirm(true);
+        setPendingExit("close");
       } else {
         closeWindow(xyNodeId);
       }
@@ -105,7 +153,12 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
 
   return (
     <WindowFrameContext.Provider value={contextValue}>
-      <AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
+      <AlertDialog
+        open={pendingExit !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingExit(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Close without saving?</AlertDialogTitle>
@@ -114,15 +167,10 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => closeWindow(xyNodeId)}>
+            <AlertDialogCancel onClick={() => runPendingExit(false)}>
               Close without saving
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                void handleSave();
-                closeWindow(xyNodeId);
-              }}
-            >
+            <AlertDialogAction onClick={() => runPendingExit(true)}>
               Save and close
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -205,6 +253,18 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
+                <DropdownMenuItem
+                  className="flex items-center text-sm"
+                  onSelect={() => {
+                    // Quitter la fenêtre fait partie de l'action : on repasse
+                    // donc par la même confirmation que le bouton retour.
+                    if (isDirty) setPendingExit("navigate");
+                    else navigateToNode();
+                  }}
+                >
+                  <TbLocation size={13} />
+                  Navigate to node
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex items-center text-sm"
                   onSelect={() => setHistoryOpen(true)}

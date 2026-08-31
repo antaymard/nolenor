@@ -119,6 +119,24 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
     [closeWindow, handleSave, navigateToNode, pendingExit, xyNodeId],
   );
 
+  // Les deux façons de quitter une fenêtre modifiée — le geste retour et
+  // « Navigate to node » — partagent cette modale ; seuls les libellés
+  // changent, pour dire où l'on part.
+  const exitCopy =
+    pendingExit === "navigate"
+      ? {
+          title: "Navigate without saving?",
+          text: "This window has unsaved changes. Going to the node on the canvas closes it.",
+          discard: "Navigate without saving",
+          confirm: "Save and navigate",
+        }
+      : {
+          title: "Close without saving?",
+          text: "You have unsaved changes. Do you want to close this window?",
+          discard: "Close without saving",
+          confirm: "Save and close",
+        };
+
   // Push a history entry when the overlay opens so the browser back button
   // navigates back to the chat instead of leaving the app.
   useEffect(() => {
@@ -161,17 +179,20 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Close without saving?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have unsaved changes. Do you want to close this window?
-            </AlertDialogDescription>
+            <AlertDialogTitle>{exitCopy.title}</AlertDialogTitle>
+            <AlertDialogDescription>{exitCopy.text}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => runPendingExit(false)}>
-              Close without saving
-            </AlertDialogCancel>
+            {/* Le seul bouton qui ne quitte pas la fenêtre, et il n'est pas
+                décoratif : sur un téléphone il n'y a pas de touche Échap, et
+                Radix interdit de fermer un AlertDialog en tapant dehors. Sans
+                lui, ouvrir cette modale par erreur oblige à sortir. */}
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button variant="outline" onClick={() => runPendingExit(false)}>
+              {exitCopy.discard}
+            </Button>
             <AlertDialogAction onClick={() => runPendingExit(true)}>
-              Save and close
+              {exitCopy.confirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

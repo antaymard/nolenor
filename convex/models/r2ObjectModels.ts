@@ -60,3 +60,40 @@ export async function releaseRefs(
 ): Promise<string[]> {
   return syncRefs(ctx, { nodeDataId, keys: [] });
 }
+
+/**
+ * Enregistre les références manquantes, sans jamais en retirer.
+ *
+ * Réservé au backfill des nodeDatas antérieurs à cette table : ils ne
+ * détiennent aucune ligne, donc leur suppression ne libère rien et leur
+ * fichier reste sur R2. `syncRefs` ferait aussi l'affaire, mais il rend des
+ * clés à supprimer — une décision qui n'appartient pas à une migration.
+ *
+ * Renvoie le nombre de lignes créées.
+ */
+export async function adoptRefs(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    keys,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    keys: string[];
+  },
+): Promise<number> {
+  const existing = await ctx.db
+    .query("r2Objects")
+    .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+    .collect();
+
+  const heldKeys = new Set(existing.map((row) => row.key));
+
+  let inserted = 0;
+  for (const key of new Set(keys)) {
+    if (heldKeys.has(key)) continue;
+    await ctx.db.insert("r2Objects", { key, nodeDataId });
+    inserted += 1;
+  }
+
+  return inserted;
+}

@@ -1,4 +1,5 @@
 import type { Doc } from "../_generated/dataModel";
+import { collectR2KeysForTemplateValues } from "../config/fieldConfig";
 
 function keyOf(candidate: unknown): string | null {
   if (!candidate || typeof candidate !== "object") return null;
@@ -9,13 +10,19 @@ function keyOf(candidate: unknown): string | null {
 /**
  * Every R2 storage key a nodeData refers to.
  *
- * Single source of truth for the three places that care: registering
- * references on create, reconciling them on update, and releasing them on
- * delete. Adding a file-bearing node type means adding a branch here and
- * nowhere else.
+ * Single source of truth for the two places that care: registering references
+ * on create and reconciling them on update — deletion reads the reference rows
+ * themselves, never the values. Adding a file-bearing node type means adding a
+ * branch here and nowhere else.
+ *
+ * A custom node holds its file-bearing fields in its template, so its keys can
+ * only be read with the template in hand. Without one (deleted template, race)
+ * it reports nothing: the references it already holds stay untouched, so the
+ * cost is a blob that lingers, never one deleted from under another node.
  */
 export function extractR2Keys(
   nodeData: Pick<Doc<"nodeDatas">, "type" | "values">,
+  template?: Pick<Doc<"nodeTemplates">, "fields"> | null,
 ): string[] {
   const values = nodeData.values ?? {};
   const keys: string[] = [];
@@ -75,6 +82,13 @@ export function extractR2Keys(
             keys.push(url.slice(prefix.length));
           }
         }
+      }
+      break;
+    }
+
+    case "custom": {
+      if (template) {
+        keys.push(...collectR2KeysForTemplateValues(template, values));
       }
       break;
     }

@@ -165,7 +165,7 @@ function PdfNode(xyNode: XyNodeProps) {
           <RiAttachment2 size={18} className="shrink-0" />
           {file ? (
             <>
-              <p className="truncate flex-1 min-w-0 text-sm">{file.filename}</p>
+              <p className="truncate flex-1 min-w-0">{file.filename}</p>
               {xyNode.selected && (
                 <a
                   href={file.url}
@@ -179,7 +179,7 @@ function PdfNode(xyNode: XyNodeProps) {
               )}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">No PDF</p>
+            <p className="text-muted-foreground">No PDF</p>
           )}
         </div>
       </NodeFrame>

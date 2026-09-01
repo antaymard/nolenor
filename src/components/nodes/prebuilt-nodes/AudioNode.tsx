@@ -474,7 +474,7 @@ function AudioNode(xyNode: XyNodeProps) {
                     className="pointer-events-none size-5 shrink-0 rounded-[3px] object-cover"
                   />
                 )}
-                <p className="min-w-0 flex-1 truncate text-sm">{displayName}</p>
+                <p className="min-w-0 flex-1 truncate">{displayName}</p>
                 <div className="w-16 shrink-0">{bar}</div>
               </div>
             ) : (
@@ -572,7 +572,7 @@ function AudioNode(xyNode: XyNodeProps) {
         ) : (
           <div className="flex h-full w-full items-center gap-2 px-2">
             <TbMusic size={18} className="shrink-0" />
-            <p className="text-sm text-muted-foreground">Aucun audio</p>
+            <p className="text-muted-foreground">Aucun audio</p>
           </div>
         )}
       </NodeFrame>

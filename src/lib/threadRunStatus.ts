@@ -71,27 +71,27 @@ export const RUN_STATUS_APPEARANCE: Record<
   RunStatusAppearance
 > = {
   running: {
-    label: "En cours",
-    description: "Nolë travaille sur cette conversation.",
+    label: "In progress",
+    description: "Nolë is working on this conversation.",
     className: "border-violet-200 bg-violet-50 text-violet-700",
     dotClassName: "bg-violet-500",
   },
   aborted: {
-    label: "Interrompu",
-    description: "La réponse a été interrompue.",
+    label: "Interrupted",
+    description: "The response was interrupted.",
     className: "border-amber-200 bg-amber-50 text-amber-700",
     dotClassName: "bg-amber-500",
   },
   stale: {
-    label: "Sans réponse",
+    label: "No reply",
     description:
-      "Ce tour n'a jamais abouti. Renvoyez votre message pour relancer.",
+      "This turn never completed. Resend your message to retry.",
     className: "border-amber-200 bg-amber-50 text-amber-700",
     dotClassName: "bg-amber-500",
   },
   error: {
-    label: "Échec",
-    description: "La dernière réponse a échoué.",
+    label: "Failed",
+    description: "The last response failed.",
     className: "border-red-200 bg-red-50 text-red-700",
     dotClassName: "bg-red-500",
   },
@@ -228,8 +228,8 @@ export function getCanvasLiveExpiry(fields: ThreadDockFields): number | null {
  * ci-dessus) ; « la tâche a abouti » en est le prolongement direct.
  */
 const DOCK_DONE_APPEARANCE: RunStatusAppearance = {
-  label: "Terminé",
-  description: "Nolë a terminé cette tâche.",
+  label: "Finished",
+  description: "Nolë has finished this task.",
   className: "border-emerald-200 bg-emerald-50 text-emerald-700",
   dotClassName: "bg-emerald-500",
 };

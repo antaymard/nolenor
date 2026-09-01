@@ -1,4 +1,8 @@
-import { TbArrowUp, TbExclamationCircle, TbPlayerStopFilled } from "react-icons/tb";
+import {
+  TbArrowUp,
+  TbExclamationCircle,
+  TbPlayerStopFilled,
+} from "react-icons/tb";
 import { RiLoaderLine } from "react-icons/ri";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -47,7 +51,7 @@ export default function SendStopButton({
             variant="secondary"
             disabled={isCancelling || isSending}
             onClick={() => void onStop()}
-            aria-label="Arrêter la réponse"
+            aria-label="Stop"
             className={cn(
               "size-8 rounded-full border border-slate-300 bg-white text-slate-600",
               "hover:bg-slate-100 hover:text-slate-900",
@@ -61,7 +65,7 @@ export default function SendStopButton({
             )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="top">Arrêter la réponse</TooltipContent>
+        <TooltipContent side="top">Stop</TooltipContent>
       </Tooltip>
     );
   }

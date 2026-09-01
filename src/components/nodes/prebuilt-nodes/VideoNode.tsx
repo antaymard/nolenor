@@ -349,14 +349,14 @@ function VideoNode(xyNode: XyNodeProps) {
         {!video ? (
           <div className="flex h-full w-full items-center justify-center gap-2 px-2">
             <TbVideo size={18} className="shrink-0" />
-            <p className="text-sm text-muted-foreground">No video</p>
+            <p className="text-muted-foreground">No video</p>
           </div>
         ) : isTitleVariant ? (
           // No player at 33px tall: there is nowhere to show the picture.
           // Double-clicking opens the window, which is where you watch it.
           <div className="flex h-full w-full min-w-0 items-center gap-2 px-2">
-            <TbVideo size={16} className="shrink-0" />
-            <p className="min-w-0 flex-1 truncate text-sm">{displayName}</p>
+            <TbVideo size={18} className="shrink-0" />
+            <p className="min-w-0 flex-1 truncate">{displayName}</p>
           </div>
         ) : (
           <div className="flex h-full w-full min-w-0 flex-col gap-1 p-2">

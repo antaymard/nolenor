@@ -3,6 +3,11 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import { type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import {
+  collectMentionedNodeDataIds,
+  parseStoredBlockNoteDocument,
+} from "../../lib/blockNoteDocument";
+import type { MentionInfo } from "../helpers/blockNoteMarkdown";
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import {
   formatTableMarkdown,
@@ -469,7 +474,22 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           tableRowsByNodeId.set(entry.nodeId, entry);
         }
 
-        const referencedNodeIdsForTableCells = new Set<string>();
+        // Nodes a read node POINTS AT rather than one that was asked for:
+        // `node` table cells, and the mention pills inside blocknote documents.
+        // Both need a live `nodeId | type | title` in the output, and both are
+        // resolved by the same fetch pass below.
+        const referencedNodeIds = new Set<string>();
+
+        // nodeDataId → canvas nodeId, so a mention (which stores the former)
+        // can be rendered with the latter — the only id the agent can act on.
+        // First placement wins: the same nodeData may sit on the canvas twice.
+        const nodeIdByNodeDataId = new Map<string, string>();
+        for (const node of canvasNodes) {
+          if (node.nodeDataId && !nodeIdByNodeDataId.has(String(node.nodeDataId))) {
+            nodeIdByNodeDataId.set(String(node.nodeDataId), node.id);
+          }
+        }
+        const mentionedNodeDataIds = new Set<string>();
 
         const nodeDataByNodeId = new Map<
           string,
@@ -516,9 +536,21 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                     if (cell && typeof cell === "object") {
                       const refId = (cell as { nodeId?: unknown }).nodeId;
                       if (typeof refId === "string" && refId.length > 0) {
-                        referencedNodeIdsForTableCells.add(refId);
+                        referencedNodeIds.add(refId);
                       }
                     }
+                  }
+                }
+              }
+
+              if (node.type === "blocknote") {
+                // Parsing the stored document here (rather than waiting for the
+                // serializer) is what lets the mentioned nodes join the single
+                // fetch pass below instead of costing a round trip each.
+                const parsedDoc = parseStoredBlockNoteDocument(nodeData.values.doc);
+                if (parsedDoc) {
+                  for (const id of collectMentionedNodeDataIds(parsedDoc)) {
+                    mentionedNodeDataIds.add(id);
                   }
                 }
               }
@@ -583,7 +615,14 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           }
         }
 
-        const referencedNodeIdsToFetch = [...referencedNodeIdsForTableCells]
+        for (const nodeDataId of mentionedNodeDataIds) {
+          const nodeId = nodeIdByNodeDataId.get(nodeDataId);
+          // No canvas node for it: the mentioned node has been removed. The
+          // serializer falls back to the pill's snapshot title on its own.
+          if (nodeId) referencedNodeIds.add(nodeId);
+        }
+
+        const referencedNodeIdsToFetch = [...referencedNodeIds]
           .filter((id) => !nodeDataByNodeId.has(id))
           .filter((id) => canvasNodeTypeById.has(id));
 
@@ -598,9 +637,18 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                   nodeId: refId,
                 },
               );
+              // A referenced custom node needs its template for the exact same
+              // title the user sees on the canvas; without it getNodeDataTitle
+              // falls back to a heuristic that can disagree with the pill.
+              const template = nodeData.templateId
+                ? ((await ctx.runQuery(
+                    internal.wrappers.nodeTemplateWrappers.getTemplate,
+                    { templateId: nodeData.templateId },
+                  )) ?? null)
+                : templateForNodeData(nodeData);
               nodeDataByNodeId.set(refId, {
                 type: fallbackType,
-                title: getNodeDataTitle(nodeData),
+                title: getNodeDataTitle(nodeData, template),
               });
             } catch {
               nodeDataByNodeId.set(refId, {
@@ -610,6 +658,22 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             }
           }),
         );
+
+        // nodeDataId → what a mention pill pointing at it should render as.
+        // Built after the fetch pass so the title is the node's current one,
+        // not the snapshot frozen into the pill when it was inserted.
+        const mentionInfoByNodeDataId = new Map<string, MentionInfo>();
+        for (const nodeDataId of mentionedNodeDataIds) {
+          const nodeId = nodeIdByNodeDataId.get(nodeDataId);
+          const info = nodeId ? nodeDataByNodeId.get(nodeId) : undefined;
+          if (nodeId && info) {
+            mentionInfoByNodeDataId.set(nodeDataId, {
+              nodeId,
+              type: info.type,
+              title: info.title,
+            });
+          }
+        }
 
         const nodes = await Promise.all(
           baseNodes.map(async (entry) => {
@@ -648,7 +712,9 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                       nodeData,
                       templateForNodeData(nodeData),
                     )
-                  : await makeNodeDataLLMFriendly(nodeData);
+                  : await makeNodeDataLLMFriendly(nodeData, {
+                      mentions: mentionInfoByNodeDataId,
+                    });
             } catch (renderError) {
               content = "";
               error = `Failed to render node content: ${

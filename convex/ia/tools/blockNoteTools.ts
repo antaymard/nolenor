@@ -19,7 +19,14 @@ import { z } from "zod";
 import { toolAgentNames, type ThreadCtx, type ToolAgentName } from "../agentConfig";
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
-import { parseBlockNoteXml } from "../helpers/blockNoteMarkdown";
+import {
+  findUnresolvedMentionTokens,
+  parseBlockNoteXml,
+} from "../helpers/blockNoteMarkdown";
+import {
+  resolveNodeMentionTokens,
+  unresolvedMentionTokensError,
+} from "../helpers/resolveNodeMentionTokens";
 import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
 
 type AgentTool = ToolSet[string];
@@ -46,7 +53,7 @@ const BLOCK_ID_FIELD = (what: string) =>
  * differs between insert and replace.
  */
 const XML_PAYLOAD_HINT = (shape: string) =>
-  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from read_nodes output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Name | Role |\n| --- | --- |\n| Alice | Dev |</block>`;
+  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from read_nodes output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Pills round-trip as tokens inside that Markdown: [[date:YYYY-MM-DD]], and [[node:<nodeId>]] for a live reference to another node of this canvas (read back as [[node:<nodeId>|type|title]] — keep tokens intact when rewriting a block). Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Name | Role |\n| --- | --- |\n| Alice | Dev |</block>`;
 
 // ── Shared execution path ───────────────────────────────────────────────────
 //
@@ -125,14 +132,25 @@ async function runBlockNoteEdit({
 /**
  * Parse a BlockNote XML payload, enforcing how many top-level blocks the caller
  * accepts. Throws with an agent-readable message so `runBlockNoteEdit` shapes it.
+ *
+ * `[[node:…]]` mention tokens are resolved against the canvas first, so they
+ * land as real pills; an id naming nothing on this canvas throws rather than
+ * being persisted as literal text in the user's document.
  */
 async function parseXmlBlocks(
+  ctx: ToolCtx,
+  canvasId: Id<"canvases">,
   xml: string,
   { exactlyOne }: { exactlyOne?: boolean } = {},
 ) {
-  const blocks = await parseBlockNoteXml(xml);
+  const mentions = await resolveNodeMentionTokens(ctx, canvasId, xml);
+  const blocks = await parseBlockNoteXml(xml, { mentions });
   if (blocks.length === 0) {
     throw new Error("The provided XML produced no blocks.");
+  }
+  const unresolved = findUnresolvedMentionTokens(blocks);
+  if (unresolved.length > 0) {
+    throw new Error(unresolvedMentionTokensError(unresolved));
   }
   if (exactlyOne && blocks.length > 1) {
     throw new Error(
@@ -194,7 +212,7 @@ function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           kind: "insert",
           position: input.position,
           referenceBlockId: input.referenceBlockId,
-          blocks: await parseXmlBlocks(input.blocks),
+          blocks: await parseXmlBlocks(ctx, threadCtx.canvasId, input.blocks),
         }),
         // The ids are deliberately NOT echoed back: a fresh nanoid per block is
         // pure token cost on every insert, and an agent that needs to address
@@ -238,7 +256,11 @@ function blocknoteReplaceBlockTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         buildEdit: async () => ({
           kind: "replace",
           blockId: input.blockId,
-          block: (await parseXmlBlocks(input.block, { exactlyOne: true }))[0],
+          block: (
+            await parseXmlBlocks(ctx, threadCtx.canvasId, input.block, {
+              exactlyOne: true,
+            })
+          )[0],
         }),
         describeResult: () => `Replaced block "${input.blockId}".`,
       }),

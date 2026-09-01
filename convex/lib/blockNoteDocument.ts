@@ -655,6 +655,56 @@ export function extractInlineText(content: unknown): string {
   return "";
 }
 
+/**
+ * The `nodeDataId` of every `mention` pill in a document, deduped, in document
+ * order. A mention is a reference to another node of the same canvas (see
+ * src/components/blocknote/mention-inline-content.tsx); resolving those
+ * references needs the canvas, which this module has no access to — so the
+ * lookup is left to the caller and this only reports WHICH nodes are pointed at.
+ *
+ * Used by `read_nodes` to resolve mentions to a live `nodeId | type | title`
+ * before handing the document to the agent (see convex/ia/tools/readNodesTool.ts).
+ */
+export function collectMentionedNodeDataIds(blocks: readonly unknown[]): string[] {
+  const ids = new Set<string>();
+
+  const walkInline = (content: unknown): void => {
+    if (Array.isArray(content)) {
+      for (const node of content) {
+        if (!isPlainObj(node)) continue;
+        if (node.type === "mention") {
+          const id = (node.props as Record<string, unknown> | undefined)?.nodeDataId;
+          if (typeof id === "string" && id.length > 0) ids.add(id);
+          continue;
+        }
+        if (node.content !== undefined) walkInline(node.content);
+      }
+      return;
+    }
+    if (isPlainObj(content) && content.type === "tableContent") {
+      const rows = (content as unknown as BlockNoteTableContent).rows;
+      if (!Array.isArray(rows)) return;
+      for (const row of rows) {
+        if (!isPlainObj(row) || !Array.isArray(row.cells)) continue;
+        for (const cell of row.cells) {
+          walkInline(isTableCell(cell) ? cell.content : cell);
+        }
+      }
+    }
+  };
+
+  const walkBlocks = (bs: readonly unknown[]): void => {
+    for (const block of bs) {
+      if (!isPlainObj(block)) continue;
+      if (block.content !== undefined) walkInline(block.content);
+      if (Array.isArray(block.children)) walkBlocks(block.children);
+    }
+  };
+
+  walkBlocks(blocks);
+  return [...ids];
+}
+
 // Block types that are visible even with no text at all, so a document made
 // only of them must not be reported as empty.
 const NON_TEXTUAL_BLOCK_TYPES = new Set([

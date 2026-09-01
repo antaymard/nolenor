@@ -79,6 +79,25 @@ const limits = {
   // La clé est l'adresse visée, pas l'appelant : c'est la boîte mail qu'on
   // protège. Capacité 3 pour laisser renvoyer un code deux fois d'affilée quand
   // le premier n'arrive pas, puis un toutes les dix minutes.
+  // Chaque démarrage de consentement écrit une ligne `oauthAttempts`. Borné
+  // pour qu'un client qui boucle sur le bouton ne remplisse pas la table entre
+  // deux passages du cron de purge.
+  connectionOAuthStart: {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 5,
+  },
+  // Appels sortants sur une API tierce. La borne protège d'abord le QUOTA DU
+  // COMPTE CONNECTÉ, qui n'est pas le nôtre : Gmail compte en unités par
+  // utilisateur, GitHub en 5000 requêtes/heure, et c'est l'utilisateur qui se
+  // retrouve bloqué chez lui si on le brûle.
+  connectionApiCall: {
+    kind: "token bucket",
+    rate: 120,
+    period: MINUTE,
+    capacity: 30,
+  },
   authEmailSend: {
     kind: "token bucket",
     rate: 6,

@@ -2,6 +2,8 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
 import { apiTokensValidator } from "./schemas/apiTokensSchema";
+import { connectionsValidator } from "./schemas/connectionsSchema";
+import { oauthAttemptsValidator } from "./schemas/oauthAttemptsSchema";
 import { canvasesValidator } from "./schemas/canvasesSchema";
 import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
 import { nodeTemplatesValidator } from "./schemas/nodeTemplatesSchema";
@@ -180,6 +182,29 @@ const schema = defineSchema({
     // Sert l'upsert (eq/eq/eq + .unique()) ET le scan de plage de la page
     // (eq userId + gte/lte day) : un seul index couvre les deux usages.
     .index("by_userId_and_day_and_model", ["userId", "day", "model"]),
+
+  // ============================================================================
+  // CONNEXIONS À DES SERVICES TIERS
+  // ============================================================================
+  // Un compte tiers relié par un utilisateur, avec son credential chiffré.
+  // Le triplet (user, provider, compte distant) est unique : reconnecter le
+  // même compte Gmail met à jour la ligne au lieu d'en empiler une seconde,
+  // sans quoi les nodes qui la référencent pointeraient sur une connexion
+  // morte alors qu'une vivante existe.
+  connections: defineTable(connectionsValidator)
+    .index("by_user", ["userId"])
+    .index("by_user_and_provider", ["userId", "provider"])
+    .index("by_user_and_provider_and_account", [
+      "userId",
+      "provider",
+      "externalAccountId",
+    ]),
+
+  // Consentements OAuth en vol. Purgées à la consommation, et par cron pour
+  // celles qui n'aboutissent jamais (l'utilisateur ferme l'onglet Google).
+  oauthAttempts: defineTable(oauthAttemptsValidator).index("by_expiresAt", [
+    "expiresAt",
+  ]),
 
   // ============================================================================
   // API TOKENS

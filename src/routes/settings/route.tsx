@@ -8,6 +8,7 @@ import {
   TbKey,
   TbListDetails,
   TbBulb,
+  TbPlug,
   TbMenu2,
   TbUser,
   TbX,
@@ -73,6 +74,7 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
   {
     label: "Developer",
     buttons: [
+      { label: "Connections", icon: TbPlug, route: "/settings/connections" },
       { label: "API tokens", icon: TbKey, route: "/settings/api-tokens" },
     ],
   },

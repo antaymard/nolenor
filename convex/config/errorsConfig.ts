@@ -28,6 +28,16 @@ const errors = {
   IMAGE_GENERATION_EMPTY_PROMPT: "A prompt is required to generate images.",
   IMAGE_GENERATION_ALREADY_RUNNING:
     "A generation is already running on this node.",
+  CONNECTION_NOT_FOUND: "This connection does not exist.",
+  CONNECTION_PROVIDER_UNKNOWN: "This service is not supported.",
+  CONNECTION_PROVIDER_NOT_CONFIGURED:
+    "This service is not configured on this deployment yet.",
+  CONNECTION_NEEDS_REAUTH:
+    "This connection is no longer valid. Reconnect the account.",
+  CONNECTION_REFRESH_BUSY:
+    "This connection is being refreshed. Try again in a moment.",
+  CONNECTION_HOST_NOT_ALLOWED:
+    "This address is not part of the service's allowed API hosts.",
 };
 
 export default errors;

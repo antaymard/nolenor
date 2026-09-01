@@ -22,4 +22,14 @@ crons.daily(
   {},
 );
 
+// Consentements OAuth jamais aboutis (l'utilisateur ferme l'onglet du
+// provider). Ils ne portent aucun credential, mais la table ne se vide pas
+// toute seule : seule une tentative CONSOMMÉE se supprime.
+crons.daily(
+  "prune expired oauth attempts",
+  { hourUTC: 4, minuteUTC: 30 },
+  internal.wrappers.connectionWrappers.pruneExpiredAttempts,
+  {},
+);
+
 export default crons;

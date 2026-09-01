@@ -3,6 +3,7 @@ import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
 import { ResendOTP } from "./ResendOTP";
 import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
+import { isAllowedOrigin, siteUrl } from "./lib/allowedOrigins";
 
 // ============================================================================
 // REDIRECTION DE RETOUR D'OAUTH
@@ -17,39 +18,10 @@ import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 // juste avant `window.location.href = …`). Revenir sur une autre origine, c'est
 // revenir sans verifier — donc échouer. Le front envoie son origine dans
 // `redirectTo`, et c'est ici qu'on décide si on la suit.
-const ALLOWED_REDIRECT_ORIGINS = [
-  "https://app.nolenor.com",
-  "https://app.nolenor.fr",
-];
-
-// En dev, le front tourne sur un port que Vite choisit (5173, ou 5174 s'il est
-// pris) : les figer ferait casser la connexion au premier port occupé. On
-// accepte donc n'importe quel port de la boucle locale, mais seulement quand le
-// déploiement lui-même est local. En prod, `http://localhost` resterait une
-// destination exfiltrable pour qui fait tourner un serveur sur la machine de la
-// victime.
-const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
-
-function siteUrl(): string {
-  const value = process.env.SITE_URL;
-  if (!value) {
-    // La lib l'exige déjà (`requireEnv("SITE_URL")`), mais avec un message qui
-    // ne dit pas quoi faire. C'est l'oubli numéro un de cette configuration :
-    // le provider Password n'en avait jamais eu besoin.
-    throw new Error(
-      "SITE_URL n'est pas définie sur ce déploiement Convex. " +
-        "`npx convex env set SITE_URL <url du front>`.",
-    );
-  }
-  return value.replace(/\/$/, "");
-}
-
-function isAllowedOrigin(origin: string): boolean {
-  const deploymentOrigin = new URL(siteUrl()).origin;
-  if (origin === deploymentOrigin) return true;
-  if (ALLOWED_REDIRECT_ORIGINS.includes(origin)) return true;
-  return LOOPBACK_ORIGIN.test(deploymentOrigin) && LOOPBACK_ORIGIN.test(origin);
-}
+//
+// L'allowlist elle-même vit dans `lib/allowedOrigins` : le flux OAuth des
+// intégrations (cf. `connections.ts`) fait le même aller-retour et doit être
+// gardé par la même liste, pas par une copie qui divergera.
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [

@@ -16,6 +16,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsTemplatesRouteImport } from './routes/settings/templates'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsExportRouteImport } from './routes/settings/export'
+import { Route as SettingsConnectionsRouteImport } from './routes/settings/connections'
 import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
 import { Route as SettingsAiUsageRouteImport } from './routes/settings/ai-usage'
 import { Route as SettingsAccountRouteImport } from './routes/settings/account'
@@ -58,6 +59,11 @@ const SettingsExportRoute = SettingsExportRouteImport.update({
   path: '/export',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsConnectionsRoute = SettingsConnectionsRouteImport.update({
+  id: '/connections',
+  path: '/connections',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
   id: '/api-tokens',
   path: '/api-tokens',
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/connections': typeof SettingsConnectionsRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/connections': typeof SettingsConnectionsRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/connections': typeof SettingsConnectionsRoute
   '/settings/export': typeof SettingsExportRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
@@ -145,6 +154,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
+    | '/settings/connections'
     | '/settings/export'
     | '/settings/skills'
     | '/settings/templates'
@@ -159,6 +169,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
+    | '/settings/connections'
     | '/settings/export'
     | '/settings/skills'
     | '/settings/templates'
@@ -174,6 +185,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
+    | '/settings/connections'
     | '/settings/export'
     | '/settings/skills'
     | '/settings/templates'
@@ -240,6 +252,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsExportRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/connections': {
+      id: '/settings/connections'
+      path: '/connections'
+      fullPath: '/settings/connections'
+      preLoaderRoute: typeof SettingsConnectionsRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/api-tokens': {
       id: '/settings/api-tokens'
       path: '/api-tokens'
@@ -289,6 +308,7 @@ interface SettingsRouteRouteChildren {
   SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsAiUsageRoute: typeof SettingsAiUsageRoute
   SettingsApiTokensRoute: typeof SettingsApiTokensRoute
+  SettingsConnectionsRoute: typeof SettingsConnectionsRoute
   SettingsExportRoute: typeof SettingsExportRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsTemplatesRoute: typeof SettingsTemplatesRoute
@@ -301,6 +321,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAccountRoute: SettingsAccountRoute,
   SettingsAiUsageRoute: SettingsAiUsageRoute,
   SettingsApiTokensRoute: SettingsApiTokensRoute,
+  SettingsConnectionsRoute: SettingsConnectionsRoute,
   SettingsExportRoute: SettingsExportRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsTemplatesRoute: SettingsTemplatesRoute,

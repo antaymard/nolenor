@@ -4,8 +4,15 @@ import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
 import { hashApiToken } from "./lib/apiTokenCrypto";
+import { encryptSecret } from "./lib/secretCrypto";
 import { rateLimiter } from "./lib/rateLimits";
 import { buildMcpServer } from "./mcp/server";
+import {
+  getProvider,
+  isProviderId,
+  oauthCallbackUrl,
+} from "./config/providersConfig";
+import { probeIdentity, requestToken } from "./lib/providerClient";
 
 const http = httpRouter();
 
@@ -262,7 +269,131 @@ const mcpMethodNotAllowed = httpAction(async () => {
   );
 });
 
+
+// ============================================================================
+// OAUTH DES INTÉGRATIONS — retour de consentement
+// ============================================================================
+// Une seule route pour tous les providers : c'est l'état (`state`) qui porte
+// le provider, pas le chemin. Une adresse de callback de moins à déclarer dans
+// chaque console, et un routeur de moins à tenir.
+//
+// À ne pas confondre avec le retour d'OAuth de la CONNEXION AU PRODUIT, servi
+// par `auth.addHttpRoutes` : celui-ci relie un compte tiers à un utilisateur
+// déjà authentifié, et il est le seul à conserver un refresh token.
+
+/** Retour à l'app avec un message, sans jamais quitter les origines connues. */
+function oauthRedirect(
+  origin: string,
+  params: Record<string, string>,
+): Response {
+  const url = new URL("/settings/connections", origin);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return new Response(null, {
+    status: 302,
+    headers: { Location: url.toString() },
+  });
+}
+
+/**
+ * Échec avant d'avoir pu lire une origine de retour fiable. On ne redirige
+ * pas : rediriger demanderait une destination, et la seule qu'on ait sous la
+ * main à ce stade viendrait de la requête elle-même — donc de l'attaquant.
+ */
+function oauthDeadEnd(message: string): Response {
+  return new Response(message, {
+    status: 400,
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
+}
+
+const integrationsOAuthCallback = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const state = url.searchParams.get("state") ?? "";
+  const [attemptId, nonce] = state.split(".");
+
+  if (!attemptId || !nonce) {
+    return oauthDeadEnd("Invalid consent: missing state.");
+  }
+
+  // La tentative est consommée AVANT tout appel réseau : un `state` rejoué ne
+  // doit pas pouvoir déclencher un second échange de code, même si le premier
+  // a échoué en chemin.
+  const attempt = await ctx.runMutation(
+    internal.wrappers.connectionWrappers.consumeAttempt,
+    { attemptId, nonce },
+  );
+  if (!attempt) {
+    return oauthDeadEnd(
+      "This consent has expired or was already used. Start again.",
+    );
+  }
+
+  // À partir d'ici on connaît une origine de retour validée à la création de la
+  // tentative : les erreurs peuvent redevenir des redirections lisibles.
+  const origin = attempt.returnOrigin;
+
+  const providerError = url.searchParams.get("error");
+  if (providerError) {
+    return oauthRedirect(origin, { error: providerError });
+  }
+
+  const code = url.searchParams.get("code");
+  if (!code) {
+    return oauthRedirect(origin, { error: "missing_code" });
+  }
+  if (!isProviderId(attempt.provider)) {
+    return oauthRedirect(origin, { error: "unknown_provider" });
+  }
+  const provider = getProvider(attempt.provider);
+
+  try {
+    const token = await requestToken(provider, {
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: oauthCallbackUrl(),
+      ...(attempt.codeVerifier ? { code_verifier: attempt.codeVerifier } : {}),
+    });
+
+    // Le compte est identifié AVANT l'écriture : `externalAccountId` est la
+    // clé d'upsert, c'est lui qui distingue « reconnecter le même Gmail » de
+    // « en relier un second ».
+    const identity = await probeIdentity(provider, token.accessToken);
+
+    await ctx.runMutation(
+      internal.wrappers.connectionWrappers.upsertFromOAuth,
+      {
+        userId: attempt.userId,
+        provider: provider.id,
+        externalAccountId: identity.externalAccountId,
+        label: identity.label,
+        scopes: token.scopes ?? provider.auth.scopes,
+        secret: await encryptSecret({
+          accessToken: token.accessToken,
+          refreshToken: token.refreshToken,
+        }),
+        expiresAt: token.expiresAt,
+      },
+    );
+
+    return oauthRedirect(origin, { connected: provider.id });
+  } catch (error) {
+    console.error("[integrations] échec du consentement", {
+      provider: attempt.provider,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+    return oauthRedirect(origin, { error: "exchange_failed" });
+  }
+});
+
 auth.addHttpRoutes(http);
+
+http.route({
+  path: "/integrations/oauth/callback",
+  method: "GET",
+  handler: integrationsOAuthCallback,
+});
 
 http.route({
   path: "/wishlist/subscribe",

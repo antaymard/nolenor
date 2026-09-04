@@ -70,9 +70,13 @@ export type ChatModelOption = (typeof chatModelOptions)[number];
  * vérité, le validateur en dérive, donc retirer un modèle d'ici le fait
  * automatiquement rejeter par la mutation.
  *
- * `maxImages` borne ce que le sélecteur propose. `pricePerImage` est en USD par
- * image et sert UNIQUEMENT à l'affichage : le coût réellement compté vient
- * d'OpenRouter (cf. `requestOpenRouterImages`), jamais d'un calcul local.
+ * `maxImages` borne ce que le sélecteur propose. Ce n'est PAS une capacité du
+ * fournisseur : un lot est construit par autant d'appels que d'images
+ * demandées (cf. `requestOpenRouterImages`), donc n'importe quelle valeur
+ * marcherait techniquement — celle-ci n'existe que pour borner la dépense d'un
+ * seul clic. `pricePerImage` est en USD par image et sert UNIQUEMENT à
+ * l'affichage : le coût réellement compté vient d'OpenRouter, jamais d'un
+ * calcul local.
  *
  * ⚠️ Les slugs ci-dessous n'ont pas pu être vérifiés contre le catalogue
  * OpenRouter (réseau indisponible au moment de l'écriture). À confirmer sur
@@ -162,7 +166,22 @@ export function getChatModel(
 }
 
 /**
- * Point de passage UNIQUE vers OpenRouter pour les images.
+ * Résultat d'un lot d'images : les images elles-mêmes, ce qu'OpenRouter a
+ * facturé, et ce qu'il a compté en tokens.
+ */
+type OpenRouterImagesResult = {
+  /** Images encodées en base64, sans préfixe data-URL. */
+  images: string[];
+  costUsd: number | undefined;
+  tokens: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+};
+
+/**
+ * Point de passage UNIQUE vers OpenRouter pour les images — UNE image.
  *
  * `fetch` brut plutôt que `generateImage` de l'ai-sdk, pour une seule raison :
  * le provider mappe la réponse vers `ImageModelV3Usage`, qui ne porte que trois
@@ -174,25 +193,21 @@ export function getChatModel(
  *
  * `usage: { include: true }` est le même réglage que sur les modèles chat, ici
  * passé par requête puisqu'il n'y a pas d'objet modèle à configurer.
+ *
+ * ⚠️ `n` n'est délibérément PAS envoyé. Le paramètre existe bien sur
+ * `/api/v1/images`, mais la plupart des endpoints le plafonnent à 1 et
+ * ignorent silencieusement une valeur plus grande : demander 4 images
+ * renvoyait une réponse à une seule image, sans la moindre erreur. C'était le
+ * bug qui a fait retirer le sélecteur de quantité. Un lot passe donc par
+ * `requestOpenRouterImages`, qui appelle cette fonction N fois.
  */
-export async function requestOpenRouterImages({
+async function requestOpenRouterImage({
   model,
   prompt,
-  n,
 }: {
   model: ImageModelValues;
   prompt: string;
-  n: number;
-}): Promise<{
-  /** Images encodées en base64, sans préfixe data-URL. */
-  images: string[];
-  costUsd: number | undefined;
-  tokens: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-  };
-}> {
+}): Promise<OpenRouterImagesResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set.");
 
@@ -202,7 +217,7 @@ export async function requestOpenRouterImages({
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model, prompt, n, usage: { include: true } }),
+    body: JSON.stringify({ model, prompt, usage: { include: true } }),
   });
 
   if (!response.ok) {
@@ -233,6 +248,92 @@ export async function requestOpenRouterImages({
       outputTokens: readNumber(readObjectKey(usage, "completion_tokens")) ?? 0,
       totalTokens: readNumber(readObjectKey(usage, "total_tokens")) ?? 0,
     },
+  };
+}
+
+/**
+ * Génère un lot de `n` images : `n` requêtes indépendantes, en parallèle.
+ *
+ * C'est le seul moyen fiable d'obtenir plusieurs images, cf. la note sur `n`
+ * dans `requestOpenRouterImage`. Ce n'est pas plus cher — ces modèles sont
+ * facturés à l'image — et chaque appel repart d'une graine différente, donc le
+ * lot est bien composé de variations et non de N copies.
+ *
+ * `allSettled` et non `all` : une image ratée sur quatre ne doit pas jeter les
+ * trois autres, déjà payées. Les échecs remontent dans `failures`, que
+ * l'appelant affiche sur le node. Tout rater reste une erreur — c'est la seule
+ * façon d'expliquer à l'utilisateur qu'il n'a rien obtenu.
+ */
+export async function requestOpenRouterImages({
+  model,
+  prompt,
+  n,
+}: {
+  model: ImageModelValues;
+  prompt: string;
+  n: number;
+}): Promise<
+  OpenRouterImagesResult & {
+    failures: string[];
+    /** Réponses arrivées sans champ `cost` : leur dépense manque au total. */
+    unpricedResponses: number;
+  }
+> {
+  const count = Math.max(1, Math.trunc(n));
+
+  const settled = await Promise.allSettled(
+    Array.from({ length: count }, () =>
+      requestOpenRouterImage({ model, prompt }),
+    ),
+  );
+
+  const results: OpenRouterImagesResult[] = [];
+  const failures: string[] = [];
+
+  for (const outcome of settled) {
+    if (outcome.status === "fulfilled") {
+      results.push(outcome.value);
+    } else {
+      failures.push(
+        outcome.reason instanceof Error
+          ? outcome.reason.message
+          : "Image generation failed.",
+      );
+    }
+  }
+
+  if (results.length === 0) {
+    throw new Error(failures[0] ?? "OpenRouter returned no image.");
+  }
+
+  // Somme des coûts RÉELLEMENT annoncés. Une réponse muette n'est pas comptée
+  // pour zéro sans le dire : `unpricedResponses` la signale à l'appelant, qui
+  // en fait une ligne de log — un total silencieusement sous-évalué est
+  // exactement ce que l'accounting doit rendre visible.
+  const costs = results
+    .map((result) => result.costUsd)
+    .filter((cost): cost is number => cost !== undefined);
+
+  return {
+    images: results.flatMap((result) => result.images),
+    costUsd:
+      costs.length > 0 ? costs.reduce((sum, cost) => sum + cost, 0) : undefined,
+    unpricedResponses: results.length - costs.length,
+    tokens: {
+      inputTokens: results.reduce(
+        (sum, result) => sum + result.tokens.inputTokens,
+        0,
+      ),
+      outputTokens: results.reduce(
+        (sum, result) => sum + result.tokens.outputTokens,
+        0,
+      ),
+      totalTokens: results.reduce(
+        (sum, result) => sum + result.tokens.totalTokens,
+        0,
+      ),
+    },
+    failures,
   };
 }
 

@@ -73,6 +73,8 @@ export const dropAttachedPages = internalMutation({
 type BackfillR2RefsResult = {
   scanned: number;
   registered: number;
+  totalScanned: number;
+  totalRegistered: number;
   isDone: boolean;
 };
 
@@ -93,13 +95,27 @@ type BackfillR2RefsResult = {
  * L'appel traite un lot puis se replanifie seul jusqu'à la fin de la table.
  */
 export const backfillR2Refs = internalMutation({
-  args: { cursor: v.optional(v.string()) },
+  args: {
+    cursor: v.optional(v.string()),
+    // Totaux portés de lot en lot : `convex run` ne voit que le retour du
+    // PREMIER, les suivants sont planifiés. Sans eux, ni la fin du backfill ni
+    // une chaîne interrompue par une erreur ne seraient visibles — et un
+    // premier lot à zéro (les plus vieux nodes sont souvent sans fichier) ne
+    // dirait rien de ce que la migration a fait ensuite.
+    totalScanned: v.optional(v.number()),
+    totalRegistered: v.optional(v.number()),
+  },
   returns: v.object({
     scanned: v.number(),
     registered: v.number(),
+    totalScanned: v.number(),
+    totalRegistered: v.number(),
     isDone: v.boolean(),
   }),
-  handler: async (ctx, { cursor }): Promise<BackfillR2RefsResult> => {
+  handler: async (
+    ctx,
+    { cursor, totalScanned = 0, totalRegistered = 0 },
+  ): Promise<BackfillR2RefsResult> => {
     // Plus petit que BATCH_SIZE : un nodeData porte ses `values` (code d'app,
     // document blocknote, table entière), et la transaction lit le document
     // complet de chaque ligne du lot.
@@ -133,12 +149,31 @@ export const backfillR2Refs = internalMutation({
       });
     }
 
-    if (!results.isDone) {
+    const scanned = results.page.length;
+    const nextScanned = totalScanned + scanned;
+    const nextRegistered = totalRegistered + registered;
+
+    if (results.isDone) {
+      console.log(
+        `[backfillR2Refs] terminé : ${nextScanned} nodes parcourus, ${nextRegistered} références enregistrées.`,
+      );
+    } else {
+      console.log(
+        `[backfillR2Refs] lot : ${scanned} nodes, ${registered} références (cumul : ${nextScanned} / ${nextRegistered}).`,
+      );
       await ctx.scheduler.runAfter(0, internal.migrations.backfillR2Refs, {
         cursor: results.continueCursor,
+        totalScanned: nextScanned,
+        totalRegistered: nextRegistered,
       });
     }
 
-    return { scanned: results.page.length, registered, isDone: results.isDone };
+    return {
+      scanned,
+      registered,
+      totalScanned: nextScanned,
+      totalRegistered: nextRegistered,
+      isDone: results.isDone,
+    };
   },
 });

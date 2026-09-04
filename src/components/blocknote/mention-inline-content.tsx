@@ -19,9 +19,16 @@ import { cn } from "@/lib/utils";
  * so a pill stays in sync when the mentioned node is renamed elsewhere.
  * `title` is a one-time snapshot taken when the mention is inserted — it is
  * NEVER read by the interactive UI, only used as a fallback when the node no
- * longer exists on this canvas, and by the headless (default-schema) Convex
- * codec that turns pills into plain text for markdown/search/XML (see
- * convex/ia/helpers/blockNoteMarkdown.ts) — that codec has no DB access.
+ * longer exists on this canvas.
+ *
+ * The agent sees the pill as the `[[node:<canvasNodeId>|<type>|<title>]]` token
+ * and can author one back as `[[node:<canvasNodeId>]]`. The Convex codec is
+ * pure and cannot map `nodeDataId` to a canvas node id on its own, so
+ * `read_nodes` hands it the correspondence and the write-side tools resolve the
+ * ids the agent wrote (convex/ia/helpers/blockNoteMarkdown.ts,
+ * convex/ia/helpers/resolveNodeMentionTokens.ts). The snapshot `title` is what
+ * the codec falls back to when a mentioned node has left the canvas, and the
+ * search index always uses it — a machine token would be noise there.
  */
 
 const pillClassName =

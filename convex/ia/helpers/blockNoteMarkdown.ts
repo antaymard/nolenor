@@ -53,11 +53,16 @@ export const BLOCKNOTE_XML_VERSION = "1";
 //    which the XML carries independently of the headless editor.
 //  • date pills → a text stand-in, in one of two flavours (see below).
 //  • mention pills (a reference to another canvas node, see
-//    src/components/blocknote/mention-inline-content.tsx) → the snapshot
-//    title stored in their own props at insertion time. This codec is pure
-//    (no `ctx.db`), so it cannot resolve the mentioned node's live title —
-//    unlike date pills there is no round-trip token, an agent cannot author
-//    one back from text.
+//    src/components/blocknote/mention-inline-content.tsx) → the `[[node:…]]`
+//    token, which round-trips like a date pill.
+//
+// A mention is the one custom type this codec cannot resolve on its own: it
+// stores a `nodeDataId`, while the agent addresses nodes by their CANVAS node
+// id, and mapping between the two needs the canvas document. The codec stays
+// pure — the caller passes the correspondence in (`mentions` on both the
+// serialize and the parse side) and gets the snapshot-title fallback when it
+// doesn't. `read_nodes` builds the read-side map (readNodesTool.ts), and the
+// write-side tools resolve the ids the agent wrote (resolveNodeMentionTokens.ts).
 
 /**
  * How a `date` pill is rendered when handed to the headless editor.
@@ -70,11 +75,96 @@ export const BLOCKNOTE_XML_VERSION = "1";
  */
 type DatePillMode = "token" | "label";
 
-/** `[[date:YYYY-MM-DD]]` — the agent-facing spelling of a date pill. */
-const DATE_TOKEN_RE = /\[\[date:(\d{4}-\d{2}-\d{2})\]\]/g;
+/**
+ * What the serializer needs to turn a `mention` pill into a token the agent can
+ * act on: the canvas node id it addresses nodes by, plus the node's current type
+ * and title. Keyed by the `nodeDataId` the pill stores.
+ */
+export type MentionInfo = { nodeId: string; type: string; title: string };
+export type MentionInfoByNodeDataId = ReadonlyMap<string, MentionInfo>;
 
+/**
+ * The reverse map, for the parse side: what a `[[node:<nodeId>]]` token the
+ * agent wrote resolves to. `title` is re-snapshotted into the pill's props so
+ * the frontend has a sensible fallback if that node later leaves the canvas.
+ */
+export type ResolvedMentionByNodeId = ReadonlyMap<
+  string,
+  { nodeDataId: string; title: string }
+>;
+
+type SerializeOptions = {
+  mode: DatePillMode;
+  mentions?: MentionInfoByNodeDataId;
+};
+
+type ParseOptions = {
+  mentions?: ResolvedMentionByNodeId;
+};
+
+/** `[[date:YYYY-MM-DD]]` — the agent-facing spelling of a date pill. */
 export function formatDateToken(isoDate: string): string {
   return `[[date:${isoDate}]]`;
+}
+
+// ── Mention tokens ──────────────────────────────────────────────────────────
+//
+// `[[node:<nodeId>]]` is the whole contract on the way IN: only the id is read,
+// and it is the CANVAS node id, the one every other tool takes. On the way OUT
+// a human-readable tail is appended — `[[node:<nodeId>|<type>|<title>]]`, the
+// same `id | type | title` shape the `node` column of a table already serializes
+// to (makeNodeDataLLMFriendly.ts) — so the agent can see what a reference points
+// at without a second read. Everything after the first `|` is a label and is
+// ignored when parsing, which is what makes the round-trip lossless: the agent
+// can hand a block straight back exactly as it read it.
+
+/**
+ * The id is delimited by `|` or `]`, so a title containing either cannot swallow
+ * it. Matched with the same `text.includes` pre-check as date tokens.
+ */
+const NODE_MENTION_TOKEN_RE = /\[\[node:([^\]|\s]+)(?:\|[^\]]*)?\]\]/g;
+
+/** Longest label worth spending context on; the id is what the agent acts on. */
+const MENTION_LABEL_MAX = 80;
+
+/**
+ * A node title is free text and can hold anything — `]`, a newline, another
+ * `[[`. Any of those would end the token early and leave debris in the output
+ * the agent reads back. Brackets become parentheses (readable, and unable to
+ * close the token) and every whitespace run collapses to a single space.
+ */
+function sanitizeMentionLabel(text: string): string {
+  const flat = text
+    .replace(/[[\]]/g, (c) => (c === "[" ? "(" : ")"))
+    .replace(/\s+/g, " ")
+    .trim();
+  return flat.length > MENTION_LABEL_MAX
+    ? `${flat.slice(0, MENTION_LABEL_MAX - 1)}…`
+    : flat;
+}
+
+export function formatNodeMentionToken(info: MentionInfo): string {
+  const label = sanitizeMentionLabel(info.title);
+  return `[[node:${info.nodeId}|${info.type}|${label}]]`;
+}
+
+/**
+ * The canvas node ids referenced by `[[node:…]]` tokens in a raw agent payload
+ * (Markdown or XML), deduped. Lets the write path fetch exactly the nodes the
+ * agent named — and nothing when it named none — before parsing.
+ */
+export function collectNodeMentionTokenIds(text: string): string[] {
+  if (!text.includes("[[node:")) return [];
+  const ids = new Set<string>();
+  NODE_MENTION_TOKEN_RE.lastIndex = 0;
+  for (
+    let match = NODE_MENTION_TOKEN_RE.exec(text);
+    match;
+    match = NODE_MENTION_TOKEN_RE.exec(text)
+  ) {
+    ids.add(match[1]);
+  }
+  return [...ids];
 }
 
 function datePillStandIn(props: unknown, mode: DatePillMode): string {
@@ -87,17 +177,31 @@ function datePillStandIn(props: unknown, mode: DatePillMode): string {
 }
 
 /**
- * Text stand-in for a `mention` pill: the snapshot title taken when the pill
- * was inserted (see mention-inline-content.tsx). No `mode` distinction like
- * date pills — there is no token form to round-trip, so this is always the
- * readable form.
+ * Text stand-in for a `mention` pill.
+ *
+ * Resolved (the caller supplied the canvas correspondence) → the round-trip
+ * token. Unresolved → the snapshot title taken when the pill was inserted
+ * (see mention-inline-content.tsx), which is the honest thing to show for a
+ * node that has left the canvas: it names what was meant without handing the
+ * agent an id that no longer resolves. Same degradation as a date pill whose
+ * stored value has no ISO form.
+ *
+ * `mode` plays no part: a token carrying an id is noise in the search index,
+ * so the index — which is the only `"label"` caller — passes no map and gets
+ * the readable form for free.
  */
-function mentionStandIn(props: unknown): string {
-  const title = (props as Record<string, unknown> | undefined)?.title;
+function mentionStandIn(props: unknown, mentions?: MentionInfoByNodeDataId): string {
+  const p = props as Record<string, unknown> | undefined;
+  const nodeDataId = p?.nodeDataId;
+  const info =
+    typeof nodeDataId === "string" ? mentions?.get(nodeDataId) : undefined;
+  if (info) return formatNodeMentionToken(info);
+
+  const title = p?.title;
   return typeof title === "string" && title.trim() ? title.trim() : "Node";
 }
 
-function frontendOnlyInlineToText(content: unknown, mode: DatePillMode): unknown {
+function frontendOnlyInlineToText(content: unknown, opts: SerializeOptions): unknown {
   if (typeof content === "string" || content === undefined || content === null) {
     return content;
   }
@@ -106,13 +210,13 @@ function frontendOnlyInlineToText(content: unknown, mode: DatePillMode): unknown
       if (typeof node !== "object" || node === null) return node;
       const n = node as Record<string, unknown>;
       if (n.type === "date") {
-        return { type: "text", text: datePillStandIn(n.props, mode) };
+        return { type: "text", text: datePillStandIn(n.props, opts.mode) };
       }
       if (n.type === "mention") {
-        return { type: "text", text: mentionStandIn(n.props) };
+        return { type: "text", text: mentionStandIn(n.props, opts.mentions) };
       }
       if (n.content !== undefined) {
-        return { ...n, content: frontendOnlyInlineToText(n.content, mode) };
+        return { ...n, content: frontendOnlyInlineToText(n.content, opts) };
       }
       return node;
     });
@@ -128,10 +232,10 @@ function frontendOnlyInlineToText(content: unknown, mode: DatePillMode): unknown
                 ...cell,
                 content: frontendOnlyInlineToText(
                   cell.content,
-                  mode,
+                  opts,
                 ) as BlockNoteInlineContent[],
               }
-            : frontendOnlyInlineToText(cell, mode),
+            : frontendOnlyInlineToText(cell, opts),
         ),
       })),
     };
@@ -200,7 +304,10 @@ function normalizeEmphasisWhitespace(content: unknown): unknown {
  * `sanitizeBlockForHeadless`, callers that serialize a single block's inline
  * content use this and drop the children entirely.
  */
-function sanitizeBlockShallow(block: BlockNoteBlock, mode: DatePillMode): BlockNoteBlock {
+function sanitizeBlockShallow(
+  block: BlockNoteBlock,
+  opts: SerializeOptions,
+): BlockNoteBlock {
   const out = { ...block };
   if (out.type === "callout") {
     // Paragraph (not quote) so the serialized content stays raw text — no
@@ -213,7 +320,7 @@ function sanitizeBlockShallow(block: BlockNoteBlock, mode: DatePillMode): BlockN
   }
   if (out.content !== undefined) {
     out.content = normalizeEmphasisWhitespace(
-      frontendOnlyInlineToText(out.content, mode),
+      frontendOnlyInlineToText(out.content, opts),
     );
   }
   return out;
@@ -222,40 +329,81 @@ function sanitizeBlockShallow(block: BlockNoteBlock, mode: DatePillMode): BlockN
 /** Recursively rewrite frontend-only custom types for the headless editor. */
 function sanitizeBlockForHeadless(
   block: BlockNoteBlock,
-  mode: DatePillMode,
+  opts: SerializeOptions,
 ): BlockNoteBlock {
-  const out = sanitizeBlockShallow(block, mode);
+  const out = sanitizeBlockShallow(block, opts);
   if (Array.isArray(out.children)) {
-    out.children = out.children.map((child) => sanitizeBlockForHeadless(child, mode));
+    out.children = out.children.map((child) => sanitizeBlockForHeadless(child, opts));
   }
   return out;
 }
 
-// ── Date tokens → pills (parse side) ────────────────────────────────────────
+// ── Pill tokens → pills (parse side) ────────────────────────────────────────
 
 /**
- * Turn `[[date:YYYY-MM-DD]]` occurrences inside parsed inline content back into
- * real `date` inline nodes. Runs after the Markdown parser, so a token that sat
- * inside styled text or a link is split out of its leaf while the surrounding
- * text keeps its styles.
+ * Matches both pill tokens in one sweep, so a text leaf is split once however
+ * many kinds of pill it holds. The two shapes are kept apart by the leading
+ * keyword and re-validated per match by `tokenToPill` — the loose `[^\]]*` body
+ * is what lets an ill-formed token fall through as plain text instead of
+ * silently eating the rest of the leaf.
+ */
+const PILL_TOKEN_RE = /\[\[(date|node):([^\]]*)\]\]/g;
+
+/** True when a text leaf can possibly hold a token — the cheap pre-check. */
+function mayHoldPillToken(text: string): boolean {
+  return text.includes("[[date:") || text.includes("[[node:");
+}
+
+/**
+ * One token match → the inline node it stands for, or `null` when it is not a
+ * token after all (a malformed date, a mention the caller could not resolve),
+ * in which case the raw text is kept verbatim.
+ */
+function tokenToPill(
+  kind: string,
+  body: string,
+  mentions: ResolvedMentionByNodeId | undefined,
+): Record<string, unknown> | null {
+  if (kind === "date") {
+    return /^\d{4}-\d{2}-\d{2}$/.test(body) ? { type: "date", props: { date: body } } : null;
+  }
+  // Only the id is significant; everything past the first `|` is the human
+  // label the serializer appends, and is deliberately thrown away.
+  const nodeId = body.split("|", 1)[0];
+  const resolved = nodeId ? mentions?.get(nodeId) : undefined;
+  if (!resolved) return null;
+  return {
+    type: "mention",
+    props: { nodeDataId: resolved.nodeDataId, title: resolved.title },
+  };
+}
+
+/**
+ * Turn `[[date:YYYY-MM-DD]]` / `[[node:<nodeId>]]` occurrences inside parsed
+ * inline content back into real `date` / `mention` inline nodes. Runs after the
+ * Markdown parser, so a token that sat inside styled text or a link is split out
+ * of its leaf while the surrounding text keeps its styles.
  *
  * Code spans are left alone, which is the escape hatch: `` `[[date:…]]` ``
  * documents the syntax without turning into a pill.
  */
-function expandDateTokens(content: unknown): unknown {
+function expandPillTokens(
+  content: unknown,
+  mentions?: ResolvedMentionByNodeId,
+): unknown {
   if (!Array.isArray(content)) return content;
 
   const out: unknown[] = [];
   for (const node of content) {
     if (isPlainObject(node) && node.type === "link" && Array.isArray(node.content)) {
-      out.push({ ...node, content: expandDateTokens(node.content) });
+      out.push({ ...node, content: expandPillTokens(node.content, mentions) });
       continue;
     }
     if (
       !isPlainObject(node) ||
       node.type !== "text" ||
       typeof node.text !== "string" ||
-      !node.text.includes("[[date:") ||
+      !mayHoldPillToken(node.text) ||
       (isPlainObject(node.styles) && node.styles.code)
     ) {
       out.push(node);
@@ -263,27 +411,90 @@ function expandDateTokens(content: unknown): unknown {
     }
 
     const styles = node.styles;
+    const pieces: unknown[] = [];
     let cursor = 0;
-    DATE_TOKEN_RE.lastIndex = 0;
+    PILL_TOKEN_RE.lastIndex = 0;
     for (
-      let match = DATE_TOKEN_RE.exec(node.text);
+      let match = PILL_TOKEN_RE.exec(node.text);
       match;
-      match = DATE_TOKEN_RE.exec(node.text)
+      match = PILL_TOKEN_RE.exec(node.text)
     ) {
+      const pill = tokenToPill(match[1], match[2], mentions);
+      if (!pill) continue;
       const before = node.text.slice(cursor, match.index);
-      if (before) out.push({ type: "text", text: before, styles });
-      out.push({ type: "date", props: { date: match[1] } });
+      if (before) pieces.push({ type: "text", text: before, styles });
+      pieces.push(pill);
       cursor = match.index + match[0].length;
     }
+    // No token actually resolved: keep the original leaf rather than rebuilding
+    // an identical one (and losing any extra key it carried).
+    if (pieces.length === 0) {
+      out.push(node);
+      continue;
+    }
     const rest = node.text.slice(cursor);
-    if (rest) out.push({ type: "text", text: rest, styles });
+    if (rest) pieces.push({ type: "text", text: rest, styles });
+    out.push(...pieces);
   }
   return out;
 }
 
-/** Apply `expandDateTokens` to a whole parsed block tree (content + tables + children). */
-function expandDateTokensInBlocks<T extends BlockNoteBlockWithOptionalId>(
+/**
+ * Mention tokens still sitting in a PARSED tree as plain text: ones the caller
+ * could not resolve. Asked after parsing rather than before, so the answer is
+ * exactly `expandPillTokens`'s own — a token inside a code span is literal text
+ * on purpose (`` `[[node:…]]` `` documents the syntax) and is not reported.
+ *
+ * This is what lets the write tools refuse an unknown id instead of persisting
+ * a token as visible debris in the user's document.
+ */
+export function findUnresolvedMentionTokens(blocks: readonly unknown[]): string[] {
+  const ids = new Set<string>();
+
+  const scanInline = (content: unknown): void => {
+    if (Array.isArray(content)) {
+      for (const node of content) {
+        if (!isPlainObject(node)) continue;
+        if (node.type === "link" || node.content !== undefined) {
+          scanInline(node.content);
+          continue;
+        }
+        if (
+          node.type !== "text" ||
+          typeof node.text !== "string" ||
+          (isPlainObject(node.styles) && node.styles.code)
+        ) {
+          continue;
+        }
+        for (const id of collectNodeMentionTokenIds(node.text)) ids.add(id);
+      }
+      return;
+    }
+    if (isTableContent(content)) {
+      for (const row of content.rows) {
+        for (const cell of row.cells) {
+          scanInline(isTableCellObj(cell) ? cell.content : cell);
+        }
+      }
+    }
+  };
+
+  const scanBlocks = (bs: readonly unknown[]): void => {
+    for (const block of bs) {
+      if (!isPlainObject(block)) continue;
+      if (block.content !== undefined) scanInline(block.content);
+      if (Array.isArray(block.children)) scanBlocks(block.children);
+    }
+  };
+
+  scanBlocks(blocks);
+  return [...ids];
+}
+
+/** Apply `expandPillTokens` to a whole parsed block tree (content + tables + children). */
+function expandPillTokensInBlocks<T extends BlockNoteBlockWithOptionalId>(
   blocks: T[],
+  mentions?: ResolvedMentionByNodeId,
 ): T[] {
   return blocks.map((block) => {
     const out = { ...block };
@@ -296,17 +507,20 @@ function expandDateTokensInBlocks<T extends BlockNoteBlockWithOptionalId>(
             isTableCellObj(cell)
               ? {
                   ...cell,
-                  content: expandDateTokens(cell.content) as BlockNoteInlineContent[],
+                  content: expandPillTokens(
+                    cell.content,
+                    mentions,
+                  ) as BlockNoteInlineContent[],
                 }
-              : (expandDateTokens(cell) as BlockNoteInlineContent[]),
+              : (expandPillTokens(cell, mentions) as BlockNoteInlineContent[]),
           ),
         })),
       };
     } else if (out.content !== undefined) {
-      out.content = expandDateTokens(out.content);
+      out.content = expandPillTokens(out.content, mentions);
     }
     if (Array.isArray(out.children)) {
-      out.children = expandDateTokensInBlocks(out.children);
+      out.children = expandPillTokensInBlocks(out.children, mentions);
     }
     return out;
   });
@@ -317,7 +531,7 @@ function expandDateTokensInBlocks<T extends BlockNoteBlockWithOptionalId>(
 export async function blocksToMarkdown(blocks: BlockNoteBlock[]): Promise<string> {
   return withHeadlessEditor((editor) =>
     editor.blocksToMarkdownLossy(
-      blocks.map((block) => sanitizeBlockForHeadless(block, "label")),
+      blocks.map((block) => sanitizeBlockForHeadless(block, { mode: "label" })),
     ),
   );
 }
@@ -335,17 +549,20 @@ export async function blocksToMarkdown(blocks: BlockNoteBlock[]): Promise<string
 
 export async function markdownToBlockNoteBlocks(
   markdown: string,
+  options?: { mentions?: ResolvedMentionByNodeId },
 ): Promise<BlockNoteBlockWithOptionalId[]> {
   if (!markdown || markdown.trim().length === 0) {
     return [];
   }
   return withHeadlessEditor((editor) =>
-    // `[[date:…]]` tokens are honoured here too, so a full Markdown replace can
-    // author real date pills rather than leaving the literal text behind.
+    // `[[date:…]]` and `[[node:…]]` tokens are honoured here too, so a full
+    // Markdown replace can author real pills rather than leaving the literal
+    // text behind.
     toWireSafe(
-      expandDateTokensInBlocks(
+      expandPillTokensInBlocks(
         (editor.tryParseMarkdownToBlocks(markdown) ??
           []) as BlockNoteBlockWithOptionalId[],
+        options?.mentions,
       ),
     ),
   );
@@ -417,11 +634,12 @@ function isTableCellObj(cell: unknown): cell is BlockNoteTableCell {
 function blockContentToMarkdown(
   editor: HeadlessBlockNoteEditor,
   block: BlockNoteBlock,
+  opts: SerializeOptions,
 ): string {
   // `children` is dropped BEFORE sanitizing: sanitizing first would deep-copy
   // the whole subtree only to throw it away, making serialization quadratic on
   // nested documents (this runs once per block).
-  const synthetic = sanitizeBlockShallow({ ...block, children: [] }, "token");
+  const synthetic = sanitizeBlockShallow({ ...block, children: [] }, opts);
   try {
     return editor.blocksToMarkdownLossy([synthetic]).trim();
   } catch {
@@ -433,6 +651,7 @@ function blockContentToMarkdown(
 function inlineContentToMarkdown(
   editor: HeadlessBlockNoteEditor,
   content: unknown,
+  opts: SerializeOptions,
 ): string {
   if (!Array.isArray(content) || content.length === 0) return "";
   try {
@@ -442,7 +661,7 @@ function inlineContentToMarkdown(
           id: "tmp",
           type: "paragraph",
           content: normalizeEmphasisWhitespace(
-            frontendOnlyInlineToText(content, "token"),
+            frontendOnlyInlineToText(content, opts),
           ),
         },
       ])
@@ -481,12 +700,14 @@ function compactCellProps(props: BlockNoteTableCell["props"]): Record<string, un
 
 export async function blockNoteDocumentToXml(
   blocks: BlockNoteBlock[],
+  options?: { mentions?: MentionInfoByNodeDataId },
 ): Promise<string> {
   if (!blocks || blocks.length === 0) {
     return `<blocknote version="${BLOCKNOTE_XML_VERSION}"/>`;
   }
+  const opts: SerializeOptions = { mode: "token", mentions: options?.mentions };
   return withHeadlessEditor((editor) => {
-    const parts = blocks.map((b) => blockToXml(editor, b, 0));
+    const parts = blocks.map((b) => blockToXml(editor, b, 0, opts));
     return `<blocknote version="${BLOCKNOTE_XML_VERSION}">\n${parts.join("\n")}\n</blocknote>`;
   });
 }
@@ -495,6 +716,7 @@ function blockToXml(
   editor: HeadlessBlockNoteEditor,
   block: BlockNoteBlock,
   indent: number,
+  opts: SerializeOptions,
 ): string {
   const pad = "  ".repeat(indent);
   const id = typeof block.id === "string" ? block.id : "";
@@ -515,18 +737,18 @@ function blockToXml(
   const parts: string[] = [`${openTag}>`];
 
   if (hasInline) {
-    const md = blockContentToMarkdown(editor, block);
+    const md = blockContentToMarkdown(editor, block, opts);
     if (md) parts.push(`${pad}  ${escapeXmlText(md)}`);
   }
 
   if (hasTable) {
-    parts.push(tableToXml(editor, content, indent + 1));
+    parts.push(tableToXml(editor, content, indent + 1, opts));
   }
 
   if (children.length > 0) {
     parts.push(`${pad}  <children>`);
     for (const child of children) {
-      parts.push(blockToXml(editor, child, indent + 2));
+      parts.push(blockToXml(editor, child, indent + 2, opts));
     }
     parts.push(`${pad}  </children>`);
   }
@@ -539,6 +761,7 @@ function tableToXml(
   editor: HeadlessBlockNoteEditor,
   content: BlockNoteTableContent,
   indent: number,
+  opts: SerializeOptions,
 ): string {
   const pad = "  ".repeat(indent);
 
@@ -565,7 +788,11 @@ function tableToXml(
       const isStructured = isTableCellObj(cell);
       if (!isStructured && !Array.isArray(cell)) continue;
       const attr = isStructured ? propsAttribute(compactCellProps(cell.props)) : "";
-      const md = inlineContentToMarkdown(editor, isStructured ? cell.content : cell);
+      const md = inlineContentToMarkdown(
+        editor,
+        isStructured ? cell.content : cell,
+        opts,
+      );
       rowParts.push(
         md
           ? `${pad}    <cell${attr}>${escapeXmlText(md)}</cell>`
@@ -683,7 +910,9 @@ function parseFragmentOrDocument(dom: DomGlobals, xml: string): ParsedXml {
 
 export async function parseBlockNoteXml(
   xml: string,
+  options?: { mentions?: ResolvedMentionByNodeId },
 ): Promise<BlockNoteBlockWithOptionalId[]> {
+  const opts: ParseOptions = { mentions: options?.mentions };
   // Every return path goes through `toWireSafe`: these blocks are handed
   // straight to a Convex mutation, which rejects `undefined` inside an array.
   return withHeadlessEditor((editor, dom) => {
@@ -694,9 +923,9 @@ export async function parseBlockNoteXml(
     // A lone `<block>` is a valid XML document in its own right, and so is a
     // lone `<table>` — the shorthand for a document that is just one table.
     if (root.tagName === "block") {
-      return toWireSafe([parseBlockElement(editor, root)]);
+      return toWireSafe([parseBlockElement(editor, root, opts)]);
     }
-    if (root.tagName === "table") return toWireSafe([tableBlock(editor, root)]);
+    if (root.tagName === "table") return toWireSafe([tableBlock(editor, root, opts)]);
 
     // Otherwise the root is just an envelope. `<blocknote>` is what the
     // serializer emits, but any container the model reaches for (`<blocks>`,
@@ -713,13 +942,13 @@ export async function parseBlockNoteXml(
     }
 
     const blocks = Array.from(root.children).map((child) => {
-      if (child.tagName === "table") return tableBlock(editor, child);
+      if (child.tagName === "table") return tableBlock(editor, child, opts);
       if (child.tagName !== "block") {
         throw xmlError(
           `unexpected element <${child.tagName}> inside <${root.tagName}>.`,
         );
       }
-      return parseBlockElement(editor, child);
+      return parseBlockElement(editor, child, opts);
     });
 
     // A payload that reads as well-formed XML yet yields nothing means every
@@ -742,8 +971,9 @@ export async function parseBlockNoteXml(
 function tableBlock(
   editor: HeadlessBlockNoteEditor,
   el: Element,
+  opts: ParseOptions,
 ): BlockNoteBlockWithOptionalId {
-  return { type: "table", content: parseTableElement(editor, el) };
+  return { type: "table", content: parseTableElement(editor, el, opts) };
 }
 
 /** Parse a `props="…"` attribute into an object, or undefined when absent. */
@@ -767,6 +997,7 @@ function parsePropsAttribute(
 function parseBlockElement(
   editor: HeadlessBlockNoteEditor,
   el: Element,
+  opts: ParseOptions,
 ): BlockNoteBlockWithOptionalId {
   const id = el.getAttribute("id") ?? undefined;
   const type = el.getAttribute("type");
@@ -792,14 +1023,14 @@ function parseBlockElement(
         if (tableContent !== undefined) {
           throw xmlError(`<block type="${type}"> has multiple <table> elements.`);
         }
-        tableContent = parseTableElement(editor, elem);
+        tableContent = parseTableElement(editor, elem, opts);
         break;
       case "children":
         for (const grandChild of Array.from(elem.children)) {
           if (grandChild.tagName !== "block") {
             throw xmlError(`unexpected <${grandChild.tagName}> inside <children>.`);
           }
-          children.push(parseBlockElement(editor, grandChild));
+          children.push(parseBlockElement(editor, grandChild, opts));
         }
         break;
       // A `<block>` written directly inside another one, without the
@@ -807,7 +1038,7 @@ function parseBlockElement(
       // a block inside a block could be — so honour it instead of rejecting a
       // payload whose intent is unambiguous.
       case "block":
-        children.push(parseBlockElement(editor, elem));
+        children.push(parseBlockElement(editor, elem, opts));
         break;
       default:
         throw xmlError(`unexpected <${elem.tagName}> inside <block>.`);
@@ -818,7 +1049,7 @@ function parseBlockElement(
   const trimmedMd = markdownText.trim();
   const parsedText =
     tableContent === undefined && trimmedMd
-      ? parseMarkdownBlockContent(editor, trimmedMd)
+      ? parseMarkdownBlockContent(editor, trimmedMd, opts)
       : undefined;
 
   const table =
@@ -854,6 +1085,7 @@ type ParsedBlockContent =
 function parseMarkdownBlockContent(
   editor: HeadlessBlockNoteEditor,
   md: string,
+  opts: ParseOptions,
 ): ParsedBlockContent {
   const blocks = editor.tryParseMarkdownToBlocks(md);
   if (!blocks || blocks.length === 0) return { kind: "inline", content: [] };
@@ -871,7 +1103,10 @@ function parseMarkdownBlockContent(
   if (isTableContent(content)) return { kind: "table", content };
   return {
     kind: "inline",
-    content: expandDateTokens((content ?? []) as unknown[]) as unknown[],
+    content: expandPillTokens(
+      (content ?? []) as unknown[],
+      opts.mentions,
+    ) as unknown[],
   };
 }
 
@@ -880,8 +1115,9 @@ function parseMarkdownToInline(
   editor: HeadlessBlockNoteEditor,
   md: string,
   context: string,
+  opts: ParseOptions,
 ): unknown[] {
-  const parsed = parseMarkdownBlockContent(editor, md);
+  const parsed = parseMarkdownBlockContent(editor, md, opts);
   if (parsed.kind === "table") {
     throw xmlError(
       `${context} contains a Markdown table, which cannot be used as inline content.`,
@@ -900,6 +1136,7 @@ const ROW_GROUP_TAGS: ReadonlySet<string> = new Set(["thead", "tbody", "tfoot"])
 function parseTableCell(
   editor: HeadlessBlockNoteEditor,
   cell: Element,
+  opts: ParseOptions,
 ): BlockNoteTableCell {
   const cellProps = parsePropsAttribute(cell.getAttribute("props"), "<cell>") ?? {};
   // Walk childNodes explicitly rather than reading `cell.textContent`:
@@ -930,7 +1167,7 @@ function parseTableCell(
       ...cellProps,
     } as BlockNoteTableCell["props"],
     content: (cellMd
-      ? parseMarkdownToInline(editor, cellMd, "<cell>")
+      ? parseMarkdownToInline(editor, cellMd, "<cell>", opts)
       : []) as BlockNoteInlineContent[],
   } satisfies BlockNoteTableCell;
 }
@@ -938,13 +1175,14 @@ function parseTableCell(
 function parseTableRow(
   editor: HeadlessBlockNoteEditor,
   row: Element,
+  opts: ParseOptions,
 ): { cells: BlockNoteTableCell[] } {
   return {
     cells: Array.from(row.children).map((cell) => {
       if (!CELL_TAGS.has(cell.tagName)) {
         throw xmlError(`unexpected <${cell.tagName}> inside <${row.tagName}>.`);
       }
-      return parseTableCell(editor, cell);
+      return parseTableCell(editor, cell, opts);
     }),
   };
 }
@@ -973,6 +1211,7 @@ function hasSpans(rows: Array<{ cells: BlockNoteTableCell[] }>): boolean {
 function parseTableElement(
   editor: HeadlessBlockNoteEditor,
   el: Element,
+  opts: ParseOptions,
 ): BlockNoteTableContent {
   const headerRows = el.getAttribute("headerRows");
   const headerCols = el.getAttribute("headerCols");
@@ -988,7 +1227,7 @@ function parseTableElement(
         row.children.length > 0 &&
         Array.from(row.children).every((cell) => cell.tagName === "th");
     }
-    rows.push(parseTableRow(editor, row));
+    rows.push(parseTableRow(editor, row, opts));
   };
 
   for (const child of Array.from(el.children)) {

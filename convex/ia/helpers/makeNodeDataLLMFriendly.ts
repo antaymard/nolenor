@@ -1,5 +1,8 @@
 import {type Doc} from "../../_generated/dataModel";
-import {blockNoteDocumentToXml} from "./blockNoteMarkdown";
+import {
+  blockNoteDocumentToXml,
+  type MentionInfoByNodeDataId,
+} from "./blockNoteMarkdown";
 import {parseStoredBlockNoteDocument} from "../../lib/blockNoteDocument";
 
 type SelectOption = {
@@ -368,6 +371,7 @@ export function makeTableNodeDataLLMFriendly(
  */
 export async function makeNodeDataLLMFriendly(
   nodeData: Doc<"nodeDatas">,
+  options?: { mentions?: MentionInfoByNodeDataId },
 ): Promise<string> {
   const values = nodeData.values;
 
@@ -376,7 +380,9 @@ export async function makeNodeDataLLMFriendly(
       const doc = values.doc;
       const parsedDoc = parseStoredBlockNoteDocument(doc);
       if (parsedDoc) {
-        return await blockNoteDocumentToXml(parsedDoc);
+        return await blockNoteDocumentToXml(parsedDoc, {
+          mentions: options?.mentions,
+        });
       }
       return typeof doc === "string" ? doc : JSON.stringify(doc);
     }

@@ -37,6 +37,13 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
+    label: "Tencent Hy4",
+    value: "tencent/hy4-preview",
+    price: "0.85_2.50",
+    isMultimodal: false,
+    maxContext: 1000000,
+  },
+  {
     label: "Gemini 3.8 Flasj",
     value: "google/gemini-3.8-flash",
     price: "0.75_3.75",

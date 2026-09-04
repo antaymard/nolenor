@@ -89,6 +89,7 @@ import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js
 import type * as lib_r2 from "../lib/r2.js";
 import type * as lib_r2Keys from "../lib/r2Keys.js";
 import type * as lib_rateLimits from "../lib/rateLimits.js";
+import type * as lib_searchQuery from "../lib/searchQuery.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
 import type * as lib_text from "../lib/text.js";
 import type * as lib_textSanitize from "../lib/textSanitize.js";
@@ -256,6 +257,7 @@ declare const fullApi: ApiFromModules<{
   "lib/r2": typeof lib_r2;
   "lib/r2Keys": typeof lib_r2Keys;
   "lib/rateLimits": typeof lib_rateLimits;
+  "lib/searchQuery": typeof lib_searchQuery;
   "lib/searchScoring": typeof lib_searchScoring;
   "lib/text": typeof lib_text;
   "lib/textSanitize": typeof lib_textSanitize;

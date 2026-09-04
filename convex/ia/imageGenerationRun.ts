@@ -60,6 +60,9 @@ export const runImageGeneration = internalAction({
   returns: v.null(),
   handler: async (ctx, { nodeDataId, authUserId, prompt, count, model }) => {
     try {
+      // Un lot demandé à N images peut en ramener moins : `failures` porte
+      // alors ce qui a lâché. On ne jette pas les images obtenues pour autant —
+      // elles sont déjà payées.
       const result = await requestOpenRouterImages({ model, prompt, n: count });
 
       const generatedAt = Date.now();
@@ -118,14 +121,32 @@ export const runImageGeneration = internalAction({
         },
       });
 
-      if (result.costUsd === undefined) {
+      if (result.costUsd === undefined || result.unpricedResponses > 0) {
         // Bruyant mais non bloquant : si cette ligne apparaît, l'usage
         // accounting d'OpenRouter n'a pas été appliqué sur /images et la
-        // dépense en images n'est plus suivie.
+        // dépense en images n'est plus suivie — totalement si `costUsd` est
+        // absent, partiellement si seules certaines réponses du lot l'étaient.
         console.error("[aiUsage] image generation returned no cost", {
           model,
           nodeDataId,
+          unpricedResponses: result.unpricedResponses,
+          requested: count,
         });
+      }
+
+      // APRÈS l'append, qui efface le statut de génération : sinon l'erreur
+      // partielle serait écrasée par le succès qu'elle nuance. L'utilisateur
+      // voit ses images sur le node ET la raison des manquantes dans l'onglet.
+      if (result.failures.length > 0) {
+        const missing = result.failures.length;
+        await ctx.runMutation(
+          internal.wrappers.nodeDataWrappers.setImageGeneration,
+          {
+            nodeDataId,
+            status: "error",
+            error: `${images.length}/${count} images generated. ${missing} failed: ${result.failures[0]}`,
+          },
+        );
       }
     } catch (error) {
       const detail =

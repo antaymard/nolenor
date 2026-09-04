@@ -16,17 +16,17 @@ import {
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "GLM 5.3 Flash",
-    value: "z-ai/glm-5.3-flash",
-    price: "0.075_0.25",
+    label: "Meta Muse Spark 1.3",
+    value: "meta/muse-spark-1.3-contributor",
+    price: "0.1_0.2",
     isMultimodal: true,
     maxContext: 1000000,
   },
   {
-    label: "Deepseek 4 Flash",
-    value: "deepseek/deepseek-v4-flash-0731",
-    price: "0.05_0.10",
-    isMultimodal: false,
+    label: "GLM 5.3 Flash",
+    value: "z-ai/glm-5.3-flash",
+    price: "0.075_0.25",
+    isMultimodal: true,
     maxContext: 1000000,
   },
   {
@@ -44,7 +44,7 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Gemini 3.8 Flasj",
+    label: "Gemini 3.8 Flash",
     value: "google/gemini-3.8-flash",
     price: "0.75_3.75",
     isMultimodal: true,

@@ -141,6 +141,10 @@ export default function VersionHistoryViewer({
   );
   const restore = useMutation(api.nodeDataVersions.restore);
   const [isRestoring, setIsRestoring] = useState(false);
+  // App node : seul le `code` est versionné et restauré, la donnée sauvegardée
+  // par l'app ne bouge pas. Le dire ici, sinon un restore ressemble à une
+  // remise à zéro de l'app.
+  const isApp = useNodeData(nodeDataId)?.type === "app";
 
   if (isPending) {
     return <div>Loading...</div>;
@@ -214,7 +218,11 @@ export default function VersionHistoryViewer({
         <div className="flex shrink-0 items-center justify-end border-b px-2 py-1.5">
           <ConfirmableButton
             title="Restore this version"
-            text="This replaces the current content with this version. Your current state is saved beforehand, so you can revert this at any time."
+            text={
+              isApp
+                ? "This restores the code of this version. The data your app has saved is left untouched. The current code is saved beforehand, so you can revert this at any time."
+                : "This replaces the current content with this version. Your current state is saved beforehand, so you can revert this at any time."
+            }
             confirmLabel="Restore"
             onConfirm={handleRestore}
           >

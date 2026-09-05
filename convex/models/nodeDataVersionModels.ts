@@ -7,16 +7,17 @@ import type {
 
 // Un même acteur qui édite en continu ne produit au plus qu'un checkpoint par
 // fenêtre : les versions matérialisent des sessions d'édition, pas des writes.
-export const COALESCE_WINDOW_MS = 15 * 60 * 1000; // 3 min
+export const COALESCE_WINDOW_MS = 15 * 60 * 1000; // 15 min
 
-// App nodes uniquement :
-// - NOISE_KEYS : clés opérationnelles (bump de version d'iframe, erreurs
-//   runtime) qui ne constituent jamais un contenu à restaurer seules.
-// - SESSION_ONLY_KEYS : le `state` est sauvegardé en continu par les apps
-//   (nolenor:saveState) ; son churn ne rouvre pas une session du même acteur,
-//   mais un changement d'acteur force toujours un checkpoint.
-const APP_NOISE_KEYS = new Set(["__v", "errors"]);
-const APP_SESSION_ONLY_KEYS = new Set(["state"]); // "state" used to be here
+// App nodes : SEUL le `code` est versionné. Tout le reste des values est de
+// l'exécution, pas du contenu qu'on restaure :
+// - `state` est la donnée de l'app, réécrite en continu par l'app elle-même
+//   (nolenor:saveState). Un compteur qui s'incrémente ou un formulaire qu'on
+//   remplit produisait une version toutes les 15 minutes d'usage, et noyait
+//   l'historique des versions de code — le seul qu'on veut pouvoir remonter.
+// - `__v` et `errors` sont dérivés du code (bump d'iframe, erreurs runtime).
+// Un write qui ne touche aucune clé de cette liste ne crée aucune version.
+export const APP_VERSIONED_KEYS = new Set(["code"]);
 
 export const VERSION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 jours
 export const PRUNE_BATCH_SIZE = 200;
@@ -57,7 +58,7 @@ export async function maybeCheckpoint(
 
   if (!force) {
     const contentKeys = isApp
-      ? changedKeys.filter((key) => !APP_NOISE_KEYS.has(key))
+      ? changedKeys.filter((key) => APP_VERSIONED_KEYS.has(key))
       : changedKeys;
     if (contentKeys.length === 0) return null;
 
@@ -69,8 +70,6 @@ export async function maybeCheckpoint(
 
     if (latest && actorsEqual(latest.actor, actor)) {
       if (Date.now() - latest._creationTime < COALESCE_WINDOW_MS) return null;
-      if (isApp && contentKeys.every((key) => APP_SESSION_ONLY_KEYS.has(key)))
-        return null;
     }
   }
 

@@ -66,6 +66,11 @@ const canvasesValidator = v.object({
   name: v.string(),
   description: v.optional(v.string()),
   isPublic: v.optional(v.boolean()),
+  // Provenance : posé sur les canvases semés à l'inscription (cf.
+  // `STARTER_CANVAS_IDS`, convex/models/onboardingModels.ts), absent sur ceux
+  // que l'utilisateur crée lui-même. Purement informatif — un canvas système
+  // se modifie, se partage et se supprime comme n'importe quel autre.
+  isSystem: v.optional(v.boolean()),
 
   nodes: v.optional(v.array(canvasNodesValidator)),
   edges: v.optional(v.array(edgesValidator)),

@@ -1,6 +1,7 @@
 import Google from "@auth/core/providers/google";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 import { ResendOTP } from "./ResendOTP";
 import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
@@ -109,6 +110,29 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   ],
 
   callbacks: {
+    /**
+     * Provisionne les canvases de démarrage d'un compte qui vient d'être créé.
+     * `existingUserId === null` ⇒ une ligne `users` vient d'être insérée,
+     * donc c'est une inscription et non une connexion — vrai pour Google
+     * comme pour le mot de passe.
+     *
+     * Planifié plutôt qu'exécuté ici, parce que ce callback tourne DANS la
+     * transaction d'inscription : une erreur de clonage y ferait échouer la
+     * création du compte, et la rattraper par un `try/catch` ne roulerait pas
+     * les écritures déjà faites en arrière — on committerait un canvas à
+     * moitié construit. Une transaction séparée échoue proprement : au pire
+     * le canvas manque et la home affiche son écran de bienvenue.
+     */
+    async afterUserCreatedOrUpdated(ctx, { userId, existingUserId }) {
+      if (existingUserId !== null) return;
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.onboarding.provisionForNewUser,
+        { userId },
+      );
+    },
+
     /**
      * Où renvoyer l'utilisateur une fois Google passé.
      *

@@ -246,6 +246,11 @@ npx convex env set PARALLEL_API_KEY     ...
 npx convex env set LINK_PREVIEW_APIKEY  ...
 npx convex env set VOICE_SERVER_URL     https://voice.example.com
 npx convex env set VOICE_SERVER_TOKEN   ...
+
+# --- optional, and necessarily later: you need the app running to build the
+#     canvases first, then paste their ids (from their /canvas/<id> URL).
+#     Every new account gets a copy of each, first one landed on. ---
+npx convex env set STARTER_CANVAS_IDS   jd7abc...,jh2def...
 ```
 
 ### 5. Run it
@@ -284,6 +289,7 @@ Set with `npx convex env set NAME value`, or through the Convex dashboard.
 | `LINK_PREVIEW_APIKEY` | — | Title, description and image of link nodes | [linkpreview.net](https://www.linkpreview.net) |
 | `VOICE_SERVER_URL` | — | Realtime voice. The voice server itself is a separate service, not in this repo. Unset means the feature is simply hidden. | your own deployment |
 | `VOICE_SERVER_TOKEN` | — | Shared token for that server. Its origin allowlist is the real security boundary — see the comment in `convex/voice.ts`. | idem |
+| `STARTER_CANVAS_IDS` | — | Comma-separated canvas ids cloned into every new account at sign-up — a tutorial, templates, whatever you build. **Order matters**: the first one is stamped as the most recently updated, so it's the one the home page surfaces. Unset, a new account just gets one empty workspace. | ids of canvases you build in the app yourself, read from their `/canvas/<id>` URL |
 
 ⚠️ = the app runs without it, but any upload (image, PDF, audio, video, chat
 attachment) will fail.

@@ -1,3 +1,7 @@
+// ⚠️ Ce tool n'est PLUS enregistré dans `tools/index.ts` : la délégation
+// n'était pas assez robuste pour le lancement, Nolë ne le voit donc plus. Le
+// fichier est conservé intact, avec le worker qu'il appelle (`ia/worker.ts`) —
+// le réactiver ne demande que de remettre son entrée dans `toolRegistry`.
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { ConvexError } from "convex/values";

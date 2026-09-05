@@ -1,4 +1,9 @@
 "use node";
+// ⚠️ Plus aucun appelant : le tool `run_subAgent` a été désenregistré du
+// registre de Nolë (la délégation n'était pas assez robuste pour le
+// lancement). Tout le reste est intact — ce fichier, le tool, l'agent worker,
+// son system prompt et son comptage d'usage — pour que réactiver la
+// délégation ne demande que de remettre l'entrée dans `ia/tools/index.ts`.
 import {v, ConvexError} from "convex/values";
 import {internalAction} from "../_generated/server";
 import {baseAgent, createWorkerAgent} from "./agents";

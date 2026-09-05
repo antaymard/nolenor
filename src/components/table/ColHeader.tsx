@@ -1,155 +1,137 @@
+import { useRef, useState } from "react";
 import type { Column } from "@tanstack/react-table";
-import type { IconType } from "react-icons";
-import { Button } from "@/components/shadcn/button";
+import { TbArrowDown, TbArrowUp } from "react-icons/tb";
 import { Input } from "@/components/shadcn/input";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
-import {
-  TbChevronDown,
-  TbArrowUp,
-  TbArrowDown,
-  TbArrowsSort,
-  TbTrash,
-  TbList,
-} from "react-icons/tb";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/shadcn/popover";
 import { cn } from "@/lib/utils";
-import type { TableColumn, TableRowData, ColumnType } from "./types";
+import { ColumnMenu } from "./ColumnMenu";
 import { COLUMN_TYPE_CONFIG } from "./types";
+import type { ColumnType, TableColumn, TableRowData } from "./types";
 
 export interface ColHeaderProps {
   col: TableColumn;
   tanstackCol: Column<TableRowData, unknown>;
-  isEditing: boolean;
   readOnly?: boolean;
-  onEditStart: () => void;
-  onEditEnd: () => void;
+  /** La poignée de drag, posée à la place de l'icône de type au survol. */
+  dragHandle?: React.ReactNode;
+  lossyCountFor: (type: ColumnType) => number;
   onNameChange: (name: string) => void;
   onTypeChange: (type: ColumnType) => void;
   onDelete: () => void;
   onEditOptions?: () => void;
 }
 
+/**
+ * En-tête d'une colonne.
+ *
+ * Deux changements par rapport à l'ancienne version :
+ *
+ * - l'icône du type est affichée en permanence, donc on sait ce que contient
+ *   une colonne sans ouvrir quoi que ce soit ;
+ * - tout l'en-tête ouvre le menu, dont le champ de nom est le premier élément.
+ *   Avant, renommer supposait de deviner que le texte était cliquable, et le
+ *   menu — la seule affordance visible — ne proposait pas de renommer.
+ *
+ * Le double-clic garde un renommage inline direct, pour qui connaît déjà le
+ * geste.
+ */
 export function ColHeader({
   col,
   tanstackCol,
-  isEditing,
   readOnly,
-  onEditStart,
-  onEditEnd,
+  dragHandle,
+  lossyCountFor,
   onNameChange,
   onTypeChange,
   onDelete,
   onEditOptions,
 }: ColHeaderProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [inlineEditing, setInlineEditing] = useState(false);
+  // Un double-clic émet aussi deux clics : sans ce drapeau, le menu s'ouvrirait
+  // derrière le champ de renommage inline.
+  const skipNextClickRef = useRef(false);
+
   const sorted = tanstackCol.getIsSorted();
+  const Icon = COLUMN_TYPE_CONFIG[col.type].icon;
+
+  if (inlineEditing) {
+    return (
+      <Input
+        autoFocus
+        defaultValue={col.name}
+        className="h-6 w-full min-w-0 px-1 text-xs"
+        onBlur={(e) => {
+          const next = e.target.value.trim();
+          if (next && next !== col.name) onNameChange(next);
+          setInlineEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            e.currentTarget.value = col.name;
+            e.currentTarget.blur();
+          }
+        }}
+      />
+    );
+  }
+
   return (
-    <div className="flex items-center gap-1 group/colheader min-w-0">
-      {isEditing ? (
-        <Input
-          autoFocus
-          defaultValue={col.name}
-          className="h-6 text-xs w-24"
-          onBlur={(e) => {
-            onNameChange(e.target.value || col.name);
-            onEditEnd();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") onEditEnd();
-          }}
-        />
-      ) : (
-        <span
+    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
           className={cn(
-            "truncate font-medium flex items-center gap-1",
-            !readOnly && "cursor-pointer hover:underline",
+            "group/colheader flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left",
+            !readOnly && "hover:bg-muted/60",
           )}
-          onClick={readOnly ? undefined : onEditStart}
+          onClick={(e) => {
+            if (skipNextClickRef.current) {
+              skipNextClickRef.current = false;
+              e.preventDefault();
+            }
+          }}
+          onDoubleClick={(e) => {
+            if (readOnly) return;
+            e.preventDefault();
+            skipNextClickRef.current = true;
+            setMenuOpen(false);
+            setInlineEditing(true);
+          }}
         >
-          {col.name}
+          <span className="relative size-[13px] shrink-0">
+            <Icon
+              size={13}
+              className={cn(
+                "absolute inset-0 text-muted-foreground",
+                dragHandle && "group-hover/head:opacity-0",
+              )}
+            />
+            {dragHandle}
+          </span>
+          <span className="min-w-0 flex-1 truncate font-medium">{col.name}</span>
           {sorted === "asc" && <TbArrowUp size={12} className="shrink-0" />}
           {sorted === "desc" && <TbArrowDown size={12} className="shrink-0" />}
-        </span>
-      )}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-5 w-5 shrink-0 opacity-50 hover:opacity-100"
-          >
-            <TbChevronDown size={12} />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={() => tanstackCol.toggleSorting(false)}>
-            <TbArrowUp size={14} className="mr-2" />
-            Sort ascending
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => tanstackCol.toggleSorting(true)}>
-            <TbArrowDown size={14} className="mr-2" />
-            Sort descending
-          </DropdownMenuItem>
-          {sorted && (
-            <DropdownMenuItem onClick={() => tanstackCol.clearSorting()}>
-              <TbArrowsSort size={14} className="mr-2" />
-              Clear sort
-            </DropdownMenuItem>
-          )}
-          {!readOnly && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  Change column type
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {(
-                    Object.entries(COLUMN_TYPE_CONFIG) as [
-                      ColumnType,
-                      { label: string; icon: IconType },
-                    ][]
-                  ).map(([value, config]) => {
-                    const Icon = config.icon;
-                    return (
-                      <DropdownMenuItem
-                        key={value}
-                        onClick={() => onTypeChange(value)}
-                        className={cn(col.type === value && "font-semibold")}
-                      >
-                        <Icon size={12} className="mr-2 opacity-70" />
-                        {config.label}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              {col.type === "select" && onEditOptions && (
-                <DropdownMenuItem onClick={onEditOptions}>
-                  <TbList size={14} className="mr-2" />
-                  Edit options…
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={onDelete}
-                className="text-destructive focus:text-destructive"
-              >
-                <TbTrash size={14} className="mr-2" />
-                Delete column
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-1.5">
+        <ColumnMenu
+          col={col}
+          tanstackCol={tanstackCol}
+          readOnly={readOnly}
+          lossyCountFor={lossyCountFor}
+          onNameChange={onNameChange}
+          onTypeChange={onTypeChange}
+          onDelete={onDelete}
+          onEditOptions={onEditOptions}
+          onClose={() => setMenuOpen(false)}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }

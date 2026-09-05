@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { richTextToPlainText } from "./richText";
 import type {
   CellValue,
   ColumnType,
@@ -33,6 +34,11 @@ function cellToCsvString(value: CellValue, type: ColumnType): string {
       const node = value as NodeCellValue;
       return node.nodeId ?? "";
     }
+    case "richtext":
+      // Une cellule rich text est un document : `String()` y donnerait
+      // « [object Object] ». Papa Parse échappe les retours à la ligne, donc
+      // le texte multiligne survit au round-trip.
+      return richTextToPlainText(value);
     case "number":
     case "date":
     case "text":

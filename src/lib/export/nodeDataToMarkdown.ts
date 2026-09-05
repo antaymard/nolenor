@@ -5,6 +5,7 @@ import { getFieldTypeConfig } from "@/../convex/config/fieldConfig";
 import type { PartialBlock } from "@blocknote/core";
 import { blockNoteBlocksToMarkdown } from "@/lib/blockNoteMarkdownConverter";
 import type { ExportTemplate } from "./types";
+import { richTextToPlainText } from "@/../convex/lib/tableRichTextCell";
 
 /**
  * Rendu Markdown lisible d'un nodeData, pour l'export utilisateur.
@@ -55,8 +56,15 @@ function link(label: string, url: string): string {
 }
 
 /** Escape des `|` et des retours ligne, pour une cellule de table GFM. */
-function tableCell(value: unknown): string {
+function tableCell(value: unknown, type?: string): string {
   if (value === null || value === undefined) return "";
+  // Une cellule rich text stocke un document : `String()` y donnerait
+  // « [object Object] ». Le type vient de la colonne, seul endroit qui le sait.
+  if (type === "richtext") {
+    return richTextToPlainText(value)
+      .replace(/\|/g, "\\|")
+      .replace(/\r?\n/g, " ");
+  }
   const record = asRecord(value);
   if (record && typeof record.href === "string") {
     return link(asString(record.pageTitle), record.href).replace(/\|/g, "\\|");
@@ -163,7 +171,9 @@ async function renderBody(
       const body = rows.map((row) => {
         const cells = asRecord(asRecord(row)?.cells) ?? {};
         return `| ${columns
-          .map((column) => tableCell(cells[asString(column.id)]))
+          .map((column) =>
+            tableCell(cells[asString(column.id)], asString(column.type)),
+          )
           .join(" | ")} |`;
       });
 

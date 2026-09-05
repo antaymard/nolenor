@@ -40,6 +40,7 @@ type SelectColor = (typeof SELECT_COLORS)[number];
 
 type TableColumnType =
   | "text"
+  | "richtext"
   | "number"
   | "checkbox"
   | "date"
@@ -78,6 +79,7 @@ const ERROR_INVALID_TABLE_CONTENT = toolError(
 
 const columnTypeSchema = z.enum([
   "text",
+  "richtext",
   "number",
   "checkbox",
   "date",

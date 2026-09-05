@@ -1,8 +1,13 @@
 import { z } from "zod";
 import { toolError } from "../tools/toolHelpers";
+import {
+  parseRichTextCell,
+  richTextFromPlainText,
+} from "../../lib/tableRichTextCell";
 
 export type TableColumnType =
   | "text"
+  | "richtext"
   | "number"
   | "checkbox"
   | "date"
@@ -217,6 +222,28 @@ export function normalizeCellValueForColumn({
   }
 
   switch (column.type) {
+    case "richtext": {
+      // L'agent écrit du texte : on le convertit en document (un paragraphe par
+      // ligne) plutôt que de lui demander de fabriquer des blocs BlockNote à la
+      // main. Un document déjà sérialisé est accepté tel quel, pour que
+      // relire-puis-réécrire une cellule ne la dégrade pas.
+      if (typeof rawValue === "string") {
+        if (parseRichTextCell(rawValue)) {
+          return { ok: true, value: rawValue };
+        }
+        return { ok: true, value: richTextFromPlainText(rawValue) };
+      }
+      if (Array.isArray(rawValue) && parseRichTextCell(rawValue)) {
+        return { ok: true, value: JSON.stringify(rawValue) };
+      }
+      return {
+        ok: false,
+        error: toolError(
+          `Invalid value for column "${column.name}" (type richtext). Expected a text string (line breaks become paragraphs).`,
+        ),
+      };
+    }
+
     case "text":
     case "date": {
       if (typeof rawValue !== "string") {

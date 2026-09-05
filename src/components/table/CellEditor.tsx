@@ -7,16 +7,19 @@ import {
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import { TbCalendar } from "react-icons/tb";
-import { cn } from "@/lib/utils";
 import { CellDisplay } from "./CellDisplay";
 import { LinkCellEditor } from "./LinkCellEditor";
 import { NodeCellEditor } from "./NodeCellEditor";
+import { RichTextCellEditor } from "./RichTextCellEditor";
 import { SelectCellEditor } from "./SelectCellEditor";
+import { TextCellEditor } from "./TextCellEditor";
+import { DEFAULT_ROW_HEIGHT } from "./types";
 import type {
   ColumnType,
   CellValue,
   LinkCellValue,
   NodeCellValue,
+  RowHeight,
   SelectCellValue,
   SelectOption,
 } from "./types";
@@ -31,6 +34,7 @@ export interface CellEditorProps {
   onBlur: () => void;
   options?: SelectOption[];
   isMulti?: boolean;
+  rowHeight?: RowHeight;
 }
 
 export function CellEditor({
@@ -43,12 +47,20 @@ export function CellEditor({
   onBlur,
   options,
   isMulti,
+  rowHeight = DEFAULT_ROW_HEIGHT,
 }: CellEditorProps) {
   if (readOnly) {
     if (type === "checkbox") {
       return <Checkbox checked={!!value} disabled className="block" />;
     }
-    return <CellDisplay type={type} value={value} options={options} />;
+    return (
+      <CellDisplay
+        type={type}
+        value={value}
+        options={options}
+        rowHeight={rowHeight}
+      />
+    );
   }
 
   if (type === "checkbox") {
@@ -129,6 +141,19 @@ export function CellEditor({
     );
   }
 
+  if (type === "richtext") {
+    return (
+      <RichTextCellEditor
+        value={value}
+        isEditing={isEditing}
+        rowHeight={rowHeight}
+        onClick={onClick}
+        onChange={onChange}
+        onBlur={onBlur}
+      />
+    );
+  }
+
   if (type === "select") {
     return (
       <SelectCellEditor
@@ -144,36 +169,43 @@ export function CellEditor({
     );
   }
 
-  if (isEditing) {
+  if (type === "number") {
+    if (isEditing) {
+      return (
+        <Input
+          autoFocus
+          type="number"
+          defaultValue={value != null ? String(value) : ""}
+          className="h-7"
+          onBlur={(e) => {
+            onChange(e.target.value !== "" ? Number(e.target.value) : null);
+            onBlur();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") onBlur();
+          }}
+        />
+      );
+    }
     return (
-      <Input
-        autoFocus
-        type={type === "number" ? "number" : "text"}
-        defaultValue={value != null ? String(value) : ""}
-        className="h-7"
-        onBlur={(e) => {
-          if (type === "number") {
-            const num = e.target.value !== "" ? Number(e.target.value) : null;
-            onChange(num);
-          } else {
-            onChange(e.target.value);
-          }
-          onBlur();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-          if (e.key === "Escape") onBlur();
-        }}
-      />
+      <span
+        className="block w-full min-h-[1.4em] truncate rounded px-1 cursor-text hover:bg-muted/50"
+        onClick={onClick}
+      >
+        {value != null ? String(value) : ""}
+      </span>
     );
   }
 
   return (
-    <span
-      className={cn("block w-full min-h-[1.4em] rounded px-1 cursor-text hover:bg-muted/50 truncate")}
+    <TextCellEditor
+      value={value != null ? String(value) : ""}
+      isEditing={isEditing}
+      rowHeight={rowHeight}
       onClick={onClick}
-    >
-      {value != null ? String(value) : ""}
-    </span>
+      onChange={onChange}
+      onBlur={onBlur}
+    />
   );
 }

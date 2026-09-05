@@ -4,7 +4,6 @@ import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
 
-// Worker cannot run subtasks itself.
 export const listUserCanvasesToolConfig: ToolConfig = {
   name: "list_user_canvases",
   authorized_agents: [
@@ -18,7 +17,7 @@ export default function listUserCanvasesTool({
   threadCtx: ThreadCtx;
 }) {
   return createTool({
-    description: `Use this to list all canvases created by the user. This will return a list of canvas IDs, with their titles and descriptions. Use this canvasIDs to run SubAgents on other canvases, as you cannot go beyond the current canvas yourself.`,
+    description: `Use this to list all canvases created by the user. This returns their IDs, titles and descriptions. Read-only context on what the user works on elsewhere: you cannot read or edit another canvas, only the current one.`,
     inputSchema: z.object({ explanation: EXPLANATION_FIELD }),
     execute: async (ctx) => {
       try {

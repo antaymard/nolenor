@@ -33,7 +33,6 @@ import tableUpdateSchemaTool, {
 } from "./tableUpdateSchemaTool";
 import { readToolCtx, type ToolConfig } from "./toolHelpers";
 import { websearchTool, websearchToolConfig } from "./websearchTool";
-import runSubAgent, { runSubAgentConfig } from "./runSubAgentTool";
 import listUserCanvasesTool, {
   listUserCanvasesToolConfig,
 } from "./listUserCanvasesTool";
@@ -188,10 +187,6 @@ const toolRegistry: ToolRegistration[] = [
   {
     config: setNodeDataToolConfig,
     factory: ({ threadCtx }) => setNodeDataTool({ threadCtx }),
-  },
-  {
-    config: runSubAgentConfig,
-    factory: ({ threadCtx }) => runSubAgent({ threadCtx }),
   },
   {
     config: loadSkillToolConfig,

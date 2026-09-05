@@ -85,13 +85,28 @@ export const restore = mutation({
 
     const actor: NodeDataVersionActor = { type: "user", userId: authUserId };
 
+    // App node : on ne restaure que ce qu'on versionne, c'est-à-dire le `code`
+    // (cf. APP_VERSIONED_KEYS). Réécrire `state` avec celui du snapshot
+    // effacerait les données que l'app a accumulées depuis — données qu'AUCUNE
+    // version ne porte, donc perdues sans recours. `__v` et `errors` sont
+    // recalculés par updateValues au changement de code.
+    const restoredValues =
+      nodeData.type === "app"
+        ? {
+            code:
+              typeof version.values.code === "string"
+                ? version.values.code
+                : "",
+          }
+        : version.values;
+
     // Checkpoint forcé de l'état courant AVANT d'écrire : le restore est ainsi
     // lui-même annulable. L'updateValues qui suit coalesce ce checkpoint (même
     // acteur, âge 0, read-your-writes) — ne pas inverser l'ordre.
     await NodeDataVersionModels.maybeCheckpoint(ctx, {
       nodeData,
       actor,
-      changedKeys: Object.keys(version.values),
+      changedKeys: Object.keys(restoredValues),
       trigger: "restore",
       force: true,
     });
@@ -101,7 +116,7 @@ export const restore = mutation({
     // évolué depuis (option supprimée, contrainte resserrée).
     return NodeDataModels.updateValues(ctx, {
       _id: nodeData._id,
-      values: version.values,
+      values: restoredValues,
       actor,
       skipValidation: true,
     });

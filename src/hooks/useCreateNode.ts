@@ -23,6 +23,13 @@ type CreateNodeOptions = {
    * s'éditer sur place le consomment — aujourd'hui `title`.
    */
   autoEdit?: boolean;
+  /**
+   * Sélectionner le nouveau node (désélectionne les autres). À `false`, la
+   * sélection actuelle est préservée — utile quand la création part d'une
+   * UI ancrée au node source (ex. extraction d'image depuis sa modale :
+   * désélectionner la source démonterait sa toolbar et fermerait le Dialog).
+   */
+  selectNewNode?: boolean;
 };
 
 type CreateNodeResult = {
@@ -42,6 +49,7 @@ export function useCreateNode() {
     position,
     initialValues = {},
     autoEdit = false,
+    selectNewNode = true,
   }: CreateNodeOptions): Promise<CreateNodeResult> => {
     const nodeId = generateLlmId();
 
@@ -69,15 +77,18 @@ export function useCreateNode() {
       ...(templateId && { templateId }),
     });
 
-    // Déselectionner tous les nodes
-    setNodes((nodes) => nodes.map((n) => ({ ...n, selected: false })));
+    // Déselectionner tous les nodes (sauf si l'appelant veut préserver la
+    // sélection en cours — cf. option `selectNewNode`).
+    if (selectNewNode) {
+      setNodes((nodes) => nodes.map((n) => ({ ...n, selected: false })));
+    }
 
     // Au format de React Flow, on ajoute le node avec addNodes
     addNodes({
       ...node,
       id: nodeId,
       position,
-      selected: true,
+      selected: selectNewNode,
       // Un node sans zIndex vaut 0, donc le fond de la pile dès qu'une commande
       // de plan a renuméroté le canvas. On le pose explicitement au-dessus pour
       // garder le "le dernier créé est au-dessus".

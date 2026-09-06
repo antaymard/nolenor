@@ -92,6 +92,8 @@ import type * as lib_r2Keys from "../lib/r2Keys.js";
 import type * as lib_rateLimits from "../lib/rateLimits.js";
 import type * as lib_searchQuery from "../lib/searchQuery.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
+import type * as lib_tableColumnTypes from "../lib/tableColumnTypes.js";
+import type * as lib_tableRichTextCell from "../lib/tableRichTextCell.js";
 import type * as lib_text from "../lib/text.js";
 import type * as lib_textSanitize from "../lib/textSanitize.js";
 import type * as lib_usageDay from "../lib/usageDay.js";
@@ -263,6 +265,8 @@ declare const fullApi: ApiFromModules<{
   "lib/rateLimits": typeof lib_rateLimits;
   "lib/searchQuery": typeof lib_searchQuery;
   "lib/searchScoring": typeof lib_searchScoring;
+  "lib/tableColumnTypes": typeof lib_tableColumnTypes;
+  "lib/tableRichTextCell": typeof lib_tableRichTextCell;
   "lib/text": typeof lib_text;
   "lib/textSanitize": typeof lib_textSanitize;
   "lib/usageDay": typeof lib_usageDay;

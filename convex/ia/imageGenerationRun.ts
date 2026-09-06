@@ -56,14 +56,26 @@ export const runImageGeneration = internalAction({
     prompt: v.string(),
     count: v.number(),
     model: vImageModelValues,
+    // Déjà autorisées et résolues par la mutation : l'action ne revalide rien,
+    // elle poste. Les URLs sont publiques (R2), donc utilisables telles quelles
+    // par le fournisseur.
+    referenceUrls: v.array(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { nodeDataId, authUserId, prompt, count, model }) => {
+  handler: async (
+    ctx,
+    { nodeDataId, authUserId, prompt, count, model, referenceUrls },
+  ) => {
     try {
       // Un lot demandé à N images peut en ramener moins : `failures` porte
       // alors ce qui a lâché. On ne jette pas les images obtenues pour autant —
       // elles sont déjà payées.
-      const result = await requestOpenRouterImages({ model, prompt, n: count });
+      const result = await requestOpenRouterImages({
+        model,
+        prompt,
+        n: count,
+        referenceUrls,
+      });
 
       const generatedAt = Date.now();
       const images: StoredImage[] = [];

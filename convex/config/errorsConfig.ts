@@ -28,6 +28,14 @@ const errors = {
   IMAGE_GENERATION_EMPTY_PROMPT: "A prompt is required to generate images.",
   IMAGE_GENERATION_ALREADY_RUNNING:
     "A generation is already running on this node.",
+  IMAGE_GENERATION_REFERENCE_NOT_INPUT:
+    "Only image nodes connected as inputs of this node can be used as references.",
+  IMAGE_GENERATION_REFERENCE_NOT_IMAGE:
+    "A reference must be an image node holding at least one image.",
+  IMAGE_GENERATION_MODEL_NO_REFERENCES:
+    "This model does not accept reference images. Pick another model, or remove the references.",
+  IMAGE_GENERATION_TOO_MANY_REFERENCES:
+    "Too many reference images for this model.",
 };
 
 export default errors;

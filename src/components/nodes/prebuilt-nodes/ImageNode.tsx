@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import { useNodeData, useNodeDataValues } from "@/hooks/useNodeData";
@@ -456,6 +456,18 @@ function ImageNode(xyNode: XyNodeProps) {
 
   const isGenerating = nodeData?.imageGeneration?.status === "running";
 
+  // Mémoïsé : `values.imageReferences` est relu à chaque render et un tableau
+  // neuf ferait boucler l'effet de synchronisation de l'onglet Generate.
+  const storedReferences = useMemo(
+    () =>
+      Array.isArray(values?.imageReferences)
+        ? (values.imageReferences as unknown[]).filter(
+            (id): id is string => typeof id === "string",
+          )
+        : [],
+    [values?.imageReferences],
+  );
+
   const hasMultiple = currentValue.length > 1;
   const safeIndex =
     currentValue.length === 0
@@ -522,11 +534,13 @@ function ImageNode(xyNode: XyNodeProps) {
                 <TabsContent value="generate" className="pt-1">
                   <ImageGenerateTab
                     nodeDataId={nodeDataId}
+                    xyNodeId={xyNode.id}
                     storedPrompt={
                       typeof values?.imagePrompt === "string"
                         ? values.imagePrompt
                         : ""
                     }
+                    storedReferences={storedReferences}
                     generation={nodeData?.imageGeneration}
                   />
                 </TabsContent>

@@ -118,7 +118,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     label: "Image",
     description: "Node for storing an image.",
     llmDescription:
-      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.",
+      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageReferences' lists the canvas nodeIds whose images the user attached as references for the next generation; it is read-only for you. Reference images have no placeholder syntax in the prompt: if references are set, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.",
     defaultDimensions: { width: 320, height: 320, resizable: true },
     variants: {
       // Clé `default` et non `carousel` : les nodes image déjà en base portent
@@ -156,6 +156,16 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .string()
           .optional()
           .describe("The prompt the user generates images from."),
+        // Lecture seule pour l'agent (absent de `toolInputSchema`) : la
+        // légalité d'une référence dépend des edges du canvas, que l'agent n'a
+        // pas en main. Un id inventé ne ferait qu'échouer la génération de
+        // l'utilisateur.
+        imageReferences: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Canvas nodeIds of the image nodes whose images are attached as references to the next generation. Set by the user from the node's generation tab; only nodes connected as inputs of this node can be referenced.",
+          ),
       })
       .default({ images: [] }),
     toolInputSchema: z

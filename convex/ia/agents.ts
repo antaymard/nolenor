@@ -78,10 +78,19 @@ export type ChatModelOption = (typeof chatModelOptions)[number];
  * l'affichage : le coût réellement compté vient d'OpenRouter, jamais d'un
  * calcul local.
  *
- * ⚠️ Les slugs ci-dessous n'ont pas pu être vérifiés contre le catalogue
- * OpenRouter (réseau indisponible au moment de l'écriture). À confirmer sur
- * https://openrouter.ai/models?modality=text-%3Eimage avant mise en prod : un
- * slug faux échoue au premier appel, avec l'erreur remontée dans le node.
+ * `maxReferenceImages` est le nombre d'images de référence (`input_references`)
+ * que le modèle accepte dans une requête, `0` signifiant qu'il n'en accepte
+ * aucune. À ne PAS confondre avec `inputModalities`, qui décrit la modalité du
+ * modèle et ne dit rien du support d'`input_references` sur `/api/v1/images`.
+ *
+ * ⚠️ Ni les slugs ni les `maxReferenceImages` ci-dessous n'ont pu être vérifiés
+ * contre le catalogue OpenRouter (réseau indisponible au moment de l'écriture).
+ * À confirmer avant mise en prod via `GET /api/v1/images/models` : un slug faux
+ * échoue au premier appel, et un plafond de références trop généreux fait
+ * échouer une requête déjà payée. Dans les deux cas l'erreur remonte dans le
+ * node, mais après la dépense. Le contrôle : pour chaque slug, `input_references`
+ * doit figurer dans les `supported_parameters` de l'endpoint, et le plafond
+ * annoncé doit être recopié ici.
  */
 export const imageModelOptions = [
   {
@@ -90,6 +99,7 @@ export const imageModelOptions = [
     pricePerImage: "0.035",
     inputModalities: ["text", "image"],
     maxImages: 4,
+    maxReferenceImages: 14,
   },
   {
     label: "Seedream 5.0 Pro",
@@ -97,6 +107,7 @@ export const imageModelOptions = [
     pricePerImage: "0.045",
     inputModalities: ["text", "image"],
     maxImages: 4,
+    maxReferenceImages: 14,
   },
   {
     label: "Microsoft MAI-Image-2.5 Pro",
@@ -104,6 +115,7 @@ export const imageModelOptions = [
     pricePerImage: "0.15",
     inputModalities: ["text", "image"],
     maxImages: 4,
+    maxReferenceImages: 4,
   },
   {
     label: "Krea 2 Large",
@@ -111,6 +123,7 @@ export const imageModelOptions = [
     pricePerImage: "0.06",
     inputModalities: ["text", "image"],
     maxImages: 4,
+    maxReferenceImages: 4,
   },
   {
     label: "Nano Banana 2",
@@ -118,6 +131,7 @@ export const imageModelOptions = [
     pricePerImage: "0.15",
     inputModalities: ["text", "image"],
     maxImages: 4,
+    maxReferenceImages: 14,
   },
   {
     label: "GPT Image 2",
@@ -125,6 +139,7 @@ export const imageModelOptions = [
     pricePerImage: "0.18",
     inputModalities: ["text", "image"],
     maxImages: 4,
+    maxReferenceImages: 16,
   },
 ] as const;
 
@@ -142,6 +157,18 @@ export type ImageModelOption = (typeof imageModelOptions)[number];
 export const MAX_IMAGES_PER_GENERATION = Math.max(
   ...imageModelOptions.map((model) => model.maxImages),
 );
+
+/**
+ * L'entrée de catalogue d'un modèle. Le validateur `vImageModelValues` garantit
+ * déjà que la valeur reçue est l'un des slugs, donc le `find` aboutit toujours —
+ * le type de retour non-optionnel dit exactement ça, et évite un `!` sur chaque
+ * call site.
+ */
+export function getImageModelOption(model: ImageModelValues): ImageModelOption {
+  return imageModelOptions.find(
+    (option) => option.value === model,
+  ) as ImageModelOption;
+}
 
 /**
  * Point de passage UNIQUE vers OpenRouter.
@@ -194,6 +221,14 @@ type OpenRouterImagesResult = {
  * `usage: { include: true }` est le même réglage que sur les modèles chat, ici
  * passé par requête puisqu'il n'y a pas d'objet modèle à configurer.
  *
+ * `referenceUrls` devient `input_references` : des images jointes au prompt,
+ * qu'OpenRouter passe au fournisseur. Il n'existe qu'UNE sorte de référence —
+ * pas de distinction entre « inspiration » et « source à éditer », et aucune
+ * syntaxe pour désigner l'une d'elles depuis le prompt. C'est au prompt de les
+ * décrire en toutes lettres, et c'est pourquoi l'appelant ne le réécrit pas.
+ * Toutes les URLs doivent être publiquement joignables : le fournisseur les
+ * télécharge lui-même, donc une URL présignée expirée échoue chez lui.
+ *
  * ⚠️ `n` n'est délibérément PAS envoyé. Le paramètre existe bien sur
  * `/api/v1/images`, mais la plupart des endpoints le plafonnent à 1 et
  * ignorent silencieusement une valeur plus grande : demander 4 images
@@ -204,9 +239,11 @@ type OpenRouterImagesResult = {
 async function requestOpenRouterImage({
   model,
   prompt,
+  referenceUrls,
 }: {
   model: ImageModelValues;
   prompt: string;
+  referenceUrls: string[];
 }): Promise<OpenRouterImagesResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set.");
@@ -217,7 +254,22 @@ async function requestOpenRouterImage({
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model, prompt, usage: { include: true } }),
+    body: JSON.stringify({
+      model,
+      prompt,
+      usage: { include: true },
+      // Absent — et non pas vide — quand il n'y a rien à joindre : un
+      // `input_references: []` est un paramètre envoyé, et un modèle qui ne le
+      // supporte pas peut refuser la requête pour ça seul.
+      ...(referenceUrls.length > 0
+        ? {
+            input_references: referenceUrls.map((url) => ({
+              type: "image_url",
+              image_url: { url },
+            })),
+          }
+        : {}),
+    }),
   });
 
   if (!response.ok) {
@@ -268,10 +320,13 @@ export async function requestOpenRouterImages({
   model,
   prompt,
   n,
+  referenceUrls = [],
 }: {
   model: ImageModelValues;
   prompt: string;
   n: number;
+  /** Images jointes, dans l'ordre. Les mêmes pour chaque appel du lot. */
+  referenceUrls?: string[];
 }): Promise<
   OpenRouterImagesResult & {
     failures: string[];
@@ -283,7 +338,7 @@ export async function requestOpenRouterImages({
 
   const settled = await Promise.allSettled(
     Array.from({ length: count }, () =>
-      requestOpenRouterImage({ model, prompt }),
+      requestOpenRouterImage({ model, prompt, referenceUrls }),
     ),
   );
 

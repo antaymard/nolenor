@@ -1,10 +1,14 @@
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
+import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import {
   imageModelOptions,
   vImageModelValues,
+  getImageModelOption,
   MAX_IMAGES_PER_GENERATION,
+  type ImageModelValues,
 } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import { enforceRateLimit } from "../lib/rateLimits";
@@ -27,6 +31,122 @@ export const listImageModels = query({
 });
 
 /**
+ * Les URLs des images à joindre à la génération, une fois prouvé qu'on a le
+ * droit de les joindre.
+ *
+ * La règle produit — seuls les nodes image BRANCHÉS EN ENTRÉE du node qui
+ * génère sont référençables — vit ici et pas dans l'UI. `generateImages` est
+ * une mutation publique : la liste de vignettes affichée par le client est une
+ * commodité, pas une barrière. Un `referenceNodeIds` fabriqué à la main doit se
+ * heurter au même mur.
+ *
+ * Tout écart lève plutôt que de filtrer en silence. Une référence qu'on
+ * laisserait tomber sans le dire produirait une image payée qui ne ressemble
+ * pas à ce que l'utilisateur a demandé, sans rien pour l'expliquer.
+ *
+ * Rend AUSSI la liste de nodes réellement retenue, et c'est elle qu'on
+ * persiste : sans ça un doublon resterait dans `values.imageReferences` alors
+ * qu'il n'a été joint qu'une fois, et l'état enregistré décrirait une requête
+ * qui n'a jamais eu lieu.
+ */
+async function resolveReferenceImageUrls(
+  ctx: MutationCtx,
+  {
+    nodeData,
+    nodeDataId,
+    referenceNodeIds,
+    model,
+  }: {
+    nodeData: Doc<"nodeDatas">;
+    nodeDataId: Id<"nodeDatas">;
+    referenceNodeIds: string[];
+    model: ImageModelValues;
+  },
+): Promise<{ urls: string[]; nodeIds: string[] }> {
+  if (referenceNodeIds.length === 0) return { urls: [], nodeIds: [] };
+
+  // Avant toute lecture : un modèle qui n'accepte pas de référence rend la
+  // question sans objet.
+  //
+  // Annoté `number` et non inféré : `imageModelOptions` est `as const`, donc le
+  // champ se réduit à l'union des valeurs présentes aujourd'hui et TypeScript
+  // déclarerait le test ci-dessous impossible. `0` fait partie du contrat du
+  // champ, pas du catalogue actuel — c'est le catalogue qui changera.
+  const maxReferences: number = getImageModelOption(model).maxReferenceImages;
+  if (maxReferences === 0) {
+    throw new ConvexError(errors.IMAGE_GENERATION_MODEL_NO_REFERENCES);
+  }
+
+  const canvas = await ctx.db.get("canvases", nodeData.canvasId);
+  if (!canvas) throw new ConvexError(errors.CANVAS_NOT_FOUND);
+
+  // Le node de canvas qui porte ce nodeData : c'est lui que les edges
+  // désignent, `nodeDatas` n'apparaît nulle part dans `canvas.edges`. Un
+  // nodeData ne vit que sur un node à la fois, donc le premier trouvé est le
+  // bon.
+  const selfNode = (canvas.nodes ?? []).find(
+    (node) => node.nodeDataId === nodeDataId,
+  );
+  if (!selfNode) throw new ConvexError(errors.NODE_NOT_FOUND);
+
+  const inputNodeIds = new Set(
+    (canvas.edges ?? [])
+      .filter((edge) => edge.target === selfNode.id)
+      .map((edge) => edge.source),
+  );
+  const nodesById = new Map(
+    (canvas.nodes ?? []).map((node) => [node.id, node] as const),
+  );
+
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  for (const nodeId of referenceNodeIds) {
+    // Deux fois le même node ne joint pas ses images deux fois : ce serait
+    // payer le même contexte en double et brouiller l'ordre que l'utilisateur
+    // a sous les yeux.
+    if (seen.has(nodeId)) continue;
+    seen.add(nodeId);
+
+    if (!inputNodeIds.has(nodeId)) {
+      throw new ConvexError(errors.IMAGE_GENERATION_REFERENCE_NOT_INPUT);
+    }
+
+    const sourceNodeDataId = nodesById.get(nodeId)?.nodeDataId;
+    const sourceData = sourceNodeDataId
+      ? await ctx.db.get("nodeDatas", sourceNodeDataId)
+      : null;
+    if (!sourceData || sourceData.type !== "image") {
+      throw new ConvexError(errors.IMAGE_GENERATION_REFERENCE_NOT_IMAGE);
+    }
+
+    // Un node image porte N images et les joint TOUTES : c'est ce que
+    // l'utilisateur voit sur le node, donc ce qu'il croit joindre.
+    const images = Array.isArray(sourceData.values?.images)
+      ? (sourceData.values.images as Array<{ url?: unknown }>)
+      : [];
+    const nodeUrls = images
+      .map((image) => image?.url)
+      .filter(
+        (url): url is string => typeof url === "string" && url.length > 0,
+      );
+    if (nodeUrls.length === 0) {
+      throw new ConvexError(errors.IMAGE_GENERATION_REFERENCE_NOT_IMAGE);
+    }
+
+    urls.push(...nodeUrls);
+  }
+
+  // Compté en IMAGES et non en nodes : un seul node multi-image peut à lui
+  // seul dépasser le plafond du modèle.
+  if (urls.length > maxReferences) {
+    throw new ConvexError(errors.IMAGE_GENERATION_TOO_MANY_REFERENCES);
+  }
+
+  return { urls, nodeIds: [...seen] };
+}
+
+/**
  * Démarre une génération d'images sur un node "image".
  *
  * Rend la main immédiatement : le travail réel part dans une action planifiée,
@@ -40,9 +160,16 @@ export const generateImages = mutation({
     prompt: v.string(),
     count: v.number(),
     model: vImageModelValues,
+    // Ids de node CANVAS (React Flow), pas des `nodeDatas` : c'est ce que les
+    // edges désignent, et donc la seule forme sur laquelle « branché en
+    // entrée » se vérifie.
+    referenceNodeIds: v.optional(v.array(v.string())),
   },
   returns: v.null(),
-  handler: async (ctx, { nodeDataId, prompt, count, model }) => {
+  handler: async (
+    ctx,
+    { nodeDataId, prompt, count, model, referenceNodeIds = [] },
+  ) => {
     const authUserId = await requireAuth(ctx);
 
     // Chaque appel produit N images facturées à l'unité : c'est une surface qui
@@ -79,12 +206,29 @@ export const generateImages = mutation({
       MAX_IMAGES_PER_GENERATION,
     );
 
+    // AVANT le premier write : une référence refusée doit laisser le node
+    // exactement dans l'état où l'utilisateur l'a trouvé, pas avec un prompt
+    // à moitié enregistré et aucune image.
+    const references = await resolveReferenceImageUrls(ctx, {
+      nodeData,
+      nodeDataId,
+      referenceNodeIds,
+      model,
+    });
+
     // Le prompt est du contenu utilisateur : il va dans `values`, donc dans
     // l'historique de versions, et devient lisible par l'agent. L'actor est
     // dérivé de l'auth server-side, jamais reçu du client.
+    //
+    // `imageReferences` part dans le même write que le prompt : les deux
+    // forment une intention unique, et un restore de version doit rendre le
+    // couple, pas un prompt qui décrit des images qui ne sont plus jointes.
     await NodeDataModels.updateValues(ctx, {
       _id: nodeDataId,
-      values: { imagePrompt: trimmedPrompt },
+      values: {
+        imagePrompt: trimmedPrompt,
+        imageReferences: references.nodeIds,
+      },
       actor: { type: "user", userId: authUserId },
     });
 
@@ -102,6 +246,7 @@ export const generateImages = mutation({
         prompt: trimmedPrompt,
         count: safeCount,
         model,
+        referenceUrls: references.urls,
       },
     );
 

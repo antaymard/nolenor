@@ -1,6 +1,6 @@
+import type { Id } from "@/../convex/_generated/dataModel";
 import type { InputImageNode } from "@/hooks/useInputImageNodes";
 import { cn } from "@/lib/utils";
-import { TbCheck } from "react-icons/tb";
 
 /**
  * Choix des images jointes au prompt, parmi les nodes image branchés en entrée.
@@ -17,19 +17,19 @@ import { TbCheck } from "react-icons/tb";
  */
 export default function ImageReferencePicker({
   inputNodes,
-  selectedNodeIds,
+  selectedNodeDataIds,
   attachedImageCount,
   onToggle,
   maxReferenceImages,
   disabled,
 }: {
   inputNodes: InputImageNode[];
-  /** Ids de node canvas, dans l'ordre où l'utilisateur les a choisis. */
-  selectedNodeIds: string[];
+  /** Dans l'ordre où l'utilisateur les a choisis. */
+  selectedNodeDataIds: Id<"nodeDatas">[];
   /** Total d'images jointes, calculé par l'appelant qui s'en sert aussi pour
    *  bloquer l'envoi — une seule source de vérité pour le plafond. */
   attachedImageCount: number;
-  onToggle: (nodeId: string) => void;
+  onToggle: (nodeDataId: Id<"nodeDatas">) => void;
   /** Plafond du modèle courant ; `0` = il n'accepte aucune référence. */
   maxReferenceImages: number;
   disabled?: boolean;
@@ -39,6 +39,11 @@ export default function ImageReferencePicker({
   if (inputNodes.length === 0) return null;
 
   const supportsReferences = maxReferenceImages > 0;
+  // Construit une fois : un `indexOf` par vignette rescannerait la sélection
+  // autant de fois qu'il y a de vignettes.
+  const positionByNodeDataId = new Map(
+    selectedNodeDataIds.map((id, index) => [id, index] as const),
+  );
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -65,30 +70,30 @@ export default function ImageReferencePicker({
         )}
       >
         {inputNodes.map((node) => {
-          const position = selectedNodeIds.indexOf(node.nodeId);
-          const isSelected = position !== -1;
+          const position = positionByNodeDataId.get(node.nodeDataId);
+          const isSelected = position !== undefined;
           // Une vignette non sélectionnée qui ferait déborder le plafond n'est
           // pas cliquable : mieux vaut l'empêcher que laisser partir une
           // requête payante vouée au refus. Une déjà sélectionnée reste
           // toujours cliquable, sinon on ne pourrait plus redescendre.
           const wouldOverflow =
             !isSelected &&
-            attachedImageCount + node.images.length > maxReferenceImages;
+            attachedImageCount + node.imageUrls.length > maxReferenceImages;
           const isDisabled = disabled || !supportsReferences || wouldOverflow;
 
           return (
             <button
-              key={node.nodeId}
+              key={node.nodeDataId}
               type="button"
               disabled={isDisabled}
-              onClick={() => onToggle(node.nodeId)}
+              onClick={() => onToggle(node.nodeDataId)}
               title={
                 wouldOverflow
-                  ? `Too many images for this model (${node.images.length} more)`
+                  ? `Too many images for this model (${node.imageUrls.length} more)`
                   : node.title
               }
               className={cn(
-                "group relative size-12 shrink-0 overflow-hidden rounded-md border-2 transition-colors",
+                "relative size-12 shrink-0 overflow-hidden rounded-md border-2 transition-colors",
                 isSelected
                   ? "border-primary"
                   : "border-transparent ring-1 ring-slate-200 hover:ring-slate-300",
@@ -96,27 +101,24 @@ export default function ImageReferencePicker({
               )}
             >
               <img
-                src={node.images[0].url}
+                src={node.imageUrls[0]}
                 alt={node.title}
                 className="size-full object-cover"
                 draggable={false}
               />
 
+              {/* Bordure + numéro suffisent à dire « sélectionné ». Un troisième
+                  signal en surimpression ne ferait que teinter l'image que
+                  l'utilisateur essaie justement d'évaluer. */}
               {isSelected && (
                 <span className="absolute left-0 top-0 flex size-4 items-center justify-center rounded-br-md bg-primary text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
                   {position + 1}
                 </span>
               )}
 
-              {node.images.length > 1 && (
+              {node.imageUrls.length > 1 && (
                 <span className="absolute bottom-0 right-0 rounded-tl-md bg-black/65 px-1 text-[10px] font-medium leading-4 text-white tabular-nums">
-                  &times;{node.images.length}
-                </span>
-              )}
-
-              {isSelected && (
-                <span className="absolute inset-0 flex items-center justify-center bg-primary/15">
-                  <TbCheck className="text-primary drop-shadow" size={18} />
+                  &times;{node.imageUrls.length}
                 </span>
               )}
             </button>

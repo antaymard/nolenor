@@ -73,6 +73,19 @@ type NodeDataConfigItem = {
   capabilities?: NodeCapabilitiesInput;
   dataValuesSchema: z.ZodTypeAny;
   toolInputSchema?: z.ZodTypeAny; // Optional schema specifically for tool inputs, if different from dataValuesSchema
+  /**
+   * Les clés de `values` qu'une duplication de node NE recopie PAS.
+   *
+   * Dupliquer copie `values` en bloc (cf. `src/hooks/useDuplicateNode.ts`) mais
+   * ne copie aucun edge : une value qui ne tient son sens que des connexions du
+   * node d'origine n'a donc rien à faire sur le doublon. Elle y serait inerte,
+   * et se rallumerait de façon surprenante si le doublon venait à être rebranché
+   * sur les mêmes sources.
+   *
+   * Déclaré ici et pas dans le helper de duplication : c'est une propriété du
+   * type de node, et `useDuplicateNode` doit rester générique.
+   */
+  valuesNotDuplicated?: string[];
 };
 
 const nodeDataConfig: Array<NodeDataConfigItem> = [
@@ -160,9 +173,13 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
   {
     type: "image",
     label: "Image",
+    // `imageReferences` désigne les nodes branchés en ENTRÉE de ce node ; le
+    // doublon n'ayant aucune entrée, la recopier n'apporterait que de la donnée
+    // morte. Le prompt, lui, se duplique très bien.
+    valuesNotDuplicated: ["imageReferences"],
     description: "Node for storing an image.",
     llmDescription:
-      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageReferences' lists the canvas nodeIds whose images the user attached as references for the next generation; it is read-only for you. Reference images have no placeholder syntax in the prompt: if references are set, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.",
+      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageReferences' lists the nodeDataIds whose images the user attached as references for the next generation; it is read-only for you. Reference images have no placeholder syntax in the prompt: if references are set, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.",
     defaultDimensions: { width: 320, height: 320, resizable: true },
     variants: {
       // Clé `default` et non `carousel` : les nodes image déjà en base portent
@@ -208,7 +225,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .array(z.string())
           .optional()
           .describe(
-            "Canvas nodeIds of the image nodes whose images are attached as references to the next generation. Set by the user from the node's generation tab; only nodes connected as inputs of this node can be referenced.",
+            "nodeDataIds of the image nodes whose images are attached as references to the next generation. Set by the user from the node's generation tab; only nodes connected as inputs of this node can be referenced.",
           ),
       })
       .default({ images: [] }),

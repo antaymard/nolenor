@@ -80,8 +80,7 @@ export type ChatModelOption = (typeof chatModelOptions)[number];
  *
  * `maxReferenceImages` est le nombre d'images de référence (`input_references`)
  * que le modèle accepte dans une requête, `0` signifiant qu'il n'en accepte
- * aucune. À ne PAS confondre avec `inputModalities`, qui décrit la modalité du
- * modèle et ne dit rien du support d'`input_references` sur `/api/v1/images`.
+ * aucune.
  *
  * ⚠️ Ni les slugs ni les `maxReferenceImages` ci-dessous n'ont pu être vérifiés
  * contre le catalogue OpenRouter (réseau indisponible au moment de l'écriture).
@@ -97,7 +96,6 @@ export const imageModelOptions = [
     label: "Microsoft MAI-Image-2.6 Flash",
     value: "microsoft/mai-image-2.6-flash",
     pricePerImage: "0.15",
-    inputModalities: ["text", "image"],
     maxImages: 4,
     maxReferenceImages: 4,
   },
@@ -105,7 +103,6 @@ export const imageModelOptions = [
     label: "GPT Image 2",
     value: "openai/gpt-image-2",
     pricePerImage: "0.18",
-    inputModalities: ["text", "image"],
     maxImages: 4,
     maxReferenceImages: 16,
   },
@@ -113,7 +110,6 @@ export const imageModelOptions = [
     label: "Seedream 5.0 Pro",
     value: "bytedance-seed/seedream-5-0-pro",
     pricePerImage: "0.045",
-    inputModalities: ["text", "image"],
     maxImages: 4,
     maxReferenceImages: 14,
   },
@@ -121,7 +117,6 @@ export const imageModelOptions = [
     label: "Nano Banana 2",
     value: "google/gemini-3.1-flash-image",
     pricePerImage: "0.15",
-    inputModalities: ["text", "image"],
     maxImages: 4,
     maxReferenceImages: 14,
   },
@@ -141,18 +136,6 @@ export type ImageModelOption = (typeof imageModelOptions)[number];
 export const MAX_IMAGES_PER_GENERATION = Math.max(
   ...imageModelOptions.map((model) => model.maxImages),
 );
-
-/**
- * L'entrée de catalogue d'un modèle. Le validateur `vImageModelValues` garantit
- * déjà que la valeur reçue est l'un des slugs, donc le `find` aboutit toujours —
- * le type de retour non-optionnel dit exactement ça, et évite un `!` sur chaque
- * call site.
- */
-export function getImageModelOption(model: ImageModelValues): ImageModelOption {
-  return imageModelOptions.find(
-    (option) => option.value === model,
-  ) as ImageModelOption;
-}
 
 /**
  * Point de passage UNIQUE vers OpenRouter.
@@ -242,17 +225,16 @@ async function requestOpenRouterImage({
       model,
       prompt,
       usage: { include: true },
-      // Absent — et non pas vide — quand il n'y a rien à joindre : un
-      // `input_references: []` est un paramètre envoyé, et un modèle qui ne le
-      // supporte pas peut refuser la requête pour ça seul.
-      ...(referenceUrls.length > 0
-        ? {
-            input_references: referenceUrls.map((url) => ({
+      // `undefined` et non `[]` quand il n'y a rien à joindre : `JSON.stringify`
+      // omet la clé, alors qu'un `input_references: []` serait un paramètre
+      // réellement envoyé, qu'un modèle sans support peut refuser pour ça seul.
+      input_references:
+        referenceUrls.length > 0
+          ? referenceUrls.map((url) => ({
               type: "image_url",
               image_url: { url },
-            })),
-          }
-        : {}),
+            }))
+          : undefined,
     }),
   });
 
@@ -294,6 +276,13 @@ async function requestOpenRouterImage({
  * dans `requestOpenRouterImage`. Ce n'est pas plus cher — ces modèles sont
  * facturés à l'image — et chaque appel repart d'une graine différente, donc le
  * lot est bien composé de variations et non de N copies.
+ *
+ * ⚠️ « Pas plus cher » ne vaut plus dès qu'il y a des références : chacun des N
+ * appels porte les MÊMES K images jointes, et un fournisseur les facture en
+ * tokens d'entrée. Le coût d'entrée d'un lot est donc multiplié par `count`, et
+ * non par 1. Rien à mutualiser côté code — ce sont N requêtes HTTP
+ * indépendantes ; le levier, s'il en faut un, est de brider `count` quand des
+ * références sont jointes.
  *
  * `allSettled` et non `all` : une image ratée sur quatre ne doit pas jeter les
  * trois autres, déjà payées. Les échecs remontent dans `failures`, que

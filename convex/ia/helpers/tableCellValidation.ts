@@ -1,14 +1,15 @@
 import { z } from "zod";
 import { toolError } from "../tools/toolHelpers";
+import {
+  parseRichTextCell,
+  richTextFromPlainText,
+} from "../../lib/tableRichTextCell";
+import {
+  assertNeverColumnType,
+  type TableColumnType,
+} from "../../lib/tableColumnTypes";
 
-export type TableColumnType =
-  | "text"
-  | "number"
-  | "checkbox"
-  | "date"
-  | "link"
-  | "select"
-  | "node";
+export type { TableColumnType };
 
 export type SelectOption = {
   id: string;
@@ -217,6 +218,28 @@ export function normalizeCellValueForColumn({
   }
 
   switch (column.type) {
+    case "richtext": {
+      // L'agent écrit du texte : on le convertit en document (un paragraphe par
+      // ligne) plutôt que de lui demander de fabriquer des blocs BlockNote à la
+      // main. Un document déjà sérialisé est accepté tel quel, pour que
+      // relire-puis-réécrire une cellule ne la dégrade pas.
+      if (typeof rawValue === "string") {
+        if (parseRichTextCell(rawValue)) {
+          return { ok: true, value: rawValue };
+        }
+        return { ok: true, value: richTextFromPlainText(rawValue) };
+      }
+      if (Array.isArray(rawValue) && parseRichTextCell(rawValue)) {
+        return { ok: true, value: JSON.stringify(rawValue) };
+      }
+      return {
+        ok: false,
+        error: toolError(
+          `Invalid value for column "${column.name}" (type richtext). Expected a text string (line breaks become paragraphs).`,
+        ),
+      };
+    }
+
     case "text":
     case "date": {
       if (typeof rawValue !== "string") {
@@ -313,11 +336,9 @@ export function normalizeCellValueForColumn({
     case "node":
       return normalizeNodeValue({ rawValue, column, ctx });
 
-    default: {
-      return {
-        ok: false,
-        error: toolError(`Unsupported column type for "${column.name}".`),
-      };
-    }
+    default:
+      // Exhaustif : un nouveau type doit casser la compilation ici plutôt que
+      // de tomber dans une erreur d'exécution après déploiement.
+      return assertNeverColumnType(column.type, "normalizeCellValueForColumn");
   }
 }

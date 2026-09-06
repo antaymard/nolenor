@@ -1,16 +1,23 @@
+import { useMemo } from "react";
 import { TbCalendar, TbLink, TbNetwork } from "react-icons/tb";
+import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   getNodeDataTitle,
   getNodeIcon,
 } from "@/components/utils/nodeDataDisplayUtils";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { parseRichTextCell } from "./richText";
 import {
+  DEFAULT_ROW_HEIGHT,
+  ROW_HEIGHT_CONFIG,
+  maxHeightForRowHeight,
   SELECT_COLOR_CLASSES,
   type ColumnType,
   type CellValue,
   type LinkCellValue,
   type NodeCellValue,
+  type RowHeight,
   type SelectCellValue,
   type SelectOption,
 } from "./types";
@@ -21,9 +28,19 @@ export interface CellDisplayProps {
   type: ColumnType;
   value: CellValue | undefined;
   options?: SelectOption[];
+  /**
+   * Optionnel, défaut `short` : les consommateurs hors grille (TablePreview sur
+   * le canvas, historique de versions) gardent la densité d'origine.
+   */
+  rowHeight?: RowHeight;
 }
 
-export function CellDisplay({ type, value, options }: CellDisplayProps) {
+export function CellDisplay({
+  type,
+  value,
+  options,
+  rowHeight = DEFAULT_ROW_HEIGHT,
+}: CellDisplayProps) {
   const nodeVal = value as NodeCellValue | null | undefined;
   // Appelé inconditionnellement : c'est un hook, et seule la branche `node`
   // s'en sert. `useNodeDataIdOf(undefined)` ne lit rien.
@@ -31,13 +48,20 @@ export function CellDisplay({ type, value, options }: CellDisplayProps) {
     type === "node" ? nodeVal?.nodeId : undefined,
   );
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
+  // Même raison, et même contrainte : sans mémo, chaque rendu de la grille
+  // reparse le JSON et rend un NOUVEAU tableau, ce qui fait rater le `memo` de
+  // BlockNoteStatic et re-rend tout l'arbre de blocs de chaque cellule.
+  const richTextDoc = useMemo(
+    () => (type === "richtext" ? parseRichTextCell(value) : null),
+    [type, value],
+  );
 
   if (type === "node") {
     const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
     const title = nodeData
       ? getNodeDataTitle(nodeData)
       : nodeVal?.nodeId
-        ? "Node supprimé"
+        ? "Deleted node"
         : null;
     const Icon = nodeData ? getNodeIcon(nodeData.type) : null;
 
@@ -57,6 +81,23 @@ export function CellDisplay({ type, value, options }: CellDisplayProps) {
           <span className="truncate">{title}</span>
         </span>
       </span>
+    );
+  }
+
+  if (type === "richtext") {
+    const doc = richTextDoc;
+    if (!doc) return <span className="block w-full min-h-[1.4em] px-1" />;
+    return (
+      <div
+        // `bn-readonly-container` porte les styles du rendu statique : sans elle
+        // la préflight Tailwind laisse les listes sans puces.
+        className="bn-readonly-container w-full min-h-[1.4em] overflow-hidden px-1 text-sm"
+        // Clamp par hauteur de conteneur : le contenu est un arbre de blocs,
+        // `line-clamp` n'a pas de sens sur une liste ou un tableau.
+        style={maxHeightForRowHeight(rowHeight)}
+      >
+        <BlockNoteStatic blocks={doc} />
+      </div>
     );
   }
 
@@ -149,7 +190,12 @@ export function CellDisplay({ type, value, options }: CellDisplayProps) {
   }
 
   return (
-    <span className="block w-full min-h-[1.4em] rounded px-1 truncate">
+    <span
+      className={cn(
+        "block w-full min-h-[1.4em] rounded px-1",
+        ROW_HEIGHT_CONFIG[rowHeight].clamp,
+      )}
+    >
       {value != null ? String(value) : ""}
     </span>
   );

@@ -1,4 +1,8 @@
 import Papa from "papaparse";
+import { assertNeverColumnType } from "@/../convex/lib/tableColumnTypes";
+import { selectLabels } from "./cellText";
+import { coerceToIsoDate } from "@/lib/isoDate";
+import { richTextFromPlainText, richTextToPlainText } from "./richText";
 import type {
   CellValue,
   ColumnType,
@@ -16,11 +20,14 @@ import type {
  * Convert a single cell value to a string suitable for a CSV field.
  * Papa Parse handles quoting/escaping of special characters (commas, quotes,
  * newlines), so we just need to produce a faithful string representation.
+ *
+ * Takes the whole column, not just its type: select cells hold option ids and
+ * need the column's option list to come back out as labels.
  */
-function cellToCsvString(value: CellValue, type: ColumnType): string {
+function cellToCsvString(value: CellValue, column: TableColumn): string {
   if (value == null) return "";
 
-  switch (type) {
+  switch (column.type) {
     case "checkbox":
       return value ? "true" : "false";
     case "link": {
@@ -33,11 +40,21 @@ function cellToCsvString(value: CellValue, type: ColumnType): string {
       const node = value as NodeCellValue;
       return node.nodeId ?? "";
     }
+    case "richtext":
+      // Une cellule rich text est un document : `String()` y donnerait
+      // « [object Object] ». Papa Parse échappe les retours à la ligne, donc
+      // le texte multiligne survit au round-trip.
+      return richTextToPlainText(value);
+    case "select":
+      // Sans ce cas, `String(["a3f1…","9c2b…"])` exportait les UUID des options
+      // au lieu de leurs libellés.
+      return selectLabels(value, column);
     case "number":
     case "date":
     case "text":
-    default:
       return String(value);
+    default:
+      return assertNeverColumnType(column.type, "cellToCsvString");
   }
 }
 
@@ -54,7 +71,7 @@ export function buildCsv(
 ): string {
   const header = columns.map((c) => c.name);
   const data = rows.map((row) =>
-    columns.map((col) => cellToCsvString(row.cells[col.id] ?? null, col.type)),
+    columns.map((col) => cellToCsvString(row.cells[col.id] ?? null, col)),
   );
   return Papa.unparse([header, ...data]);
 }
@@ -200,12 +217,10 @@ export function coerceCsvValue(raw: string, type: ColumnType): CellValue {
       return null;
     }
 
-    case "date": {
-      const t = Date.parse(s);
-      if (Number.isNaN(t)) return null;
-      // Store as ISO date (YYYY-MM-DD) — that's what the date editor expects.
-      return new Date(t).toISOString().slice(0, 10);
-    }
+    case "date":
+      // Was `new Date(t).toISOString().slice(0, 10)`, which reads UTC from a
+      // locally-parsed date: "March 15, 2024" landed on the 14th east of UTC.
+      return coerceToIsoDate(s);
 
     case "link": {
       if (!looksLikeUrl(s)) return null;
@@ -213,12 +228,23 @@ export function coerceCsvValue(raw: string, type: ColumnType): CellValue {
       return link;
     }
 
+    case "richtext":
+      // Was falling through to `default: null`, so importing onto an existing
+      // rich text column silently wiped every row while the export side had
+      // been updated — an export/import round trip lost the column.
+      return richTextFromPlainText(raw);
+
     case "node":
       // We don't try to resolve node ids from CSV — too brittle.
       return null;
 
-    default:
+    case "select":
+      // Option ids can't be invented from a CSV cell; the import dialog keeps
+      // select out of the new-column targets for the same reason.
       return null;
+
+    default:
+      return assertNeverColumnType(type, "coerceCsvValue");
   }
 }
 

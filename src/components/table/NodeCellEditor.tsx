@@ -59,7 +59,7 @@ export function NodeCellEditor({
   const selectedTitle = selectedNodeData
     ? getNodeDataTitle(selectedNodeData)
     : value?.nodeId
-      ? "Node supprimé"
+      ? "Deleted node"
       : null;
   const SelectedIcon = selectedNodeData
     ? getNodeIcon(selectedNodeData.type)
@@ -148,7 +148,7 @@ export function NodeCellEditor({
               }
             />
           ) : (
-            <span className="text-muted-foreground">Ajouter un node…</span>
+            <span className="text-muted-foreground">Add a node…</span>
           )}
         </span>
       </PopoverTrigger>
@@ -156,7 +156,7 @@ export function NodeCellEditor({
         <div className="flex flex-col gap-1.5">
           <Input
             autoFocus
-            placeholder="Rechercher…"
+            placeholder="Search nodes…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
@@ -167,7 +167,7 @@ export function NodeCellEditor({
           <div className="max-h-48 overflow-y-auto flex flex-col gap-0.5">
             {filteredNodes.length === 0 && (
               <span className="text-muted-foreground px-2 py-1">
-                Aucun node trouvé
+                No node found
               </span>
             )}
             {filteredNodes.map(({ nodeId, nodeData, title }) => {
@@ -198,7 +198,7 @@ export function NodeCellEditor({
               }}
             >
               <TbTrash size={13} className="mr-1" />
-              Supprimer la référence
+              Remove reference
             </Button>
           )}
         </div>

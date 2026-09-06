@@ -4,6 +4,7 @@ import {
   type MentionInfoByNodeDataId,
 } from "./blockNoteMarkdown";
 import {parseStoredBlockNoteDocument} from "../../lib/blockNoteDocument";
+import { richTextToPlainText } from "../../lib/tableRichTextCell";
 
 type SelectOption = {
   id: string;
@@ -119,6 +120,13 @@ function stringifyTableCellValue(
 
   if (column.type === "node") {
     return stringifyNodeCell(value, nodeInfoById);
+  }
+
+  if (column.type === "richtext") {
+    // Le document est aplati en texte : sans ça la cellule sortirait en
+    // `[object Object]` (ou en JSON de blocs) dans le tableau Markdown donné à
+    // l'agent, et dans les chunks de recherche qui en dérivent.
+    return richTextToPlainText(value);
   }
 
   if (typeof value === "string") return value;

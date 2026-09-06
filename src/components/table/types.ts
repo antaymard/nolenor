@@ -1,6 +1,8 @@
 import type { IconType } from "react-icons";
+import type { TableColumnType } from "@/../convex/lib/tableColumnTypes";
 import {
   TbAbc,
+  TbAlignLeft,
   TbCalendar,
   TbCheckbox,
   TbFileSearch,
@@ -9,14 +11,38 @@ import {
   TbSelect,
 } from "react-icons/tb";
 
-export type ColumnType =
-  | "text"
-  | "number"
-  | "checkbox"
-  | "date"
-  | "link"
-  | "node"
-  | "select";
+/**
+ * Alias du type partagé : la liste canonique vit dans
+ * `convex/lib/tableColumnTypes.ts`, parce que le serveur en a besoin aussi
+ * (validation des cellules, outils de l'agent, schéma de création de node).
+ * `COLUMN_TYPE_CONFIG` ci-dessous étant un `Record<ColumnType, …>`, ajouter un
+ * type là-bas casse le build ici tant qu'il n'a pas son libellé et son icône.
+ */
+export type ColumnType = TableColumnType;
+
+/**
+ * Hauteur des lignes de la grille. Le contenu d'une cellule n'est plus coupé à
+ * une ligne par défaut : `short` reproduit l'ancien comportement (ellipse sur
+ * une ligne), les deux autres laissent le texte revenir à la ligne.
+ */
+export type RowHeight = "short" | "medium" | "tall" | "full";
+
+/** Agrégat affiché sous une colonne. `undefined` = aucun. */
+export type SummaryKind =
+  | "countAll"
+  | "countEmpty"
+  | "countFilled"
+  | "countUnique"
+  | "percentEmpty"
+  | "percentFilled"
+  | "sum"
+  | "average"
+  | "median"
+  | "min"
+  | "max"
+  | "checked"
+  | "unchecked"
+  | "percentChecked";
 
 export interface LinkCellValue {
   href: string;
@@ -73,6 +99,8 @@ export interface TableColumn {
   width?: number;
   options?: SelectOption[];
   isMulti?: boolean;
+  /** Agrégat affiché en pied de colonne. Persisté avec la table. */
+  summary?: SummaryKind;
 }
 
 export interface TableRowData {
@@ -83,30 +111,93 @@ export interface TableRowData {
 export interface TableData {
   columns: TableColumn[];
   rows: TableRowData[];
+  /** Défaut `short`, pour que les tables existantes gardent leur densité. */
+  rowHeight?: RowHeight;
 }
 
 export const COLUMN_TYPE_CONFIG: Record<
   ColumnType,
-  { label: string; icon: IconType }
+  { label: string; icon: IconType; hint: string }
 > = {
-  text: { label: "Text", icon: TbAbc },
-  number: { label: "Number", icon: TbNumber123 },
-  checkbox: { label: "Checkbox", icon: TbCheckbox },
-  date: { label: "Date", icon: TbCalendar },
-  link: { label: "Link", icon: TbLink },
-  node: { label: "Node", icon: TbFileSearch },
-  select: { label: "Select", icon: TbSelect },
+  text: { label: "Text", icon: TbAbc, hint: "Plain text, multi-line" },
+  richtext: {
+    label: "Rich text",
+    icon: TbAlignLeft,
+    hint: "Bold, lists, paragraphs",
+  },
+  number: { label: "Number", icon: TbNumber123, hint: "Numeric values" },
+  checkbox: { label: "Checkbox", icon: TbCheckbox, hint: "True or false" },
+  select: { label: "Select", icon: TbSelect, hint: "Coloured options" },
+  date: { label: "Date", icon: TbCalendar, hint: "A calendar day" },
+  link: { label: "Link", icon: TbLink, hint: "A URL with its title" },
+  node: { label: "Node", icon: TbFileSearch, hint: "A node of this canvas" },
 };
+
+/**
+ * Classes de clamp par hauteur de ligne.
+ *
+ * `line-clamp` pour le texte, `maxHeight` pour le rich text : le contenu y est
+ * un arbre de blocs, couper à N lignes de texte n'aurait pas de sens sur une
+ * liste ou un tableau (même raison que dans les vues de champ rich_text).
+ */
+export const ROW_HEIGHT_CONFIG: Record<
+  RowHeight,
+  { label: string; lines: number; clamp: string }
+> = {
+  short: { label: "Short", lines: 1, clamp: "truncate" },
+  medium: {
+    label: "Medium",
+    lines: 3,
+    clamp: "line-clamp-3 whitespace-pre-wrap break-words",
+  },
+  tall: {
+    label: "Tall",
+    lines: 6,
+    clamp: "line-clamp-6 whitespace-pre-wrap break-words",
+  },
+  // Hors grille : la fiche de ligne existe pour montrer le contenu en entier,
+  // `lines: 0` vaut « pas de plafond de hauteur ».
+  full: {
+    label: "Full",
+    lines: 0,
+    clamp: "whitespace-pre-wrap break-words",
+  },
+};
+
+export const DEFAULT_ROW_HEIGHT: RowHeight = "short";
+
+/** Hauteurs proposées dans la barre d'outils — `full` n'y figure pas. */
+export const GRID_ROW_HEIGHTS: RowHeight[] = ["short", "medium", "tall"];
+
+/**
+ * Plafond de hauteur d'une cellule rich text. Son contenu est un arbre de blocs,
+ * donc le clamp porte sur le conteneur et non sur un nombre de lignes de texte —
+ * couper à N lignes n'aurait pas de sens sur une liste.
+ */
+export function maxHeightForRowHeight(rowHeight: RowHeight) {
+  const { lines } = ROW_HEIGHT_CONFIG[rowHeight];
+  return lines > 0 ? { maxHeight: `${lines * 1.5}em` } : undefined;
+}
 
 export const COLUMN_TYPE_LABELS: Record<ColumnType, string> =
   Object.fromEntries(
-    (
-      Object.entries(COLUMN_TYPE_CONFIG) as [
-        ColumnType,
-        { label: string; icon: IconType },
-      ][]
-    ).map(([type, config]) => [type, config.label]),
+    columnTypeEntries().map(([type, config]) => [type, config.label]),
   ) as Record<ColumnType, string>;
+
+/**
+ * `Object.entries` typé sur `COLUMN_TYPE_CONFIG`. Les trois menus qui listent
+ * les types (ajout de colonne, changement de type, import CSV) refaisaient
+ * chacun la même assertion à la main.
+ */
+export function columnTypeEntries(): [
+  ColumnType,
+  (typeof COLUMN_TYPE_CONFIG)[ColumnType],
+][] {
+  return Object.entries(COLUMN_TYPE_CONFIG) as [
+    ColumnType,
+    (typeof COLUMN_TYPE_CONFIG)[ColumnType],
+  ][];
+}
 
 export const SELECT_COLOR_PALETTE: SelectColor[] = [
   "gray",

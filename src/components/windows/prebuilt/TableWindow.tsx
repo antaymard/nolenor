@@ -5,11 +5,13 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { Button } from "@/components/shadcn/button";
-import { TbDownload, TbPlus, TbUpload } from "react-icons/tb";
+import { TbDownload, TbUpload } from "react-icons/tb";
 import {
+  DEFAULT_ROW_HEIGHT,
   Table,
   TableImportDialog,
   buildCsv,
+  coerceCellValue,
   downloadCsv,
   type TableImportResult,
 } from "@/components/table";
@@ -19,7 +21,9 @@ import type {
   TableRowData,
   CellValue,
   ColumnType,
+  RowHeight,
   SelectOption,
+  SummaryKind,
 } from "@/components/table";
 
 function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
@@ -30,34 +34,37 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
 
   const [localColumns, setLocalColumns] = useState<TableColumn[]>([]);
   const [localRows, setLocalRows] = useState<TableRowData[]>([]);
+  const [localRowHeight, setLocalRowHeight] =
+    useState<RowHeight>(DEFAULT_ROW_HEIGHT);
   const [localTitle, setLocalTitle] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
 
   // Sync local state with live data when the user hasn't made edits
   useEffect(() => {
     if (isDirty) return;
-    const table = (nodeDataValues?.table as TableData | undefined) ?? {
-      columns: [],
-      rows: [],
-    };
-    setLocalColumns(table.columns);
-    setLocalRows(table.rows);
+    // `values` est un `v.record(v.string(), v.any())` : rien ne garantit la
+    // forme de `table`. Un `{}` stocké par erreur passait `undefined` à
+    // `Table`, dont l'initialiseur d'état faisait alors `undefined.filter`.
+    const table = (nodeDataValues?.table ?? {}) as Partial<TableData>;
+    setLocalColumns(Array.isArray(table.columns) ? table.columns : []);
+    setLocalRows(Array.isArray(table.rows) ? table.rows : []);
+    setLocalRowHeight(table.rowHeight ?? DEFAULT_ROW_HEIGHT);
     setLocalTitle((nodeDataValues?.title as string | undefined) ?? "");
   }, [nodeDataValues, isDirty]);
 
   // Keep latest refs to avoid stale closures in save handler
+  // Affectées PENDANT le rendu, pas dans un effet : le garde-fou « une édition
+  // est-elle arrivée pendant la sauvegarde ? » compare ces refs juste après un
+  // aller-retour réseau, et un effet passif pouvait ne pas avoir encore tourné —
+  // la fenêtre repassait alors propre et la resynchronisation écrasait l'édition.
   const columnsRef = useRef(localColumns);
   const rowsRef = useRef(localRows);
   const titleRef = useRef(localTitle);
-  useEffect(() => {
-    columnsRef.current = localColumns;
-  }, [localColumns]);
-  useEffect(() => {
-    rowsRef.current = localRows;
-  }, [localRows]);
-  useEffect(() => {
-    titleRef.current = localTitle;
-  }, [localTitle]);
+  const rowHeightRef = useRef(localRowHeight);
+  columnsRef.current = localColumns;
+  rowsRef.current = localRows;
+  titleRef.current = localTitle;
+  rowHeightRef.current = localRowHeight;
 
   useEffect(() => {
     setDirty(isDirty && !isLocked);
@@ -67,17 +74,19 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     const columns = columnsRef.current;
     const rows = rowsRef.current;
     const title = titleRef.current;
+    const rowHeight = rowHeightRef.current;
     const success = await updateNodeDataValues({
       nodeDataId,
       values: {
         title,
-        table: { columns, rows },
+        table: { columns, rows, rowHeight },
       },
     });
     const hasPendingEdits =
       columnsRef.current !== columns ||
       rowsRef.current !== rows ||
-      titleRef.current !== title;
+      titleRef.current !== title ||
+      rowHeightRef.current !== rowHeight;
     if (success && !hasPendingEdits) {
       setIsDirty(false);
     }
@@ -139,13 +148,30 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
 
   const updateColumnType = useCallback(
     (colId: string, type: ColumnType) => {
+      const previous = columnsRef.current.find((c) => c.id === colId);
       setLocalColumns((cols) =>
-        cols.map((c) => (c.id === colId ? { ...c, type } : c)),
+        cols.map((c) => {
+          if (c.id !== colId) return c;
+          // Les options et le mode multi n'ont de sens que pour un select :
+          // les traîner sur un autre type ressortirait au retour en arrière.
+          const { options: _options, isMulti: _isMulti, ...rest } = c;
+          return type === "select"
+            ? { ...c, type, summary: undefined }
+            : { ...rest, type, summary: undefined };
+        }),
       );
+      // `coerceCellValue` préserve ce qui a un sens (texte <-> rich text,
+      // nombres, dates, liens, libellés de select) ; le menu de colonne annonce
+      // combien de cellules la conversion effacera avant qu'on la déclenche.
       setLocalRows((rows) =>
         rows.map((row) => ({
           ...row,
-          cells: { ...row.cells, [colId]: null },
+          cells: {
+            ...row.cells,
+            [colId]: previous
+              ? coerceCellValue(row.cells[colId] ?? null, previous, type)
+              : null,
+          },
         })),
       );
       markDirty();
@@ -155,7 +181,9 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
 
   // --- Row management ---
 
-  const addRow = useCallback(() => {
+  // Renvoie l'id : la ligne fantôme de la grille enchaîne dessus pour ouvrir
+  // l'éditeur de la cellule sur laquelle l'utilisateur vient de cliquer.
+  const addRow = useCallback((): string => {
     const newRow: TableRowData = {
       id: crypto.randomUUID(),
       cells: Object.fromEntries(
@@ -164,6 +192,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     };
     setLocalRows((rows) => [...rows, newRow]);
     markDirty();
+    return newRow.id;
   }, [markDirty]);
 
   const deleteRow = useCallback(
@@ -258,9 +287,29 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
 
   const updateColumnWidth = useCallback(
     (colId: string, width: number) => {
+      setLocalColumns((cols) => {
+        const current = cols.find((c) => c.id === colId);
+        if (current?.width === width) return cols;
+        return cols.map((c) => (c.id === colId ? { ...c, width } : c));
+      });
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  const updateColumnSummary = useCallback(
+    (colId: string, summary: SummaryKind | undefined) => {
       setLocalColumns((cols) =>
-        cols.map((c) => (c.id === colId ? { ...c, width } : c)),
+        cols.map((c) => (c.id === colId ? { ...c, summary } : c)),
       );
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  const updateRowHeight = useCallback(
+    (rowHeight: RowHeight) => {
+      setLocalRowHeight(rowHeight);
       markDirty();
     },
     [markDirty],
@@ -306,7 +355,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
             setLocalTitle(val);
             markDirty();
           }}
-          placeholder="Sans titre"
+          placeholder="Untitled"
           className="font-semibold text-lg min-w-0 flex-1"
           disabled={isLocked}
         />
@@ -344,6 +393,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
           columns={localColumns}
           rows={localRows}
           readOnly={isLocked}
+          rowHeight={localRowHeight}
           onCellChange={updateCell}
           onAddRow={addRow}
           onDeleteRow={deleteRow}
@@ -355,19 +405,10 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
           onRowOrderChange={reorderRows}
           onColumnWidthChange={updateColumnWidth}
           onColumnOptionsChange={updateColumnOptions}
+          onColumnSummaryChange={updateColumnSummary}
+          onRowHeightChange={updateRowHeight}
           className="h-full min-h-0"
         />
-        {!isLocked && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="absolute bottom-3 left-3 z-20"
-            onClick={addRow}
-          >
-            <TbPlus size={14} className="mr-1" />
-            Add row
-          </Button>
-        )}
       </div>
     </div>
   );

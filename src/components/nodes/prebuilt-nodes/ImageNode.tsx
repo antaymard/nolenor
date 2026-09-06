@@ -3,6 +3,7 @@ import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import { useNodeData, useNodeDataValues } from "@/hooks/useNodeData";
 import {
+  TbArrowFork,
   TbChevronLeft,
   TbChevronRight,
   TbDownload,
@@ -31,6 +32,7 @@ import {
 import { UploadFile } from "@/components/fields/UploadFile";
 import ImageGenerateTab from "./image/ImageGenerateTab";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
+import { useSplitImageNode } from "@/hooks/useSplitImageNode";
 import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { useWindowsStore } from "@/stores/windowsStore";
 import {
@@ -67,9 +69,13 @@ const defaultValue: Value = [];
 function SortableImageItem({
   image,
   onDelete,
+  onExtract,
+  isWorking,
 }: {
   image: ImageItem;
   onDelete: (url: string) => void;
+  onExtract?: (url: string) => void;
+  isWorking?: boolean;
 }) {
   const {
     attributes,
@@ -107,6 +113,18 @@ function SortableImageItem({
       <span className="flex-1 text-sm truncate text-muted-foreground min-w-0">
         {image.filename ?? "image"}
       </span>
+      {onExtract && (
+        <Button
+          variant="ghost"
+          size="icon"
+          title="Extract to a new node"
+          disabled={isWorking}
+          className="flex-shrink-0 h-7 w-7 text-muted-foreground hover:text-foreground"
+          onClick={() => onExtract(image.url)}
+        >
+          <TbArrowFork size={14} />
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="icon"
@@ -124,6 +142,9 @@ function ImageEditDialog({
   onUploadComplete,
   onDelete,
   onReorder,
+  onExtract,
+  onSplitAll,
+  isWorking,
 }: {
   currentValue: Value;
   onUploadComplete: (fileData: {
@@ -136,6 +157,9 @@ function ImageEditDialog({
   }) => void;
   onDelete: (url: string) => void;
   onReorder: (newImages: Value) => void;
+  onExtract?: (url: string) => void;
+  onSplitAll?: () => void;
+  isWorking?: boolean;
 }) {
   const [localImages, setLocalImages] = useState<Value>(currentValue);
 
@@ -176,6 +200,8 @@ function ImageEditDialog({
                   key={image.url}
                   image={image}
                   onDelete={onDelete}
+                  onExtract={onExtract}
+                  isWorking={isWorking}
                 />
               ))}
             </div>
@@ -187,6 +213,18 @@ function ImageEditDialog({
         </p>
       )}
       <div className="border-t pt-3">
+        {onSplitAll && localImages.length >= 2 && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isWorking}
+            className="w-full mb-2"
+            onClick={onSplitAll}
+          >
+            <TbArrowFork size={14} />
+            Split all ({localImages.length})
+          </Button>
+        )}
         <p className="text-xs text-muted-foreground mb-2">Add an image</p>
         <UploadFile accept="image/*" onUploadComplete={onUploadComplete} />
       </div>
@@ -390,6 +428,7 @@ function ImageNode(xyNode: XyNodeProps) {
   // il faut donc le nodeData complet, pas seulement ses values.
   const nodeData = useNodeData(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const { extractImage, splitAll, isSplitting } = useSplitImageNode();
   const { downloadStoredFile } = useDownloadFile();
   const openWindow = useWindowsStore((s) => s.openWindow);
 
@@ -453,6 +492,26 @@ function ImageNode(xyNode: XyNodeProps) {
     },
     [nodeDataId, updateNodeDataValues],
   );
+
+  const handleExtract = useCallback(
+    (url: string) => {
+      if (!nodeDataId) return;
+      const image = currentValue.find((img) => img.url === url);
+      if (!image) return;
+      void extractImage({
+        xyNodeId: xyNode.id,
+        nodeDataId,
+        image,
+        remainingImages: currentValue.filter((img) => img.url !== url),
+      });
+    },
+    [nodeDataId, currentValue, extractImage, xyNode.id],
+  );
+
+  const handleSplitAll = useCallback(() => {
+    if (!nodeDataId) return;
+    void splitAll({ xyNodeId: xyNode.id, nodeDataId, images: currentValue });
+  }, [nodeDataId, currentValue, splitAll, xyNode.id]);
 
   const isGenerating = nodeData?.imageGeneration?.status === "running";
 
@@ -529,6 +588,13 @@ function ImageNode(xyNode: XyNodeProps) {
                     onUploadComplete={handleUploadComplete}
                     onDelete={handleDelete}
                     onReorder={handleReorder}
+                    onExtract={
+                      currentValue.length >= 2 ? handleExtract : undefined
+                    }
+                    onSplitAll={
+                      currentValue.length >= 2 ? handleSplitAll : undefined
+                    }
+                    isWorking={isSplitting}
                   />
                 </TabsContent>
                 <TabsContent value="generate" className="pt-1">

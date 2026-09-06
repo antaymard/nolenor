@@ -13,31 +13,36 @@
 import {
   extractInlineText,
   generateBlockId,
-  parseStoredBlockNoteDocument,
+  parseNonEmptyBlockNoteDocument,
   stringifyBlockNoteDocumentForStorage,
   type BlockNoteBlock,
 } from "./blockNoteDocument";
 
-export function parseRichTextCell(value: unknown): BlockNoteBlock[] | null {
-  const parsed = parseStoredBlockNoteDocument(value);
-  if (!parsed || parsed.length === 0) return null;
-  return parsed;
-}
+export { parseNonEmptyBlockNoteDocument as parseRichTextCell };
 
-/** Aplatit un document en texte brut, un bloc par ligne. */
+/**
+ * Aplatit un document en texte brut, un bloc par ligne.
+ *
+ * Les blocs vides comptent pour une ligne vide : `richTextFromPlainText` les
+ * conserve à l'aller, les jeter au retour cassait l'aller-retour et faisait
+ * disparaître les sauts de paragraphe de l'export et de la vue de l'agent.
+ * Les lignes vides de queue sont en revanche taillées, pour qu'un document
+ * vide reste la chaîne vide.
+ */
 export function richTextToPlainText(value: unknown): string {
-  const blocks = parseRichTextCell(value);
+  const blocks = parseNonEmptyBlockNoteDocument(value);
   if (!blocks) return "";
 
   const lines: string[] = [];
   const walk = (list: BlockNoteBlock[]) => {
     for (const block of list) {
-      const text = extractInlineText(block.content);
-      if (text) lines.push(text);
+      lines.push(extractInlineText(block.content));
       if (block.children?.length) walk(block.children);
     }
   };
   walk(blocks);
+
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.join("\n");
 }
 

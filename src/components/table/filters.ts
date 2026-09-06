@@ -1,9 +1,7 @@
-import { richTextToPlainText } from "./richText";
+import { cellText, isCellEmpty } from "./cellText";
 import type {
   CellValue,
   ColumnType,
-  LinkCellValue,
-  NodeCellValue,
   SelectCellValue,
   TableColumn,
   TableRowData,
@@ -107,44 +105,6 @@ export function defaultOperatorFor(type: ColumnType): FilterOperator {
   return OPERATORS_BY_TYPE[type][0];
 }
 
-/**
- * Texte comparable d'une cellule.
- *
- * Les cellules `node` n'exposent qu'un id : on ne peut pas en tirer un titre
- * sans le store des nodes, donc `contains` sur une colonne node porte sur l'id.
- * C'est cohérent avec ce que fait déjà la recherche globale.
- */
-function cellText(value: CellValue, column: TableColumn): string {
-  if (value == null) return "";
-
-  switch (column.type) {
-    case "richtext":
-      return richTextToPlainText(value);
-    case "link": {
-      const link = value as LinkCellValue;
-      return `${link.pageTitle ?? ""} ${link.href ?? ""}`.trim();
-    }
-    case "node":
-      return (value as NodeCellValue).nodeId ?? "";
-    case "select": {
-      if (!Array.isArray(value)) return "";
-      const byId = new Map((column.options ?? []).map((o) => [o.id, o.label]));
-      return (value as SelectCellValue)
-        .map((id) => byId.get(id) ?? "")
-        .join(" ");
-    }
-    default:
-      return String(value);
-  }
-}
-
-function isEmptyCell(value: CellValue, column: TableColumn): boolean {
-  if (value == null) return true;
-  if (column.type === "checkbox") return false;
-  if (Array.isArray(value)) return value.length === 0;
-  return cellText(value, column).trim() === "";
-}
-
 function selectedIds(value: CellValue): string[] {
   if (Array.isArray(value)) return value as SelectCellValue;
   if (typeof value === "string" && value) return [value];
@@ -158,8 +118,8 @@ export function matchesFilter(
 ): boolean {
   const { operator } = filter;
 
-  if (operator === "isEmpty") return isEmptyCell(value, column);
-  if (operator === "isNotEmpty") return !isEmptyCell(value, column);
+  if (operator === "isEmpty") return isCellEmpty(value, column);
+  if (operator === "isNotEmpty") return !isCellEmpty(value, column);
   if (operator === "isChecked") return value === true;
   if (operator === "isUnchecked") return value !== true;
 
@@ -176,6 +136,9 @@ export function matchesFilter(
   if (raw.trim() === "") return true;
 
   if (column.type === "number") {
+    // Une cellule vide n'est pas zéro : sans ce test `Number("")` la ferait
+    // matcher `< 5`, `= 0` et `≠ 5`.
+    if (isCellEmpty(value, column)) return false;
     const cell = typeof value === "number" ? value : Number(cellText(value, column));
     const target = Number(raw);
     if (!Number.isFinite(cell) || !Number.isFinite(target)) return false;

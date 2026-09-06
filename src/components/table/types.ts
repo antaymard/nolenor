@@ -1,4 +1,5 @@
 import type { IconType } from "react-icons";
+import type { TableColumnType } from "@/../convex/lib/tableColumnTypes";
 import {
   TbAbc,
   TbAlignLeft,
@@ -10,15 +11,14 @@ import {
   TbSelect,
 } from "react-icons/tb";
 
-export type ColumnType =
-  | "text"
-  | "richtext"
-  | "number"
-  | "checkbox"
-  | "date"
-  | "link"
-  | "node"
-  | "select";
+/**
+ * Alias du type partagé : la liste canonique vit dans
+ * `convex/lib/tableColumnTypes.ts`, parce que le serveur en a besoin aussi
+ * (validation des cellules, outils de l'agent, schéma de création de node).
+ * `COLUMN_TYPE_CONFIG` ci-dessous étant un `Record<ColumnType, …>`, ajouter un
+ * type là-bas casse le build ici tant qu'il n'a pas son libellé et son icône.
+ */
+export type ColumnType = TableColumnType;
 
 /**
  * Hauteur des lignes de la grille. Le contenu d'une cellule n'est plus coupé à

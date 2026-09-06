@@ -4,6 +4,11 @@ import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
 import { generateLlmId } from "../../lib/llmId";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import {
+  TABLE_COLUMN_TYPES,
+  listColumnTypesForPrompt,
+  type TableColumnType,
+} from "../../lib/tableColumnTypes";
 
 // Tool compaction config
 export const tableUpdateSchemaToolConfig: ToolConfig = {
@@ -38,15 +43,7 @@ const SELECT_COLORS = [
 
 type SelectColor = (typeof SELECT_COLORS)[number];
 
-type TableColumnType =
-  | "text"
-  | "richtext"
-  | "number"
-  | "checkbox"
-  | "date"
-  | "link"
-  | "select"
-  | "node";
+
 
 type SelectOption = {
   id: string;
@@ -77,16 +74,7 @@ const ERROR_INVALID_TABLE_CONTENT = toolError(
   "Table content is not valid (expected table.columns and table.rows arrays).",
 );
 
-const columnTypeSchema = z.enum([
-  "text",
-  "richtext",
-  "number",
-  "checkbox",
-  "date",
-  "link",
-  "select",
-  "node",
-]);
+const columnTypeSchema = z.enum(TABLE_COLUMN_TYPES);
 
 const selectColorSchema = z.enum(SELECT_COLORS);
 
@@ -335,7 +323,8 @@ export default function tableUpdateSchemaTool({
 
   return createTool({
     description:
-      "Update table schema (columns) on a table node. Supports types: text, number, checkbox, date, link, select (with options + isMulti), node (references a canvas node). " +
+      `Update table schema (columns) on a table node. Supports types: ${listColumnTypesForPrompt()}. ` +
+      "select takes options + isMulti; node references a canvas node; richtext takes plain text (line breaks become paragraphs). " +
       "Operations: set (only when schema is empty), add_column, update_column (rename / change select options or isMulti), delete_column.",
     inputSchema: z.object({
       nodeId: z.string().describe("The node ID in the current canvas."),

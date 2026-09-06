@@ -4,16 +4,12 @@ import {
   parseRichTextCell,
   richTextFromPlainText,
 } from "../../lib/tableRichTextCell";
+import {
+  assertNeverColumnType,
+  type TableColumnType,
+} from "../../lib/tableColumnTypes";
 
-export type TableColumnType =
-  | "text"
-  | "richtext"
-  | "number"
-  | "checkbox"
-  | "date"
-  | "link"
-  | "select"
-  | "node";
+export type { TableColumnType };
 
 export type SelectOption = {
   id: string;
@@ -340,11 +336,9 @@ export function normalizeCellValueForColumn({
     case "node":
       return normalizeNodeValue({ rawValue, column, ctx });
 
-    default: {
-      return {
-        ok: false,
-        error: toolError(`Unsupported column type for "${column.name}".`),
-      };
-    }
+    default:
+      // Exhaustif : un nouveau type doit casser la compilation ici plutôt que
+      // de tomber dans une erreur d'exécution après déploiement.
+      return assertNeverColumnType(column.type, "normalizeCellValueForColumn");
   }
 }

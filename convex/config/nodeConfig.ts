@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { nodeTypeValues } from "../schemas/nodeTypeSchema";
+import {
+  TABLE_COLUMN_TYPES,
+  listColumnTypesForPrompt,
+} from "../lib/tableColumnTypes";
 
 const nodeTypeZodValidator = z.enum(nodeTypeValues);
 
@@ -389,9 +393,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     type: "table",
     label: "Table",
     description:
-      "Node for structured tabular data with typed columns (text, number, checkbox, date, link).",
+      `Node for structured tabular data with typed columns (${listColumnTypesForPrompt()}).`,
     llmDescription:
-      "For structured tabular data with typed columns. Use this node to store and display any structured data in a table format, where you can define the columns and their types (text, number, checkbox, date, link). When updating a file, you can ask the agentTool to add rows, update specific rows or remove them, to make the update more reliable. \nThe required data value are tanstack-table compatible : 'columns' (an array of column definitions, each with an 'id', 'name', and 'type') and 'rows' (an array of row objects, each with an 'id' and 'cells' that map column ids to their respective values). An optional 'title' field (string) can be set to give the table a title.",
+      `For structured tabular data with typed columns. Use this node to store and display any structured data in a table format, where you can define the columns and their types (${listColumnTypesForPrompt()}).` +
+      " When updating a file, you can ask the agentTool to add rows, update specific rows or remove them, to make the update more reliable. \nThe required data value are tanstack-table compatible : 'columns' (an array of column definitions, each with an 'id', 'name', and 'type') and 'rows' (an array of row objects, each with an 'id' and 'cells' that map column ids to their respective values). An optional 'title' field (string) can be set to give the table a title.",
     defaultDimensions: { width: 400, height: 300, resizable: true },
     variants: {
       default: {
@@ -417,7 +422,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
                 z.object({
                   id: z.string(),
                   name: z.string(),
-                  type: z.enum(["text", "number", "checkbox", "date", "link"]),
+                  type: z.enum(TABLE_COLUMN_TYPES),
                 }),
               )
               .default([]),
@@ -432,12 +437,16 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
                       z.number(),
                       z.boolean(),
                       z.null(),
+                      // select : les ids des options choisies.
+                      z.array(z.string()),
                       z.object({
                         href: z.string(),
                         pageTitle: z.string(),
                         pageImage: z.string().optional(),
                         pageDescription: z.string().optional(),
                       }),
+                      // node : la référence vers un node du canvas.
+                      z.object({ nodeId: z.string() }),
                     ]),
                   ),
                 }),

@@ -556,6 +556,21 @@ export function parseStoredBlockNoteDocument(doc: unknown): BlockNoteBlock[] | n
   return null;
 }
 
+/**
+ * Comme `parseStoredBlockNoteDocument`, mais un document vide vaut `null`.
+ *
+ * C'est ce dont ont besoin tous les affichages : « pas de blocs » et « un
+ * tableau vide » se rendent pareil, et distinguer les deux au call site avait
+ * produit deux enveloppes identiques (champs rich_text, cellules de table).
+ */
+export function parseNonEmptyBlockNoteDocument(
+  value: unknown,
+): BlockNoteBlock[] | null {
+  const parsed = parseStoredBlockNoteDocument(value);
+  if (!parsed || parsed.length === 0) return null;
+  return parsed;
+}
+
 export function stringifyBlockNoteDocumentForStorage(doc: unknown): string {
   validateBlockNoteDocument(doc);
   return JSON.stringify(doc);

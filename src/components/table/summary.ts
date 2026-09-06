@@ -1,13 +1,5 @@
-import { richTextToPlainText } from "./richText";
-import type {
-  CellValue,
-  ColumnType,
-  LinkCellValue,
-  NodeCellValue,
-  SelectCellValue,
-  SummaryKind,
-  TableColumn,
-} from "./types";
+import { cellIdentityKey, isCellEmpty } from "./cellText";
+import type { CellValue, ColumnType, SummaryKind, TableColumn } from "./types";
 
 /**
  * Calculs de pied de colonne, façon « Calculate » de Notion.
@@ -52,30 +44,6 @@ export function summariesFor(type: ColumnType): SummaryKind[] {
   return COMMON;
 }
 
-/** Clé de dédoublonnage stable, pour `countUnique`. */
-function uniqueKey(value: CellValue, column: TableColumn): string {
-  if (value == null) return "";
-  switch (column.type) {
-    case "richtext":
-      return richTextToPlainText(value);
-    case "link":
-      return (value as LinkCellValue).href ?? "";
-    case "node":
-      return (value as NodeCellValue).nodeId ?? "";
-    case "select":
-      return Array.isArray(value) ? [...(value as SelectCellValue)].sort().join("|") : "";
-    default:
-      return String(value);
-  }
-}
-
-function isFilled(value: CellValue, column: TableColumn): boolean {
-  if (value == null) return false;
-  if (column.type === "checkbox") return true;
-  if (Array.isArray(value)) return value.length > 0;
-  return uniqueKey(value, column).trim() !== "";
-}
-
 function numbersOf(values: CellValue[]): number[] {
   const out: number[] = [];
   for (const value of values) {
@@ -103,7 +71,7 @@ export function computeSummary(
   column: TableColumn,
 ): string | null {
   const total = values.length;
-  const filled = values.filter((v) => isFilled(v, column)).length;
+  const filled = values.filter((v) => !isCellEmpty(v, column)).length;
 
   switch (kind) {
     case "countAll":
@@ -119,7 +87,7 @@ export function computeSummary(
     case "countUnique": {
       const seen = new Set<string>();
       for (const value of values) {
-        if (isFilled(value, column)) seen.add(uniqueKey(value, column));
+        if (!isCellEmpty(value, column)) seen.add(cellIdentityKey(value, column));
       }
       return String(seen.size);
     }

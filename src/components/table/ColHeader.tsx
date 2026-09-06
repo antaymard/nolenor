@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { Column } from "@tanstack/react-table";
 import { TbArrowDown, TbArrowUp } from "react-icons/tb";
 import { Input } from "@/components/shadcn/input";
@@ -52,11 +52,24 @@ export function ColHeader({
 }: ColHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [inlineEditing, setInlineEditing] = useState(false);
-  // Un double-clic émet aussi deux clics : sans ce drapeau, le menu s'ouvrirait
-  // derrière le champ de renommage inline.
-  const skipNextClickRef = useRef(false);
+  // Le brouillon du nom vit ici, pas dans ColumnMenu : fermer le popover au clic
+  // à l'extérieur démonte le menu sans exécuter aucun de ses handlers, et la
+  // saisie était perdue — sur le geste même que ce menu existe pour rendre
+  // évident.
+  const [nameDraft, setNameDraft] = useState(col.name);
 
   const sorted = tanstackCol.getIsSorted();
+
+  const openMenu = (open: boolean) => {
+    if (open) {
+      setNameDraft(col.name);
+      setMenuOpen(true);
+      return;
+    }
+    const next = nameDraft.trim();
+    if (next && next !== col.name) onNameChange(next);
+    setMenuOpen(false);
+  };
   const Icon = COLUMN_TYPE_CONFIG[col.type].icon;
 
   if (inlineEditing) {
@@ -82,7 +95,7 @@ export function ColHeader({
   }
 
   return (
-    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+    <Popover open={menuOpen} onOpenChange={openMenu}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -90,17 +103,14 @@ export function ColHeader({
             "group/colheader flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left",
             !readOnly && "hover:bg-muted/60",
           )}
-          onClick={(e) => {
-            if (skipNextClickRef.current) {
-              skipNextClickRef.current = false;
-              e.preventDefault();
-            }
-          }}
           onDoubleClick={(e) => {
+            // Les deux clics du double-clic ont déjà ouvert puis refermé le
+            // popover quand on arrive ici : il n'y a rien à neutraliser, il
+            // suffit de basculer en saisie inline. Un drapeau « ignore le
+            // prochain clic » posé ici arrivait de toute façon trop tard, et
+            // survivait jusqu'à l'interaction suivante, qu'il avalait.
             if (readOnly) return;
             e.preventDefault();
-            skipNextClickRef.current = true;
-            setMenuOpen(false);
             setInlineEditing(true);
           }}
         >
@@ -124,12 +134,13 @@ export function ColHeader({
           col={col}
           tanstackCol={tanstackCol}
           readOnly={readOnly}
+          name={nameDraft}
           lossyCountFor={lossyCountFor}
-          onNameChange={onNameChange}
+          onNameChange={setNameDraft}
           onTypeChange={onTypeChange}
           onDelete={onDelete}
           onEditOptions={onEditOptions}
-          onClose={() => setMenuOpen(false)}
+          onClose={() => openMenu(false)}
         />
       </PopoverContent>
     </Popover>

@@ -25,7 +25,7 @@ export type ColumnType = TableColumnType;
  * une ligne par défaut : `short` reproduit l'ancien comportement (ellipse sur
  * une ligne), les deux autres laissent le texte revenir à la ligne.
  */
-export type RowHeight = "short" | "medium" | "tall";
+export type RowHeight = "short" | "medium" | "tall" | "full";
 
 /** Agrégat affiché sous une colonne. `undefined` = aucun. */
 export type SummaryKind =
@@ -155,9 +155,29 @@ export const ROW_HEIGHT_CONFIG: Record<
     lines: 6,
     clamp: "line-clamp-6 whitespace-pre-wrap break-words",
   },
+  // Hors grille : la fiche de ligne existe pour montrer le contenu en entier,
+  // `lines: 0` vaut « pas de plafond de hauteur ».
+  full: {
+    label: "Full",
+    lines: 0,
+    clamp: "whitespace-pre-wrap break-words",
+  },
 };
 
 export const DEFAULT_ROW_HEIGHT: RowHeight = "short";
+
+/** Hauteurs proposées dans la barre d'outils — `full` n'y figure pas. */
+export const GRID_ROW_HEIGHTS: RowHeight[] = ["short", "medium", "tall"];
+
+/**
+ * Plafond de hauteur d'une cellule rich text. Son contenu est un arbre de blocs,
+ * donc le clamp porte sur le conteneur et non sur un nombre de lignes de texte —
+ * couper à N lignes n'aurait pas de sens sur une liste.
+ */
+export function maxHeightForRowHeight(rowHeight: RowHeight) {
+  const { lines } = ROW_HEIGHT_CONFIG[rowHeight];
+  return lines > 0 ? { maxHeight: `${lines * 1.5}em` } : undefined;
+}
 
 export const COLUMN_TYPE_LABELS: Record<ColumnType, string> =
   Object.fromEntries(

@@ -120,7 +120,7 @@ export function TableImportDialog({
       try {
         const result = await parseCsvFile(file);
         if (result.headers.length === 0) {
-          setParseError("Le fichier CSV est vide ou n'a pas d'en-têtes.");
+          setParseError("This CSV file is empty or has no header row.");
           return;
         }
         setParsed(result);
@@ -268,8 +268,8 @@ export function TableImportDialog({
           </DialogTitle>
           <DialogDescription>
             {!parsed
-              ? "Sélectionnez un fichier CSV pour commencer."
-              : "Vérifiez la correspondance entre les colonnes CSV et la table cible."}
+              ? "Pick a CSV file to get started."
+              : "Check how the CSV columns map onto this table."}
           </DialogDescription>
         </DialogHeader>
 
@@ -304,7 +304,7 @@ export function TableImportDialog({
             </Button>
           )}
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
-            Annuler
+            Cancel
           </Button>
           <Button
             onClick={handleConfirm}
@@ -361,7 +361,7 @@ function FilePickerStep({
       >
         <TbUpload size={32} className="text-muted-foreground" />
         <p className="text-sm">
-          Glissez un fichier CSV ici, ou cliquez pour parcourir.
+          Drop a CSV file here, or click to browse.
         </p>
         <input
           ref={inputRef}
@@ -403,7 +403,7 @@ function PreviewTable({
             <tr>
               {headers.map((h, i) => (
                 <th key={i} className="px-2 py-1 text-left font-medium border-r last:border-r-0 truncate max-w-[200px]">
-                  {h || <span className="text-muted-foreground italic">(vide)</span>}
+                  {h || <span className="text-muted-foreground italic">(empty)</span>}
                 </th>
               ))}
             </tr>
@@ -449,13 +449,13 @@ function MappingTable({
 
   return (
     <div className="flex flex-col gap-1">
-      <Label className="text-xs text-muted-foreground">Mapping des colonnes</Label>
+      <Label className="text-xs text-muted-foreground">Column mapping</Label>
       <div className="border rounded-md overflow-auto max-h-72">
         <table className="text-sm w-full">
           <thead className="bg-muted sticky top-0">
             <tr className="text-left">
-              <th className="px-2 py-1.5 font-medium">Colonne CSV</th>
-              <th className="px-2 py-1.5 font-medium">Cible</th>
+              <th className="px-2 py-1.5 font-medium">CSV column</th>
+              <th className="px-2 py-1.5 font-medium">Target</th>
               <th className="px-2 py-1.5 font-medium">Type</th>
             </tr>
           </thead>
@@ -484,9 +484,9 @@ function MappingTable({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={TARGET_NEW}>
-                          + Nouvelle colonne
+                          + New column
                         </SelectItem>
-                        <SelectItem value={TARGET_SKIP}>Ignorer</SelectItem>
+                        <SelectItem value={TARGET_SKIP}>Skip</SelectItem>
                         {showExistingTargets &&
                           existingColumns.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
@@ -540,7 +540,7 @@ function ModeSelector({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="text-xs text-muted-foreground">Mode d'import</Label>
+      <Label className="text-xs text-muted-foreground">Import mode</Label>
       <ToggleGroup
         type="single"
         value={mode}
@@ -553,9 +553,9 @@ function ModeSelector({
         className="w-fit"
       >
         <ToggleGroupItem value="append">
-          Ajouter aux lignes existantes
+          Append to existing rows
         </ToggleGroupItem>
-        <ToggleGroupItem value="replace">Remplacer la table</ToggleGroupItem>
+        <ToggleGroupItem value="replace">Replace the table</ToggleGroupItem>
       </ToggleGroup>
     </div>
   );

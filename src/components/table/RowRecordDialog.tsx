@@ -121,9 +121,10 @@ export function RowRecordDialog({
                     readOnly={!!readOnly}
                     options={column.options}
                     isMulti={column.isMulti}
-                    // La fiche existe précisément pour montrer le contenu en
-                    // entier : aucune raison d'y appliquer le clamp de la grille.
-                    rowHeight="tall"
+                    // `full` et non `tall` : `tall` est un clamp à six lignes,
+                    // ce qui coupait le contenu dans la seule vue faite pour le
+                    // montrer en entier.
+                    rowHeight="full"
                     onClick={() => {
                       if (readOnly) return;
                       if (column.type === "checkbox") {

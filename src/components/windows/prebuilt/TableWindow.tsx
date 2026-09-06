@@ -42,33 +42,29 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   // Sync local state with live data when the user hasn't made edits
   useEffect(() => {
     if (isDirty) return;
-    const table = (nodeDataValues?.table as TableData | undefined) ?? {
-      columns: [],
-      rows: [],
-    };
-    setLocalColumns(table.columns);
-    setLocalRows(table.rows);
+    // `values` est un `v.record(v.string(), v.any())` : rien ne garantit la
+    // forme de `table`. Un `{}` stocké par erreur passait `undefined` à
+    // `Table`, dont l'initialiseur d'état faisait alors `undefined.filter`.
+    const table = (nodeDataValues?.table ?? {}) as Partial<TableData>;
+    setLocalColumns(Array.isArray(table.columns) ? table.columns : []);
+    setLocalRows(Array.isArray(table.rows) ? table.rows : []);
     setLocalRowHeight(table.rowHeight ?? DEFAULT_ROW_HEIGHT);
     setLocalTitle((nodeDataValues?.title as string | undefined) ?? "");
   }, [nodeDataValues, isDirty]);
 
   // Keep latest refs to avoid stale closures in save handler
+  // Affectées PENDANT le rendu, pas dans un effet : le garde-fou « une édition
+  // est-elle arrivée pendant la sauvegarde ? » compare ces refs juste après un
+  // aller-retour réseau, et un effet passif pouvait ne pas avoir encore tourné —
+  // la fenêtre repassait alors propre et la resynchronisation écrasait l'édition.
   const columnsRef = useRef(localColumns);
   const rowsRef = useRef(localRows);
   const titleRef = useRef(localTitle);
   const rowHeightRef = useRef(localRowHeight);
-  useEffect(() => {
-    columnsRef.current = localColumns;
-  }, [localColumns]);
-  useEffect(() => {
-    rowsRef.current = localRows;
-  }, [localRows]);
-  useEffect(() => {
-    titleRef.current = localTitle;
-  }, [localTitle]);
-  useEffect(() => {
-    rowHeightRef.current = localRowHeight;
-  }, [localRowHeight]);
+  columnsRef.current = localColumns;
+  rowsRef.current = localRows;
+  titleRef.current = localTitle;
+  rowHeightRef.current = localRowHeight;
 
   useEffect(() => {
     setDirty(isDirty && !isLocked);
@@ -291,9 +287,11 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
 
   const updateColumnWidth = useCallback(
     (colId: string, width: number) => {
-      setLocalColumns((cols) =>
-        cols.map((c) => (c.id === colId ? { ...c, width } : c)),
-      );
+      setLocalColumns((cols) => {
+        const current = cols.find((c) => c.id === colId);
+        if (current?.width === width) return cols;
+        return cols.map((c) => (c.id === colId ? { ...c, width } : c));
+      });
       markDirty();
     },
     [markDirty],

@@ -10,7 +10,12 @@ import {
 import { cn } from "@/lib/utils";
 import { FilterPopover } from "./FilterPopover";
 import type { FilterConjunction, TableFilter } from "./filters";
-import { ROW_HEIGHT_CONFIG, type RowHeight, type TableColumn } from "./types";
+import {
+  GRID_ROW_HEIGHTS,
+  ROW_HEIGHT_CONFIG,
+  type RowHeight,
+  type TableColumn,
+} from "./types";
 
 export interface TableToolbarProps {
   columns: TableColumn[];
@@ -27,8 +32,6 @@ export interface TableToolbarProps {
   totalRowCount: number;
   readOnly?: boolean;
 }
-
-const ROW_HEIGHTS: RowHeight[] = ["short", "medium", "tall"];
 
 /**
  * Barre d'outils de la grille.
@@ -96,7 +99,7 @@ export function TableToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {ROW_HEIGHTS.map((value) => (
+            {GRID_ROW_HEIGHTS.map((value) => (
               <DropdownMenuItem
                 key={value}
                 onClick={() => onRowHeightChange(value)}

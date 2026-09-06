@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { TbCalendar, TbLink, TbNetwork } from "react-icons/tb";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 import { Checkbox } from "@/components/shadcn/checkbox";
@@ -10,6 +11,7 @@ import { parseRichTextCell } from "./richText";
 import {
   DEFAULT_ROW_HEIGHT,
   ROW_HEIGHT_CONFIG,
+  maxHeightForRowHeight,
   SELECT_COLOR_CLASSES,
   type ColumnType,
   type CellValue,
@@ -46,13 +48,20 @@ export function CellDisplay({
     type === "node" ? nodeVal?.nodeId : undefined,
   );
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
+  // Même raison, et même contrainte : sans mémo, chaque rendu de la grille
+  // reparse le JSON et rend un NOUVEAU tableau, ce qui fait rater le `memo` de
+  // BlockNoteStatic et re-rend tout l'arbre de blocs de chaque cellule.
+  const richTextDoc = useMemo(
+    () => (type === "richtext" ? parseRichTextCell(value) : null),
+    [type, value],
+  );
 
   if (type === "node") {
     const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
     const title = nodeData
       ? getNodeDataTitle(nodeData)
       : nodeVal?.nodeId
-        ? "Node supprimé"
+        ? "Deleted node"
         : null;
     const Icon = nodeData ? getNodeIcon(nodeData.type) : null;
 
@@ -76,7 +85,7 @@ export function CellDisplay({
   }
 
   if (type === "richtext") {
-    const doc = parseRichTextCell(value);
+    const doc = richTextDoc;
     if (!doc) return <span className="block w-full min-h-[1.4em] px-1" />;
     return (
       <div
@@ -85,7 +94,7 @@ export function CellDisplay({
         className="bn-readonly-container w-full min-h-[1.4em] overflow-hidden px-1 text-sm"
         // Clamp par hauteur de conteneur : le contenu est un arbre de blocs,
         // `line-clamp` n'a pas de sens sur une liste ou un tableau.
-        style={{ maxHeight: `${ROW_HEIGHT_CONFIG[rowHeight].lines * 1.5}em` }}
+        style={maxHeightForRowHeight(rowHeight)}
       >
         <BlockNoteStatic blocks={doc} />
       </div>

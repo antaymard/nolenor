@@ -122,12 +122,15 @@ export function FilterPopover({
                     onValueChange={(colId) => {
                       const next = columnsById.get(colId);
                       if (!next) return;
-                      // L'opérateur courant peut ne pas exister pour le nouveau
-                      // type (« contient » sur une case à cocher) : on retombe
-                      // sur le premier opérateur valide.
+                      // Les opérateurs de la colonne CIBLE, pas ceux de la
+                      // colonne courante : le test portait sur l'ancienne liste,
+                      // il était donc toujours vrai. Garder `isChecked` sur une
+                      // colonne texte faisait disparaître toutes les lignes, et
+                      // le sélecteur d'opérateur s'affichait vide.
+                      const nextOperators = OPERATORS_BY_TYPE[next.type];
                       patch(filter.id, {
                         columnId: colId,
-                        operator: operators.includes(filter.operator)
+                        operator: nextOperators.includes(filter.operator)
                           ? filter.operator
                           : defaultOperatorFor(next.type),
                         value: "",

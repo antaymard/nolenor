@@ -1,5 +1,4 @@
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -27,7 +26,10 @@ export function TablePreview({
 }: TablePreviewProps) {
   if (columns.length === 0) return null;
   return (
-    <Table className={cn(className)}>
+    // `<table>` nu : le wrapper `overflow-x-auto` du `Table` shadcn est un
+    // scrollport, et l'en-tête sticky ci-dessous s'y accrochait au lieu du
+    // conteneur défilant du node.
+    <table className={cn("w-full caption-bottom", className)}>
       <TableHeader className="sticky top-0 z-10 bg-white border-b border-slate-300">
         <TableRow>
           {columns.map((col) => (
@@ -60,6 +62,6 @@ export function TablePreview({
           </TableRow>
         ))}
       </TableBody>
-    </Table>
+    </table>
   );
 }

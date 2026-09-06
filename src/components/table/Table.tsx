@@ -27,6 +27,7 @@ import {
   closestCenter,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DraggableAttributes,
   type DragEndEvent,
 } from "@dnd-kit/core";
@@ -44,7 +45,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Table as ShadcnTable,
   TableBody,
   TableCell,
   TableHead,
@@ -73,15 +73,15 @@ import { SelectOptionsDialog } from "./SelectOptionsDialog";
 import { SummaryFooter } from "./SummaryFooter";
 import { TableToolbar } from "./TableToolbar";
 import { ACTIONS_COLUMN_ID, GUTTER_COLUMN_ID, isUtilityColumn } from "./columnIds";
+import { sortableCellStyle, useSortableCellStyle } from "./sortableCell";
 import { countLossyCells } from "./coerce";
+import { cellText } from "./cellText";
 import { applyFilters, type FilterConjunction, type TableFilter } from "./filters";
-import { richTextToPlainText } from "./richText";
 import {
   DEFAULT_ROW_HEIGHT,
   columnTypeEntries,
   type CellValue,
   type ColumnType,
-  type LinkCellValue,
   type RowHeight,
   type SelectOption,
   type SummaryKind,
@@ -122,27 +122,6 @@ interface EditingCell {
 
 const GUTTER_WIDTH = 56;
 
-const globalFilterFn: FilterFn<TableRowData> = (row, columnId, filterValue) => {
-  const value = row.getValue(columnId);
-  if (value == null) return false;
-  const term = (filterValue as string).toLowerCase();
-
-  if (typeof value === "object" && "href" in (value as object)) {
-    const link = value as LinkCellValue;
-    return (
-      (link.pageTitle?.toLowerCase().includes(term) ?? false) ||
-      (link.href?.toLowerCase().includes(term) ?? false)
-    );
-  }
-  // Une cellule rich text est un document : `String()` y donnerait
-  // « [object Object] » et la recherche ne trouverait jamais rien.
-  if (typeof value === "string" && value.startsWith("[{")) {
-    const plain = richTextToPlainText(value);
-    if (plain) return plain.toLowerCase().includes(term);
-  }
-  return String(value).toLowerCase().includes(term);
-};
-
 function DraggableHeader({
   header,
   canDrag,
@@ -158,22 +137,25 @@ function DraggableHeader({
   });
   const isResizing = header.column.getIsResizing();
   const style: CSSProperties = {
-    opacity: isDragging ? 0.8 : 1,
-    position: "relative",
-    transform: CSS.Translate.toString(transform),
+    ...sortableCellStyle(transform, isDragging, header.getSize()),
+    // `position: sticky` écrit ICI, et non via une classe : le style inline de
+    // `sortableCellStyle` pose `position: relative`, qui gagne sur la classe
+    // Tailwind. C'est ce qui faisait défiler l'en-tête alors que les deux
+    // colonnes techniques — seules à ne pas avoir de style inline — restaient
+    // collées, ce qui rendait le symptôme particulièrement trompeur.
+    position: "sticky",
+    top: 0,
     transition: isResizing
       ? "transform 0.2s ease-in-out"
       : "width transform 0.2s ease-in-out",
-    zIndex: isDragging ? 30 : undefined,
-    width: header.getSize(),
+    zIndex: isDragging ? 30 : 20,
     userSelect: isResizing ? "none" : undefined,
-    overflow: "hidden",
   };
   return (
     <TableHead
       ref={setNodeRef}
       style={style}
-      className="group/head sticky top-0 z-20 bg-background"
+      className="group/head bg-background"
     >
       <div className="flex items-center gap-0.5">
         <div className="min-w-0 flex-1">
@@ -212,18 +194,10 @@ function DraggableCell({
   onCellClick?: () => void;
   children: React.ReactNode;
 }) {
-  const { isDragging, setNodeRef, transform } = useSortable({
-    id: cell.column.id,
-  });
-  const style: CSSProperties = {
-    opacity: isDragging ? 0.8 : 1,
-    position: "relative",
-    transform: CSS.Translate.toString(transform),
-    transition: "width transform 0.2s ease-in-out",
-    zIndex: isDragging ? 1 : 0,
-    width: cell.column.getSize(),
-    overflow: "hidden",
-  };
+  const { setNodeRef, style } = useSortableCellStyle(
+    cell.column.id,
+    cell.column.getSize(),
+  );
   return (
     <TableCell
       ref={setNodeRef}
@@ -361,7 +335,16 @@ export function Table({
   const [optionsDialogColumnId, setOptionsDialogColumnId] = useState<
     string | null
   >(null);
-  const [recordRowId, setRecordRowId] = useState<string | null>(null);
+  /**
+   * La fiche de ligne retient l'ORDRE des lignes tel qu'il était à son
+   * ouverture. Naviguer suit donc le tri et le filtre affichés, mais éditer un
+   * champ qui ferait sortir la ligne de ce filtre ne referme plus la fiche au
+   * milieu de la saisie.
+   */
+  const [record, setRecord] = useState<{
+    rowId: string;
+    rowIds: string[];
+  } | null>(null);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() =>
     Object.fromEntries(
       tableColumns.filter((c) => c.width != null).map((c) => [c.id, c.width!]),
@@ -419,6 +402,24 @@ export function Table({
     [rows, tableColumns, filters, conjunction],
   );
 
+  /*
+   * La recherche lit la cellule PAR SON TYPE plutôt que de le deviner à la
+   * forme de la valeur. L'ancienne version reniflait le rich text avec
+   * `startsWith("[{")` et retombait sur `String(value)` : une colonne select
+   * cherchait dans les UUID de ses options, une colonne node dans
+   * « [object Object] », et une cellule rich text VIDE faisait matcher toutes
+   * les lignes dès qu'on tapait « default » ou « left » — les clés du JSON.
+   */
+  const globalFilterFn = useMemo<FilterFn<TableRowData>>(
+    () => (row, columnId, filterValue) => {
+      const column = columnsById.get(columnId);
+      if (!column) return false;
+      const term = String(filterValue).toLowerCase();
+      return cellText(row.getValue(columnId), column).toLowerCase().includes(term);
+    },
+    [columnsById],
+  );
+
   const openCell = useCallback(
     (rowId: string, colId: string) => {
       const col = columnsById.get(colId);
@@ -440,6 +441,9 @@ export function Table({
     (columnId: string) => {
       const newRowId = onAddRow?.();
       if (!newRowId) return;
+      setGlobalFilter("");
+      setFilters([]);
+      setSorting([]);
       const col = columnsById.get(columnId);
       if (col && col.type !== "checkbox") {
         setEditingCell({ rowId: newRowId, columnId });
@@ -468,6 +472,16 @@ export function Table({
           enableResizing: true,
           id: col.id,
           accessorFn: (row) => row.cells[col.id],
+          // Sans ça, trier une colonne rich text comparait le document
+          // sérialisé, dont les 30 premiers caractères sont un identifiant de
+          // bloc aléatoire : l'ordre obtenu n'avait aucun rapport avec le texte
+          // affiché.
+          sortingFn: (a, b) =>
+            cellText(a.original.cells[col.id] ?? null, col).localeCompare(
+              cellText(b.original.cells[col.id] ?? null, col),
+              undefined,
+              { numeric: true, sensitivity: "base" },
+            ),
           cell: ({ row }) => {
             const isEditing =
               editingCell?.rowId === row.original.id &&
@@ -482,14 +496,9 @@ export function Table({
                 options={col.options}
                 isMulti={col.isMulti}
                 rowHeight={rowHeight}
-                onClick={() => {
-                  if (readOnly) return;
-                  if (col.type === "checkbox") {
-                    onCellChange?.(row.original.id, col.id, !value);
-                    return;
-                  }
-                  openCell(row.original.id, col.id);
-                }}
+                // Les cases à cocher basculent par `onCheckedChange` et
+                // n'appellent jamais ce `onClick`.
+                onClick={() => openCell(row.original.id, col.id)}
                 onChange={(val) => onCellChange?.(row.original.id, col.id, val)}
                 onBlur={() => {
                   setEditingCell(null);
@@ -630,27 +639,76 @@ export function Table({
 
   const displayedRows = table.getRowModel().rows;
   const rowIds = useMemo(() => displayedRows.map((r) => r.id), [displayedRows]);
+
+  /*
+   * Les cellules du corps s'enregistrent comme sortables sous l'id de LEUR
+   * COLONNE (c'est ce qui les fait suivre un déplacement de colonne), mais elles
+   * sont rendues dans le DndContext des LIGNES. Sans filtre, `closestCenter`
+   * peut donc rendre un id de colonne comme cible pendant qu'on déplace une
+   * ligne : `handleRowDragEnd` l'ignore, et le dépôt ne fait rien — surtout près
+   * du bas du tableau. On ne laisse au calcul de collision que les lignes.
+   */
+  const rowCollisionDetection = useMemo<CollisionDetection>(() => {
+    const ids = new Set(rowIds);
+    return (args) =>
+      closestCenter({
+        ...args,
+        droppableContainers: args.droppableContainers.filter((container) =>
+          ids.has(String(container.id)),
+        ),
+      });
+  }, [rowIds]);
   const displayedRowData = useMemo(
     () => displayedRows.map((r) => r.original),
     [displayedRows],
   );
 
+  // Recomposée depuis les lignes VIVES, pour que les éditions se voient, mais
+  // dans l'ordre figé à l'ouverture.
+  const recordRows = useMemo(() => {
+    if (!record) return [];
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return record.rowIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
+  }, [record, rows]);
+
+  // Seule la suppression referme la fiche.
   useEffect(() => {
-    if (recordRowId && !displayedRowData.some((r) => r.id === recordRowId)) {
-      setRecordRowId(null);
+    if (record && !rows.some((r) => r.id === record.rowId)) setRecord(null);
+  }, [record, rows]);
+
+  // `applyFilters` ignore déjà les filtres dont la colonne n'existe plus, mais
+  // `canReorderRows` et `showGhostRow` comptaient les conditions, pas leur effet :
+  // supprimer une colonne filtrée laissait la grille sans ligne fantôme et sans
+  // réordonnancement, avec un compteur qui annonçait « non filtré ».
+  useEffect(() => {
+    setFilters((prev) => {
+      const alive = prev.filter((f) => columnsById.has(f.columnId));
+      return alive.length === prev.length ? prev : alive;
+    });
+  }, [columnsById]);
+
+  useEffect(() => {
+    if (optionsDialogColumnId && !columnsById.has(optionsDialogColumnId)) {
+      setOptionsDialogColumnId(null);
     }
-  }, [recordRowId, displayedRowData]);
+  }, [optionsDialogColumnId, columnsById]);
 
   const optionsDialogColumn = optionsDialogColumnId
     ? columnsById.get(optionsDialogColumnId)
     : undefined;
 
   const leafColumns = table.getVisibleLeafColumns();
-  const showGhostRow =
-    !readOnly &&
-    tableColumns.length > 0 &&
-    globalFilter === "" &&
-    filters.length === 0;
+  // La ligne fantôme reste visible sous recherche, filtre ou tri : c'est le seul
+  // moyen d'ajouter une ligne, et la masquer transformait « je ne trouve pas,
+  // donc je l'ajoute » en impasse. Comme une ligne vide ne passerait aucun
+  // filtre et se rangerait n'importe où sous un tri, le clic remet la vue à plat
+  // avant de créer, pour que la ligne créée soit celle qu'on voit.
+  const showGhostRow = !readOnly && tableColumns.length > 0;
+  const viewIsNarrowed =
+    globalFilter !== "" || filters.length > 0 || sorting.length > 0;
   const hasSummary = tableColumns.some((c) => c.summary);
 
   if (tableColumns.length === 0) {
@@ -721,8 +779,18 @@ export function Table({
           readOnly={readOnly}
         />
 
+        {/*
+          `<table>` nu, et non le `Table` de shadcn : celui-ci s'enveloppe dans
+          un `<div className="overflow-x-auto">`, et `overflow-x: auto` force
+          `overflow-y` à calculer `auto`. Ce wrapper devenait donc le scrollport
+          le plus proche des `sticky` de l'en-tête et du pied — un scrollport à
+          la hauteur de son contenu, qui ne défile jamais, pendant que le div
+          extérieur défilait. Résultat : passé une quinzaine de lignes,
+          l'en-tête s'en allait.
+        */}
         <div className="min-h-0 flex-1 overflow-auto">
-          <ShadcnTable
+          <table
+            className="w-full caption-bottom"
             style={{ tableLayout: "fixed", width: table.getTotalSize() }}
           >
             <TableHeader>
@@ -788,7 +856,7 @@ export function Table({
               ))}
             </TableHeader>
             <DndContext
-              collisionDetection={closestCenter}
+              collisionDetection={rowCollisionDetection}
               modifiers={[restrictToVerticalAxis]}
               onDragEnd={handleRowDragEnd}
               sensors={sensors}
@@ -837,7 +905,12 @@ export function Table({
                                     attributes={attributes}
                                     listeners={listeners}
                                     setActivatorNodeRef={setActivatorNodeRef}
-                                    onExpand={() => setRecordRowId(row.id)}
+                                    onExpand={() =>
+                                      setRecord({
+                                        rowId: row.id,
+                                        rowIds: displayedRowData.map((r) => r.id),
+                                      })
+                                    }
                                   />
                                 </TableCell>
                               );
@@ -884,25 +957,36 @@ export function Table({
                   ))}
                 </SortableContext>
                 {showGhostRow && (
-                  <GhostRow
-                    leafColumns={leafColumns}
-                    onCreate={createRowAndEdit}
-                  />
+                  <SortableContext
+                    items={sortableColumnIds}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <GhostRow
+                      leafColumns={leafColumns}
+                      clearsView={viewIsNarrowed}
+                      onCreate={createRowAndEdit}
+                    />
+                  </SortableContext>
                 )}
               </TableBody>
             </DndContext>
             {(hasSummary || !readOnly) && (
-              <SummaryFooter
-                leafColumns={leafColumns}
-                columnsById={columnsById}
-                rows={displayedRowData}
-                readOnly={readOnly || !onColumnSummaryChange}
-                onSummaryChange={(colId, kind) =>
-                  onColumnSummaryChange?.(colId, kind)
-                }
-              />
+              <SortableContext
+                items={sortableColumnIds}
+                strategy={horizontalListSortingStrategy}
+              >
+                <SummaryFooter
+                  leafColumns={leafColumns}
+                  columnsById={columnsById}
+                  rows={displayedRowData}
+                  readOnly={readOnly || !onColumnSummaryChange}
+                  onSummaryChange={(colId, kind) =>
+                    onColumnSummaryChange?.(colId, kind)
+                  }
+                />
+              </SortableContext>
             )}
-          </ShadcnTable>
+          </table>
         </div>
       </div>
 
@@ -921,17 +1005,19 @@ export function Table({
         />
       )}
 
-      {recordRowId && (
+      {record && (
         <RowRecordDialog
           open={true}
           onOpenChange={(open) => {
-            if (!open) setRecordRowId(null);
+            if (!open) setRecord(null);
           }}
           columns={tableColumns}
-          rows={displayedRowData}
-          rowId={recordRowId}
+          rows={recordRows}
+          rowId={record.rowId}
           readOnly={readOnly}
-          onNavigate={setRecordRowId}
+          onNavigate={(rowId) =>
+            setRecord((current) => (current ? { ...current, rowId } : current))
+          }
           onCellChange={(rowId, colId, value) =>
             onCellChange?.(rowId, colId, value)
           }

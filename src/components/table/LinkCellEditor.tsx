@@ -51,7 +51,7 @@ export function LinkCellEditor({
     try {
       new URL(url);
     } catch {
-      toast.error("URL invalide");
+      toast.error("Invalid URL");
       return;
     }
     setIsLoading(true);
@@ -132,7 +132,7 @@ export function LinkCellEditor({
           />
           <Input
             type="text"
-            placeholder="Titre (optionnel)"
+            placeholder="Title (optional)"
             value={linkTitle}
             onChange={(e) => setLinkTitle(e.target.value)}
             onKeyDown={(e) => {

@@ -56,21 +56,50 @@ function link(label: string, url: string): string {
 }
 
 /** Escape des `|` et des retours ligne, pour une cellule de table GFM. */
-function tableCell(value: unknown, type?: string): string {
+function escapeTableCell(text: string): string {
+  return text.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
+/**
+ * Une cellule de table en Markdown GFM.
+ *
+ * Le type de colonne est nécessaire : sans lui, un document rich text, un
+ * tableau d'ids de select et une référence de node sortent tous en
+ * `String(value)`, c'est-à-dire en JSON, en UUID bruts et en
+ * « [object Object] ».
+ */
+function tableCell(
+  value: unknown,
+  type?: string,
+  options?: Array<Record<string, unknown>>,
+): string {
   if (value === null || value === undefined) return "";
-  // Une cellule rich text stocke un document : `String()` y donnerait
-  // « [object Object] ». Le type vient de la colonne, seul endroit qui le sait.
-  if (type === "richtext") {
-    return richTextToPlainText(value)
-      .replace(/\|/g, "\\|")
-      .replace(/\r?\n/g, " ");
+
+  if (type === "richtext") return escapeTableCell(richTextToPlainText(value));
+
+  if (type === "select" && Array.isArray(value)) {
+    const byId = new Map(
+      (options ?? []).map((o) => [asString(o.id), asString(o.label)]),
+    );
+    return escapeTableCell(
+      value
+        .map((id) => byId.get(asString(id)))
+        .filter((label): label is string => !!label)
+        .join(", "),
+    );
   }
+
   const record = asRecord(value);
   if (record && typeof record.href === "string") {
     return link(asString(record.pageTitle), record.href).replace(/\|/g, "\\|");
   }
+  // Une cellule node ne porte qu'un id ; l'exposer vaut mieux que de laisser
+  // sortir « [object Object] », et il reste résolvable dans `nodes.json`.
+  if (record && typeof record.nodeId === "string") {
+    return escapeTableCell(record.nodeId);
+  }
   if (typeof value === "boolean") return value ? "x" : "";
-  return String(value).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+  return escapeTableCell(String(value));
 }
 
 // ── Rich text ──────────────────────────────────────────────────────────────
@@ -172,7 +201,13 @@ async function renderBody(
         const cells = asRecord(asRecord(row)?.cells) ?? {};
         return `| ${columns
           .map((column) =>
-            tableCell(cells[asString(column.id)], asString(column.type)),
+            tableCell(
+              cells[asString(column.id)],
+              asString(column.type),
+              asArray(column.options)
+                .map(asRecord)
+                .filter((o): o is Record<string, unknown> => o !== null),
+            ),
           )
           .join(" | ")} |`;
       });

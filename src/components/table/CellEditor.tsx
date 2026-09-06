@@ -178,7 +178,15 @@ export function CellEditor({
           defaultValue={value != null ? String(value) : ""}
           className="h-7"
           onBlur={(e) => {
-            onChange(e.target.value !== "" ? Number(e.target.value) : null);
+            // `<input type="number">` rend une chaîne vide pour un contenu que
+            // le navigateur juge invalide (« 1e », « 1-2 ») : publier ça
+            // effaçait la cellule. On ne publie que si la valeur a changé, sinon
+            // entrer puis sortir d'une cellule suffisait à marquer la fenêtre
+            // comme modifiée.
+            const raw = e.target.value;
+            const next = raw !== "" ? Number(raw) : null;
+            const isBrowserInvalid = raw === "" && !e.target.validity.valid;
+            if (!isBrowserInvalid && next !== (value ?? null)) onChange(next);
             onBlur();
           }}
           onKeyDown={(e) => {

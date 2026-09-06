@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Column } from "@tanstack/react-table";
 import {
   TbArrowDown,
@@ -21,9 +21,15 @@ export interface ColumnMenuProps {
   col: TableColumn;
   tanstackCol: Column<TableRowData, unknown>;
   readOnly?: boolean;
+  /**
+   * Le nom en cours de saisie est tenu par `ColHeader`, qui le publie à la
+   * fermeture du popover — y compris sur un clic à l'extérieur, où ce composant
+   * est démonté sans que rien ne s'exécute.
+   */
+  name: string;
+  onNameChange: (name: string) => void;
   /** Nombre de cellules que le changement de type ferait perdre, par type cible. */
   lossyCountFor: (type: ColumnType) => number;
-  onNameChange: (name: string) => void;
   onTypeChange: (type: ColumnType) => void;
   onDelete: () => void;
   onEditOptions?: () => void;
@@ -46,6 +52,7 @@ export function ColumnMenu({
   col,
   tanstackCol,
   readOnly,
+  name,
   lossyCountFor,
   onNameChange,
   onTypeChange,
@@ -53,8 +60,18 @@ export function ColumnMenu({
   onEditOptions,
   onClose,
 }: ColumnMenuProps) {
-  const [name, setName] = useState(col.name);
   const [typePickerOpen, setTypePickerOpen] = useState(false);
+  // Chaque appel balaie toutes les lignes : on ne le fait qu'une fois le
+  // sélecteur ouvert, et une seule fois par type.
+  const lossyCounts = useMemo(() => {
+    if (!typePickerOpen) return null;
+    return new Map(
+      columnTypeEntries().map(([type]) => [
+        type,
+        type === col.type ? 0 : lossyCountFor(type),
+      ]),
+    );
+  }, [typePickerOpen, col.type, lossyCountFor]);
   const inputRef = useRef<HTMLInputElement>(null);
   const sorted = tanstackCol.getIsSorted();
 
@@ -63,18 +80,6 @@ export function ColumnMenu({
     // remplacer, rarement pour compléter.
     inputRef.current?.select();
   }, []);
-
-  // Le nom est publié à la fermeture plutôt qu'à chaque frappe : sans ça,
-  // chaque lettre tapée rejouerait un rendu complet de la grille.
-  const commitName = () => {
-    const next = name.trim();
-    if (next && next !== col.name) onNameChange(next);
-  };
-
-  const closeWithName = () => {
-    commitName();
-    onClose();
-  };
 
   const CurrentIcon = COLUMN_TYPE_CONFIG[col.type].icon;
 
@@ -93,7 +98,7 @@ export function ColumnMenu({
         <div className="flex flex-col gap-0.5">
           {columnTypeEntries().map(([value, config]) => {
             const Icon = config.icon;
-            const lossy = value === col.type ? 0 : lossyCountFor(value);
+            const lossy = lossyCounts?.get(value) ?? 0;
             return (
               <button
                 key={value}
@@ -129,18 +134,18 @@ export function ColumnMenu({
       <Input
         ref={inputRef}
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => onNameChange(e.target.value)}
         placeholder="Column name"
         className="h-8"
         disabled={readOnly}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            closeWithName();
+            onClose();
           }
           if (e.key === "Escape") {
             e.preventDefault();
-            setName(col.name);
+            onNameChange(col.name);
             onClose();
           }
         }}
@@ -150,10 +155,7 @@ export function ColumnMenu({
         <button
           type="button"
           className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-          onClick={() => {
-            commitName();
-            setTypePickerOpen(true);
-          }}
+          onClick={() => setTypePickerOpen(true)}
         >
           <CurrentIcon size={15} className="shrink-0 opacity-70" />
           <span className="flex-1 text-left">
@@ -171,7 +173,7 @@ export function ColumnMenu({
         active={sorted === "asc"}
         onClick={() => {
           tanstackCol.toggleSorting(false);
-          closeWithName();
+          onClose();
         }}
       />
       <MenuItem
@@ -180,7 +182,7 @@ export function ColumnMenu({
         active={sorted === "desc"}
         onClick={() => {
           tanstackCol.toggleSorting(true);
-          closeWithName();
+          onClose();
         }}
       />
       {sorted && (
@@ -189,7 +191,7 @@ export function ColumnMenu({
           label="Clear sort"
           onClick={() => {
             tanstackCol.clearSorting();
-            closeWithName();
+            onClose();
           }}
         />
       )}
@@ -201,7 +203,6 @@ export function ColumnMenu({
             icon={<TbList size={15} />}
             label="Edit options…"
             onClick={() => {
-              commitName();
               onEditOptions();
               onClose();
             }}

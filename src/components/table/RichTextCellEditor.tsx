@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Block } from "@blocknote/core";
 import BlockNoteFieldEditor from "@/components/blocknote/BlockNoteFieldEditor";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
@@ -10,12 +10,11 @@ import {
 import { stringifyBlockNoteDocumentForStorage } from "@/../convex/lib/blockNoteDocument";
 import { cn } from "@/lib/utils";
 import { parseRichTextCell } from "./richText";
-import { ROW_HEIGHT_CONFIG, type RowHeight } from "./types";
+import { maxHeightForRowHeight, type RowHeight } from "./types";
 
 export interface RichTextCellEditorProps {
   value: unknown;
   isEditing: boolean;
-  readOnly?: boolean;
   rowHeight: RowHeight;
   onClick: () => void;
   onChange: (value: string) => void;
@@ -37,13 +36,14 @@ export interface RichTextCellEditorProps {
 export function RichTextCellEditor({
   value,
   isEditing,
-  readOnly,
   rowHeight,
   onClick,
   onChange,
   onBlur,
 }: RichTextCellEditorProps) {
-  const doc = parseRichTextCell(value);
+  // Mémoïsé : sans ça le `memo` de BlockNoteStatic ne prend jamais, puisqu'il
+  // reçoit un tableau neuf à chaque rendu.
+  const doc = useMemo(() => parseRichTextCell(value), [value]);
   const pendingRef = useRef<string | null>(null);
 
   const handleDocChange = useCallback((blocks: Block[]) => {
@@ -64,13 +64,13 @@ export function RichTextCellEditor({
       className={cn(
         // `bn-readonly-container` porte les styles du rendu statique.
         "bn-readonly-container w-full min-h-[1.4em] overflow-hidden rounded px-1 text-sm",
-        !readOnly && "cursor-text hover:bg-muted/50",
+        "cursor-text hover:bg-muted/50",
       )}
       // Le clamp passe par la hauteur du conteneur et non par `line-clamp` : le
       // contenu est un arbre de blocs, couper à N lignes de texte n'aurait pas
       // de sens sur une liste (même parti pris que RichTextExcerptView).
-      style={{ maxHeight: `${ROW_HEIGHT_CONFIG[rowHeight].lines * 1.5}em` }}
-      onClick={readOnly ? undefined : onClick}
+      style={maxHeightForRowHeight(rowHeight)}
+      onClick={onClick}
     >
       {doc ? (
         <BlockNoteStatic blocks={doc} />
@@ -79,8 +79,6 @@ export function RichTextCellEditor({
       )}
     </div>
   );
-
-  if (readOnly) return preview;
 
   return (
     <Popover

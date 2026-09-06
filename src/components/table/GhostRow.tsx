@@ -1,14 +1,18 @@
-import type { CSSProperties } from "react";
 import type { Column } from "@tanstack/react-table";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { TbPlus } from "react-icons/tb";
 import { TableCell, TableRow } from "@/components/shadcn/table";
 import { GUTTER_COLUMN_ID, ACTIONS_COLUMN_ID } from "./columnIds";
+import { useSortableCellStyle } from "./sortableCell";
 import type { TableRowData } from "./types";
 
 export interface GhostRowProps {
   leafColumns: Column<TableRowData, unknown>[];
+  /**
+   * Vrai quand un tri, une recherche ou un filtre est actif : créer une ligne
+   * remet alors la vue à plat, et l'annoncer évite que les filtres semblent
+   * disparaître tout seuls.
+   */
+  clearsView?: boolean;
   /** Reçoit la colonne cliquée pour ouvrir directement le bon éditeur. */
   onCreate: (columnId: string) => void;
 }
@@ -27,7 +31,7 @@ export interface GhostRowProps {
  * réellement la ligne puis ouvre l'éditeur de CETTE cellule : on enchaîne
  * directement sur la frappe, sans second geste.
  */
-export function GhostRow({ leafColumns, onCreate }: GhostRowProps) {
+export function GhostRow({ leafColumns, clearsView, onCreate }: GhostRowProps) {
   let firstDataColumnSeen = false;
 
   return (
@@ -51,7 +55,13 @@ export function GhostRow({ leafColumns, onCreate }: GhostRowProps) {
           <GhostCell
             key={column.id}
             column={column}
-            label={isFirstDataColumn ? "New row" : ""}
+            label={
+              isFirstDataColumn
+                ? clearsView
+                  ? "New row — clears the current view"
+                  : "New row"
+                : ""
+            }
             onClick={() => onCreate(column.id)}
           />
         );
@@ -61,8 +71,8 @@ export function GhostRow({ leafColumns, onCreate }: GhostRowProps) {
 }
 
 /**
- * Sans `useSortable`, les cellules de la ligne fantôme resteraient sur place
- * pendant qu'on déplace une colonne, alors que tout le reste du tableau suit.
+ * Sans le hook, les cellules de la ligne fantôme resteraient sur place pendant
+ * qu'on déplace une colonne, alors que tout le reste du tableau suit.
  */
 function GhostCell({
   column,
@@ -73,15 +83,7 @@ function GhostCell({
   label: string;
   onClick: () => void;
 }) {
-  const { isDragging, setNodeRef, transform } = useSortable({ id: column.id });
-  const style: CSSProperties = {
-    opacity: isDragging ? 0.8 : 1,
-    position: "relative",
-    transform: CSS.Translate.toString(transform),
-    transition: "width transform 0.2s ease-in-out",
-    width: column.getSize(),
-    overflow: "hidden",
-  };
+  const { setNodeRef, style } = useSortableCellStyle(column.id, column.getSize());
   return (
     <TableCell ref={setNodeRef} style={style} className="align-top" onClick={onClick}>
       <span className="block min-h-[1.4em] truncate px-1 text-sm">{label}</span>

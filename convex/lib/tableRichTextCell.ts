@@ -66,7 +66,3 @@ export function richTextFromPlainText(text: string): string {
   }));
   return stringifyBlockNoteDocumentForStorage(blocks);
 }
-
-export function isRichTextEmpty(value: unknown): boolean {
-  return richTextToPlainText(value).trim().length === 0;
-}

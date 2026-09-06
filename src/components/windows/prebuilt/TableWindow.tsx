@@ -160,9 +160,9 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
             : { ...rest, type, summary: undefined };
         }),
       );
-      // Avant, changer de type vidait TOUTES les cellules de la colonne. On
-      // convertit désormais ce qui peut l'être (texte <-> rich text, nombres,
-      // dates, liens, labels de select) ; le reste retombe sur null comme avant.
+      // `coerceCellValue` préserve ce qui a un sens (texte <-> rich text,
+      // nombres, dates, liens, libellés de select) ; le menu de colonne annonce
+      // combien de cellules la conversion effacera avant qu'on la déclenche.
       setLocalRows((rows) =>
         rows.map((row) => ({
           ...row,

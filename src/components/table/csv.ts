@@ -20,6 +20,9 @@ import type {
  * Convert a single cell value to a string suitable for a CSV field.
  * Papa Parse handles quoting/escaping of special characters (commas, quotes,
  * newlines), so we just need to produce a faithful string representation.
+ *
+ * Takes the whole column, not just its type: select cells hold option ids and
+ * need the column's option list to come back out as labels.
  */
 function cellToCsvString(value: CellValue, column: TableColumn): string {
   if (value == null) return "";

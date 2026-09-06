@@ -28,16 +28,10 @@ export interface ColHeaderProps {
 /**
  * En-tête d'une colonne.
  *
- * Deux changements par rapport à l'ancienne version :
- *
- * - l'icône du type est affichée en permanence, donc on sait ce que contient
- *   une colonne sans ouvrir quoi que ce soit ;
- * - tout l'en-tête ouvre le menu, dont le champ de nom est le premier élément.
- *   Avant, renommer supposait de deviner que le texte était cliquable, et le
- *   menu — la seule affordance visible — ne proposait pas de renommer.
- *
- * Le double-clic garde un renommage inline direct, pour qui connaît déjà le
- * geste.
+ * L'icône du type est affichée en permanence : on sait ce que contient une
+ * colonne sans rien ouvrir. Tout l'en-tête ouvre le menu, dont le champ de nom
+ * est le premier élément — renommer est le geste le plus fréquent, il doit être
+ * le plus visible. Le double-clic garde un renommage inline direct.
  */
 export function ColHeader({
   col,

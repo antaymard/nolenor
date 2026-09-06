@@ -7,14 +7,10 @@ import type { CellValue, ColumnType, LinkCellValue, TableColumn } from "./types"
 /**
  * Conversion d'une cellule quand la colonne change de type.
  *
- * Avant, changer le type d'une colonne remettait TOUTES ses cellules à `null`.
- * C'était déjà brutal ; avec l'arrivée du type `richtext` ça rendait le nouveau
- * type inutilisable, puisque passer une colonne texte remplie en rich text
- * aurait effacé son contenu.
- *
  * On ne cherche pas l'exhaustivité : on préserve les conversions qui ont un sens
- * évident (texte <-> rich text, texte <-> nombre, dates, liens, labels de
- * select) et on retombe sur `null` pour le reste — le comportement historique.
+ * évident (texte <-> rich text, texte <-> nombre, dates, liens, libellés de
+ * select) et on rend `null` pour le reste, ce que le menu annonce avant de
+ * l'appliquer.
  */
 
 /**

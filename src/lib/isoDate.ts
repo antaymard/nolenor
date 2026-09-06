@@ -45,27 +45,37 @@ export function formatAbsoluteDate(value: unknown): string | undefined {
   });
 }
 
+const MONTH_NAME =
+  /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i;
+const NUMERIC_DATE = /\b\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}\b/;
+
 /**
  * Texte libre -> "YYYY-MM-DD", ou `null` si ça ne ressemble pas à une date.
  *
  * Utilisé par l'import CSV et par la conversion d'une colonne texte en date.
- * Deux garde-fous appris à nos dépens :
  *
- * - une chaîne uniquement numérique est refusée, sinon `new Date("5")` rendait
- *   `2001-05-01` et convertir une colonne de nombres inventait des dates ;
- * - une date déjà ISO est découpée, pas reparsée, pour ne pas repasser par le
- *   fuseau.
+ * Le point délicat est que `new Date()` accepte beaucoup trop : son analyseur
+ * de repli lit `"Task number 8"` comme le 1er août 2001 et `"5"` comme le
+ * 1er mai 2001. Convertir une colonne texte quelconque en date inventait donc
+ * des dates, et l'étiquette « Clears N cells » les comptait comme des
+ * conversions réussies. On exige maintenant une forme reconnaissable avant de
+ * lui passer la main : soit des chiffres séparés, soit un nom de mois.
  *
- * Reste l'ambiguïté que JavaScript ne tranche pas : `"05/03/2024"` est lu à
- * l'américaine (3 mai). On ne devine pas la locale de l'utilisateur ici.
+ * Une date déjà ISO est découpée, pas reparsée, pour ne pas repasser par le
+ * fuseau. Reste l'ambiguïté que JavaScript ne tranche pas et que nous ne
+ * devinerons pas non plus : `"05/03/2024"` est lu à l'américaine (3 mai).
  */
 export function coerceToIsoDate(text: string): string | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
-  if (/^\d+$/.test(trimmed)) return null;
 
   const isoDay = /^\d{4}-\d{2}-\d{2}/.exec(trimmed);
   if (isoDay) return isoDay[0];
+
+  const looksLikeDate =
+    NUMERIC_DATE.test(trimmed) ||
+    (MONTH_NAME.test(trimmed) && /\d/.test(trimmed));
+  if (!looksLikeDate) return null;
 
   const parsed = new Date(trimmed);
   return Number.isNaN(parsed.getTime()) ? null : toIsoDate(parsed);

@@ -7,7 +7,6 @@
  * fichier n'est qu'un point d'entrée pour le dossier `table/`.
  */
 export {
-  isRichTextEmpty,
   parseRichTextCell,
   richTextFromPlainText,
   richTextToPlainText,

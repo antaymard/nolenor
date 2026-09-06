@@ -21,15 +21,12 @@ export interface TextCellEditorProps {
 /**
  * Cellule texte multiligne.
  *
- * L'ancien éditeur était un `<input>` : aucun retour à la ligne possible, et la
- * valeur restait coupée à la largeur de la colonne pendant la frappe. Ici la
- * saisie se fait dans un `<textarea>` porté par un Popover ancré sur la
- * cellule — ce qui contourne d'un coup les trois couches de clipping de la
- * grille (`truncate`, le `whitespace-nowrap` du TableCell shadcn, et
- * l'`overflow: hidden` de la cellule draggable) sans y toucher.
- *
- * Le Popover est aussi le motif déjà utilisé par les cellules date, link, node
- * et select : rien de nouveau à apprendre pour la suite du dossier.
+ * La saisie se fait dans un `<textarea>` porté par un Popover ancré sur la
+ * cellule : c'est ce qui contourne les trois couches de clipping de la grille —
+ * le clamp de hauteur de ligne, le `whitespace-nowrap` du TableCell shadcn, et
+ * l'`overflow: hidden` de la cellule déplaçable — sans avoir à toucher aucune
+ * des trois. Le Popover est aussi le motif des cellules date, link, node et
+ * select.
  */
 export function TextCellEditor({
   value,

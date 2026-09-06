@@ -20,16 +20,11 @@ export interface GhostRowProps {
 /**
  * La ligne fantôme, en dernière position du corps du tableau.
  *
- * Elle remplace l'ancien bouton « Add row » : un `Button` en `absolute
- * bottom-3 left-3` posé par la fenêtre PAR-DESSUS la zone de scroll, que la
- * grille devait compenser par un `pb-20` pour qu'il ne recouvre pas la dernière
- * ligne. On ne voyait donc pas où on ajoutait, et le bouton flottait au-dessus
- * des données.
- *
- * Ici l'affordance est à sa place — après la dernière ligne, à la bonne largeur
- * de colonne — et cliquer dans n'importe laquelle de ses cellules crée
- * réellement la ligne puis ouvre l'éditeur de CETTE cellule : on enchaîne
- * directement sur la frappe, sans second geste.
+ * C'est la seule façon d'ajouter une ligne, d'où deux exigences : elle reste
+ * visible quel que soit le tri ou le filtre (sans quoi « je ne trouve pas, donc
+ * je l'ajoute » serait une impasse), et cliquer dans n'importe laquelle de ses
+ * cellules crée la ligne PUIS ouvre l'éditeur de cette cellule-là, pour qu'on
+ * enchaîne sur la frappe sans second geste.
  */
 export function GhostRow({ leafColumns, clearsView, onCreate }: GhostRowProps) {
   let firstDataColumnSeen = false;

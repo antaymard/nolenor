@@ -33,13 +33,7 @@ export interface TableToolbarProps {
   readOnly?: boolean;
 }
 
-/**
- * Barre d'outils de la grille.
- *
- * La recherche occupait avant une bande pleine largeur au-dessus du tableau,
- * pour un champ utilisé de temps en temps. Elle rejoint ici les autres réglages
- * de vue, et la place gagnée revient aux données.
- */
+/** Barre d'outils de la grille : recherche, filtres, hauteur de ligne, compteur. */
 export function TableToolbar({
   columns,
   search,

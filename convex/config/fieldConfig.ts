@@ -82,7 +82,10 @@ function getNumberUnit(field: TemplateField): string | undefined {
 // front ET analysé par Convex au déploiement.
 // `extractInlineText` est le même helper que celui utilisé par les nodes
 // blocknote prébuilts (titres, état vide, recherche) : une seule définition de
-// « texte visible d'un document » pour toute l'app.
+// « texte visible d'un document » pour les CHAMPS. Les cellules rich text des
+// tables ont la leur, `richTextToPlainText` (convex/lib/tableRichTextCell) :
+// elle joint par des sauts de ligne et garde les paragraphes vides, là où
+// celle-ci compacte pour l'affichage et la recherche.
 function extractRichTextText(value: unknown): string | null {
   const parsed = parseStoredBlockNoteDocument(value);
   if (!parsed || parsed.length === 0) return null;

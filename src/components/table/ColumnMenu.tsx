@@ -37,16 +37,11 @@ export interface ColumnMenuProps {
 }
 
 /**
- * Le menu d'une colonne, ouvert au clic sur son en-tête.
+ * Le menu d'une colonne, ouvert au clic sur son en-tête. Le champ de nom en est
+ * la première chose, et il est déjà focus.
  *
- * Avant, renommer une colonne demandait de deviner que le TEXTE de l'en-tête
- * était cliquable (seul indice : un `hover:underline`), pendant que le menu
- * déroulant — la vraie affordance, celle qui porte le chevron — ne proposait
- * pas « Renommer ». Ici le champ de nom est la première chose du menu et il est
- * déjà focus : le geste principal est aussi le plus visible.
- *
- * C'est un Popover et non un DropdownMenu : le menu Radix capte les touches
- * pour son typeahead, ce qui rend un champ texte inutilisable à l'intérieur.
+ * Un Popover et non un DropdownMenu : le menu Radix capte les touches pour son
+ * typeahead, ce qui rend un champ texte inutilisable à l'intérieur.
  */
 export function ColumnMenu({
   col,

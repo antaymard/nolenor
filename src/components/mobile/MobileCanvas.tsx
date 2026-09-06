@@ -109,6 +109,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
                 canvasId={canvasId}
                 canvasNodes={canvas.nodes as CanvasNode[] | undefined}
                 canvasEdges={canvas.edges}
+                background={canvas.background}
                 canEdit={canEdit}
               />
             </MobileTabPanel>

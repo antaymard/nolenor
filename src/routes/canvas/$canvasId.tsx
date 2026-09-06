@@ -117,6 +117,7 @@ function CanvasContent({
         canvasId={canvasId}
         canvasNodes={canvas.nodes as CanvasNode[] | undefined}
         canvasEdges={canvas.edges}
+        background={canvas.background}
         canEdit={canvas._permission !== "viewer"}
         variant="desktop"
       >

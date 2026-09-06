@@ -157,6 +157,26 @@ export async function updateCanvasDetails(
   return canvasId;
 }
 
+export async function setCanvasBackground(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    background,
+  }: {
+    canvasId: Id<"canvases">;
+    background: NonNullable<Doc<"canvases">["background"]>;
+  },
+): Promise<Id<"canvases">> {
+  await getCanvasOrThrow(ctx, canvasId);
+
+  await ctx.db.patch("canvases", canvasId, {
+    background,
+    updatedAt: Date.now(),
+  });
+
+  return canvasId;
+}
+
 export async function deleteCanvasAndShares(
   ctx: MutationCtx,
   {

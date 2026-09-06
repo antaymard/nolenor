@@ -3,17 +3,20 @@ import { Panel, type Edge } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { CanvasNode } from "@/types/convex";
 import CanvasFlow from "@/components/canvas/CanvasFlow";
+import type { CanvasBackground } from "@/lib/canvasBackground";
 import MobileCanvasToolbar from "./MobileCanvasToolbar";
 
 export default function MobileCanvasTab({
   canvasId,
   canvasNodes,
   canvasEdges,
+  background,
   canEdit,
 }: {
   canvasId: Id<"canvases">;
   canvasNodes: CanvasNode[] | undefined;
   canvasEdges: Edge[] | undefined;
+  background?: CanvasBackground;
   canEdit: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -24,6 +27,7 @@ export default function MobileCanvasTab({
         canvasId={canvasId}
         canvasNodes={canvasNodes}
         canvasEdges={canvasEdges}
+        background={background}
         canEdit={canEdit}
         variant="touch"
       >

@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsTemplatesRouteImport } from './routes/settings/templates'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
+import { Route as SettingsMemoriesRouteImport } from './routes/settings/memories'
 import { Route as SettingsExportRouteImport } from './routes/settings/export'
 import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
 import { Route as SettingsAiUsageRouteImport } from './routes/settings/ai-usage'
@@ -51,6 +52,11 @@ const SettingsTemplatesRoute = SettingsTemplatesRouteImport.update({
 const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsMemoriesRoute = SettingsMemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsExportRoute = SettingsExportRouteImport.update({
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
+  '/settings/memories': typeof SettingsMemoriesRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/': typeof SettingsIndexRoute
@@ -113,6 +120,7 @@ export interface FileRoutesByTo {
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
+  '/settings/memories': typeof SettingsMemoriesRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
   '/settings': typeof SettingsIndexRoute
@@ -129,6 +137,7 @@ export interface FileRoutesById {
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/settings/export': typeof SettingsExportRoute
+  '/settings/memories': typeof SettingsMemoriesRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/': typeof SettingsIndexRoute
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
     | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
+    | '/settings/memories'
     | '/settings/skills'
     | '/settings/templates'
     | '/settings/'
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
+    | '/settings/memories'
     | '/settings/skills'
     | '/settings/templates'
     | '/settings'
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/settings/ai-usage'
     | '/settings/api-tokens'
     | '/settings/export'
+    | '/settings/memories'
     | '/settings/skills'
     | '/settings/templates'
     | '/settings/'
@@ -231,6 +243,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/settings/skills'
       preLoaderRoute: typeof SettingsSkillsRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/memories': {
+      id: '/settings/memories'
+      path: '/memories'
+      fullPath: '/settings/memories'
+      preLoaderRoute: typeof SettingsMemoriesRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
     '/settings/export': {
@@ -290,6 +309,7 @@ interface SettingsRouteRouteChildren {
   SettingsAiUsageRoute: typeof SettingsAiUsageRoute
   SettingsApiTokensRoute: typeof SettingsApiTokensRoute
   SettingsExportRoute: typeof SettingsExportRoute
+  SettingsMemoriesRoute: typeof SettingsMemoriesRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsTemplatesRoute: typeof SettingsTemplatesRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -302,6 +322,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAiUsageRoute: SettingsAiUsageRoute,
   SettingsApiTokensRoute: SettingsApiTokensRoute,
   SettingsExportRoute: SettingsExportRoute,
+  SettingsMemoriesRoute: SettingsMemoriesRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsTemplatesRoute: SettingsTemplatesRoute,
   SettingsIndexRoute: SettingsIndexRoute,

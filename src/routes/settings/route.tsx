@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import type { IconType } from "react-icons";
 import {
+  TbBrain,
   TbCategory,
   TbChartBar,
   TbFileExport,
@@ -9,6 +10,7 @@ import {
   TbListDetails,
   TbBulb,
   TbMenu2,
+  TbPalette,
   TbUser,
   TbX,
 } from "react-icons/tb";
@@ -62,6 +64,8 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
         devOnly: true,
       },
       { label: "Skills", icon: TbBulb, route: "/settings/skills" },
+      { label: "Canvas", icon: TbPalette, route: "/settings/canvas" },
+      { label: "Agent Memory", icon: TbBrain, route: "/settings/memories" },
       {
         label: "Recipes",
         icon: TbListDetails,

@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as CanvasModels from "./models/canvasModels";
+import { canvasBackgroundValidator } from "./schemas/canvasesSchema";
 
 export const getLastModified = query({
   args: {},
@@ -109,6 +110,23 @@ export const updateCanvasDetails = mutation({
       canvasId: args.canvasId,
       name: args.name,
       description: args.description,
+    });
+  },
+});
+
+export const updateCanvasBackground = mutation({
+  args: {
+    canvasId: v.id("canvases"),
+    background: canvasBackgroundValidator,
+  },
+  returns: v.id("canvases"),
+  handler: async (ctx, args) => {
+    const authUserId = await requireAuth(ctx);
+    await requireCanvasAccess(ctx, args.canvasId, authUserId, "owner");
+
+    return await CanvasModels.setCanvasBackground(ctx, {
+      canvasId: args.canvasId,
+      background: args.background,
     });
   },
 });

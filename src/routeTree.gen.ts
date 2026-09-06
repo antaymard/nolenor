@@ -15,7 +15,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsTemplatesRouteImport } from './routes/settings/templates'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
+import { Route as SettingsMemoriesRouteImport } from './routes/settings/memories'
 import { Route as SettingsExportRouteImport } from './routes/settings/export'
+import { Route as SettingsCanvasRouteImport } from './routes/settings/canvas'
 import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
 import { Route as SettingsAiUsageRouteImport } from './routes/settings/ai-usage'
 import { Route as SettingsAccountRouteImport } from './routes/settings/account'
@@ -53,9 +55,19 @@ const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsMemoriesRoute = SettingsMemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsExportRoute = SettingsExportRouteImport.update({
   id: '/export',
   path: '/export',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsCanvasRoute = SettingsCanvasRouteImport.update({
+  id: '/canvas',
+  path: '/canvas',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
@@ -98,7 +110,9 @@ export interface FileRoutesByFullPath {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/canvas': typeof SettingsCanvasRoute
   '/settings/export': typeof SettingsExportRoute
+  '/settings/memories': typeof SettingsMemoriesRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/': typeof SettingsIndexRoute
@@ -112,7 +126,9 @@ export interface FileRoutesByTo {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/canvas': typeof SettingsCanvasRoute
   '/settings/export': typeof SettingsExportRoute
+  '/settings/memories': typeof SettingsMemoriesRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
   '/settings': typeof SettingsIndexRoute
@@ -128,7 +144,9 @@ export interface FileRoutesById {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/ai-usage': typeof SettingsAiUsageRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/canvas': typeof SettingsCanvasRoute
   '/settings/export': typeof SettingsExportRoute
+  '/settings/memories': typeof SettingsMemoriesRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
   '/settings/': typeof SettingsIndexRoute
@@ -145,7 +163,9 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
+    | '/settings/canvas'
     | '/settings/export'
+    | '/settings/memories'
     | '/settings/skills'
     | '/settings/templates'
     | '/settings/'
@@ -159,7 +179,9 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
+    | '/settings/canvas'
     | '/settings/export'
+    | '/settings/memories'
     | '/settings/skills'
     | '/settings/templates'
     | '/settings'
@@ -174,7 +196,9 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/ai-usage'
     | '/settings/api-tokens'
+    | '/settings/canvas'
     | '/settings/export'
+    | '/settings/memories'
     | '/settings/skills'
     | '/settings/templates'
     | '/settings/'
@@ -233,11 +257,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSkillsRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/memories': {
+      id: '/settings/memories'
+      path: '/memories'
+      fullPath: '/settings/memories'
+      preLoaderRoute: typeof SettingsMemoriesRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/export': {
       id: '/settings/export'
       path: '/export'
       fullPath: '/settings/export'
       preLoaderRoute: typeof SettingsExportRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/canvas': {
+      id: '/settings/canvas'
+      path: '/canvas'
+      fullPath: '/settings/canvas'
+      preLoaderRoute: typeof SettingsCanvasRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
     '/settings/api-tokens': {
@@ -289,7 +327,9 @@ interface SettingsRouteRouteChildren {
   SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsAiUsageRoute: typeof SettingsAiUsageRoute
   SettingsApiTokensRoute: typeof SettingsApiTokensRoute
+  SettingsCanvasRoute: typeof SettingsCanvasRoute
   SettingsExportRoute: typeof SettingsExportRoute
+  SettingsMemoriesRoute: typeof SettingsMemoriesRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsTemplatesRoute: typeof SettingsTemplatesRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -301,7 +341,9 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAccountRoute: SettingsAccountRoute,
   SettingsAiUsageRoute: SettingsAiUsageRoute,
   SettingsApiTokensRoute: SettingsApiTokensRoute,
+  SettingsCanvasRoute: SettingsCanvasRoute,
   SettingsExportRoute: SettingsExportRoute,
+  SettingsMemoriesRoute: SettingsMemoriesRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsTemplatesRoute: SettingsTemplatesRoute,
   SettingsIndexRoute: SettingsIndexRoute,

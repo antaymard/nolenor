@@ -4,7 +4,6 @@ import {
   SelectionMode,
   MarkerType,
   Background,
-  BackgroundVariant,
   useReactFlow,
   type Connection,
   type Edge,
@@ -31,6 +30,11 @@ import { isEditableTarget } from "@/lib/editableTarget";
 import { withTouchDragGate } from "./touchDragGate";
 import { markCanvasMoved } from "@/lib/canvasPanGesture";
 import { useCanvasStore } from "@/stores/canvasStore";
+import {
+  resolveCanvasBackground,
+  toReactFlowVariant,
+  type CanvasBackground,
+} from "@/lib/canvasBackground";
 import { useEdgeEditorStore } from "@/stores/edgeEditorStore";
 import { useNoleStore } from "@/stores/noleStore";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -52,6 +56,8 @@ interface CanvasFlowProps {
   /** `_permission` du canvas : les viewers ne peuvent pas dupliquer. */
   canEdit: boolean;
   variant: CanvasFlowVariant;
+  /** Fond partagé du canvas ; absent => défauts front (cf. canvasBackground.ts). */
+  background?: CanvasBackground;
   /** Les `<Panel>` propres à la plateforme. */
   children?: ReactNode;
 }
@@ -67,6 +73,7 @@ export default function CanvasFlow({
   canvasEdges,
   canEdit,
   variant,
+  background,
   children,
 }: CanvasFlowProps) {
   const isTouch = variant === "touch";
@@ -211,6 +218,14 @@ export default function CanvasFlow({
     [handleEdgeChange],
   );
 
+  // Fond partagé : stocké sur le doc canvas, défauts front si absent
+  // (nouveaux canvas + anciens sans champ). `none` => pas de motif.
+  const resolvedBackground = useMemo(
+    () => resolveCanvasBackground(background),
+    [background],
+  );
+  const backgroundVariant = toReactFlowVariant(resolvedBackground.variant);
+
   return (
     <>
       {isDraggingOver && <CanvasDropOverlay />}
@@ -260,13 +275,29 @@ export default function CanvasFlow({
         onNodesChange={handleNodeChange}
         onConnect={onConnect}
       >
-        <Background
-          variant={BackgroundVariant.Lines}
-          color="#e2e8f0"
-          bgColor="#f8fafc"
-          gap={20}
-          lineWidth={0.3}
-        />
+        {backgroundVariant ? (
+          <Background
+            variant={backgroundVariant}
+            color={resolvedBackground.patternColor}
+            bgColor={resolvedBackground.bgColor}
+            gap={resolvedBackground.gap}
+            size={
+              resolvedBackground.variant === "lines"
+                ? undefined
+                : resolvedBackground.size
+            }
+            lineWidth={
+              resolvedBackground.variant === "lines"
+                ? resolvedBackground.size
+                : undefined
+            }
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: resolvedBackground.bgColor }}
+          />
+        )}
         {children}
         {contextMenu.type && (
           <ContextMenu

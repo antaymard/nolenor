@@ -3,9 +3,7 @@ import { internal } from "../../_generated/api";
 import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
-
-const MAX_USER_MEMORY_CHARS = 1300;
-const MAX_CANVAS_MEMORY_CHARS = 2500;
+import { formatUsage, maxCharsFor } from "../../lib/memoryLimits";
 
 export const memoryToolConfig: ToolConfig = {
   name: "memory",
@@ -27,11 +25,6 @@ function parseEntries(rawContent?: string | null): string[] {
   } catch {
     return [];
   }
-}
-
-function formatUsage(currentChars: number, maxChars: number): string {
-  const percentage = Math.round((currentChars / maxChars) * 100);
-  return `${percentage}% - ${currentChars}/${maxChars} chars`;
 }
 
 export default function memoryToolFactory({
@@ -74,10 +67,7 @@ export default function memoryToolFactory({
         );
 
         const entries = parseEntries(existingMemory?.content);
-        const maxChars =
-          input.target === "user"
-            ? MAX_USER_MEMORY_CHARS
-            : MAX_CANVAS_MEMORY_CHARS;
+        const maxChars = maxCharsFor(input.target);
 
         const buildSuccessResult = (nextEntries: string[]) => {
           const serialized = JSON.stringify(nextEntries);

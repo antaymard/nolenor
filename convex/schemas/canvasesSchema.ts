@@ -59,6 +59,24 @@ const hotspotsValidator = v.object({
   viewport: v.any(),
 });
 
+// Fond du canvas, partagé en realtime via le doc `canvases`.
+// Tout est optionnel : absent => défauts côté front (gris clair + lignes).
+// `variant: "none"` => pas de motif. `size` = taille dot/cross ou lineWidth.
+const canvasBackgroundValidator = v.object({
+  bgColor: v.optional(v.string()),
+  patternColor: v.optional(v.string()),
+  variant: v.optional(
+    v.union(
+      v.literal("lines"),
+      v.literal("dots"),
+      v.literal("cross"),
+      v.literal("none"),
+    ),
+  ),
+  gap: v.optional(v.number()),
+  size: v.optional(v.number()),
+});
+
 // ── Main validator ──────────────────────────────────────────────────────
 
 const canvasesValidator = v.object({
@@ -79,6 +97,8 @@ const canvasesValidator = v.object({
 
   hotspots: v.optional(v.array(hotspotsValidator)),
 
+  background: v.optional(canvasBackgroundValidator),
+
   updatedAt: v.number(),
 });
 
@@ -87,5 +107,6 @@ export {
   edgesValidator,
   slideshowsValidator,
   hotspotsValidator,
+  canvasBackgroundValidator,
   canvasesValidator,
 };

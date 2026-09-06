@@ -2,14 +2,25 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState, useEffect } from "react";
 import { FcGoogle } from "react-icons/fc";
+import { z } from "zod";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import toast from "react-hot-toast";
 import { useConvexAuth } from "convex/react";
 import { ConvexError } from "convex/values";
 
+// Le site vitrine pointe ici pour l'inscription (`/signin?mode=signup`) :
+// sans ce param, son CTA « Créer un compte » déposerait l'utilisateur sur
+// l'écran de connexion, le pas par défaut de cette route. `.catch()` plutôt
+// que laisser throw : la valeur vient d'un site qu'on ne contrôle pas
+// entièrement, une faute de frappe ne doit pas casser la page.
+const signinSearchSchema = z.object({
+  mode: z.enum(["signin", "signup"]).optional().catch(undefined),
+});
+
 export const Route = createFileRoute("/signin")({
   component: RouteComponent,
+  validateSearch: signinSearchSchema,
 });
 
 const INPUT_CLASSNAME =
@@ -39,7 +50,10 @@ type Step =
 function RouteComponent() {
   const { signIn } = useAuthActions();
   const { isAuthenticated, isLoading } = useConvexAuth();
-  const [step, setStep] = useState<Step>("signIn");
+  const { mode } = Route.useSearch();
+  const [step, setStep] = useState<Step>(
+    mode === "signup" ? "signUp" : "signIn",
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
   const navigate = useNavigate();

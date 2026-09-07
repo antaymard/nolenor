@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { TbFocusCentered, TbLocation, TbMaximize, TbPencil } from "react-icons/tb";
+import { TbCircleChevronRight, TbDirections , TbMaximize, TbPencil } from "react-icons/tb";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
@@ -8,6 +8,7 @@ import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { useFramingMatch, useGoToFraming } from "@/hooks/useViewportFraming";
 import { readFraming } from "@/lib/canvasViewportFraming";
 import { useWindowsStore } from "@/stores/windowsStore";
+import { colors } from "@/components/ui/styles";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import {
@@ -17,7 +18,7 @@ import {
 } from "@/components/shadcn/popover";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import NodeFrame from "../NodeFrame";
-import type { XyNodeProps } from "@/types/domain";
+import type { XyNodeProps, colorsEnum } from "@/types/domain";
 
 /**
  * Un repère de navigation : il porte un cadrage de canvas et un bouton qui y
@@ -68,6 +69,8 @@ function ViewportNode(xyNode: XyNodeProps) {
   const match = useFramingMatch(framing);
 
   const title = typeof values?.title === "string" ? values.title : "";
+
+  const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];
 
   const rename = useCallback(
     (nextTitle: string) => {
@@ -144,7 +147,7 @@ function ViewportNode(xyNode: XyNodeProps) {
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode} resizable={false}>
         <div className="flex h-full min-w-0 items-center gap-2 px-2">
-          <TbFocusCentered
+          <TbDirections
             size={18}
             className="shrink-0"
             title={
@@ -175,20 +178,20 @@ function ViewportNode(xyNode: XyNodeProps) {
             />
           </span>
           <Button
-            size="icon"
+            size="icon-sm"
             variant="ghost"
             // `nodrag` : sans lui le mousedown démarre un drag du node au lieu
             // d'armer le clic. `stopPropagation` sur le dblclick : deux clics
             // rapides ne doivent pas ouvrir la fenêtre par-dessus la
             // navigation (cf. le handler générique de NodeFrame).
-            className="nodrag size-6 shrink-0"
+            className={`nodrag h-6 shrink-0 px-2 ${nodeColor.hoverBg}`}
             disabled={!framing}
             onClick={handleGoTo}
             onDoubleClick={(event) => event.stopPropagation()}
             title="Go to this marker"
             aria-label={`Go to marker ${title || "untitled"}`}
           >
-            <TbLocation />
+            <TbCircleChevronRight size={18} className={`${nodeColor.textColor}`} />
           </Button>
         </div>
       </NodeFrame>

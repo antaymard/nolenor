@@ -4,7 +4,7 @@ import {
   useStore,
   type ReactFlowState,
 } from "@xyflow/react";
-import { TbFocusCentered, TbLocation, TbRefresh, TbTrash } from "react-icons/tb";
+import { TbDirections , TbLocation, TbRefresh, TbTrash } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import { ScrollArea } from "@/components/shadcn/scroll-area";
@@ -167,7 +167,7 @@ function ViewportRow({
                 : "border-transparent bg-transparent",
           )}
         />
-        <TbFocusCentered size={14} className="shrink-0 text-muted-foreground" />
+        <TbDirections  size={14} className="shrink-0 text-muted-foreground" />
         <InlineEditableText
           value={title}
           onSave={rename}

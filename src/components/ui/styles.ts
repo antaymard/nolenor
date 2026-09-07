@@ -6,6 +6,7 @@ const colors = {
     nodeBorder: "border-blue-600",
     accentBg: "bg-blue-500",
     textColor: "text-blue-600",
+    hoverBg: "hover:bg-blue-100",
     hex: "#3b82f6",
   },
   red: {
@@ -15,6 +16,7 @@ const colors = {
     accentBg: "bg-red-500",
     nodeBorder: "border-red-600",
     textColor: "text-red-600",
+    hoverBg: "hover:bg-red-100",
     hex: "#ef4444",
   },
   yellow: {
@@ -24,6 +26,7 @@ const colors = {
     accentBg: "bg-yellow-500",
     nodeBorder: "border-yellow-600",
     textColor: "text-yellow-600",
+    hoverBg: "hover:bg-yellow-100",
     hex: "#eab308",
   },
   green: {
@@ -33,6 +36,7 @@ const colors = {
     nodeBorder: "border-green-600",
     accentBg: "bg-green-500",
     textColor: "text-green-600",
+    hoverBg: "hover:bg-green-100",
     hex: "#22c55e",
   },
   pink: {
@@ -42,6 +46,7 @@ const colors = {
     nodeBorder: "border-pink-600",
     accentBg: "bg-pink-500",
     textColor: "text-pink-600",
+    hoverBg: "hover:bg-pink-100",
     hex: "#ec4899",
   },
   orange: {
@@ -51,6 +56,7 @@ const colors = {
     nodeBorder: "border-orange-600",
     accentBg: "bg-orange-500",
     textColor: "text-orange-600",
+    hoverBg: "hover:bg-orange-100",
     hex: "#f97316",
   },
   purple: {
@@ -60,6 +66,7 @@ const colors = {
     nodeBorder: "border-purple-600",
     accentBg: "bg-purple-500",
     textColor: "text-purple-600",
+    hoverBg: "hover:bg-purple-100",
     hex: "#a855f7",
   },
   default: {
@@ -69,6 +76,7 @@ const colors = {
     nodeBorder: "border-slate-200",
     accentBg: "bg-slate-500",
     textColor: "text-slate-600",
+    hoverBg: "hover:bg-slate-100",
     hex: "#94a3b8",
   },
   transparent: {
@@ -78,6 +86,7 @@ const colors = {
     nodeBorder: "border-transparent",
     textColor: "text-slate-600",
     accentBg: "bg-transparent",
+    hoverBg: "hover:bg-slate-100",
     hex: "#cbd5e1",
   },
 } as const;

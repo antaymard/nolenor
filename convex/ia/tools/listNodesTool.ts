@@ -3,6 +3,7 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import { type Doc, type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { escapeXmlAttribute } from "../../lib/xml";
@@ -107,6 +108,10 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
         // Apply filters
         const filteredNodes = canvasNodes.filter((node) => {
+          // Types invisibles pour l'agent : ils ne sont jamais listés, quels
+          // que soient les filtres demandés.
+          if (!isNodeTypeReadableByAgent(node.type)) return false;
+
           if (input.nodeTypes && input.nodeTypes.length > 0) {
             if (!input.nodeTypes.includes(node.type)) return false;
           }

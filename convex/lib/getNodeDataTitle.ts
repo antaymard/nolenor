@@ -120,6 +120,13 @@ export function getNodeDataTitle(
       return typeof title === "string" ? title : "App";
     }
 
+    case "viewport": {
+      const title = nodeData.values.title;
+      return typeof title === "string" && title.trim().length > 0
+        ? title
+        : "Viewport";
+    }
+
     case "custom": {
       if (template?.titleFieldId) {
         const title = nodeData.values[template.titleFieldId];

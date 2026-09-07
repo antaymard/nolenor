@@ -24,7 +24,6 @@ import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
 import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
-import { useHotspotHotkeys } from "@/hooks/useHotspotHotkeys";
 import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
 import { isEditableTarget } from "@/lib/editableTarget";
 import { withTouchDragGate } from "./touchDragGate";
@@ -40,6 +39,7 @@ import { useNoleStore } from "@/stores/noleStore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useIsTouchFirst } from "@/hooks/useTabletMode";
 import "@xyflow/react/dist/style.css";
+import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
 
 /**
  * `desktop` : souris et clavier, sélection au lasso, menu contextuel.
@@ -111,6 +111,13 @@ export default function CanvasFlow({
         return;
       }
 
+      // Types non mentionnables (cf. `capabilities` dans nodeConfig) :
+      // l'alt+clic est l'autre porte d'entrée vers le chat, elle se ferme
+      // avec la mention.
+      if (node.type && !getNodeCapabilities(node.type).mentionable) {
+        return;
+      }
+
       event.preventDefault();
       addNoleAttachments({ nodes: [fromXyNodeToCanvasNode(node)] }, true);
     },
@@ -155,10 +162,8 @@ export default function CanvasFlow({
     { enabled: canDuplicateNodes && focus === "canvas" },
   );
 
-  // Hotspot keyboard shortcuts (Alt+1 … Alt+9)
-  useHotspotHotkeys();
-
-  // Création d'un node au curseur (T titre, B blocknote, I image, A table)
+  // Création d'un node au curseur (T titre, B blocknote, I image, A table,
+  // V repère de navigation)
   useCreateNodeHotkeys({ canEdit, isTouch });
 
   // Canvas nodes management

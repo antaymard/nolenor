@@ -17,6 +17,7 @@ import TableNode from "./TableNode";
 import AppNode from "./AppNode";
 import AudioNode from "./AudioNode";
 import VideoNode from "./VideoNode";
+import ViewportNode from "./ViewportNode";
 
 type NodeUiConfigItem = {
   nodeComponent: React.ComponentType<XyNodeProps>;
@@ -112,6 +113,13 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.video,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("video"),
     creatable: true,
+  },
+  viewport: {
+    nodeComponent: ViewportNode,
+    nodeIcon: NODE_TYPE_ICON_MAP.viewport,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("viewport"),
+    creatable: true,
+    creationShortcut: "V",
   },
 };
 

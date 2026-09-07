@@ -4,7 +4,7 @@ import type { IconType } from "react-icons";
  * Une entrée exécutable du command center.
  *
  * Le command center est pensé pour grossir : chaque nouvelle fonctionnalité
- * (créer un canvas, ouvrir les settings, lancer un slideshow…) se contente
+ * (créer un canvas, ouvrir les settings…) se contente
  * d'ajouter des `CommandItem` dans `useCommandCenterItems`, l'UI et la
  * navigation clavier n'ont pas à changer.
  */

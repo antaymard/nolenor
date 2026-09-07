@@ -1,4 +1,5 @@
 import type { CanvasNode } from "@/types";
+import { isNodeTypeReadableByAgent } from "@/../convex/config/nodeConfig";
 
 type ViewportState = {
   x: number;
@@ -136,9 +137,9 @@ function dedupeNodes(nodes: CanvasNode[]): CanvasNode[] {
 }
 
 export function generateMessageContext({
-  nodes,
+  nodes: allNodes,
   openedNodeIds,
-  attachedNodes,
+  attachedNodes: allAttachedNodes,
   attachedPosition,
   viewport,
   viewportWidth,
@@ -146,6 +147,14 @@ export function generateMessageContext({
   getNodeTitle,
   time = new Date(),
 }: MessageContextParams): MessageContextPayload {
+  // Les types invisibles pour l'agent sortent en amont de toute dérivation :
+  // ni nodes ouverts, ni nodes visibles dans le viewport, ni attachements. Ce
+  // contexte part à chaque message hors de tout tool — sans ce filtre, l'agent
+  // verrait passer des nodes sur lesquels aucun de ses tools ne répond.
+  const isReadable = (node: CanvasNode) => isNodeTypeReadableByAgent(node.type);
+  const nodes = allNodes.filter(isReadable);
+  const attachedNodes = allAttachedNodes.filter(isReadable);
+
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const openedNodes = dedupeNodes(
     openedNodeIds

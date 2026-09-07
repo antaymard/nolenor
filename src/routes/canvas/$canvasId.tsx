@@ -126,7 +126,7 @@ function CanvasContent({
           </Panel>
         ) : null}
         <Panel position="bottom-center">
-          <CanvasToolbar canvasId={canvasId} />
+          <CanvasToolbar />
         </Panel>
         {isAuthenticated ? (
           <>

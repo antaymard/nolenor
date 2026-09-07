@@ -45,8 +45,8 @@ export const listCanvasesForExport = query({
   },
 });
 
-// Le document complet : positions, edges, slideshows, hotspots. C'est ce qui
-// part dans `canvas.json`.
+// Le document complet : positions, edges. C'est ce qui part dans
+// `canvas.json`.
 //
 // "owner" et pas "viewer" : on n'exporte que ce que l'utilisateur a créé. Un
 // canvas seulement partagé avec lui appartient à quelqu'un d'autre.

@@ -49,11 +49,27 @@ interface InlineEditableTextProps {
   onChange?: (value: string) => void;
 
   /**
+   * Callback appelé quand l'édition se termine (sauvegarde ou annulation).
+   * Sert aux sessions d'édition à usage unique (ex. nommage à la création).
+   */
+  onEditEnd?: () => void;
+
+  /**
    * Transforme la valeur saisie avant qu'elle ne soit appliquée à l'input.
    * Retourner `undefined` pour conserver la valeur d'origine.
    * Utile pour intercepter une syntaxe (ex: `# ` markdown) et la réécrire en direct.
    */
   transformInput?: (value: string) => string | undefined;
+  /**
+   * Ouvrir l'édition et prendre le curseur. Sert aux créations manuelles, où le
+   * node vient d'apparaître (cf. `autoEdit` de `useCreateNode`).
+   *
+   * Ne déclenche qu'une fois par montage, à la première valeur `true` — le
+   * signal peut donc arriver après le montage, ce qui est le cas quand il
+   * transite par un store. Le repasser à `false` ne referme rien : c'est
+   * l'utilisateur qui sort de l'édition.
+   */
+  startInEditMode?: boolean;
 }
 
 /**
@@ -81,7 +97,9 @@ function InlineEditableText({
   as: Element = "span",
   disabled = false,
   onChange,
+  onEditEnd,
   transformInput,
+  startInEditMode = false,
 }: InlineEditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -96,6 +114,17 @@ function InlineEditableText({
     }
   }, [isEditing]);
 
+  // Le ref borne l'ouverture automatique à une seule fois : sans lui, une
+  // nouvelle `value` arrivant pendant que `startInEditMode` est resté à `true`
+  // rouvrirait l'édition et écraserait la saisie en cours.
+  const hasAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (!startInEditMode || disabled || hasAutoOpenedRef.current) return;
+    hasAutoOpenedRef.current = true;
+    setEditValue(currentValue);
+    setIsEditing(true);
+  }, [startInEditMode, disabled, currentValue]);
+
   // OPTIMISATION: useCallback empêche la recréation des handlers à chaque render
   const handleStartEdit = useCallback(() => {
     setEditValue(currentValue);
@@ -107,12 +136,14 @@ function InlineEditableText({
       onSave?.(editValue);
     }
     setIsEditing(false);
-  }, [editValue, currentValue, onSave]);
+    onEditEnd?.();
+  }, [editValue, currentValue, onSave, onEditEnd]);
 
   const handleCancel = useCallback(() => {
     setIsEditing(false);
     setEditValue(currentValue);
-  }, [currentValue]);
+    onEditEnd?.();
+  }, [currentValue, onEditEnd]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,7 +218,8 @@ function InlineEditableText({
       ) : (
         <Element
           className={cn(
-            "col-start-1 row-start-1 cursor-text",
+            "col-start-1 row-start-1",
+            !disabled && "cursor-text",
             !currentValue && "text-muted-foreground/50 italic",
           )}
           onDoubleClick={(e) => {

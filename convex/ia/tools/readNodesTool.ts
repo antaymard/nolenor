@@ -22,6 +22,7 @@ import {
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
+import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 const PDF_HINTS = {
@@ -462,7 +463,16 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           canvasNodes.map((node) => [node.id, node.type]),
         );
 
-        const requestedNodeIdSet = new Set(input.nodeIds);
+        // Types invisibles pour l'agent : un id qui en désigne un est traité
+        // comme introuvable. Purement défensif — ni `list_nodes`, ni les
+        // mentions, ni le contexte de message ne lui en donnent l'id. Un id
+        // absent du canvas passe, pour garder le message d'erreur habituel.
+        const requestedNodeIds = input.nodeIds.filter((nodeId) => {
+          const type = canvasNodeTypeById.get(nodeId);
+          return type === undefined || isNodeTypeReadableByAgent(type);
+        });
+
+        const requestedNodeIdSet = new Set(requestedNodeIds);
 
         const pdfPagesByNodeId = new Map<string, number[]>();
         for (const entry of input.pdfPages ?? []) {
@@ -497,7 +507,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         >();
 
         const baseNodes = await Promise.all(
-          input.nodeIds.map(async (nodeId) => {
+          requestedNodeIds.map(async (nodeId) => {
             try {
               const { node, nodeData } = await ctx.runQuery(
                 internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,

@@ -11,6 +11,7 @@ import { useParams } from "@tanstack/react-router";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { nextTopZIndex } from "@/lib/nodeLayering";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
+import { useCaptureFraming } from "./useViewportFraming";
 
 type CreateNodeOptions = {
   node: Node;
@@ -20,7 +21,7 @@ type CreateNodeOptions = {
    * Poser le curseur dans le node dès son montage. Réservé aux créations
    * manuelles (menu « Add a block », raccourcis) : un node dupliqué ou ingéré
    * depuis un fichier ne doit pas voler le focus. Seuls les types qui savent
-   * s'éditer sur place le consomment — aujourd'hui `title`.
+   * s'éditer sur place le consomment — aujourd'hui `title` et `viewport`.
    */
   autoEdit?: boolean;
   /**
@@ -39,6 +40,7 @@ type CreateNodeResult = {
 
 export function useCreateNode() {
   const { addNodes, getNodes, setNodes } = useReactFlow();
+  const captureFraming = useCaptureFraming();
   const createNodeData = useMutation(api.nodeDatas.create);
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
@@ -67,8 +69,22 @@ export function useCreateNode() {
     const defaults = template
       ? getDefaultValuesForTemplate(template)
       : (getDefaultNodeDataValues(node.type as NodeType) ?? {});
+
+    // Un repère de navigation naît sur la vue courante : le créer, c'est
+    // vouloir mémoriser ce qu'on regarde, pas poser un cadrage vide à
+    // renseigner ensuite. Uniquement sur une création vierge — un duplicata
+    // passe ses values par `initialValues` et garde le cadrage de sa source.
+    const capturedFraming =
+      node.type === "viewport" && Object.keys(initialValues).length === 0
+        ? captureFraming()
+        : null;
+
     const values =
-      Object.keys(initialValues).length > 0 ? initialValues : defaults;
+      Object.keys(initialValues).length > 0
+        ? initialValues
+        : capturedFraming
+          ? { ...defaults, view: capturedFraming }
+          : defaults;
     const nodeDataId = await createNodeData({
       type: node.type as NodeType,
       values,

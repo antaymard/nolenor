@@ -20,7 +20,7 @@ type Status = "idle" | "unsynced" | "saving" | "saved" | "error";
  * under every new surface.
  */
 type Focus = "canvas" | "richtext-editor" | "modal";
-type Tool = "edit" | "slides" | "draw" | "hotspots";
+type Tool = "edit" | "draw";
 
 interface CanvasStore {
   canvas: CanvasInStore | null;

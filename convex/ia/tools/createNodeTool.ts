@@ -10,6 +10,7 @@ import {
   stringifyBlockNoteDocumentForStorage,
 } from "../../lib/blockNoteDocument";
 import {
+  agentCreatableNodeTypeZodValidator,
   getDefaultNodeDataValues,
   nodeDataConfig,
   nodeTypeZodValidator,
@@ -170,7 +171,10 @@ export default function createNodeTool({
     description:
       "Create an empty node you can then populate with data or manipulate using other tools.",
     inputSchema: z.object({
-      nodeType: nodeTypeZodValidator.describe("Type of the node."),
+      // Enum restreint aux types exposés : `viewport` et consorts ne sont ni
+      // listés dans le schema, ni acceptés en entrée.
+      nodeType:
+        agentCreatableNodeTypeZodValidator.describe("Type of the node."),
       templateId: z
         .string()
         .optional()

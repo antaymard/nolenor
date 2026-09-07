@@ -141,10 +141,9 @@ async function cloneCanvasForUser(
     });
   }
 
-  // Les edges/hotspots référencent les `node.id` locaux (chaînes arbitraires
-  // scopées au document canvas), pas des Convex ids : ils survivent tels
-  // quels au clonage. Seuls les edges pointant un node sauté ci-dessus sont
-  // filtrés.
+  // Les edges référencent les `node.id` locaux (chaînes arbitraires scopées au
+  // document canvas), pas des Convex ids : ils survivent tels quels au
+  // clonage. Seuls ceux pointant un node sauté ci-dessus sont filtrés.
   const survivingNodeIds = new Set(clonedNodes.map((node) => node.id));
   const clonedEdges = (source.edges ?? []).filter(
     (edge) =>
@@ -156,9 +155,6 @@ async function cloneCanvasForUser(
     updatedAt,
     isSystem: true,
   };
-  if (source.hotspots) patch.hotspots = source.hotspots;
-  if (source.slideshows) patch.slideshows = source.slideshows;
-
   // Dernier write du clonage, donc c'est bien cet `updatedAt` qui reste :
   // `addCanvasNodes` en pose un à `Date.now()` au passage.
   await ctx.db.patch("canvases", canvasId, patch);

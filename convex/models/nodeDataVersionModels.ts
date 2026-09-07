@@ -4,6 +4,7 @@ import type {
   NodeDataVersionActor,
   NodeDataVersionTrigger,
 } from "../schemas/nodeDataVersionsSchema";
+import { getNodeCapabilities } from "../config/nodeConfig";
 
 // Un même acteur qui édite en continu ne produit au plus qu'un checkpoint par
 // fenêtre : les versions matérialisent des sessions d'édition, pas des writes.
@@ -54,6 +55,12 @@ export async function maybeCheckpoint(
     force?: boolean;
   },
 ): Promise<Id<"nodeDataVersions"> | null> {
+  // Types qui ne se versionnent pas du tout (cf. `capabilities` dans
+  // nodeConfig) : aucun checkpoint, même forcé — un restore n'aurait rien à
+  // restaurer. `APP_VERSIONED_KEYS` reste à côté, c'est un filtre plus fin sur
+  // un type qui, lui, se versionne.
+  if (!getNodeCapabilities(nodeData.type).versioned) return null;
+
   const isApp = nodeData.type === "app";
 
   if (!force) {

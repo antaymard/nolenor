@@ -17,6 +17,7 @@ const NODE_TYPE_LABELS: Record<NodeType, string> = {
   app: "Apps",
   audio: "Audio",
   video: "Vidéos",
+  viewport: "Viewports",
   custom: "Custom",
 };
 

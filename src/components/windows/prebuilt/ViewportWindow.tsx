@@ -4,7 +4,7 @@ import {
   useStore,
   type ReactFlowState,
 } from "@xyflow/react";
-import { TbFocusCentered, TbGps, TbRefresh, TbTrash } from "react-icons/tb";
+import { TbFocusCentered, TbLocation, TbRefresh, TbTrash } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import { ScrollArea } from "@/components/shadcn/scroll-area";
@@ -72,7 +72,7 @@ function ViewportWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
       <ScrollArea className="min-h-0 flex-1">
         {viewportNodes.length === 0 ? (
           <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            Aucun repère sur ce canvas.
+            No markers on this canvas.
           </div>
         ) : (
           <div className="flex flex-col gap-1 p-2">
@@ -87,10 +87,6 @@ function ViewportWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
           </div>
         )}
       </ScrollArea>
-      <p className="shrink-0 border-t px-3 py-2 text-xs text-muted-foreground">
-        Un repère mémorise le centre et le zoom de la vue, pas la taille de la
-        fenêtre : il cadre la même zone sur n'importe quel écran.
-      </p>
     </div>
   );
 }
@@ -157,9 +153,9 @@ function ViewportRow({
           aria-hidden
           title={
             match === "here"
-              ? "La vue est sur ce repère"
+              ? "View is on this marker"
               : match === "near"
-                ? "La vue est proche de ce repère"
+                ? "View is close to this marker"
                 : undefined
           }
           className={cn(
@@ -171,14 +167,14 @@ function ViewportRow({
                 : "border-transparent bg-transparent",
           )}
         />
-        <TbGps size={14} className="shrink-0 text-muted-foreground" />
+        <TbFocusCentered size={14} className="shrink-0 text-muted-foreground" />
         <InlineEditableText
           value={title}
           onSave={rename}
           as="span"
-          className="min-w-0 flex-1 truncate text-xs font-medium"
-          inputClassName="text-xs font-medium"
-          placeholder="Repère sans titre"
+          className="min-w-0 flex-1 truncate text-base font-medium"
+          inputClassName="text-base font-medium"
+          placeholder="Untitled marker"
         />
       </div>
       <div className="mt-1 flex items-center gap-0.5 pl-6 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -186,29 +182,29 @@ function ViewportRow({
           size="icon"
           variant="ghost"
           className="size-6"
-          title="Aller à ce repère"
-          aria-label={`Aller au repère ${title || "sans titre"}`}
+          title="Go to this marker"
+          aria-label={`Go to marker ${title || "untitled"}`}
           disabled={!framing}
           onClick={goTo}
         >
-          <TbFocusCentered className="size-3.5" />
+          <TbLocation className="size-3.5" />
         </Button>
         <Button
           size="icon"
           variant="ghost"
           className="size-6"
-          title="Enregistrer la vue actuelle sur ce repère"
-          aria-label="Enregistrer la vue actuelle"
+          title="Save the current view to this marker"
+          aria-label="Save the current view"
           disabled={!nodeDataId}
           onClick={recapture}
         >
           <TbRefresh className="size-3.5" />
         </Button>
         <ConfirmableButton
-          title="Supprimer ce repère ?"
-          text="Le node est retiré du canvas. Cette action est définitive."
-          confirmLabel="Supprimer"
-          cancelLabel="Annuler"
+          title="Delete this marker?"
+          text="The node is removed from the canvas. This action is permanent."
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
           destructive
           onConfirm={remove}
         >
@@ -216,8 +212,8 @@ function ViewportRow({
             size="icon"
             variant="ghost"
             className="size-6 text-destructive hover:text-destructive"
-            title="Supprimer ce repère"
-            aria-label="Supprimer ce repère"
+            title="Delete this marker"
+            aria-label="Delete this marker"
           >
             <TbTrash className="size-3.5" />
           </Button>

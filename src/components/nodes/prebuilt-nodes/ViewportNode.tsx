@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { TbFocusCentered, TbGps, TbMaximize } from "react-icons/tb";
+import { TbFocusCentered, TbLocation, TbMaximize, TbPencil } from "react-icons/tb";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
@@ -9,7 +9,12 @@ import { useFramingMatch, useGoToFraming } from "@/hooks/useViewportFraming";
 import { readFraming } from "@/lib/canvasViewportFraming";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { Button } from "@/components/shadcn/button";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/shadcn/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/shadcn/popover";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import NodeFrame from "../NodeFrame";
 import type { XyNodeProps } from "@/types/domain";
@@ -19,10 +24,10 @@ import type { XyNodeProps } from "@/types/domain";
  * ramène la vue. Remplace les slideshows et les hotspots, qui vivaient tous
  * deux en tableaux sur le document `canvases`.
  *
- * Le titre s'édite en place, et reçoit le curseur à la création (`autoEdit`),
- * comme celui du node `title`. `InlineEditableText` arrête la propagation de
- * son double-clic : renommer depuis le titre et ouvrir la fenêtre depuis le
- * reste du node ne se marchent pas dessus.
+ * Le titre ne s'édite en place qu'à la création (`autoEdit`, Enter = saved).
+ * Ensuite, renommer passe par le stylo de la toolbar (popover), comme le
+ * titre d'`AppNode` — et le double-clic ouvre la fenêtre (handler générique
+ * de `NodeFrame`), au lieu de rouvrir l'édition.
  */
 function ViewportNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
@@ -46,6 +51,15 @@ function ViewportNode(xyNode: XyNodeProps) {
     useNodeEditorStore.getState().setEditingNodeId(null);
     setStartInEditMode(true);
   }, [shouldAutoEdit]);
+
+  // L'édition en place ne vaut que pour le nommage à la création : dès que
+  // cette session se termine (Enter, Echap, blur), l'inline se désactive et
+  // le double-clic retombe sur l'ouverture de la fenêtre.
+  const [creationEditDone, setCreationEditDone] = useState(false);
+  const inlineDisabled = !startInEditMode || creationEditDone;
+
+  const [inputTitle, setInputTitle] = useState("");
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   // `values.view` est stable tant que le nodeData ne change pas : le sélecteur
   // de `useFramingMatch` n'est donc pas recréé à chaque render.
@@ -75,6 +89,22 @@ function ViewportNode(xyNode: XyNodeProps) {
     openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "viewport" });
   }, [nodeDataId, openWindow, xyNode.id]);
 
+  const handleSaveTitle = useCallback(() => {
+    rename(inputTitle);
+    setIsPopoverOpen(false);
+    setInputTitle("");
+  }, [rename, inputTitle]);
+
+  const handlePopoverOpenChange = useCallback(
+    (open: boolean) => {
+      setIsPopoverOpen(open);
+      if (open) {
+        setInputTitle(title);
+      }
+    },
+    [title],
+  );
+
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
@@ -83,39 +113,67 @@ function ViewportNode(xyNode: XyNodeProps) {
           variant="outline"
           disabled={!nodeDataId}
           onClick={handleOpenWindow}
-          title="Ouvrir la liste des repères"
+          title="Open the markers list"
         >
           <TbMaximize />
         </Button>
+        <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="icon" title="Edit marker title">
+              <TbPencil />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent>
+            <div className="flex flex-col gap-2">
+              <Input
+                onDoubleClick={(e) => e.stopPropagation()}
+                type="text"
+                placeholder="Untitled marker"
+                value={inputTitle}
+                onChange={(e) => setInputTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveTitle();
+                }}
+              />
+              <Button onClick={handleSaveTitle} size="sm">
+                Save
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode} resizable={false}>
         <div className="flex h-full min-w-0 items-center gap-2 px-2">
-          <TbGps
+          <TbFocusCentered
             size={18}
-            className={cn(
-              "shrink-0 transition-colors",
-              match === "here"
-                ? "text-emerald-600"
-                : match === "near"
-                  ? "text-emerald-600/45"
-                  : "text-muted-foreground",
-            )}
+            className="shrink-0"
             title={
               match === "here"
-                ? "La vue est sur ce repère"
+                ? "View is on this marker"
                 : match === "near"
-                  ? "La vue est proche de ce repère"
+                  ? "View is close to this marker"
                   : undefined
             }
           />
-          <InlineEditableText
-            value={title}
-            onSave={rename}
-            as="span"
-            className="min-w-0 flex-1 truncate"
-            placeholder="Repère sans titre"
-            startInEditMode={startInEditMode}
-          />
+          <span
+            className="min-w-0 flex-1"
+            // Pendant le nommage à la création, un double-clic (ex. sélection
+            // d'un mot) ne doit pas ouvrir la fenêtre par-dessus la saisie.
+            onDoubleClick={(event) => {
+              if (!inlineDisabled) event.stopPropagation();
+            }}
+          >
+            <InlineEditableText
+              value={title}
+              onSave={rename}
+              onEditEnd={() => setCreationEditDone(true)}
+              as="span"
+              className="min-w-0 flex-1 truncate"
+              placeholder="Untitled marker"
+              startInEditMode={startInEditMode}
+              disabled={inlineDisabled}
+            />
+          </span>
           <Button
             size="icon"
             variant="ghost"
@@ -127,10 +185,10 @@ function ViewportNode(xyNode: XyNodeProps) {
             disabled={!framing}
             onClick={handleGoTo}
             onDoubleClick={(event) => event.stopPropagation()}
-            title="Aller à ce repère"
-            aria-label={`Aller au repère ${title || "sans titre"}`}
+            title="Go to this marker"
+            aria-label={`Go to marker ${title || "untitled"}`}
           >
-            <TbFocusCentered />
+            <TbLocation />
           </Button>
         </div>
       </NodeFrame>

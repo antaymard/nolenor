@@ -49,6 +49,12 @@ interface InlineEditableTextProps {
   onChange?: (value: string) => void;
 
   /**
+   * Callback appelé quand l'édition se termine (sauvegarde ou annulation).
+   * Sert aux sessions d'édition à usage unique (ex. nommage à la création).
+   */
+  onEditEnd?: () => void;
+
+  /**
    * Transforme la valeur saisie avant qu'elle ne soit appliquée à l'input.
    * Retourner `undefined` pour conserver la valeur d'origine.
    * Utile pour intercepter une syntaxe (ex: `# ` markdown) et la réécrire en direct.
@@ -91,6 +97,7 @@ function InlineEditableText({
   as: Element = "span",
   disabled = false,
   onChange,
+  onEditEnd,
   transformInput,
   startInEditMode = false,
 }: InlineEditableTextProps) {
@@ -129,12 +136,14 @@ function InlineEditableText({
       onSave?.(editValue);
     }
     setIsEditing(false);
-  }, [editValue, currentValue, onSave]);
+    onEditEnd?.();
+  }, [editValue, currentValue, onSave, onEditEnd]);
 
   const handleCancel = useCallback(() => {
     setIsEditing(false);
     setEditValue(currentValue);
-  }, [currentValue]);
+    onEditEnd?.();
+  }, [currentValue, onEditEnd]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,7 +218,8 @@ function InlineEditableText({
       ) : (
         <Element
           className={cn(
-            "col-start-1 row-start-1 cursor-text",
+            "col-start-1 row-start-1",
+            !disabled && "cursor-text",
             !currentValue && "text-muted-foreground/50 italic",
           )}
           onDoubleClick={(e) => {

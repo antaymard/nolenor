@@ -3,6 +3,7 @@ import type { Id } from "../../_generated/dataModel";
 import { internalQuery } from "../../_generated/server";
 import type { QueryCtx } from "../../_generated/server";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
 
 // ---- Types ----
 
@@ -84,7 +85,11 @@ export const generate = internalQuery({
       return { canvasId, hubCount: 0, minimapText: "" };
     }
 
-    const nodes = (canvas.nodes ?? []) as RawCanvasNode[];
+    // Les types invisibles pour l'agent sortent avant tout calcul : ils ne
+    // pèsent ni dans les hubs ni dans les edges de la minimap.
+    const nodes = ((canvas.nodes ?? []) as RawCanvasNode[]).filter((node) =>
+      isNodeTypeReadableByAgent(node.type),
+    );
     const edges = (canvas.edges ?? []) as RawCanvasEdge[];
 
     const hubs = await buildHubs(ctx, nodes, edges);

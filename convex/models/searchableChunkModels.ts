@@ -8,6 +8,7 @@ import {
   parseSearchQuery,
 } from "../lib/searchQuery";
 import type { NodeType } from "../schemas/nodeTypeSchema";
+import { isNodeTypeReadableByAgent } from "../config/nodeConfig";
 import { stripLoneSurrogates } from "../lib/textSanitize";
 
 type SearchableChunk = Doc<"searchableChunks">;
@@ -395,13 +396,21 @@ export async function fullTextSearch(
     limit: scanLimit,
   });
 
+  // 3bis) Les types invisibles pour l'agent ne remontent jamais ici.
+  // Volontairement dans `fullTextSearch` et pas dans `searchChunks` : ce
+  // dernier sert aussi la recherche de l'utilisateur, où un viewport node se
+  // trouve par son titre comme n'importe quel autre node.
+  const visibleChunks = chunks.filter((chunk) =>
+    isNodeTypeReadableByAgent(chunk.nodeType),
+  );
+
   // 4) Apply optional node-level filtering.
   const nodeIdFilter =
     nodeIds && nodeIds.length > 0 ? new Set(nodeIds) : undefined;
 
   const scoped = nodeIdFilter
-    ? chunks.filter((chunk) => nodeIdFilter.has(chunk.nodeId))
-    : chunks;
+    ? visibleChunks.filter((chunk) => nodeIdFilter.has(chunk.nodeId))
+    : visibleChunks;
 
   // 5) Les contraintes se jugent par node, pas par chunk.
   const haystacksByNodeId = new Map<string, string[]>();

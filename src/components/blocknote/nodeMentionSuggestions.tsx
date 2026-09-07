@@ -6,6 +6,7 @@ import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMa
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import type { AppBlockNoteEditor } from "./schema";
+import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
 
 const MAX_NODE_MENTION_SUGGESTIONS = 20;
 
@@ -28,6 +29,10 @@ export function getNodeMentionSuggestionItems(
   const { templates } = useTemplatesStore.getState();
 
   const items: DefaultReactSuggestionItem[] = Array.from(nodeDatas.values())
+    // Types non mentionnables (cf. `capabilities` dans nodeConfig) : une pill
+    // vers eux n'aurait rien à porter, et l'agent qui la relirait verrait un
+    // node dont tout le reste lui est masqué.
+    .filter((nodeData) => getNodeCapabilities(nodeData.type).mentionable)
     .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
     .map((nodeData) => {
       const template = nodeData.templateId

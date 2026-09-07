@@ -3,6 +3,7 @@ import { getNodeDataTitle } from "@/../convex/lib/getNodeDataTitle";
 import { nodeDataToMarkdown } from "./nodeDataToMarkdown";
 import { filenameSlug } from "@/lib/filenameSlug";
 import type { CanvasWithNodeDatas, ExportFile, ExportTemplate } from "./types";
+import { isNodeTypeReadableByAgent } from "@/../convex/config/nodeConfig";
 
 /**
  * Mise en forme de l'archive : arborescence, noms de fichiers, sommaires.
@@ -31,12 +32,21 @@ function pad(index: number): string {
  * contenu ; la table `nodeDatas` n'a pas d'ordre propre. Les nodeDatas qu'aucun
  * node du canvas ne référence (désynchronisation historique) sont conservés en
  * fin de liste plutôt que perdus.
+ *
+ * Les types dont le contenu n'est pas de la prose (`viewport` : une position de
+ * caméra) sont écartés — `renderBody` n'a pas de branche pour eux et lâcherait
+ * un bloc JSON dans le Markdown. Ils restent dans `canvas.json`, qui porte la
+ * structure brute du canvas. Retirer le filtre les y ramènerait.
  */
 function orderNodeDatas(
   canvas: Doc<"canvases">,
   nodeDatas: Doc<"nodeDatas">[],
 ): Doc<"nodeDatas">[] {
-  const byId = new Map(nodeDatas.map((nodeData) => [nodeData._id, nodeData]));
+  const byId = new Map(
+    nodeDatas
+      .filter((nodeData) => isNodeTypeReadableByAgent(nodeData.type))
+      .map((nodeData) => [nodeData._id, nodeData] as const),
+  );
   const ordered: Doc<"nodeDatas">[] = [];
 
   for (const node of canvas.nodes ?? []) {
@@ -123,7 +133,7 @@ export async function buildCanvasFiles(
     "",
     "---",
     "",
-    "`canvas.json` holds the full structure (positions, connections, slideshows, hotspots).",
+    "`canvas.json` holds the full structure (positions, connections).",
     "`nodes.json` holds the raw content of every node, losslessly.",
     "",
   ].join("\n");
@@ -151,7 +161,7 @@ export function buildRootReadme(
     "Each canvas gets its own folder under `canvases/`, containing:",
     "",
     "- `README.md` — node index and list of connections",
-    "- `canvas.json` — the canvas structure (positions, connections, slideshows, hotspots)",
+    "- `canvas.json` — the canvas structure (positions, connections)",
     "- `nodes.json` — the raw content of every node, losslessly",
     "- `nodes/` — one readable Markdown file per node",
     "",

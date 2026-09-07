@@ -85,7 +85,6 @@ Table centrale. Chaque canvas contient :
 - `updatedAt` : timestamp de dernière modification
 - `nodes` : tableau de nœuds (position x/y, dimensions, type, data, couleur, z-index, lock, hidden)
 - `edges` : tableau d'edges (source, target, handles, data)
-- `slideshows` : tableau de slideshows (chantier en cours)
 - Index `by_creator` : lookup rapide par utilisateur
 - Index `by_creator_and_updatedAt` : tri par dernière modification
 - Index `search_name` : recherche full-text
@@ -244,10 +243,6 @@ Messages d'erreur standardisés : CANVAS_NOT_FOUND, UNAUTHORIZED_USER, USER_NOT_
 
 Le système existe dans le code (table nodeTemplates, éditeur dans /settings/templates) mais il est à refaire complètement. Il permettra de créer des types de nœuds personnalisés avec des champs typés (7 types : short_text, number, date, select, boolean, rich_text, image) et des variantes visuelles.
 
-### Slideshows
-
-Le système de présentations existe (données dans la table canvases, slideshowStore côté frontend) mais est en chantier. Prévu : création de slides, réordonnancement, mode plein écran.
-
 ### Nœud Fetch
 
 Type de nœud pour les requêtes HTTP (GET/POST/PUT/DELETE avec headers, query params, body). Présent dans le code mais pas fonctionnel.
@@ -283,14 +278,13 @@ Type de nœud pour les requêtes HTTP (GET/POST/PUT/DELETE avec headers, query p
 
 ## Stores frontend (Zustand)
 
-6 stores principaux :
+5 stores principaux :
 
-1. **canvasStore** — canvas actif, statut de sync (idle/unsynced/saving/saved/error), focus (canvas/richtext-editor/modal), outil actif (edit/slides/draw), permission
+1. **canvasStore** — canvas actif, statut de sync (idle/unsynced/saving/saved/error), focus (canvas/richtext-editor/modal), outil actif (edit/draw), permission
 2. **nodeDataStore** — Map<Id, Doc> pour lookup O(1). CRUD sur les données de nœuds.
 3. **noleStore** — état du chat IA. Canvas attaché, nœuds attachés, position.
 4. **windowsStore** — gestion des fenêtres ouvertes
-5. **slideshowStore** — état des présentations
-6. **templateStore** — gestion des templates
+5. **templateStore** — gestion des templates
 
 ---
 

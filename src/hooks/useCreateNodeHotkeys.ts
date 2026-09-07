@@ -2,7 +2,6 @@ import { useCallback, useRef } from "react";
 import { useHotkey, type LetterKey } from "@tanstack/react-hotkeys";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useCommandCenterStore } from "@/stores/commandCenterStore";
-import { useSlideshowStore } from "@/stores/slideshowStore";
 import { useCreateNode } from "./useCreateNode";
 import { useCanvasPointerPosition } from "./useCanvasPointerPosition";
 import { shortcutCreatableNodes } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
@@ -31,6 +30,7 @@ const TITLE = requireShortcutConfig("title");
 const BLOCKNOTE = requireShortcutConfig("blocknote");
 const IMAGE = requireShortcutConfig("image");
 const TABLE = requireShortcutConfig("table");
+const VIEWPORT = requireShortcutConfig("viewport");
 
 function useCreateNodeShortcut(
   config: ShortcutNodeConfig,
@@ -58,7 +58,8 @@ function useCreateNodeShortcut(
 
 /**
  * Crée un node à l'endroit du curseur à la frappe d'une lettre : T titre,
- * B blocknote, I image, A table. Le node est posé centré sur le pointeur,
+ * B blocknote, I image, A table, V repère de navigation. Le node est posé
+ * centré sur le pointeur,
  * sélectionné et au sommet de la pile — soit exactement ce que fait le menu
  * « Add a block », dont il partage le mapping (`creationShortcut`).
  *
@@ -66,8 +67,9 @@ function useCreateNodeShortcut(
  * l'identique, donc Ctrl+A, Cmd+I ou Shift+T ne déclenchent rien.
  *
  * Les hooks ne pouvant pas être appelés en boucle sur une liste de longueur
- * variable, les quatre bindings sont dépliés — même parade que
- * `useHotspotHotkeys`.
+ * variable, les bindings sont dépliés un par un — ajouter un
+ * `creationShortcut` dans `prebuiltNodesConfig` sans ajouter sa ligne ici
+ * donne un raccourci affiché dans le menu mais inerte.
  *
  * Doit être appelé à l'intérieur de la route canvas et d'un `ReactFlowProvider`
  * (contrainte de `useCreateNode`).
@@ -85,9 +87,6 @@ export function useCreateNodeHotkeys({
   const focus = useCanvasStore((state) => state.focus);
   const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
   const isCommandCenterOpen = useCommandCenterStore((state) => state.isOpen);
-  const isSlideshowPlaying = useSlideshowStore(
-    (state) => state.playback.status === "playing",
-  );
 
   // `createNode` est asynchrone (mutation Convex) : sans ce verrou, deux frappes
   // rapprochées posent deux nodes exactement au même point.
@@ -102,10 +101,7 @@ export function useCreateNodeHotkeys({
     // `ignoreInputs` ne couvre pas le cas où le focus a quitté l'input tout en
     // restant dans la modale.
     !isSearchModalOpen &&
-    !isCommandCenterOpen &&
-    // Les flèches sont déjà captées par la barre de progression : on ne crée
-    // rien en pleine présentation.
-    !isSlideshowPlaying;
+    !isCommandCenterOpen;
 
   const createNodeAtPointer = useCallback(
     (config: ShortcutNodeConfig) => {
@@ -141,4 +137,5 @@ export function useCreateNodeHotkeys({
   useCreateNodeShortcut(BLOCKNOTE, createNodeAtPointer, enabled);
   useCreateNodeShortcut(IMAGE, createNodeAtPointer, enabled);
   useCreateNodeShortcut(TABLE, createNodeAtPointer, enabled);
+  useCreateNodeShortcut(VIEWPORT, createNodeAtPointer, enabled);
 }

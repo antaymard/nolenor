@@ -54,6 +54,16 @@ interface InlineEditableTextProps {
    * Utile pour intercepter une syntaxe (ex: `# ` markdown) et la réécrire en direct.
    */
   transformInput?: (value: string) => string | undefined;
+  /**
+   * Ouvrir l'édition et prendre le curseur. Sert aux créations manuelles, où le
+   * node vient d'apparaître (cf. `autoEdit` de `useCreateNode`).
+   *
+   * Ne déclenche qu'une fois par montage, à la première valeur `true` — le
+   * signal peut donc arriver après le montage, ce qui est le cas quand il
+   * transite par un store. Le repasser à `false` ne referme rien : c'est
+   * l'utilisateur qui sort de l'édition.
+   */
+  startInEditMode?: boolean;
 }
 
 /**
@@ -82,6 +92,7 @@ function InlineEditableText({
   disabled = false,
   onChange,
   transformInput,
+  startInEditMode = false,
 }: InlineEditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -95,6 +106,17 @@ function InlineEditableText({
       inputRef.current.select();
     }
   }, [isEditing]);
+
+  // Le ref borne l'ouverture automatique à une seule fois : sans lui, une
+  // nouvelle `value` arrivant pendant que `startInEditMode` est resté à `true`
+  // rouvrirait l'édition et écraserait la saisie en cours.
+  const hasAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (!startInEditMode || disabled || hasAutoOpenedRef.current) return;
+    hasAutoOpenedRef.current = true;
+    setEditValue(currentValue);
+    setIsEditing(true);
+  }, [startInEditMode, disabled, currentValue]);
 
   // OPTIMISATION: useCallback empêche la recréation des handlers à chaque render
   const handleStartEdit = useCallback(() => {

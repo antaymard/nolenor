@@ -12,6 +12,10 @@ const nodeTypeValues = [
   "app",
   "audio",
   "video",
+  // Repère de navigation : porte un cadrage de canvas (centre monde + zoom)
+  // et n'existe que pour y ramener la vue. Invisible pour l'agent, cf. le bloc
+  // `capabilities` de son entrée dans nodeConfig.
+  "viewport",
   // Node défini par l'utilisateur : la forme des values est portée par un
   // document nodeTemplates (cf. nodeDatas.templateId), pas par nodeConfig.
   "custom",

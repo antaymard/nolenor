@@ -49,6 +49,9 @@ const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
   table: { widthRatio: 1 / 1.8, heightRatio: 0.9 },
   // 16/9 avec de la marge : la fenêtre est faite pour regarder, pas pour lire.
   video: { width: 720, height: 480 },
+  // Une liste de lignes compactes : étroite, et assez haute pour en montrer
+  // une dizaine sans défiler.
+  viewport: { width: 420, height: 480 },
   // Fallback pour les custom nodes dont le template ne définit pas de
   // windowSize (la taille passe normalement par le payload openWindow).
   custom: DOCUMENT_WINDOW_SIZE,

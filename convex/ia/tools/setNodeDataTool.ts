@@ -3,6 +3,7 @@ import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
+import { getNodeCapabilities } from "../../config/nodeConfig";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import {
   findUnresolvedMentionTokens,
@@ -57,6 +58,15 @@ export default function setNodeDataTool({
         if (input.nodeType === "table") {
           return toolError(
             "Cannot set table data: use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.",
+          );
+        }
+
+        // Types que l'agent ne peut pas écrire (cf. `capabilities` dans
+        // nodeConfig). Le refus vaut aussi pour un id obtenu autrement : c'est
+        // la capability qui tranche, pas la provenance de l'id.
+        if (!getNodeCapabilities(input.nodeType).agent.writable) {
+          return toolError(
+            `Nodes of type ${input.nodeType} cannot be written to.`,
           );
         }
 

@@ -301,6 +301,15 @@ async function buildChunks(
       return await buildImageChunks(base, nodeData.values);
     }
 
+    case "viewport": {
+      // Le titre est tout ce que ce node porte de cherchable : la position ne
+      // se cherche pas. `base.title` le porte déjà pour l'index `search_title`,
+      // le chunk le répète pour l'index `search_text`.
+      const title = String(nodeData.values.title ?? "").trim();
+      if (!title) return [];
+      return [{ ...base, chunkType: "node", order: 0, text: title }];
+    }
+
     case "custom": {
       // Concatène les champs textuels (`nom: valeur` par ligne, labels de
       // select résolus, unités incluses). Pas d'indexation vision en V1.

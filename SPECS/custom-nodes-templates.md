@@ -266,7 +266,7 @@ src/components/
 |---|---|---|
 | Liens entre nodes | Edges = string ids, agnostiques au type | **gratuit** |
 | Versioning | Générique sur values/actor/changedKeys | **gratuit** |
-| Attach Nolë, duplicate, move to canvas, context menus, slideshows | Génériques sur canvasNode/nodeDataId | **gratuit** |
+| Attach Nolë, duplicate, move to canvas, context menus | Génériques sur canvasNode/nodeDataId | **gratuit** |
 | Création agent | `create_node` + arg optionnel `templateId` ; defaults via registre ; required honorés ; titre via `titleFieldId` | moyen |
 | Lecture agent | `read_nodes` : branche custom → XML `<field name type>` (richtext→markdown) ; `<nodeDataSchemas>` généré depuis les fields (réutilise `formatZodSchemaAsMinimap`) | moyen |
 | Écriture agent | `set_node_data` : zod généré depuis template + coercions `fromLLM` par type de champ | moyen |

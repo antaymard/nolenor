@@ -16,7 +16,7 @@ Ce fichier doit rester léger pour éviter de surcharger le contexte des agents.
 
 ## Domaine de données (Convex)
 
-- `canvases`: structure du canvas (nodes/edges/slideshows, metadata).
+- `canvases`: structure du canvas (nodes/edges, metadata).
 - `nodeDatas`: contenu métier des nœuds (values, status, automation config/progress, dependencies).
 - `shares`: permissions de partage des canvases.
 - `scheduledJobs`: orchestration asynchrone.
@@ -24,14 +24,13 @@ Ce fichier doit rester léger pour éviter de surcharger le contexte des agents.
 ## Capacités produit déjà présentes
 
 - CRUD canvas + recherche full-text + partage + collaboration temps réel.
-- Nœuds principaux: document, image, link, pdf, value, embed, title.
+- Nœuds principaux: document, image, link, pdf, value, embed, title, viewport (repères de navigation).
 - Automations de nœuds en mode agent et data processing.
 - Chat Nolë avec outils serveur (lecture/manipulation de nœuds, websearch, édition document).
 
 ## Chantiers en cours
 
 - Refonte des templates de nœuds custom.
-- Slideshows.
 - Nœud Fetch HTTP.
 
 ## Références
@@ -63,14 +62,13 @@ Ce fichier doit rester léger pour éviter de surcharger le contexte des agents.
 
 ## Stores frontend (Zustand)
 
-6 stores principaux :
+5 stores principaux :
 
-1. **canvasStore** — canvas actif, statut de sync (idle/unsynced/saving/saved/error), focus (canvas/richtext-editor/modal), outil actif (edit/slides/draw), permission
+1. **canvasStore** — canvas actif, statut de sync (idle/unsynced/saving/saved/error), focus (canvas/richtext-editor/modal), outil actif (edit/draw), permission
 2. **nodeDataStore** — Map<Id, Doc> pour lookup O(1). CRUD sur les données de nœuds.
 3. **noleStore** — état du chat IA. Canvas attaché, nœuds attachés, position.
 4. **windowsStore** — gestion des fenêtres ouvertes
-5. **slideshowStore** — état des présentations
-6. **templateStore** — gestion des templates
+5. **templateStore** — gestion des templates
 
 ---
 

@@ -15,6 +15,49 @@ type NodeVariant = {
   isDefault?: boolean;
 };
 
+/**
+ * Ce qu'un type de node autorise, au-delà de la forme de ses `values`.
+ *
+ * Ces comportements étaient jusqu'ici décidés par des `if (type === …)`
+ * disséminés dans une douzaine de fichiers. Ils se déclarent désormais ici, et
+ * chaque point d'application lit `getNodeCapabilities`.
+ *
+ * Tout vaut `true` par défaut : un type qui ne déclare rien se comporte
+ * exactement comme avant l'introduction de ce bloc.
+ */
+type NodeCapabilities = {
+  agent: {
+    /**
+     * Le TYPE est présenté à l'agent : catalogue de `<available_node_types>`,
+     * enum des types que `create_node` accepte.
+     */
+    exposed: boolean;
+    /**
+     * Les INSTANCES lui sont visibles : `list_nodes`, `read_nodes`, recherche
+     * plein texte agent, minimap du canvas, contexte de message.
+     */
+    readable: boolean;
+    /** L'agent peut écrire dessus : `set_node_data` et les tools dédiés. */
+    writable: boolean;
+  };
+  /** Mentionnable par `@` dans un blocknote, et attachable au chat Nolë. */
+  mentionable: boolean;
+  /** Une écriture peut poser un checkpoint dans `nodeDataVersions`. */
+  versioned: boolean;
+};
+
+// Déclaration partielle : une entrée ne précise que ce qui s'écarte des
+// défauts, `getNodeCapabilities` complète le reste.
+type NodeCapabilitiesInput = Partial<Omit<NodeCapabilities, "agent">> & {
+  agent?: Partial<NodeCapabilities["agent"]>;
+};
+
+const DEFAULT_NODE_CAPABILITIES: NodeCapabilities = {
+  agent: { exposed: true, readable: true, writable: true },
+  mentionable: true,
+  versioned: true,
+};
+
 type NodeDataConfigItem = {
   type: z.infer<typeof nodeTypeZodValidator>;
   label: string;
@@ -27,6 +70,7 @@ type NodeDataConfigItem = {
   };
   variants?: Record<string, NodeVariant>;
   defaultColor?: string;
+  capabilities?: NodeCapabilitiesInput;
   dataValuesSchema: z.ZodTypeAny;
   toolInputSchema?: z.ZodTypeAny; // Optional schema specifically for tool inputs, if different from dataValuesSchema
 };
@@ -761,6 +805,39 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       })
       .strict(),
   },
+  {
+    type: "viewport",
+    label: "Viewport",
+    description:
+      "Node qui ramène le canvas à un cadrage enregistré (centre + zoom).",
+    // Jamais lu : `agent.exposed` est à false, ce type n'est pas présenté.
+    llmDescription: "",
+    // Même gabarit compact que les nodes link et pdf : une ligne de titre et
+    // un bouton, rien à redimensionner.
+    defaultDimensions: { width: 220, height: 33, resizable: false },
+    capabilities: {
+      agent: { exposed: false, readable: false, writable: false },
+      mentionable: false,
+      // Un cadrage n'a pas d'historique à remonter : le recapturer, c'est
+      // justement vouloir écraser l'ancien.
+      versioned: false,
+    },
+    dataValuesSchema: z
+      .object({
+        title: z.string().default(""),
+        // Centre en coordonnées MONDE (et non l'offset écran `{x, y}` de React
+        // Flow) : le cadrage ne dépend donc pas de la taille de la fenêtre au
+        // moment de la capture. Cf. `src/lib/canvasViewportFraming.ts`.
+        view: z
+          .object({
+            cx: z.number().default(0),
+            cy: z.number().default(0),
+            zoom: z.number().default(1),
+          })
+          .default({ cx: 0, cy: 0, zoom: 1 }),
+      })
+      .default({ title: "", view: { cx: 0, cy: 0, zoom: 1 } }),
+  },
 ];
 
 function getDefaultNodeDataValues(
@@ -773,5 +850,55 @@ function getDefaultNodeDataValues(
   return config.dataValuesSchema.parse(undefined);
 }
 
-export { nodeDataConfig, nodeTypeZodValidator, getDefaultNodeDataValues };
-export type { NodeDataConfigItem, NodeVariant };
+/**
+ * Les capabilities effectives d'un type, défauts appliqués.
+ *
+ * Tolère un type inconnu de `nodeDataConfig` — `custom` n'y a pas d'entrée, sa
+ * forme étant portée par un document `nodeTemplates` — et retombe alors sur les
+ * défauts, c'est-à-dire sur le comportement d'un node ordinaire.
+ */
+function getNodeCapabilities(nodeType: string): NodeCapabilities {
+  const declared = nodeDataConfig.find(
+    (item) => item.type === nodeType,
+  )?.capabilities;
+  if (!declared) return DEFAULT_NODE_CAPABILITIES;
+
+  return {
+    agent: { ...DEFAULT_NODE_CAPABILITIES.agent, ...declared.agent },
+    mentionable: declared.mentionable ?? DEFAULT_NODE_CAPABILITIES.mentionable,
+    versioned: declared.versioned ?? DEFAULT_NODE_CAPABILITIES.versioned,
+  };
+}
+
+/** Raccourci : l'agent n'a pas à connaître l'existence de ces nodes. */
+function isNodeTypeReadableByAgent(nodeType: string): boolean {
+  return getNodeCapabilities(nodeType).agent.readable;
+}
+
+/**
+ * `nodeTypeZodValidator` amputé des types que l'agent ne voit pas : le JSON
+ * schema publié par `create_node` ne les liste donc pas, et une valeur envoyée
+ * quand même est rejetée par zod.
+ *
+ * Le type inféré reste l'union complète — les branches par type en aval
+ * continuent de typer normalement, seule la liste runtime est restreinte.
+ */
+const agentCreatableNodeTypeZodValidator = z.enum(
+  nodeTypeValues.filter(
+    (type) => getNodeCapabilities(type).agent.exposed,
+  ) as unknown as [
+    z.infer<typeof nodeTypeZodValidator>,
+    ...Array<z.infer<typeof nodeTypeZodValidator>>,
+  ],
+);
+
+export {
+  nodeDataConfig,
+  nodeTypeZodValidator,
+  getDefaultNodeDataValues,
+  getNodeCapabilities,
+  isNodeTypeReadableByAgent,
+  agentCreatableNodeTypeZodValidator,
+  DEFAULT_NODE_CAPABILITIES,
+};
+export type { NodeDataConfigItem, NodeVariant, NodeCapabilities };

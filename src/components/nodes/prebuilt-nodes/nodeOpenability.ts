@@ -25,4 +25,5 @@ export const OPENABLE_PREBUILT_NODE_TYPES: ReadonlySet<string> = new Set([
   "table",
   "app",
   "video",
+  "viewport",
 ]);

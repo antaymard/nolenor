@@ -578,6 +578,63 @@ export function stringifyBlockNoteDocumentForStorage(doc: unknown): string {
 
 // ── Read-only traversal ──────────────────────────────────────────────────────
 
+/**
+ * Every R2 storage key referenced by a BlockNote document.
+ *
+ * File-bearing blocks (`image`, `video`, `audio`, `file`) carry their file as
+ * `props.url`. Uploads performed through the editor resolve to a public R2
+ * URL, so the storage key is derived from that URL via the `R2_PUBLIC_URL`
+ * prefix — the same derivation the legacy `image` node branch of
+ * `extractR2Keys` already applies. External URLs and empty URLs are ignored.
+ *
+ * A `key` prop is deliberately NOT read here: block props are strictly
+ * validated (`validateBlockNoteDocument`), so a custom `key` prop on a file
+ * block would be rejected at write time.
+ *
+ * Pure and DOM-free like the rest of this module. Reads `R2_PUBLIC_URL` lazily
+ * so the function stays safe to import on the frontend (where the env var is
+ * absent and it simply reports no keys).
+ */
+const BLOCK_NOTE_FILE_BLOCK_TYPES = new Set([
+  "image",
+  "video",
+  "audio",
+  "file",
+]);
+
+export function extractBlockNoteR2Keys(doc: unknown): string[] {
+  const publicUrlBase =
+    typeof process !== "undefined"
+      ? process.env.R2_PUBLIC_URL
+      : undefined;
+  if (!publicUrlBase) return [];
+  const prefix = `${publicUrlBase}/`;
+
+  const parsed = parseStoredBlockNoteDocument(doc);
+  if (!parsed) return [];
+
+  const keys = new Set<string>();
+  const walk = (blocks: BlockNoteBlock[]) => {
+    for (const block of blocks) {
+      if (!block || typeof block !== "object") continue;
+      if (BLOCK_NOTE_FILE_BLOCK_TYPES.has(block.type)) {
+        const props = block.props as Record<string, unknown> | undefined;
+        const url = props?.url;
+        if (typeof url === "string" && url.startsWith(prefix)) {
+          const key = url.slice(prefix.length);
+          if (key.length > 0) keys.add(key);
+        }
+      }
+      // Table cells only hold inline content, never file blocks: recursing
+      // into `children` covers every place a file block can live.
+      if (Array.isArray(block.children)) walk(block.children);
+    }
+  };
+  walk(parsed);
+
+  return [...keys];
+}
+
 export function listBlockIds(blocks: BlockNoteBlock[]): string[] {
   const ids: string[] = [];
   const walk = (bs: BlockNoteBlock[]) => {

@@ -1,4 +1,5 @@
 import type { Doc } from "../_generated/dataModel";
+import { extractBlockNoteR2Keys } from "./blockNoteDocument";
 import { collectR2KeysForTemplateValues } from "../config/fieldConfig";
 
 function keyOf(candidate: unknown): string | null {
@@ -90,6 +91,14 @@ export function extractR2Keys(
       if (template) {
         keys.push(...collectR2KeysForTemplateValues(template, values));
       }
+      break;
+    }
+
+    // Images / vidéos / audios / fichiers uploadés depuis l'éditeur : leurs
+    // clés sont dérivées des URLs R2 inline dans les props des blocs (pas de
+    // `key` stockée à côté, les props de blocs sont validées strictement).
+    case "blocknote": {
+      keys.push(...extractBlockNoteR2Keys(values.doc));
       break;
     }
   }

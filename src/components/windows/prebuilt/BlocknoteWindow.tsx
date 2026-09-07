@@ -19,6 +19,7 @@ import {
 } from "@/components/blocknote/registry";
 import { getNodeMentionSuggestionItems } from "@/components/blocknote/nodeMentionSuggestions";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import { useBlockNoteUpload } from "@/components/blocknote/useBlockNoteUpload";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
@@ -83,6 +84,20 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const setFocus = useCanvasStore((s) => s.setFocus);
 
+  // Upload R2 pour les blocs image/video/audio/file : sans `uploadFile`,
+  // BlockNote n'affiche que l'onglet "Embed" par URL et le paste/drag & drop
+  // de fichiers est mort. Le wrapper stable via ref évite de recréer
+  // l'éditeur si la callback Convex change après le montage.
+  const uploadToR2 = useBlockNoteUpload();
+  const uploadRef = useRef(uploadToR2);
+  useEffect(() => {
+    uploadRef.current = uploadToR2;
+  }, [uploadToR2]);
+  const stableUpload = useCallback(
+    (file: File) => uploadRef.current(file),
+    [],
+  );
+
   const docSource = nodeDataValues?.doc;
 
   // ── Editor creation (once) ──────────────────────────────────────────────
@@ -104,7 +119,9 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
       | PartialBlock[]
       | null;
-    const result = createSafeBlockNoteEditor(parsedBlocks);
+    const result = createSafeBlockNoteEditor(parsedBlocks, {
+      uploadFile: stableUpload,
+    });
     return { editor: result.editor, isCorrupted: result.status !== "ok" };
   });
   const [isCorruptionAcknowledged, setIsCorruptionAcknowledged] =

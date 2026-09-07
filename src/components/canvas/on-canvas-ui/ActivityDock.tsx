@@ -74,7 +74,6 @@ export default function ActivityDock({
         <TaskCard
           key={thread.threadId}
           thread={thread}
-          showNodes
           onOpen={openThread}
           onReview={markReviewed}
         />
@@ -97,7 +96,6 @@ export default function ActivityDock({
                 <TaskCard
                   key={thread.threadId}
                   thread={thread}
-                  showNodes
                   onOpen={openThread}
                   onReview={markReviewed}
                 />

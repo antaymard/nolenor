@@ -2,12 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   RUN_STALE_MS,
   formatRunDuration,
-  getCanvasLiveExpiry,
-  isLiveOnCanvas,
   resolveRunStatus,
   type ResolvedRunStatus,
   type PendingThread,
-  type ThreadDockFields,
   type ThreadRunFields,
 } from "@/lib/threadRunStatus";
 
@@ -66,21 +63,6 @@ export function useResolvedRunStatus(
     () => resolveRunStatus({ runStatus, runStartedAt }, now),
     [runStatus, runStartedAt, now],
   );
-}
-
-/**
- * La tâche est-elle à afficher sur le canvas, ancrée à ses nodes ?
- *
- * Ici la pastille doit **disparaître** toute seule, à la péremption d'un
- * `running` ou à la fin de la rémanence d'un tour conclu.
- *
- * Exister comme hook appelé par un composant *par tâche* est ce qui donne à
- * chacune sa propre minuterie — même raison que `ThreadRunStatusPill` dans la
- * liste de threads.
- */
-export function useIsLiveOnCanvas(fields: ThreadDockFields): boolean {
-  const now = useClockAt(getCanvasLiveExpiry(fields));
-  return isLiveOnCanvas(fields, now);
 }
 
 /** Cadence du compteur de durée. Une seconde : c'est l'unité qu'il affiche. */

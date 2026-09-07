@@ -59,9 +59,9 @@ const canvasBackgroundValidator = v.object({
 // ── Main validator ──────────────────────────────────────────────────────
 
 // Les repères de navigation (anciennement `slideshows` et `hotspots`, deux
-// tableaux portés ici) sont désormais des nodes de type `viewport` : ils vivent
-// dans `nodes` comme les autres, avec leur `nodeDatas`. Cf.
-// `migrations:dropCanvasViewportArrays`, qui a retiré les deux champs.
+// tableaux portés ici, nettoyés par migration en sept. 2026) sont désormais
+// des nodes de type `viewport` : ils vivent dans `nodes` comme les autres,
+// avec leur `nodeDatas`.
 const canvasesValidator = v.object({
   creatorId: v.id("users"),
   name: v.string(),

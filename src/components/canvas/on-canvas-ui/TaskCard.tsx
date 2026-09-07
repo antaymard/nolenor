@@ -19,13 +19,11 @@ import TaskNodePills from "./TaskNodePills";
 const CARD_RADIUS_PX = 12;
 
 /**
- * Une tâche Nolë, en un bloc. Le même au dock et sur le canvas.
+ * Une tâche Nolë, en un bloc, au dock d'activité.
  *
  * Trois zones : l'indicateur à gauche, deux lignes de texte au centre, la durée
  * à droite. La ligne du haut dit **où** — les nodes travaillés, cliquables —, et
- * celle du bas **quoi** : l'action que l'agent vient d'annoncer. Sur le canvas
- * la ligne de nodes disparaît, le bloc étant déjà ancré sous eux ; c'est la
- * seule différence entre les deux surfaces.
+ * celle du bas **quoi** : l'action que l'agent vient d'annoncer.
  *
  * Le vocabulaire visuel est celui de la conversation, à dessein : le halo animé
  * de l'input (`ComposerShell`) pendant que ça tourne, l'orbe de
@@ -35,13 +33,10 @@ const CARD_RADIUS_PX = 12;
  */
 export default function TaskCard({
   thread,
-  showNodes = false,
   onOpen,
   onReview,
 }: {
   thread: PendingThread;
-  /** Le dock montre les nodes ; le canvas non, il est posé dessus. */
-  showNodes?: boolean;
   onOpen: (threadId: string) => void;
   /** Le dock seul : accuser réception sans ouvrir. */
   onReview?: (threadId: string) => void;
@@ -50,7 +45,7 @@ export default function TaskCard({
   const isRunning = status === "running";
   const duration = useRunDuration(thread, isRunning);
 
-  const nodes = showNodes ? thread.touchedNodes : [];
+  const nodes = thread.touchedNodes;
   const title = thread.title || "Nolë";
   const activity = thread.lastActivity?.text;
 

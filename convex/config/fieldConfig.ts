@@ -10,6 +10,7 @@ import {
   type OptionFieldDescriptor,
 } from "./optionDescriptors";
 import {
+  extractBlockNoteR2Keys,
   extractInlineText,
   parseStoredBlockNoteDocument,
   type BlockNoteBlock,
@@ -299,6 +300,9 @@ const fieldTypeConfig: Record<FieldType, FieldTypeConfigItem> = {
     getDefault: () => undefined,
     getSearchableText: (value) => extractRichTextText(value),
     toLLMDisplay: (value) => extractRichTextText(value) ?? "",
+    // Fichiers uploadés depuis l'éditeur du champ : mêmes URLs R2 inline
+    // que les nodes blocknote prébuilts, donc même dérivation de clés.
+    collectR2Keys: (value) => extractBlockNoteR2Keys(value),
   },
   image: {
     type: "image",

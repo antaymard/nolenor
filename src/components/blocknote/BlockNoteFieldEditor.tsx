@@ -17,6 +17,7 @@ import {
   groupSuggestionItems,
 } from "@/components/blocknote/registry";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import { useBlockNoteUpload } from "@/components/blocknote/useBlockNoteUpload";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
@@ -76,6 +77,19 @@ function BlockNoteFieldEditor({
   const [isEditorReady, setIsEditorReady] = useState(true);
   const setFocus = useCanvasStore((s) => s.setFocus);
 
+  // Même branchement R2 que BlocknoteWindow : sans `uploadFile`, pas
+  // d'onglet "Upload" ni de paste/drag & drop de fichiers. Wrapper stable
+  // via ref car l'éditeur n'est créé qu'une fois.
+  const uploadToR2 = useBlockNoteUpload();
+  const uploadRef = useRef(uploadToR2);
+  useEffect(() => {
+    uploadRef.current = uploadToR2;
+  }, [uploadToR2]);
+  const stableUpload = useCallback(
+    (file: File) => uploadRef.current(file),
+    [],
+  );
+
   // Créé une seule fois, avec le contenu initial : le premier paint est
   // correct et l'effet de re-hydratation ne rejoue pas au montage.
   //
@@ -91,7 +105,9 @@ function BlockNoteFieldEditor({
     isCorrupted: boolean;
   }>(() => {
     const blocks = parseStoredBlockNoteDocument(value) as PartialBlock[] | null;
-    const result = createSafeBlockNoteEditor(blocks);
+    const result = createSafeBlockNoteEditor(blocks, {
+      uploadFile: stableUpload,
+    });
     return { editor: result.editor, isCorrupted: result.status !== "ok" };
   });
   const [isCorruptionAcknowledged, setIsCorruptionAcknowledged] =

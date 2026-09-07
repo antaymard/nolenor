@@ -27,15 +27,23 @@ export interface SafeEditorResult {
  * dropped, not merged, so autosaving here would silently destroy whatever was
  * salvageable in the original document.
  */
+export type BlockNoteUploadFile = (file: File) => Promise<string>;
+
 export function createSafeBlockNoteEditor(
   parsedBlocks: PartialBlock[] | null,
+  options?: { uploadFile?: BlockNoteUploadFile },
 ): SafeEditorResult {
   const initialContent =
     parsedBlocks && parsedBlocks.length > 0 ? parsedBlocks : undefined;
+  const uploadFile = options?.uploadFile;
 
   try {
     return {
-      editor: BlockNoteEditor.create({ schema: blockNoteSchema, initialContent }),
+      editor: BlockNoteEditor.create({
+        schema: blockNoteSchema,
+        initialContent,
+        ...(uploadFile ? { uploadFile } : {}),
+      }),
       status: "ok",
     };
   } catch (error) {
@@ -46,7 +54,10 @@ export function createSafeBlockNoteEditor(
       error,
     );
     return {
-      editor: BlockNoteEditor.create({ schema: blockNoteSchema }),
+      editor: BlockNoteEditor.create({
+        schema: blockNoteSchema,
+        ...(uploadFile ? { uploadFile } : {}),
+      }),
       status: "corrupted-fallback",
       error,
     };

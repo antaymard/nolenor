@@ -282,6 +282,14 @@ interface WindowsStore {
   // Les appelants qui ont un repli — naviguer vers le node sur le canvas —
   // testent ce retour ; les autres appellent et ignorent.
   openWindow: (payload: OpenedWindowPayload) => boolean;
+  // La window `viewport` est un singleton par canvas : elle liste tous les
+  // markers, un par node n'aurait aucun sens. Quand le marker propriétaire
+  // est supprimé, on la transmet à un marker survivant (ou on la ferme si
+  // c'était le dernier) au lieu de la fermer aveuglément.
+  reassignViewportWindowOwner: (
+    removedXyNodeIds: string[],
+    survivor: { xyNodeId: string; nodeDataId: Id<"nodeDatas"> } | null,
+  ) => void;
   bringWindowToFront: (xyNodeId: string) => void;
   closeWindow: (xyNodeId: string) => void;
   closeWindowsForNodeIds: (xyNodeIds: string[]) => void;
@@ -334,23 +342,41 @@ export const useWindowsStore = create<WindowsStore>()(
         const effectiveWindowSize = windowSize ?? openability.windowSize;
 
         set((store) => {
-          const existingWindowIndex = store.openedWindows.findIndex(
-            (window) => window.xyNodeId === xyNodeId,
+          // Les markers `viewport` partagent une seule window par canvas :
+          // elle liste tous les repères, une par node n'aurait aucun sens.
+          // Tout clic sur un marker — A, B, C — retrouve donc la même window
+          // et l'adopte (titre + ligne surlignée suivent le dernier cliqué).
+          const isViewportSingleton = nodeType === "viewport";
+          const existingWindowIndex = store.openedWindows.findIndex((window) =>
+            isViewportSingleton
+              ? window.nodeType === "viewport"
+              : window.xyNodeId === xyNodeId,
           );
 
           // If the window is already open, just bring it to front (and unminimize if needed)
           if (existingWindowIndex >= 0) {
             const currentWindow = store.openedWindows[existingWindowIndex];
 
+            const ownerChanged =
+              isViewportSingleton &&
+              (currentWindow.xyNodeId !== xyNodeId ||
+                currentWindow.nodeDataId !== nodeDataId);
+
             const isAlreadyOnTopAndVisible =
               currentWindow.zIndex === store.topZIndex &&
               currentWindow.windowState !== "minimized";
 
-            if (isAlreadyOnTopAndVisible) return store;
+            if (isAlreadyOnTopAndVisible && !ownerChanged) return store;
 
-            const nextTopZIndex = store.topZIndex + 1;
+            // Déjà au premier plan mais autre marker cliqué : on adopte sans
+            // toucher au z-order — rien ne bouge visuellement à part le
+            // propriétaire (titre + surlignage).
+            const nextTopZIndex = isAlreadyOnTopAndVisible
+              ? store.topZIndex
+              : store.topZIndex + 1;
             const updatedWindow: OpenedWindow = {
               ...currentWindow,
+              ...(isViewportSingleton ? { xyNodeId, nodeDataId } : null),
               zIndex: nextTopZIndex,
               windowState:
                 currentWindow.windowState === "minimized"
@@ -359,8 +385,8 @@ export const useWindowsStore = create<WindowsStore>()(
             };
 
             return {
-              openedWindows: store.openedWindows.map((w) =>
-                w.xyNodeId === xyNodeId ? updatedWindow : w,
+              openedWindows: store.openedWindows.map((w, index) =>
+                index === existingWindowIndex ? updatedWindow : w,
               ),
               topZIndex: nextTopZIndex,
             };
@@ -457,6 +483,49 @@ export const useWindowsStore = create<WindowsStore>()(
                 ? null
                 : store.fullscreenNodeId,
           };
+        });
+      },
+      reassignViewportWindowOwner: (removedXyNodeIds, survivor) => {
+        set((store) => {
+          const index = store.openedWindows.findIndex(
+            (window) => window.nodeType === "viewport",
+          );
+          if (index < 0) return store;
+
+          const current = store.openedWindows[index];
+          // Le propriétaire survit : rien à faire. Le `closeWindowsForNodeIds`
+          // qui suit fermera les windows des autres nodes supprimés.
+          if (!removedXyNodeIds.includes(current.xyNodeId)) return store;
+
+          // Dernier marker parti : on ferme, avec le même nettoyage que
+          // `closeWindow` (sans le focus, que l'appelant gère déjà).
+          if (!survivor) {
+            return {
+              openedWindows: store.openedWindows.filter((_, i) => i !== index),
+              dirtyNodeIds: store.dirtyNodeIds.filter(
+                (id) => id !== current.xyNodeId,
+              ),
+              fullscreenNodeId:
+                store.fullscreenNodeId === current.xyNodeId
+                  ? null
+                  : store.fullscreenNodeId,
+            };
+          }
+
+          if (
+            current.xyNodeId === survivor.xyNodeId &&
+            current.nodeDataId === survivor.nodeDataId
+          ) {
+            return store;
+          }
+
+          const nextOpenedWindows = store.openedWindows.slice();
+          nextOpenedWindows[index] = {
+            ...current,
+            xyNodeId: survivor.xyNodeId,
+            nodeDataId: survivor.nodeDataId,
+          };
+          return { openedWindows: nextOpenedWindows };
         });
       },
       closeAllWindows: () => {

@@ -103,6 +103,9 @@ export function useCanvasNodes(
   const closeWindowsForNodeIds = useWindowsStore(
     (state) => state.closeWindowsForNodeIds,
   );
+  const reassignViewportWindowOwner = useWindowsStore(
+    (state) => state.reassignViewportWindowOwner,
+  );
 
   const lastPositionChangesWhenResizing = useRef<NodePositionChange[] | null>(
     null,
@@ -369,7 +372,30 @@ export function useCanvasNodes(
         );
       } else if (removedChanges.length > 0) {
         // REMOVE NODES
-        closeWindowsForNodeIds(removedChanges.map((change) => change.id));
+        const removedIds = removedChanges.map((change) => change.id);
+        // La window `viewport` est un singleton : si un marker supprimé la
+        // possédait, on la transmet à un marker survivant au lieu de la
+        // fermer. Les ids supprimés sont exclus explicitement — l'état React
+        // Flow peut ne pas encore refléter la suppression à ce stade.
+        const removedIdSet = new Set(removedIds);
+        const survivingViewport = getNodes().find(
+          (node) => node.type === "viewport" && !removedIdSet.has(node.id),
+        );
+        const survivingNodeDataId = (
+          survivingViewport?.data as
+            | { nodeDataId?: Id<"nodeDatas"> }
+            | undefined
+        )?.nodeDataId;
+        reassignViewportWindowOwner(
+          removedIds,
+          survivingViewport && survivingNodeDataId
+            ? {
+                xyNodeId: survivingViewport.id,
+                nodeDataId: survivingNodeDataId,
+              }
+            : null,
+        );
+        closeWindowsForNodeIds(removedIds);
         // Directly persist remove operations to Convex.
         return persistNodeChange(
           () =>
@@ -564,6 +590,7 @@ export function useCanvasNodes(
       canvasNodes,
       addCanvasNodesToConvex,
       closeWindowsForNodeIds,
+      reassignViewportWindowOwner,
       removeCanvasNodesToConvex,
       updateCanvasNodesPositionOrDimensionsInConvex,
       onNodesChange,

@@ -2,7 +2,7 @@ import type { Column } from "@tanstack/react-table";
 import { TbPlus } from "react-icons/tb";
 import { TableCell, TableRow } from "@/components/shadcn/table";
 import { GUTTER_COLUMN_ID, ACTIONS_COLUMN_ID } from "./columnIds";
-import { useSortableCellStyle } from "./sortableCell";
+import { columnCellStyle } from "./sortableCell";
 import type { TableRowData } from "./types";
 
 export interface GhostRowProps {
@@ -66,8 +66,10 @@ export function GhostRow({ leafColumns, clearsView, onCreate }: GhostRowProps) {
 }
 
 /**
- * Sans le hook, les cellules de la ligne fantôme resteraient sur place pendant
- * qu'on déplace une colonne, alors que tout le reste du tableau suit.
+ * Largeur et clipping de la colonne, sans enregistrement dnd : la ligne fantôme
+ * ne s'anime pas pendant un déplacement de colonne, elle se replace au dépôt.
+ * S'enregistrer comme sortable sous l'id de la colonne aurait dupliqué cet id
+ * dans le contexte et écrasé l'en-tête, qui en est le seul propriétaire.
  */
 function GhostCell({
   column,
@@ -78,9 +80,12 @@ function GhostCell({
   label: string;
   onClick: () => void;
 }) {
-  const { setNodeRef, style } = useSortableCellStyle(column.id, column.getSize());
   return (
-    <TableCell ref={setNodeRef} style={style} className="align-top" onClick={onClick}>
+    <TableCell
+      style={columnCellStyle(column.getSize())}
+      className="align-top"
+      onClick={onClick}
+    >
       <span className="block min-h-[1.4em] truncate px-1 text-sm">{label}</span>
     </TableCell>
   );

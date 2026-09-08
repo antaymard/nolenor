@@ -1,16 +1,16 @@
 import type { CSSProperties } from "react";
-import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 /**
- * Le style d'une cellule qui suit le déplacement de sa colonne.
+ * Le style d'une cellule de colonne : largeur figée, débordement coupé, et le
+ * `transform` qui la fait suivre un déplacement de colonne.
  *
- * Il était écrit quatre fois — en-tête, cellule, ligne fantôme, pied de
- * calculs — et les deux dernières copies avaient dérivé : la ligne fantôme
- * appelait `useSortable` hors de tout `SortableContext` (donc `transform` était
- * toujours nul, et elle enregistrait quand même des ids de colonne comme cibles
- * de dépôt dans le contexte des LIGNES), et le pied n'avait pas de transform du
- * tout. Un seul endroit rend cette dérive impossible.
+ * Le `transform` n'a de sens que pour l'EN-TÊTE, seul élément à s'enregistrer
+ * comme sortable sous l'id de sa colonne. Les cellules de corps, de ligne
+ * fantôme et de pied appelaient `useSortable` avec ce même id : elles le
+ * réenregistraient une fois par ligne, et comme dnd-kit indexe ses draggables
+ * et ses droppables par id dans des `Map`, la dernière enregistrée écrasait
+ * l'en-tête. Elles se contentent maintenant de `columnCellStyle`.
  */
 export function sortableCellStyle(
   transform: Parameters<typeof CSS.Translate.toString>[0],
@@ -28,14 +28,10 @@ export function sortableCellStyle(
 }
 
 /**
- * À utiliser dans une cellule de corps, de ligne fantôme ou de pied. L'en-tête
- * a besoin en plus des `listeners` de la poignée, il appelle donc `useSortable`
- * lui-même et se contente de `sortableCellStyle`.
- *
- * Doit être rendu à l'intérieur du `SortableContext` horizontal des colonnes,
- * sans quoi le hook ne rend rien et pollue le contexte englobant.
+ * Le même style, pour une cellule qui ne participe pas au drag : corps, ligne
+ * fantôme, pied de calculs. Elle garde sa largeur et son clipping, elle ne
+ * s'anime simplement pas pendant qu'on déplace sa colonne.
  */
-export function useSortableCellStyle(columnId: string, size: number) {
-  const { isDragging, setNodeRef, transform } = useSortable({ id: columnId });
-  return { setNodeRef, style: sortableCellStyle(transform, isDragging, size) };
+export function columnCellStyle(size: number): CSSProperties {
+  return sortableCellStyle(null, false, size);
 }

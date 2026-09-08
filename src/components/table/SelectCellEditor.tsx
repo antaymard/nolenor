@@ -8,7 +8,11 @@ import {
 import { Input } from "@/components/shadcn/input";
 import { cn } from "@/lib/utils";
 import {
+  cellShellClass,
+  DEFAULT_ROW_HEIGHT,
+  maxHeightForRowHeight,
   SELECT_COLOR_CLASSES,
+  type RowHeight,
   type SelectCellValue,
   type SelectOption,
 } from "./types";
@@ -19,6 +23,8 @@ export interface SelectCellEditorProps {
   value: SelectCellValue | null | undefined;
   isEditing: boolean;
   readOnly?: boolean;
+  /** Comme dans `CellDisplay` : en `short`, les étiquettes ne s'empilent pas. */
+  rowHeight?: RowHeight;
   onClick: () => void;
   onChange: (val: SelectCellValue) => void;
   onBlur: () => void;
@@ -54,6 +60,7 @@ export function SelectCellEditor({
   value,
   isEditing,
   readOnly,
+  rowHeight = DEFAULT_ROW_HEIGHT,
   onClick,
   onChange,
   onBlur,
@@ -130,9 +137,16 @@ export function SelectCellEditor({
       </span>
     );
 
+  const shellClassName = cn(
+    "flex min-w-0 w-full items-center gap-1 min-h-[1.4em] rounded px-1",
+    cellShellClass(rowHeight),
+  );
+  const shellStyle =
+    rowHeight === "short" ? undefined : maxHeightForRowHeight(rowHeight);
+
   if (readOnly) {
     return (
-      <span className="flex items-center gap-1 w-full min-h-[1.4em] rounded px-1">
+      <span className={shellClassName} style={shellStyle}>
         {displayContent}
       </span>
     );
@@ -150,7 +164,8 @@ export function SelectCellEditor({
     >
       <PopoverTrigger asChild>
         <span
-          className="flex items-center gap-1 w-full min-h-[1.4em] rounded px-1 cursor-pointer hover:bg-muted/50"
+          className={cn(shellClassName, "cursor-pointer hover:bg-muted/50")}
+          style={shellStyle}
           onClick={onClick}
         >
           {displayContent}

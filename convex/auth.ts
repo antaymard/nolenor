@@ -122,6 +122,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
      * les écritures déjà faites en arrière — on committerait un canvas à
      * moitié construit. Une transaction séparée échoue proprement : au pire
      * le canvas manque et la home affiche son écran de bienvenue.
+     *
+     * La notification email admin suit la même logique (transaction séparée,
+     * jamais bloquante) : cf. `convex/adminNotifications.ts`.
      */
     async afterUserCreatedOrUpdated(ctx, { userId, existingUserId }) {
       if (existingUserId !== null) return;
@@ -129,6 +132,12 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       await ctx.scheduler.runAfter(
         0,
         internal.onboarding.provisionForNewUser,
+        { userId },
+      );
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.adminNotifications.notifyNewSignup,
         { userId },
       );
     },

@@ -48,6 +48,7 @@ export default function CanvasSidebar({
     useUserCanvases();
 
   const currentCanvas = userCanvases?.find((c) => c._id === canvasId);
+  const isOwnCanvas = ownCanvases.some((c) => c._id === canvasId);
 
   const [canvasToDelete, setCanvasToDelete] = useState<{
     id: Id<"canvases">;
@@ -110,7 +111,7 @@ export default function CanvasSidebar({
                     size="icon"
                     className="opacity-0 group-hover:opacity-100 h-6 w-6"
                   >
-                    <HiDotsVertical size={14} />
+                    <HiDotsVertical size={12} />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -205,9 +206,50 @@ export default function CanvasSidebar({
       </Sidebar>
 
       <SidebarInset className="flex-1">
-        <span className="absolute top-2 left-2 z-10 animate-appear">
+        <div className="absolute top-3 left-3 z-10 animate-appear canvas-ui-container h-8 pr-1 max-w-72">
           <SidebarTrigger />
-        </span>
+          <span className="text-sm font-bold truncate max-w-48">
+            {currentCanvas?.name ?? "..."}
+          </span>
+          {isOwnCanvas && currentCanvas && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0"
+                  aria-label="Workspace options"
+                >
+                  <HiDotsVertical size={12} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem
+                  onClick={() =>
+                    setCanvasToEdit({
+                      id: currentCanvas._id,
+                      name: currentCanvas.name,
+                      description: currentCanvas.description ?? "",
+                    })
+                  }
+                >
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    setCanvasToDelete({
+                      id: currentCanvas._id,
+                      name: currentCanvas.name,
+                    })
+                  }
+                  className="text-destructive"
+                >
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
         {children}
       </SidebarInset>
 

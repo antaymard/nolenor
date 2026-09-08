@@ -15,11 +15,11 @@ export function sortSnippets(snippets: SearchSnippet[]): SearchSnippet[] {
 export function formatRelative(ts: number): string {
   const diff = Date.now() - ts;
   const m = Math.round(diff / 60_000);
-  if (m < 1) return "à l'instant";
-  if (m < 60) return `${m} min`;
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m`;
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} h`;
+  if (h < 24) return `${h}h`;
   const d = Math.round(h / 24);
-  if (d < 7) return `${d} j`;
+  if (d < 7) return `${d}d`;
   return new Date(ts).toLocaleDateString();
 }

@@ -11,10 +11,10 @@ import {
 import type { SearchSnippet as SearchSnippetType } from "./useSearch";
 
 /**
- * Surligne (insensible à la casse) les termes dans `text`.
+ * Highlights (case-insensitively) the terms in `text`.
  *
- * `terms` vient du serveur, qui a parsé la requête : découper la saisie brute
- * ici surlignerait `-brouillon` ou un guillemet.
+ * `terms` comes from the server, which parsed the query: splitting the raw
+ * input here would highlight `-draft` or a quote character.
  */
 export function HighlightedText({
   text,
@@ -55,7 +55,7 @@ export function HighlightedText({
   );
 }
 
-/** Une ligne d'extrait avec surlignage + badge page/type (masqué en compact). */
+/** An excerpt line with highlighting + page/type badge (hidden when compact). */
 export function SearchSnippet({
   snippet,
   terms,
@@ -92,7 +92,7 @@ export function SearchSnippet({
   );
 }
 
-/** Bande horizontale d'aperçus d'images (PDF/images). */
+/** Horizontal strip of image previews (PDF/images). */
 export function PreviewImages({
   images,
   size = "h-28 w-28",
@@ -107,7 +107,7 @@ export function PreviewImages({
         <div key={image.imageUrl} className="relative shrink-0">
           <img
             src={image.imageUrl}
-            alt="Aperçu"
+            alt="Preview"
             loading="lazy"
             className={cn("rounded-md border object-cover", size)}
           />
@@ -122,7 +122,7 @@ export function PreviewImages({
   );
 }
 
-/** Cartes-squelettes affichées au tout premier chargement. */
+/** Skeleton cards shown on the very first load. */
 export function SearchSkeleton({
   count = 5,
   compact = false,
@@ -149,7 +149,7 @@ export function SearchSkeleton({
   );
 }
 
-/** État vide (aucun résultat / aucun nœud). */
+/** Empty state (no results / no nodes). */
 export function SearchEmpty({
   icon,
   title,
@@ -170,11 +170,11 @@ export function SearchEmpty({
   );
 }
 
-/** État d'erreur. */
+/** Error state. */
 export function SearchError({ message }: { message?: string }) {
   return (
     <div className="p-6 text-center text-sm text-destructive">
-      An error occured{message ? ` : ${message}` : ""}.
+      An error occurred{message ? ` : ${message}` : ""}.
     </div>
   );
 }

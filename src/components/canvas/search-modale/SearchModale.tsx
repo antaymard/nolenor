@@ -164,12 +164,12 @@ export default function SearchModale() {
         showCloseButton={false}
         className="flex h-[85vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:h-[75vh] sm:max-w-3xl md:max-w-4xl"
       >
-        <DialogTitle className="sr-only">Recherche</DialogTitle>
+        <DialogTitle className="sr-only">Search</DialogTitle>
         <DialogDescription className="sr-only">
-          Rechercher des nodes, documents et contenus du canvas.
+          Search nodes, documents and canvas contents.
         </DialogDescription>
 
-        {/* Champ de recherche */}
+        {/* Search field */}
         <div className="flex items-center gap-2 border-b px-3 py-2">
           <TbSearch className="shrink-0 text-muted-foreground" />
           <input
@@ -179,8 +179,8 @@ export default function SearchModale() {
             aria-expanded
             aria-controls={listboxId}
             aria-activedescendant={activeDescendant}
-            aria-label="Rechercher"
-            placeholder={'Rechercher — "phrase exacte", -exclure, a OR b'}
+            aria-label="Search"
+            placeholder={'Search — "exact phrase", -exclude, a OR b'}
             className="min-w-0 flex-1 border-none bg-transparent outline-none placeholder:text-muted-foreground"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -194,7 +194,7 @@ export default function SearchModale() {
               variant="ghost"
               size="icon"
               className="h-7 w-7 shrink-0"
-              aria-label="Effacer la recherche"
+              aria-label="Clear search"
               onClick={() => setSearchQuery("")}
             >
               <TbX />
@@ -204,14 +204,14 @@ export default function SearchModale() {
             variant="ghost"
             size="icon"
             className="h-7 w-7 shrink-0"
-            aria-label="Fermer"
+            aria-label="Close"
             onClick={() => closeSearchModal()}
           >
             <TbX />
           </Button>
         </div>
 
-        {/* Filtres de type + rappel de syntaxe */}
+        {/* Type filters + syntax hint */}
         <div className="flex items-center gap-3 border-b px-3 py-2">
           <SearchTypeFilter
             selected={nodeTypes}
@@ -220,27 +220,27 @@ export default function SearchModale() {
             className="min-w-0 flex-1"
           />
           <span className="hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground lg:flex">
-            <code className="rounded bg-muted px-1">&quot;phrase exacte&quot;</code>
-            <code className="rounded bg-muted px-1">-exclure</code>
+            <code className="rounded bg-muted px-1">&quot;exact phrase&quot;</code>
+            <code className="rounded bg-muted px-1">-exclude</code>
             <code className="rounded bg-muted px-1">a OR b</code>
           </span>
         </div>
 
-        {/* Annonce lecteur d'écran */}
+        {/* Screen reader announcement */}
         <div aria-live="polite" className="sr-only">
           {isInitialLoading
-            ? "Recherche en cours"
+            ? "Searching"
             : hasQuery
-              ? `${resultCount} résultat${resultCount > 1 ? "s" : ""}`
+              ? `${resultCount} result${resultCount > 1 ? "s" : ""}`
               : ""}
         </div>
 
-        {/* Résultats */}
+        {/* Results */}
         <div
           ref={resultsContainerRef}
           role="listbox"
           id={listboxId}
-          aria-label="Résultats de recherche"
+          aria-label="Search results"
           className={cn(
             "flex-1 overflow-auto p-1 transition-opacity",
             isStale && "opacity-60",
@@ -254,19 +254,18 @@ export default function SearchModale() {
             results.length === 0 ? (
               <SearchEmpty
                 icon={<TbSearch />}
-                title="Aucun résultat"
-                description={`Aucune correspondance pour « ${debouncedQuery} ».`}
+                title="No results"
+                description={`No matches for "${debouncedQuery}".`}
               />
             ) : (
               <>
                 {relaxed ? (
                   <div className="mx-2 mt-1 mb-2 rounded-md border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-                    Aucun résultat exact — voici les correspondances
-                    approchantes.
+                    No exact results — showing close matches.
                   </div>
                 ) : null}
                 <div className="px-2 pt-1 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
-                  {resultCount} résultat{resultCount > 1 ? "s" : ""}
+                  {resultCount} result{resultCount > 1 ? "s" : ""}
                 </div>
                 {results.map((result, idx) => (
                   <ResultCard
@@ -287,12 +286,12 @@ export default function SearchModale() {
           ) : !recents || recents.length === 0 ? (
             <SearchEmpty
               icon={<TbSearch />}
-              title="Aucun node pour l'instant"
+              title="No nodes yet"
             />
           ) : (
             <>
               <h4 className="px-2 pt-1 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
-                Récents
+                Recent
               </h4>
               {recents.map((entry, idx) => (
                 <RecentRow
@@ -311,25 +310,25 @@ export default function SearchModale() {
           )}
         </div>
 
-        {/* Footer raccourcis */}
+        {/* Shortcuts footer */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-3 py-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <KbdGroup>
               <Kbd>↑</Kbd>
               <Kbd>↓</Kbd>
             </KbdGroup>
-            naviguer
+            navigate
           </span>
           <span className="flex items-center gap-1.5">
             <Kbd>↵</Kbd>
-            ouvrir
+            open
           </span>
           <span className="hidden items-center gap-1.5 sm:flex">
-            <Kbd>Alt</Kbd>+ clic attacher à Nole
+            <Kbd>Alt</Kbd>+click to attach to Nole
           </span>
           <span className="ml-auto flex items-center gap-1.5">
             <Kbd>Esc</Kbd>
-            fermer
+            close
           </span>
         </div>
       </DialogContent>
@@ -393,8 +392,8 @@ function ResultCard({
       }}
       title={
         isAttachedToNole
-          ? "Alt+clic pour détacher de Nole"
-          : "Alt+clic pour attacher à Nole"
+          ? "Alt+click to detach from Nole"
+          : "Alt+click to attach to Nole"
       }
     >
       <div className="absolute top-3 right-3 flex items-center gap-1">
@@ -406,8 +405,8 @@ function ResultCard({
             event.stopPropagation();
             handleGoToNode();
           }}
-          aria-label="Localiser sur le canvas"
-          title="Localiser sur le canvas"
+          aria-label="Locate on canvas"
+          title="Locate on canvas"
         >
           <TbLocation size={14} />
         </Button>
@@ -422,7 +421,7 @@ function ResultCard({
 
       <div className="mt-2 flex flex-col gap-2">
         {sortedSnippets.length === 0 ? (
-          <span className="text-sm text-muted-foreground">Aucun extrait</span>
+          <span className="text-sm text-muted-foreground">No excerpt</span>
         ) : (
           sortedSnippets.map((snippet, index) => (
             <SearchSnippet

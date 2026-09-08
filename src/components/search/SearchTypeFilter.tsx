@@ -6,25 +6,25 @@ import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { cn } from "@/lib/utils";
 
 const NODE_TYPE_LABELS: Record<NodeType, string> = {
-  link: "Liens",
+  link: "Links",
   image: "Images",
   blocknote: "Notes",
-  value: "Valeurs",
+  value: "Values",
   embed: "Embeds",
-  title: "Titres",
+  title: "Titles",
   pdf: "PDF",
-  table: "Tableaux",
+  table: "Tables",
   app: "Apps",
   audio: "Audio",
-  video: "Vidéos",
+  video: "Videos",
   viewport: "Viewports",
   custom: "Custom",
 };
 
 /**
- * Filtre par type de node. Volontairement en chips plutôt qu'en syntaxe
- * `type:pdf` : c'est le seul filtre que l'index sait appliquer lui-même
- * (`filterFields`), donc autant le rendre visible et cliquable.
+ * Filter by node type. Deliberately chips instead of a `type:pdf` syntax:
+ * it's the only filter the index can apply itself (`filterFields`),
+ * so it makes sense to make it visible and clickable.
  */
 export function SearchTypeFilter({
   selected,
@@ -40,7 +40,7 @@ export function SearchTypeFilter({
   return (
     <div
       role="group"
-      aria-label="Filtrer par type de node"
+      aria-label="Filter by node type"
       className={cn(
         "flex flex-nowrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
         className,
@@ -54,7 +54,7 @@ export function SearchTypeFilter({
             key={type}
             type="button"
             aria-pressed={active}
-            // Garder le focus dans le champ : la navigation clavier en dépend.
+            // Keep focus in the input: keyboard navigation depends on it.
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onToggle(type)}
             className={cn(
@@ -76,7 +76,7 @@ export function SearchTypeFilter({
           onClick={onClear}
           className="shrink-0 px-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
         >
-          Tout afficher
+          Show all
         </button>
       ) : null}
     </div>

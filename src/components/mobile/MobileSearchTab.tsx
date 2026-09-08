@@ -70,8 +70,8 @@ export default function MobileSearchTab({
         <TbSearch className="shrink-0 text-muted-foreground" />
         <Input
           type="text"
-          aria-label="Rechercher"
-          placeholder={'Rechercher — "phrase", -exclure, a OR b'}
+          aria-label="Search"
+          placeholder={'Search — "phrase", -exclude, a OR b'}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="border-0 px-0 shadow-none focus-visible:ring-0"
@@ -84,7 +84,7 @@ export default function MobileSearchTab({
             variant="ghost"
             size="icon"
             className="h-7 w-7 shrink-0"
-            aria-label="Effacer la recherche"
+            aria-label="Clear search"
             onClick={() => setQuery("")}
           >
             <TbX />
@@ -105,7 +105,7 @@ export default function MobileSearchTab({
           <SearchError message={error.message} />
         ) : hasQuery ? (
           results.length === 0 ? (
-            <SearchEmpty icon={<TbSearch />} title="Aucun résultat" />
+            <SearchEmpty icon={<TbSearch />} title="No results" />
           ) : (
             <div
               className={cn(
@@ -115,7 +115,7 @@ export default function MobileSearchTab({
             >
               {relaxed ? (
                 <div className="rounded-md border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-                  Aucun résultat exact — voici les correspondances approchantes.
+                  No exact results — showing close matches.
                 </div>
               ) : null}
               {results.map((result) => (
@@ -135,11 +135,11 @@ export default function MobileSearchTab({
             </div>
           )
         ) : !recents || recents.length === 0 ? (
-          <SearchEmpty icon={<TbSearch />} title="Aucun node pour l'instant" />
+          <SearchEmpty icon={<TbSearch />} title="No nodes yet" />
         ) : (
           <div className="flex flex-col p-2">
             <h4 className="px-2 py-1 text-xs uppercase tracking-wider text-muted-foreground">
-              Récents
+              Recent
             </h4>
             {recents.map((entry) => (
               <MobileRecentRow

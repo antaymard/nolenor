@@ -30,7 +30,17 @@ export default function MobileTopBar({
         {/* Autonome : rend son propre trigger, et null si l'user n'est pas owner. */}
         <SharingModal />
         <Button variant="ghost" size="icon" asChild>
-          <Link to="/settings" title="Settings" aria-label="Settings">
+          <Link
+            to="/settings"
+            state={{
+              from:
+                window.location.pathname +
+                window.location.search +
+                window.location.hash,
+            }}
+            title="Settings"
+            aria-label="Settings"
+          >
             <HiOutlineCog size={18} />
           </Link>
         </Button>

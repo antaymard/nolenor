@@ -6,11 +6,14 @@ import { internalAction, internalQuery } from "./_generated/server";
 /**
  * Destinataire des notifications d'inscription.
  *
- * En dur à dessein (choix produit) : une seule adresse, pas de configuration
- * par déploiement à maintenir. Pour repasser sur une variable d'environnement,
- * remplacer par `process.env.ADMIN_NOTIFICATION_EMAIL`.
+ * Lu depuis la variable d'environnement `ADMIN_EMAIL_ADDRESS` du déploiement
+ * (`npx convex env set ADMIN_EMAIL_ADDRESS <adresse>`). Pas de valeur en dur :
+ * si elle est absente, l'envoi est ignoré avec un log d'erreur (plutôt qu'un
+ * email silencieux vers une mauvaise adresse).
  */
-const ADMIN_NOTIFICATION_EMAIL = "antaymard@gmail.com";
+function adminNotificationEmail(): string | null {
+  return process.env.ADMIN_EMAIL_ADDRESS ?? null;
+}
 
 /**
  * Origines considérées comme de la production pour l'envoi.
@@ -142,6 +145,15 @@ export const notifyNewSignup = internalAction({
       return null;
     }
 
+    const adminEmail = adminNotificationEmail();
+    if (!adminEmail) {
+      console.error(
+        "notifyNewSignup: ADMIN_EMAIL_ADDRESS absente sur ce déploiement, " +
+          "email admin non envoyé. `npx convex env set ADMIN_EMAIL_ADDRESS <adresse>`.",
+      );
+      return null;
+    }
+
     // Annotation explicite : appel dans le même fichier, contourne la
     // circularité de types (cf. guidelines Convex).
     const info: {
@@ -170,7 +182,7 @@ export const notifyNewSignup = internalAction({
     const resend = new ResendAPI(apiKey);
     const { error } = await resend.emails.send({
       from: notificationFromAddress(),
-      to: [ADMIN_NOTIFICATION_EMAIL],
+      to: [adminEmail],
       subject: `Nouvelle inscription Nolenor : ${email}`,
       text: [
         "Nouvelle inscription sur Nolenor.",

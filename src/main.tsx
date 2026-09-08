@@ -43,6 +43,14 @@ declare module "@tanstack/react-router" {
   }
 }
 
+// État d'historique partagé : `from` mémorise la page d'origine pour la croix
+// des settings (cf. hooks/useCloseSettings.ts).
+declare module "@tanstack/history" {
+  interface HistoryState {
+    from?: string;
+  }
+}
+
 const rootElement = document.getElementById("root")!;
 if (!rootElement.innerHTML) {
   const root = createRoot(rootElement);

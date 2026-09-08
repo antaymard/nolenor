@@ -120,7 +120,17 @@ export default function AddBlockMenuContent({
           })}
           <DropdownMenuItem
             className="w-48 text-muted-foreground"
-            onClick={() => navigate({ to: "/settings/templates" })}
+            onClick={() =>
+              navigate({
+                to: "/settings/templates",
+                state: {
+                  from:
+                    window.location.pathname +
+                    window.location.search +
+                    window.location.hash,
+                },
+              })
+            }
           >
             <TbSettings /> Manage templates…
           </DropdownMenuItem>

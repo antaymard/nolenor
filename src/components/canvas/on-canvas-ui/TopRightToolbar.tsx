@@ -19,6 +19,12 @@ function TopRightToolbar() {
       <Button variant="ghost" size="icon-sm" asChild>
         <Link
           to="/settings"
+          state={{
+            from:
+              window.location.pathname +
+              window.location.search +
+              window.location.hash,
+          }}
           className="hover:bg-accent flex items-center rounded-md"
           title="Settings"
         >

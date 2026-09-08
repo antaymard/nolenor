@@ -49,7 +49,12 @@ export default function HomeHeader({ canJump }: HomeHeaderProps) {
         )}
 
         <Button variant="ghost" size="icon-sm" asChild>
-          <Link to="/settings" title="Settings" aria-label="Settings">
+          <Link
+            to="/settings"
+            state={{ from: "/" }}
+            title="Settings"
+            aria-label="Settings"
+          >
             <HiOutlineCog size={18} />
           </Link>
         </Button>

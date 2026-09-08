@@ -20,6 +20,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/shadcn/sheet";
+import { useCloseSettings } from "@/hooks/useCloseSettings";
 import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 
 export const Route = createFileRoute("/settings")({
@@ -86,6 +87,8 @@ function RouteComponent() {
   // Sur mobile la sidebar ne tient pas à côté du contenu : elle passe dans une
   // sheet, ouverte depuis la barre du haut et refermée dès qu'on navigue.
   const [navOpen, setNavOpen] = useState(false);
+  // Ferme vers la page d'origine (canvas, home…) plutôt que toujours `/`.
+  const closeSettings = useCloseSettings();
 
   // Une section dont toutes les entrées sont réservées au dev disparaît avec
   // elles, plutôt que de laisser un titre seul en production.
@@ -142,13 +145,14 @@ function RouteComponent() {
           <TbMenu2 size={16} />
         </button>
         <h1 className="min-w-0 flex-1 truncate text-lg font-bold">Settings</h1>
-        <Link
-          to="/"
+        <button
+          type="button"
+          onClick={closeSettings}
           className="rounded-md bg-gray-100 p-2 hover:bg-gray-200"
           aria-label="Close settings"
         >
           <TbX size={16} />
-        </Link>
+        </button>
       </div>
 
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
@@ -165,9 +169,14 @@ function RouteComponent() {
       {/* Sidebar */}
       <div className="hidden flex-col gap-5 overflow-y-auto border-r border-gray-300 p-5 md:flex">
         <span className="flex items-center gap-2">
-          <Link to="/" className="rounded-md bg-gray-100 p-2 hover:bg-gray-200">
+          <button
+            type="button"
+            onClick={closeSettings}
+            className="rounded-md bg-gray-100 p-2 hover:bg-gray-200"
+            aria-label="Close settings"
+          >
             <TbX size={16} />
-          </Link>
+          </button>
           <h1 className="text-lg font-bold">Settings</h1>
         </span>
         <div className="space-y-5">{renderSettingsSidebar()}</div>

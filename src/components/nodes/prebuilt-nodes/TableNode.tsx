@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
@@ -8,7 +8,7 @@ import { Button } from "@/components/shadcn/button";
 import { TbMaximize, TbTable } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
-import { TablePreview } from "@/components/table";
+import { applyFilters, TablePreview } from "@/components/table";
 import type { TableData } from "@/components/table";
 import type { XyNodeProps } from "@/types/domain";
 
@@ -30,6 +30,27 @@ function TableNode(xyNode: XyNodeProps) {
     columns: [],
     rows: [],
   };
+  /*
+   * Un filtre décrit une VUE de la table, pas une lecture jetable : le node
+   * montre donc les mêmes lignes que la fenêtre d'édition. `applyFilters`
+   * ignore de lui-même les conditions dont la colonne n'a pas survécu.
+   */
+  const visibleRows = useMemo(
+    () =>
+      applyFilters(
+        tableData.rows,
+        tableData.columns,
+        tableData.filters ?? [],
+        tableData.filterConjunction ?? "all",
+      ),
+    [
+      tableData.rows,
+      tableData.columns,
+      tableData.filters,
+      tableData.filterConjunction,
+    ],
+  );
+  const hiddenRowCount = tableData.rows.length - visibleRows.length;
   const title = (values?.title as string | undefined) ?? "";
   const isTitleVariant = xyNode.data.variant === "title";
   const isTableEmpty =
@@ -58,7 +79,7 @@ function TableNode(xyNode: XyNodeProps) {
         ) : (
           <div className="flex flex-col h-full min-h-0 bg-background/50">
             {title && (
-              <div className="shrink-0 pt-1.5 pb-0.5 px-2 bg-white z-20">
+              <div className="shrink-0 pt-1.5 pb-0.5 px-2 bg-background z-20">
                 <p className="font-semibold truncate text-lg">{title}</p>
               </div>
             )}
@@ -74,10 +95,16 @@ function TableNode(xyNode: XyNodeProps) {
               ) : (
                 <TablePreview
                   columns={tableData.columns}
-                  rows={tableData.rows}
+                  rows={visibleRows}
+                  rowHeight={tableData.rowHeight}
                 />
               )}
             </div>
+            {hiddenRowCount > 0 && (
+              <div className="shrink-0 border-t border-border bg-background px-2 py-0.5 text-right text-xs text-muted-foreground">
+                {visibleRows.length} of {tableData.rows.length}
+              </div>
+            )}
           </div>
         )}
       </NodeFrame>

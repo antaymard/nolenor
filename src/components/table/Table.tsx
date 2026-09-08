@@ -25,6 +25,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   restrictToHorizontalAxis,
@@ -101,6 +102,14 @@ export interface TableProps {
   ) => void;
   onColumnSummaryChange?: (colId: string, summary: SummaryKind | undefined) => void;
   onRowHeightChange?: (rowHeight: RowHeight) => void;
+  /**
+   * Filtres persistés, contrôlés par le parent — comme `rowHeight`. Le tri et la
+   * recherche restent locaux : eux ne sont pas enregistrés avec la table.
+   */
+  filters?: TableFilter[];
+  filterConjunction?: FilterConjunction;
+  onFiltersChange?: (filters: TableFilter[]) => void;
+  onFilterConjunctionChange?: (conjunction: FilterConjunction) => void;
   className?: string;
 }
 
@@ -110,6 +119,19 @@ interface EditingCell {
 }
 
 const GUTTER_WIDTH = 56;
+
+/**
+ * Constantes de module : un littéral passé à `modifiers` est un nouveau tableau
+ * à chaque rendu, que dnd-kit relit à chaque frame de déplacement.
+ */
+const ROW_MODIFIERS = [restrictToVerticalAxis];
+const COLUMN_MODIFIERS = [restrictToHorizontalAxis];
+
+/** Ce qu'on déplace. Posé par le `data` des sortables, dans `sortableParts`. */
+type DragKind = "row" | "column";
+
+/** Défaut stable : `filters` entre dans des `useMemo`. */
+const NO_FILTERS: TableFilter[] = [];
 
 export function Table({
   columns: tableColumns,
@@ -129,13 +151,15 @@ export function Table({
   onColumnOptionsChange,
   onColumnSummaryChange,
   onRowHeightChange,
+  filters = NO_FILTERS,
+  filterConjunction = "all",
+  onFiltersChange,
+  onFilterConjunctionChange,
   className,
 }: TableProps) {
   const tableRootRef = useRef<HTMLDivElement>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [filters, setFilters] = useState<TableFilter[]>([]);
-  const [conjunction, setConjunction] = useState<FilterConjunction>("all");
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [optionsDialogColumnId, setOptionsDialogColumnId] = useState<
     string | null
@@ -194,17 +218,27 @@ export function Table({
     });
   }, [tableColumns]);
 
-  // Le réordonnancement de lignes n'a plus de sens dès que l'ordre affiché
-  // n'est plus l'ordre stocké.
-  const canReorderRows =
-    !readOnly && sorting.length === 0 && globalFilter === "" && filters.length === 0;
+  /*
+   * Sous filtre, l'ordre affiché est un SOUS-ENSEMBLE de l'ordre stocké : les
+   * lignes visibles s'y suivent dans le même sens, donc un déplacement reste
+   * traduisible en position absolue (cf. `handleRowDragEnd`). Sous tri ou sous
+   * recherche, non : la position affichée ne dit plus rien de la position
+   * stockée, et déposer entre deux lignes n'aurait pas de cible.
+   */
+  const canReorderRows = !readOnly && sorting.length === 0 && globalFilter === "";
+  const reorderBlockedReason =
+    readOnly || canReorderRows
+      ? undefined
+      : sorting.length > 0
+        ? "Clear the sort to reorder rows"
+        : "Clear the search to reorder rows";
 
   const onColumnWidthChangeRef = useRef(onColumnWidthChange);
   onColumnWidthChangeRef.current = onColumnWidthChange;
 
   const visibleRows = useMemo(
-    () => applyFilters(rows, tableColumns, filters, conjunction),
-    [rows, tableColumns, filters, conjunction],
+    () => applyFilters(rows, tableColumns, filters, filterConjunction),
+    [rows, tableColumns, filters, filterConjunction],
   );
 
   /*
@@ -247,14 +281,16 @@ export function Table({
       const newRowId = onAddRow?.();
       if (!newRowId) return;
       setGlobalFilter("");
-      setFilters([]);
       setSorting([]);
+      // Une ligne vide ne passe aucun filtre : on remet la vue à plat pour que
+      // la ligne créée soit celle qu'on voit. `GhostRow` l'annonce avant le clic.
+      if (filters.length > 0) onFiltersChange?.([]);
       const col = columnsById.get(columnId);
       if (col && col.type !== "checkbox") {
         setEditingCell({ rowId: newRowId, columnId });
       }
     },
-    [columnsById, onAddRow],
+    [columnsById, onAddRow, filters, onFiltersChange],
   );
 
   const columns = useMemo<ColumnDef<TableRowData>[]>(
@@ -402,14 +438,73 @@ export function Table({
     onColumnOrderChange?.(arrayMove(ids, oldIndex, newIndex));
   }
 
+  /*
+   * `over` est une ligne VISIBLE. On traduit le dépôt en position absolue dans
+   * le tableau complet, pour que les lignes masquées par un filtre gardent la
+   * leur. Sans filtre, le calcul redonne exactement `arrayMove`.
+   */
   function handleRowDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!active || !over || active.id === over.id) return;
-    const allIds = rows.map((r) => r.id);
-    const oldIndex = allIds.indexOf(active.id as string);
-    const newIndex = allIds.indexOf(over.id as string);
-    if (oldIndex === -1 || newIndex === -1) return;
-    onRowOrderChange?.(arrayMove(allIds, oldIndex, newIndex));
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    const visibleIds = visibleRows.map((r) => r.id);
+    const from = visibleIds.indexOf(activeId);
+    const to = visibleIds.indexOf(overId);
+    if (from === -1 || to === -1) return;
+
+    const next = rows.map((r) => r.id).filter((id) => id !== activeId);
+    const target = next.indexOf(overId);
+    if (target === -1) return;
+    // Vers le bas on se pose APRÈS la cible, vers le haut avant elle.
+    next.splice(from < to ? target + 1 : target, 0, activeId);
+    onRowOrderChange?.(next);
+  }
+
+  /*
+   * UN SEUL DndContext pour les colonnes ET les lignes.
+   *
+   * Il y en avait deux, imbriqués, partageant le même tableau de `sensors` — et
+   * les cellules du corps, de la ligne fantôme et du pied s'enregistraient comme
+   * sortables sous l'id de LEUR COLONNE, donc une fois par ligne. dnd-kit
+   * indexant draggables et droppables par id dans des `Map`, le même id était
+   * réécrit N fois et le pied écrasait jusqu'à l'enregistrement de l'en-tête. Le
+   * drag de ligne n'y survivait pas. Seuls l'en-tête et la ligne s'enregistrent
+   * maintenant, et `data.type` dit lequel des deux on déplace.
+   */
+  const [dragKind, setDragKind] = useState<DragKind | null>(null);
+  // `modifiers` ne se relit qu'au rendu, d'où l'état ; `onDragEnd` ne doit pas
+  // dépendre de l'ordre des mises à jour d'état, d'où la ref.
+  const dragKindRef = useRef<DragKind | null>(null);
+  dragKindRef.current = dragKind;
+
+  // Ne laisse au calcul de collision que les cibles du type qu'on déplace.
+  const collisionDetection = useCallback<CollisionDetection>(
+    (args) =>
+      closestCenter({
+        ...args,
+        droppableContainers: args.droppableContainers.filter(
+          (container) => container.data.current?.type === dragKindRef.current,
+        ),
+      }),
+    [],
+  );
+
+  function handleDragStart(event: DragStartEvent) {
+    const kind = event.active.data.current?.type;
+    const next = kind === "row" || kind === "column" ? kind : null;
+    // Écrit tout de suite, pas seulement au prochain rendu : `collisionDetection`
+    // le lit dès le premier `mousemove`, avant que le rendu déclenché par
+    // `setDragKind` n'ait été appliqué.
+    dragKindRef.current = next;
+    setDragKind(next);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    if (dragKindRef.current === "row") handleRowDragEnd(event);
+    else if (dragKindRef.current === "column") handleColumnDragEnd(event);
+    setDragKind(null);
   }
 
   const sortableColumnIds = useMemo(
@@ -420,24 +515,6 @@ export function Table({
   const displayedRows = table.getRowModel().rows;
   const rowIds = useMemo(() => displayedRows.map((r) => r.id), [displayedRows]);
 
-  /*
-   * Les cellules du corps s'enregistrent comme sortables sous l'id de LEUR
-   * COLONNE (c'est ce qui les fait suivre un déplacement de colonne), mais elles
-   * sont rendues dans le DndContext des LIGNES. Sans filtre, `closestCenter`
-   * peut donc rendre un id de colonne comme cible pendant qu'on déplace une
-   * ligne : `handleRowDragEnd` l'ignore, et le dépôt ne fait rien — surtout près
-   * du bas du tableau. On ne laisse au calcul de collision que les lignes.
-   */
-  const rowCollisionDetection = useMemo<CollisionDetection>(() => {
-    const ids = new Set(rowIds);
-    return (args) =>
-      closestCenter({
-        ...args,
-        droppableContainers: args.droppableContainers.filter((container) =>
-          ids.has(String(container.id)),
-        ),
-      });
-  }, [rowIds]);
   const displayedRowData = useMemo(
     () => displayedRows.map((r) => r.original),
     [displayedRows],
@@ -464,11 +541,9 @@ export function Table({
   // supprimer une colonne filtrée laissait la grille sans ligne fantôme et sans
   // réordonnancement, avec un compteur qui annonçait « non filtré ».
   useEffect(() => {
-    setFilters((prev) => {
-      const alive = prev.filter((f) => columnsById.has(f.columnId));
-      return alive.length === prev.length ? prev : alive;
-    });
-  }, [columnsById]);
+    const alive = filters.filter((f) => columnsById.has(f.columnId));
+    if (alive.length !== filters.length) onFiltersChange?.(alive);
+  }, [columnsById, filters, onFiltersChange]);
 
   useEffect(() => {
     if (optionsDialogColumnId && !columnsById.has(optionsDialogColumnId)) {
@@ -518,9 +593,11 @@ export function Table({
 
   return (
     <DndContext
-      collisionDetection={closestCenter}
-      modifiers={[restrictToHorizontalAxis]}
-      onDragEnd={handleColumnDragEnd}
+      collisionDetection={collisionDetection}
+      modifiers={dragKind === "row" ? ROW_MODIFIERS : COLUMN_MODIFIERS}
+      onDragStart={handleDragStart}
+      onDragCancel={() => setDragKind(null)}
+      onDragEnd={handleDragEnd}
       sensors={sensors}
     >
       <div
@@ -533,9 +610,9 @@ export function Table({
           search={globalFilter}
           onSearchChange={setGlobalFilter}
           filters={filters}
-          conjunction={conjunction}
-          onFiltersChange={setFilters}
-          onConjunctionChange={setConjunction}
+          conjunction={filterConjunction}
+          onFiltersChange={(next) => onFiltersChange?.(next)}
+          onConjunctionChange={(next) => onFilterConjunctionChange?.(next)}
           rowHeight={rowHeight}
           onRowHeightChange={onRowHeightChange}
           visibleRowCount={displayedRows.length}
@@ -619,136 +696,113 @@ export function Table({
                 </TableRow>
               ))}
             </TableHeader>
-            <DndContext
-              collisionDetection={rowCollisionDetection}
-              modifiers={[restrictToVerticalAxis]}
-              onDragEnd={handleRowDragEnd}
-              sensors={sensors}
-              // Sans ça, dnd-kit pose ses éléments d'accessibilité en <div>
-              // enfants directs de <table> : du HTML invalide, que React
-              // signale à chaque ouverture d'une table.
-              accessibility={{ container: document.body }}
-            >
-              <TableBody>
-                {displayedRows.length === 0 && (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell
-                      colSpan={leafColumns.length}
-                      className="py-8 text-center text-sm text-muted-foreground"
-                    >
-                      {rows.length === 0
-                        ? readOnly
-                          ? "No rows."
-                          : "No rows yet."
-                        : "No row matches the current search or filters."}
-                    </TableCell>
-                  </TableRow>
-                )}
-                <SortableContext
-                  items={rowIds}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {displayedRows.map((row, index) => (
-                    <DraggableRow key={row.id} row={row} canDrag={canReorderRows}>
-                      {({ attributes, listeners, setActivatorNodeRef }) => (
-                        <SortableContext
-                          items={sortableColumnIds}
-                          strategy={horizontalListSortingStrategy}
-                        >
-                          {row.getVisibleCells().map((cell) => {
-                            if (cell.column.id === GUTTER_COLUMN_ID) {
-                              return (
-                                <TableCell
-                                  key={cell.id}
-                                  style={{ width: GUTTER_WIDTH }}
-                                  className="px-2 align-top"
-                                >
-                                  <RowGutter
-                                    index={index}
-                                    canDrag={canReorderRows}
-                                    attributes={attributes}
-                                    listeners={listeners}
-                                    setActivatorNodeRef={setActivatorNodeRef}
-                                    onExpand={() =>
-                                      setRecord({
-                                        rowId: row.id,
-                                        rowIds: displayedRowData.map((r) => r.id),
-                                      })
-                                    }
-                                  />
-                                </TableCell>
-                              );
-                            }
-                            if (cell.column.id === ACTIONS_COLUMN_ID) {
-                              return (
-                                <TableCell
-                                  key={cell.id}
-                                  style={{ width: cell.column.getSize() }}
-                                  className="px-1 align-top"
-                                >
-                                  {flexRender(
-                                    cell.column.columnDef.cell,
-                                    cell.getContext(),
-                                  )}
-                                </TableCell>
-                              );
-                            }
-                            const cellColumn = columnsById.get(cell.column.id);
+            <TableBody>
+              {displayedRows.length === 0 && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={leafColumns.length}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    {rows.length === 0
+                      ? readOnly
+                        ? "No rows."
+                        : "No rows yet."
+                      : "No row matches the current search or filters."}
+                  </TableCell>
+                </TableRow>
+              )}
+              <SortableContext
+                items={rowIds}
+                strategy={verticalListSortingStrategy}
+              >
+                {displayedRows.map((row, index) => (
+                  <DraggableRow key={row.id} row={row} canDrag={canReorderRows}>
+                    {({ attributes, listeners, setActivatorNodeRef }) => (
+                      <>
+                        {row.getVisibleCells().map((cell) => {
+                          if (cell.column.id === GUTTER_COLUMN_ID) {
                             return (
-                              <DraggableCell
+                              <TableCell
                                 key={cell.id}
-                                cell={cell}
-                                onCellClick={
-                                  // La case à cocher garde sa propre cible :
-                                  // basculer la valeur en cliquant n'importe où
-                                  // dans la cellule serait trop facile à faire
-                                  // par accident.
-                                  readOnly || !cellColumn || cellColumn.type === "checkbox"
-                                    ? undefined
-                                    : () => openCell(row.original.id, cell.column.id)
-                                }
+                                style={{ width: GUTTER_WIDTH }}
+                                className="px-2 align-top"
+                              >
+                                <RowGutter
+                                  index={index}
+                                  canDrag={canReorderRows}
+                                  disabledReason={reorderBlockedReason}
+                                  attributes={attributes}
+                                  listeners={listeners}
+                                  setActivatorNodeRef={setActivatorNodeRef}
+                                  onExpand={() =>
+                                    setRecord({
+                                      rowId: row.id,
+                                      rowIds: displayedRowData.map((r) => r.id),
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                            );
+                          }
+                          if (cell.column.id === ACTIONS_COLUMN_ID) {
+                            return (
+                              <TableCell
+                                key={cell.id}
+                                style={{ width: cell.column.getSize() }}
+                                className="px-1 align-top"
                               >
                                 {flexRender(
                                   cell.column.columnDef.cell,
                                   cell.getContext(),
                                 )}
-                              </DraggableCell>
+                              </TableCell>
                             );
-                          })}
-                        </SortableContext>
-                      )}
-                    </DraggableRow>
-                  ))}
-                </SortableContext>
-                {showGhostRow && (
-                  <SortableContext
-                    items={sortableColumnIds}
-                    strategy={horizontalListSortingStrategy}
-                  >
-                    <GhostRow
-                      leafColumns={leafColumns}
-                      clearsView={viewIsNarrowed}
-                      onCreate={createRowAndEdit}
-                    />
-                  </SortableContext>
-                )}
-              </TableBody>
-            </DndContext>
-            {(hasSummary || !readOnly) && (
-              <SortableContext
-                items={sortableColumnIds}
-                strategy={horizontalListSortingStrategy}
-              >
-                <SummaryFooter
-                  leafColumns={leafColumns}
-                  columnsById={columnsById}
-                  rows={displayedRowData}
-                  readOnly={readOnly || !onColumnSummaryChange}
-                  onSummaryChange={(colId, kind) =>
-                    onColumnSummaryChange?.(colId, kind)
-                  }
-                />
+                          }
+                          const cellColumn = columnsById.get(cell.column.id);
+                          return (
+                            <DraggableCell
+                              key={cell.id}
+                              cell={cell}
+                              onCellClick={
+                                // La case à cocher garde sa propre cible :
+                                // basculer la valeur en cliquant n'importe où
+                                // dans la cellule serait trop facile à faire
+                                // par accident.
+                                readOnly || !cellColumn || cellColumn.type === "checkbox"
+                                  ? undefined
+                                  : () => openCell(row.original.id, cell.column.id)
+                              }
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </DraggableCell>
+                          );
+                        })}
+                      </>
+                    )}
+                  </DraggableRow>
+                ))}
               </SortableContext>
+              {showGhostRow && (
+                <GhostRow
+                  leafColumns={leafColumns}
+                  clearsView={viewIsNarrowed}
+                  onCreate={createRowAndEdit}
+                />
+              )}
+            </TableBody>
+            {(hasSummary || !readOnly) && (
+              <SummaryFooter
+                leafColumns={leafColumns}
+                columnsById={columnsById}
+                rows={displayedRowData}
+                readOnly={readOnly || !onColumnSummaryChange}
+                onSummaryChange={(colId, kind) =>
+                  onColumnSummaryChange?.(colId, kind)
+                }
+              />
             )}
           </table>
         </div>

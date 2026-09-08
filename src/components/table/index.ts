@@ -53,3 +53,7 @@ export {
 } from "./types";
 
 export { coerceCellValue } from "./coerce";
+
+// La vue node applique les filtres persistés : elle a besoin de l'évaluateur.
+export { applyFilters } from "./filters";
+export type { FilterConjunction, FilterOperator, TableFilter } from "./filters";

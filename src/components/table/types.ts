@@ -1,5 +1,8 @@
 import type { IconType } from "react-icons";
 import type { TableColumnType } from "@/../convex/lib/tableColumnTypes";
+// Import de TYPE seulement : `filters.ts` importe ce fichier en retour, et un
+// cycle de types est effacé à la compilation.
+import type { FilterConjunction, TableFilter } from "./filters";
 import {
   TbAbc,
   TbAlignLeft,
@@ -113,6 +116,13 @@ export interface TableData {
   rows: TableRowData[];
   /** Défaut `short`, pour que les tables existantes gardent leur densité. */
   rowHeight?: RowHeight;
+  /**
+   * Filtres de colonne, persistés avec la table : ils décrivent une VUE de la
+   * table, pas une lecture jetable, et le node du canvas les applique aussi. Le
+   * tri et la recherche restent volontairement éphémères — cf. `filters.ts`.
+   */
+  filters?: TableFilter[];
+  filterConjunction?: FilterConjunction;
 }
 
 export const COLUMN_TYPE_CONFIG: Record<
@@ -177,6 +187,24 @@ export const GRID_ROW_HEIGHTS: RowHeight[] = ["short", "medium", "tall"];
 export function maxHeightForRowHeight(rowHeight: RowHeight) {
   const { lines } = ROW_HEIGHT_CONFIG[rowHeight];
   return lines > 0 ? { maxHeight: `${lines * 1.5}em` } : undefined;
+}
+
+/**
+ * Coque d'une cellule de grille, selon la hauteur de ligne.
+ *
+ * En `short`, rien ne revient à la ligne : une date, un lien ou une étiquette
+ * qui se coupait en deux faisait grandir sa ligne, et une grille dont chaque
+ * ligne a sa propre hauteur ne se lit plus. Au-delà, le contenu s'enroule,
+ * plafonné par `maxHeightForRowHeight`.
+ *
+ * À poser sur la coque `flex … min-h-[1.4em]` que partagent les cellules
+ * d'affichage ET les déclencheurs d'édition — les deux vues doivent couper au
+ * même endroit.
+ */
+export function cellShellClass(rowHeight: RowHeight): string {
+  return rowHeight === "short"
+    ? "flex-nowrap overflow-hidden whitespace-nowrap"
+    : "flex-wrap";
 }
 
 export const COLUMN_TYPE_LABELS: Record<ColumnType, string> =

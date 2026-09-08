@@ -8,12 +8,16 @@ import { TbArrowsDiagonal, TbGripVertical } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import { TableCell, TableHead, TableRow } from "@/components/shadcn/table";
 import { cn } from "@/lib/utils";
-import { sortableCellStyle, useSortableCellStyle } from "./sortableCell";
+import { columnCellStyle, sortableCellStyle } from "./sortableCell";
 import type { TableRowData } from "./types";
 
 // Les briques dnd de la grille. Elles ne lisent aucun état de `Table` — tout
 // passe par des props — et occupaient un tiers du fichier avant qu'on n'y
 // arrive.
+//
+// Colonnes et lignes partagent un SEUL `DndContext` ; c'est le `data.type` posé
+// ici qui dit à `Table` ce qu'on est en train de déplacer, et qui lui sert à
+// n'offrir au calcul de collision que les cibles du même type.
 
 export function DraggableHeader({
   header,
@@ -27,6 +31,7 @@ export function DraggableHeader({
   const { isDragging, listeners, setNodeRef, transform } = useSortable({
     id: header.column.id,
     disabled: !canDrag,
+    data: { type: "column" },
   });
   const isResizing = header.column.getIsResizing();
   const style: CSSProperties = {
@@ -87,14 +92,9 @@ export function DraggableCell({
   onCellClick?: () => void;
   children: React.ReactNode;
 }) {
-  const { setNodeRef, style } = useSortableCellStyle(
-    cell.column.id,
-    cell.column.getSize(),
-  );
   return (
     <TableCell
-      ref={setNodeRef}
-      style={style}
+      style={columnCellStyle(cell.column.getSize())}
       onClick={onCellClick}
       // Le `whitespace-nowrap` du TableCell shadcn est partagé par toute l'app :
       // on le neutralise ici plutôt que de le retirer là-bas.
@@ -111,6 +111,7 @@ export function DraggableCell({
 export function RowGutter({
   index,
   canDrag,
+  disabledReason,
   attributes,
   listeners,
   setActivatorNodeRef,
@@ -118,6 +119,8 @@ export function RowGutter({
 }: {
   index: number;
   canDrag: boolean;
+  /** Infobulle de la poignée grisée. Absente = pas de poignée du tout. */
+  disabledReason?: string;
   attributes: DraggableAttributes;
   listeners: SyntheticListenerMap | undefined;
   setActivatorNodeRef: (element: HTMLElement | null) => void;
@@ -125,7 +128,14 @@ export function RowGutter({
 }) {
   return (
     <div className="flex items-center gap-0.5 text-muted-foreground">
-      <span className="w-5 shrink-0 text-right text-xs tabular-nums opacity-60 group-hover/tablerow:opacity-0">
+      {/*
+        `pointer-events-none` : le bloc de contrôles ci-dessous vient se poser
+        SUR ce numéro (`-ml-5`), et un élément à `opacity: 0` reste cliquable.
+        Le numéro invisible interceptait donc le mousedown destiné à la poignée
+        — l'icône apparaissait au survol, et tirer dessus ne faisait rien. Il
+        n'est que décoratif, il n'a jamais besoin du pointeur.
+      */}
+      <span className="pointer-events-none w-5 shrink-0 text-right text-xs tabular-nums opacity-60 group-hover/tablerow:opacity-0">
         {index + 1}
       </span>
       <div className="-ml-5 flex items-center opacity-0 group-hover/tablerow:opacity-100">
@@ -141,6 +151,14 @@ export function RowGutter({
           >
             <TbGripVertical size={13} />
           </button>
+        ) : disabledReason ? (
+          // Une poignée qui disparaît sans rien dire se lit comme un bug.
+          <span
+            className="cursor-not-allowed text-muted-foreground/50 opacity-40"
+            title={disabledReason}
+          >
+            <TbGripVertical size={13} />
+          </span>
         ) : (
           <span className="w-[13px]" />
         )}
@@ -184,6 +202,7 @@ export function DraggableRow({
   } = useSortable({
     id: row.original.id,
     disabled: !canDrag,
+    data: { type: "row" },
   });
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -198,4 +217,3 @@ export function DraggableRow({
     </TableRow>
   );
 }
-

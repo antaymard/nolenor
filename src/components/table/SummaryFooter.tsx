@@ -9,7 +9,7 @@ import {
 import { TableCell, TableFooter, TableRow } from "@/components/shadcn/table";
 import { cn } from "@/lib/utils";
 import { isUtilityColumn } from "./columnIds";
-import { useSortableCellStyle } from "./sortableCell";
+import { columnCellStyle } from "./sortableCell";
 import { SUMMARY_LABELS, computeSummary, summariesFor } from "./summary";
 import type { SummaryKind, TableColumn, TableRowData } from "./types";
 
@@ -67,7 +67,7 @@ function SummaryCell({
   readOnly?: boolean;
   onSummaryChange: (colId: string, kind: SummaryKind | undefined) => void;
 }) {
-  const { setNodeRef, style } = useSortableCellStyle(column.id, leaf.getSize());
+  const style = columnCellStyle(leaf.getSize());
   const kind = column.summary;
   const result = kind
     ? computeSummary(
@@ -102,18 +102,14 @@ function SummaryCell({
 
   if (readOnly) {
     return (
-      <TableCell ref={setNodeRef} style={style} className="py-1">
+      <TableCell style={style} className="py-1">
         {body}
       </TableCell>
     );
   }
 
   return (
-    <TableCell
-      ref={setNodeRef}
-      style={style}
-      className="cursor-pointer py-1 hover:bg-muted/50"
-    >
+    <TableCell style={style} className="cursor-pointer py-1 hover:bg-muted/50">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" className="block w-full">

@@ -21,9 +21,11 @@ import type {
   TableRowData,
   CellValue,
   ColumnType,
+  FilterConjunction,
   RowHeight,
   SelectOption,
   SummaryKind,
+  TableFilter,
 } from "@/components/table";
 
 function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
@@ -36,6 +38,9 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const [localRows, setLocalRows] = useState<TableRowData[]>([]);
   const [localRowHeight, setLocalRowHeight] =
     useState<RowHeight>(DEFAULT_ROW_HEIGHT);
+  const [localFilters, setLocalFilters] = useState<TableFilter[]>([]);
+  const [localFilterConjunction, setLocalFilterConjunction] =
+    useState<FilterConjunction>("all");
   const [localTitle, setLocalTitle] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
 
@@ -49,6 +54,10 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     setLocalColumns(Array.isArray(table.columns) ? table.columns : []);
     setLocalRows(Array.isArray(table.rows) ? table.rows : []);
     setLocalRowHeight(table.rowHeight ?? DEFAULT_ROW_HEIGHT);
+    setLocalFilters(Array.isArray(table.filters) ? table.filters : []);
+    setLocalFilterConjunction(
+      table.filterConjunction === "any" ? "any" : "all",
+    );
     setLocalTitle((nodeDataValues?.title as string | undefined) ?? "");
   }, [nodeDataValues, isDirty]);
 
@@ -61,10 +70,14 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const rowsRef = useRef(localRows);
   const titleRef = useRef(localTitle);
   const rowHeightRef = useRef(localRowHeight);
+  const filtersRef = useRef(localFilters);
+  const filterConjunctionRef = useRef(localFilterConjunction);
   columnsRef.current = localColumns;
   rowsRef.current = localRows;
   titleRef.current = localTitle;
   rowHeightRef.current = localRowHeight;
+  filtersRef.current = localFilters;
+  filterConjunctionRef.current = localFilterConjunction;
 
   useEffect(() => {
     setDirty(isDirty && !isLocked);
@@ -75,18 +88,22 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     const rows = rowsRef.current;
     const title = titleRef.current;
     const rowHeight = rowHeightRef.current;
+    const filters = filtersRef.current;
+    const filterConjunction = filterConjunctionRef.current;
     const success = await updateNodeDataValues({
       nodeDataId,
       values: {
         title,
-        table: { columns, rows, rowHeight },
+        table: { columns, rows, rowHeight, filters, filterConjunction },
       },
     });
     const hasPendingEdits =
       columnsRef.current !== columns ||
       rowsRef.current !== rows ||
       titleRef.current !== title ||
-      rowHeightRef.current !== rowHeight;
+      rowHeightRef.current !== rowHeight ||
+      filtersRef.current !== filters ||
+      filterConjunctionRef.current !== filterConjunction;
     if (success && !hasPendingEdits) {
       setIsDirty(false);
     }
@@ -315,6 +332,24 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     [markDirty],
   );
 
+  // Un filtre décrit une vue de la table : le poser la modifie, au même titre
+  // qu'une largeur de colonne ou une hauteur de ligne.
+  const updateFilters = useCallback(
+    (filters: TableFilter[]) => {
+      setLocalFilters(filters);
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  const updateFilterConjunction = useCallback(
+    (conjunction: FilterConjunction) => {
+      setLocalFilterConjunction(conjunction);
+      markDirty();
+    },
+    [markDirty],
+  );
+
   const updateColumnOptions = useCallback(
     (colId: string, options: SelectOption[], isMulti: boolean) => {
       const validIds = new Set(options.map((o) => o.id));
@@ -394,6 +429,10 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
           rows={localRows}
           readOnly={isLocked}
           rowHeight={localRowHeight}
+          filters={localFilters}
+          filterConjunction={localFilterConjunction}
+          onFiltersChange={updateFilters}
+          onFilterConjunctionChange={updateFilterConjunction}
           onCellChange={updateCell}
           onAddRow={addRow}
           onDeleteRow={deleteRow}

@@ -91,7 +91,7 @@ export function LinkCellEditor({
       <PopoverTrigger asChild>
         <span
           className={cn(
-            "flex items-center gap-1 w-full min-h-[1.4em] rounded px-1 cursor-pointer hover:bg-muted/50",
+            "flex min-w-0 w-full cursor-pointer items-center gap-1 min-h-[1.4em] overflow-hidden rounded px-1 whitespace-nowrap hover:bg-muted/50",
           )}
           onClick={onClick}
         >
@@ -102,7 +102,7 @@ export function LinkCellEditor({
                 href={value!.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-500 hover:underline truncate"
+                className="truncate text-blue-500 hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {displayLabel}

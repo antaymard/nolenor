@@ -1,7 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import OnboardingModal from "@/components/ui/OnboardingModal";
 import {
   pendingTasksOf,
   useHomePendingTasks,
@@ -21,9 +20,6 @@ export default function HomePage() {
   // rejouerait le listing complet des canvases à chaque battement d'un tour en
   // cours.
   const pendingTasks = useHomePendingTasks();
-  // `undefined` = la modale décide seule (première visite) ; un booléen la
-  // passe en piloté, pour rejouer le tour depuis les boutons de la page.
-  const [replayTour, setReplayTour] = useState<boolean | undefined>(undefined);
 
   const handleDelete = useCallback(
     (canvasId: Id<"canvases">) => {
@@ -33,8 +29,6 @@ export default function HomePage() {
     },
     [deleteCanvas],
   );
-
-  const startTour = useCallback(() => setReplayTour(true), []);
 
   // La liste arrive triée par récence : le premier canvas perso est le dernier
   // touché, c'est-à-dire celui vers lequel `/` redirigeait autrefois. Les
@@ -46,16 +40,13 @@ export default function HomePage() {
   return (
     <div className="min-h-dvh w-full overflow-y-auto bg-[#f7f7f8]">
       <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
-        <HomeHeader
-          onStartTour={startTour}
-          canJump={ownCanvases.length + sharedCanvases.length > 0}
-        />
+        <HomeHeader canJump={ownCanvases.length + sharedCanvases.length > 0} />
 
         {isLoading ? (
           <HomeSkeleton />
         ) : isEmpty ? (
           <>
-            <WelcomeBlock onStartTour={startTour} />
+            <WelcomeBlock />
             {/* Un compte sans canvas à lui peut en avoir reçu en partage : ne
                 pas les afficher le laisserait devant une page « vide » alors
                 qu'il a du travail qui l'attend. */}
@@ -85,8 +76,6 @@ export default function HomePage() {
           </>
         )}
       </div>
-
-      <OnboardingModal open={replayTour} onOpenChange={setReplayTour} />
     </div>
   );
 }

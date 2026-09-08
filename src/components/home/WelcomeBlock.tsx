@@ -1,18 +1,14 @@
-import { TbPlayerPlay, TbPlus } from "react-icons/tb";
+import { TbPlus } from "react-icons/tb";
 import CanvasFormModal from "@/components/canvas/CanvasFormModal";
 import { Button } from "@/components/shadcn/button";
 import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
-
-interface WelcomeBlockProps {
-  onStartTour: () => void;
-}
 
 /**
  * Ce que voit un compte sans aucun workspace. L'ancien `/` disait « No
  * workspace found » et laissait deviner le reste : ni ce qu'est un workspace,
  * ni ce qu'on peut en faire.
  */
-export default function WelcomeBlock({ onStartTour }: WelcomeBlockProps) {
+export default function WelcomeBlock() {
   return (
     <div className="animate-appear-up rounded-2xl border border-gray-200 bg-white p-8 md:p-10">
       <div className="flex max-w-xl flex-col gap-4">
@@ -45,15 +41,6 @@ export default function WelcomeBlock({ onStartTour }: WelcomeBlockProps) {
             </DialogTrigger>
             <CanvasFormModal mode="create" />
           </Dialog>
-
-          <Button
-            variant="outline"
-            onClick={onStartTour}
-            className="h-11 font-medium"
-          >
-            <TbPlayerPlay size={15} />
-            Take the tour
-          </Button>
         </div>
       </div>
     </div>

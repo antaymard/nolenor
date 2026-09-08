@@ -1,20 +1,19 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { HiOutlineCog } from "react-icons/hi";
-import { TbPlayerPlay, TbSearch } from "react-icons/tb";
+import { TbSearch } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import { Button } from "@/components/shadcn/button";
 import { Kbd, KbdGroup } from "@/components/shadcn/kbd";
 import { useCommandCenterStore } from "@/stores/commandCenterStore";
 
 interface HomeHeaderProps {
-  onStartTour: () => void;
   /** Rien à parcourir tant que le compte n'a aucun canvas : le raccourci
    *  ouvrirait une liste vide, autant ne pas le proposer. */
   canJump: boolean;
 }
 
-export default function HomeHeader({ onStartTour, canJump }: HomeHeaderProps) {
+export default function HomeHeader({ canJump }: HomeHeaderProps) {
   const me = useQuery(api.users.me);
   const openCommandCenter = useCommandCenterStore((state) => state.open);
 
@@ -48,16 +47,6 @@ export default function HomeHeader({ onStartTour, canJump }: HomeHeaderProps) {
             </KbdGroup>
           </Button>
         )}
-
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onStartTour}
-          title="Take the tour"
-          aria-label="Take the tour"
-        >
-          <TbPlayerPlay size={16} />
-        </Button>
 
         <Button variant="ghost" size="icon-sm" asChild>
           <Link to="/settings" title="Settings" aria-label="Settings">

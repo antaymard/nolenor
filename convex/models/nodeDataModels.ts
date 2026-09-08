@@ -2,9 +2,12 @@ import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
-import * as SearchableChunkModels from "./searchableChunkModels";
 import * as NodeDataVersionModels from "./nodeDataVersionModels";
 import * as R2ObjectModels from "./r2ObjectModels";
+import * as ThreadMetadataModels from "./threadMetadataModels";
+import { threadNodeTouchKinds } from "../schemas/threadMetadataSchema";
+import { optionalAuth, requireActiveCanvas } from "../lib/auth";
+import { readLegacyNodeData } from "../lib/legacyNodeDataReaders";
 import { extractR2Keys } from "../lib/r2Keys";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
 import { buildTemplateValuesSchema } from "../config/fieldConfig";
@@ -37,6 +40,7 @@ export async function createNodeData(
     templateId?: Id<"nodeTemplates">;
   },
 ): Promise<Id<"nodeDatas">> {
+  const canvas = await requireActiveCanvas(ctx, canvasId);
   // `templateId` est optionnel au schéma parce que les types prébuilts n'en
   // ont pas — mais pour un custom il est obligatoire, et le typage ne peut pas
   // l'exprimer ici. Sans lui, le node se rend quand même sur le canvas (qui
@@ -54,6 +58,30 @@ export async function createNodeData(
     );
   }
 
+  const template = templateId
+    ? await ctx.db.get("nodeTemplates", templateId)
+    : null;
+  if (templateId) {
+    if (type !== "custom" || !template) {
+      throw new ConvexError("Invalid node template.");
+    }
+    // An editor may use their own templates on a shared canvas, or duplicate
+    // a template already accessible through an authorized, valid instance.
+    const userId = await optionalAuth(ctx);
+    let accessible = template.creatorId === (userId ?? canvas.creatorId);
+    if (!accessible) {
+      for (const node of canvas.nodes ?? []) {
+        if (node.type !== "custom") continue;
+        const existing = await readLegacyNodeData(ctx, canvasId, node);
+        if (existing?.templateId === templateId) {
+          accessible = true;
+          break;
+        }
+      }
+    }
+    if (!accessible) throw new ConvexError("Node template is not accessible.");
+  }
+
   const nodeDataId = await ctx.db.insert("nodeDatas", {
     type,
     values,
@@ -67,7 +95,6 @@ export async function createNodeData(
   //
   // Les champs porteurs de fichiers d'un custom node sont décrits par son
   // template : sans lui, il n'y a rien à référencer.
-  const template = templateId ? await ctx.db.get(templateId) : null;
   await R2ObjectModels.syncRefs(ctx, {
     nodeDataId,
     keys: extractR2Keys({ type, values }, template),
@@ -81,18 +108,35 @@ export async function deleteNodeDataWithCascade(
   {
     nodeDataId,
     actor = { type: "system" },
+    canvasId,
   }: {
     nodeDataId: Id<"nodeDatas">;
     actor?: NodeDataVersionActor;
+    // Source of a newly scheduled deletion. Optional only for already queued jobs.
+    canvasId?: Id<"canvases">;
   },
-): Promise<void> {
-  const nodeData = await ctx.db.get(nodeDataId);
-
-  // Only keys this node held the last reference to. A duplicate still pointing
-  // at the same file keeps it alive.
-  const r2Keys = await R2ObjectModels.releaseRefs(ctx, { nodeDataId });
+): Promise<boolean> {
+  const nodeData = await ctx.db.get("nodeDatas", nodeDataId);
 
   if (nodeData) {
+    if (canvasId !== undefined && nodeData.canvasId !== canvasId) return false;
+    const canvas = await ctx.db.get("canvases", nodeData.canvasId);
+    if (canvas && canvas.deletedAt === undefined) {
+      // Arrays are authoritative in A, including the historical fallback. Even
+      // an ambiguous reference must protect content, never authorize its deletion.
+      if (
+        (canvas.nodes ?? []).some(
+          (node) =>
+            node.nodeDataId === nodeDataId ||
+            node.data?.nodeDataId === nodeDataId,
+        )
+      )
+        return false;
+      // Old jobs have no source provenance. With a live parent we cannot prove
+      // they did not originate from a foreign, corrupt placement: retain content.
+      if (canvasId === undefined) return false;
+    }
+
     // Snapshot final : les versions survivent volontairement au node
     // (corbeille de fait, purgée par TTL) pour permettre une récupération
     // après une suppression accidentelle.
@@ -103,28 +147,20 @@ export async function deleteNodeDataWithCascade(
       trigger: "delete",
       force: true,
     });
+    if (actor.type === "agent" && actor.threadId) {
+      await ThreadMetadataModels.recordNodeTouch(ctx, {
+        threadId: actor.threadId,
+        nodeDataId,
+        kind: threadNodeTouchKinds.deleted,
+      });
+    }
+    await ctx.db.delete("nodeDatas", nodeDataId);
   }
 
-  // Delete memories
-  const memories = await ctx.db
-    .query("memories")
-    .withIndex("by_subject_and_type", (q) => q.eq("subjectId", nodeDataId))
-    .collect();
-  for (const memory of memories) {
-    await ctx.db.delete(memory._id);
-  }
-
-  // Delete searchable chunks
-  await SearchableChunkModels.deleteByNodeDataId(ctx, { nodeDataId });
-
-  // Delete the nodeData itself
-  await ctx.db.delete(nodeDataId);
-
-  if (r2Keys.length > 0) {
-    await ctx.scheduler.runAfter(0, internal.uploads.deleteR2Files, {
-      keys: r2Keys,
-    });
-  }
+  await ctx.scheduler.runAfter(0, internal.canvasGraphCleanup.purgeNodeData, {
+    nodeDataId,
+  });
+  return nodeData !== null;
 }
 
 export async function updateValues(
@@ -149,6 +185,7 @@ export async function updateValues(
   console.log(`🔄 Updating values for nodeData ${_id}`);
   const existing = await ctx.db.get("nodeDatas", _id);
   if (!existing) throw new ConvexError("NodeData not found");
+  await requireActiveCanvas(ctx, existing.canvasId);
 
   // Diff minimal: on ne conserve que les clés réellement modifiées.
   // Cela évite un patch DB + une reindexation quand la valeur entrante est identique.
@@ -373,6 +410,8 @@ export async function setImageGeneration(
     error?: string;
   },
 ): Promise<void> {
+  const nodeData = await readNodeData(ctx, { _id: nodeDataId });
+  await requireActiveCanvas(ctx, nodeData.canvasId);
   const now = Date.now();
   await ctx.db.patch("nodeDatas", nodeDataId, {
     imageGeneration: { status, startedAt: now, error },
@@ -385,6 +424,8 @@ export async function clearImageGeneration(
   ctx: MutationCtx,
   { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
 ): Promise<void> {
+  const nodeData = await readNodeData(ctx, { _id: nodeDataId });
+  await requireActiveCanvas(ctx, nodeData.canvasId);
   await ctx.db.patch("nodeDatas", nodeDataId, {
     imageGeneration: undefined,
     updatedAt: Date.now(),

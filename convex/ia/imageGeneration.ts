@@ -14,6 +14,7 @@ import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import { enforceRateLimit } from "../lib/rateLimits";
 import errors from "../config/errorsConfig";
 import * as NodeDataModels from "../models/nodeDataModels";
+import { readLegacyNodeData } from "../lib/legacyNodeDataReaders";
 
 /**
  * Au-delà de cette durée, un statut `running` ne peut plus correspondre à une
@@ -80,22 +81,29 @@ async function resolveReferenceImageUrls(
   const canvas = await ctx.db.get("canvases", nodeData.canvasId);
   if (!canvas) throw new ConvexError(errors.CANVAS_NOT_FOUND);
 
-  // Le node de canvas qui porte ce nodeData : c'est lui que les edges
-  // désignent, `nodeDatas` n'apparaît nulle part dans `canvas.edges`. Un
-  // nodeData ne vit que sur un node à la fois, donc le premier trouvé est le
-  // bon.
-  const selfNode = (canvas.nodes ?? []).find(
-    (node) => node.nodeDataId === nodeDataId,
+  // Edges identify placements, not content. Never pick an ambiguous placement.
+  const selfNodes = (canvas.nodes ?? []).filter(
+    (node) =>
+      node.nodeDataId === nodeDataId || node.data?.nodeDataId === nodeDataId,
   );
+  if (selfNodes.length > 1) {
+    throw new ConvexError("Ambiguous placement for nodeData.");
+  }
+  const selfNode = selfNodes[0];
   if (!selfNode) throw new ConvexError(errors.NODE_NOT_FOUND);
+  if (
+    (canvas.nodes ?? []).some(
+      (node) => node !== selfNode && node.id === selfNode.id,
+    )
+  ) {
+    throw new ConvexError(`Ambiguous placement for node ${selfNode.id}.`);
+  }
+  await readLegacyNodeData(ctx, canvas._id, selfNode);
 
   const inputNodeIds = new Set(
     (canvas.edges ?? [])
       .filter((edge) => edge.target === selfNode.id)
       .map((edge) => edge.source),
-  );
-  const nodesById = new Map(
-    (canvas.nodes ?? []).map((node) => [node.id, node] as const),
   );
 
   const urls: string[] = [];
@@ -112,9 +120,13 @@ async function resolveReferenceImageUrls(
       throw new ConvexError(errors.IMAGE_GENERATION_REFERENCE_NOT_INPUT);
     }
 
-    const sourceNodeDataId = nodesById.get(nodeId)?.nodeDataId;
-    const sourceData = sourceNodeDataId
-      ? await ctx.db.get("nodeDatas", sourceNodeDataId)
+    const sourceNodes = (canvas.nodes ?? []).filter((node) => node.id === nodeId);
+    if (sourceNodes.length > 1) {
+      throw new ConvexError(`Ambiguous placement for node ${nodeId}.`);
+    }
+    const sourceNode = sourceNodes[0];
+    const sourceData = sourceNode
+      ? await readLegacyNodeData(ctx, canvas._id, sourceNode)
       : null;
     if (!sourceData || sourceData.type !== "image") {
       throw new ConvexError(errors.IMAGE_GENERATION_REFERENCE_NOT_IMAGE);

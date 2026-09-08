@@ -20,6 +20,15 @@ import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
 import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
 import { aiUsageDailyValidator } from "./schemas/aiUsageDailySchema";
 import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
+import {
+  graphEdgeValidator,
+  graphNodeValidator,
+} from "./schemas/canvasGraphSchema";
+import {
+  canvasGraphMigrationControlValidator,
+  canvasGraphMigrationErrorsValidator,
+  canvasGraphMigrationsValidator,
+} from "./schemas/canvasGraphMigrationSchema";
 
 const schema = defineSchema({
   ...authTables,
@@ -60,9 +69,35 @@ const schema = defineSchema({
       filterFields: ["creatorId"],
     }),
 
+  nodes: defineTable(graphNodeValidator)
+    .index("by_canvasId", ["canvasId"])
+    .index("by_canvasId_and_nodeId", ["canvasId", "nodeId"])
+    .index("by_nodeDataId", ["nodeDataId"])
+    .index("by_canvasId_and_parentId", ["canvasId", "parentId"]),
+
+  edges: defineTable(graphEdgeValidator)
+    .index("by_canvasId", ["canvasId"])
+    .index("by_canvasId_and_edgeId", ["canvasId", "edgeId"])
+    .index("by_canvasId_and_source", ["canvasId", "source"])
+    .index("by_canvasId_and_target", ["canvasId", "target"]),
+
   nodeDatas: defineTable(nodeDatasValidator)
     .index("by_canvasId", ["canvasId"])
+    .index("by_canvasId_and_updatedAt", {
+      fields: ["canvasId", "updatedAt"],
+      staged: true,
+    })
     .index("by_templateId", ["templateId"]),
+
+  canvasGraphMigrations: defineTable(canvasGraphMigrationsValidator)
+    .index("by_canvasId", ["canvasId"])
+    .index("by_status", ["status"]),
+  canvasGraphMigrationErrors: defineTable(
+    canvasGraphMigrationErrorsValidator,
+  ).index("by_canvasId", ["canvasId"]),
+  canvasGraphMigrationControl: defineTable(
+    canvasGraphMigrationControlValidator,
+  ).index("by_name", ["name"]),
 
   // Templates de custom nodes définis par l'utilisateur : champs typés +
   // arbres de layout (node / window). Scopés par user, réutilisables sur

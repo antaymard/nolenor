@@ -1,9 +1,8 @@
-import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import errors from "../config/errorsConfig";
 import { internal } from "../_generated/api";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
+import { requireActiveCanvas } from "../lib/auth";
 
 type UserCanvasListItem = {
   _id: Id<"canvases">;
@@ -20,9 +19,7 @@ async function getCanvasOrThrow(
   ctx: QueryCtx | MutationCtx,
   canvasId: Id<"canvases">,
 ): Promise<Doc<"canvases">> {
-  const canvas = await ctx.db.get("canvases", canvasId);
-  if (!canvas) throw new ConvexError(errors.CANVAS_NOT_FOUND);
-  return canvas;
+  return requireActiveCanvas(ctx, canvasId);
 }
 
 export async function getLastModifiedForUser(
@@ -130,6 +127,9 @@ export async function createCanvasForUser(
     description,
     nodes: [],
     edges: [],
+    nodeCount: 0,
+    graphRevision: 0,
+    graphMigrated: true,
     updatedAt: Date.now(),
   });
 }
@@ -188,42 +188,13 @@ export async function deleteCanvasAndShares(
     actor?: NodeDataVersionActor;
   },
 ): Promise<Id<"canvases">> {
-  await getCanvasOrThrow(ctx, canvasId);
-
-  const shares = await ctx.db
-    .query("shares")
-    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
-    .collect();
-
-  for (const share of shares) {
-    await ctx.db.delete(share._id);
-  }
-
-  const nodeDatas = await ctx.db
-    .query("nodeDatas")
-    .withIndex("by_canvasId", (q) => q.eq("canvasId", canvasId))
-    .collect();
-  for (const nodeData of nodeDatas) {
-    await ctx.scheduler.runAfter(
-      0,
-      internal.wrappers.nodeDataWrappers.deleteWithCascade,
-      { nodeDataId: nodeData._id, actor },
-    );
-  }
-  if (nodeDatas.length > 0) {
-    console.log(
-      `🗑️ Scheduled cascade deletion for ${nodeDatas.length} nodeDatas on canvas ${canvasId}`,
-    );
-  }
-
-  // const tasks = await ctx.db
-  //   .query("tasks")
-  //   .withIndex("by_canvasId_and_status", (q) => q.eq("canvasId", canvasId))
-  //   .collect();
-  // for (const task of tasks) {
-  //   await ctx.db.delete(task._id);
-  // }
-
-  await ctx.db.delete(canvasId);
+  // A keeps physical parent deletion. Scheduling and deletion commit together;
+  // a retry can also resume cleanup of a parent that is already gone.
+  const canvas = await ctx.db.get("canvases", canvasId);
+  if (canvas) await ctx.db.delete("canvases", canvasId);
+  await ctx.scheduler.runAfter(0, internal.canvasGraphCleanup.purgeCanvas, {
+    canvasId,
+    actor,
+  });
   return canvasId;
 }

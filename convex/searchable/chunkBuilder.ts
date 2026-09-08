@@ -62,32 +62,18 @@ async function rebuildChunksForNodeData(
   //   updatedKeys,
   // });
 
-  const nodeData = await ctx.runQuery(
-    internal.wrappers.nodeDataWrappers.readNodeData,
+  const placedNode = await ctx.runQuery(
+    internal.wrappers.nodeDataWrappers.readNodeDataWithPlacement,
     { _id: nodeDataId },
   );
-  if (!nodeData) {
-    console.log("[chunkBuilder] rebuildChunks:nodeData-not-found", {
+  if (!placedNode) {
+    console.log("[chunkBuilder] rebuildChunks:nodeData-or-placement-not-found", {
       nodeDataId,
     });
     return;
   }
-
-  const { nodes } = await ctx.runQuery(
-    internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
-    { canvasId: nodeData.canvasId },
-  );
-  const matchingCanvasNode = nodes.find(
-    (node) => node.nodeDataId === nodeDataId,
-  );
-  const nodeId = matchingCanvasNode?.id ?? (nodeDataId as string);
-
-  if (!matchingCanvasNode) {
-    console.warn("[chunkBuilder] rebuildChunks:canvas-node-not-found", {
-      nodeDataId,
-      canvasId: nodeData.canvasId,
-    });
-  }
+  const { nodeData, node } = placedNode;
+  const nodeId = node.id;
 
   // Custom nodes : le template porte les noms de champs (texte indexé) et
   // le titleFieldId (titre du chunk).

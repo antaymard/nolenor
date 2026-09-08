@@ -1,20 +1,14 @@
 import { v } from "convex/values";
-import type { Id } from "../../_generated/dataModel";
+import type { Doc, Id } from "../../_generated/dataModel";
 import { internalQuery } from "../../_generated/server";
 import type { QueryCtx } from "../../_generated/server";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
+import { readLegacyNodeData } from "../../lib/legacyNodeDataReaders";
 
 // ---- Types ----
 
-type RawCanvasNode = {
-  id: string;
-  type: string;
-  position: { x: number; y: number };
-  width?: number;
-  height?: number;
-  nodeDataId?: Id<"nodeDatas">;
-};
+type RawCanvasNode = NonNullable<Doc<"canvases">["nodes"]>[number];
 
 type RawCanvasEdge = {
   source: string;
@@ -79,6 +73,13 @@ function isRichTextNodeType(type: string): boolean {
 
 export const generate = internalQuery({
   args: { canvasId: v.id("canvases") },
+  returns: v.object({
+    canvasId: v.id("canvases"),
+    canvasName: v.optional(v.string()),
+    canvasDescription: v.optional(v.string()),
+    hubCount: v.number(),
+    minimapText: v.string(),
+  }),
   handler: async (ctx, { canvasId }) => {
     const canvas = await ctx.db.get("canvases", canvasId);
     if (!canvas) {
@@ -87,12 +88,12 @@ export const generate = internalQuery({
 
     // Les types invisibles pour l'agent sortent avant tout calcul : ils ne
     // pèsent ni dans les hubs ni dans les edges de la minimap.
-    const nodes = ((canvas.nodes ?? []) as RawCanvasNode[]).filter((node) =>
+    const nodes = (canvas.nodes ?? []).filter((node) =>
       isNodeTypeReadableByAgent(node.type),
     );
     const edges = (canvas.edges ?? []) as RawCanvasEdge[];
 
-    const hubs = await buildHubs(ctx, nodes, edges);
+    const hubs = await buildHubs(ctx, canvasId, nodes, edges);
 
     return {
       canvasId: canvas._id,
@@ -108,6 +109,7 @@ export const generate = internalQuery({
 
 async function buildHubs(
   ctx: QueryCtx,
+  canvasId: Id<"canvases">,
   nodes: RawCanvasNode[],
   edges: RawCanvasEdge[],
 ): Promise<Hub[]> {
@@ -118,7 +120,7 @@ async function buildHubs(
   const otherNodes = nodes.filter((n) => n.type !== "title");
 
   // 1a. Fetch nodeData for title nodes (text + level)
-  const titleDataById = await fetchTitleData(ctx, titleNodes);
+  const titleDataById = await fetchTitleData(ctx, canvasId, titleNodes);
   const titleIds = new Set(titleNodes.map((n) => n.id));
 
   // 1b. Build edge graph
@@ -197,20 +199,26 @@ async function buildHubs(
   // ---- Pass 3: Enrich leaves (fetch nodeData + title) then prune ----
 
   const allLeafIds = collectLeafIds(rank1Hubs);
-  const leafNodeDatas = await fetchLeafNodeDatas(ctx, allLeafIds, nodeById);
+  const leafNodeDatas = await fetchLeafNodeDatas(
+    ctx,
+    canvasId,
+    allLeafIds,
+    nodeById,
+  );
   enrichAndPruneHubs(rank1Hubs, nodeById, leafNodeDatas);
 
   // Heavy orphan non-title nodes not captured by any hub
   const unassigned = otherNodes.filter(
     (n) => !assignedLeaves.has(n.id) && !implicitAssigned.has(n.id),
   );
-  const orphanHubs = await buildHeavyOrphanHubs(ctx, unassigned);
+  const orphanHubs = await buildHeavyOrphanHubs(ctx, canvasId, unassigned);
 
   return [...rank1Hubs, ...orphanHubs];
 }
 
 async function fetchTitleData(
   ctx: QueryCtx,
+  canvasId: Id<"canvases">,
   titleNodes: RawCanvasNode[],
 ): Promise<Map<string, TitleData>> {
   const map = new Map<string, TitleData>();
@@ -218,14 +226,12 @@ async function fetchTitleData(
     titleNodes.map(async (node) => {
       let text = "";
       let level: "h1" | "h2" | "h3" | "p" = "p";
-      if (node.nodeDataId) {
-        const nd = await ctx.db.get("nodeDatas", node.nodeDataId);
-        if (nd) {
-          if (typeof nd.values?.text === "string") text = nd.values.text;
-          const lvl = nd.values?.level;
-          if (lvl === "h1" || lvl === "h2" || lvl === "h3" || lvl === "p") {
-            level = lvl;
-          }
+      const nd = await readLegacyNodeData(ctx, canvasId, node);
+      if (nd) {
+        if (typeof nd.values?.text === "string") text = nd.values.text;
+        const lvl = nd.values?.level;
+        if (lvl === "h1" || lvl === "h2" || lvl === "h3" || lvl === "p") {
+          level = lvl;
         }
       }
       map.set(node.id, {
@@ -427,6 +433,7 @@ function collectLeafIds(hubs: Hub[]): string[] {
 
 async function fetchLeafNodeDatas(
   ctx: QueryCtx,
+  canvasId: Id<"canvases">,
   leafIds: string[],
   nodeById: Map<string, RawCanvasNode>,
 ): Promise<Map<string, { type: string; values: Record<string, unknown> }>> {
@@ -437,8 +444,8 @@ async function fetchLeafNodeDatas(
   await Promise.all(
     leafIds.map(async (lid) => {
       const node = nodeById.get(lid);
-      if (!node?.nodeDataId) return;
-      const nd = await ctx.db.get("nodeDatas", node.nodeDataId);
+      if (!node) return;
+      const nd = await readLegacyNodeData(ctx, canvasId, node);
       if (nd)
         map.set(lid, {
           type: nd.type as string,
@@ -519,14 +526,14 @@ function extractLeafTitle(
 
 async function buildHeavyOrphanHubs(
   ctx: QueryCtx,
+  canvasId: Id<"canvases">,
   nodes: RawCanvasNode[],
 ): Promise<Hub[]> {
   const results = await Promise.all(
     nodes
       .filter((n) => isRichTextNodeType(n.type))
       .map(async (node): Promise<Hub | null> => {
-        if (!node.nodeDataId) return null;
-        const nd = await ctx.db.get("nodeDatas", node.nodeDataId);
+        const nd = await readLegacyNodeData(ctx, canvasId, node);
         if (!nd) return null;
         const doc = nd.values?.doc;
         if (typeof doc !== "string" || doc.length < HEAVY_ORPHAN_MIN_LENGTH)

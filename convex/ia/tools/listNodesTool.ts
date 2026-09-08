@@ -166,7 +166,10 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             let embedUrl: string | null = null;
             let embedIframeUrl: string | null = null;
             let embedType: string | null = null;
-            if (node.nodeDataId) {
+            if (
+              node.nodeDataId !== undefined ||
+              node.data?.nodeDataId !== undefined
+            ) {
               try {
                 const { nodeData } = await ctx.runQuery(
                   internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,

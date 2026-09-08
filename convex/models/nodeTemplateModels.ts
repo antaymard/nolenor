@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import errors from "../config/errorsConfig";
 import { validateTemplateDefinition } from "../config/templateConfig";
 import type { TemplateField } from "../config/fieldConfig";
+import { readLegacyNodeData } from "../lib/legacyNodeDataReaders";
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -37,15 +38,17 @@ export async function resolveTemplatesForCanvas(
   ctx: Ctx,
   canvas: Doc<"canvases">,
 ): Promise<Doc<"nodeTemplates">[]> {
-  const ids = new Set<string>();
+  const ids = new Set<Id<"nodeTemplates">>();
   for (const node of canvas.nodes ?? []) {
-    const templateId = node.data?.templateId;
-    if (typeof templateId === "string") ids.add(templateId);
+    if (node.type !== "custom") continue;
+    const nodeData = await readLegacyNodeData(ctx, canvas._id, node);
+    // The placement's free-form data cannot authorize reading a template.
+    if (nodeData?.templateId) ids.add(nodeData.templateId);
   }
   if (ids.size === 0) return [];
 
   const docs = await Promise.all(
-    Array.from(ids).map((id) => ctx.db.get(id as Id<"nodeTemplates">)),
+    Array.from(ids).map((id) => ctx.db.get("nodeTemplates", id)),
   );
 
   return docs

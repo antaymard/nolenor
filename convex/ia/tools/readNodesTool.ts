@@ -495,8 +495,21 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         // First placement wins: the same nodeData may sit on the canvas twice.
         const nodeIdByNodeDataId = new Map<string, string>();
         for (const node of canvasNodes) {
-          if (node.nodeDataId && !nodeIdByNodeDataId.has(String(node.nodeDataId))) {
-            nodeIdByNodeDataId.set(String(node.nodeDataId), node.id);
+          const dataId: unknown = node.data?.nodeDataId;
+          if (
+            node.nodeDataId !== undefined &&
+            dataId !== undefined &&
+            node.nodeDataId !== dataId
+          ) {
+            continue;
+          }
+          const nodeDataId: unknown =
+            node.nodeDataId !== undefined ? node.nodeDataId : dataId;
+          if (
+            typeof nodeDataId === "string" &&
+            !nodeIdByNodeDataId.has(nodeDataId)
+          ) {
+            nodeIdByNodeDataId.set(nodeDataId, node.id);
           }
         }
         const mentionedNodeDataIds = new Set<string>();

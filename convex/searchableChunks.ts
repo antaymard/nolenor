@@ -1,5 +1,5 @@
 import { query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import { chunkTypeValidator } from "./schemas/searchableChunksSchema";
 import { nodeTypeValidator } from "./schemas/nodeTypeSchema";
@@ -231,6 +231,14 @@ export const listPdfPages = query({
   handler: async (ctx, args) => {
     const authUserId = await requireAuth(ctx);
     await requireCanvasAccess(ctx, args.canvasId, authUserId);
+    const nodeData = await ctx.db.get("nodeDatas", args.nodeDataId);
+    if (
+      !nodeData ||
+      nodeData.canvasId !== args.canvasId ||
+      nodeData.type !== "pdf"
+    ) {
+      throw new ConvexError("Invalid PDF nodeData reference.");
+    }
     return await SearchableChunkModels.listPdfPagesByNodeDataId(ctx, {
       nodeDataId: args.nodeDataId,
     });

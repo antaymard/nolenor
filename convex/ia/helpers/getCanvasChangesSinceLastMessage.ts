@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalQuery } from "../../_generated/server";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import { readLegacyNodeData } from "../../lib/legacyNodeDataReaders";
 
 export const getCanvasChangesSinceLastMessage = internalQuery({
   args: {
@@ -14,9 +15,7 @@ export const getCanvasChangesSinceLastMessage = internalQuery({
 
     const changedNodes = await Promise.all(
       (canvas.nodes ?? []).map(async (node) => {
-        if (!node.nodeDataId) return null;
-
-        const nodeData = await ctx.db.get("nodeDatas", node.nodeDataId);
+        const nodeData = await readLegacyNodeData(ctx, canvasId, node);
         if (!nodeData) return null;
         if (nodeData.updatedAt <= lastMessageAt) return null;
 

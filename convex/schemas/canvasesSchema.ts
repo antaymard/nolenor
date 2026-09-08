@@ -76,6 +76,13 @@ const canvasesValidator = v.object({
   nodes: v.optional(v.array(canvasNodesValidator)),
   edges: v.optional(v.array(edgesValidator)),
 
+  // Transitional A/M1 fields. They become required or disappear only after
+  // the backfill, cutover and cleanup gates described in the rollout spec.
+  nodeCount: v.optional(v.number()),
+  deletedAt: v.optional(v.number()),
+  graphRevision: v.optional(v.number()),
+  graphMigrated: v.optional(v.boolean()),
+
   background: v.optional(canvasBackgroundValidator),
 
   updatedAt: v.number(),

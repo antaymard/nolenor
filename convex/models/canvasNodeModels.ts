@@ -1,23 +1,30 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { internal } from "../_generated/api";
 import errors from "../config/errorsConfig";
 import { nodeDataConfig } from "../config/nodeConfig";
-import { internal } from "../_generated/api";
+import { requireActiveCanvas } from "../lib/auth";
+import { readLegacyNodeData } from "../lib/legacyNodeDataReaders";
+import {
+  assertMutationBatch,
+  deleteEdgeMirror,
+  deleteNodeMirror,
+  nextGraphRevision,
+  normalizeLegacyNodeReference,
+  type LegacyCanvasNode,
+  upsertEdgeMirror,
+  upsertNodeMirror,
+  validateLegacyGraph,
+} from "./canvasGraphModels";
 import * as SearchableChunkModels from "./searchableChunkModels";
 
-type CanvasNode = NonNullable<Doc<"canvases">["nodes"]>[number];
+type CanvasNode = LegacyCanvasNode;
 
 type NodeChange = {
   id: string;
-  position?: {
-    x: number;
-    y: number;
-  };
-  dimensions?: {
-    width: number;
-    height: number;
-  };
+  position?: { x: number; y: number };
+  dimensions?: { width: number; height: number };
 };
 
 type CanvasNodePropsUpdate = {
@@ -36,9 +43,22 @@ async function getCanvas(
   ctx: QueryCtx | MutationCtx,
   canvasId: Id<"canvases">,
 ): Promise<Doc<"canvases">> {
-  const canvas = await ctx.db.get("canvases", canvasId);
-  if (!canvas) throw new ConvexError(errors.CANVAS_NOT_FOUND);
-  return canvas;
+  return await requireActiveCanvas(ctx, canvasId);
+}
+
+function requireUniqueIds(ids: string[], label: string): void {
+  if (new Set(ids).size !== ids.length) {
+    throw new ConvexError(`${label} contains duplicate IDs.`);
+  }
+}
+
+function withDefaultVariant(node: CanvasNode): CanvasNode {
+  if (node.variant !== undefined) return node;
+  const config = nodeDataConfig.find((candidate) => candidate.type === node.type);
+  const defaultVariant = config?.variants
+    ? Object.entries(config.variants).find(([, variant]) => variant.isDefault)?.[0]
+    : undefined;
+  return defaultVariant ? { ...node, variant: defaultVariant } : node;
 }
 
 export async function addCanvasNodes(
@@ -46,34 +66,42 @@ export async function addCanvasNodes(
   {
     canvasId,
     canvasNodes,
-  }: {
-    canvasId: Id<"canvases">;
-    canvasNodes: Array<CanvasNode>;
-  },
+  }: { canvasId: Id<"canvases">; canvasNodes: CanvasNode[] },
 ): Promise<boolean> {
+  assertMutationBatch(canvasNodes.length, "Node addition");
+  requireUniqueIds(
+    canvasNodes.map((node) => node.id),
+    "Node addition",
+  );
+  if (canvasNodes.length === 0) return true;
+
   const canvas = await getCanvas(ctx, canvasId);
+  const currentNodes = canvas.nodes ?? [];
+  const currentIds = new Set(currentNodes.map((node) => node.id));
+  const nodesWithDefaults = canvasNodes.map((node) =>
+    normalizeLegacyNodeReference(ctx, withDefaultVariant(node)),
+  );
+  for (const node of nodesWithDefaults) {
+    if (currentIds.has(node.id)) {
+      throw new ConvexError(`Node ID already exists in this canvas: ${node.id}.`);
+    }
+  }
 
-  // Add default node variant if not provided
-  const nodesWithDefaults = canvasNodes.map((node) => {
-    if (node.variant !== undefined) return node;
-    const config = nodeDataConfig.find((c) => c.type === node.type);
-    if (!config?.variants) return node;
-    const defaultVariantKey = Object.entries(config.variants).find(
-      ([, v]) => v.isDefault,
-    )?.[0];
-    if (!defaultVariantKey) return node;
-    return { ...node, variant: defaultVariantKey };
-  });
-
+  const nextNodes = [...currentNodes, ...nodesWithDefaults];
+  await validateLegacyGraph(ctx, nextNodes, canvas.edges ?? []);
+  for (const node of nodesWithDefaults) {
+    await upsertNodeMirror(ctx, canvasId, node);
+  }
   await ctx.db.patch("canvases", canvasId, {
-    nodes: [...(canvas.nodes ?? []), ...nodesWithDefaults],
+    nodes: nextNodes,
+    nodeCount: nextNodes.length,
+    graphRevision: nextGraphRevision(canvas),
     updatedAt: Date.now(),
   });
 
   const nodeDataIds = nodesWithDefaults.flatMap((node) =>
     node.nodeDataId ? [node.nodeDataId] : [],
   );
-
   if (nodeDataIds.length > 0) {
     await ctx.scheduler.runAfter(
       0,
@@ -81,9 +109,6 @@ export async function addCanvasNodes(
       { nodeDataIds },
     );
   }
-
-  // console.log(`✅ Added ${canvasNodes.length} nodes to canvas ${canvasId}`);
-
   return true;
 }
 
@@ -92,40 +117,47 @@ export async function updatePositionOrDimensions(
   {
     canvasId,
     nodeChanges,
-  }: {
-    canvasId: Id<"canvases">;
-    nodeChanges: Array<NodeChange>;
-  },
+  }: { canvasId: Id<"canvases">; nodeChanges: NodeChange[] },
 ): Promise<boolean> {
+  assertMutationBatch(nodeChanges.length, "Node geometry update");
+  requireUniqueIds(
+    nodeChanges.map((change) => change.id),
+    "Node geometry update",
+  );
+  if (nodeChanges.length === 0) return true;
+
   const canvas = await getCanvas(ctx, canvasId);
   const nodes = canvas.nodes ?? [];
-
+  const changes = new Map(nodeChanges.map((change) => [change.id, change]));
+  for (const id of changes.keys()) {
+    if (!nodes.some((node) => node.id === id)) {
+      throw new ConvexError(`${errors.NODE_NOT_FOUND} NodeId: ${id}`);
+    }
+  }
   const updatedNodes = nodes.map((node) => {
-    const change = nodeChanges.find((item) => item.id === node.id);
+    const change = changes.get(node.id);
     if (!change) return node;
-
-    const updatedNode = { ...node };
-
-    if (change.position) {
-      updatedNode.position = {
-        x: change.position.x,
-        y: change.position.y,
-      };
-    }
-
-    if (change.dimensions) {
-      updatedNode.width = change.dimensions.width;
-      updatedNode.height = change.dimensions.height;
-    }
-
-    return updatedNode;
+    return {
+      ...node,
+      ...(change.position ? { position: change.position } : {}),
+      ...(change.dimensions
+        ? {
+            width: change.dimensions.width,
+            height: change.dimensions.height,
+          }
+        : {}),
+    };
   });
-
+  await validateLegacyGraph(ctx, updatedNodes, canvas.edges ?? []);
+  for (const id of changes.keys()) {
+    const node = updatedNodes.find((candidate) => candidate.id === id);
+    if (node) await upsertNodeMirror(ctx, canvasId, node);
+  }
   await ctx.db.patch("canvases", canvasId, {
     nodes: updatedNodes,
+    graphRevision: nextGraphRevision(canvas),
     updatedAt: Date.now(),
   });
-
   return true;
 }
 
@@ -134,61 +166,52 @@ export async function updateCanvasNodes(
   {
     canvasId,
     nodeProps,
-  }: {
-    canvasId: Id<"canvases">;
-    nodeProps: Array<CanvasNodePropsUpdate>;
-  },
+  }: { canvasId: Id<"canvases">; nodeProps: CanvasNodePropsUpdate[] },
 ): Promise<boolean> {
+  assertMutationBatch(nodeProps.length, "Node property update");
+  requireUniqueIds(
+    nodeProps.map((update) => update.id),
+    "Node property update",
+  );
+  for (const update of nodeProps) {
+    if (
+      update.data &&
+      ("nodeDataId" in update.data || "templateId" in update.data)
+    ) {
+      throw new ConvexError("Node data references cannot be patched as display data.");
+    }
+  }
+  if (nodeProps.length === 0) return true;
+
   const canvas = await getCanvas(ctx, canvasId);
   const nodes = canvas.nodes ?? [];
-
+  const updates = new Map(nodeProps.map((update) => [update.id, update]));
+  for (const id of updates.keys()) {
+    if (!nodes.some((node) => node.id === id)) {
+      throw new ConvexError(`${errors.NODE_NOT_FOUND} NodeId: ${id}`);
+    }
+  }
   const updatedNodes = nodes.map((node) => {
-    const nodeProp = nodeProps.find((item) => item.id === node.id);
-    if (!nodeProp) return node;
-
-    const updatedNode = { ...node };
-
-    if (nodeProp.props) {
-      if (nodeProp.props.locked !== undefined) {
-        updatedNode.locked = nodeProp.props.locked;
-      }
-
-      if (nodeProp.props.hidden !== undefined) {
-        updatedNode.hidden = nodeProp.props.hidden;
-      }
-
-      if (nodeProp.props.zIndex !== undefined) {
-        updatedNode.zIndex = nodeProp.props.zIndex;
-      }
-
-      if (nodeProp.props.color !== undefined) {
-        updatedNode.color = nodeProp.props.color;
-      }
-
-      if (nodeProp.props.variant !== undefined) {
-        updatedNode.variant = nodeProp.props.variant;
-      }
-    }
-
-    if (nodeProp.data !== undefined) {
-      updatedNode.data = {
-        ...(node.data ?? {}),
-        ...nodeProp.data,
-      };
-    }
-
-    return updatedNode;
+    const update = updates.get(node.id);
+    if (!update) return node;
+    return {
+      ...node,
+      ...(update.props ?? {}),
+      ...(update.data
+        ? { data: { ...(node.data ?? {}), ...update.data } }
+        : {}),
+    };
   });
-
+  await validateLegacyGraph(ctx, updatedNodes, canvas.edges ?? []);
+  for (const id of updates.keys()) {
+    const node = updatedNodes.find((candidate) => candidate.id === id);
+    if (node) await upsertNodeMirror(ctx, canvasId, node);
+  }
   await ctx.db.patch("canvases", canvasId, {
     nodes: updatedNodes,
+    graphRevision: nextGraphRevision(canvas),
     updatedAt: Date.now(),
   });
-
-  // console.log(
-  //   `✅ Updated display props for ${nodeProps.length} nodes in canvas ${canvasId}`,
-  // );
-
   return true;
 }
 
@@ -201,49 +224,59 @@ export async function removeCanvasNodes(
   }: {
     authUserId: Id<"users">;
     canvasId: Id<"canvases">;
-    nodeCanvasIds: Array<string>;
+    nodeCanvasIds: string[];
   },
 ): Promise<boolean> {
+  assertMutationBatch(nodeCanvasIds.length, "Node removal");
+  requireUniqueIds(nodeCanvasIds, "Node removal");
+  if (nodeCanvasIds.length === 0) return true;
+
   const canvas = await getCanvas(ctx, canvasId);
   const currentNodes = canvas.nodes ?? [];
-  const nodeCanvasIdSet = new Set(nodeCanvasIds);
+  const selected = new Set(nodeCanvasIds);
+  const removedNodes = currentNodes.filter((node) => selected.has(node.id));
+  if (removedNodes.length === 0) return true;
+  for (const node of currentNodes) {
+    if (node.parentId && selected.has(node.parentId) && !selected.has(node.id)) {
+      throw new ConvexError(
+        `Cannot remove parent ${node.parentId} without child ${node.id}.`,
+      );
+    }
+  }
 
-  const removedNodes = currentNodes.filter((node) =>
-    nodeCanvasIdSet.has(node.id),
+  const removedNodeDataIds: Id<"nodeDatas">[] = [];
+  for (const node of removedNodes) {
+    const nodeData = await readLegacyNodeData(ctx, canvasId, node);
+    if (nodeData) removedNodeDataIds.push(nodeData._id);
+  }
+  const remainingNodes = currentNodes.filter((node) => !selected.has(node.id));
+  const removedEdges = (canvas.edges ?? []).filter(
+    (edge) => selected.has(edge.source) || selected.has(edge.target),
   );
-  const remainingNodes = currentNodes.filter(
-    (node) => !nodeCanvasIdSet.has(node.id),
+  const remainingEdges = (canvas.edges ?? []).filter(
+    (edge) => !selected.has(edge.source) && !selected.has(edge.target),
   );
-
-  const removedNodeDataIds = removedNodes
-    .map((node) => node.nodeDataId)
-    .filter((id): id is Id<"nodeDatas"> => id !== undefined);
-
+  await validateLegacyGraph(ctx, remainingNodes, remainingEdges);
+  for (const node of removedNodes) await deleteNodeMirror(ctx, canvasId, node.id);
+  for (const edge of removedEdges) await deleteEdgeMirror(ctx, canvasId, edge.id);
   await ctx.db.patch("canvases", canvasId, {
     nodes: remainingNodes,
+    edges: remainingEdges,
+    nodeCount: remainingNodes.length,
+    graphRevision: nextGraphRevision(canvas),
     updatedAt: Date.now(),
   });
-
-  // Schedule cascade deletion (memories + chunks + nodeData) as a deferred job.
-  // This decouples canvas node removal from data deletion, enabling future ctrl-Z.
-  for (const nodeDataId of removedNodeDataIds) {
+  for (const nodeDataId of new Set(removedNodeDataIds)) {
     await ctx.scheduler.runAfter(
       0,
       internal.wrappers.nodeDataWrappers.deleteWithCascade,
-      { nodeDataId, actor: { type: "user", userId: authUserId } },
+      {
+        nodeDataId,
+        canvasId,
+        actor: { type: "user", userId: authUserId },
+      },
     );
   }
-
-  if (removedNodeDataIds.length > 0) {
-    console.log(
-      `🗑️ Scheduled cascade deletion for ${removedNodeDataIds.length} nodeDatas`,
-    );
-  }
-
-  // console.log(
-  //   `✅ Removed ${nodeCanvasIds.length} nodes from canvas ${canvasId}`,
-  // );
-
   return true;
 }
 
@@ -256,60 +289,112 @@ export async function moveToCanvas(
   }: {
     sourceCanvasId: Id<"canvases">;
     targetCanvasId: Id<"canvases">;
-    nodeCanvasIds: Array<string>;
+    nodeCanvasIds: string[];
   },
 ): Promise<boolean> {
   if (sourceCanvasId === targetCanvasId) {
     throw new ConvexError(errors.SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT);
   }
+  assertMutationBatch(nodeCanvasIds.length, "Canvas move");
+  requireUniqueIds(nodeCanvasIds, "Canvas move");
+  if (nodeCanvasIds.length === 0) return true;
 
   const sourceCanvas = await getCanvas(ctx, sourceCanvasId);
   const targetCanvas = await getCanvas(ctx, targetCanvasId);
-
   const sourceNodes = sourceCanvas.nodes ?? [];
   const sourceEdges = sourceCanvas.edges ?? [];
   const targetNodes = targetCanvas.nodes ?? [];
-  const nodeCanvasIdSet = new Set(nodeCanvasIds);
+  const targetEdges = targetCanvas.edges ?? [];
+  const selected = new Set(nodeCanvasIds);
+  const nodesToMove = sourceNodes
+    .filter((node) => selected.has(node.id))
+    .map((node) => normalizeLegacyNodeReference(ctx, node));
+  if (nodesToMove.length !== selected.size) {
+    throw new ConvexError("One or more selected nodes do not exist in the source canvas.");
+  }
+  const targetNodeIds = new Set(targetNodes.map((node) => node.id));
+  for (const node of nodesToMove) {
+    if (targetNodeIds.has(node.id)) {
+      throw new ConvexError(`Target canvas already contains node ${node.id}.`);
+    }
+    if (node.parentId && !selected.has(node.parentId)) {
+      throw new ConvexError(`Cannot move child ${node.id} without its parent.`);
+    }
+    await readLegacyNodeData(ctx, sourceCanvasId, node);
+  }
+  for (const node of sourceNodes) {
+    if (node.parentId && selected.has(node.parentId) && !selected.has(node.id)) {
+      throw new ConvexError(`Cannot move parent ${node.parentId} without child ${node.id}.`);
+    }
+  }
 
-  const nodesToMove = sourceNodes.filter((node) =>
-    nodeCanvasIdSet.has(node.id),
+  const remainingSourceNodes = sourceNodes.filter((node) => !selected.has(node.id));
+  const internalEdges = sourceEdges.filter(
+    (edge) => selected.has(edge.source) && selected.has(edge.target),
   );
-  const remainingSourceNodes = sourceNodes.filter(
-    (node) => !nodeCanvasIdSet.has(node.id),
+  const removedSourceEdges = sourceEdges.filter(
+    (edge) => selected.has(edge.source) || selected.has(edge.target),
   );
   const remainingSourceEdges = sourceEdges.filter(
-    (edge) =>
-      !nodeCanvasIdSet.has(edge.source) && !nodeCanvasIdSet.has(edge.target),
+    (edge) => !selected.has(edge.source) && !selected.has(edge.target),
   );
+  const targetEdgeIds = new Set(targetEdges.map((edge) => edge.id));
+  for (const edge of internalEdges) {
+    if (targetEdgeIds.has(edge.id)) {
+      throw new ConvexError(`Target canvas already contains edge ${edge.id}.`);
+    }
+  }
+  const nextTargetNodes = [...targetNodes, ...nodesToMove];
+  const nextTargetEdges = [...targetEdges, ...internalEdges];
+  await validateLegacyGraph(ctx, remainingSourceNodes, remainingSourceEdges);
+  await validateLegacyGraph(ctx, nextTargetNodes, nextTargetEdges);
 
+  for (const node of nodesToMove) {
+    await deleteNodeMirror(ctx, sourceCanvasId, node.id);
+  }
+  for (const edge of removedSourceEdges) {
+    await deleteEdgeMirror(ctx, sourceCanvasId, edge.id);
+  }
+
+  let movedChunks = 0;
+  let movedChunkBytes = 0;
+  for (const node of nodesToMove) {
+    if (node.nodeDataId) {
+      await ctx.db.patch("nodeDatas", node.nodeDataId, { canvasId: targetCanvasId });
+      const usage = await SearchableChunkModels.updateCanvasId(ctx, {
+        nodeDataId: node.nodeDataId,
+        canvasId: targetCanvasId,
+      });
+      movedChunks += usage.documents;
+      movedChunkBytes += usage.bytes;
+      if (
+        movedChunks > SearchableChunkModels.MAX_CHUNKS_PER_MOVE ||
+        movedChunkBytes > SearchableChunkModels.MAX_CHUNK_MOVE_BYTES
+      ) {
+        throw new ConvexError("Searchable chunks exceed the atomic move budget.");
+      }
+    }
+    await upsertNodeMirror(ctx, targetCanvasId, node);
+  }
+  for (const edge of internalEdges) {
+    await upsertEdgeMirror(ctx, targetCanvasId, edge);
+  }
+
+  const now = Date.now();
   await ctx.db.patch("canvases", sourceCanvasId, {
     nodes: remainingSourceNodes,
     edges: remainingSourceEdges,
-    updatedAt: Date.now(),
+    nodeCount: remainingSourceNodes.length,
+    graphRevision: nextGraphRevision(sourceCanvas),
+    updatedAt: now,
   });
   await ctx.db.patch("canvases", targetCanvasId, {
-    nodes: [...targetNodes, ...nodesToMove],
-    updatedAt: Date.now(),
+    nodes: nextTargetNodes,
+    edges: nextTargetEdges,
+    nodeCount: nextTargetNodes.length,
+    graphRevision: nextGraphRevision(targetCanvas),
+    updatedAt: now,
   });
-
-  // Update canvasId on moved NodeDatas and their memories.
-  const movedNodeDataIds = nodesToMove
-    .map((node) => node.nodeDataId)
-    .filter((id): id is Id<"nodeDatas"> => id !== undefined);
-
-  for (const nodeDataId of movedNodeDataIds) {
-    await ctx.db.patch(nodeDataId, { canvasId: targetCanvasId });
-
-    await SearchableChunkModels.updateCanvasId(ctx, {
-      nodeDataId,
-      canvasId: targetCanvasId,
-    });
-  }
-
-  // console.log(
-  //   `✅ Moved ${nodeCanvasIds.length} nodes from canvas ${sourceCanvasId} to canvas ${targetCanvasId}`,
-  // );
-
   return true;
 }
 
@@ -318,36 +403,20 @@ export async function getNodeWithNodeData(
   {
     canvasId,
     nodeId,
-  }: {
-    canvasId: Id<"canvases">;
-    nodeId: string;
-  },
-): Promise<{
-  node: CanvasNode;
-  nodeData: Doc<"nodeDatas">;
-}> {
+  }: { canvasId: Id<"canvases">; nodeId: string },
+): Promise<{ node: CanvasNode; nodeData: Doc<"nodeDatas"> }> {
   const canvas = await getCanvas(ctx, canvasId);
-  const node = (canvas.nodes ?? []).find((item) => item.id === nodeId);
-
-  if (!node) {
+  const matches = (canvas.nodes ?? []).filter((node) => node.id === nodeId);
+  if (matches.length !== 1) {
     throw new ConvexError(
-      errors.NODE_NOT_FOUND + ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
+      `${errors.NODE_NOT_FOUND} NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
     );
   }
-
-  if (!node.nodeDataId) {
-    throw new ConvexError(
-      errors.NODE_DATA_NOT_FOUND_FOR_NODE +
-        ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
-    );
-  }
-
-  const nodeData = await ctx.db.get("nodeDatas", node.nodeDataId);
+  const nodeData = await readLegacyNodeData(ctx, canvasId, matches[0]);
   if (!nodeData) {
     throw new ConvexError(
-      errors.NODE_DATA_NOT_FOUND + ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
+      `${errors.NODE_DATA_NOT_FOUND_FOR_NODE} NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
     );
   }
-
-  return { node, nodeData };
+  return { node: matches[0], nodeData };
 }

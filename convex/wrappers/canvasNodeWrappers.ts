@@ -1,7 +1,10 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
 import * as CanvasNodeModels from "../models/canvasNodeModels";
 import { canvasNodesValidator } from "../schemas/canvasesSchema";
+import { nodeDatasValidator } from "../schemas/nodeDatasSchema";
+import { readLegacyNodeData } from "../lib/legacyNodeDataReaders";
+import errors from "../config/errorsConfig";
 
 export const add = internalMutation({
   args: {
@@ -80,8 +83,35 @@ export const getNodeWithNodeData = internalQuery({
     canvasId: v.id("canvases"),
     nodeId: v.string(),
   },
-  handler: async (ctx, args) => {
-    return CanvasNodeModels.getNodeWithNodeData(ctx, args);
+  returns: v.object({
+    node: canvasNodesValidator,
+    nodeData: nodeDatasValidator.extend({
+      _id: v.id("nodeDatas"),
+      _creationTime: v.number(),
+    }),
+  }),
+  handler: async (ctx, { canvasId, nodeId }) => {
+    const canvas = await ctx.db.get("canvases", canvasId);
+    if (!canvas) throw new ConvexError(errors.CANVAS_NOT_FOUND);
+
+    const matches = (canvas.nodes ?? []).filter((node) => node.id === nodeId);
+    if (matches.length > 1) {
+      throw new ConvexError(`Ambiguous placement for node ${nodeId}.`);
+    }
+    const node = matches[0];
+    if (!node) {
+      throw new ConvexError(
+        errors.NODE_NOT_FOUND + ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
+      );
+    }
+    const nodeData = await readLegacyNodeData(ctx, canvasId, node);
+    if (!nodeData) {
+      throw new ConvexError(
+        errors.NODE_DATA_NOT_FOUND_FOR_NODE +
+          ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
+      );
+    }
+    return { node, nodeData };
   },
 });
 

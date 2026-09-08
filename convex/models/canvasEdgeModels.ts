@@ -1,25 +1,18 @@
+import { ConvexError } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { ConvexError } from "convex/values";
-import errors from "../config/errorsConfig";
+import { requireActiveCanvas } from "../lib/auth";
+import {
+  assertMutationBatch,
+  deleteEdgeMirror,
+  nextGraphRevision,
+  type LegacyCanvasEdge,
+  upsertEdgeMirror,
+  validateLegacyGraph,
+} from "./canvasGraphModels";
 
-type CanvasEdge = NonNullable<Doc<"canvases">["edges"]>[number];
-
-type EdgeUpdate = {
-  id: string;
-  data?: Record<string, unknown>;
-};
-
-async function getCanvas(
-  ctx: MutationCtx,
-  canvasId: Doc<"canvases">["_id"],
-): Promise<Doc<"canvases">> {
-  const canvas = await ctx.db.get("canvases", canvasId);
-  if (!canvas) {
-    throw new ConvexError(errors.CANVAS_NOT_FOUND);
-  }
-  return canvas;
-}
+type CanvasEdge = LegacyCanvasEdge;
+type EdgeUpdate = { id: string; data?: Record<string, unknown> };
 
 const DEFAULT_MARKER_END = {
   type: "arrow",
@@ -28,29 +21,48 @@ const DEFAULT_MARKER_END = {
   strokeWidth: 1,
 };
 
+function requireUniqueIds(ids: string[], label: string): void {
+  if (new Set(ids).size !== ids.length) {
+    throw new ConvexError(`${label} contains duplicate IDs.`);
+  }
+}
+
 export async function addCanvasEdges(
   ctx: MutationCtx,
   {
     canvasId,
     edges,
-  }: {
-    canvasId: Doc<"canvases">["_id"];
-    edges: Array<CanvasEdge>;
-  },
+  }: { canvasId: Doc<"canvases">["_id"]; edges: CanvasEdge[] },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
+  assertMutationBatch(edges.length, "Edge addition");
+  requireUniqueIds(
+    edges.map((edge) => edge.id),
+    "Edge addition",
+  );
+  if (edges.length === 0) return true;
 
+  const canvas = await requireActiveCanvas(ctx, canvasId);
+  const currentEdges = canvas.edges ?? [];
+  const currentIds = new Set(currentEdges.map((edge) => edge.id));
   const edgesWithDefaults = edges.map((edge) => ({
     ...edge,
     markerEnd: edge.markerEnd ?? DEFAULT_MARKER_END,
   }));
-
+  for (const edge of edgesWithDefaults) {
+    if (currentIds.has(edge.id)) {
+      throw new ConvexError(`Edge ID already exists in this canvas: ${edge.id}.`);
+    }
+  }
+  const nextEdges = [...currentEdges, ...edgesWithDefaults];
+  await validateLegacyGraph(ctx, canvas.nodes ?? [], nextEdges);
+  for (const edge of edgesWithDefaults) {
+    await upsertEdgeMirror(ctx, canvasId, edge);
+  }
   await ctx.db.patch("canvases", canvasId, {
-    edges: [...(canvas.edges ?? []), ...edgesWithDefaults],
+    edges: nextEdges,
+    graphRevision: nextGraphRevision(canvas),
     updatedAt: Date.now(),
   });
-
-  console.log(`✅ Added ${edges.length} edges to canvas ${canvasId}`);
   return true;
 }
 
@@ -61,30 +73,43 @@ export async function updateCanvasEdges(
     edgeUpdates,
   }: {
     canvasId: Doc<"canvases">["_id"];
-    edgeUpdates: Array<EdgeUpdate>;
+    edgeUpdates: EdgeUpdate[];
   },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
-  const edges = canvas.edges ?? [];
+  assertMutationBatch(edgeUpdates.length, "Edge update");
+  requireUniqueIds(
+    edgeUpdates.map((update) => update.id),
+    "Edge update",
+  );
+  if (edgeUpdates.length === 0) return true;
 
-  const updatedEdges = edges.map((edge) => {
-    const update = edgeUpdates.find((item) => item.id === edge.id);
-    if (!update) {
-      return edge;
+  const canvas = await requireActiveCanvas(ctx, canvasId);
+  const updates = new Map(edgeUpdates.map((update) => [update.id, update]));
+  for (const id of updates.keys()) {
+    if (!(canvas.edges ?? []).some((edge) => edge.id === id)) {
+      throw new ConvexError(`Edge not found in this canvas: ${id}.`);
     }
-
+  }
+  const updatedEdges = (canvas.edges ?? []).map((edge) => {
+    const update = updates.get(edge.id);
+    if (!update) return edge;
     return {
       ...edge,
-      data: update.data ? { ...(edge.data ?? {}), ...update.data } : edge.data,
+      ...(update.data
+        ? { data: { ...(edge.data ?? {}), ...update.data } }
+        : {}),
     };
   });
-
+  await validateLegacyGraph(ctx, canvas.nodes ?? [], updatedEdges);
+  for (const id of updates.keys()) {
+    const edge = updatedEdges.find((candidate) => candidate.id === id);
+    if (edge) await upsertEdgeMirror(ctx, canvasId, edge);
+  }
   await ctx.db.patch("canvases", canvasId, {
     edges: updatedEdges,
+    graphRevision: nextGraphRevision(canvas),
     updatedAt: Date.now(),
   });
-
-  console.log(`✅ Updated ${edgeUpdates.length} edges in canvas ${canvasId}`);
   return true;
 }
 
@@ -93,18 +118,25 @@ export async function removeCanvasEdges(
   {
     canvasId,
     edgeIds,
-  }: {
-    canvasId: Doc<"canvases">["_id"];
-    edgeIds: Array<string>;
-  },
+  }: { canvasId: Doc<"canvases">["_id"]; edgeIds: string[] },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
+  assertMutationBatch(edgeIds.length, "Edge removal");
+  requireUniqueIds(edgeIds, "Edge removal");
+  if (edgeIds.length === 0) return true;
 
+  const canvas = await requireActiveCanvas(ctx, canvasId);
+  const selected = new Set(edgeIds);
+  const removed = (canvas.edges ?? []).filter((edge) => selected.has(edge.id));
+  if (removed.length === 0) return true;
+  const remaining = (canvas.edges ?? []).filter(
+    (edge) => !selected.has(edge.id),
+  );
+  await validateLegacyGraph(ctx, canvas.nodes ?? [], remaining);
+  for (const edge of removed) await deleteEdgeMirror(ctx, canvasId, edge.id);
   await ctx.db.patch("canvases", canvasId, {
-    edges: (canvas.edges ?? []).filter((edge) => !edgeIds.includes(edge.id)),
+    edges: remaining,
+    graphRevision: nextGraphRevision(canvas),
     updatedAt: Date.now(),
   });
-
-  console.log(`✅ Removed ${edgeIds.length} edges from canvas ${canvasId}`);
   return true;
 }

@@ -1,3 +1,4 @@
+import { ConvexError, convexToJson } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import {
@@ -10,8 +11,17 @@ import {
 import type { NodeType } from "../schemas/nodeTypeSchema";
 import { isNodeTypeReadableByAgent } from "../config/nodeConfig";
 import { stripLoneSurrogates } from "../lib/textSanitize";
+import { readLegacyNodeData } from "../lib/legacyNodeDataReaders";
+import { requireActiveCanvas } from "../lib/auth";
 
 type SearchableChunk = Doc<"searchableChunks">;
+
+// Local limits, not a whole-move budget: callers moving several contents must
+// also reserve aggregate documents/bytes. N+1 reads reject instead of truncating.
+export const MAX_CHUNKS_PER_NODE_DATA = 128;
+export const MAX_CHUNK_WRITE_BYTES = 2 * 1024 * 1024;
+export const MAX_CHUNKS_PER_MOVE = 128;
+export const MAX_CHUNK_MOVE_BYTES = 2 * 1024 * 1024;
 
 export async function upsertChunks(
   ctx: MutationCtx,
@@ -23,11 +33,76 @@ export async function upsertChunks(
     chunks: Array<Omit<SearchableChunk, "_id" | "_creationTime">>;
   },
 ): Promise<void> {
+  const nodeData = await ctx.db.get("nodeDatas", nodeDataId);
+  if (!nodeData) return;
+  const canvas = await ctx.db.get("canvases", nodeData.canvasId);
+  if (!canvas || canvas.deletedAt !== undefined) return;
+  const matches = (canvas.nodes ?? []).filter(
+    (node) =>
+      node.nodeDataId === nodeDataId || node.data?.nodeDataId === nodeDataId,
+  );
+  if (matches.length > 1)
+    throw new ConvexError("Ambiguous placement for nodeData.");
+  const node = matches[0];
+  if (!node) return;
+  if (
+    (canvas.nodes ?? []).some((other) => other !== node && other.id === node.id)
+  ) {
+    throw new ConvexError("Ambiguous node ID for searchable chunks.");
+  }
+  await readLegacyNodeData(ctx, canvas._id, node);
+  if (canvas.graphMigrated) {
+    const placement = await ctx.db
+      .query("nodes")
+      .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+      .unique();
+    if (
+      !placement ||
+      placement.canvasId !== canvas._id ||
+      placement.nodeId !== node.id
+    ) {
+      throw new ConvexError(
+        "Inconsistent indexed placement for searchable chunks.",
+      );
+    }
+  }
+  // An action can finish after a move or a reattachment. Never delete current
+  // chunks before checking every incoming snapshot's identity and placement.
+  // Empty legacy payloads carry no placement provenance (and also mean "skip
+  // expensive rebuild"). They cannot safely authorize deleting current chunks.
+  if (chunks.length === 0) return;
+  if (
+    chunks.some(
+      (chunk) =>
+        chunk.nodeDataId !== nodeDataId ||
+        chunk.canvasId !== canvas._id ||
+        chunk.nodeId !== node.id ||
+        chunk.nodeType !== nodeData.type,
+    )
+  )
+    return;
+  if (chunks.length > MAX_CHUNKS_PER_NODE_DATA) {
+    throw new ConvexError(
+      "Too many searchable chunks for one atomic replacement.",
+    );
+  }
+  if (
+    new TextEncoder().encode(JSON.stringify(convexToJson(chunks))).byteLength >
+    MAX_CHUNK_WRITE_BYTES
+  ) {
+    throw new ConvexError(
+      "Searchable chunk replacement exceeds its byte budget.",
+    );
+  }
   // Keep implementation simple and predictable: replace all chunks for this node.
   const existing = await ctx.db
     .query("searchableChunks")
     .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
-    .collect();
+    .take(MAX_CHUNKS_PER_NODE_DATA + 1);
+
+  if (existing.length > MAX_CHUNKS_PER_NODE_DATA) {
+    throw new ConvexError("Too many stored chunks for one atomic replacement.");
+  }
 
   for (const chunk of existing) {
     await ctx.db.delete(chunk._id);
@@ -72,15 +147,35 @@ export async function updateCanvasId(
     nodeDataId,
     canvasId,
   }: { nodeDataId: Id<"nodeDatas">; canvasId: Id<"canvases"> },
-): Promise<void> {
+): Promise<{ documents: number; bytes: number }> {
+  await requireActiveCanvas(ctx, canvasId);
+  const nodeData = await ctx.db.get("nodeDatas", nodeDataId);
+  if (!nodeData || nodeData.canvasId !== canvasId) {
+    throw new ConvexError("NodeData is not attached to the target canvas.");
+  }
   const chunks = await ctx.db
     .query("searchableChunks")
     .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
-    .collect();
+    .take(MAX_CHUNKS_PER_NODE_DATA + 1);
+
+  if (chunks.length > MAX_CHUNKS_PER_NODE_DATA) {
+    throw new ConvexError(
+      "Too many searchable chunks to move atomically. Reduce the move.",
+    );
+  }
+  const bytes = new TextEncoder().encode(
+    JSON.stringify(convexToJson(chunks)),
+  ).byteLength;
+  if (bytes > MAX_CHUNK_MOVE_BYTES) {
+    throw new ConvexError(
+      "Searchable chunks exceed the atomic move byte budget.",
+    );
+  }
 
   for (const chunk of chunks) {
     await ctx.db.patch(chunk._id, { canvasId });
   }
+  return { documents: chunks.length, bytes };
 }
 
 export async function listByNodeDataId(

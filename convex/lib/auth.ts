@@ -28,6 +28,18 @@ type RequireCanvasAccessOptions = {
   allowPublic?: boolean;
 };
 
+// Integrity guard for internal writers too; authorization stays with the caller.
+export async function requireActiveCanvas(
+  ctx: QueryCtx | MutationCtx,
+  canvasId: Id<"canvases">,
+): Promise<Doc<"canvases">> {
+  const canvas = await ctx.db.get("canvases", canvasId);
+  if (!canvas || canvas.deletedAt !== undefined) {
+    throw new ConvexError(errors.CANVAS_NOT_FOUND);
+  }
+  return canvas;
+}
+
 /**
  * Vérifie l'accès d'un user à un canvas.
  * Retourne { canvas, permission } ou null si aucun accès.
@@ -38,7 +50,7 @@ export async function getCanvasAccess(
   userId: Id<"users">,
 ): Promise<CanvasAccessResult | null> {
   const canvas = await ctx.db.get(canvasId);
-  if (!canvas) return null;
+  if (!canvas || canvas.deletedAt !== undefined) return null;
 
   // Owner = full access
   if (canvas.creatorId === userId) return { canvas, permission: "owner" };
@@ -68,10 +80,7 @@ export async function requireCanvasAccess(
 ): Promise<CanvasAccessResult> {
   const { allowPublic = false } = options;
 
-  const canvas = await ctx.db.get(canvasId);
-  if (!canvas) {
-    throw new ConvexError(errors.CANVAS_NOT_FOUND);
-  }
+  const canvas = await requireActiveCanvas(ctx, canvasId);
 
   let access: CanvasAccessResult | null = null;
   if (userId) {

@@ -1,8 +1,9 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
+import { readLegacyNodeData } from "./lib/legacyNodeDataReaders";
 import * as NodeDataModel from "./models/nodeDataModels";
 import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
 
@@ -46,6 +47,12 @@ export const read = query({
 
 export const listByCanvasId = query({
   args: { canvasId: v.id("canvases") },
+  returns: v.array(
+    nodeDatasValidator.extend({
+      _id: v.id("nodeDatas"),
+      _creationTime: v.number(),
+    }),
+  ),
   handler: async (ctx, { canvasId }) => {
     const authUserId = await optionalAuth(ctx);
     const { canvas } = await requireCanvasAccess(
@@ -56,19 +63,11 @@ export const listByCanvasId = query({
       { allowPublic: true },
     );
 
-    // Extraire les nodeDataIds des nodes du canvas
-    const nodeDataIds = (canvas.nodes || [])
-      .map((node) => node.nodeDataId)
-      .filter((id): id is Id<"nodeDatas"> => id !== undefined);
-
-    if (nodeDataIds.length === 0) return [];
-
-    // Fetch les nodeDatas en parallèle
     const nodeDatas = await Promise.all(
-      nodeDataIds.map((id) => ctx.db.get(id)),
+      (canvas.nodes ?? []).map((node) => readLegacyNodeData(ctx, canvasId, node)),
     );
 
-    // Filtrer les nulls (au cas où un nodeData aurait été supprimé)
+    // A broken reference fails the whole read; only content-free placements skip.
     return nodeDatas.filter((nd) => nd !== null);
   },
 });
@@ -78,6 +77,15 @@ export const listRecentByCanvasId = query({
     canvasId: v.id("canvases"),
     limit: v.optional(v.number()),
   },
+  returns: v.array(
+    v.object({
+      nodeData: nodeDatasValidator.extend({
+        _id: v.id("nodeDatas"),
+        _creationTime: v.number(),
+      }),
+      xyNodeId: v.string(),
+    }),
+  ),
   handler: async (ctx, { canvasId, limit }) => {
     const authUserId = await optionalAuth(ctx);
     const { canvas } = await requireCanvasAccess(
@@ -88,29 +96,26 @@ export const listRecentByCanvasId = query({
       { allowPublic: true },
     );
 
-    const nodeByDataId = new Map<Id<"nodeDatas">, string>();
-    for (const node of canvas.nodes || []) {
-      if (node.nodeDataId) {
-        nodeByDataId.set(node.nodeDataId, node.id);
-      }
-    }
-
-    if (nodeByDataId.size === 0) return [];
-
-    const nodeDatas = await Promise.all(
-      Array.from(nodeByDataId.keys()).map((id) => ctx.db.get(id)),
+    const entries = await Promise.all(
+      (canvas.nodes ?? []).map(async (node) => {
+        const nodeData = await readLegacyNodeData(ctx, canvasId, node);
+        return nodeData ? { nodeData, xyNodeId: node.id } : null;
+      }),
     );
 
-    const filtered = nodeDatas
-      .filter((nd) => nd !== null)
-      .sort((a, b) => (b!.updatedAt ?? 0) - (a!.updatedAt ?? 0));
+    // Validate every placement before deduplication, sorting or applying the limit.
+    const byDataId = new Map<
+      Id<"nodeDatas">,
+      { nodeData: Doc<"nodeDatas">; xyNodeId: string }
+    >();
+    for (const entry of entries) {
+      if (entry) byDataId.set(entry.nodeData._id, entry);
+    }
+    const sorted = Array.from(byDataId.values()).sort(
+      (a, b) => (b.nodeData.updatedAt ?? 0) - (a.nodeData.updatedAt ?? 0),
+    );
 
-    const sliced = limit ? filtered.slice(0, limit) : filtered;
-
-    return sliced.map((nd) => ({
-      nodeData: nd!,
-      xyNodeId: nodeByDataId.get(nd!._id)!,
-    }));
+    return limit ? sorted.slice(0, limit) : sorted;
   },
 });
 

@@ -206,7 +206,7 @@ export default function CanvasSidebar({
       </Sidebar>
 
       <SidebarInset className="flex-1">
-        <div className="absolute top-3 left-4 z-10 animate-appear canvas-ui-container h-8 pr-1 max-w-72">
+        <div className="absolute top-3 left-4 z-10 animate-appear canvas-ui-container h-8 pr-2 max-w-72">
           <SidebarTrigger />
           <span className="text-sm font-bold truncate max-w-48">
             {currentCanvas?.name ?? "..."}

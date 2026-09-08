@@ -29,13 +29,13 @@ export const chatModelOptions = [
     isMultimodal: true,
     maxContext: 1000000,
   },
-  {
-    label: "GPT-5.6 Luna Pro",
-    value: "openai/gpt-5.6-luna-pro",
-    price: "0.20_1.20",
-    isMultimodal: true,
-    maxContext: 1000000,
-  },
+  // {
+  //   label: "GPT-5.6 Luna Pro",
+  //   value: "openai/gpt-5.6-luna-pro",
+  //   price: "0.20_1.20",
+  //   isMultimodal: true,
+  //   maxContext: 1000000,
+  // },
   // {
   //   label: "Tencent Hy4",
   //   value: "tencent/hy4-preview",

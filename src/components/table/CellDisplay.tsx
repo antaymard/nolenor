@@ -7,8 +7,10 @@ import {
   getNodeIcon,
 } from "@/components/utils/nodeDataDisplayUtils";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { formatAbsoluteDate } from "@/lib/isoDate";
 import { parseRichTextCell } from "./richText";
 import {
+  cellShellClass,
   DEFAULT_ROW_HEIGHT,
   ROW_HEIGHT_CONFIG,
   maxHeightForRowHeight,
@@ -34,6 +36,9 @@ export interface CellDisplayProps {
    */
   rowHeight?: RowHeight;
 }
+
+/** La coque commune à toutes les branches, pour qu'elles coupent pareil. */
+const SHELL = "flex min-w-0 w-full items-center gap-1 min-h-[1.4em] px-1";
 
 export function CellDisplay({
   type,
@@ -69,9 +74,12 @@ export function CellDisplay({
       return <span className="block w-full min-h-[1.4em] px-1" />;
     }
     return (
-      <span className="flex items-center gap-1 w-full min-h-[1.4em] px-1">
+      <span className={cn(SHELL, "overflow-hidden whitespace-nowrap")}>
         <span
-          className={`inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-medium max-w-full${!nodeData ? " opacity-50" : ""}`}
+          className={cn(
+            "inline-flex min-w-0 max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-medium",
+            !nodeData && "opacity-50",
+          )}
         >
           {Icon ? (
             <Icon size={13} className="shrink-0 text-muted-foreground" />
@@ -112,7 +120,14 @@ export function CellDisplay({
     }
     const optionMap = new Map(options.map((o) => [o.id, o]));
     return (
-      <span className="flex items-center gap-1 flex-wrap w-full min-h-[1.4em] px-1">
+      <span
+        className={cn(SHELL, cellShellClass(rowHeight))}
+        // En `short` la coque coupe déjà ; au-delà les étiquettes s'enroulent,
+        // et c'est la hauteur de ligne qui borne l'empilement.
+        style={
+          rowHeight === "short" ? undefined : maxHeightForRowHeight(rowHeight)
+        }
+      >
         {ids.map((id) => {
           const opt = optionMap.get(id);
           if (!opt) return null;
@@ -121,7 +136,7 @@ export function CellDisplay({
             <span
               key={id}
               className={cn(
-                "inline-flex items-center max-w-full rounded-md px-1.5 py-0.5 font-medium",
+                "inline-flex min-w-0 max-w-full items-center rounded-md px-1.5 py-0.5 font-medium",
                 c.bg,
                 c.text,
               )}
@@ -139,22 +154,19 @@ export function CellDisplay({
   }
 
   if (type === "date") {
-    const dateValue =
-      value != null && value !== "" ? new Date(String(value)) : undefined;
-    const displayValue =
-      dateValue != null
-        ? dateValue.toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })
-        : "";
+    // `formatAbsoluteDate` lit la date ISO nue sur ses composantes LOCALES :
+    // `new Date("2024-03-05")` est spec'é UTC et reculait l'affichage d'un jour
+    // à l'ouest de Greenwich.
+    const displayValue = formatAbsoluteDate(value) ?? "";
     return (
-      <span className="flex items-center gap-1 w-full min-h-[1.4em] rounded px-1">
+      // Une date est un jeton unique : elle ne revient jamais à la ligne, quelle
+      // que soit la hauteur de ligne. C'est ce qui la faisait tenir sur deux ou
+      // trois lignes dans une colonne étroite du canvas.
+      <span className={cn(SHELL, "overflow-hidden rounded whitespace-nowrap")}>
         {displayValue && (
           <TbCalendar size={13} className="shrink-0 text-muted-foreground" />
         )}
-        {displayValue}
+        <span className="truncate">{displayValue}</span>
       </span>
     );
   }
@@ -170,7 +182,7 @@ export function CellDisplay({
       }
     }
     return (
-      <span className="flex items-center gap-1 w-full min-h-[1.4em] rounded px-1">
+      <span className={cn(SHELL, "overflow-hidden rounded whitespace-nowrap")}>
         {displayLabel && linkVal?.href ? (
           <>
             <TbLink size={13} className="shrink-0 text-muted-foreground" />
@@ -178,7 +190,7 @@ export function CellDisplay({
               href={linkVal.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-500 hover:underline truncate"
+              className="truncate text-blue-500 hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               {displayLabel}

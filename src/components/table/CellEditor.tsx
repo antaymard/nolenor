@@ -7,6 +7,8 @@ import {
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import { TbCalendar } from "react-icons/tb";
+import { cn } from "@/lib/utils";
+import { formatAbsoluteDate, parseIsoDate, toIsoDate } from "@/lib/isoDate";
 import { CellDisplay } from "./CellDisplay";
 import { LinkCellEditor } from "./LinkCellEditor";
 import { NodeCellEditor } from "./NodeCellEditor";
@@ -74,27 +76,26 @@ export function CellEditor({
   }
 
   if (type === "date") {
-    const dateValue =
-      value != null && value !== "" ? new Date(String(value)) : undefined;
-    const displayValue =
-      dateValue != null
-        ? dateValue.toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })
-        : "";
+    // Les trois helpers de `lib/isoDate` travaillent sur les composantes LOCALES
+    // d'une date ISO nue. `new Date("2024-03-05")` est spec'é UTC : lire puis
+    // réécrire reculait la date d'un jour à l'ouest de Greenwich.
+    const dateValue = parseIsoDate(value);
+    const displayValue = formatAbsoluteDate(value) ?? "";
     return (
       <Popover open={isEditing} onOpenChange={(open) => !open && onBlur()}>
         <PopoverTrigger asChild>
           <span
-            className="flex items-center gap-1 w-full min-h-[1.4em] rounded px-1 cursor-pointer hover:bg-muted/50"
+            // Une date est un jeton unique : elle ne revient jamais à la ligne,
+            // quelle que soit la hauteur de ligne.
+            className="flex min-w-0 w-full cursor-pointer items-center gap-1 min-h-[1.4em] overflow-hidden rounded px-1 whitespace-nowrap hover:bg-muted/50"
             onClick={onClick}
           >
             <TbCalendar size={13} className="shrink-0 text-muted-foreground" />
-            {displayValue || (
-              <span className="text-muted-foreground">Pick a date…</span>
-            )}
+            <span
+              className={cn("truncate", !displayValue && "text-muted-foreground")}
+            >
+              {displayValue || "Pick a date…"}
+            </span>
           </span>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
@@ -102,12 +103,7 @@ export function CellEditor({
             mode="single"
             selected={dateValue}
             onSelect={(date) => {
-              if (date) {
-                const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-                onChange(iso);
-              } else {
-                onChange(null);
-              }
+              onChange(date ? toIsoDate(date) : null);
               onBlur();
             }}
           />
@@ -162,6 +158,7 @@ export function CellEditor({
         value={value as SelectCellValue | null | undefined}
         isEditing={isEditing}
         readOnly={readOnly}
+        rowHeight={rowHeight}
         onClick={onClick}
         onChange={onChange}
         onBlur={onBlur}

@@ -109,7 +109,7 @@ export function NodeCellEditor({
       return <span className="block w-full min-h-[1.4em] px-1" />;
     }
     return (
-      <span className="flex items-center gap-1 w-full min-h-[1.4em] px-1">
+      <span className="flex min-w-0 w-full items-center gap-1 min-h-[1.4em] overflow-hidden px-1 whitespace-nowrap">
         <NodeChip
           title={selectedTitle}
           Icon={SelectedIcon}
@@ -132,7 +132,7 @@ export function NodeCellEditor({
       <PopoverTrigger asChild>
         <span
           className={cn(
-            "flex items-center gap-1 w-full min-h-[1.4em] rounded px-1 cursor-pointer hover:bg-muted/50",
+            "flex min-w-0 w-full cursor-pointer items-center gap-1 min-h-[1.4em] overflow-hidden rounded px-1 whitespace-nowrap hover:bg-muted/50",
           )}
           onClick={onClick}
         >

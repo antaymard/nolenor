@@ -88,9 +88,14 @@ function VersionContentPreview({
       const table = data.values.table as TableData | undefined;
       return (
         <div className="h-full min-h-0 overflow-auto">
+          {/*
+            La hauteur de ligne enregistrée, mais PAS les filtres : l'historique
+            est une vue d'inspection, on veut y voir toutes les lignes stockées.
+          */}
           <TablePreview
             columns={table?.columns ?? []}
             rows={table?.rows ?? []}
+            rowHeight={table?.rowHeight}
           />
         </div>
       );

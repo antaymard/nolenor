@@ -16,6 +16,7 @@ import {
 import { toastError } from "@/components/utils/errorUtils";
 import { TbAlertTriangle, TbSparkles } from "react-icons/tb";
 import { useInputImageNodes } from "@/hooks/useInputImageNodes";
+import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import ImageReferencePicker from "./ImageReferencePicker";
 
 type ImageGenerationStatus = Doc<"nodeDatas">["imageGeneration"];
@@ -36,12 +37,14 @@ export default function ImageGenerateTab({
 }) {
   const modelOptions = useQuery(api.ia.imageGeneration.listImageModels, {});
   const generateImages = useMutation(api.ia.imageGeneration.generateImages);
+  const { updateNodeDataValues } = useUpdateNodeDataValues();
   const inputNodes = useInputImageNodes(xyNodeId);
 
   const [prompt, setPrompt] = useState(storedPrompt);
   const [model, setModel] = useState<ImageModelValues | undefined>(undefined);
   const [count, setCount] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState(storedReferences);
 
   // Le prompt vit en base : quand il change côté serveur (autre onglet, ou Nolë
@@ -77,7 +80,7 @@ export default function ImageGenerateTab({
   }, [modelOptions, model]);
 
   const isRunning = generation?.status === "running";
-  const isBusy = isRunning || isSubmitting;
+  const isBusy = isRunning || isSubmitting || isClearing;
   const maxImages = selectedModel?.maxImages ?? 1;
   const maxReferenceImages = selectedModel?.maxReferenceImages ?? 0;
 
@@ -130,6 +133,31 @@ export default function ImageGenerateTab({
       setIsSubmitting(false);
     }
   }
+
+  // Vide le prompt ET les références, en local comme en base : sans ça un
+  // champ effacé à la main serait perdu à la fermeture (seul `generateImages`
+  // persistait, et il refuse le vide). En cas d'échec on restaure le local
+  // depuis le serveur — le hook ne revert que le store, pas cet état.
+  async function handleClear() {
+    setPrompt("");
+    setSelectedNodeIds([]);
+    setIsClearing(true);
+    try {
+      const ok = await updateNodeDataValues({
+        nodeDataId,
+        values: { imagePrompt: "", imageReferences: [] },
+      });
+      if (!ok) {
+        setPrompt(storedPrompt);
+        setSelectedNodeIds(storedReferences);
+      }
+    } finally {
+      setIsClearing(false);
+    }
+  }
+
+  const hasClearableContent =
+    prompt.trim().length > 0 || selectedNodeIds.length > 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -194,27 +222,39 @@ export default function ImageGenerateTab({
         </Select>
       </div>
 
-      <Button
-        size="sm"
-        onClick={handleGenerate}
-        disabled={
-          isBusy ||
-          prompt.trim().length === 0 ||
-          !selectedModel ||
-          referenceLimitExceeded
-        }
-      >
-        {isRunning ? (
-          <>
-            <Spinner /> Generating…
-          </>
-        ) : (
-          <>
-            <TbSparkles />{" "}
-            {safeCount > 1 ? `Generate ${safeCount} images` : "Generate"}
-          </>
-        )}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          className="flex-1 min-w-0"
+          onClick={handleGenerate}
+          disabled={
+            isBusy ||
+            prompt.trim().length === 0 ||
+            !selectedModel ||
+            referenceLimitExceeded
+          }
+        >
+          {isRunning ? (
+            <>
+              <Spinner /> Generating…
+            </>
+          ) : (
+            <>
+              <TbSparkles />{" "}
+              {safeCount > 1 ? `Generate ${safeCount} images` : "Generate"}
+            </>
+          )}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleClear}
+          disabled={isBusy || !hasClearableContent}
+          title="Clear the prompt and remove attached references"
+        >
+          {isClearing ? <Spinner /> : "Clear"}
+        </Button>
+      </div>
 
       {referenceLimitExceeded && (
         <p className="text-xs text-destructive flex items-start gap-1.5">

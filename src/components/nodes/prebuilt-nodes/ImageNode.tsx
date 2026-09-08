@@ -528,6 +528,12 @@ function ImageNode(xyNode: XyNodeProps) {
   );
 
   const hasMultiple = currentValue.length > 1;
+  const storedPrompt =
+    typeof values?.imagePrompt === "string" ? values.imagePrompt : "";
+  // Si un prompt existe, l'édition reprend sur l'onglet Generate plutôt que
+  // Library. `DialogContent` (Radix) démonte à la fermeture, donc ce
+  // `defaultValue` est réévalué à chaque ouverture.
+  const hasPrompt = storedPrompt.trim().length > 0;
   const safeIndex =
     currentValue.length === 0
       ? 0
@@ -577,7 +583,7 @@ function ImageNode(xyNode: XyNodeProps) {
               <DialogTitle>Manage images</DialogTitle>
             </DialogHeader>
             {nodeDataId && (
-              <Tabs defaultValue="library">
+              <Tabs defaultValue={hasPrompt ? "generate" : "library"}>
                 <TabsList className="w-full">
                   <TabsTrigger value="library">Library</TabsTrigger>
                   <TabsTrigger value="generate">Generate</TabsTrigger>
@@ -601,11 +607,7 @@ function ImageNode(xyNode: XyNodeProps) {
                   <ImageGenerateTab
                     nodeDataId={nodeDataId}
                     xyNodeId={xyNode.id}
-                    storedPrompt={
-                      typeof values?.imagePrompt === "string"
-                        ? values.imagePrompt
-                        : ""
-                    }
+                    storedPrompt={storedPrompt}
                     storedReferences={storedReferences}
                     generation={nodeData?.imageGeneration}
                   />

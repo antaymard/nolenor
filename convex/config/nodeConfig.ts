@@ -812,9 +812,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       "Node qui ramène le canvas à un cadrage enregistré (centre + zoom).",
     // Jamais lu : `agent.exposed` est à false, ce type n'est pas présenté.
     llmDescription: "",
-    // Même gabarit compact que les nodes link et pdf : une ligne de titre et
-    // un bouton, rien à redimensionner.
-    defaultDimensions: { width: 220, height: 33, resizable: false },
+    // Gabarit compact une ligne par défaut, redimensionnable en 2D :
+    // quand la hauteur augmente, le node bascule sur un visuel étendu
+    // (texte multi-lignes + bouton de navigation en bas à droite).
+    defaultDimensions: { width: 220, height: 33, resizable: true },
     capabilities: {
       agent: { exposed: false, readable: false, writable: false },
       mentionable: false,

@@ -20,10 +20,20 @@ import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import NodeFrame from "../NodeFrame";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 
+// Affichage réactif (même patron que `LinkNode` compact/preview) : une ligne
+// avec ellipse par défaut, visuel étendu (texte multi-lignes + bouton de
+// navigation en bas à droite) quand la hauteur du node augmente.
+const EXPANDED_MIN_HEIGHT = 70;
+const MIN_WIDTH = 120;
+
 /**
  * Un repère de navigation : il porte un cadrage de canvas et un bouton qui y
  * ramène la vue. Remplace les slideshows et les hotspots, qui vivaient tous
  * deux en tableaux sur le document `canvases`.
+ *
+ * Affichage réactif : une ligne (icône + titre ellipsé + bouton) par défaut,
+ * texte multi-lignes + bouton « Navigate to location » en bas à droite quand
+ * le node est agrandi en hauteur.
  *
  * Le titre ne s'édite en place qu'à la création (`autoEdit`, Enter = saved).
  * Ensuite, renommer passe par le stylo de la toolbar (popover), comme le
@@ -71,6 +81,10 @@ function ViewportNode(xyNode: XyNodeProps) {
   const title = typeof values?.title === "string" ? values.title : "";
 
   const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];
+
+  // Piloté par la hauteur réelle : `areNodePropsEqual` compare width/height,
+  // donc le basculement compact/étendu se fait en direct pendant le resize.
+  const isExpanded = (xyNode.height ?? 33) >= EXPANDED_MIN_HEIGHT;
 
   const rename = useCallback(
     (nextTitle: string) => {
@@ -145,55 +159,119 @@ function ViewportNode(xyNode: XyNodeProps) {
           </PopoverContent>
         </Popover>
       </CanvasNodeToolbar>
-      <NodeFrame xyNode={xyNode} resizable={false}>
-        <div className="flex h-full min-w-0 items-center gap-2 px-2">
-          <TbDirections
-            size={18}
-            className="shrink-0"
-            title={
-              match === "here"
-                ? "View is on this marker"
-                : match === "near"
-                  ? "View is close to this marker"
-                  : undefined
-            }
-          />
-          <span
-            className="min-w-0 flex-1"
-            // Pendant le nommage à la création, un double-clic (ex. sélection
-            // d'un mot) ne doit pas ouvrir la fenêtre par-dessus la saisie.
-            onDoubleClick={(event) => {
-              if (!inlineDisabled) event.stopPropagation();
-            }}
-          >
-            <InlineEditableText
-              value={title}
-              onSave={rename}
-              onEditEnd={() => setCreationEditDone(true)}
-              as="span"
-              className="min-w-0 flex-1 truncate"
-              placeholder="Untitled marker"
-              startInEditMode={startInEditMode}
-              disabled={inlineDisabled}
+      <NodeFrame xyNode={xyNode} minWidth={MIN_WIDTH} minHeight={33}>
+        {isExpanded ? (
+          <div className="flex h-full w-full min-w-0 flex-col gap-1 overflow-hidden p-2">
+            <div className="flex min-h-0 min-w-0 flex-1 items-start gap-2 overflow-hidden">
+              <TbDirections
+                size={18}
+                className="mt-0.5 shrink-0"
+                title={
+                  match === "here"
+                    ? "View is on this marker"
+                    : match === "near"
+                      ? "View is close to this marker"
+                      : undefined
+                }
+              />
+              <span
+                className="block min-h-0 min-w-0 flex-1 overflow-hidden"
+                title={title || undefined}
+                // Pendant le nommage à la création, un double-clic (ex.
+                // sélection d'un mot) ne doit pas ouvrir la fenêtre
+                // par-dessus la saisie.
+                onDoubleClick={(event) => {
+                  if (!inlineDisabled) event.stopPropagation();
+                }}
+              >
+                <InlineEditableText
+                  value={title}
+                  onSave={rename}
+                  onEditEnd={() => setCreationEditDone(true)}
+                  as="span"
+                  className="min-w-0"
+                  placeholder="Untitled marker"
+                  startInEditMode={startInEditMode}
+                  disabled={inlineDisabled}
+                />
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center justify-end">
+              <Button
+                size="sm"
+                variant="ghost"
+                // `nodrag` : sans lui le mousedown démarre un drag du node au
+                // lieu d'armer le clic. `stopPropagation` sur le dblclick :
+                // deux clics rapides ne doivent pas ouvrir la fenêtre
+                // par-dessus la navigation (cf. le handler générique de
+                // NodeFrame).
+                className={`nodrag shrink-0 ${nodeColor.hoverBg}`}
+                disabled={!framing}
+                onClick={handleGoTo}
+                onDoubleClick={(event) => event.stopPropagation()}
+                title="Go to this marker"
+                aria-label={`Go to marker ${title || "untitled"}`}
+              >
+                Navigate to location
+                <TbCircleChevronRight
+                  size={16}
+                  className={`${nodeColor.textColor}`}
+                />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-full w-full min-w-0 items-center gap-2 overflow-hidden px-2">
+            <TbDirections
+              size={18}
+              className="shrink-0"
+              title={
+                match === "here"
+                  ? "View is on this marker"
+                  : match === "near"
+                    ? "View is close to this marker"
+                    : undefined
+              }
             />
-          </span>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            // `nodrag` : sans lui le mousedown démarre un drag du node au lieu
-            // d'armer le clic. `stopPropagation` sur le dblclick : deux clics
-            // rapides ne doivent pas ouvrir la fenêtre par-dessus la
-            // navigation (cf. le handler générique de NodeFrame).
-            className={`nodrag h-6 shrink-0 px-2 ${nodeColor.hoverBg}`}
-            disabled={!framing}
-            onClick={handleGoTo}
-            onDoubleClick={(event) => event.stopPropagation()}
-            title="Go to this marker"
-            aria-label={`Go to marker ${title || "untitled"}`}
-          >
-            <TbCircleChevronRight size={18} className={`${nodeColor.textColor}`} />
-          </Button>
-        </div>
+            <span
+              className="block min-w-0 flex-1 overflow-hidden"
+              title={title || undefined}
+              // Pendant le nommage à la création, un double-clic (ex. sélection
+              // d'un mot) ne doit pas ouvrir la fenêtre par-dessus la saisie.
+              onDoubleClick={(event) => {
+                if (!inlineDisabled) event.stopPropagation();
+              }}
+            >
+              <InlineEditableText
+                value={title}
+                onSave={rename}
+                onEditEnd={() => setCreationEditDone(true)}
+                as="span"
+                className="min-w-0 w-full"
+                placeholder="Untitled marker"
+                startInEditMode={startInEditMode}
+                disabled={inlineDisabled}
+                singleLine
+              />
+            </span>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              // `nodrag` : sans lui le mousedown démarre un drag du node au lieu
+              // d'armer le clic. `stopPropagation` sur le dblclick : deux clics
+              // rapides ne doivent pas ouvrir la fenêtre par-dessus la
+              // navigation (cf. le handler générique de NodeFrame).
+              className={`nodrag h-6 shrink-0 px-2 ${nodeColor.hoverBg}`}
+              disabled={!framing}
+              onClick={handleGoTo}
+              onDoubleClick={(event) => event.stopPropagation()}
+              title="Go to this marker"
+              aria-label={`Go to marker ${title || "untitled"}`}
+            >
+              <TbCircleChevronRight size={18} className={`${nodeColor.textColor}`} />
+            </Button>
+          </div>
+        )}
       </NodeFrame>
     </>
   );

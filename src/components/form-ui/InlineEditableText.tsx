@@ -70,6 +70,15 @@ interface InlineEditableTextProps {
    * l'utilisateur qui sort de l'édition.
    */
   startInEditMode?: boolean;
+
+  /**
+   * Si true, le texte reste sur une ligne avec ellipsis (`truncate`).
+   * La largeur vient alors du parent (ex. node resizable) : le mesureur
+   * invisible est retiré du layout, car en `nowrap` il forcerait
+   * l'expansion au lieu de l'ellipse.
+   * @default false
+   */
+  singleLine?: boolean;
 }
 
 /**
@@ -100,6 +109,7 @@ function InlineEditableText({
   onEditEnd,
   transformInput,
   startInEditMode = false,
+  singleLine = false,
 }: InlineEditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -181,14 +191,20 @@ function InlineEditableText({
 
   return (
     <div
-      className={cn("inline-grid", className)}
+      className={cn(
+        singleLine ? "grid w-full min-w-0" : "inline-grid",
+        singleLine && "max-w-full overflow-hidden",
+        className,
+      )}
       style={{ gridTemplateColumns: "1fr" }}
     >
-      {/* Élément invisible qui maintient la largeur */}
+      {/* Élément invisible qui maintient la largeur (mode multi-ligne
+          uniquement : en `singleLine` la largeur vient du parent et le
+          mesureur en `nowrap` forcerait l'expansion au lieu de l'ellipse). */}
       <Element
         className={cn(
-          "invisible col-start-1 row-start-1",
-          "whitespace-normal",
+          "col-start-1 row-start-1",
+          singleLine ? "hidden" : "invisible whitespace-normal",
           !currentValue && "text-muted-foreground/50 italic",
         )}
         aria-hidden="true"
@@ -207,6 +223,7 @@ function InlineEditableText({
           placeholder={placeholder}
           className={cn(
             "col-start-1 row-start-1 bg-transparent border-none outline-none nodrag",
+            singleLine && "w-full min-w-0",
             inputClassName,
           )}
           style={{
@@ -219,6 +236,7 @@ function InlineEditableText({
         <Element
           className={cn(
             "col-start-1 row-start-1",
+            singleLine && "max-w-full truncate",
             !disabled && "cursor-text",
             !currentValue && "text-muted-foreground/50 italic",
           )}

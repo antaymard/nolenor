@@ -11,10 +11,14 @@ function NodeFrame({
   xyNode,
   children,
   resizable = true,
+  minWidth,
+  minHeight,
 }: {
   xyNode: XyNodeProps;
   children: React.ReactNode;
   resizable?: boolean;
+  minWidth?: number;
+  minHeight?: number;
 }) {
   // `||` et non `??` : une couleur vide vaut "default", comme avant le typage.
   const nodeColor = colors[xyNode.data.color || "default"];
@@ -51,6 +55,8 @@ function NodeFrame({
       <NodeHandles showSourceHandles={xyNode?.selected} nodeId={xyNode.id} />
       <NodeResizer
         isVisible={resizable && xyNode?.selected}
+        minWidth={minWidth}
+        minHeight={minHeight}
         onResizeStart={() => setIsResizing(true)}
         onResizeEnd={() => setIsResizing(false)}
         lineStyle={{

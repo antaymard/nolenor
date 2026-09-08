@@ -16,7 +16,7 @@ import {
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "Meta Muse Spark 1.3",
+    label: "Meta Muse Spark 1.3 Contributor",
     value: "meta/muse-spark-1.3-contributor",
     price: "0.1_0.2",
     isMultimodal: true,
@@ -36,20 +36,20 @@ export const chatModelOptions = [
     isMultimodal: true,
     maxContext: 1000000,
   },
-  {
-    label: "Tencent Hy4",
-    value: "tencent/hy4-preview",
-    price: "0.85_2.50",
-    isMultimodal: false,
-    maxContext: 1000000,
-  },
-  {
-    label: "Gemini 3.8 Flash",
-    value: "google/gemini-3.8-flash",
-    price: "0.75_3.75",
-    isMultimodal: true,
-    maxContext: 1000000,
-  },
+  // {
+  //   label: "Tencent Hy4",
+  //   value: "tencent/hy4-preview",
+  //   price: "0.85_2.50",
+  //   isMultimodal: false,
+  //   maxContext: 1000000,
+  // },
+  // {
+  //   label: "Gemini 3.8 Flash",
+  //   value: "google/gemini-3.8-flash",
+  //   price: "0.75_3.75",
+  //   isMultimodal: true,
+  //   maxContext: 1000000,
+  // },
 ] as const;
 
 export const chatModelValues = chatModelOptions.map((model) => model.value);
@@ -94,12 +94,20 @@ export type ChatModelOption = (typeof chatModelOptions)[number];
  */
 export const imageModelOptions = [
   {
-    label: "Seedream 5.0 Lite",
-    value: "bytedance-seed/seedream-5-0-lite",
-    pricePerImage: "0.035",
+    label: "Microsoft MAI-Image-2.6 Flash",
+    value: "microsoft/mai-image-2.6-flash",
+    pricePerImage: "0.15",
     inputModalities: ["text", "image"],
     maxImages: 4,
-    maxReferenceImages: 14,
+    maxReferenceImages: 4,
+  },
+  {
+    label: "GPT Image 2",
+    value: "openai/gpt-image-2",
+    pricePerImage: "0.18",
+    inputModalities: ["text", "image"],
+    maxImages: 4,
+    maxReferenceImages: 16,
   },
   {
     label: "Seedream 5.0 Pro",
@@ -110,36 +118,12 @@ export const imageModelOptions = [
     maxReferenceImages: 14,
   },
   {
-    label: "Microsoft MAI-Image-2.5 Pro",
-    value: "microsoft/mai-image-2.5-pro",
-    pricePerImage: "0.15",
-    inputModalities: ["text", "image"],
-    maxImages: 4,
-    maxReferenceImages: 4,
-  },
-  {
-    label: "Krea 2 Large",
-    value: "krea/krea-2-large",
-    pricePerImage: "0.06",
-    inputModalities: ["text", "image"],
-    maxImages: 4,
-    maxReferenceImages: 4,
-  },
-  {
     label: "Nano Banana 2",
     value: "google/gemini-3.1-flash-image",
     pricePerImage: "0.15",
     inputModalities: ["text", "image"],
     maxImages: 4,
     maxReferenceImages: 14,
-  },
-  {
-    label: "GPT Image 2",
-    value: "openai/gpt-image-2",
-    pricePerImage: "0.18",
-    inputModalities: ["text", "image"],
-    maxImages: 4,
-    maxReferenceImages: 16,
   },
 ] as const;
 

@@ -9,6 +9,7 @@ import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/shadcn/button";
 import { enUS } from "react-day-picker/locale";
+import { WEEK_STARTS_ON } from "@/lib/weekStart";
 
 function Calendar({
   className,
@@ -26,8 +27,13 @@ function Calendar({
 
   return (
     <DayPicker
-      // weekStartsOn={1} // Use local instead
+      // `locale` ne fixe plus que les noms de mois et de jours — l'app est
+      // anglophone —, tandis que le premier jour de la semaine suit celui du
+      // navigateur (cf. lib/weekStart.ts), que `weekStartsOn` surcharge.
+      // Posé avant `{...props}` : un appelant garde la main s'il doit forcer
+      // un jour précis.
       locale={enUS}
+      weekStartsOn={WEEK_STARTS_ON}
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",

@@ -89,10 +89,12 @@ export function useExistingNodeIds(): ReadonlySet<string> {
 /**
  * Deux Maps portent-elles les mêmes correspondances ?
  *
- * Le sélecteur ci-dessous rend une Map neuve à chaque tick du store : sans
- * cette comparaison, l'appelant se re-rendrait à chaque frame de pan.
+ * Un sélecteur de store rend une Map neuve à chaque tick : sans cette
+ * comparaison, l'appelant se re-rendrait à chaque frame de pan. Exporté parce
+ * que `useInputImageNodes` a exactement le même besoin — mieux vaut un
+ * comparateur partagé qu'un quatrième écrit à côté.
  */
-function haveSameEntries<K, V>(a: Map<K, V>, b: Map<K, V>): boolean {
+export function haveSameEntries<K, V>(a: Map<K, V>, b: Map<K, V>): boolean {
   if (a === b) return true;
   if (a.size !== b.size) return false;
   for (const [key, value] of a) {

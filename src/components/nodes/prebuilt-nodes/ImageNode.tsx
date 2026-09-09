@@ -52,6 +52,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import type { XyNodeProps } from "@/types/domain";
+import type { Id } from "@/../convex/_generated/dataModel";
 
 type ImageItem = {
   url: string;
@@ -521,7 +522,7 @@ function ImageNode(xyNode: XyNodeProps) {
     () =>
       Array.isArray(values?.imageReferences)
         ? (values.imageReferences as unknown[]).filter(
-            (id): id is string => typeof id === "string",
+            (id): id is Id<"nodeDatas"> => typeof id === "string",
           )
         : [],
     [values?.imageReferences],

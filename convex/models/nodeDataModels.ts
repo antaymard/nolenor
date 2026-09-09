@@ -6,6 +6,7 @@ import * as SearchableChunkModels from "./searchableChunkModels";
 import * as NodeDataVersionModels from "./nodeDataVersionModels";
 import * as R2ObjectModels from "./r2ObjectModels";
 import { extractR2Keys } from "../lib/r2Keys";
+import { readStoredImages, type StoredImage } from "../lib/storedImages";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
 import { buildTemplateValuesSchema } from "../config/fieldConfig";
 import {
@@ -296,15 +297,9 @@ export async function updateValues(
   return true;
 }
 
-/** Une image telle que stockée dans `values.images` d'un node "image". */
-export type StoredImage = {
-  url: string;
-  filename?: string;
-  mimeType?: string;
-  size?: number;
-  uploadedAt?: number;
-  key?: string;
-};
+// Le type vit dans `lib/storedImages.ts`, avec le lecteur qui va avec ; il est
+// re-exporté ici parce que c'est d'ici que tous les call-sites l'importaient.
+export type { StoredImage };
 
 /**
  * Ajoute des images à la fin de `values.images`, et éteint le statut de
@@ -338,9 +333,7 @@ export async function appendImages(
   const existing = await ctx.db.get("nodeDatas", nodeDataId);
   if (!existing) throw new ConvexError("NodeData not found");
 
-  const current = Array.isArray(existing.values?.images)
-    ? (existing.values.images as StoredImage[])
-    : [];
+  const current = readStoredImages(existing.values);
 
   if (images.length > 0) {
     await updateValues(ctx, {

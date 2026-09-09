@@ -93,6 +93,7 @@ import type * as lib_r2Keys from "../lib/r2Keys.js";
 import type * as lib_rateLimits from "../lib/rateLimits.js";
 import type * as lib_searchQuery from "../lib/searchQuery.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
+import type * as lib_storedImages from "../lib/storedImages.js";
 import type * as lib_tableColumnTypes from "../lib/tableColumnTypes.js";
 import type * as lib_tableRichTextCell from "../lib/tableRichTextCell.js";
 import type * as lib_text from "../lib/text.js";
@@ -266,6 +267,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rateLimits": typeof lib_rateLimits;
   "lib/searchQuery": typeof lib_searchQuery;
   "lib/searchScoring": typeof lib_searchScoring;
+  "lib/storedImages": typeof lib_storedImages;
   "lib/tableColumnTypes": typeof lib_tableColumnTypes;
   "lib/tableRichTextCell": typeof lib_tableRichTextCell;
   "lib/text": typeof lib_text;

@@ -16,6 +16,13 @@ import {
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
+    label: "Inception Mercury 2.5",
+    value: "inception/mercury-2.5",
+    price: "0.04_0.15",
+    isMultimodal: false,
+    maxContext: 260000,
+  },
+  {
     label: "Meta Muse Spark 1.3 Contributor",
     value: "meta/muse-spark-1.3-contributor",
     price: "0.1_0.2",

@@ -122,7 +122,10 @@ function RootComponent() {
   }
 
   return (
-    <div className="h-screen w-screen">
+    // `overflow-hidden` + `overscroll-x-none` : le shell ne scrolle jamais
+    // lui-même (home/settings scrollent en interne en Y) et un swipe trackpad
+    // horizontal ne doit pas devenir un "back" navigateur (cf. index.css).
+    <div className="h-screen w-screen overflow-hidden overscroll-x-none">
       <Outlet />
       {/* Monté une seule fois, ici : l'éditeur de template s'ouvre depuis le
           canvas (clic droit sur un custom node) comme depuis les settings. */}

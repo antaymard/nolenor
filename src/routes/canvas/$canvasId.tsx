@@ -48,7 +48,9 @@ function RouteComponent() {
   }
 
   const canvasContent = (
-    <div className={cn("h-screen w-full")}>
+    // `overscroll-none` : le pan trackpad horizontal ne doit jamais
+    // déborder en geste "back" navigateur (cf. index.css).
+    <div className={cn("h-screen w-full overflow-hidden overscroll-none")}>
       <CanvasContent canvasId={canvasId} isAuthenticated={isAuthenticated} />
     </div>
   );
@@ -109,7 +111,7 @@ function CanvasContent({
   }
 
   return (
-    <div className="flex-1 w-full h-full">
+    <div className="flex-1 w-full h-full overflow-hidden overscroll-none">
       <SearchModale />
       <WindowsContainer />
       <CanvasFlow

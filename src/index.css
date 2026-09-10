@@ -97,6 +97,23 @@
   button {
     cursor: pointer;
   }
+
+  /* Anti swipe-back trackpad : le swipe horizontal 2 doigts déclenche le
+     "back" navigateur (overscroll history navigation) sur Chrome/Edge/Safari
+     dès que l'overscroll atteint le scroller racine. Le canvas pan en interne
+     via React Flow : il n'y a jamais de scroll horizontal légitime à la racine,
+     donc on le coupe. `overscroll-behavior-x` est le kill-switch officiel
+     (le `preventDefault` sur `wheel` arrive trop tard, au niveau compositor).
+     Vertical préservé : la home scrolle en interne en Y. */
+  html,
+  body,
+  #root {
+    overscroll-behavior-x: none;
+  }
+  html,
+  body {
+    overflow-x: clip;
+  }
 }
 
 @theme inline {

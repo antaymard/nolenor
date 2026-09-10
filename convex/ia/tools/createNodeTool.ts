@@ -169,7 +169,7 @@ export default function createNodeTool({
 
   return createTool({
     description:
-      "Create an empty node you can then populate with data or manipulate using other tools.",
+      "Create an empty node you can then populate with data or manipulate using other tools. Default dimensions of the node type (or template) are applied automatically.",
     inputSchema: z.object({
       // Enum restreint aux types exposés : `viewport` et consorts ne sont ni
       // listés dans le schema, ni acceptés en entrée.
@@ -189,15 +189,6 @@ export default function createNodeTool({
         })
         .describe("Position x/y of the node on the canvas."),
       color: z.enum(nodeColorValues).describe("Color of the node."),
-      dimensions: z
-        .object({
-          width: z.number(),
-          height: z.number(),
-        })
-        .optional()
-        .describe(
-          "Dimensions width/height of the node. Default values will be used if not provided.",
-        ),
       nodeTitle: z
         .string()
         .optional()
@@ -215,11 +206,13 @@ export default function createNodeTool({
       try {
         // ── Custom nodes : défauts, dimensions et titre viennent du
         // template (values keyées par fieldId), pas de nodeConfig — le
-        // lookup nodeDataConfig reste donc dans la branche non-custom. ──
+        // lookup nodeDataConfig reste donc dans la branche non-custom.
+        // Les dimensions ne sont pas un arg agent : on applique toujours
+        // les dimensions par défaut du type ou du template. ──
         let template: Doc<"nodeTemplates"> | null = null;
         let initialValues: Record<string, unknown>;
         let titleApplied = false;
-        let resolvedDimensions: { width: number; height: number };
+        let defaultDimensions: { width: number; height: number };
 
         if (input.nodeType === "custom") {
           if (!input.templateId) {
@@ -257,7 +250,7 @@ export default function createNodeTool({
             initialValues[template.titleFieldId] = title;
             titleApplied = true;
           }
-          resolvedDimensions = input.dimensions ?? template.defaultDimensions;
+          defaultDimensions = template.defaultDimensions;
         } else {
           const nodeConfig = nodeDataConfig.find(
             (item) => item.type === input.nodeType,
@@ -279,7 +272,7 @@ export default function createNodeTool({
 
           const defaultValuesRecord = defaultValues as Record<string, unknown>;
 
-          resolvedDimensions = input.dimensions ?? nodeConfig.defaultDimensions;
+          defaultDimensions = nodeConfig.defaultDimensions;
 
           const titled = await applyNodeDataTitle({
             nodeType: input.nodeType,
@@ -317,8 +310,8 @@ export default function createNodeTool({
               nodeDataId,
               type: input.nodeType,
               position: input.position,
-              width: resolvedDimensions.width,
-              height: resolvedDimensions.height,
+              width: defaultDimensions.width,
+              height: defaultDimensions.height,
               color: input.color,
               // Copie dénormalisée write-once du lien template (résolution
               // côté canvas, cf. listForCanvas).
@@ -339,8 +332,8 @@ export default function createNodeTool({
           const toRect: NodeRect = {
             id: nodeId,
             position: input.position,
-            width: resolvedDimensions.width,
-            height: resolvedDimensions.height,
+            width: defaultDimensions.width,
+            height: defaultDimensions.height,
           };
 
           for (const sourceNodeId of input.sourceNodes) {
@@ -412,8 +405,8 @@ export default function createNodeTool({
           position: input.position,
           color: input.color,
           dimensions: {
-            width: resolvedDimensions.width,
-            height: resolvedDimensions.height,
+            width: defaultDimensions.width,
+            height: defaultDimensions.height,
           },
           currentNodeData: initialValues,
           // Custom : la carte des champs (id ↔ nom ↔ type) — les values de

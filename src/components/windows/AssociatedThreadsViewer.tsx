@@ -44,8 +44,7 @@ export default function AssociatedThreadsViewer({
           No AI thread has modified this node yet.
         </p>
         <p className="max-w-sm text-sm text-slate-500">
-          This lists the Nolë conversations that edited this node — not the
-          nodes connected to it by edges on the canvas.
+          This lists the Nolë conversations that edited this node.
         </p>
       </div>
     );
@@ -73,8 +72,7 @@ export default function AssociatedThreadsViewer({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <p className="shrink-0 text-xs text-slate-500">
-        Nolë conversations that edited this node — not nodes connected by
-        edges on the canvas.
+        Nolë conversations that edited this node.
       </p>
       <div className="flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
       {/* Liste des threads */}

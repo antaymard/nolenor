@@ -229,7 +229,7 @@ export default function FullscreenWindowFrame({
                 onSelect={() => setAssociatedThreadsOpen(true)}
               >
                 <TbMessageSearch size={13} />
-                Associated threads
+                Threads that modified this node
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -291,7 +291,7 @@ export default function FullscreenWindowFrame({
       >
         <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Associated threads</DialogTitle>
+            <DialogTitle>Threads that modified this node</DialogTitle>
             <DialogDescription>{title ?? "—"}</DialogDescription>
           </DialogHeader>
           <AssociatedThreadsViewer

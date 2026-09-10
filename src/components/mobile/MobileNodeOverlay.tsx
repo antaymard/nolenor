@@ -298,7 +298,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
                   onSelect={() => setAssociatedThreadsOpen(true)}
                 >
                   <TbMessageSearch size={13} />
-                  Associated threads
+                  Threads that modified this node
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

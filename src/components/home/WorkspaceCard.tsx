@@ -104,7 +104,7 @@ export default function WorkspaceCard({
       </div>
 
       {canvas.description && (
-        <p className="mt-1.5 line-clamp-2 text-sm text-gray-500">
+        <p className="mt-1.5 line-clamp-2 text-xs text-gray-500">
           {canvas.description}
         </p>
       )}

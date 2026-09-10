@@ -37,7 +37,18 @@ export default function AssociatedThreadsViewer({
   }
 
   if (data.length === 0) {
-    return <div>No threads have modified this node.</div>;
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
+        <TbMessage className="size-8 text-slate-300" />
+        <p className="text-sm font-medium text-slate-700">
+          No AI thread has modified this node yet.
+        </p>
+        <p className="max-w-sm text-sm text-slate-500">
+          This lists the Nolë conversations that edited this node — not the
+          nodes connected to it by edges on the canvas.
+        </p>
+      </div>
+    );
   }
 
   // Sélection par défaut : le premier thread de la liste.
@@ -60,7 +71,12 @@ export default function AssociatedThreadsViewer({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <p className="shrink-0 text-xs text-slate-500">
+        Nolë conversations that edited this node — not nodes connected by
+        edges on the canvas.
+      </p>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
       {/* Liste des threads */}
       <div className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-b pb-2 sm:max-h-none sm:w-56 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-2">
         {data.map((thread) => {
@@ -135,6 +151,7 @@ export default function AssociatedThreadsViewer({
         ) : (
           <p className="text-sm text-slate-400">No summary available.</p>
         )}
+        </div>
       </div>
     </div>
   );

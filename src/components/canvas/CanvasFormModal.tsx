@@ -19,7 +19,7 @@ import TextArea from "../ts-form/TextArea";
 interface CanvasFormModalProps {
   mode: "create" | "edit";
   canvasId?: Id<"canvases">;
-  initialValues?: { name: string; description: string };
+  initialValues?: { name: string; description?: string };
   onSuccess?: () => void;
 }
 
@@ -33,12 +33,18 @@ export default function CanvasFormModal({
   const updateCanvasDetails = useMutation(api.canvases.updateCanvasDetails);
   const navigate = useNavigate();
 
-  const defaults = initialValues ?? { name: "", description: "" };
+  const defaults = {
+    name: initialValues?.name ?? "",
+    description: initialValues?.description ?? "",
+  };
 
   const form = useForm({
     defaultValues: defaults,
     onSubmit: async ({ value }) => {
       try {
+        const description = value.description?.trim()
+          ? value.description.trim()
+          : undefined;
         if (mode === "edit") {
           if (!canvasId) {
             throw new Error("Missing canvasId for edit.");
@@ -46,14 +52,14 @@ export default function CanvasFormModal({
           await updateCanvasDetails({
             canvasId,
             name: value.name,
-            description: value.description,
+            description,
           });
           toast.success(`Workspace "${value.name}" updated successfully!`);
           onSuccess?.();
         } else {
           const newCanvasId = await createCanvas({
             name: value.name,
-            description: value.description,
+            description,
           });
           if (newCanvasId) {
             toast.success(
@@ -115,14 +121,8 @@ export default function CanvasFormModal({
           <TextArea
             form={form}
             name="description"
-            label="Description"
+            label="Description (optional)"
             placeholder="Canvas description. Helps the assistant to understand the context of the canvas."
-            validators={{
-              onChange: ({ value }: { value: string }) =>
-                !value.trim() ? "Description cannot be empty" : undefined,
-              onSubmit: ({ value }: { value: string }) =>
-                !value.trim() ? "Description cannot be empty" : undefined,
-            }}
           />
         </div>
         <DialogFooter>

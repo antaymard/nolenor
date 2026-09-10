@@ -57,7 +57,7 @@ export default function NodeWindowDialogs({
           className={cn("flex h-[70vh] max-h-175 flex-col", contentClassName)}
         >
           <DialogHeader>
-            <DialogTitle>Associated threads</DialogTitle>
+            <DialogTitle>Threads that modified this node</DialogTitle>
             <DialogDescription>{title ?? "—"}</DialogDescription>
           </DialogHeader>
           <AssociatedThreadsViewer

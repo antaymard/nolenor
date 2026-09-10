@@ -1,38 +1,33 @@
 import { useCallback } from "react";
 import type { Node } from "@xyflow/react";
 import toast from "react-hot-toast";
-import type { Id } from "@/../convex/_generated/dataModel";
-import { useCreateNode } from "@/hooks/useCreateNode";
-import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { canNodeTypeBeCreated } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
-import { nodeDataConfig } from "@/../convex/config/nodeConfig";
-
-/**
- * Les values du node, moins celles que son type déclare non duplicables.
- *
- * Dupliquer copie `values` en bloc mais ne copie AUCUN edge : une value qui ne
- * tient son sens que des connexions du node d'origine arriverait inerte sur le
- * doublon, et se rallumerait de façon surprenante s'il venait à être rebranché
- * sur les mêmes sources. Quelles clés sont dans ce cas est une propriété du
- * type de node, déclarée dans `nodeConfig.ts` (`valuesNotDuplicated`) — pas une
- * liste de cas particuliers cachée dans ce helper générique.
- */
-function valuesToDuplicate(
-  nodeType: string | undefined,
-  values: Record<string, unknown>,
-): Record<string, unknown> {
-  const excluded = nodeDataConfig.find((config) => config.type === nodeType)
-    ?.valuesNotDuplicated;
-  if (!excluded || excluded.length === 0) return values;
-
-  const copy = { ...values };
-  for (const key of excluded) delete copy[key];
-  return copy;
-}
+import { snapshotNodesToItems } from "@/stores/nodeClipboardStore";
+import { useCreateNodesFromItems } from "@/hooks/useCreateNodesFromItems";
 
 export function useDuplicateNode() {
-  const { createNode } = useCreateNode();
-  const getNodeData = useNodeDataStore((state) => state.getNodeData);
+  const { createNodesFromItems } = useCreateNodesFromItems();
+
+  /**
+   * Duplique un groupe de nodes en conservant leurs offsets relatifs : le
+   * coin supérieur-gauche du groupe atterrit à +50/+50 de l'original — le
+   * décalage historique du duplicate mono-node, appliqué à l'ancre du groupe.
+   * Ne touche pas au presse-papiers Ctrl+C.
+   */
+  const duplicateNodes = useCallback(
+    async (nodesToDuplicate: Node[]) => {
+      if (nodesToDuplicate.length === 0) return;
+      const items = snapshotNodesToItems(nodesToDuplicate);
+      const minX = Math.min(...nodesToDuplicate.map((n) => n.position.x));
+      const minY = Math.min(...nodesToDuplicate.map((n) => n.position.y));
+      return createNodesFromItems(
+        items,
+        { x: minX + 50, y: minY + 50 },
+        "duplicated",
+      );
+    },
+    [createNodesFromItems],
+  );
 
   const duplicateNode = useCallback(
     async (nodeToDuplicate: Node) => {
@@ -40,30 +35,10 @@ export function useDuplicateNode() {
         toast("This node type can no longer be duplicated.");
         return;
       }
-
-      let initialValues: Record<string, unknown> | undefined;
-      const nodeDataId = nodeToDuplicate.data?.nodeDataId as
-        | Id<"nodeDatas">
-        | undefined;
-
-      if (nodeDataId) {
-        const nodeData = getNodeData(nodeDataId);
-        if (nodeData) {
-          initialValues = valuesToDuplicate(nodeData.type, nodeData.values);
-        }
-      }
-
-      return createNode({
-        node: nodeToDuplicate,
-        position: {
-          x: nodeToDuplicate.position.x + 50,
-          y: nodeToDuplicate.position.y + 50,
-        },
-        initialValues,
-      });
+      return duplicateNodes([nodeToDuplicate]);
     },
-    [createNode, getNodeData],
+    [duplicateNodes],
   );
 
-  return { duplicateNode };
+  return { duplicateNode, duplicateNodes };
 }

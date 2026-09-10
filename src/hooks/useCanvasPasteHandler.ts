@@ -1,7 +1,9 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useCanvasStore } from "@/stores/canvasStore";
+import { useNodeClipboardStore } from "@/stores/nodeClipboardStore";
 import { useCanvasContentIngest } from "./useCanvasContentIngest";
 import { useCanvasPointerPosition } from "./useCanvasPointerPosition";
+import { usePasteNodes } from "./usePasteNodes";
 
 const PASTE_GUARD_WINDOW_MS = 300;
 
@@ -47,15 +49,23 @@ function runWithPasteGuard(
  * - Detects files (image, audio, PDF, CSV, markdown) and creates the matching node
  * - Detects URLs and creates ImageNode (if image URL) or LinkNode (if web URL)
  * - Falls back to a BlocknoteNode for plain text
+ * - Falls back to the internal node clipboard (Ctrl+C on the canvas) when the
+ *   system clipboard carries nothing pastable
  *
  * Le mapping « contenu → node » vit dans `useCanvasContentIngest`, partagé avec
  * le glisser-déposer. Ici on ne garde que ce qui est propre au coller : la
  * position (curseur suivi, repli centre du viewport si inconnue/hors pane),
  * la garde anti-doublon et le filtre de focus.
+ *
+ * Le coller de nodes passe par l'événement `paste` — pas par un keydown
+ * Ctrl+V — pour une raison de précédence : quand le clipboard système contient
+ * des fichiers ou du texte, c'est le contenu externe qui gagne ; les nodes
+ * copiés ne sont qu'un repli quand il n'y a rien d'autre à coller.
  */
-export function useCanvasPasteHandler() {
+export function useCanvasPasteHandler({ canEdit }: { canEdit: boolean }) {
   const { getPointerFlowPosition } = useCanvasPointerPosition();
   const { createNodesFromFiles, createNodeFromText } = useCanvasContentIngest();
+  const { pasteNodesAt } = usePasteNodes();
   const focus = useCanvasStore((s) => s.focus);
   const pasteGuardRef = useRef<PasteGuardState>({
     inFlight: false,
@@ -109,9 +119,30 @@ export function useCanvasPasteHandler() {
         runWithPasteGuard(pasteGuardRef.current, signature, async () => {
           await createNodeFromText(trimmedText, getPointerFlowPosition());
         });
+        return;
+      }
+
+      // Fallback : nodes copiés via Ctrl+C sur le canvas. Dernier de la file —
+      // le clipboard système vide signifie qu'il n'y a rien d'externe à
+      // coller. Même positionnement qu'une création au curseur : le coin
+      // supérieur-gauche du groupe est posé au pointeur.
+      const { items, seq } = useNodeClipboardStore.getState();
+      if (canEdit && items.length > 0) {
+        e.preventDefault();
+
+        runWithPasteGuard(pasteGuardRef.current, `nodes:${seq}`, async () => {
+          await pasteNodesAt(getPointerFlowPosition());
+        });
       }
     },
-    [focus, createNodesFromFiles, createNodeFromText, getPointerFlowPosition],
+    [
+      focus,
+      canEdit,
+      createNodesFromFiles,
+      createNodeFromText,
+      pasteNodesAt,
+      getPointerFlowPosition,
+    ],
   );
 
   // Register paste event listener

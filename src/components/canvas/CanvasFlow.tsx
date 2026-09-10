@@ -24,6 +24,7 @@ import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
 import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
+import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
 import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
 import { isEditableTarget } from "@/lib/editableTarget";
 import { withTouchDragGate } from "./touchDragGate";
@@ -83,8 +84,8 @@ export default function CanvasFlow({
   // pane should pan the canvas instead of drawing a selection rectangle.
   const panWithFinger = isTouch || isMobile || isTouchFirst;
 
-  // Handle paste events (images, URLs)
-  useCanvasPasteHandler();
+  // Handle paste events (images, URLs, nodes copiés via Ctrl+C)
+  useCanvasPasteHandler({ canEdit });
 
   // Handle files/links/text dropped anywhere on the window
   const { isDraggingOver } = useCanvasDropHandler({ canEdit });
@@ -102,7 +103,7 @@ export default function CanvasFlow({
   const { screenToFlowPosition, getNodes } = useReactFlow();
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const focus = useCanvasStore((state) => state.focus);
-  const { duplicateNode } = useDuplicateNode();
+  const { duplicateNodes } = useDuplicateNode();
   const canDuplicateNodes = canEdit;
 
   const onNodeClick = useCallback(
@@ -152,12 +153,46 @@ export default function CanvasFlow({
       }
 
       const selectedNodes = getNodes().filter((node) => node.selected);
-      if (selectedNodes.length !== 1) {
+      if (selectedNodes.length === 0) {
         return;
       }
 
       event.preventDefault();
-      void duplicateNode(selectedNodes[0]);
+      void duplicateNodes(selectedNodes);
+    },
+    { enabled: canDuplicateNodes && focus === "canvas" },
+  );
+
+  // Copier la sélection dans le presse-papiers interne ; le coller (Ctrl+V)
+  // est le fallback du handler `paste` (`useCanvasPasteHandler`), pas un
+  // keydown : le contenu externe (fichiers, texte) garde ainsi la priorité
+  // quand le clipboard système n'est pas vide.
+  useHotkey(
+    "Mod+C",
+    (event) => {
+      if (!canDuplicateNodes || event.repeat || focus !== "canvas") {
+        return;
+      }
+
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      const selectedNodes = getNodes().filter((node) => node.selected);
+      if (copyNodesToClipboard(selectedNodes)) {
+        event.preventDefault();
+        // Le `preventDefault` ne vide pas le clipboard système : sans ça, un
+        // texte copié avant continuerait de prendre le pas sur les nodes au
+        // prochain Ctrl+V (le handler `paste` privilégie le contenu externe).
+        // Vider = sémantique standard d'un « copier » (last-write-wins). Échec
+        // silencieux hors contexte sécurisé : le coller de nodes reste le
+        // fallback quand il n'y a ni fichiers ni texte.
+        try {
+          void navigator.clipboard?.writeText("").catch(() => {});
+        } catch {
+          /* clipboard système indisponible */
+        }
+      }
     },
     { enabled: canDuplicateNodes && focus === "canvas" },
   );

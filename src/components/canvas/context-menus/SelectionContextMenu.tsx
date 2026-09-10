@@ -2,6 +2,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -11,13 +12,20 @@ import { useMutation } from "convex/react";
 import { useParams } from "@tanstack/react-router";
 
 import { HiOutlineTrash } from "react-icons/hi";
-import { TbPalette, TbPhoto, TbSpaces, TbStack2 } from "react-icons/tb";
+import {
+  TbCopyPlus,
+  TbPalette,
+  TbPhoto,
+  TbSpaces,
+  TbStack2,
+} from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useNodeLayering } from "@/hooks/useNodeLayering";
 import { LAYER_COMMANDS } from "@/lib/nodeLayering";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
+import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { colors } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
@@ -33,6 +41,7 @@ export default function SelectionContextMenu({
   elements: Node[] | object | null;
 }) {
   const { deleteElements, updateNode } = useReactFlow();
+  const { duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
   const { updateNodeDataValues } = useUpdateNodeDataValues();
@@ -270,6 +279,20 @@ export default function SelectionContextMenu({
           Merge images ({imageNodes.length})
         </DropdownMenuItem>
       )}
+
+      {/* Duplication */}
+      <DropdownMenuItem
+        onClick={() => {
+          if (Array.isArray(elements)) {
+            void duplicateNodes(elements);
+          }
+          closeMenu();
+        }}
+      >
+        <TbCopyPlus />
+        Duplicate
+        <DropdownMenuShortcut>Ctrl+D</DropdownMenuShortcut>
+      </DropdownMenuItem>
 
       {/* Suppression */}
       <DropdownMenuItem

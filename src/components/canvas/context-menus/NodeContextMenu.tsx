@@ -5,6 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -52,6 +53,7 @@ type NodeOption = {
   hidden?: boolean;
   label: string;
   icon: IconType;
+  shortcut?: string;
   subMenu?: NodeSubMenuItem[];
   customSubContent?: React.ReactNode;
   onClick?: () => void | Promise<void>;
@@ -67,8 +69,8 @@ export default function NodeContextMenu({
   xyNode: Node;
 }) {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const { deleteElements, updateNode } = useReactFlow();
-  const { duplicateNode } = useDuplicateNode();
+  const { deleteElements, updateNode, getNodes } = useReactFlow();
+  const { duplicateNode, duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
@@ -193,8 +195,16 @@ export default function NodeContextMenu({
       hidden: !canNodeTypeBeCreated(xyNode.type),
       label: "Duplicate",
       icon: TbCopyPlus,
+      shortcut: "Ctrl+D",
       onClick: () => {
-        void duplicateNode(xyNode);
+        // Clic droit sur un node d'un groupe sélectionné → tout le groupe
+        // (standard Figma/Miro) ; sinon le seul node cliqué.
+        const selectedNodes = getNodes().filter((node) => node.selected);
+        if (xyNode.selected && selectedNodes.length > 1) {
+          void duplicateNodes(selectedNodes);
+        } else {
+          void duplicateNode(xyNode);
+        }
       },
     },
     {
@@ -271,6 +281,9 @@ export default function NodeContextMenu({
               }}
             >
               {option.icon({ size: 16 })} {option.label}
+              {option.shortcut && (
+                <DropdownMenuShortcut>{option.shortcut}</DropdownMenuShortcut>
+              )}
             </DropdownMenuItem>
           ),
         )}

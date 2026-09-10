@@ -33,17 +33,15 @@ export const useNodeClipboardStore = create<NodeClipboardStore>()((set) => ({
 }));
 
 /**
- * Photographie les nodes sélectionnés dans le presse-papiers interne
- * (mémoire du front, pas de clipboard système : pas de permission async, et le
- * contenu survit au changement de canvas — les values sont autoporteuses).
- *
- * Sélection vide → no-op : on n'efface pas un coller en attente par accident.
+ * Photographie des nodes : snapshot des values au moment de l'appel, déjà
+ * filtré (`valuesNotDuplicated`), `data` sans `nodeDataId` (nouveau doc
+ * `nodeDatas` à la création). Pur vis-à-vis du store : ne touche pas au
+ * presse-papiers — le duplicate l'utilise directement pour ne pas écraser un
+ * Ctrl+C en attente.
  */
-export function copyNodesToClipboard(nodes: Node[]): boolean {
-  if (nodes.length === 0) return false;
-
+export function snapshotNodesToItems(nodes: Node[]): NodeClipboardItem[] {
   const getNodeData = useNodeDataStore.getState().getNodeData;
-  const items: NodeClipboardItem[] = nodes.map((node) => {
+  return nodes.map((node) => {
     let values: Record<string, unknown> = {};
     const nodeDataId = getNodeDataId(node);
     if (nodeDataId) {
@@ -65,7 +63,17 @@ export function copyNodesToClipboard(nodes: Node[]): boolean {
       values,
     };
   });
+}
 
-  useNodeClipboardStore.getState().setClipboard(items);
+/**
+ * Photographie les nodes sélectionnés dans le presse-papiers interne
+ * (mémoire du front, pas de clipboard système : pas de permission async, et le
+ * contenu survit au changement de canvas — les values sont autoporteuses).
+ *
+ * Sélection vide → no-op : on n'efface pas un coller en attente par accident.
+ */
+export function copyNodesToClipboard(nodes: Node[]): boolean {
+  if (nodes.length === 0) return false;
+  useNodeClipboardStore.getState().setClipboard(snapshotNodesToItems(nodes));
   return true;
 }

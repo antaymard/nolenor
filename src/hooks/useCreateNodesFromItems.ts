@@ -57,11 +57,17 @@ export function useCreateNodesFromItems() {
         createdIds.push(nodeId);
       }
 
+      // Sélection finale en un bloc : les nouveaux sélectionnés, les anciens
+      // désélectionnés, sans toucher au viewport. Le registre pending
+      // (`useCreateNode` marque chaque id) protège cette sélection des syncs
+      // Convex intermédiaires (listes serveur partiels).
+      const createdIdSet = new Set(createdIds);
       setNodes((nodes) =>
-        nodes.map((node) => ({
-          ...node,
-          selected: createdIds.includes(node.id),
-        })),
+        nodes.map((node) => {
+          const shouldSelect = createdIdSet.has(node.id);
+          if (!!node.selected === shouldSelect) return node;
+          return { ...node, selected: shouldSelect };
+        }),
       );
     },
     [createNode, setNodes],

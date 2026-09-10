@@ -11,6 +11,7 @@ import { useParams } from "@tanstack/react-router";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { nextTopZIndex } from "@/lib/nodeLayering";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
+import { markNodesAsPendingCreation } from "@/lib/pendingCreatedNodes";
 import { useCaptureFraming } from "./useViewportFraming";
 
 type CreateNodeOptions = {
@@ -92,6 +93,11 @@ export function useCreateNode() {
       canvasId,
       ...(templateId && { templateId }),
     });
+
+    // Marqué avant tout `addNodes` : le sync Convex → ReactFlow doit garder
+    // ce node local tant que le serveur ne l'a pas renvoyé, et le sélectionner
+    // à sa première apparition (cf. `pendingCreatedNodes`).
+    markNodesAsPendingCreation([nodeId]);
 
     // Déselectionner tous les nodes (sauf si l'appelant veut préserver la
     // sélection en cours — cf. option `selectNewNode`).

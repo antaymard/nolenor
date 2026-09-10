@@ -22,6 +22,11 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import { pendingAutoSizeIds } from "@/components/nodes/prebuilt-nodes/useTitleNodeSizing";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
+import {
+  clearPendingCreations,
+  consumePendingCreation,
+  isNodePendingCreation,
+} from "@/lib/pendingCreatedNodes";
 
 /**
  * Écriture serveur d'un changement de nœud.
@@ -192,21 +197,36 @@ export function useCanvasNodes(
     },
   );
 
+  // Aucun pending ne doit fuiter d'un canvas à l'autre.
+  useEffect(() => {
+    clearPendingCreations();
+  }, [canvasId]);
+
   // Sync Convex -> React Flow nodes while preserving drag/resize state
   // and selection.
   useEffect(() => {
     if (canvasNodes !== undefined) {
-      if (canvasNodes.length === 0) {
-        setNodes([]);
-        return;
-      }
+      // Snapshot hors updater (pur) : l'updater `setNodes` doit rester sans
+      // effet de bord (double-invoke en StrictMode). La consommation du
+      // pending se fait après, une fois la sélection appliquée.
+      const pendingSelectedIds = new Set(
+        canvasNodes
+          .filter((n) => isNodePendingCreation(n.id))
+          .map((n) => n.id),
+      );
 
       setNodes((currentNodes: Node[]) => {
         const newNodes = fromCanvasNodesToXyNodes(canvasNodes);
         const currentNodesMap = new Map(currentNodes.map((n) => [n.id, n]));
+        const serverIds = new Set(newNodes.map((n) => n.id));
 
-        return newNodes.map((newNode) => {
+        const mapped = newNodes.map((newNode) => {
           const currentNode = currentNodesMap.get(newNode.id);
+          // Première apparition serveur d'un node créé localement : on force
+          // la sélection (paste/duplicate multi-nodes). Sans ça, un
+          // `readCanvas` partiel (N mutations en vol) faisait réapparaître
+          // les nodes avec `selected: false`.
+          const freshlyConfirmed = pendingSelectedIds.has(newNode.id);
 
           // If the node is currently being dragged or resized, keep the full
           // current node object.
@@ -217,7 +237,10 @@ export function useCanvasNodes(
             (draggedChildrenCache.current.draggedNodeId !== null &&
               draggedChildrenCache.current.descendantIds.includes(newNode.id))
           ) {
-            return currentNode as Node;
+            if (freshlyConfirmed && currentNode) {
+              return { ...currentNode, selected: true } as Node;
+            }
+            if (currentNode) return currentNode as Node;
           }
 
           // Preserve dimensions while useTitleNodeSizing has a pending debounce,
@@ -229,18 +252,38 @@ export function useCanvasNodes(
               width: currentNode.width,
               height: currentNode.height,
               measured: currentNode.measured,
-              ...(currentNode.selected && { selected: true }),
+              ...((currentNode.selected || freshlyConfirmed) && {
+                selected: true,
+              }),
             } as Node;
           }
 
           // Otherwise use the fresh node from Convex, but preserve selection.
-          if (currentNode?.selected) {
+          if (currentNode?.selected || freshlyConfirmed) {
             return { ...newNode, selected: true } as Node;
           }
 
           return newNode as Node;
         });
+
+        // Garde les nodes créés localement tant que le serveur ne les a pas
+        // renvoyés : sans ça, un `readCanvas` intermédiaire (ex. node1 persisté,
+        // node2/3 pas encore) supprimait les nodes en attente, qui revenaient
+        // ensuite désélectionnés. Seuls les ids pending sont gardés — une
+        // suppression (locale ou distante) reste appliquée normalement.
+        for (const currentNode of currentNodes) {
+          if (
+            !serverIds.has(currentNode.id) &&
+            isNodePendingCreation(currentNode.id)
+          ) {
+            mapped.push(currentNode);
+          }
+        }
+
+        return mapped;
       });
+
+      for (const id of pendingSelectedIds) consumePendingCreation(id);
     }
   }, [canvasNodes, setNodes]);
 
@@ -373,6 +416,9 @@ export function useCanvasNodes(
       } else if (removedChanges.length > 0) {
         // REMOVE NODES
         const removedIds = removedChanges.map((change) => change.id);
+        // Un node pending supprimé avant confirmation serveur ne reviendra
+        // jamais : on purge son pending pour ne pas le garder en local.
+        for (const id of removedIds) consumePendingCreation(id);
         // La window `viewport` est un singleton : si un marker supprimé la
         // possédait, on la transmet à un marker survivant au lieu de la
         // fermer. Les ids supprimés sont exclus explicitement — l'état React

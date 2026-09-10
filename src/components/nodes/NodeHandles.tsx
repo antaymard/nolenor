@@ -91,8 +91,8 @@ function NodeHandles({
           position={handle.position}
           className={cn(handle.visible ? "opacity-100 z-10" : "opacity-0")}
           style={{
-            height: 7,
-            width: 7,
+            height: 9,
+            width: 9,
           }}
         />
       ))}

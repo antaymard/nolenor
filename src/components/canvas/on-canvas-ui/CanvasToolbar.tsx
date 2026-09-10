@@ -25,7 +25,9 @@ export default function CanvasToolbar() {
       <div className="canvas-ui-container px-0!">
         <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            {/* `h-11 w-11` : même hauteur que le bouton Nolë (`NoleCanvasPanel`)
+                et les blocs du dock, sur la même rangée visuelle. */}
+            <Button variant="ghost" size="icon" className="h-11 w-11">
               <TbPlus size={20} />
             </Button>
           </DropdownMenuTrigger>
@@ -36,12 +38,13 @@ export default function CanvasToolbar() {
             />
           </DropdownMenuContent>
         </DropdownMenu>
-        {/* <Button variant="ghost" size="icon">
+        {/* <Button variant="ghost" size="icon" className="h-11 w-11">
           <TbUpload size={20} />
         </Button> */}
         <Button
           variant={isSearchModalOpen ? "default" : "ghost"}
           size="default"
+          className="h-11"
           onClick={() => toggleSearchModal()}
         >
           <TbSearch size={20} />
@@ -50,6 +53,7 @@ export default function CanvasToolbar() {
         <Button
           variant={isCommandCenterOpen ? "default" : "ghost"}
           size="default"
+          className="h-11"
           onClick={() => toggleCommandCenter()}
           aria-label="Ouvrir le command center"
           title="Command center : aller à un canvas"

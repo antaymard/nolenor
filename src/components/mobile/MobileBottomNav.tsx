@@ -33,7 +33,7 @@ export default function MobileBottomNav({
             aria-selected={isActive}
             onClick={() => onChange(id)}
             className={cn(
-              "flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]",
+              "flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs",
               isActive ? "text-slate-900" : "text-slate-400",
             )}
           >

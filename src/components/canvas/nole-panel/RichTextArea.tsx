@@ -23,7 +23,10 @@ const MENTION_PILL_STYLE = {
 
 /** Interligne du composer, en px. Fixé plutôt qu'hérité : toute la logique de
  *  hauteur (1 ligne au repos, N lignes max) se déduit de cette constante. */
-const LINE_HEIGHT_PX = 20;
+const LINE_HEIGHT_PX = 24;
+/** Corps du composer, en px. 16px minimum : en dessous, iOS zoome
+ *  automatiquement au focus du champ. */
+const FONT_SIZE_PX = 16;
 /** Hauteur au repos, en lignes. */
 const DEFAULT_MIN_ROWS = 1;
 /** Au-delà, l'input scrolle au lieu de continuer à grandir. */
@@ -164,6 +167,7 @@ function buildStyle(minRows: number, maxRows: number) {
     margin: 0,
     padding: 0,
     border: 0,
+    fontSize: `${FONT_SIZE_PX}px`,
     lineHeight: `${LINE_HEIGHT_PX}px`,
     minHeight,
     maxHeight,

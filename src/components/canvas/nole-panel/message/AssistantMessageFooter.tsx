@@ -15,8 +15,8 @@ export function AssistantMessageFooter({
   const tokens = metadata.usage?.totalTokens;
 
   return (
-    <div className="flex items-center gap-1 px-1 text-[10px] text-slate-400">
-      <TbBrain size={10} />
+    <div className="flex items-center gap-1 px-1 text-xs text-slate-400">
+      <TbBrain size={12} />
       <span>{getModelLabel(metadata.model, modelOptions)}</span>
       {tokens !== undefined && <span>· {formatTokens(tokens)} tk</span>}
     </div>

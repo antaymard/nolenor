@@ -193,7 +193,7 @@ function MobileResultRow({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {title || result.type}
         </span>
-        <span className="shrink-0 rounded bg-muted px-1.5 text-[10px] text-muted-foreground">
+        <span className="shrink-0 rounded bg-muted px-1.5 text-xs text-muted-foreground">
           {result.type}
         </span>
       </div>
@@ -244,7 +244,7 @@ function MobileRecentRow({
         {title || nodeType}
       </span>
       {updatedAt ? (
-        <span className="shrink-0 text-[10px] text-muted-foreground">
+        <span className="shrink-0 text-xs text-muted-foreground">
           {formatRelative(updatedAt)}
         </span>
       ) : null}

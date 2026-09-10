@@ -61,7 +61,7 @@ export const ToolPart = memo(function ToolPart({
           </div>
           <div
             className={cn(
-              "font-mono text-[11px]",
+              "font-mono text-xs",
               isError ? "text-red-500" : "text-slate-500",
             )}
           >
@@ -114,7 +114,7 @@ function DebugBlock({ label, value }: { label: string; value: unknown }) {
   return (
     <div>
       <p className="mb-1 font-medium text-slate-800">{label}</p>
-      <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-white p-2 text-[11px] text-slate-700 border border-slate-200">
+      <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-white p-2 text-xs text-slate-700 border border-slate-200">
         {stringifyForDebug(value)}
       </pre>
     </div>

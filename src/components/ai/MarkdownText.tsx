@@ -20,7 +20,7 @@ const MarkdownTextImpl: FC<MarkdownTextProps> = ({
   const mergedComponents = { ...defaultComponents, ...components };
 
   return (
-    <div className="aui-md min-w-0 flex flex-col gap-2 break-words [overflow-wrap:anywhere]">
+    <div className="aui-md min-w-0 flex flex-col gap-3 break-words [overflow-wrap:anywhere]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, ...(remarkPlugins ?? [])]}
         components={mergedComponents}

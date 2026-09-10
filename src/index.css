@@ -19,10 +19,10 @@
   --font-sans: "Poppins", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --color-text: #475569;
-  --text-base: 13px;
-  --text-sm: 11px;
-  --text-xs: 9px;
-  --text-lg: 17px;
+  --text-base: 15px;
+  --text-sm: 14px;
+  --text-xs: 12px;
+  --text-lg: 18px;
 }
 
 /* Animations d'apparition (affichages initiaux) */

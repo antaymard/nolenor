@@ -193,7 +193,7 @@ export function PendingTaskBadge({ tasks }: { tasks: HomePendingThread[] }) {
       <span
         title={appearance.description}
         className={cn(
-          "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-sm font-medium",
+          "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-medium",
           appearance.className,
         )}
       >

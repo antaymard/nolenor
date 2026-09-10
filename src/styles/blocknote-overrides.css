@@ -28,22 +28,22 @@
 /* ---------------------------------------------------------------------------
  * Shared typography scale — single source of truth for both surfaces.
  *
- * Sizes are in `em` so they scale off the 13px app base (`--text-base`).
+ * Sizes are in `em` so they scale off the 15px app base (`--text-base`).
  *
  * The ramp started as a literal copy of Plate's heading scale (h1 2em = 26px) but
  * h1 read too large at this body size, so the whole ramp is pulled down while
  * keeping its proportions — shrinking h1 alone would have collided with h2.
  * This also retires Plate's h5 quirk, where it was expressed in `rem`
- * and ended up marginally larger than h4. Resulting sizes on a 13px base:
- * 22.8 / 18.9 / 16.3 / 14.6 / 13.3 / 13 px.
+ * and ended up marginally larger than h4. Resulting sizes on a 15px base:
+ * 24 / 20.3 / 17.7 / 16.2 / 15.3 / 15 px.
  * ------------------------------------------------------------------------- */
 :root {
   /* Kept unitless so the same number can drive both a font-size (`* 1em`) and
    * the drag-handle alignment further down, which needs a px length. */
-  --doc-h1-scale: 1.75;
-  --doc-h2-scale: 1.45;
-  --doc-h3-scale: 1.25;
-  --doc-h4-scale: 1.12;
+  --doc-h1-scale: 1.6;
+  --doc-h2-scale: 1.35;
+  --doc-h3-scale: 1.18;
+  --doc-h4-scale: 1.08;
   --doc-h5-scale: 1.02;
   --doc-h6-scale: 1;
 
@@ -86,16 +86,16 @@
   /* `py-1` on paragraphs and list items. */
   --doc-block-gap: 0.25rem;
 
-  /* Body leading. Plate inherited Tailwind's 1.5; pulled in slightly because at
-   * 13px the lines read loose. */
-  --doc-line-height: 1.45;
+  /* Body leading. Plate inherited Tailwind's 1.5, kept here since the 15px
+   * base reads at a standard density. */
+  --doc-line-height: 1.5;
 
   /* Checklist box. BlockNote's own value is a non-square 12x24. */
-  --doc-checkbox-size: 14px;
+  --doc-checkbox-size: 15px;
 }
 
 /* ---------------------------------------------------------------------------
- * Base — use the app font (Poppins) and the app text size (13px) instead of
+ * Base — use the app font (Poppins) and the app text size (15px) instead of
  * BlockNote's Inter/16px, which come from `.bn-default-styles` on `.bn-editor`.
  * `line-height: 1.5` matches Plate's LineHeightKit `defaultNodeValue`.
  *
@@ -312,7 +312,7 @@
 }
 
 /* Checklists — BlockNote ships the checkbox as `width: 12px; height: 24px`, so
- * the browser draws a 12px square (too small next to 13px text) while the 24px
+ * the browser draws a 12px square (too small next to 15px text) while the 24px
  * height inflates every row. Square it off and let the row size to its line box
  * like any other list item. */
 .bn-editor .bn-block-content[data-content-type="checkListItem"] > div:has(> input),
@@ -372,8 +372,8 @@
 
 /* ---------------------------------------------------------------------------
  * Code — Plate's `bg-muted/50` wrapper and `p-8 pr-4 font-mono text-sm
- * leading-[normal] [tab-size:2]` pre. `text-sm` is 11px in this theme
- * (src/index.css `--text-sm`), not the browser's 14px.
+ * leading-[normal] [tab-size:2]` pre. `text-sm` follows this theme
+ * (src/index.css `--text-sm`, 14px).
  * ------------------------------------------------------------------------- */
 .bn-editor .bn-block-content[data-content-type="codeBlock"],
 .bn-readonly-container .bn-block-content[data-content-type="codeBlock"] {
@@ -527,7 +527,7 @@
  *
  * Its shipped values (30px, and 108/84/67px for h1-h3) are tuned for
  * BlockNote's own scale — 16px body, h1 at 3em, 18px of heading padding. Ours
- * is a 13px body with a different ramp and top margins instead of padding, so
+ * is a 15px body with a different ramp and top margins instead of padding, so
  * the stock heights centre the handle on the wrong point. Headings are the
  * visible case because they are the only types with a special height, which is
  * why the handle looks fine until a block is turned into a heading. Levels 4-6

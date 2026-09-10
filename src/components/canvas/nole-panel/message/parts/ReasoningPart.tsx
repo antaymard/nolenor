@@ -73,8 +73,10 @@ const ReasoningBody = memo(function ReasoningBody({
   const [visibleText] = useSmoothText(text, { startStreaming: false });
   const deferredText = useDeferredValue(visibleText);
 
+  // Même raison qu'en `TextPart` : `clip` plutôt que `auto` pour ne pas
+  // transformer ce panneau en conteneur de scroll vertical.
   return (
-    <div className="border-t border-slate-200 px-2 py-2 whitespace-pre-wrap overflow-x-auto">
+    <div className="border-t border-slate-200 px-2 py-2 whitespace-pre-wrap overflow-x-clip">
       <MarkdownText
         components={markdownComponents}
         remarkPlugins={[remarkNodeMentions]}

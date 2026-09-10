@@ -17,8 +17,13 @@ export const TextPart = memo(function TextPart({
 
   if (!visibleText) return null;
 
+  // `overflow-x-clip` et non `auto` : `auto` ferait aussi de ce wrapper un
+  // conteneur de scroll vertical, et le moindre dépassement d'encre (Poppins
+  // 15px dans un interligne de 20px) y faisait apparaître une scrollbar
+  // fantôme sur les blocs courts. Le code et les tableaux gèrent déjà leur
+  // propre débordement (`pre`, wrapper de table).
   return (
-    <div className="whitespace-pre-wrap px-1 overflow-x-auto">
+    <div className="whitespace-pre-wrap px-1 overflow-x-clip py-2">
       <MarkdownText
         components={markdownComponents}
         remarkPlugins={[remarkNodeMentions]}

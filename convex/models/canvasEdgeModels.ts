@@ -40,6 +40,10 @@ export async function addCanvasEdges(
 ): Promise<boolean> {
   const canvas = await getCanvas(ctx, canvasId);
 
+  if (edges.some((edge) => edge.source === edge.target)) {
+    throw new ConvexError(errors.EDGE_SELF_CONNECTION_NOT_ALLOWED);
+  }
+
   const edgesWithDefaults = edges.map((edge) => ({
     ...edge,
     markerEnd: edge.markerEnd ?? DEFAULT_MARKER_END,

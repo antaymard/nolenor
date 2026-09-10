@@ -7,6 +7,7 @@ const errors = {
   USER_NOT_FOUND: "This user does not exist.",
   EMAIL_NOT_FOUND: "No user found with this email address.",
   SHARING_WITH_SELF: "You cannot share with yourself.",
+  EDGE_SELF_CONNECTION_NOT_ALLOWED: "A node cannot be connected to itself.",
   SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT:
     "Source and target canvases must be different.",
   INSUFFICIENT_PERMISSIONS:

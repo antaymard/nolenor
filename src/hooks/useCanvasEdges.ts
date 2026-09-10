@@ -30,12 +30,20 @@ export function useCanvasEdges(canvasId: Id<"canvases">, canvasEdges?: Edge[]) {
 
   const handleEdgeChange = useCallback(
     (changes: EdgeChange[]) => {
-      onEdgesChange(changes);
+      // Un node ne peut pas être connecté à lui-même : on ignore les
+      // auto-connexions pour ne ni les afficher ni les persister.
+      const filteredChanges = changes.filter(
+        (change) => change.type !== "add" || change.item.source !== change.item.target,
+      );
+      if (filteredChanges.length === 0) {
+        return;
+      }
+      onEdgesChange(filteredChanges);
 
-      const addedChanges = changes.filter(
+      const addedChanges = filteredChanges.filter(
         (change: EdgeChange) => change.type === "add",
       ) as EdgeAddChange[];
-      const removedChanges = changes.filter(
+      const removedChanges = filteredChanges.filter(
         (change: EdgeChange) => change.type === "remove",
       ) as EdgeRemoveChange[];
 

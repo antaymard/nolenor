@@ -9,6 +9,7 @@ import {
 import { markdownToBlockNoteBlocks } from "@/lib/blockNoteMarkdownConverter";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
+import { insertLineExtension } from "@/components/blocknote/insertLineExtension";
 
 // Éditeur du corps d'une skill.
 //
@@ -47,6 +48,7 @@ function SkillContentEditor({
     const blocks = markdownToBlockNoteBlocks(initialMarkdown);
     return BlockNoteEditor.create({
       initialContent: blocks.length > 0 ? blocks : undefined,
+      extensions: [insertLineExtension],
     });
   });
 

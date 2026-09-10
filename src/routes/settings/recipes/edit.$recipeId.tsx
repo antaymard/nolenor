@@ -16,6 +16,7 @@ import "@blocknote/shadcn/style.css";
 import { useMemo, useEffect } from "react";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
+import { insertLineExtension } from "@/components/blocknote/insertLineExtension";
 import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 
@@ -83,13 +84,16 @@ function RouteComponent() {
 
   const editor = useMemo(() => {
     if (recipeId === "new") {
-      return BlockNoteEditor.create();
+      return BlockNoteEditor.create({
+        extensions: [insertLineExtension],
+      });
     }
     if (isSuccess && recipe) {
       return BlockNoteEditor.create({
         initialContent: recipe.content
           ? (JSON.parse(recipe.content) as PartialBlock[])
           : undefined,
+        extensions: [insertLineExtension],
       });
     }
   }, [recipeId, isSuccess, recipe]);

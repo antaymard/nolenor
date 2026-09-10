@@ -1,6 +1,7 @@
 import { BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 
 import { blockNoteSchema, type AppBlockNoteEditor } from "./schema";
+import { insertLineExtension } from "./insertLineExtension";
 
 export type SafeEditorStatus = "ok" | "corrupted-fallback";
 
@@ -42,6 +43,7 @@ export function createSafeBlockNoteEditor(
       editor: BlockNoteEditor.create({
         schema: blockNoteSchema,
         initialContent,
+        extensions: [insertLineExtension],
         ...(uploadFile ? { uploadFile } : {}),
       }),
       status: "ok",
@@ -56,6 +58,7 @@ export function createSafeBlockNoteEditor(
     return {
       editor: BlockNoteEditor.create({
         schema: blockNoteSchema,
+        extensions: [insertLineExtension],
         ...(uploadFile ? { uploadFile } : {}),
       }),
       status: "corrupted-fallback",

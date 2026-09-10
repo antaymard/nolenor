@@ -34,10 +34,10 @@ function RouteComponent() {
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-xl font-bold">API tokens</h1>
+          <h1 className="text-xl font-bold">MCP & API tokens</h1>
           <i className="text-sm text-muted-foreground not-italic">
-            Create tokens to let third-party tools and agents (e.g. MCP
-            servers) access the nolënor API on your behalf.
+            Create tokens to let third-party tools and agents (e.g. MCP servers)
+            access the nolënor API on your behalf.
           </i>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">

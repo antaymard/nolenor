@@ -52,7 +52,11 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
     buttons: [
       { label: "Account", icon: TbUser, route: "/settings/account" },
       { label: "AI usage", icon: TbChartBar, route: "/settings/ai-usage" },
-      { label: "Export my data", icon: TbFileExport, route: "/settings/export" },
+      {
+        label: "Export my data",
+        icon: TbFileExport,
+        route: "/settings/export",
+      },
     ],
   },
   {
@@ -78,7 +82,7 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
   {
     label: "Developer",
     buttons: [
-      { label: "API tokens", icon: TbKey, route: "/settings/api-tokens" },
+      { label: "MCP & API tokens", icon: TbKey, route: "/settings/api-tokens" },
     ],
   },
 ];

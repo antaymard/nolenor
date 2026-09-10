@@ -154,6 +154,7 @@ import type * as schemas_threadMetadataSchema from "../schemas/threadMetadataSch
 import type * as schemas_wishlistEmailsSchema from "../schemas/wishlistEmailsSchema.js";
 import type * as searchable_chunkBuilder from "../searchable/chunkBuilder.js";
 import type * as searchableChunks from "../searchableChunks.js";
+import type * as shareNotifications from "../shareNotifications.js";
 import type * as shares from "../shares.js";
 import type * as skills from "../skills.js";
 import type * as speech from "../speech.js";
@@ -328,6 +329,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/wishlistEmailsSchema": typeof schemas_wishlistEmailsSchema;
   "searchable/chunkBuilder": typeof searchable_chunkBuilder;
   searchableChunks: typeof searchableChunks;
+  shareNotifications: typeof shareNotifications;
   shares: typeof shares;
   skills: typeof skills;
   speech: typeof speech;

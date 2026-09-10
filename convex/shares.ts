@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import { resolveUserDisplayName } from "./lib/userDisplayName";
 import errors from "./config/errorsConfig";
@@ -43,16 +44,43 @@ export const shareCanvas = mutation({
     if (existing) {
       // Mettre à jour la permission
       await ctx.db.patch(existing._id, { permission: args.permission });
+      // Envoi planifié (transaction séparée, jamais bloquant) : un échec
+      // d'email ne doit pas annuler le partage.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.shareNotifications.sendCanvasSharedEmail,
+        {
+          canvasId: args.canvasId,
+          targetUserId: targetUser._id,
+          grantedBy: authUserId,
+          permission: args.permission,
+          isNew: false,
+        },
+      );
       return existing._id;
     }
 
-    return await ctx.db.insert("shares", {
+    const shareId = await ctx.db.insert("shares", {
       resourceType: "canvas",
       canvasId: args.canvasId,
       userId: targetUser._id,
       permission: args.permission,
       grantedBy: authUserId,
     });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.shareNotifications.sendCanvasSharedEmail,
+      {
+        canvasId: args.canvasId,
+        targetUserId: targetUser._id,
+        grantedBy: authUserId,
+        permission: args.permission,
+        isNew: true,
+      },
+    );
+
+    return shareId;
   },
 });
 

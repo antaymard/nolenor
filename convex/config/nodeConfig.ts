@@ -173,13 +173,9 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
   {
     type: "image",
     label: "Image",
-    // `imageReferences` désigne les nodes branchés en ENTRÉE de ce node ; le
-    // doublon n'ayant aucune entrée, la recopier n'apporterait que de la donnée
-    // morte. Le prompt, lui, se duplique très bien.
-    valuesNotDuplicated: ["imageReferences"],
     description: "Node for storing an image.",
     llmDescription:
-      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageReferences' lists the nodeDataIds whose images the user attached as references for the next generation; it is read-only for you. Reference images have no placeholder syntax in the prompt: if references are set, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.",
+      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageIncludeReferences' controls whether the images of image nodes connected as inputs of this node are silently attached as references to the next generation (default true). Set it to false to block them. Reference images have no placeholder syntax in the prompt: when references are included, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.",
     defaultDimensions: { width: 320, height: 320, resizable: true },
     variants: {
       // Clé `default` et non `carousel` : les nodes image déjà en base portent
@@ -217,24 +213,21 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .string()
           .optional()
           .describe("The prompt the user generates images from."),
-        // Lecture seule pour l'agent (absent de `toolInputSchema`) : la
-        // légalité d'une référence dépend des edges du canvas, que l'agent n'a
-        // pas en main. Un id inventé ne ferait qu'échouer la génération de
-        // l'utilisateur.
-        imageReferences: z
-          .array(z.string())
+        // Absent = true : les nodes créés avant ce champ l'incluent par
+        // défaut, comme les nouveaux. Seul `false` bloque l'inclusion.
+        imageIncludeReferences: z
+          .boolean()
           .optional()
           .describe(
-            "nodeDataIds of the image nodes whose images are attached as references to the next generation. Set by the user from the node's generation tab; only nodes connected as inputs of this node can be referenced.",
+            "Whether images of input image nodes are attached as references to the next generation. Defaults to true when omitted.",
           ),
       })
       .default({ images: [] }),
     toolInputSchema: z
       .object({
-        // `images` et `imagePrompt` sont tous deux optionnels : updateValues
-        // merge clé par clé, donc écrire l'un seul préserve l'autre. Sans ça
-        // l'agent devrait renvoyer tout le tableau d'images pour toucher au
-        // prompt, et l'écraserait au passage.
+        // `images`, `imagePrompt` et `imageIncludeReferences` sont tous
+        // optionnels : updateValues merge clé par clé, donc écrire l'un seul
+        // préserve les autres.
         images: z
           .array(
             z
@@ -250,6 +243,12 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .optional()
           .describe(
             "The image generation prompt stored on the node. Writing it does not start a generation.",
+          ),
+        imageIncludeReferences: z
+          .boolean()
+          .optional()
+          .describe(
+            "Set to false to block input images from being attached as references to the next generation. Defaults to true.",
           ),
       })
       .strict(),

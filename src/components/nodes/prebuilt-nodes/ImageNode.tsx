@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import { useNodeData, useNodeDataValues } from "@/hooks/useNodeData";
@@ -52,7 +52,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import type { XyNodeProps } from "@/types/domain";
-import type { Id } from "@/../convex/_generated/dataModel";
 
 type ImageItem = {
   url: string;
@@ -517,17 +516,12 @@ function ImageNode(xyNode: XyNodeProps) {
 
   const isGenerating = nodeData?.imageGeneration?.status === "running";
 
-  // Mémoïsé : `values.imageReferences` est relu à chaque render et un tableau
-  // neuf ferait boucler l'effet de synchronisation de l'onglet Generate.
-  const storedReferences = useMemo(
-    () =>
-      Array.isArray(values?.imageReferences)
-        ? (values.imageReferences as unknown[]).filter(
-            (id): id is Id<"nodeDatas"> => typeof id === "string",
-          )
-        : [],
-    [values?.imageReferences],
-  );
+  // Absent en base = `true` : l'inclusion des entrées est le défaut, seul
+  // `false` la bloque. Pas de `useMemo` : un booléen n'a pas d'identité à
+  // stabiliser pour l'effet de synchronisation de l'onglet Generate.
+  const storedIncludeReferences =
+    (values as Record<string, unknown> | undefined)?.imageIncludeReferences !==
+    false;
 
   const hasMultiple = currentValue.length > 1;
   const storedPrompt =
@@ -610,7 +604,7 @@ function ImageNode(xyNode: XyNodeProps) {
                     nodeDataId={nodeDataId}
                     xyNodeId={xyNode.id}
                     storedPrompt={storedPrompt}
-                    storedReferences={storedReferences}
+                    storedIncludeReferences={storedIncludeReferences}
                     generation={nodeData?.imageGeneration}
                     onGenerated={() => setDialogOpen(false)}
                   />

@@ -6,6 +6,9 @@
  * - `dropAttachedPages` : retirait `attachments.page` de `messageMetadata`.
  * - `dropCanvasViewportArrays` : retirait `slideshows` / `hotspots` de
  *   `canvases` (remplacés par le node `viewport`).
+ * - `migrateImageReferencesToBool` : convertissait `values.imageReferences`
+ *   (tableau de nodeDataIds) vers `values.imageIncludeReferences` (bool,
+ *   défaut `true`), puis supprimait l'ancien champ.
  *
  * Patron pour la prochaine fois : une `internalMutation` paginée par lots
  * (cf. `ctx.db.query(...).paginate({ numItems: 200, cursor })`) qui se

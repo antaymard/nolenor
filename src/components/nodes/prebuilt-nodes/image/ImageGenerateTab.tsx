@@ -15,10 +15,7 @@ import {
 } from "@/components/shadcn/select";
 import { toastError } from "@/components/utils/errorUtils";
 import { TbAlertTriangle, TbSparkles } from "react-icons/tb";
-import {
-  useInputImageNodes,
-  type InputImageNode,
-} from "@/hooks/useInputImageNodes";
+import { useInputImageNodes } from "@/hooks/useInputImageNodes";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import ImageReferencePicker from "./ImageReferencePicker";
 
@@ -28,7 +25,7 @@ export default function ImageGenerateTab({
   nodeDataId,
   xyNodeId,
   storedPrompt,
-  storedReferences,
+  storedIncludeReferences,
   generation,
   onGenerated,
 }: {
@@ -36,7 +33,8 @@ export default function ImageGenerateTab({
   /** Id React Flow : les edges — donc les nodes d'entrée — s'indexent dessus. */
   xyNodeId: string;
   storedPrompt: string;
-  storedReferences: Id<"nodeDatas">[];
+  /** Absent en base = `true` : l'inclusion est le défaut, seul `false` bloque. */
+  storedIncludeReferences: boolean;
   generation: ImageGenerationStatus;
   onGenerated?: () => void;
 }) {
@@ -50,7 +48,9 @@ export default function ImageGenerateTab({
   const [count, setCount] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(storedReferences);
+  const [includeReferences, setIncludeReferences] = useState(
+    storedIncludeReferences,
+  );
 
   // Le prompt vit en base : quand il change côté serveur (autre onglet, ou Nolë
   // qui le réécrit), le champ suit — sauf si l'utilisateur est en train de le
@@ -59,28 +59,17 @@ export default function ImageGenerateTab({
     setPrompt(storedPrompt);
   }, [storedPrompt]);
 
-  // Même contrat que le prompt : la sélection vit en base, donc rouvrir le node
-  // la retrouve. `storedReferences` ne change que quand le serveur l'écrit, donc
-  // cet effet ne piétine pas une sélection en cours.
+  // Même contrat que le prompt : le bool vit en base, donc rouvrir le node
+  // le retrouve. Il ne change que quand le serveur l'écrit, donc cet effet
+  // ne piétine pas un basculement en cours.
   useEffect(() => {
-    setSelectedIds(storedReferences);
-  }, [storedReferences]);
+    setIncludeReferences(storedIncludeReferences);
+  }, [storedIncludeReferences]);
 
-  // Une référence enregistrée peut avoir cessé d'être légale depuis : node
-  // débranché, supprimé, ou vidé de ses images. On ne l'envoie pas — le serveur
-  // la refuserait, et l'utilisateur ne comprendrait pas l'erreur puisque la
-  // vignette correspondante n'est plus affichée.
-  const attachedNodes = useMemo(() => {
-    const byId = new Map(inputNodes.map((node) => [node.nodeDataId, node]));
-    return selectedIds
-      .map((id) => byId.get(id))
-      .filter((node): node is InputImageNode => node !== undefined);
-  }, [inputNodes, selectedIds]);
-
-  const attachableIds = useMemo(
-    () => attachedNodes.map((node) => node.nodeDataId),
-    [attachedNodes],
-  );
+  // Inclusion automatique : TOUTES les entrées image partent, dans l'ordre
+  // des edges — le serveur résout exactement la même liste au moment de
+  // générer, rien n'est stocké.
+  const attachedNodes = includeReferences ? inputNodes : [];
 
   // `modelOptions` est `undefined` tant que la query n'a pas répondu ; le
   // catalogue lui-même n'est jamais vide (il est constant côté serveur).
@@ -104,42 +93,33 @@ export default function ImageGenerateTab({
     0,
   );
 
-  // Changer pour un modèle au plafond plus bas laisse une sélection devenue
-  // impossible. Contrairement à `count` juste en dessous, on ne la tronque PAS :
-  // retirer des références en silence changerait le sens d'un prompt qui les
-  // décrit. On bloque, et l'utilisateur arbitre — modèle ou références.
+  // Des entrées branchées qui dépassent le plafond du modèle : on bloque, et
+  // l'utilisateur arbitre — modèle, débranchement, ou exclusion. Contrairement
+  // à `count` juste en dessous, on ne tronque PAS : retirer des références en
+  // silence changerait le sens d'un prompt qui les décrit.
   const referenceLimitExceeded = attachedImageCount > maxReferenceImages;
-
-  function handleToggleReference(nodeDataId: Id<"nodeDatas">) {
-    setSelectedIds((current) =>
-      current.includes(nodeDataId)
-        ? current.filter((id) => id !== nodeDataId)
-        : // Ajout en fin : l'ordre de sélection est celui des références
-          // envoyées, et donc celui que les numéros affichent.
-          [...current, nodeDataId],
-    );
-  }
 
   // Changer pour un modèle qui plafonne plus bas ne doit pas laisser une
   // demande impossible dans le formulaire.
   const safeCount = Math.min(count, maxImages);
 
-  // Vide le prompt ET les références, en local comme en base : sans ça un
-  // champ effacé à la main serait perdu à la fermeture (seul `generateImages`
-  // persistait, et il refuse le vide). En cas d'échec on restaure le local
-  // depuis le serveur — le hook ne revert que le store, pas cet état.
+  // Vide le prompt ET réactive l'inclusion (le défaut), en local comme en
+  // base : sans ça un champ effacé à la main serait perdu à la fermeture
+  // (seul `generateImages` persistait, et il refuse le vide). En cas d'échec
+  // on restaure le local depuis le serveur — le hook ne revert que le store,
+  // pas cet état.
   async function handleClear() {
     setPrompt("");
-    setSelectedIds([]);
+    setIncludeReferences(true);
     setIsClearing(true);
     try {
       const ok = await updateNodeDataValues({
         nodeDataId,
-        values: { imagePrompt: "", imageReferences: [] },
+        values: { imagePrompt: "", imageIncludeReferences: true },
       });
       if (!ok) {
         setPrompt(storedPrompt);
-        setSelectedIds(storedReferences);
+        setIncludeReferences(storedIncludeReferences);
       }
     } finally {
       setIsClearing(false);
@@ -147,7 +127,7 @@ export default function ImageGenerateTab({
   }
 
   const hasClearableContent =
-    prompt.trim().length > 0 || selectedIds.length > 0;
+    prompt.trim().length > 0 || !includeReferences;
 
   async function handleGenerate() {
     if (!selectedModel || prompt.trim().length === 0) return;
@@ -158,7 +138,7 @@ export default function ImageGenerateTab({
         prompt,
         count: safeCount,
         model: selectedModel.value,
-        referenceNodeDataIds: attachableIds,
+        includeReferences,
       });
       onGenerated?.();
     } catch (error) {
@@ -172,9 +152,9 @@ export default function ImageGenerateTab({
     <div className="flex flex-col gap-3">
       <ImageReferencePicker
         inputNodes={inputNodes}
-        selectedNodeDataIds={attachableIds}
+        includeReferences={includeReferences}
         attachedImageCount={attachedImageCount}
-        onToggle={handleToggleReference}
+        onToggleInclude={setIncludeReferences}
         maxReferenceImages={maxReferenceImages}
         disabled={isBusy}
       />
@@ -259,7 +239,7 @@ export default function ImageGenerateTab({
           variant="outline"
           onClick={handleClear}
           disabled={isBusy || !hasClearableContent}
-          title="Clear the prompt and remove attached references"
+          title="Clear the prompt and re-enable reference inclusion"
         >
           {isClearing ? <Spinner /> : "Clear"}
         </Button>
@@ -270,7 +250,8 @@ export default function ImageGenerateTab({
           <TbAlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
           <span className="min-w-0 break-words">
             {attachedImageCount} reference images for a model that takes{" "}
-            {maxReferenceImages}. Remove some, or pick another model.
+            {maxReferenceImages}. Unplug some, exclude them, or pick another
+            model.
           </span>
         </p>
       )}

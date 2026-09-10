@@ -31,101 +31,86 @@ export const listImageModels = query({
 });
 
 /**
- * Les URLs des images à joindre à la génération, une fois prouvé qu'on a le
- * droit de les joindre.
+ * Les URLs des images à joindre à la génération, découvertes dynamiquement.
  *
- * La règle produit — seuls les nodes image BRANCHÉS EN ENTRÉE du node qui
- * génère sont référençables — vit ici et pas dans l'UI. `generateImages` est
- * une mutation publique : la liste de vignettes affichée par le client est une
- * commodité, pas une barrière. Un `referenceNodeDataIds` fabriqué à la main
- * doit se heurter au même mur.
+ * Règle produit : quand l'inclusion est active, TOUTES les images des nodes
+ * image branchés en ENTRÉE du node qui génère sont jointes, sans que personne
+ * n'ait à les désigner. Rien n'est stocké : les edges du canvas sont la seule
+ * source de vérité, lue ici au moment de générer — pas de dérive quand on
+ * débranche, supprime ou vide une source.
  *
- * Tout écart lève plutôt que de filtrer en silence. Une référence qu'on
- * laisserait tomber sans le dire produirait une image payée qui ne ressemble
- * pas à ce que l'utilisateur a demandé, sans rien pour l'expliquer.
+ * Tout écart BLOQUANT lève plutôt que de filtrer en silence (plafond du
+ * modèle, modèle sans refs). En revanche une entrée qui n'apporte rien (node
+ * non-image, image vidée de ses images) est simplement sautée : en inclusion
+ * automatique, elle ne doit pas faire échouer une génération payante.
  *
  * Reçoit le `canvas` plutôt que d'aller le chercher : l'appelant l'a déjà en
  * main via `requireCanvasAccess`, et c'est le plus gros document de l'app —
  * le relire gonflerait le read-set de la mutation, donc sa surface de conflit
  * OCC avec chaque déplacement de node concurrent.
  */
-async function resolveReferenceImageUrls(
+async function resolveAutoReferenceImageUrls(
   ctx: MutationCtx,
   {
     canvas,
     nodeDataId,
-    referenceNodeDataIds,
     model,
   }: {
     canvas: Doc<"canvases">;
     nodeDataId: Id<"nodeDatas">;
-    /** Déjà dédupliqués par l'appelant, dans l'ordre de sélection. */
-    referenceNodeDataIds: Id<"nodeDatas">[];
     model: ImageModelValues;
   },
 ): Promise<string[]> {
-  if (referenceNodeDataIds.length === 0) return [];
-
-  // Avant toute lecture : un modèle qui n'accepte pas de référence rend la
-  // question sans objet. Un slug absent du catalogue retombe sur `0`, donc sur
-  // ce même refus — plutôt qu'un cast qui nierait le cas.
   const maxReferences: number =
     imageModelOptions.find((option) => option.value === model)
       ?.maxReferenceImages ?? 0;
-  if (maxReferences === 0) {
-    throw new ConvexError(errors.IMAGE_GENERATION_MODEL_NO_REFERENCES);
-  }
 
-  // Une seule passe sur `canvas.nodes`, qui ramasse à la fois le node courant
-  // et la correspondance `nodeDataId → id de node canvas` pour les seules
-  // références demandées. Les edges parlent en ids canvas, les références sont
-  // stockées en `nodeDataId` : c'est ici que les deux se rejoignent.
-  const wanted = new Set<string>(referenceNodeDataIds);
-  const canvasIdByNodeDataId = new Map<string, string>();
+  // Une seule passe sur `canvas.nodes` : le node courant (pour retrouver son
+  // id canvas, le seul langage des edges) et la correspondance `id canvas →
+  // nodeDataId` pour les entrées.
+  const nodeDataIdByCanvasId = new Map<string, string>();
   let selfNodeId: string | undefined;
 
   for (const node of canvas.nodes ?? []) {
     if (!node.nodeDataId) continue;
     if (node.nodeDataId === nodeDataId) selfNodeId = node.id;
-    if (wanted.has(node.nodeDataId)) {
-      canvasIdByNodeDataId.set(node.nodeDataId, node.id);
-    }
+    nodeDataIdByCanvasId.set(node.id, node.nodeDataId);
   }
   if (!selfNodeId) throw new ConvexError(errors.NODE_NOT_FOUND);
 
-  const inputNodeIds = new Set(
-    (canvas.edges ?? [])
-      .filter((edge) => edge.target === selfNodeId)
-      .map((edge) => edge.source),
-  );
+  // Ordre des edges préservé : c'est l'ordre d'envoi des références, et celui
+  // que l'UI affiche.
+  const seen = new Set<string>();
+  const inputNodeDataIds: Id<"nodeDatas">[] = [];
+  for (const edge of canvas.edges ?? []) {
+    if (edge.target !== selfNodeId) continue;
+    const ref = nodeDataIdByCanvasId.get(edge.source);
+    if (!ref || seen.has(ref)) continue;
+    seen.add(ref);
+    inputNodeDataIds.push(ref as Id<"nodeDatas">);
+  }
 
-  // Le contrôle d'appartenance ne fait aucune I/O : le passer AVANT les
-  // lectures permet de les lancer toutes ensemble, au lieu d'enchaîner un
-  // aller-retour par référence dans une mutation que l'utilisateur attend.
-  for (const nodeDataIdRef of referenceNodeDataIds) {
-    const canvasNodeId = canvasIdByNodeDataId.get(nodeDataIdRef);
-    if (!canvasNodeId || !inputNodeIds.has(canvasNodeId)) {
-      throw new ConvexError(errors.IMAGE_GENERATION_REFERENCE_NOT_INPUT);
-    }
+  if (inputNodeDataIds.length === 0) return [];
+
+  // Modèle sans refs mais entrées branchées : sans ce refus, l'utilisateur
+  // paierait une image qui ignore silencieusement ses sources.
+  if (maxReferences === 0) {
+    throw new ConvexError(errors.IMAGE_GENERATION_MODEL_NO_REFERENCES);
   }
 
   const sources = await Promise.all(
-    referenceNodeDataIds.map((id) => ctx.db.get("nodeDatas", id)),
+    inputNodeDataIds.map((id) => ctx.db.get("nodeDatas", id)),
   );
 
   const urls: string[] = [];
   for (const source of sources) {
-    if (!source || source.type !== "image") {
-      throw new ConvexError(errors.IMAGE_GENERATION_REFERENCE_NOT_IMAGE);
-    }
-    // Un node image porte N images et les joint TOUTES : c'est ce que
-    // l'utilisateur voit sur le node, donc ce qu'il croit joindre.
+    if (!source || source.type !== "image") continue;
     const images = readStoredImages(source.values);
-    if (images.length === 0) {
-      throw new ConvexError(errors.IMAGE_GENERATION_REFERENCE_NOT_IMAGE);
-    }
+    if (images.length === 0) continue;
     urls.push(...images.map((image) => image.url));
   }
+
+  if (urls.length === 0) return [];
 
   // Compté en IMAGES et non en nodes : un seul node multi-image peut à lui
   // seul dépasser le plafond du modèle.
@@ -150,18 +135,15 @@ export const generateImages = mutation({
     prompt: v.string(),
     count: v.number(),
     model: vImageModelValues,
-    // Des `nodeDatas`, pas des ids de node canvas : un id canvas n'a de sens que
-    // dans SON canvas, alors qu'un `nodeDataId` est global. C'est la convention
-    // que suivent déjà les pills de mention BlockNote, et ce qui rend la valeur
-    // stockée lisible hors de son canvas d'origine. La correspondance vers les
-    // ids canvas — la seule forme sur laquelle « branché en entrée » se
-    // vérifie — se fait dans le contrôle.
-    referenceNodeDataIds: v.optional(v.array(v.id("nodeDatas"))),
+    // Opt-out silencieux : `false` bloque l'inclusion auto des entrées,
+    // `true`/omitted l'active. Quand l'arg est omis (agent via set_node_data,
+    // vieux client), c'est la valeur stockée qui tranche, défaut `true`.
+    includeReferences: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (
     ctx,
-    { nodeDataId, prompt, count, model, referenceNodeDataIds = [] },
+    { nodeDataId, prompt, count, model, includeReferences },
   ) => {
     const authUserId = await requireAuth(ctx);
 
@@ -206,33 +188,36 @@ export const generateImages = mutation({
       MAX_IMAGES_PER_GENERATION,
     );
 
-    // Dédupliqué ici, pas dans le contrôle : c'est l'appelant qui a besoin de la
-    // liste retenue pour l'écrire. Deux fois le même node joindrait ses images
-    // en double — même contexte payé deux fois, et l'ordre affiché brouillé.
-    const uniqueReferenceIds = [...new Set(referenceNodeDataIds)];
+    // Effectif : arg explicite > valeur stockée > défaut `true`. Stocké comme
+    // booléen tri-état (`boolean | undefined`), seul `false` bloque.
+    const storedInclude = (nodeData.values as Record<string, unknown>)
+      .imageIncludeReferences;
+    const effectiveInclude =
+      includeReferences ?? (storedInclude === false ? false : true);
 
-    // AVANT le premier write : une référence refusée doit laisser le node
-    // exactement dans l'état où l'utilisateur l'a trouvé, pas avec un prompt
-    // à moitié enregistré et aucune image.
-    const referenceUrls = await resolveReferenceImageUrls(ctx, {
-      canvas,
-      nodeDataId,
-      referenceNodeDataIds: uniqueReferenceIds,
-      model,
-    });
+    // AVANT le premier write : des références refusées (plafond, modèle sans
+    // refs) doivent laisser le node exactement dans l'état où l'utilisateur
+    // l'a trouvé, pas avec un prompt à moitié enregistré et aucune image.
+    const referenceUrls = effectiveInclude
+      ? await resolveAutoReferenceImageUrls(ctx, {
+          canvas,
+          nodeDataId,
+          model,
+        })
+      : [];
 
     // Le prompt est du contenu utilisateur : il va dans `values`, donc dans
     // l'historique de versions, et devient lisible par l'agent. L'actor est
     // dérivé de l'auth server-side, jamais reçu du client.
     //
-    // `imageReferences` part dans le même write que le prompt : les deux
-    // forment une intention unique, et un restore de version doit rendre le
-    // couple, pas un prompt qui décrit des images qui ne sont plus jointes.
+    // `imageIncludeReferences` part dans le même write que le prompt : les
+    // deux forment une intention unique, et un restore de version doit rendre
+    // le couple, pas un prompt qui décrit des images qui ne sont plus jointes.
     await NodeDataModels.updateValues(ctx, {
       _id: nodeDataId,
       values: {
         imagePrompt: trimmedPrompt,
-        imageReferences: uniqueReferenceIds,
+        imageIncludeReferences: effectiveInclude,
       },
       actor: { type: "user", userId: authUserId },
     });

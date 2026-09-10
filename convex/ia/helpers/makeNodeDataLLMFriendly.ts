@@ -419,11 +419,17 @@ export async function makeNodeDataLLMFriendly(
         typeof values.imagePrompt === "string" && values.imagePrompt.length > 0
           ? `Prompt de génération : ${values.imagePrompt}`
           : undefined;
+      // Seul `false` est rendu : l'inclusion est le défaut, le silence vaut
+      // pour le cas nominal et l'agent n'a qu'à écrire `false` pour bloquer.
+      const refs =
+        values.imageIncludeReferences === false
+          ? "Références d'entrée : exclues de la prochaine génération."
+          : undefined;
       const rendered =
         !images || images.length === 0
           ? "(aucune image)"
           : images.map((img) => `![image](${img.url})`).join("\n");
-      return prompt ? `${rendered}\n\n${prompt}` : rendered;
+      return [rendered, prompt, refs].filter(Boolean).join("\n\n");
     }
 
     case "title": {

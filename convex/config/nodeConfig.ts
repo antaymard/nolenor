@@ -844,7 +844,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     type: "viewport",
     label: "Viewport",
     description:
-      "Node qui ramène le canvas à un cadrage enregistré (centre + zoom).",
+      "Node that brings the view to a specific area.",
     // Jamais lu : `agent.exposed` est à false, ce type n'est pas présenté.
     llmDescription: "",
     // Gabarit compact une ligne par défaut, redimensionnable en 2D :

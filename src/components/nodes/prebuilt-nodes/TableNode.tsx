@@ -9,6 +9,7 @@ import { TbMaximize, TbTable } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
 import { applyFilters, TablePreview } from "@/components/table";
+import NodeEmptyState from "../NodeEmptyState";
 import type { TableData } from "@/components/table";
 import type { XyNodeProps } from "@/types/domain";
 
@@ -88,10 +89,7 @@ function TableNode(xyNode: XyNodeProps) {
               className="flex-1 min-h-0 overflow-auto relative"
             >
               {isTableEmpty ? (
-                <div className="h-full flex flex-col items-center justify-center gap-1.5 text-muted-foreground/40 select-none pointer-events-none">
-                  <TbTable size={22} />
-                  <span className="text-xs">Double click to edit</span>
-                </div>
+                <NodeEmptyState icon={<TbTable size={22} />} action="double-click" />
               ) : (
                 <TablePreview
                   columns={tableData.columns}

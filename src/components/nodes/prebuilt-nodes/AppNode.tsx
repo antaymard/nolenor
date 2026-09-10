@@ -8,6 +8,7 @@ import NodeFrame from "../NodeFrame";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { cn } from "@/lib/utils";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import NodeEmptyState from "../NodeEmptyState";
 import { downloadBlob } from "@/lib/downloadFile";
 import {
   Popover,
@@ -142,6 +143,13 @@ function AppNode(xyNode: XyNodeProps) {
               {appTitle}
             </p>
           </div>
+        ) : !appCode.trim() ? (
+          <NodeEmptyState
+            icon={<Icon size={22} />}
+            title="No app"
+            action="none"
+            hint="Ask Nolë to code something"
+          />
         ) : (
           <div className="w-full h-full flex flex-col overflow-hidden rounded-[4px]">
             <div

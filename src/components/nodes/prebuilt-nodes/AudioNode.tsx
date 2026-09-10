@@ -17,6 +17,7 @@ import {
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import NodeEmptyState from "../NodeEmptyState";
 import MediaProgressBar from "./media/MediaProgressBar";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
@@ -570,10 +571,12 @@ function AudioNode(xyNode: XyNodeProps) {
             </div>
           </div>
         ) : (
-          <div className="flex h-full w-full items-center gap-2 px-2">
-            <TbMusic size={18} className="shrink-0" />
-            <p className="text-muted-foreground">Aucun audio</p>
-          </div>
+          <NodeEmptyState
+            icon={<TbMusic size={18} />}
+            title="No audio"
+            action="pencil"
+            compact
+          />
         )}
       </NodeFrame>
     </>

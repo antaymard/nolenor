@@ -20,6 +20,7 @@ import { blockNoteBlocksToMarkdown } from "@/lib/blockNoteMarkdownConverter";
 import { filenameSlug } from "@/lib/filenameSlug";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
+import NodeEmptyState from "../NodeEmptyState";
 import type { XyNodeProps } from "@/types/domain";
 
 // ── View-only rendering ──────────────────────────────────────────────────
@@ -137,10 +138,10 @@ function BlocknoteNode(xyNode: XyNodeProps) {
             {isVisible ? (
               <>
                 {isEmpty ? (
-                  <div className="h-full flex flex-col items-center justify-center gap-1.5 text-muted-foreground/40 select-none pointer-events-none">
-                    <TbNotes size={22} />
-                    <span className="text-xs">Double click to edit</span>
-                  </div>
+                  <NodeEmptyState
+                    icon={<TbNotes size={22} />}
+                    action="double-click"
+                  />
                 ) : (
                   <BlockNoteErrorBoundary resetKey={docString}>
                     <BlockNoteStatic

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { TbCircleChevronRight, TbDirections , TbMaximize, TbPencil } from "react-icons/tb";
+import { TbCircleChevronRight, TbDirections , TbMaximize, TbPencil, TbArrowUp } from "react-icons/tb";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
@@ -40,6 +40,57 @@ const MIN_WIDTH = 120;
  * titre d'`AppNode` — et le double-clic ouvre la fenêtre (handler générique
  * de `NodeFrame`), au lieu de rouvrir l'édition.
  */
+function MarkerTitle({
+  title,
+  rename,
+  onEditEnd,
+  startInEditMode,
+  inlineDisabled,
+  isTitleEmpty,
+  singleLine,
+  className,
+}: {
+  title: string;
+  rename: (nextTitle: string) => void;
+  onEditEnd: () => void;
+  startInEditMode: boolean;
+  inlineDisabled: boolean;
+  isTitleEmpty: boolean;
+  singleLine?: boolean;
+  className?: string;
+}) {
+  // Titre jamais nommé : le placeholder `muted/50` d'InlineEditableText est
+  // quasi invisible sur le canvas — placeholder lisible (même
+  // `text-muted-foreground` que `NodeEmptyState`) + rappel pencil, le
+  // renommage passant par la toolbar une fois la création terminée.
+  if (isTitleEmpty) {
+    return (
+      <span className="flex min-w-0 flex-1 select-none items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="truncate italic">Untitled marker</span>
+        <span
+          className="flex shrink-0 items-center gap-0.5"
+          title="Rename with the pencil toolbar"
+        >
+          <TbPencil size={12} />
+          <TbArrowUp size={12} />
+        </span>
+      </span>
+    );
+  }
+  return (
+    <InlineEditableText
+      value={title}
+      onSave={rename}
+      onEditEnd={onEditEnd}
+      as="span"
+      className={className}
+      placeholder="Untitled marker"
+      startInEditMode={startInEditMode}
+      disabled={inlineDisabled}
+      singleLine={singleLine}
+    />
+  );
+}
 function ViewportNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
@@ -79,6 +130,12 @@ function ViewportNode(xyNode: XyNodeProps) {
   const match = useFramingMatch(framing);
 
   const title = typeof values?.title === "string" ? values.title : "";
+  // Titre jamais nommé : le placeholder `muted/50` d'InlineEditableText est
+  // quasi invisible sur le canvas — on affiche un placeholder lisible avec
+  // le même CTA pencil que les autres nodes (renommage via la toolbar).
+  // Déclaré après `title`, pas plus haut : le lire avant son initialisation
+  // lève `Cannot access 'title' before initialization` et casse la page.
+  const isTitleEmpty = !title.trim() && inlineDisabled;
 
   const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];
 
@@ -184,15 +241,14 @@ function ViewportNode(xyNode: XyNodeProps) {
                   if (!inlineDisabled) event.stopPropagation();
                 }}
               >
-                <InlineEditableText
-                  value={title}
-                  onSave={rename}
+                <MarkerTitle
+                  title={title}
+                  rename={rename}
                   onEditEnd={() => setCreationEditDone(true)}
-                  as="span"
-                  className="min-w-0"
-                  placeholder="Untitled marker"
                   startInEditMode={startInEditMode}
-                  disabled={inlineDisabled}
+                  inlineDisabled={inlineDisabled}
+                  isTitleEmpty={isTitleEmpty}
+                  className="min-w-0"
                 />
               </span>
             </div>
@@ -242,16 +298,15 @@ function ViewportNode(xyNode: XyNodeProps) {
                 if (!inlineDisabled) event.stopPropagation();
               }}
             >
-              <InlineEditableText
-                value={title}
-                onSave={rename}
+              <MarkerTitle
+                title={title}
+                rename={rename}
                 onEditEnd={() => setCreationEditDone(true)}
-                as="span"
-                className="min-w-0 w-full"
-                placeholder="Untitled marker"
                 startInEditMode={startInEditMode}
-                disabled={inlineDisabled}
+                inlineDisabled={inlineDisabled}
+                isTitleEmpty={isTitleEmpty}
                 singleLine
+                className="min-w-0 w-full"
               />
             </span>
             <Button

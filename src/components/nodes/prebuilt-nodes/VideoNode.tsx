@@ -14,6 +14,7 @@ import {
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import NodeEmptyState from "../NodeEmptyState";
 import MediaProgressBar from "./media/MediaProgressBar";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
@@ -347,10 +348,11 @@ function VideoNode(xyNode: XyNodeProps) {
 
       <NodeFrame xyNode={xyNode} resizable={!isTitleVariant}>
         {!video ? (
-          <div className="flex h-full w-full items-center justify-center gap-2 px-2">
-            <TbVideo size={18} className="shrink-0" />
-            <p className="text-muted-foreground">No video</p>
-          </div>
+          <NodeEmptyState
+            icon={<TbVideo size={22} />}
+            title="No video"
+            action="pencil"
+          />
         ) : isTitleVariant ? (
           // No player at 33px tall: there is nowhere to show the picture.
           // Double-clicking opens the window, which is where you watch it.

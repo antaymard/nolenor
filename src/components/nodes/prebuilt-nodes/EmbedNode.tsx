@@ -2,6 +2,7 @@ import { memo, useCallback, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import NodeEmptyState from "../NodeEmptyState";
 import {
   Popover,
   PopoverContent,
@@ -261,12 +262,11 @@ function EmbedNode(xyNode: XyNodeProps) {
             </IframeInteractionGate>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground select-none">
-            <Icon size={28} />
-            <span className="text-sm">
-              Paste a URL or &lt;iframe&gt; embed code
-            </span>
-          </div>
+          <NodeEmptyState
+            icon={<Icon size={22} />}
+            title="No embed"
+            action="pencil"
+          />
         )}
       </NodeFrame>
     </>

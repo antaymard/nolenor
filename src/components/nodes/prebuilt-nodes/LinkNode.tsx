@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import NodeEmptyState from "../NodeEmptyState";
 import {
   Popover,
   PopoverContent,
@@ -232,10 +233,11 @@ function LinkNode(xyNode: XyNodeProps) {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              <TbLink size={24} className="mr-2" />
-              No link
-            </div>
+            <NodeEmptyState
+              icon={<TbLink size={22} />}
+              title="No link"
+              action="pencil"
+            />
           )
         ) : (
           <div className="flex items-center gap-2 px-2 min-w-0 h-full group/linknode relative">
@@ -261,10 +263,12 @@ function LinkNode(xyNode: XyNodeProps) {
                 )}
               </>
             ) : (
-              <span className="text-muted-foreground flex items-center gap-2">
-                <TbLink size={18} className="shrink-0" />
-                No link
-              </span>
+              <NodeEmptyState
+                icon={<TbLink size={18} />}
+                title="No link"
+                action="pencil"
+                compact
+              />
             )}
           </div>
         )}

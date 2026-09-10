@@ -5,6 +5,7 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { RiAttachment2 } from "react-icons/ri";
 import { TbDownload, TbExternalLink, TbMaximize, TbPencil } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import NodeEmptyState from "../NodeEmptyState";
 import { Button } from "@/components/shadcn/button";
 import {
   Popover,
@@ -161,27 +162,30 @@ function PdfNode(xyNode: XyNodeProps) {
         </Popover>
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode}>
-        <div className="h-full w-full flex items-center gap-2 px-2 min-w-0 relative group/pdfnode">
-          <RiAttachment2 size={18} className="shrink-0" />
-          {file ? (
-            <>
-              <p className="truncate flex-1 min-w-0">{file.filename}</p>
-              {xyNode.selected && (
-                <a
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-background hover:bg-muted rounded-sm p-1 cursor-pointer"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <TbExternalLink size={16} />
-                </a>
-              )}
-            </>
-          ) : (
-            <p className="text-muted-foreground">No PDF</p>
-          )}
-        </div>
+        {file ? (
+          <div className="h-full w-full flex items-center gap-2 px-2 min-w-0 relative group/pdfnode">
+            <RiAttachment2 size={18} className="shrink-0" />
+            <p className="truncate flex-1 min-w-0">{file.filename}</p>
+            {xyNode.selected && (
+              <a
+                href={file.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-background hover:bg-muted rounded-sm p-1 cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <TbExternalLink size={16} />
+              </a>
+            )}
+          </div>
+        ) : (
+          <NodeEmptyState
+            icon={<RiAttachment2 size={18} />}
+            title="No PDF"
+            action="pencil"
+            compact
+          />
+        )}
       </NodeFrame>
     </>
   );

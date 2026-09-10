@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import NodeEmptyState from "../NodeEmptyState";
 import {
   Popover,
   PopoverContent,
@@ -225,10 +226,11 @@ function ValueNode(xyNode: XyNodeProps) {
               )}
             </>
           ) : (
-            <span className="text-muted-foreground flex items-center gap-2">
-              <TbTag size={18} />
-              No value
-            </span>
+            <NodeEmptyState
+              icon={<TbTag size={22} />}
+              title="No value"
+              action="pencil"
+            />
           )}
         </div>
       </NodeFrame>

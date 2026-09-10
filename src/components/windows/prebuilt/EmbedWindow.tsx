@@ -37,7 +37,7 @@ function EmbedWindow({ nodeDataId }: EmbedWindowProps) {
     />
   ) : (
     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-      Aucun embed
+      No embed
     </div>
   );
 }

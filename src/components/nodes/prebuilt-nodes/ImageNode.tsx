@@ -15,6 +15,7 @@ import {
   TbTrash,
 } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import NodeEmptyState from "../NodeEmptyState";
 import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import {
@@ -686,10 +687,11 @@ function ImageNode(xyNode: XyNodeProps) {
           </div>
         )}
         {currentValue.length === 0 ? (
-          <div className="h-full w-full flex flex-col gap-2 items-center justify-center">
-            <TbPhoto size={24} />
-            No image
-          </div>
+          <NodeEmptyState
+            icon={<TbPhoto size={22} />}
+            title="No image"
+            action="pencil"
+          />
         ) : isGrid ? (
           <ImageGrid
             images={currentValue}

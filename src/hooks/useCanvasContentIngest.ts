@@ -63,8 +63,8 @@ function layoutPositions(
 /**
  * Fabrique partagée « contenu externe → node sur le canvas ».
  *
- * Utilisée par le coller (`useCanvasPasteHandler`, position = centre du
- * viewport) et par le glisser-déposer (`useCanvasDropHandler`, position = point
+ * Utilisée par le coller (`useCanvasPasteHandler`, position = curseur suivi)
+ * et par le glisser-déposer (`useCanvasDropHandler`, position = point
  * de drop). Toute la création passe par `useCreateNode`, et les fichiers par
  * `useFileUpload` (R2).
  */

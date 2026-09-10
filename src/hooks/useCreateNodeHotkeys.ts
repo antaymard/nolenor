@@ -58,8 +58,8 @@ function useCreateNodeShortcut(
 
 /**
  * Crée un node à l'endroit du curseur à la frappe d'une lettre : T titre,
- * B blocknote, I image, A table, V repère de navigation. Le node est posé
- * centré sur le pointeur,
+ * B blocknote, I image, A table, V repère de navigation. Le coin
+ * supérieur-gauche du node est posé au pointeur,
  * sélectionné et au sommet de la pile — soit exactement ce que fait le menu
  * « Add a block », dont il partage le mapping (`creationShortcut`).
  *
@@ -109,8 +109,7 @@ export function useCreateNodeHotkeys({
 
       const nodeToCreate = { ...config.node };
       // Même override que `AddBlockMenuContent` : c'est la variante par défaut
-      // qui donne les dimensions réellement posées, donc le centrage se calcule
-      // après elle.
+      // qui donne les dimensions réellement posées.
       if (config.variants?.default) {
         nodeToCreate.height = config.variants.default.defaultHeight;
         nodeToCreate.width = config.variants.default.defaultWidth;
@@ -121,10 +120,7 @@ export function useCreateNodeHotkeys({
       isCreatingRef.current = true;
       void createNode({
         node: nodeToCreate,
-        position: {
-          x: point.x - (nodeToCreate.width ?? 0) / 2,
-          y: point.y - (nodeToCreate.height ?? 0) / 2,
-        },
+        position: point,
         autoEdit: true,
       }).finally(() => {
         isCreatingRef.current = false;

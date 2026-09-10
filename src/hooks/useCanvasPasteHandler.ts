@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useCanvasContentIngest } from "./useCanvasContentIngest";
-import { useFlowPosition } from "./useCanvasPointerPosition";
+import { useCanvasPointerPosition } from "./useCanvasPointerPosition";
 
 const PASTE_GUARD_WINDOW_MS = 300;
 
@@ -50,11 +50,11 @@ function runWithPasteGuard(
  *
  * Le mapping « contenu → node » vit dans `useCanvasContentIngest`, partagé avec
  * le glisser-déposer. Ici on ne garde que ce qui est propre au coller : la
- * position (centre du viewport, il n'y a pas de curseur), la garde anti-doublon
- * et le filtre de focus.
+ * position (curseur suivi, repli centre du viewport si inconnue/hors pane),
+ * la garde anti-doublon et le filtre de focus.
  */
 export function useCanvasPasteHandler() {
-  const { getViewportCenter } = useFlowPosition();
+  const { getPointerFlowPosition } = useCanvasPointerPosition();
   const { createNodesFromFiles, createNodeFromText } = useCanvasContentIngest();
   const focus = useCanvasStore((s) => s.focus);
   const pasteGuardRef = useRef<PasteGuardState>({
@@ -94,7 +94,7 @@ export function useCanvasPasteHandler() {
           .join("|");
         e.preventDefault();
         runWithPasteGuard(pasteGuardRef.current, signature, async () => {
-          await createNodesFromFiles(files, getViewportCenter());
+          await createNodesFromFiles(files, getPointerFlowPosition());
         });
         return;
       }
@@ -107,11 +107,11 @@ export function useCanvasPasteHandler() {
         e.preventDefault();
 
         runWithPasteGuard(pasteGuardRef.current, signature, async () => {
-          await createNodeFromText(trimmedText, getViewportCenter());
+          await createNodeFromText(trimmedText, getPointerFlowPosition());
         });
       }
     },
-    [focus, createNodesFromFiles, createNodeFromText, getViewportCenter],
+    [focus, createNodesFromFiles, createNodeFromText, getPointerFlowPosition],
   );
 
   // Register paste event listener

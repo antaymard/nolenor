@@ -1,4 +1,5 @@
 import { BackgroundVariant } from "@xyflow/react";
+import type { CSSProperties } from "react";
 import type { Canvas } from "@/types/convex";
 
 export type CanvasBackgroundVariant = "lines" | "dots" | "cross" | "none";
@@ -75,4 +76,47 @@ export function toReactFlowVariant(
 export function clampBackgroundNumber(value: number, min: number, max: number) {
   if (Number.isNaN(value)) return min;
   return Math.min(max, Math.max(min, value));
+}
+
+/** Normalise un draft pour l'envoi serveur (clamp gap/size). */
+export function sanitizeCanvasBackgroundForSave(
+  draft: ResolvedCanvasBackground,
+): CanvasBackground {
+  return {
+    bgColor: draft.bgColor,
+    patternColor: draft.patternColor,
+    variant: draft.variant,
+    gap: clampBackgroundNumber(Math.round(draft.gap), 8, 80),
+    size: clampBackgroundNumber(draft.size, 0.2, 12),
+  };
+}
+
+/** Style CSS de la preview (settings + modale). */
+export function previewStyle(draft: ResolvedCanvasBackground): CSSProperties {
+  const px = `${draft.gap}px`;
+  if (draft.variant === "none") {
+    return { backgroundColor: draft.bgColor };
+  }
+  if (draft.variant === "dots") {
+    const r = clampBackgroundNumber(draft.size, 0.5, 8);
+    return {
+      backgroundColor: draft.bgColor,
+      backgroundImage: `radial-gradient(circle, ${draft.patternColor} ${r}px, transparent ${r + 0.6}px)`,
+      backgroundSize: `${px} ${px}`,
+    };
+  }
+  if (draft.variant === "cross") {
+    const w = clampBackgroundNumber(draft.size, 0.5, 12);
+    return {
+      backgroundColor: draft.bgColor,
+      backgroundImage: `linear-gradient(${draft.patternColor} 0 ${w}px, transparent ${w}px), linear-gradient(90deg, ${draft.patternColor} 0 ${w}px, transparent ${w}px)`,
+      backgroundSize: `${px} ${px}`,
+      backgroundPosition: "center",
+    };
+  }
+  return {
+    backgroundColor: draft.bgColor,
+    backgroundImage: `linear-gradient(${draft.patternColor} 1px, transparent 1px), linear-gradient(90deg, ${draft.patternColor} 1px, transparent 1px)`,
+    backgroundSize: `${px} ${px}`,
+  };
 }

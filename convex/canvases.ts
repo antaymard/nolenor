@@ -82,15 +82,17 @@ export const createCanvas = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
+    background: v.optional(canvasBackgroundValidator),
   },
   returns: v.id("canvases"),
-  handler: async (ctx, { name, description }) => {
+  handler: async (ctx, { name, description, background }) => {
     const authUserId = await requireAuth(ctx);
 
     return await CanvasModels.createCanvasForUser(ctx, {
       authUserId,
       name,
       description,
+      ...(background !== undefined ? { background } : {}),
     });
   },
 });
@@ -100,6 +102,7 @@ export const updateCanvasDetails = mutation({
     canvasId: v.id("canvases"),
     name: v.string(),
     description: v.optional(v.string()),
+    background: v.optional(canvasBackgroundValidator),
   },
   returns: v.id("canvases"),
   handler: async (ctx, args) => {
@@ -110,6 +113,9 @@ export const updateCanvasDetails = mutation({
       canvasId: args.canvasId,
       name: args.name,
       description: args.description,
+      ...(args.background !== undefined
+        ? { background: args.background }
+        : {}),
     });
   },
 });

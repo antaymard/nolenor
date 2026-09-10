@@ -118,16 +118,19 @@ export async function createCanvasForUser(
     authUserId,
     name,
     description,
+    background,
   }: {
     authUserId: Id<"users">;
     name: string;
     description?: string;
+    background?: NonNullable<Doc<"canvases">["background"]>;
   },
 ): Promise<Id<"canvases">> {
   return await ctx.db.insert("canvases", {
     creatorId: authUserId,
     name,
     description,
+    ...(background !== undefined ? { background } : {}),
     nodes: [],
     edges: [],
     updatedAt: Date.now(),
@@ -140,10 +143,13 @@ export async function updateCanvasDetails(
     canvasId,
     name,
     description,
+    background,
   }: {
     canvasId: Id<"canvases">;
     name: string;
     description?: string;
+    // `undefined` = champ untouched : on ne touche pas au background stocké.
+    background?: NonNullable<Doc<"canvases">["background"]>;
   },
 ): Promise<Id<"canvases">> {
   await getCanvasOrThrow(ctx, canvasId);
@@ -151,6 +157,7 @@ export async function updateCanvasDetails(
   await ctx.db.patch("canvases", canvasId, {
     name,
     description,
+    ...(background !== undefined ? { background } : {}),
     updatedAt: Date.now(),
   });
 

@@ -11,11 +11,17 @@ import {
   TbMaximize,
   TbPencil,
   TbPhoto,
+  TbPlayerPlay,
   TbTrash,
 } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/shadcn/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +37,9 @@ import {
 } from "@/components/shadcn/tabs";
 import { UploadFile } from "@/components/fields/UploadFile";
 import ImageGenerateTab from "./image/ImageGenerateTab";
+import { toastError } from "@/components/utils/errorUtils";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/../convex/_generated/api";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useSplitImageNode } from "@/hooks/useSplitImageNode";
 import { useDownloadFile } from "@/hooks/useDownloadFile";
@@ -435,6 +444,13 @@ function ImageNode(xyNode: XyNodeProps) {
   const currentValue = (values?.images as Value | undefined) ?? defaultValue;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isQuickGenerating, setIsQuickGenerating] = useState(false);
+
+  // Catalogue des modèles : la première entrée est le modèle par défaut,
+  // comme dans l'onglet Generate — jamais de slug en dur ici.
+  const modelOptions = useQuery(api.ia.imageGeneration.listImageModels, {});
+  const defaultModel = modelOptions?.[0];
+  const generateImages = useMutation(api.ia.imageGeneration.generateImages);
 
   useEffect(() => {
     if (currentValue.length > 0 && currentIndex >= currentValue.length) {
@@ -547,6 +563,38 @@ function ImageNode(xyNode: XyNodeProps) {
     });
   }, [currentValue, downloadStoredFile, safeIndex]);
 
+  // Lancement express : le prompt stocké part sur le modèle par défaut, sans
+  // ouvrir la modale. Mêmes paramètres que le défaut de l'onglet Generate
+  // (1 image, inclusion des entrées telle que stockée) ; la mutation revalide
+  // tout côté serveur, l'échec remonte en toast.
+  const handleQuickGenerate = useCallback(() => {
+    if (!nodeDataId || storedPrompt.trim().length === 0 || !defaultModel) {
+      return;
+    }
+    setIsQuickGenerating(true);
+    generateImages({
+      nodeDataId,
+      prompt: storedPrompt,
+      count: 1,
+      model: defaultModel.value,
+      includeReferences: storedIncludeReferences,
+    })
+      .catch((error) => {
+        toastError(error, "Could not start the generation");
+      })
+      .finally(() => {
+        setIsQuickGenerating(false);
+      });
+  }, [
+    nodeDataId,
+    storedPrompt,
+    defaultModel,
+    storedIncludeReferences,
+    generateImages,
+  ]);
+
+  const isQuickBusy = isGenerating || isQuickGenerating;
+
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
@@ -613,6 +661,22 @@ function ImageNode(xyNode: XyNodeProps) {
             )}
           </DialogContent>
         </Dialog>
+        {hasPrompt && (
+          <Tooltip delayDuration={400}>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                aria-label="Launch image generation"
+                disabled={!nodeDataId || !defaultModel || isQuickBusy}
+                onClick={handleQuickGenerate}
+              >
+                {isQuickBusy ? <Spinner /> : <TbPlayerPlay />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Launch image generation</TooltipContent>
+          </Tooltip>
+        )}
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode}>
         {isGenerating && (

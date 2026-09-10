@@ -88,6 +88,25 @@ type NodeDataConfigItem = {
   valuesNotDuplicated?: string[];
 };
 
+/**
+ * Dimensions par défaut des nouveaux nodes, centralisées ici — source unique
+ * lue par le front (`prebuiltNodesConfig`, menu, raccourcis) comme par le
+ * backend (`create_node` de l'agent). Ne s'appliquent qu'à la création (et au
+ * changement explicite de variante) : jamais migrées sur les nodes existants.
+ *
+ * Trois largeurs : bandeaux une ligne, blocs carrés et médias, grands blocs.
+ * Les hauteurs suivent l'usage du node.
+ */
+const baseWidth = 250;
+const bigWidth = 352;
+const extendedWidth = 400;
+const titleVariantHeight = 40;
+const shortBlockHeight = 132;
+const audioPlayerHeight = 97;
+const videoPlayerHeight = 255;
+const boardHeight = 330;
+const squareHeight = 352;
+
 const nodeDataConfig: Array<NodeDataConfigItem> = [
   {
     type: "title",
@@ -96,7 +115,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       "Node for free text labels on the canvas. Supports h1/h2/h3/p heading levels for the whole text. Does not support rich markdown.",
     llmDescription:
       "For sections headings, hubs nodes, parents of related sub nodes. Use this node for titles (for branches in trees of thought), subtitles, or any standalone text that doesn't require rich formatting. If you need rich text formatting (bold, italic, lists, etc.), use the Blocknote node instead. \nThe required data values for this node are 'text' (the content of the label) and 'level' (the heading level, which can be 'h1', 'h2', 'h3', or 'p').",
-    defaultDimensions: { width: 220, height: 33, resizable: true },
+    defaultDimensions: { width: baseWidth, height: titleVariantHeight, resizable: true },
     defaultColor: "transparent",
     dataValuesSchema: z
       .object({
@@ -114,18 +133,18 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description: "Node for storing a link.",
     llmDescription:
       "For storing/displaying a link. \nThe required data value is 'link', an object with 'href' (the URL of the link) and 'pageTitle' (the title of the linked page).",
-    defaultDimensions: { width: 220, height: 33, resizable: false },
+    defaultDimensions: { width: baseWidth, height: titleVariantHeight, resizable: false },
     variants: {
       default: {
         label: "Default",
-        defaultWidth: 220,
-        defaultHeight: 33,
+        defaultWidth: baseWidth,
+        defaultHeight: titleVariantHeight,
         isDefault: true,
       },
       preview: {
         label: "Preview",
-        defaultWidth: 320,
-        defaultHeight: 120,
+        defaultWidth: bigWidth,
+        defaultHeight: shortBlockHeight,
       },
     },
 
@@ -176,21 +195,21 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description: "Node for storing an image.",
     llmDescription:
       "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageIncludeReferences' controls whether the images of image nodes connected as inputs of this node are silently attached as references to the next generation (default true). Set it to false to block them. Reference images have no placeholder syntax in the prompt: when references are included, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.",
-    defaultDimensions: { width: 320, height: 320, resizable: true },
+    defaultDimensions: { width: bigWidth, height: squareHeight, resizable: true },
     variants: {
       // Clé `default` et non `carousel` : les nodes image déjà en base portent
       // `variant: "default"`, posé à la création avant l'existence des variants.
       default: {
         label: "Carousel",
-        defaultWidth: 320,
-        defaultHeight: 320,
+        defaultWidth: bigWidth,
+        defaultHeight: squareHeight,
         resizable: true,
         isDefault: true,
       },
       grid: {
         label: "Grid",
-        defaultWidth: 320,
-        defaultHeight: 320,
+        defaultWidth: bigWidth,
+        defaultHeight: squareHeight,
         resizable: true,
       },
     },
@@ -260,18 +279,18 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       "Node for storing a rich text document (BlockNote editor).",
     llmDescription:
       "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, colors, alignment, tables, etc.). Read via read_nodes: content is returned as BlockNote XML v1 where each block is `<block id=\"…\" type=\"…\" props='{…}'>markdown content<children>…</children></block>`. The block's inline content is plain Markdown (bold, italic, strike, code, links). Block-level props (colors, alignment, level) are in the `props` attribute. Tables use a structured `<table>` element with `<row>`/`<cell>` (cell props, widths, spans preserved). Custom types: `callout` blocks (props `color`: default|blue|red|yellow|green|pink|orange|purple, `icon`: emoji) round-trip losslessly via XML — you may create and edit them; inline `date` pills appear in the Markdown as the token `[[date:YYYY-MM-DD]]` and round-trip losslessly — write that exact token (ISO calendar date) anywhere in a block's inline content to create a date pill, and keep existing tokens intact when rewriting a block (wrap it in a code span to write the literal text instead of a pill). Inline `mention` pills are live references to another node of the same canvas: they appear as `[[node:<nodeId>|<type>|<title>]]` and round-trip losslessly — write `[[node:<nodeId>]]` (a nodeId from read_nodes/list_nodes; only the id is read, anything after the first `|` is a label) to create one, and keep existing tokens intact when rewriting a block. A nodeId that is not on the current canvas is rejected. set_node_data accepts plain Markdown for a full (lossy) replace — block ids are regenerated and props are reset, so re-read before any targeted edit. insert_blocks and replace_block accept the same BlockNote XML v1 as read_nodes output (you can copy blocks from read_nodes and send them back), but the `<blocknote>` wrapper is optional there — bare `<block>` elements are enough. For insert_blocks, omit the `id` attribute: fresh ids are assigned server-side. patch_block_text replaces an exact literal substring inside a block's visible text. Edit using the block-id-addressed tools (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text) — never hand-edit the raw JSON.",
-    defaultDimensions: { width: 320, height: 320, resizable: true },
+    defaultDimensions: { width: bigWidth, height: squareHeight, resizable: true },
     variants: {
       default: {
         label: "Preview",
-        defaultWidth: 320,
-        defaultHeight: 320,
+        defaultWidth: bigWidth,
+        defaultHeight: squareHeight,
         isDefault: true,
       },
       title: {
         label: "Title",
-        defaultWidth: 220,
-        defaultHeight: 33,
+        defaultWidth: baseWidth,
+        defaultHeight: titleVariantHeight,
         resizable: false,
       },
     },
@@ -294,7 +313,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description: "Node for storing a value (text, number, boolean).",
     llmDescription:
       "For storing a value that can be of type text, number, or boolean. Use this node to store and display any discrete piece of data in a dashboard / KPI way. \nThe required data value is 'value', an object with 'type' (the type of the value: 'text', 'number', or 'boolean'), 'value' (the actual value stored in the node), and optional 'unit' (the unit of the value, if applicable) and 'label' (an optional label for the value).",
-    defaultDimensions: { width: 220, height: 120, resizable: true },
+    defaultDimensions: { width: baseWidth, height: shortBlockHeight, resizable: true },
 
     dataValuesSchema: z
       .object({
@@ -358,19 +377,19 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       "Node for storing embedded content (YouTube, Google Docs/Sheets/Slides, or generic iframe).",
     llmDescription:
       "For storing/displaying embedded content such as YouTube videos, Google Docs/Sheets/Slides, or any generic iframe content. Use this node to embed external content directly onto the canvas. \nThe required data value is 'embed', an object with 'url' (the original URL used to create the embed), 'embedUrl' (the embeddable URL used in the iframe source), optional 'title' (a title for the embedded content), and 'type' (the embed provider/type inferred from the URL, which can be 'youtube', 'google-docs', 'google-sheets', 'google-slides', or 'generic').",
-    defaultDimensions: { width: 480, height: 320, resizable: true },
+    defaultDimensions: { width: extendedWidth, height: squareHeight, resizable: true },
     variants: {
       preview: {
         label: "Preview",
-        defaultWidth: 480,
-        defaultHeight: 320,
+        defaultWidth: extendedWidth,
+        defaultHeight: squareHeight,
         resizable: true,
         isDefault: true,
       },
       title: {
         label: "Title",
-        defaultWidth: 220,
-        defaultHeight: 33,
+        defaultWidth: baseWidth,
+        defaultHeight: titleVariantHeight,
         resizable: false,
       },
     },
@@ -439,7 +458,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description: "Node for storing uploaded PDF files.",
     llmDescription:
       "For storing/displaying uploaded PDF files. The user can read them directly within Nolënor, double-clicking on the file to open it. \nThe required data value are 'url' (the public URL of the uploaded file), 'filename' (the display filename), 'mimeType' (the MIME type of the file), 'size' (the file size in bytes), 'uploadedAt' (the upload timestamp in epoch milliseconds), and 'key' (the storage key/path of the file).",
-    defaultDimensions: { width: 220, height: 33, resizable: false },
+    defaultDimensions: { width: baseWidth, height: titleVariantHeight, resizable: false },
     dataValuesSchema: z
       .object({
         files: z
@@ -467,18 +486,18 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     llmDescription:
       `For structured tabular data with typed columns. Use this node to store and display any structured data in a table format, where you can define the columns and their types (${listColumnTypesForPrompt()}).` +
       " When updating a file, you can ask the agentTool to add rows, update specific rows or remove them, to make the update more reliable. \nThe required data value are tanstack-table compatible : 'columns' (an array of column definitions, each with an 'id', 'name', and 'type') and 'rows' (an array of row objects, each with an 'id' and 'cells' that map column ids to their respective values). An optional 'title' field (string) can be set to give the table a title.",
-    defaultDimensions: { width: 400, height: 300, resizable: true },
+    defaultDimensions: { width: extendedWidth, height: boardHeight, resizable: true },
     variants: {
       default: {
         label: "Preview",
-        defaultWidth: 400,
-        defaultHeight: 300,
+        defaultWidth: extendedWidth,
+        defaultHeight: boardHeight,
         isDefault: true,
       },
       title: {
         label: "Title",
-        defaultWidth: 220,
-        defaultHeight: 33,
+        defaultWidth: baseWidth,
+        defaultHeight: titleVariantHeight,
       },
     },
 
@@ -534,19 +553,19 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       "Node for interactive React miniapps, dashboards, charts, calculators...",
     llmDescription:
       "For interactive React miniapps, dashboards, charts, calculators, or any reactive UI component tied to canvas data. The app runs in a sandboxed iframe and can read data from connected source nodes via the nolenor SDK. \nThe required data values are 'code' (the JSX string of the React component, named App, generated by Nolë) and 'state' (free-form JSON persisted by the app, null on first run).",
-    defaultDimensions: { width: 400, height: 300, resizable: true },
+    defaultDimensions: { width: extendedWidth, height: boardHeight, resizable: true },
     variants: {
       preview: {
         label: "Preview",
-        defaultWidth: 400,
-        defaultHeight: 300,
+        defaultWidth: extendedWidth,
+        defaultHeight: boardHeight,
         resizable: true,
         isDefault: true,
       },
       title: {
         label: "Title",
-        defaultWidth: 220,
-        defaultHeight: 33,
+        defaultWidth: baseWidth,
+        defaultHeight: titleVariantHeight,
         resizable: false,
       },
     },
@@ -584,19 +603,19 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       "Node for playing an uploaded audio file, with a saved loop region.",
     llmDescription:
       "For storing/playing an audio file (music, recording, interview, voice memo). The user can play it on the canvas and save a loop region to replay a specific passage over and over. \nThe data value 'audio' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), and, when the file carried tags, 'title' and 'artist'. 'label' is a name set by the user. The node is titled by the first of 'label', 'artist — title', 'title', 'filename'. The data value 'loop' is an object with 'start' and 'end' (both in seconds from the beginning of the file) and 'enabled' (whether looping is active); a loop region only counts as set when 'end' is greater than 'start'. 'playbackRate' is the playback speed (1 = normal). \nUse set_node_data with 'loop' to place a loop on a passage the user describes — express the bounds in seconds.",
-    defaultDimensions: { width: 320, height: 88, resizable: true },
+    defaultDimensions: { width: bigWidth, height: audioPlayerHeight, resizable: true },
     variants: {
       player: {
         label: "Player",
-        defaultWidth: 320,
-        defaultHeight: 88,
+        defaultWidth: bigWidth,
+        defaultHeight: audioPlayerHeight,
         resizable: true,
         isDefault: true,
       },
       compact: {
         label: "Compact",
-        defaultWidth: 260,
-        defaultHeight: 33,
+        defaultWidth: baseWidth,
+        defaultHeight: titleVariantHeight,
         resizable: false,
       },
     },
@@ -723,22 +742,22 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description: "Node for playing an uploaded video file.",
     llmDescription:
       "For storing/playing a video file (screen recording, clip, filmed talk, footage). The user can play it inline on the canvas and double-click the node to open it in a window with full controls. \nThe data value 'video' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), 'width' and 'height' (the frame size in pixels), 'label' (a name set by the user, which overrides the filename), and 'poster' (a still frame captured at upload time, as an object with 'url' and 'key', or null). The node is titled by 'label' when set, otherwise by 'filename'. 'playbackRate' is the playback speed (1 = normal). \nYou cannot watch the video: you can reference it, rename it, move it and link it, but never describe what it shows. Do not invent its content.",
-    // 16/9 (202px de haut pour 360 de large) plus la ligne de titre. Les
-    // contrôles sont en surimpression sur l'image, ils ne prennent pas de
-    // hauteur propre.
-    defaultDimensions: { width: 360, height: 230, resizable: true },
+    // 16/9 (225px de haut pour 400 de large, cf. `videoPlayerHeight`) plus
+    // la ligne de titre. Les contrôles sont en surimpression sur l'image,
+    // ils ne prennent pas de hauteur propre.
+    defaultDimensions: { width: extendedWidth, height: videoPlayerHeight, resizable: true },
     variants: {
       player: {
         label: "Player",
-        defaultWidth: 360,
-        defaultHeight: 230,
+        defaultWidth: extendedWidth,
+        defaultHeight: videoPlayerHeight,
         resizable: true,
         isDefault: true,
       },
       title: {
         label: "Title",
-        defaultWidth: 220,
-        defaultHeight: 33,
+        defaultWidth: baseWidth,
+        defaultHeight: titleVariantHeight,
         resizable: false,
       },
     },
@@ -831,7 +850,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     // Gabarit compact une ligne par défaut, redimensionnable en 2D :
     // quand la hauteur augmente, le node bascule sur un visuel étendu
     // (texte multi-lignes + bouton de navigation en bas à droite).
-    defaultDimensions: { width: 220, height: 33, resizable: true },
+    defaultDimensions: { width: baseWidth, height: titleVariantHeight, resizable: true },
     capabilities: {
       agent: { exposed: false, readable: false, writable: false },
       mentionable: false,

@@ -16,13 +16,6 @@ import {
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "Inception Mercury 2.5",
-    value: "inception/mercury-2.5",
-    price: "0.04_0.15",
-    isMultimodal: false,
-    maxContext: 260000,
-  },
-  {
     label: "Meta Muse Spark 1.3 Contributor",
     value: "meta/muse-spark-1.3-contributor",
     price: "0.1_0.2",
@@ -36,13 +29,20 @@ export const chatModelOptions = [
     isMultimodal: true,
     maxContext: 1000000,
   },
-  // {
-  //   label: "GPT-5.6 Luna Pro",
-  //   value: "openai/gpt-5.6-luna-pro",
-  //   price: "0.20_1.20",
-  //   isMultimodal: true,
-  //   maxContext: 1000000,
-  // },
+  {
+    label: "Inception Mercury 2.5",
+    value: "inception/mercury-2.5",
+    price: "0.04_0.15",
+    isMultimodal: false,
+    maxContext: 260000,
+  },
+  {
+    label: "Deepseek V4.1 flash",
+    value: "deepseek/deepseek-v4.1-flash",
+    price: "0.15_0.60",
+    isMultimodal: true,
+    maxContext: 1000000,
+  },
   // {
   //   label: "Tencent Hy4",
   //   value: "tencent/hy4-preview",
@@ -100,6 +100,13 @@ export type ChatModelOption = (typeof chatModelOptions)[number];
  */
 export const imageModelOptions = [
   {
+    label: "Meta Muse Image",
+    value: "meta/muse-image",
+    pricePerImage: "0.01",
+    maxImages: 4,
+    maxReferenceImages: 14,
+  },
+  {
     label: "Microsoft MAI-Image-2.6 Flash",
     value: "microsoft/mai-image-2.6-flash",
     pricePerImage: "0.15",
@@ -107,23 +114,23 @@ export const imageModelOptions = [
     maxReferenceImages: 4,
   },
   {
-    label: "GPT Image 2",
-    value: "openai/gpt-image-2",
+    label: "GPT Image 2.5 Flare",
+    value: "openai/gpt-image-2.5-flare",
     pricePerImage: "0.18",
     maxImages: 4,
     maxReferenceImages: 16,
   },
   {
-    label: "Seedream 5.0 Pro",
-    value: "bytedance-seed/seedream-5-0-pro",
-    pricePerImage: "0.045",
+    label: "Nano Banana 2",
+    value: "google/gemini-3.1-flash-image",
+    pricePerImage: "0.15",
     maxImages: 4,
     maxReferenceImages: 14,
   },
   {
-    label: "Nano Banana 2",
-    value: "google/gemini-3.1-flash-image",
-    pricePerImage: "0.15",
+    label: "Recraft V4 Pro Vector",
+    value: "recraft/recraft-v4-styles-pro-vector",
+    pricePerImage: "0.12",
     maxImages: 4,
     maxReferenceImages: 14,
   },

@@ -144,7 +144,10 @@ export default function CreateApiTokenDialog() {
                     endpoint URL{" "}
                     <span className="font-mono">{mcpEndpointUrl}</span> with an{" "}
                     <span className="font-mono">Authorization: Bearer</span>{" "}
-                    header.
+                    header — or, for clients like Claude Desktop that only
+                    offer preset header names, use{" "}
+                    <span className="font-mono">x-api-key</span> with the token
+                    as value.
                   </p>
                 </div>
               )}

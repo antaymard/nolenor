@@ -427,6 +427,10 @@ self-hosted). Nolënor mounts an MCP server at `/mcp`:
 }
 ```
 
+Claude Desktop only offers preset header names (`x-api-key`, `api-key`, …)
+and no `Authorization`: use one of those instead, with the raw token as
+value — `"headers": { "x-api-key": "nlnr_..." }`. Both forms are accepted.
+
 The tools mirror Nolë's own: `list_canvases`, `list_nodes`, `read_nodes`,
 `full_text_search`, then `create_node`, `create_connection`, `set_node_data` and the
 block and table tools. Write tools need a `write` token *and* editor access to the

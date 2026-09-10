@@ -205,7 +205,10 @@ const wishlistOptions = httpAction(async (_ctx, request) => {
 // ============================================================================
 // MCP — assistants tiers (Claude Code, Claude Desktop…)
 // Streamable HTTP stateless : un serveur/transport neuf par requête, réponses
-// JSON (pas de session ni de SSE longue durée). Auth : Bearer <API token>.
+// JSON (pas de session ni de SSE longue durée).
+// Auth : `Authorization: Bearer <API token>` (standard), ou `x-api-key` /
+// `api-key` avec le token brut (ou préfixé `Bearer `, par tolérance) —
+// certains clients (Claude Desktop) ne proposent que ces noms pré-remplis.
 // ============================================================================
 
 function mcpUnauthorized(message: string): Response {
@@ -218,15 +221,39 @@ function mcpUnauthorized(message: string): Response {
   });
 }
 
-const mcpHandler = httpAction(async (ctx, request) => {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return mcpUnauthorized(
-      "Missing Bearer token. Pass a Nolênor API token in the Authorization header.",
-    );
+const BEARER_PREFIX_PATTERN = /^Bearer\s+/i;
+
+/**
+ * Extrait le token API MCP depuis les headers supportés.
+ * Priorité à `Authorization` (standard), puis `x-api-key`, puis `api-key`.
+ * Les alternatives acceptent le token brut ou préfixé `Bearer `.
+ */
+function extractMcpToken(request: Request): string | null {
+  const authHeader = request.headers.get("authorization")?.trim();
+  if (authHeader && BEARER_PREFIX_PATTERN.test(authHeader)) {
+    const token = authHeader.replace(BEARER_PREFIX_PATTERN, "").trim();
+    if (token) return token;
   }
 
-  const token = authHeader.slice("Bearer ".length).trim();
+  for (const headerName of ["x-api-key", "api-key"]) {
+    const raw = request.headers.get(headerName)?.trim();
+    if (!raw) continue;
+    const token = BEARER_PREFIX_PATTERN.test(raw)
+      ? raw.replace(BEARER_PREFIX_PATTERN, "").trim()
+      : raw;
+    if (token) return token;
+  }
+
+  return null;
+}
+
+const mcpHandler = httpAction(async (ctx, request) => {
+  const token = extractMcpToken(request);
+  if (!token) {
+    return mcpUnauthorized(
+      "Missing API token. Pass a Nolênor API token via the Authorization header (Bearer <token>), or via x-api-key / api-key.",
+    );
+  }
   const tokenHash = await hashApiToken(token);
   const tokenInfo = await ctx.runQuery(internal.mcp.auth.getTokenByHash, {
     tokenHash,

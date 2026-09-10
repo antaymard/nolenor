@@ -435,6 +435,7 @@ function ImageNode(xyNode: XyNodeProps) {
 
   const currentValue = (values?.images as Value | undefined) ?? defaultValue;
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     if (currentValue.length > 0 && currentIndex >= currentValue.length) {
@@ -573,7 +574,7 @@ function ImageNode(xyNode: XyNodeProps) {
             <TbDownload />
           </Button>
         )}
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="icon" title="Manage images">
               <TbPencil />
@@ -611,6 +612,7 @@ function ImageNode(xyNode: XyNodeProps) {
                     storedPrompt={storedPrompt}
                     storedReferences={storedReferences}
                     generation={nodeData?.imageGeneration}
+                    onGenerated={() => setDialogOpen(false)}
                   />
                 </TabsContent>
               </Tabs>

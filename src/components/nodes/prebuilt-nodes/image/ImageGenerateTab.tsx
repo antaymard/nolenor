@@ -30,6 +30,7 @@ export default function ImageGenerateTab({
   storedPrompt,
   storedReferences,
   generation,
+  onGenerated,
 }: {
   nodeDataId: Id<"nodeDatas">;
   /** Id React Flow : les edges — donc les nodes d'entrée — s'indexent dessus. */
@@ -37,6 +38,7 @@ export default function ImageGenerateTab({
   storedPrompt: string;
   storedReferences: Id<"nodeDatas">[];
   generation: ImageGenerationStatus;
+  onGenerated?: () => void;
 }) {
   const modelOptions = useQuery(api.ia.imageGeneration.listImageModels, {});
   const generateImages = useMutation(api.ia.imageGeneration.generateImages);
@@ -158,6 +160,7 @@ export default function ImageGenerateTab({
         model: selectedModel.value,
         referenceNodeDataIds: attachableIds,
       });
+      onGenerated?.();
     } catch (error) {
       toastError(error, "Could not start the generation");
     } finally {

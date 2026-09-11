@@ -11,16 +11,15 @@ import * as NodeModels from "./models/nodeModels";
 // font que servir les données par pages, le rendu Markdown et le zip vivent
 // dans le client. Rien n'est stocké, planifié ni mis en cache serveur.
 //
-// Un doc `canvases` peut peser jusqu'à 1 Mo (nodes/edges inline) et un
-// `nodeDatas` porte le contenu d'un node : un `.collect()` sur l'un ou l'autre
-// dépasserait la limite de lecture d'une query dès qu'un compte grossit. D'où
-// la pagination systématique, plafonnée en octets — `maximumBytesRead` renvoie
-// une page partielle au lieu de faire échouer la query.
+// Un `nodeDatas` porte le contenu d'un node : un `.collect()` dépasserait la
+// limite de lecture d'une query dès qu'un compte grossit. D'où la pagination
+// systématique, plafonnée en octets — `maximumBytesRead` renvoie une page
+// partielle au lieu de faire échouer la query.
 const MAX_BYTES_PER_PAGE = 4 * 1024 * 1024;
 
-// Métadonnées seules : `nodes`/`edges` sont volontairement omis du retour pour
-// que le sélecteur de canvas de l'UI reste léger. Ils arrivent par
-// `getCanvasForExport`, un canvas à la fois.
+// Métadonnées seules pour que le sélecteur de canvas de l'UI reste léger.
+// La structure (nodes, edges) arrive par `getCanvasForExport`, un canvas à
+// la fois.
 export const listCanvasesForExport = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
@@ -50,8 +49,10 @@ export const listCanvasesForExport = query({
   },
 });
 
-// Le document complet : positions, edges. C'est ce qui part dans
-// `canvas.json`.
+// Le document complet : le doc canvas enrichi de sa structure — nodes et
+// edges projetés depuis les tables dédiées. C'est ce qui part dans
+// `canvas.json` (le format reprend la forme historique des canvases, où les
+// deux arrays vivaient en embarqué).
 //
 // "owner" et pas "viewer" : on n'exporte que ce que l'utilisateur a créé. Un
 // canvas seulement partagé avec lui appartient à quelqu'un d'autre.
@@ -70,8 +71,6 @@ export const getCanvasForExport = query({
     return {
       ...canvas,
       nodes: tableNodes.map(NodeModels.toCanvasNode),
-      // Override explicite : `...canvas` porte l'array `edges` legacy
-      // (figé depuis la bascule table), l'export doit servir le présent.
       edges: tableEdges.map(EdgeModels.toCanvasEdge),
     };
   },

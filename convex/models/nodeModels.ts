@@ -12,29 +12,12 @@ import * as SearchableChunkModels from "./searchableChunkModels";
 import * as ThreadMetadataModels from "./threadMetadataModels";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
 import type { NodePatchProps } from "../schemas/nodesSchema";
+import type { CanvasNode } from "../schemas/nodesSchema";
 import { threadNodeTouchKinds } from "../schemas/threadMetadataSchema";
 
 type NodeDoc = Doc<"nodes">;
 
-export type CanvasNodeShape = {
-  id: string;
-  nodeDataId?: Id<"nodeDatas">;
-  type: NodeDoc["type"];
-  position: { x: number; y: number };
-  width: number;
-  height: number;
-  locked?: boolean;
-  hidden?: boolean;
-  zIndex?: number;
-  color?: string;
-  variant?: string;
-  parentId?: string;
-  extent?: NodeDoc["extent"];
-  extendParent?: boolean;
-  data?: Record<string, unknown>;
-};
-
-export function toCanvasNode(doc: NodeDoc): CanvasNodeShape {
+export function toCanvasNode(doc: NodeDoc): CanvasNode {
   return {
     id: doc.id,
     nodeDataId: doc.nodeDataId,
@@ -110,9 +93,8 @@ async function generateUniqueLlmId(ctx: MutationCtx): Promise<string> {
 }
 
 /**
- * Crée un node dans la table `nodes` (pas de double-écriture `canvases.nodes`).
- * Sans `id`, génère le llmId côté serveur avec contrôle d'unicité globale
- * (`by_llmid`). Avec `id` (création local-first côté client), l'appelant
+ * Crée un node dans la table `nodes`. Sans `id`, génère le llmId côté
+ * serveur avec contrôle d'unicité globale (`by_llmid`). Avec `id` (création local-first côté client), l'appelant
  * garantit l'unicité — `createNodeWithData` l'a vérifiée dans la même
  * transaction.
  * Retourne le llmId.
@@ -266,67 +248,6 @@ export async function getNodeByLlmId(
     .unique();
 }
 
-type LayoutNodeInput = {
-  id: string;
-  nodeDataId?: Id<"nodeDatas">;
-  type: NodeDoc["type"];
-  position: { x: number; y: number };
-  width: number;
-  height: number;
-  locked?: boolean;
-  hidden?: boolean;
-  zIndex?: number;
-  color?: string;
-  variant?: string;
-  parentId?: string;
-  extent?: NodeDoc["extent"];
-  extendParent?: boolean;
-  data?: Record<string, unknown>;
-};
-
-export async function upsertLayoutNode(
-  ctx: MutationCtx,
-  {
-    canvasId,
-    node,
-  }: {
-    canvasId: Id<"canvases">;
-    node: LayoutNodeInput;
-  },
-): Promise<void> {
-  if (!node.nodeDataId) return;
-
-  const existing = await getNodeByLlmId(ctx, { nodeId: node.id });
-  if (existing?.status === "trashed") return;
-
-  const fields: Omit<NodeDoc, "_id" | "_creationTime" | "status"> = {
-    id: node.id,
-    canvasId,
-    nodeDataId: node.nodeDataId,
-    type: node.type,
-    position: node.position,
-    width: node.width,
-    height: node.height,
-  };
-  if (node.locked !== undefined) fields.locked = node.locked;
-  if (node.hidden !== undefined) fields.hidden = node.hidden;
-  if (node.zIndex !== undefined) fields.zIndex = node.zIndex;
-  if (node.color !== undefined) fields.color = node.color;
-  if (node.variant !== undefined) fields.variant = node.variant;
-  if (node.parentId !== undefined) fields.parentId = node.parentId;
-  if (node.extent !== undefined) fields.extent = node.extent;
-  if (node.extendParent !== undefined) fields.extendParent = node.extendParent;
-  if (node.data !== undefined) fields.data = node.data;
-
-  if (existing) {
-    const { id: _llmId, ...patch } = fields;
-    await ctx.db.patch(existing._id, patch);
-    return;
-  }
-
-  await ctx.db.insert("nodes", fields);
-}
-
 export async function getNodeOrThrow(
   ctx: QueryCtx | MutationCtx,
   { nodeId }: { nodeId: string },
@@ -337,8 +258,8 @@ export async function getNodeOrThrow(
 }
 
 /**
- * Résolution inverse nodeDataId → node (1:1 en pratique). Premier trouvé :
- * table `nodes` d'abord, `null` sinon (l'appelant tente le monde legacy).
+ * Résolution inverse nodeDataId → node (1:1 en pratique). Premier trouvé,
+ * `null` sinon.
  */
 export async function getNodeByNodeDataId(
   ctx: QueryCtx | MutationCtx,
@@ -364,8 +285,7 @@ export async function listFromCanvas(
 /**
  * Patch des props visuelles/positionnelles d'un node (couleur, position,
  * dimensions, verrouillage, …). Seuls les champs fournis sont écrits ;
- * `data` est fusionné en shallow (parité avec le legacy `updateCanvasNodes`),
- * le reste est remplacé. Props vide = no-op (retourne l'id sans toucher
+ * `data` est fusionné en shallow, le reste est remplacé. Props vide = no-op (retourne l'id sans toucher
  * `canvases.updatedAt`). Retourne le llmId.
  */
 export async function patchNode(
@@ -446,8 +366,7 @@ export async function patchNodes(
 
 /**
  * Corbeille logique (soft delete) : `status = "trashed"`, idempotent.
- * Le nodeData est ensuite supprimé en cascade (chunks, R2), comme le legacy
- * `remove` — la ligne `nodes` reste pour un undo layout plus tard.
+ * Le nodeData est ensuite supprimé en cascade (chunks, R2) — la ligne `nodes` reste pour un undo layout plus tard.
  * Retourne le llmId.
  */
 export async function trashNode(
@@ -519,9 +438,9 @@ export async function trashNodes(
 }
 
 /**
- * Déplace des nodes vers un autre canvas. Parité legacy `moveToCanvas` :
- * les edges de la table `edges` qui touchent un node déplacé sont
- * supprimées (pas migrées). nodeData + chunks suivent le canvas.
+ * Déplace des nodes vers un autre canvas : les edges de la table `edges`
+ * qui touchent un node déplacé sont supprimées (pas migrées). nodeData +
+ * chunks suivent le canvas.
  */
 export async function moveNodes(
   ctx: MutationCtx,

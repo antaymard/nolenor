@@ -86,9 +86,8 @@ export async function updateCanvasId(
 /**
  * Résout nodeDataId → llmId pour l'affichage des résultats. Les chunks ne
  * portent plus leur rattachement visuel (cf. searchableChunksSchema) : il se
- * résout ici, à la lecture. Table `nodes` d'abord, monde legacy
- * (`canvases.nodes` embarqué) ensuite. Absent des deux = orphelin : exclu
- * (avec warn), les contrats de sortie exigent un `nodeId: string`.
+ * résout ici, à la lecture, via la table `nodes`. Introuvable = orphelin :
+ * exclu (avec warn), les contrats de sortie exigent un `nodeId: string`.
  */
 export async function resolveNodeIds(
   ctx: QueryCtx,

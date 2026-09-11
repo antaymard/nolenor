@@ -4,25 +4,16 @@ import type { MutationCtx, QueryCtx } from "../_generated/server";
 import errors from "../config/errorsConfig";
 import { generateLlmId } from "../lib/llmId";
 import * as CanvasModels from "./canvasModels";
+import type { CanvasEdge } from "../schemas/edgesSchema";
 import type { EdgePatchUpdate } from "../schemas/edgesSchema";
 
 type EdgeDoc = Doc<"edges">;
 
 /**
- * Shape attendue par les lecteurs legacy (`canvas.edges` inline) : tout sauf
- * `canvasId` (porté par le canvas) et `status` (détail de storage).
+ * DTO « canvas » edge (cf. `schemas/edgesSchema`) : tout sauf `canvasId`
+ * (porté par le canvas côté lecteur) et `status` (détail de storage).
  */
-export type CanvasEdgeShape = {
-  id: string;
-  source: string;
-  target: string;
-  sourceHandle?: string;
-  targetHandle?: string;
-  markerEnd?: unknown;
-  data?: Record<string, unknown>;
-};
-
-export function toCanvasEdge(doc: EdgeDoc): CanvasEdgeShape {
+export function toCanvasEdge(doc: EdgeDoc): CanvasEdge {
   return {
     id: doc.id,
     source: doc.source,
@@ -39,7 +30,7 @@ export type EdgeCreateInput = Omit<EdgeDoc, "_id" | "_creationTime" | "id" | "st
 
 const MAX_LLMID_ATTEMPTS = 5;
 
-// Parité legacy `addCanvasEdges` : markerEnd posé à la création si absent.
+// markerEnd posé à la création si absent.
 const DEFAULT_MARKER_END = {
   type: "arrow",
   width: 30,
@@ -122,13 +113,12 @@ async function requireLiveEndpointNode(
 }
 
 /**
- * Crée des edges dans la table `edges` (pas de double-écriture
- * `canvases.edges`). Valide que source/target sont des nodes vivants du
- * même canvas — jamais de dangling edge. Chaque item accepte un `id`
- * optionnel : fourni (shim legacy, ids générés client), il est préservé
- * tel quel — idempotent sur le même canvas (retry réseau), conflit
- * refusé cross-canvas ; absent (API publique), un llmId unique est généré
- * côté serveur (`by_llmid`).
+ * Crée des edges dans la table `edges`. Valide que source/target sont des
+ * nodes vivants du même canvas — jamais de dangling edge. Chaque item
+ * accepte un `id` optionnel : fourni (création local-first, ids générés
+ * client), il est préservé tel quel — idempotent sur le même canvas (retry
+ * réseau), conflit refusé cross-canvas ; absent (API publique), un llmId
+ * unique est généré côté serveur (`by_llmid`).
  * Retourne les llmIds.
  */
 export async function createEdges(
@@ -195,8 +185,7 @@ export async function createEdges(
 }
 
 /**
- * Patch `data` d'un edge, fusionné en shallow (parité legacy
- * `updateCanvasEdges`). `data` absent = no-op (retourne l'id sans écrire).
+ * Patch `data` d'un edge, fusionné en shallow. `data` absent = no-op (retourne l'id sans écrire).
  * Retourne le llmId.
  */
 export async function patchEdge(
@@ -341,7 +330,7 @@ export async function listFromCanvas(
     .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
     .collect();
   // L'index `by_canvas` trie par `_creationTime` : l'ordre chronologique
-  // d'ajout est préservé (parité avec l'append sur l'array legacy, requis
-  // par `imageGeneration` — l'ordre des edges = l'ordre des références).
+  // d'ajout est préservé (requis par `imageGeneration` — l'ordre des edges
+  // = l'ordre des références).
   return edges.filter((edge) => edge.status !== "trashed");
 }

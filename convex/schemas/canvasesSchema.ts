@@ -1,42 +1,4 @@
 import { v } from "convex/values";
-import { nodeTypeValidator } from "./nodeTypeSchema";
-
-// ── Sub-validators ──────────────────────────────────────────────────────
-
-const canvasNodesValidator = v.object({
-  id: v.string(),
-  nodeDataId: v.optional(v.id("nodeDatas")),
-  type: nodeTypeValidator,
-  position: v.object({
-    x: v.number(),
-    y: v.number(),
-  }),
-  width: v.number(),
-  height: v.number(),
-  locked: v.optional(v.boolean()),
-  hidden: v.optional(v.boolean()),
-  zIndex: v.optional(v.number()),
-  color: v.optional(v.string()),
-  variant: v.optional(v.string()),
-
-  parentId: v.optional(v.string()),
-  extent: v.optional(
-    v.union(v.literal("parent"), v.array(v.array(v.number()))),
-  ),
-  extendParent: v.optional(v.boolean()),
-  data: v.optional(v.record(v.string(), v.any())),
-});
-
-const edgesValidator = v.object({
-  id: v.string(),
-  source: v.string(),
-  target: v.string(),
-
-  sourceHandle: v.optional(v.string()),
-  targetHandle: v.optional(v.string()),
-  markerEnd: v.optional(v.any()),
-  data: v.optional(v.record(v.string(), v.any())),
-});
 
 // Fond du canvas, partagé en realtime via le doc `canvases`.
 // Tout est optionnel : absent => défauts côté front (gris clair + lignes).
@@ -61,7 +23,8 @@ const canvasBackgroundValidator = v.object({
 // Les repères de navigation (anciennement `slideshows` et `hotspots`, deux
 // tableaux portés ici, nettoyés par migration en sept. 2026) sont désormais
 // des nodes de type `viewport` : ils vivent dans `nodes` comme les autres,
-// avec leur `nodeDatas`.
+// avec leur `nodeDatas`. Les nodes et edges eux-mêmes vivent dans leurs
+// tables dédiées depuis oct. 2026 (champs embarqués prunés).
 const canvasesValidator = v.object({
   creatorId: v.id("users"),
   name: v.string(),
@@ -73,17 +36,9 @@ const canvasesValidator = v.object({
   // se modifie, se partage et se supprime comme n'importe quel autre.
   isSystem: v.optional(v.boolean()),
 
-  nodes: v.optional(v.array(canvasNodesValidator)),
-  edges: v.optional(v.array(edgesValidator)),
-
   background: v.optional(canvasBackgroundValidator),
 
   updatedAt: v.number(),
 });
 
-export {
-  canvasNodesValidator,
-  edgesValidator,
-  canvasBackgroundValidator,
-  canvasesValidator,
-};
+export { canvasBackgroundValidator, canvasesValidator };

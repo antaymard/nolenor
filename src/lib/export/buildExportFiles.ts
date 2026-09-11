@@ -2,8 +2,14 @@ import type { Doc } from "@/../convex/_generated/dataModel";
 import { getNodeDataTitle } from "@/../convex/lib/getNodeDataTitle";
 import { nodeDataToMarkdown } from "./nodeDataToMarkdown";
 import { filenameSlug } from "@/lib/filenameSlug";
-import type { CanvasWithNodeDatas, ExportFile, ExportTemplate } from "./types";
+import type {
+  CanvasWithNodeDatas,
+  ExportFile,
+  ExportTemplate,
+} from "./types";
 import { isNodeTypeReadableByAgent } from "@/../convex/config/nodeConfig";
+
+type ExportCanvas = CanvasWithNodeDatas["canvas"];
 
 /**
  * Mise en forme de l'archive : arborescence, noms de fichiers, sommaires.
@@ -28,10 +34,10 @@ function pad(index: number): string {
 /**
  * Les nodeDatas dans l'ordre du canvas.
  *
- * `canvas.nodes` porte l'ordre voulu par l'utilisateur et le lien vers le
- * contenu ; la table `nodeDatas` n'a pas d'ordre propre. Les nodeDatas qu'aucun
- * node du canvas ne référence (désynchronisation historique) sont conservés en
- * fin de liste plutôt que perdus.
+ * `canvas.nodes` (projeté depuis la table, ordre chronologique) porte le
+ * lien vers le contenu ; la table `nodeDatas` n'a pas d'ordre propre. Les
+ * nodeDatas qu'aucun node du canvas ne référence (désynchronisation
+ * historique) sont conservés en fin de liste plutôt que perdus.
  *
  * Les types dont le contenu n'est pas de la prose (`viewport` : une position de
  * caméra) sont écartés — `renderBody` n'a pas de branche pour eux et lâcherait
@@ -39,7 +45,7 @@ function pad(index: number): string {
  * structure brute du canvas. Retirer le filtre les y ramènerait.
  */
 function orderNodeDatas(
-  canvas: Doc<"canvases">,
+  canvas: ExportCanvas,
   nodeDatas: Doc<"nodeDatas">[],
 ): Doc<"nodeDatas">[] {
   const byId = new Map(
@@ -61,7 +67,7 @@ function orderNodeDatas(
 }
 
 function renderEdgeList(
-  canvas: Doc<"canvases">,
+  canvas: ExportCanvas,
   titleByCanvasNodeId: Map<string, string>,
 ): string[] {
   const edges = canvas.edges ?? [];

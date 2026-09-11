@@ -39,6 +39,16 @@ const edgePatchUpdateValidator = v.object({
 type EdgeCreateItem = Infer<typeof edgeCreateItemValidator>;
 type EdgePatchUpdate = Infer<typeof edgePatchUpdateValidator>;
 
+/**
+ * DTO « canvas » edge : la forme exposée au front et aux tools de l'agent,
+ * projetée depuis les docs tables par `toCanvasEdge`. Tout sauf `canvasId`
+ * (porté par le canvas) et `status` (détail de storage).
+ */
+export type CanvasEdge = Omit<
+  Infer<typeof edgesValidator>,
+  "canvasId" | "status"
+>;
+
 export {
   edgesValidator,
   edgeCreateItemValidator,

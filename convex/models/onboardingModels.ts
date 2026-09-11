@@ -1,11 +1,8 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import * as CanvasModels from "./canvasModels";
-import * as NodeDataModels from "./nodeDataModels";
-import * as CanvasNodeModels from "./canvasNodeModels";
+import * as EdgeModels from "./edgeModels";
 import * as NodeModels from "./nodeModels";
-
-type CanvasNode = NonNullable<Doc<"canvases">["nodes"]>[number];
 
 // process.env plutôt que le helper `env` typé de convex.config.ts : cohérent
 // avec toute la config de déploiement existante (r2.ts, voice.ts,
@@ -109,57 +106,93 @@ async function cloneCanvasForUser(
     .query("nodeDatas")
     .withIndex("by_canvasId", (q) => q.eq("canvasId", source._id))
     .collect();
+  const nodeDataById = new Map(
+    sourceNodeDatas.map((nodeData) => [nodeData._id, nodeData] as const),
+  );
 
+  // Nodes recréés un à un via la voie de création canonique (nodeData
+  // inclus, chunks rebuild planifiés, variant par défaut appliqué) avec des
+  // llmIds FRAIS — un clone ne partage aucune référence avec sa source.
+  // `listFromCanvas` est ordonné chronologiquement : les parents précèdent
+  // leurs enfants, donc le remap `parentId` (vieux llmId → neuf) trouve
+  // toujours le parent déjà cloné.
+  //
   // Les nodes "custom" pointent un nodeTemplates scopé au compte source ; le
   // partage cross-utilisateur de ce lien après clonage n'est pas garanti côté
   // fenêtre (résolution du template, droits d'édition). Hors scope : on les
   // saute plutôt que de cloner un node cassé — et `createNodeData` lèverait
   // de toute façon sur un custom sans templateId.
-  const nodeDataIdMap = new Map<Id<"nodeDatas">, Id<"nodeDatas">>();
-  for (const nodeData of sourceNodeDatas) {
-    if (nodeData.type === "custom") continue;
-    const newNodeDataId = await NodeDataModels.createNodeData(ctx, {
-      type: nodeData.type,
-      values: nodeData.values,
-      canvasId,
-    });
-    nodeDataIdMap.set(nodeData._id, newNodeDataId);
-  }
-
+  const oldToNewNodeIds = new Map<string, string>();
   const sourceNodes = await NodeModels.listFromCanvas(ctx, {
     canvasId: source._id,
   });
-  const clonedNodes: CanvasNode[] = sourceNodes
-    .filter((node) => nodeDataIdMap.has(node.nodeDataId))
-    .map((node) => ({
-      ...NodeModels.toCanvasNode(node),
-      nodeDataId: nodeDataIdMap.get(node.nodeDataId),
-    }));
 
-  if (clonedNodes.length > 0) {
-    await CanvasNodeModels.addCanvasNodes(ctx, {
-      canvasId,
-      canvasNodes: clonedNodes,
+  for (const node of sourceNodes) {
+    const nodeData = nodeDataById.get(node.nodeDataId);
+    if (!nodeData || nodeData.type === "custom") continue;
+
+    // `toCanvasNode` donne la projection DTO : on retire l'identité (id,
+    // nodeDataId) et on remappe `parentId` vers le nouveau llmId.
+    const {
+      id: _oldNodeId,
+      nodeDataId: _oldNodeDataId,
+      parentId: oldParentId,
+      ...nodeFields
+    } = NodeModels.toCanvasNode(node);
+    const parentId =
+      oldParentId !== undefined
+        ? oldToNewNodeIds.get(oldParentId)
+        : undefined;
+
+    const { nodeId } = await NodeModels.createNodeWithData(ctx, {
+      node: {
+        canvasId,
+        ...nodeFields,
+        ...(parentId !== undefined && { parentId }),
+      },
+      values: nodeData.values,
+      touchCanvas: false,
+    });
+    oldToNewNodeIds.set(node.id, nodeId);
+  }
+
+  // Les edges référencent les llmIds de la source : endpoints remappés vers
+  // les nouveaux, handles/markerEnd/data conservés. Seuls ceux pointant un
+  // node sauté ci-dessus sont filtrés.
+  const sourceEdges = await EdgeModels.listFromCanvas(ctx, {
+    canvasId: source._id,
+  });
+  const clonedEdges = sourceEdges.flatMap((edge) => {
+    const newSource = oldToNewNodeIds.get(edge.source);
+    const newTarget = oldToNewNodeIds.get(edge.target);
+    if (!newSource || !newTarget) return [];
+    return [
+      {
+        canvasId,
+        source: newSource,
+        target: newTarget,
+        ...(edge.sourceHandle !== undefined && {
+          sourceHandle: edge.sourceHandle,
+        }),
+        ...(edge.targetHandle !== undefined && {
+          targetHandle: edge.targetHandle,
+        }),
+        markerEnd: edge.markerEnd,
+        ...(edge.data !== undefined && { data: edge.data }),
+      },
+    ];
+  });
+
+  if (clonedEdges.length > 0) {
+    await EdgeModels.createEdges(ctx, {
+      edges: clonedEdges,
+      touchCanvas: false,
     });
   }
 
-  // Les edges référencent les `node.id` locaux (chaînes arbitraires scopées au
-  // document canvas), pas des Convex ids : ils survivent tels quels au
-  // clonage. Seuls ceux pointant un node sauté ci-dessus sont filtrés.
-  const survivingNodeIds = new Set(clonedNodes.map((node) => node.id));
-  const clonedEdges = (source.edges ?? []).filter(
-    (edge) =>
-      survivingNodeIds.has(edge.source) && survivingNodeIds.has(edge.target),
-  );
-
-  const patch: Partial<Doc<"canvases">> = {
-    edges: clonedEdges,
-    updatedAt,
-    isSystem: true,
-  };
-  // Dernier write du clonage, donc c'est bien cet `updatedAt` qui reste :
-  // `addCanvasNodes` en pose un à `Date.now()` au passage.
-  await ctx.db.patch("canvases", canvasId, patch);
+  // Dernier write du clonage, donc c'est bien cet `updatedAt` qui reste —
+  // nodes et edges sont créés sans `touchCanvas`.
+  await ctx.db.patch("canvases", canvasId, { updatedAt, isSystem: true });
 
   return canvasId;
 }

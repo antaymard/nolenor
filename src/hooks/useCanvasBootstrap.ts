@@ -74,9 +74,7 @@ export function useCanvasBootstrap(
     [tableNodes],
   );
 
-  // Edges de la table `edges` : même query séparée que les nodes —
-  // `readCanvas` porte encore l'array legacy mais il est figé depuis la
-  // bascule des writers.
+  // Edges de la table `edges` : même query séparée que les nodes.
   const { data: tableEdges } = useRichQuery(api.edges.listFromCanvas, {
     canvasId,
   });
@@ -136,18 +134,15 @@ export function useCanvasBootstrap(
     setOwnedTemplateIds(myTemplates.map((template) => template._id));
   }, [myTemplates, upsertTemplates, setMyTemplateIds, setOwnedTemplateIds]);
 
-  // ======= Put canvas in store, if it changes (besides nodes and edges)
-  // Keep only non-flow fields in canvas store (no nodes/edges)
+  // ======= Put canvas in store, if it changes
   const canvasForStore = useMemo(() => {
     if (!canvas) {
       return null;
     }
 
-    const canvasWithoutFlowData = { ...canvas };
-    delete canvasWithoutFlowData.nodes;
-    delete canvasWithoutFlowData.edges;
-
-    return canvasWithoutFlowData;
+    // Le doc canvas ne porte plus les flow data : rien à en retirer, on
+    // stocke tel quel.
+    return { ...canvas };
   }, [canvas]);
   // Sync convex canvas -> zustand canvas store without pointless store updates
   useEffect(() => {

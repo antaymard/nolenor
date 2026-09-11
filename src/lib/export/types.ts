@@ -1,5 +1,7 @@
 import type { Doc, Id } from "@/../convex/_generated/dataModel";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
+import type { CanvasEdge } from "@/../convex/schemas/edgesSchema";
+import type { CanvasNode } from "@/../convex/schemas/nodesSchema";
 
 /** Projection de `nodeTemplates` renvoyée par `api.dataExport.listTemplatesForExport`. */
 export type ExportTemplate = {
@@ -35,6 +37,10 @@ export type ExportProgress = {
 };
 
 export type CanvasWithNodeDatas = {
-  canvas: Doc<"canvases">;
+  /** Doc canvas enrichi par `getCanvasForExport` : nodes/edges projetés des tables. */
+  canvas: Doc<"canvases"> & {
+    nodes: CanvasNode[];
+    edges: CanvasEdge[];
+  };
   nodeDatas: Doc<"nodeDatas">[];
 };

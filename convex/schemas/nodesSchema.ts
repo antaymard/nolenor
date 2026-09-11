@@ -1,4 +1,5 @@
 import { v, type Infer } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { nodeTypeValidator } from "./nodeTypeSchema";
 
 const nodesValidator = v.object({
@@ -59,6 +60,18 @@ const nodePatchPropsValidator = v.object({
 });
 
 type NodePatchProps = Infer<typeof nodePatchPropsValidator>;
+
+/**
+ * DTO « canvas » node : la forme exposée au front (React Flow, attachments)
+ * et aux tools de l'agent, projetée depuis les docs tables par `toCanvasNode`.
+ * Tout sauf `canvasId` (porté par le canvas) et `status` (détail de
+ * storage) ; `nodeDataId` redevient optionnel — les converters front
+ * partent de XyNodes qui ne le portent pas forcément.
+ */
+export type CanvasNode = Omit<
+  Infer<typeof nodesValidator>,
+  "canvasId" | "status" | "nodeDataId"
+> & { nodeDataId?: Id<"nodeDatas"> };
 
 const nodeCreateInputValidator = nodesValidator.omit(
   "id",

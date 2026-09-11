@@ -1,83 +1,18 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
-import { internalMutation, internalQuery } from "../_generated/server";
+import { internalQuery } from "../_generated/server";
 import errors from "../config/errorsConfig";
 import * as CanvasNodeModels from "../models/canvasNodeModels";
 import * as EdgeModels from "../models/edgeModels";
 import * as NodeModels from "../models/nodeModels";
-import { canvasNodesValidator } from "../schemas/canvasesSchema";
 
-export const add = internalMutation({
-  args: {
-    canvasId: v.id("canvases"),
-    canvasNodes: v.array(canvasNodesValidator),
-  },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    return CanvasNodeModels.addCanvasNodes(ctx, {
-      canvasId: args.canvasId,
-      canvasNodes: args.canvasNodes,
-    });
-  },
-});
-
-export const updatePositionOrDimensions = internalMutation({
-  args: {
-    canvasId: v.id("canvases"),
-    nodeChanges: v.array(v.any()),
-  },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    return CanvasNodeModels.updatePositionOrDimensions(ctx, {
-      canvasId: args.canvasId,
-      nodeChanges: args.nodeChanges,
-    });
-  },
-});
-
-export const updateCanvasNodes = internalMutation({
-  args: {
-    canvasId: v.id("canvases"),
-    nodeProps: v.array(
-      v.object({
-        id: v.string(),
-        props: v.optional(
-          v.object({
-            locked: v.optional(v.boolean()),
-            hidden: v.optional(v.boolean()),
-            zIndex: v.optional(v.number()),
-            color: v.optional(v.string()),
-            variant: v.optional(v.string()),
-          }),
-        ),
-        data: v.optional(v.any()),
-      }),
-    ),
-  },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    return CanvasNodeModels.updateCanvasNodes(ctx, {
-      canvasId: args.canvasId,
-      nodeProps: args.nodeProps,
-    });
-  },
-});
-
-export const remove = internalMutation({
-  args: {
-    authUserId: v.id("users"),
-    canvasId: v.id("canvases"),
-    nodeCanvasIds: v.array(v.string()),
-  },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    return CanvasNodeModels.removeCanvasNodes(ctx, {
-      authUserId: args.authUserId,
-      canvasId: args.canvasId,
-      nodeCanvasIds: args.nodeCanvasIds,
-    });
-  },
-});
+/**
+ * Lecteurs canvas node/edge des tools agent (et de l'aide au canvas) :
+ * le node isolé avec son nodeData, ou la paire { nodes, edges } complète du
+ * canvas, en DTO (`toCanvasNode`/`toCanvasEdge`). Sans auth au bord — ces
+ * wrappers ne servent que du code serveur déjà authentifié (le thread agent
+ * a validé l'accès canvas en amont).
+ */
 
 export const getNodeWithNodeData = internalQuery({
   args: {

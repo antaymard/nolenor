@@ -31,8 +31,6 @@ import {
   isNodePendingCreation,
 } from "@/lib/pendingCreatedNodes";
 
-const DRAG_THROTTLE_MS = 400;
-
 /**
  * Écriture serveur d'un changement de nœud.
  *
@@ -121,11 +119,11 @@ export function useCanvasNodes(
     null,
   );
 
+  // Positions de drag buffered jusqu'au relâcher — aucune écriture serveur
+  // pendant le geste (cf. `bufferDragPositions`).
   const dragPendingRef = useRef<Map<string, { x: number; y: number }>>(
     new Map(),
   );
-  const dragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastDragFlushRef = useRef(0);
 
   const draggedChildrenCache = useRef<{
     draggedNodeId: string | null;
@@ -178,16 +176,14 @@ export function useCanvasNodes(
     [patchNodesInConvex],
   );
 
+  // Vide le buffer de positions en une seule mutation : relâcher d'un drag
+  // (change `dragging: false`) ou changement de position hors drag.
   const flushDragPositions = useCallback(
     (opts: {
       touchCanvas: boolean;
       track: boolean;
       failureMessage?: string;
     }) => {
-      if (dragTimerRef.current) {
-        clearTimeout(dragTimerRef.current);
-        dragTimerRef.current = null;
-      }
       const pending = dragPendingRef.current;
       if (pending.size === 0) return;
       const updates = [...pending.entries()].map(([nodeId, position]) => ({
@@ -195,46 +191,32 @@ export function useCanvasNodes(
         props: { position },
       }));
       pending.clear();
-      lastDragFlushRef.current = Date.now();
       return persistLayoutUpdates(updates, opts);
     },
     [persistLayoutUpdates],
   );
 
-  const queueDragPositions = useCallback(
+  // Buffer pur, sans flush pendant le geste. Chaque écriture serveur en
+  // plein drag invalidait `nodes.listFromCanvas`, dont la re-synchro
+  // re-rendait tous les nodes à ~2,5 Hz — le framerate du drag s'effondrait
+  // sur un canvas chargé. Contrepartie assumée : les autres utilisateurs
+  // voient le node sauter à sa destination au relâcher, pas le suivre en
+  // direct.
+  const bufferDragPositions = useCallback(
     (
       positions: Array<{ id: string; position?: { x: number; y: number } }>,
     ) => {
       for (const item of positions) {
         if (item.position) dragPendingRef.current.set(item.id, item.position);
       }
-      if (dragPendingRef.current.size === 0) return;
-      const elapsed = Date.now() - lastDragFlushRef.current;
-      if (elapsed >= DRAG_THROTTLE_MS) {
-        void flushDragPositions({ touchCanvas: false, track: false });
-        return;
-      }
-      if (!dragTimerRef.current) {
-        dragTimerRef.current = setTimeout(() => {
-          dragTimerRef.current = null;
-          void flushDragPositions({ touchCanvas: false, track: false });
-        }, DRAG_THROTTLE_MS - elapsed);
-      }
     },
-    [flushDragPositions],
+    [],
   );
 
   // Aucun pending ne doit fuiter d'un canvas à l'autre.
   useEffect(() => {
     clearPendingCreations();
     dragPendingRef.current.clear();
-    lastDragFlushRef.current = 0;
-    return () => {
-      if (dragTimerRef.current) {
-        clearTimeout(dragTimerRef.current);
-        dragTimerRef.current = null;
-      }
-    };
   }, [canvasId]);
 
   // Sync Convex -> React Flow nodes while preserving drag/resize state
@@ -637,7 +619,9 @@ export function useCanvasNodes(
         const allPositionChanges = [...positionChanges, ...descendantChanges];
 
         if (isDragging && dimensionChanges.length === 0) {
-          queueDragPositions(allPositionChanges);
+          // En plein drag : buffer seulement, la persistance part au
+          // relâcher dans la branche else du change `dragging: false`.
+          bufferDragPositions(allPositionChanges);
         } else {
           for (const change of allPositionChanges) {
             if (change.position) {
@@ -664,7 +648,7 @@ export function useCanvasNodes(
       reassignViewportWindowOwner,
       trashNodesInConvex,
       persistLayoutUpdates,
-      queueDragPositions,
+      bufferDragPositions,
       flushDragPositions,
       onNodesChange,
       getEdges,

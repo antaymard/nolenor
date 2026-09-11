@@ -62,7 +62,9 @@ const schema = defineSchema({
       filterFields: ["creatorId"],
     }),
 
-  nodes: defineTable(nodesValidator).index("by_canvas", ["canvasId"]),
+  nodes: defineTable(nodesValidator)
+    .index("by_canvas", ["canvasId"])
+    .index("by_llmid", ["id"]),
   edges: defineTable(edgesValidator).index("by_canvas", ["canvasId"]),
 
   nodeDatas: defineTable(nodeDatasValidator)

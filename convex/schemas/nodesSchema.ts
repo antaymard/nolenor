@@ -3,6 +3,7 @@ import { nodeTypeValidator } from "./nodeTypeSchema";
 
 const nodesValidator = v.object({
   id: v.string(), // llmid
+  status: v.optional(v.literal("trashed")),
   nodeDataId: v.id("nodeDatas"),
   canvasId: v.id("canvases"),
   type: nodeTypeValidator,

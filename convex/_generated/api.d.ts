@@ -127,6 +127,7 @@ import type * as models_threadMetadataModels from "../models/threadMetadataModel
 import type * as nodeDataVersions from "../nodeDataVersions.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as nodeTemplates from "../nodeTemplates.js";
+import type * as nodes from "../nodes.js";
 import type * as onboarding from "../onboarding.js";
 import type * as recipes from "../recipes.js";
 import type * as schemas_aiUsageDailySchema from "../schemas/aiUsageDailySchema.js";
@@ -304,6 +305,7 @@ declare const fullApi: ApiFromModules<{
   nodeDataVersions: typeof nodeDataVersions;
   nodeDatas: typeof nodeDatas;
   nodeTemplates: typeof nodeTemplates;
+  nodes: typeof nodes;
   onboarding: typeof onboarding;
   recipes: typeof recipes;
   "schemas/aiUsageDailySchema": typeof schemas_aiUsageDailySchema;

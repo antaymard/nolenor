@@ -280,6 +280,11 @@ export default function CanvasFlow({
       {isDraggingOver && <CanvasDropOverlay />}
       <ReactFlow
         panOnScroll
+        // Explicite (défauts React Flow) : fige l'anti swipe-back trackpad
+        // contre un changement de défaut — `preventScrolling` bloque le scroll
+        // navigateur, `free` garde le pan 2-doigts horizontal/vertical.
+        preventScrolling
+        panOnScrollMode="free"
         // Au doigt, le drag sur le pane pan toujours. À la souris, on garde le
         // clic molette pour panner et on laisse le clic gauche au lasso.
         panOnDrag={panWithFinger ? true : [1]}

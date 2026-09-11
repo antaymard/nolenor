@@ -3,15 +3,16 @@ import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Node } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
-import type { NodeType } from "@/types/domain";
+import type { colorsEnum, NodeType } from "@/types/domain";
 import { getDefaultNodeDataValues } from "@/../convex/config/nodeConfig";
 import { getDefaultValuesForTemplate } from "@/../convex/config/fieldConfig";
-import { generateLlmId } from "@/../convex/lib/llmId";
 import { useParams } from "@tanstack/react-router";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { nextTopZIndex } from "@/lib/nodeLayering";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import { markNodesAsPendingCreation } from "@/lib/pendingCreatedNodes";
+import { toastError } from "@/components/utils/errorUtils";
+import { trackCanvasSync } from "@/lib/trackCanvasSync";
 import { useCaptureFraming } from "./useViewportFraming";
 
 type CreateNodeOptions = {
@@ -42,7 +43,7 @@ type CreateNodeResult = {
 export function useCreateNode() {
   const { addNodes, getNodes, setNodes } = useReactFlow();
   const captureFraming = useCaptureFraming();
-  const createNodeData = useMutation(api.nodeDatas.create);
+  const createWithNodeData = useMutation(api.nodes.createWithNodeData);
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
   });
@@ -54,8 +55,6 @@ export function useCreateNode() {
     autoEdit = false,
     selectNewNode = true,
   }: CreateNodeOptions): Promise<CreateNodeResult> => {
-    const nodeId = generateLlmId();
-
     // Custom nodes : défauts calculés depuis le template (values keyées
     // par fieldId), templateId persisté sur le nodeData (lien autoritaire ;
     // node.data.templateId reste la copie dénormalisée côté canvas).
@@ -86,13 +85,56 @@ export function useCreateNode() {
         : capturedFraming
           ? { ...defaults, view: capturedFraming }
           : defaults;
-    const nodeDataId = await createNodeData({
-      type: node.type as NodeType,
-      values,
-      updatedAt: Date.now(),
-      canvasId,
-      ...(templateId && { templateId }),
-    });
+
+    const {
+      nodeDataId: _ignoredNodeDataId,
+      color,
+      variant,
+      ...restData
+    } = (node.data ?? {}) as {
+      nodeDataId?: Id<"nodeDatas">;
+      color?: colorsEnum;
+      variant?: string;
+      [key: string]: unknown;
+    };
+    const zIndex = nextTopZIndex(getNodes());
+
+    let created: Array<{ nodeId: string; nodeDataId: Id<"nodeDatas"> }>;
+    try {
+      created = await trackCanvasSync(() =>
+        createWithNodeData({
+          nodes: [
+            {
+              node: {
+                canvasId,
+                type: (node.type ?? "default") as NodeType,
+                position,
+                width: node.measured?.width ?? node.width ?? 0,
+                height: node.measured?.height ?? node.height ?? 0,
+                zIndex,
+                ...(color && { color }),
+                variant: variant ?? "default",
+                ...(node.parentId && { parentId: node.parentId }),
+                ...(node.extent && {
+                  extent: node.extent as
+                    | "parent"
+                    | Array<Array<number>>,
+                }),
+                ...(node.expandParent && { extendParent: true }),
+                ...(Object.keys(restData).length > 0 && { data: restData }),
+              },
+              nodeDataValues: values,
+              ...(templateId && { nodeDataTemplateId: templateId }),
+            },
+          ],
+        }),
+      );
+    } catch (error) {
+      toastError(error, "Could not add the node");
+      throw error;
+    }
+
+    const { nodeId, nodeDataId } = created[0];
 
     // Marqué avant tout `addNodes` : le sync Convex → ReactFlow doit garder
     // ce node local tant que le serveur ne l'a pas renvoyé, et le sélectionner
@@ -111,10 +153,7 @@ export function useCreateNode() {
       id: nodeId,
       position,
       selected: selectNewNode,
-      // Un node sans zIndex vaut 0, donc le fond de la pile dès qu'une commande
-      // de plan a renuméroté le canvas. On le pose explicitement au-dessus pour
-      // garder le "le dernier créé est au-dessus".
-      zIndex: nextTopZIndex(getNodes()),
+      zIndex,
       // Add measured dimensions if width/height are known to prevent
       // React Flow from triggering a dimension change event after adding
       ...(node.width &&

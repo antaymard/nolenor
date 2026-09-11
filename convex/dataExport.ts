@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { query } from "./_generated/server";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
+import * as NodeModels from "./models/nodeModels";
 
 // Lecture seule, pour l'export de données depuis Settings.
 //
@@ -34,13 +35,16 @@ export const listCanvasesForExport = query({
 
     return {
       ...result,
-      page: result.page.map((canvas) => ({
-        _id: canvas._id,
-        name: canvas.name,
-        description: canvas.description,
-        updatedAt: canvas.updatedAt,
-        nodeCount: canvas.nodes?.length ?? 0,
-      })),
+      page: await Promise.all(
+        result.page.map(async (canvas) => ({
+          _id: canvas._id,
+          name: canvas.name,
+          description: canvas.description,
+          updatedAt: canvas.updatedAt,
+          nodeCount: (await NodeModels.listFromCanvas(ctx, { canvasId: canvas._id }))
+            .length,
+        })),
+      ),
     };
   },
 });
@@ -60,7 +64,11 @@ export const getCanvasForExport = query({
       authUserId,
       "owner",
     );
-    return canvas;
+    const tableNodes = await NodeModels.listFromCanvas(ctx, { canvasId });
+    return {
+      ...canvas,
+      nodes: tableNodes.map(NodeModels.toCanvasNode),
+    };
   },
 });
 

@@ -117,23 +117,11 @@ export async function resolveNodeIds(
     }),
   );
 
-  if (misses.length > 0) {
-    const canvas = await ctx.db.get("canvases", canvasId);
-    const embeddedByDataId = new Map<Id<"nodeDatas">, string>();
-    for (const node of canvas?.nodes ?? []) {
-      if (node.nodeDataId) embeddedByDataId.set(node.nodeDataId, node.id);
-    }
-    for (const nodeDataId of misses) {
-      const nodeId = embeddedByDataId.get(nodeDataId);
-      if (nodeId) {
-        resolved.set(nodeDataId, nodeId);
-      } else {
-        console.warn("[search] resolveNodeIds:orphan-chunk", {
-          nodeDataId,
-          canvasId,
-        });
-      }
-    }
+  for (const nodeDataId of misses) {
+    console.warn("[search] resolveNodeIds:orphan-chunk", {
+      nodeDataId,
+      canvasId,
+    });
   }
 
   return resolved;

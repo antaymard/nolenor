@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { useConvexAuth } from "convex/react";
 import type { Id } from "@/../convex/_generated/dataModel";
-import type { CanvasNode } from "@/types";
 import CanvasErrorScreen from "@/components/canvas/CanvasErrorScreen";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasBootstrap } from "@/hooks/useCanvasBootstrap";
@@ -33,6 +32,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
   const { isAuthenticated } = useConvexAuth();
   const {
     canvas,
+    flowNodes,
     isCanvasError,
     canvasError,
     isNodeDatasError,
@@ -107,7 +107,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
             <MobileTabPanel active={activeTab === "canvas"}>
               <MobileCanvasTab
                 canvasId={canvasId}
-                canvasNodes={canvas.nodes as CanvasNode[] | undefined}
+                canvasNodes={flowNodes}
                 canvasEdges={canvas.edges}
                 background={canvas.background}
                 canEdit={canEdit}

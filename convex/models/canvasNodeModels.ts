@@ -4,7 +4,8 @@ import type { MutationCtx, QueryCtx } from "../_generated/server";
 import errors from "../config/errorsConfig";
 import { nodeDataConfig } from "../config/nodeConfig";
 import { internal } from "../_generated/api";
-import * as SearchableChunkModels from "./searchableChunkModels";
+import * as CanvasModels from "./canvasModels";
+import * as NodeModels from "./nodeModels";
 
 type CanvasNode = NonNullable<Doc<"canvases">["nodes"]>[number];
 
@@ -41,6 +42,17 @@ async function getCanvas(
   return canvas;
 }
 
+function withDefaultVariant(node: CanvasNode): CanvasNode {
+  if (node.variant !== undefined) return node;
+  const config = nodeDataConfig.find((c) => c.type === node.type);
+  if (!config?.variants) return node;
+  const defaultVariantKey = Object.entries(config.variants).find(
+    ([, v]) => v.isDefault,
+  )?.[0];
+  if (!defaultVariantKey) return node;
+  return { ...node, variant: defaultVariantKey };
+}
+
 export async function addCanvasNodes(
   ctx: MutationCtx,
   {
@@ -51,24 +63,16 @@ export async function addCanvasNodes(
     canvasNodes: Array<CanvasNode>;
   },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
+  if (canvasNodes.length === 0) return true;
+  await getCanvas(ctx, canvasId);
 
-  // Add default node variant if not provided
-  const nodesWithDefaults = canvasNodes.map((node) => {
-    if (node.variant !== undefined) return node;
-    const config = nodeDataConfig.find((c) => c.type === node.type);
-    if (!config?.variants) return node;
-    const defaultVariantKey = Object.entries(config.variants).find(
-      ([, v]) => v.isDefault,
-    )?.[0];
-    if (!defaultVariantKey) return node;
-    return { ...node, variant: defaultVariantKey };
-  });
+  const nodesWithDefaults = canvasNodes.map(withDefaultVariant);
 
-  await ctx.db.patch("canvases", canvasId, {
-    nodes: [...(canvas.nodes ?? []), ...nodesWithDefaults],
-    updatedAt: Date.now(),
-  });
+  for (const node of nodesWithDefaults) {
+    await NodeModels.upsertLayoutNode(ctx, { canvasId, node });
+  }
+
+  await CanvasModels.touchCanvas(ctx, canvasId);
 
   const nodeDataIds = nodesWithDefaults.flatMap((node) =>
     node.nodeDataId ? [node.nodeDataId] : [],
@@ -82,113 +86,81 @@ export async function addCanvasNodes(
     );
   }
 
-  // console.log(`✅ Added ${canvasNodes.length} nodes to canvas ${canvasId}`);
-
   return true;
 }
 
 export async function updatePositionOrDimensions(
   ctx: MutationCtx,
   {
-    canvasId,
     nodeChanges,
   }: {
     canvasId: Id<"canvases">;
     nodeChanges: Array<NodeChange>;
   },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
-  const nodes = canvas.nodes ?? [];
+  const updates: Array<{
+    nodeId: string;
+    props: {
+      position?: { x: number; y: number };
+      width?: number;
+      height?: number;
+    };
+  }> = [];
 
-  const updatedNodes = nodes.map((node) => {
-    const change = nodeChanges.find((item) => item.id === node.id);
-    if (!change) return node;
+  for (const change of nodeChanges) {
+    const existing = await NodeModels.getNodeByLlmId(ctx, {
+      nodeId: change.id,
+    });
+    if (!existing || existing.status === "trashed") continue;
+    updates.push({
+      nodeId: change.id,
+      props: {
+        ...(change.position && { position: change.position }),
+        ...(change.dimensions && {
+          width: change.dimensions.width,
+          height: change.dimensions.height,
+        }),
+      },
+    });
+  }
 
-    const updatedNode = { ...node };
-
-    if (change.position) {
-      updatedNode.position = {
-        x: change.position.x,
-        y: change.position.y,
-      };
-    }
-
-    if (change.dimensions) {
-      updatedNode.width = change.dimensions.width;
-      updatedNode.height = change.dimensions.height;
-    }
-
-    return updatedNode;
-  });
-
-  await ctx.db.patch("canvases", canvasId, {
-    nodes: updatedNodes,
-    updatedAt: Date.now(),
-  });
-
+  if (updates.length === 0) return true;
+  await NodeModels.patchNodes(ctx, { updates });
   return true;
 }
 
 export async function updateCanvasNodes(
   ctx: MutationCtx,
   {
-    canvasId,
     nodeProps,
   }: {
     canvasId: Id<"canvases">;
     nodeProps: Array<CanvasNodePropsUpdate>;
   },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
-  const nodes = canvas.nodes ?? [];
+  const updates: Array<{
+    nodeId: string;
+    props: NonNullable<CanvasNodePropsUpdate["props"]> & {
+      data?: Record<string, unknown>;
+    };
+  }> = [];
 
-  const updatedNodes = nodes.map((node) => {
-    const nodeProp = nodeProps.find((item) => item.id === node.id);
-    if (!nodeProp) return node;
+  for (const nodeProp of nodeProps) {
+    const existing = await NodeModels.getNodeByLlmId(ctx, {
+      nodeId: nodeProp.id,
+    });
+    if (!existing || existing.status === "trashed") continue;
+    updates.push({
+      nodeId: nodeProp.id,
+      props: {
+        ...(nodeProp.props ?? {}),
+        ...(nodeProp.data !== undefined && { data: nodeProp.data }),
+      },
+    });
+  }
 
-    const updatedNode = { ...node };
-
-    if (nodeProp.props) {
-      if (nodeProp.props.locked !== undefined) {
-        updatedNode.locked = nodeProp.props.locked;
-      }
-
-      if (nodeProp.props.hidden !== undefined) {
-        updatedNode.hidden = nodeProp.props.hidden;
-      }
-
-      if (nodeProp.props.zIndex !== undefined) {
-        updatedNode.zIndex = nodeProp.props.zIndex;
-      }
-
-      if (nodeProp.props.color !== undefined) {
-        updatedNode.color = nodeProp.props.color;
-      }
-
-      if (nodeProp.props.variant !== undefined) {
-        updatedNode.variant = nodeProp.props.variant;
-      }
-    }
-
-    if (nodeProp.data !== undefined) {
-      updatedNode.data = {
-        ...(node.data ?? {}),
-        ...nodeProp.data,
-      };
-    }
-
-    return updatedNode;
-  });
-
-  await ctx.db.patch("canvases", canvasId, {
-    nodes: updatedNodes,
-    updatedAt: Date.now(),
-  });
-
-  // console.log(
-  //   `✅ Updated display props for ${nodeProps.length} nodes in canvas ${canvasId}`,
-  // );
-
+  if (updates.length === 0) return true;
+  await NodeModels.patchNodes(ctx, { updates });
   return true;
 }
 
@@ -196,7 +168,6 @@ export async function removeCanvasNodes(
   ctx: MutationCtx,
   {
     authUserId,
-    canvasId,
     nodeCanvasIds,
   }: {
     authUserId: Id<"users">;
@@ -204,45 +175,17 @@ export async function removeCanvasNodes(
     nodeCanvasIds: Array<string>;
   },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
-  const currentNodes = canvas.nodes ?? [];
-  const nodeCanvasIdSet = new Set(nodeCanvasIds);
+  const existing = [];
+  for (const nodeId of nodeCanvasIds) {
+    const node = await NodeModels.getNodeByLlmId(ctx, { nodeId });
+    if (node && node.status !== "trashed") existing.push(node);
+  }
+  if (existing.length === 0) return true;
 
-  const removedNodes = currentNodes.filter((node) =>
-    nodeCanvasIdSet.has(node.id),
-  );
-  const remainingNodes = currentNodes.filter(
-    (node) => !nodeCanvasIdSet.has(node.id),
-  );
-
-  const removedNodeDataIds = removedNodes
-    .map((node) => node.nodeDataId)
-    .filter((id): id is Id<"nodeDatas"> => id !== undefined);
-
-  await ctx.db.patch("canvases", canvasId, {
-    nodes: remainingNodes,
-    updatedAt: Date.now(),
+  await NodeModels.trashNodes(ctx, {
+    nodeIds: existing.map((node) => node.id),
+    actor: { type: "user", userId: authUserId },
   });
-
-  // Schedule cascade deletion (memories + chunks + nodeData) as a deferred job.
-  // This decouples canvas node removal from data deletion, enabling future ctrl-Z.
-  for (const nodeDataId of removedNodeDataIds) {
-    await ctx.scheduler.runAfter(
-      0,
-      internal.wrappers.nodeDataWrappers.deleteWithCascade,
-      { nodeDataId, actor: { type: "user", userId: authUserId } },
-    );
-  }
-
-  if (removedNodeDataIds.length > 0) {
-    console.log(
-      `🗑️ Scheduled cascade deletion for ${removedNodeDataIds.length} nodeDatas`,
-    );
-  }
-
-  // console.log(
-  //   `✅ Removed ${nodeCanvasIds.length} nodes from canvas ${canvasId}`,
-  // );
 
   return true;
 }
@@ -259,56 +202,20 @@ export async function moveToCanvas(
     nodeCanvasIds: Array<string>;
   },
 ): Promise<boolean> {
-  if (sourceCanvasId === targetCanvasId) {
-    throw new ConvexError(errors.SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT);
-  }
+  await NodeModels.moveNodes(ctx, {
+    nodeIds: nodeCanvasIds,
+    targetCanvasId,
+  });
 
   const sourceCanvas = await getCanvas(ctx, sourceCanvasId);
-  const targetCanvas = await getCanvas(ctx, targetCanvasId);
-
-  const sourceNodes = sourceCanvas.nodes ?? [];
-  const sourceEdges = sourceCanvas.edges ?? [];
-  const targetNodes = targetCanvas.nodes ?? [];
   const nodeCanvasIdSet = new Set(nodeCanvasIds);
-
-  const nodesToMove = sourceNodes.filter((node) =>
-    nodeCanvasIdSet.has(node.id),
-  );
-  const remainingSourceNodes = sourceNodes.filter(
-    (node) => !nodeCanvasIdSet.has(node.id),
-  );
-  const remainingSourceEdges = sourceEdges.filter(
+  const remainingSourceEdges = (sourceCanvas.edges ?? []).filter(
     (edge) =>
       !nodeCanvasIdSet.has(edge.source) && !nodeCanvasIdSet.has(edge.target),
   );
-
   await ctx.db.patch("canvases", sourceCanvasId, {
-    nodes: remainingSourceNodes,
     edges: remainingSourceEdges,
-    updatedAt: Date.now(),
   });
-  await ctx.db.patch("canvases", targetCanvasId, {
-    nodes: [...targetNodes, ...nodesToMove],
-    updatedAt: Date.now(),
-  });
-
-  // Update canvasId on moved NodeDatas and their memories.
-  const movedNodeDataIds = nodesToMove
-    .map((node) => node.nodeDataId)
-    .filter((id): id is Id<"nodeDatas"> => id !== undefined);
-
-  for (const nodeDataId of movedNodeDataIds) {
-    await ctx.db.patch(nodeDataId, { canvasId: targetCanvasId });
-
-    await SearchableChunkModels.updateCanvasId(ctx, {
-      nodeDataId,
-      canvasId: targetCanvasId,
-    });
-  }
-
-  // console.log(
-  //   `✅ Moved ${nodeCanvasIds.length} nodes from canvas ${sourceCanvasId} to canvas ${targetCanvasId}`,
-  // );
 
   return true;
 }
@@ -326,19 +233,10 @@ export async function getNodeWithNodeData(
   node: CanvasNode;
   nodeData: Doc<"nodeDatas">;
 }> {
-  const canvas = await getCanvas(ctx, canvasId);
-  const node = (canvas.nodes ?? []).find((item) => item.id === nodeId);
-
-  if (!node) {
+  const node = await NodeModels.getNodeByLlmId(ctx, { nodeId });
+  if (!node || node.status === "trashed" || node.canvasId !== canvasId) {
     throw new ConvexError(
       errors.NODE_NOT_FOUND + ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
-    );
-  }
-
-  if (!node.nodeDataId) {
-    throw new ConvexError(
-      errors.NODE_DATA_NOT_FOUND_FOR_NODE +
-        ` NodeId: ${nodeId} ; CanvasId: ${canvasId}`,
     );
   }
 
@@ -349,5 +247,5 @@ export async function getNodeWithNodeData(
     );
   }
 
-  return { node, nodeData };
+  return { node: NodeModels.toCanvasNode(node), nodeData };
 }

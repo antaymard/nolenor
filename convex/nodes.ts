@@ -71,6 +71,7 @@ export const createWithNodeData = mutation({
 export const patch = mutation({
   args: {
     updates: v.array(nodePatchUpdateValidator),
+    touchCanvas: v.optional(v.boolean()),
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
@@ -81,7 +82,10 @@ export const patch = mutation({
       args.updates.map((update) => update.nodeId),
     );
 
-    return NodeModels.patchNodes(ctx, { updates: args.updates });
+    return NodeModels.patchNodes(ctx, {
+      updates: args.updates,
+      touchCanvas: args.touchCanvas,
+    });
   },
 });
 
@@ -94,7 +98,10 @@ export const trash = mutation({
     const authUserId = await requireAuth(ctx);
     await requireEditorOnNodesCanvas(ctx, authUserId, args.nodeIds);
 
-    return NodeModels.trashNodes(ctx, { nodeIds: args.nodeIds });
+    return NodeModels.trashNodes(ctx, {
+      nodeIds: args.nodeIds,
+      actor: { type: "user", userId: authUserId },
+    });
   },
 });
 

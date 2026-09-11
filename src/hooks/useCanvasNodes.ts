@@ -15,8 +15,11 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { api } from "@/../convex/_generated/api";
 import {
   fromCanvasNodesToXyNodes,
-  fromXyNodesToCanvasNodes,
 } from "@/lib/node-types-converter";
+import {
+  applyNodePatchesToListQuery,
+  removeNodesFromListQuery,
+} from "@/lib/flowNodes";
 import type { CanvasNode } from "@/types";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { pendingAutoSizeIds } from "@/components/nodes/prebuilt-nodes/useTitleNodeSizing";
@@ -27,6 +30,8 @@ import {
   consumePendingCreation,
   isNodePendingCreation,
 } from "@/lib/pendingCreatedNodes";
+
+const DRAG_THROTTLE_MS = 400;
 
 /**
  * Écriture serveur d'un changement de nœud.
@@ -116,7 +121,12 @@ export function useCanvasNodes(
     null,
   );
 
-  // Cache: dragged node ID -> descendants + their initial offsets from parent
+  const dragPendingRef = useRef<Map<string, { x: number; y: number }>>(
+    new Map(),
+  );
+  const dragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDragFlushRef = useRef(0);
+
   const draggedChildrenCache = useRef<{
     draggedNodeId: string | null;
     descendantIds: string[];
@@ -131,75 +141,100 @@ export function useCanvasNodes(
   });
 
   // CONVEX MUTATIONS
-  const addCanvasNodesToConvex = useMutation(api.canvasNodes.add);
-  // Optimistic updates mirror the mutation on the local canvas query so the
-  // sync effect above does not briefly re-read stale server data and bounce
-  // nodes back to their pre-mutation state.
-  const updateCanvasNodesPositionOrDimensionsInConvex = useMutation(
-    api.canvasNodes.updatePositionOrDimensions,
-  ).withOptimisticUpdate(
-    (localStore, { canvasId: targetCanvasId, nodeChanges }) => {
-      const existing = localStore.getQuery(api.canvases.readCanvas, {
-        canvasId: targetCanvasId,
-      });
-      if (!existing || !existing.nodes) return;
-      const changeById = new Map<
-        string,
-        {
-          position?: { x: number; y: number };
-          dimensions?: { width: number; height: number };
-        }
-      >();
-      for (const change of nodeChanges as Array<{
-        id: string;
-        position?: { x: number; y: number };
-        dimensions?: { width: number; height: number };
-      }>) {
-        changeById.set(change.id, change);
-      }
-      const nextNodes = existing.nodes.map((node: CanvasNode) => {
-        const change = changeById.get(node.id);
-        if (!change) return node;
-        const next = { ...node };
-        if (change.position) next.position = change.position;
-        if (change.dimensions) {
-          next.width = change.dimensions.width;
-          next.height = change.dimensions.height;
-        }
-        return next;
-      });
-      localStore.setQuery(
-        api.canvases.readCanvas,
-        { canvasId: targetCanvasId },
-        { ...existing, nodes: nextNodes },
-      );
+  const patchNodesInConvex = useMutation(api.nodes.patch).withOptimisticUpdate(
+    (localStore, { updates }) => {
+      applyNodePatchesToListQuery(localStore, canvasId, updates);
     },
   );
-  const removeCanvasNodesToConvex = useMutation(
-    api.canvasNodes.remove,
-  ).withOptimisticUpdate(
-    (localStore, { canvasId: targetCanvasId, nodeCanvasIds }) => {
-      const existing = localStore.getQuery(api.canvases.readCanvas, {
-        canvasId: targetCanvasId,
-      });
-      if (!existing || !existing.nodes) return;
-      const removedIds = new Set(nodeCanvasIds);
-      localStore.setQuery(
-        api.canvases.readCanvas,
-        { canvasId: targetCanvasId },
-        {
-          ...existing,
-          nodes: existing.nodes.filter(
-            (node: CanvasNode) => !removedIds.has(node.id),
-          ),
-        },
-      );
+  const trashNodesInConvex = useMutation(api.nodes.trash).withOptimisticUpdate(
+    (localStore, { nodeIds }) => {
+      removeNodesFromListQuery(localStore, canvasId, nodeIds);
     },
+  );
+
+  const persistLayoutUpdates = useCallback(
+    (
+      updates: Array<{
+        nodeId: string;
+        props: {
+          position?: { x: number; y: number };
+          width?: number;
+          height?: number;
+        };
+      }>,
+      {
+        touchCanvas,
+        failureMessage,
+        track,
+      }: { touchCanvas: boolean; failureMessage?: string; track: boolean },
+    ) => {
+      if (updates.length === 0) return Promise.resolve();
+      const run = () => patchNodesInConvex({ updates, touchCanvas });
+      if (track && failureMessage) {
+        return persistNodeChange(run, failureMessage);
+      }
+      return run().catch(() => undefined);
+    },
+    [patchNodesInConvex],
+  );
+
+  const flushDragPositions = useCallback(
+    (opts: {
+      touchCanvas: boolean;
+      track: boolean;
+      failureMessage?: string;
+    }) => {
+      if (dragTimerRef.current) {
+        clearTimeout(dragTimerRef.current);
+        dragTimerRef.current = null;
+      }
+      const pending = dragPendingRef.current;
+      if (pending.size === 0) return;
+      const updates = [...pending.entries()].map(([nodeId, position]) => ({
+        nodeId,
+        props: { position },
+      }));
+      pending.clear();
+      lastDragFlushRef.current = Date.now();
+      return persistLayoutUpdates(updates, opts);
+    },
+    [persistLayoutUpdates],
+  );
+
+  const queueDragPositions = useCallback(
+    (
+      positions: Array<{ id: string; position?: { x: number; y: number } }>,
+    ) => {
+      for (const item of positions) {
+        if (item.position) dragPendingRef.current.set(item.id, item.position);
+      }
+      if (dragPendingRef.current.size === 0) return;
+      const elapsed = Date.now() - lastDragFlushRef.current;
+      if (elapsed >= DRAG_THROTTLE_MS) {
+        void flushDragPositions({ touchCanvas: false, track: false });
+        return;
+      }
+      if (!dragTimerRef.current) {
+        dragTimerRef.current = setTimeout(() => {
+          dragTimerRef.current = null;
+          void flushDragPositions({ touchCanvas: false, track: false });
+        }, DRAG_THROTTLE_MS - elapsed);
+      }
+    },
+    [flushDragPositions],
   );
 
   // Aucun pending ne doit fuiter d'un canvas à l'autre.
   useEffect(() => {
     clearPendingCreations();
+    dragPendingRef.current.clear();
+    lastDragFlushRef.current = 0;
+    return () => {
+      if (dragTimerRef.current) {
+        clearTimeout(dragTimerRef.current);
+        dragTimerRef.current = null;
+      }
+    };
   }, [canvasId]);
 
   // Sync Convex -> React Flow nodes while preserving drag/resize state
@@ -402,17 +437,8 @@ export function useCanvasNodes(
 
       // ADD NODES
       if (addedChanges.length > 0) {
-        // Directly persist add operations to Convex.
-        return persistNodeChange(
-          () =>
-            addCanvasNodesToConvex({
-              canvasNodes: fromXyNodesToCanvasNodes(
-                addedChanges.map((c) => c.item) as Node[],
-              ),
-              canvasId,
-            }),
-          "Could not add the node",
-        );
+        // Persistée en amont par `nodes.createWithNodeData` (useCreateNode).
+        return;
       } else if (removedChanges.length > 0) {
         // REMOVE NODES
         const removedIds = removedChanges.map((change) => change.id);
@@ -445,9 +471,8 @@ export function useCanvasNodes(
         // Directly persist remove operations to Convex.
         return persistNodeChange(
           () =>
-            removeCanvasNodesToConvex({
-              nodeCanvasIds: removedChanges.map((c) => c.id),
-              canvasId,
+            trashNodesInConvex({
+              nodeIds: removedChanges.map((c) => c.id),
             }),
           "Could not delete the node",
         );
@@ -561,13 +586,22 @@ export function useCanvasNodes(
             };
           });
 
-          void persistNodeChange(
-            () =>
-              updateCanvasNodesPositionOrDimensionsInConvex({
-                canvasId,
-                nodeChanges: mergedChanges,
-              }),
-            "Could not save the node size",
+          void persistLayoutUpdates(
+            mergedChanges.map((change) => ({
+              nodeId: change.id,
+              props: {
+                ...(change.position && { position: change.position }),
+                ...(change.dimensions && {
+                  width: change.dimensions.width,
+                  height: change.dimensions.height,
+                }),
+              },
+            })),
+            {
+              touchCanvas: true,
+              track: true,
+              failureMessage: "Could not save the node size",
+            },
           );
           const titleMergedChanges = mergedChanges.filter((change) =>
             canvasNodes?.some((n) => n.id === change.id && n.type === "title"),
@@ -580,65 +614,58 @@ export function useCanvasNodes(
           lastPositionChangesWhenResizing.current = null;
         }
       } else if (positionChanges.length > 0) {
-        // UPDATE NODE POSITIONS
-        if (
-          positionChanges.some((change) => change.dragging) &&
-          dimensionChanges.length === 0
-        ) {
-          // No-op while dragging; persist when drag ends.
-        } else {
-          // Persist to Convex when drag ends.
-          // Include descendant position changes when drag ends
-          const { descendantIds, descendantSet } = draggedChildrenCache.current;
-          if (descendantIds.length > 0) {
-            const currentNodes = getNodes();
-            const positionChangeIds = new Set(positionChanges.map((c) => c.id));
-            const descendantChanges: NodePositionChange[] = currentNodes
-              .filter(
-                (node) =>
-                  descendantSet.has(node.id) && !positionChangeIds.has(node.id),
-              )
-              .map((node) => ({
-                type: "position" as const,
+        const { descendantIds, descendantSet } = draggedChildrenCache.current;
+        const descendantChanges: NodePositionChange[] = [];
+        if (descendantIds.length > 0) {
+          const currentNodes = getNodes();
+          const positionChangeIds = new Set(positionChanges.map((c) => c.id));
+          for (const node of currentNodes) {
+            if (
+              descendantSet.has(node.id) &&
+              !positionChangeIds.has(node.id)
+            ) {
+              descendantChanges.push({
+                type: "position",
                 id: node.id,
                 position: node.position,
-                dragging: false,
-              }));
-
-            draggedChildrenCache.current = {
-              draggedNodeId: null,
-              descendantIds: [],
-              descendantSet: new Set(),
-              initialOffsets: new Map(),
-            };
-            return persistNodeChange(
-              () =>
-                updateCanvasNodesPositionOrDimensionsInConvex({
-                  canvasId,
-                  nodeChanges: [...positionChanges, ...descendantChanges],
-                }),
-              "Could not save the node position",
-            );
+                dragging: isDragging,
+              });
+            }
           }
-          return persistNodeChange(
-            () =>
-              updateCanvasNodesPositionOrDimensionsInConvex({
-                canvasId,
-                nodeChanges: positionChanges,
-              }),
-            "Could not save the node position",
-          );
+        }
+
+        const allPositionChanges = [...positionChanges, ...descendantChanges];
+
+        if (isDragging && dimensionChanges.length === 0) {
+          queueDragPositions(allPositionChanges);
+        } else {
+          for (const change of allPositionChanges) {
+            if (change.position) {
+              dragPendingRef.current.set(change.id, change.position);
+            }
+          }
+          draggedChildrenCache.current = {
+            draggedNodeId: null,
+            descendantIds: [],
+            descendantSet: new Set(),
+            initialOffsets: new Map(),
+          };
+          return flushDragPositions({
+            touchCanvas: true,
+            track: true,
+            failureMessage: "Could not save the node position",
+          });
         }
       }
     },
     [
-      canvasId,
       canvasNodes,
-      addCanvasNodesToConvex,
       closeWindowsForNodeIds,
       reassignViewportWindowOwner,
-      removeCanvasNodesToConvex,
-      updateCanvasNodesPositionOrDimensionsInConvex,
+      trashNodesInConvex,
+      persistLayoutUpdates,
+      queueDragPositions,
+      flushDragPositions,
       onNodesChange,
       getEdges,
       getNodes,

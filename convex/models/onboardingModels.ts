@@ -3,6 +3,7 @@ import type { MutationCtx } from "../_generated/server";
 import * as CanvasModels from "./canvasModels";
 import * as NodeDataModels from "./nodeDataModels";
 import * as CanvasNodeModels from "./canvasNodeModels";
+import * as NodeModels from "./nodeModels";
 
 type CanvasNode = NonNullable<Doc<"canvases">["nodes"]>[number];
 
@@ -125,13 +126,14 @@ async function cloneCanvasForUser(
     nodeDataIdMap.set(nodeData._id, newNodeDataId);
   }
 
-  const clonedNodes: CanvasNode[] = (source.nodes ?? [])
-    .filter((node) => !node.nodeDataId || nodeDataIdMap.has(node.nodeDataId))
+  const sourceNodes = await NodeModels.listFromCanvas(ctx, {
+    canvasId: source._id,
+  });
+  const clonedNodes: CanvasNode[] = sourceNodes
+    .filter((node) => nodeDataIdMap.has(node.nodeDataId))
     .map((node) => ({
-      ...node,
-      nodeDataId: node.nodeDataId
-        ? nodeDataIdMap.get(node.nodeDataId)
-        : undefined,
+      ...NodeModels.toCanvasNode(node),
+      nodeDataId: nodeDataIdMap.get(node.nodeDataId),
     }));
 
   if (clonedNodes.length > 0) {

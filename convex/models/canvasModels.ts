@@ -25,6 +25,17 @@ async function getCanvasOrThrow(
   return canvas;
 }
 
+async function countLiveNodes(
+  ctx: QueryCtx | MutationCtx,
+  canvasId: Id<"canvases">,
+): Promise<number> {
+  const nodes = await ctx.db
+    .query("nodes")
+    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
+    .collect();
+  return nodes.filter((node) => node.status !== "trashed").length;
+}
+
 export async function touchCanvas(
   ctx: MutationCtx,
   canvasId: Id<"canvases">,
@@ -70,7 +81,7 @@ export async function listUserCanvasesWithShares(
           shared: true as const,
           permission: share.permission,
           updatedAt: canvas.updatedAt,
-          nodeCount: canvas.nodes?.length ?? 0,
+          nodeCount: await countLiveNodes(ctx, canvas._id),
         };
       }),
   );
@@ -79,13 +90,15 @@ export async function listUserCanvasesWithShares(
     // Les deux listes sont triées par récence, mais séparément : l'appelant
     // qui les affiche l'une sous l'autre (sidebar, home) n'a rien à retrier,
     // et celui qui les sépare garde chaque section dans le bon ordre.
-    ...ownCanvases.map((canvas) => ({
-      _id: canvas._id,
-      name: canvas.name,
-      description: canvas.description,
-      updatedAt: canvas.updatedAt,
-      nodeCount: canvas.nodes?.length ?? 0,
-    })),
+    ...(await Promise.all(
+      ownCanvases.map(async (canvas) => ({
+        _id: canvas._id,
+        name: canvas.name,
+        description: canvas.description,
+        updatedAt: canvas.updatedAt,
+        nodeCount: await countLiveNodes(ctx, canvas._id),
+      })),
+    )),
     ...sharedCanvases
       .filter((canvas) => canvas !== null)
       .sort((a, b) => b.updatedAt - a.updatedAt),

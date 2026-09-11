@@ -8,6 +8,7 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useNoleStore } from "@/stores/noleStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
+import { toCanvasNode } from "@/lib/flowNodes";
 
 /**
  * Charge un canvas et synchronise les stores globaux qui en dépendent.
@@ -62,6 +63,16 @@ export function useCanvasBootstrap(
   } = useRichQuery(api.canvases.readCanvas, {
     canvasId,
   });
+
+  const { data: tableNodes } = useRichQuery(api.nodes.listFromCanvas, {
+    canvasId,
+  });
+
+  const flowNodes = useMemo(
+    () =>
+      tableNodes === undefined ? undefined : tableNodes.map(toCanvasNode),
+    [tableNodes],
+  );
 
   // Fetch nodeDatas for this canvas
   const {
@@ -163,6 +174,7 @@ export function useCanvasBootstrap(
 
   return {
     canvas,
+    flowNodes,
     isCanvasError,
     canvasError,
     isNodeDatasError,

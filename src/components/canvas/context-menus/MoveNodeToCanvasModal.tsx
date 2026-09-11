@@ -32,7 +32,7 @@ export default function MoveNodeToCanvasModal({
     from: "/canvas/$canvasId",
   });
 
-  const moveToCanvas = useMutation(api.canvasNodes.moveToCanvas);
+  const moveToCanvas = useMutation(api.nodes.move);
   const userCanvases = useQuery(api.canvases.listUserCanvases);
 
   const [selectedCanvasId, setSelectedCanvasId] =
@@ -57,9 +57,8 @@ export default function MoveNodeToCanvasModal({
     setIsSubmitting(true);
     try {
       await moveToCanvas({
-        sourceCanvasId: canvasId,
+        nodeIds: [nodeCanvasId],
         targetCanvasId: selectedCanvasId,
-        nodeCanvasIds: [nodeCanvasId],
       });
       onOpenChange(false);
       onSuccess?.();

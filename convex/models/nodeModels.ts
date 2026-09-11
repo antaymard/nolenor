@@ -1,7 +1,9 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { internal } from "../_generated/api";
 import errors from "../config/errorsConfig";
+import { nodeDataConfig } from "../config/nodeConfig";
 import { generateLlmId } from "../lib/llmId";
 import * as CanvasModels from "./canvasModels";
 import * as NodeDataModels from "./nodeDataModels";
@@ -12,6 +14,44 @@ import type { NodePatchProps } from "../schemas/nodesSchema";
 import { threadNodeTouchKinds } from "../schemas/threadMetadataSchema";
 
 type NodeDoc = Doc<"nodes">;
+
+export type CanvasNodeShape = {
+  id: string;
+  nodeDataId?: Id<"nodeDatas">;
+  type: NodeDoc["type"];
+  position: { x: number; y: number };
+  width: number;
+  height: number;
+  locked?: boolean;
+  hidden?: boolean;
+  zIndex?: number;
+  color?: string;
+  variant?: string;
+  parentId?: string;
+  extent?: NodeDoc["extent"];
+  extendParent?: boolean;
+  data?: Record<string, unknown>;
+};
+
+export function toCanvasNode(doc: NodeDoc): CanvasNodeShape {
+  return {
+    id: doc.id,
+    nodeDataId: doc.nodeDataId,
+    type: doc.type,
+    position: doc.position,
+    width: doc.width,
+    height: doc.height,
+    ...(doc.locked !== undefined && { locked: doc.locked }),
+    ...(doc.hidden !== undefined && { hidden: doc.hidden }),
+    ...(doc.zIndex !== undefined && { zIndex: doc.zIndex }),
+    ...(doc.color !== undefined && { color: doc.color }),
+    ...(doc.variant !== undefined && { variant: doc.variant }),
+    ...(doc.parentId !== undefined && { parentId: doc.parentId }),
+    ...(doc.extent !== undefined && { extent: doc.extent }),
+    ...(doc.extendParent !== undefined && { extendParent: doc.extendParent }),
+    ...(doc.data !== undefined && { data: doc.data }),
+  };
+}
 
 /** Champs du node fournis par l'appelant : tout sauf clés système, `id` (llmId généré ici) et `nodeDataId`. */
 export type NodeCreateInput = Omit<
@@ -43,6 +83,17 @@ async function getCanvasOrThrow(
   const canvas = await ctx.db.get("canvases", canvasId);
   if (!canvas) throw new ConvexError(errors.CANVAS_NOT_FOUND);
   return canvas;
+}
+
+function withDefaultVariant(node: NodeCreateInput): NodeCreateInput {
+  if (node.variant !== undefined) return node;
+  const config = nodeDataConfig.find((item) => item.type === node.type);
+  if (!config?.variants) return node;
+  const defaultVariantKey = Object.entries(config.variants).find(
+    ([, variant]) => variant.isDefault,
+  )?.[0];
+  if (!defaultVariantKey) return node;
+  return { ...node, variant: defaultVariantKey };
 }
 
 async function generateUniqueLlmId(ctx: MutationCtx): Promise<string> {
@@ -77,9 +128,10 @@ export async function createNode(
   await getCanvasOrThrow(ctx, node.canvasId);
 
   const llmId = await generateUniqueLlmId(ctx);
+  const withVariant = withDefaultVariant(node);
 
   await ctx.db.insert("nodes", {
-    ...node,
+    ...withVariant,
     id: llmId,
     nodeDataId,
   });
@@ -185,6 +237,67 @@ export async function getNodeByLlmId(
     .unique();
 }
 
+type LayoutNodeInput = {
+  id: string;
+  nodeDataId?: Id<"nodeDatas">;
+  type: NodeDoc["type"];
+  position: { x: number; y: number };
+  width: number;
+  height: number;
+  locked?: boolean;
+  hidden?: boolean;
+  zIndex?: number;
+  color?: string;
+  variant?: string;
+  parentId?: string;
+  extent?: NodeDoc["extent"];
+  extendParent?: boolean;
+  data?: Record<string, unknown>;
+};
+
+export async function upsertLayoutNode(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    node,
+  }: {
+    canvasId: Id<"canvases">;
+    node: LayoutNodeInput;
+  },
+): Promise<void> {
+  if (!node.nodeDataId) return;
+
+  const existing = await getNodeByLlmId(ctx, { nodeId: node.id });
+  if (existing?.status === "trashed") return;
+
+  const fields: Omit<NodeDoc, "_id" | "_creationTime" | "status"> = {
+    id: node.id,
+    canvasId,
+    nodeDataId: node.nodeDataId,
+    type: node.type,
+    position: node.position,
+    width: node.width,
+    height: node.height,
+  };
+  if (node.locked !== undefined) fields.locked = node.locked;
+  if (node.hidden !== undefined) fields.hidden = node.hidden;
+  if (node.zIndex !== undefined) fields.zIndex = node.zIndex;
+  if (node.color !== undefined) fields.color = node.color;
+  if (node.variant !== undefined) fields.variant = node.variant;
+  if (node.parentId !== undefined) fields.parentId = node.parentId;
+  if (node.extent !== undefined) fields.extent = node.extent;
+  if (node.extendParent !== undefined) fields.extendParent = node.extendParent;
+  if (node.data !== undefined) fields.data = node.data;
+
+  if (existing) {
+    const { id: _llmId, ...patch } = fields;
+    await ctx.db.patch(existing._id, patch);
+    return;
+  }
+
+  await ctx.db.insert("nodes", fields);
+}
+
 export async function getNodeOrThrow(
   ctx: QueryCtx | MutationCtx,
   { nodeId }: { nodeId: string },
@@ -272,8 +385,10 @@ export async function patchNodes(
   ctx: MutationCtx,
   {
     updates,
+    touchCanvas: shouldTouchCanvas = true,
   }: {
     updates: Array<{ nodeId: string; props: NodePatchProps }>;
+    touchCanvas?: boolean;
   },
 ): Promise<string[]> {
   if (updates.length === 0) return [];
@@ -294,13 +409,16 @@ export async function patchNodes(
     );
   }
 
-  await CanvasModels.touchCanvas(ctx, canvasId);
+  if (shouldTouchCanvas) {
+    await CanvasModels.touchCanvas(ctx, canvasId);
+  }
   return nodeIds;
 }
 
 /**
  * Corbeille logique (soft delete) : `status = "trashed"`, idempotent.
- * Le nodeData et les chunks sont conservés (restauration possible).
+ * Le nodeData est ensuite supprimé en cascade (chunks, R2), comme le legacy
+ * `remove` — la ligne `nodes` reste pour un undo layout plus tard.
  * Retourne le llmId.
  */
 export async function trashNode(
@@ -327,7 +445,13 @@ export async function trashNode(
 
 export async function trashNodes(
   ctx: MutationCtx,
-  { nodeIds }: { nodeIds: Array<string> },
+  {
+    nodeIds,
+    actor,
+  }: {
+    nodeIds: Array<string>;
+    actor?: NodeDataVersionActor;
+  },
 ): Promise<string[]> {
   const uniqueIds = [...new Set(nodeIds)];
   if (uniqueIds.length === 0) return [];
@@ -338,8 +462,14 @@ export async function trashNodes(
   const canvasId = requireSameCanvasId(nodes.map((node) => node.canvasId));
 
   const trashed: string[] = [];
-  for (const nodeId of uniqueIds) {
-    trashed.push(await trashNode(ctx, { nodeId, touchCanvas: false }));
+  for (const node of nodes) {
+    trashed.push(await trashNode(ctx, { nodeId: node.id, touchCanvas: false }));
+    if (node.status === "trashed") continue;
+    await ctx.scheduler.runAfter(
+      0,
+      internal.wrappers.nodeDataWrappers.deleteWithCascade,
+      { nodeDataId: node.nodeDataId, actor },
+    );
   }
 
   await CanvasModels.touchCanvas(ctx, canvasId);

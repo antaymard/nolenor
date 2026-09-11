@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalQuery } from "../../_generated/server";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import * as NodeModels from "../../models/nodeModels";
 
 export const getCanvasChangesSinceLastMessage = internalQuery({
   args: {
@@ -12,8 +13,10 @@ export const getCanvasChangesSinceLastMessage = internalQuery({
     const canvas = await ctx.db.get("canvases", canvasId);
     if (!canvas) return "";
 
+    const tableNodes = await NodeModels.listFromCanvas(ctx, { canvasId });
+
     const changedNodes = await Promise.all(
-      (canvas.nodes ?? []).map(async (node) => {
+      tableNodes.map(async (node) => {
         if (!node.nodeDataId) return null;
 
         const nodeData = await ctx.db.get("nodeDatas", node.nodeDataId);

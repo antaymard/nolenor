@@ -283,15 +283,24 @@ export default function createNodeTool({
           titleApplied = titled.titleApplied;
         }
 
-        const nodeDataId = await ctx.runMutation(
-          internal.wrappers.nodeDataWrappers.create,
+        const [created] = await ctx.runMutation(
+          internal.wrappers.nodeWrappers.createWithNodeData,
           {
-            type: input.nodeType,
-            values: initialValues,
-            canvasId,
-            ...(template && { templateId: template._id }),
-            // Rattache le node créé au thread. Une création n'écrit pas de
-            // version, donc sans cet actor le lien n'existerait nulle part.
+            nodes: [
+              {
+                node: {
+                  canvasId,
+                  type: input.nodeType,
+                  position: input.position,
+                  width: defaultDimensions.width,
+                  height: defaultDimensions.height,
+                  ...(input.color && { color: input.color }),
+                  ...(template && { data: { templateId: template._id } }),
+                },
+                nodeDataValues: initialValues,
+                ...(template && { nodeDataTemplateId: template._id }),
+              },
+            ],
             actor: {
               type: "agent",
               userId: threadCtx.authUserId,
@@ -299,26 +308,7 @@ export default function createNodeTool({
             },
           },
         );
-
-        const nodeId = generateLlmId();
-
-        await ctx.runMutation(internal.wrappers.canvasNodeWrappers.add, {
-          canvasId,
-          canvasNodes: [
-            {
-              id: nodeId,
-              nodeDataId,
-              type: input.nodeType,
-              position: input.position,
-              width: defaultDimensions.width,
-              height: defaultDimensions.height,
-              color: input.color,
-              // Copie dénormalisée write-once du lien template (résolution
-              // côté canvas, cf. listForCanvas).
-              ...(template && { data: { templateId: template._id } }),
-            },
-          ],
-        });
+        const nodeId = created.nodeId;
 
         const createdEdges: Array<{
           id: string;

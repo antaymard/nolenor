@@ -9,7 +9,6 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { useReactFlow, type Node } from "@xyflow/react";
 import { useMutation } from "convex/react";
-import { useParams } from "@tanstack/react-router";
 
 import { HiOutlineTrash } from "react-icons/hi";
 import {
@@ -45,12 +44,7 @@ export default function SelectionContextMenu({
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
   const { updateNodeDataValues } = useUpdateNodeDataValues();
-  const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
-    from: "/canvas/$canvasId",
-  });
-  const updatePositionOrDimensions = useMutation(
-    api.canvasNodes.updatePositionOrDimensions,
-  );
+  const patchNodes = useMutation(api.nodes.patch);
   const availableColors = Object.entries(colors);
 
   const imageNodes = Array.isArray(elements)
@@ -126,11 +120,10 @@ export default function SelectionContextMenu({
       })),
     );
 
-    await updatePositionOrDimensions({
-      canvasId,
-      nodeChanges: changes.map(({ nodeId, dimensions }) => ({
-        id: nodeId,
-        dimensions,
+    await patchNodes({
+      updates: changes.map(({ nodeId, dimensions }) => ({
+        nodeId,
+        props: { width: dimensions.width, height: dimensions.height },
       })),
     });
 

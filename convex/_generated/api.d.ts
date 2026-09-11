@@ -135,6 +135,7 @@ import type * as schemas_aiUsageSourceSchema from "../schemas/aiUsageSourceSchem
 import type * as schemas_aiUsageTokensSchema from "../schemas/aiUsageTokensSchema.js";
 import type * as schemas_apiTokensSchema from "../schemas/apiTokensSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
+import type * as schemas_edgesSchema from "../schemas/edgesSchema.js";
 import type * as schemas_fieldTypeSchema from "../schemas/fieldTypeSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
 import type * as schemas_messageMetadataSchema from "../schemas/messageMetadataSchema.js";
@@ -142,6 +143,7 @@ import type * as schemas_nodeDataVersionsSchema from "../schemas/nodeDataVersion
 import type * as schemas_nodeDatasSchema from "../schemas/nodeDatasSchema.js";
 import type * as schemas_nodeTemplatesSchema from "../schemas/nodeTemplatesSchema.js";
 import type * as schemas_nodeTypeSchema from "../schemas/nodeTypeSchema.js";
+import type * as schemas_nodesSchema from "../schemas/nodesSchema.js";
 import type * as schemas_r2ObjectsSchema from "../schemas/r2ObjectsSchema.js";
 import type * as schemas_recipesSchema from "../schemas/recipesSchema.js";
 import type * as schemas_scheduledJobsSchema from "../schemas/scheduledJobsSchema.js";
@@ -310,6 +312,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/aiUsageTokensSchema": typeof schemas_aiUsageTokensSchema;
   "schemas/apiTokensSchema": typeof schemas_apiTokensSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
+  "schemas/edgesSchema": typeof schemas_edgesSchema;
   "schemas/fieldTypeSchema": typeof schemas_fieldTypeSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;
   "schemas/messageMetadataSchema": typeof schemas_messageMetadataSchema;
@@ -317,6 +320,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/nodeDatasSchema": typeof schemas_nodeDatasSchema;
   "schemas/nodeTemplatesSchema": typeof schemas_nodeTemplatesSchema;
   "schemas/nodeTypeSchema": typeof schemas_nodeTypeSchema;
+  "schemas/nodesSchema": typeof schemas_nodesSchema;
   "schemas/r2ObjectsSchema": typeof schemas_r2ObjectsSchema;
   "schemas/recipesSchema": typeof schemas_recipesSchema;
   "schemas/scheduledJobsSchema": typeof schemas_scheduledJobsSchema;

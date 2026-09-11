@@ -20,6 +20,8 @@ import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
 import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
 import { aiUsageDailyValidator } from "./schemas/aiUsageDailySchema";
 import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
+import { nodesValidator } from "./schemas/nodesSchema";
+import { edgesValidator } from "./schemas/edgesSchema";
 
 const schema = defineSchema({
   ...authTables,
@@ -59,6 +61,9 @@ const schema = defineSchema({
       searchField: "name",
       filterFields: ["creatorId"],
     }),
+
+  nodes: defineTable(nodesValidator).index("by_canvas", ["canvasId"]),
+  edges: defineTable(edgesValidator).index("by_canvas", ["canvasId"]),
 
   nodeDatas: defineTable(nodeDatasValidator)
     .index("by_canvasId", ["canvasId"])

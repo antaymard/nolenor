@@ -7,6 +7,7 @@ import * as NodeModels from "../models/nodeModels";
 import {
   nodeCreateWithDataItemValidator,
   nodePatchUpdateValidator,
+  nodesValidator,
 } from "../schemas/nodesSchema";
 import { nodeDataVersionActorValidator } from "../schemas/nodeDataVersionsSchema";
 
@@ -64,6 +65,22 @@ export const move = internalMutation({
       nodeIds: args.nodeIds,
       targetCanvasId: args.targetCanvasId,
     });
+  },
+});
+
+const nodeDocValidator = v.object({
+  _id: v.id("nodes"),
+  _creationTime: v.number(),
+  ...nodesValidator.fields,
+});
+
+export const listFromCanvas = internalQuery({
+  args: {
+    canvasId: v.id("canvases"),
+  },
+  returns: v.array(nodeDocValidator),
+  handler: async (ctx, args) => {
+    return NodeModels.listFromCanvas(ctx, { canvasId: args.canvasId });
   },
 });
 

@@ -1,17 +1,24 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { requireAuth, requireCanvasAccess } from "./lib/auth";
+import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import errors from "./config/errorsConfig";
 import * as NodeModels from "./models/nodeModels";
 import {
   nodeCreateWithDataItemValidator,
   nodePatchUpdateValidator,
+  nodesValidator,
 } from "./schemas/nodesSchema";
 
 const createdNodeReturnValidator = v.object({
   nodeId: v.string(),
   nodeDataId: v.id("nodeDatas"),
+});
+
+const nodeDocValidator = v.object({
+  _id: v.id("nodes"),
+  _creationTime: v.number(),
+  ...nodesValidator.fields,
 });
 
 async function requireEditorOnNodesCanvas(
@@ -124,8 +131,13 @@ export const listFromCanvas = query({
   args: {
     canvasId: v.id("canvases"),
   },
-  returns: v.array(v.any()),
-  handler: async () => {
-    return [];
+  returns: v.array(nodeDocValidator),
+  handler: async (ctx, args) => {
+    const authUserId = await optionalAuth(ctx);
+    await requireCanvasAccess(ctx, args.canvasId, authUserId, "viewer", {
+      allowPublic: true,
+    });
+
+    return NodeModels.listFromCanvas(ctx, { canvasId: args.canvasId });
   },
 });

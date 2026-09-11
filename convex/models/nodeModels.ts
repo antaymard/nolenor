@@ -208,6 +208,17 @@ export async function getNodeByNodeDataId(
     .first();
 }
 
+export async function listFromCanvas(
+  ctx: QueryCtx | MutationCtx,
+  { canvasId }: { canvasId: Id<"canvases"> },
+): Promise<NodeDoc[]> {
+  const nodes = await ctx.db
+    .query("nodes")
+    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
+    .collect();
+  return nodes.filter((node) => node.status !== "trashed");
+}
+
 /**
  * Patch des props visuelles/positionnelles d'un node (couleur, position,
  * dimensions, verrouillage, …). Seuls les champs fournis sont écrits ;

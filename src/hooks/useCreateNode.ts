@@ -41,7 +41,7 @@ type CreateNodeResult = {
 };
 
 export function useCreateNode() {
-  const { addNodes, getNodes, setNodes } = useReactFlow();
+  const { getNodes, setNodes } = useReactFlow();
   const captureFraming = useCaptureFraming();
   const createWithNodeData = useMutation(api.nodes.createWithNodeData);
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
@@ -147,8 +147,12 @@ export function useCreateNode() {
       setNodes((nodes) => nodes.map((n) => ({ ...n, selected: false })));
     }
 
-    // Au format de React Flow, on ajoute le node avec addNodes
-    addNodes({
+    // Au format de React Flow, ajout via updater fonctionnel avec garde
+    // anti-doublon : le push Convex peut livrer le node serveur (même llmId)
+    // avant ce add local — sans garde, deux NodeWrapper sous la même key
+    // se monteraient jusqu'au sync suivant. Si le node est déjà là, on ne
+    // fait qu'appliquer la sélection.
+    const newNode: Node = {
       ...node,
       id: nodeId,
       position,
@@ -165,6 +169,15 @@ export function useCreateNode() {
         variant: node.data?.variant ?? "default",
         nodeDataId,
       },
+    };
+    setNodes((current) => {
+      if (current.some((n) => n.id === nodeId)) {
+        if (!selectNewNode) return current;
+        return current.map((n) =>
+          n.id === nodeId ? { ...n, selected: true } : n,
+        );
+      }
+      return [...current, newNode];
     });
 
     // Toujours écrit, y compris à `null` : sans ça, un id non consommé (type

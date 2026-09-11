@@ -198,7 +198,7 @@ export default function createNodeTool({
         .array(z.string())
         .optional()
         .describe(
-          "Optional list of existing nodeIds to connect FROM each source node TO the newly created node.",
+          "Optional list of existing nodeIds to connect FROM each source node TO the newly created node. Unknown or invalid ids are skipped and reported in skippedSources.",
         ),
     }),
     execute: async (ctx, input) => {
@@ -309,13 +309,17 @@ export default function createNodeTool({
         );
         const nodeId = created.nodeId;
 
-        const createdEdges: Array<{
-          id: string;
-          source: string;
-          target: string;
-          sourceHandle: string;
-          targetHandle: string;
+        // Connexions demandées depuis des sources existantes, isolées par
+        // source : le node est déjà commité, une source invalide ne doit pas
+        // faire échouer le tool entier (« error » pour un node qui existe).
+        // Les skippées sont rapportées avec leur raison — l'agent retente
+        // via create_connection avec le bon id.
+        const connectedSources: Array<{
+          sourceNodeId: string;
+          edgeId: string;
         }> = [];
+        const skippedSources: Array<{ sourceNodeId: string; reason: string }> =
+          [];
 
         if (input.sourceNodes && input.sourceNodes.length > 0) {
           const toRect: NodeRect = {
@@ -327,57 +331,64 @@ export default function createNodeTool({
 
           for (const sourceNodeId of input.sourceNodes) {
             if (sourceNodeId === nodeId) {
-              return toolError(
-                "sourceNodes cannot contain the newly created node itself.",
-              );
+              skippedSources.push({
+                sourceNodeId,
+                reason:
+                  "sourceNodes cannot contain the newly created node itself.",
+              });
+              continue;
             }
 
-            const fromNodeLookup = await ctx.runQuery(
-              internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
-              {
-                canvasId,
-                nodeId: sourceNodeId,
-              },
-            );
+            try {
+              const fromNodeLookup = await ctx.runQuery(
+                internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+                {
+                  canvasId,
+                  nodeId: sourceNodeId,
+                },
+              );
 
-            const fromRect: NodeRect = {
-              id: fromNodeLookup.node.id,
-              position: fromNodeLookup.node.position,
-              width: fromNodeLookup.node.width,
-              height: fromNodeLookup.node.height,
-            };
+              const fromRect: NodeRect = {
+                id: fromNodeLookup.node.id,
+                position: fromNodeLookup.node.position,
+                width: fromNodeLookup.node.width,
+                height: fromNodeLookup.node.height,
+              };
 
-            const { sourceHandle, targetHandle } =
-              getClosestHandlesForDirectedEdge({
-                from: fromRect,
-                to: toRect,
+              const { sourceHandle, targetHandle } =
+                getClosestHandlesForDirectedEdge({
+                  from: fromRect,
+                  to: toRect,
+                });
+
+              // Id serveur via `edgeWrappers.create` : le node vient d'être
+              // commit par `createWithNodeData`, la validation des endpoints
+              // passe.
+              const [edgeId] = await ctx.runMutation(
+                internal.wrappers.edgeWrappers.create,
+                {
+                  edges: [
+                    {
+                      canvasId,
+                      source: sourceNodeId,
+                      target: nodeId,
+                      sourceHandle,
+                      targetHandle,
+                    },
+                  ],
+                },
+              );
+
+              connectedSources.push({ sourceNodeId, edgeId });
+            } catch (error) {
+              skippedSources.push({
+                sourceNodeId,
+                reason:
+                  error instanceof Error
+                    ? error.message
+                    : "source node lookup or connection failed",
               });
-
-            // Id serveur via `edgeWrappers.create` : le node vient d'être
-            // commit par `createWithNodeData`, la validation des endpoints
-            // passe.
-            const [edgeId] = await ctx.runMutation(
-              internal.wrappers.edgeWrappers.create,
-              {
-                edges: [
-                  {
-                    canvasId,
-                    source: sourceNodeId,
-                    target: nodeId,
-                    sourceHandle,
-                    targetHandle,
-                  },
-                ],
-              },
-            );
-
-            createdEdges.push({
-              id: edgeId,
-              source: sourceNodeId,
-              target: nodeId,
-              sourceHandle,
-              targetHandle,
-            });
+            }
           }
         }
 
@@ -401,6 +412,13 @@ export default function createNodeTool({
             height: defaultDimensions.height,
           },
           currentNodeData: initialValues,
+          // Connexions depuis les sources demandées : les réussies avec
+          // leur edgeId, les skippées avec leur raison.
+          ...(input.sourceNodes &&
+            input.sourceNodes.length > 0 && {
+              connectedSources,
+              ...(skippedSources.length > 0 && { skippedSources }),
+            }),
           // Custom : la carte des champs (id ↔ nom ↔ type) — les values de
           // set_node_data doivent être keyées par field id.
           ...(template && {

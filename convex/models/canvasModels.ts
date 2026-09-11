@@ -25,6 +25,13 @@ async function getCanvasOrThrow(
   return canvas;
 }
 
+export async function touchCanvas(
+  ctx: MutationCtx,
+  canvasId: Id<"canvases">,
+): Promise<void> {
+  await ctx.db.patch("canvases", canvasId, { updatedAt: Date.now() });
+}
+
 export async function getLastModifiedForUser(
   ctx: QueryCtx,
   { authUserId }: { authUserId: Id<"users"> },

@@ -1,58 +1,122 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
+import errors from "./config/errorsConfig";
 import * as NodeModels from "./models/nodeModels";
-import { nodesValidator } from "./schemas/nodesSchema";
+import {
+  nodeCreateWithDataItemValidator,
+  nodePatchUpdateValidator,
+} from "./schemas/nodesSchema";
+
+const createdNodeReturnValidator = v.object({
+  nodeId: v.string(),
+  nodeDataId: v.id("nodeDatas"),
+});
+
+async function requireEditorOnNodesCanvas(
+  ctx: Parameters<typeof requireCanvasAccess>[0],
+  authUserId: Id<"users">,
+  nodeIds: Array<string>,
+) {
+  if (nodeIds.length === 0) return;
+  const nodes = await Promise.all(
+    nodeIds.map((nodeId) => NodeModels.getNodeOrThrow(ctx, { nodeId })),
+  );
+  const canvasId = nodes[0].canvasId;
+  for (const node of nodes) {
+    if (node.canvasId !== canvasId) {
+      throw new ConvexError(errors.NODES_MUST_SHARE_CANVAS);
+    }
+  }
+  await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
+  return canvasId;
+}
 
 export const createWithNodeData = mutation({
   args: {
-    node: nodesValidator.omit("id", "nodeDataId", "status"),
-    nodeDataValues: v.record(v.string(), v.any()),
-    nodeDataTemplateId: v.optional(v.id("nodeTemplates")),
+    nodes: v.array(nodeCreateWithDataItemValidator),
   },
-  returns: v.string(),
+  returns: v.array(createdNodeReturnValidator),
   handler: async (ctx, args) => {
     const authUserId = await requireAuth(ctx);
-    await requireCanvasAccess(ctx, args.node.canvasId, authUserId, "editor");
+    if (args.nodes.length === 0) return [];
 
-    // Même orchestrateur que le wrapper interne de l'agent
-    // (`nodeWrappers.createWithNodeData`) : les deux voies partagent
-    // au niveau Models, comme d'habitude (le public ne passe jamais par
-    // un wrapper, il appelle les Models directement).
-    const { nodeId } = await NodeModels.createNodeWithData(ctx, {
-      node: args.node,
-      values: args.nodeDataValues,
-      templateId: args.nodeDataTemplateId,
+    const canvasId = args.nodes[0].node.canvasId;
+    for (const item of args.nodes) {
+      if (item.node.canvasId !== canvasId) {
+        throw new ConvexError(errors.NODES_MUST_SHARE_CANVAS);
+      }
+    }
+    await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
+
+    return NodeModels.createNodesWithData(ctx, {
+      nodes: args.nodes.map((item) => ({
+        node: item.node,
+        values: item.nodeDataValues,
+        templateId: item.nodeDataTemplateId,
+      })),
       actor: { type: "user", userId: authUserId },
     });
-    return nodeId;
   },
 });
 
-// Color, dimensions, index etc
-// TODO: vraie signature à définir.
 export const patch = mutation({
-  args: {},
-  returns: v.null(),
-  handler: async () => {
-    return null;
+  args: {
+    updates: v.array(nodePatchUpdateValidator),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const authUserId = await requireAuth(ctx);
+    await requireEditorOnNodesCanvas(
+      ctx,
+      authUserId,
+      args.updates.map((update) => update.nodeId),
+    );
+
+    return NodeModels.patchNodes(ctx, { updates: args.updates });
   },
 });
 
 export const trash = mutation({
   args: {
-    nodeId: v.string(),
+    nodeIds: v.array(v.string()),
   },
-  returns: v.string(),
+  returns: v.array(v.string()),
   handler: async (ctx, args) => {
     const authUserId = await requireAuth(ctx);
+    await requireEditorOnNodesCanvas(ctx, authUserId, args.nodeIds);
 
-    const node = await NodeModels.getNodeOrThrow(ctx, {
-      nodeId: args.nodeId,
+    return NodeModels.trashNodes(ctx, { nodeIds: args.nodeIds });
+  },
+});
+
+export const move = mutation({
+  args: {
+    nodeIds: v.array(v.string()),
+    targetCanvasId: v.id("canvases"),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const authUserId = await requireAuth(ctx);
+    const sourceCanvasId = await requireEditorOnNodesCanvas(
+      ctx,
+      authUserId,
+      args.nodeIds,
+    );
+    if (sourceCanvasId !== undefined) {
+      await requireCanvasAccess(
+        ctx,
+        args.targetCanvasId,
+        authUserId,
+        "editor",
+      );
+    }
+
+    return NodeModels.moveNodes(ctx, {
+      nodeIds: args.nodeIds,
+      targetCanvasId: args.targetCanvasId,
     });
-    await requireCanvasAccess(ctx, node.canvasId, authUserId, "editor");
-
-    return NodeModels.trashNode(ctx, { nodeId: args.nodeId });
   },
 });
 
@@ -61,8 +125,7 @@ export const listFromCanvas = query({
     canvasId: v.id("canvases"),
   },
   returns: v.array(v.any()),
-  handler: async (ctx, args) => {
-    // TODO
+  handler: async () => {
     return [];
   },
 });

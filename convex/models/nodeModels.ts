@@ -1,12 +1,14 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { internal } from "../_generated/api";
 import errors from "../config/errorsConfig";
 import { generateLlmId } from "../lib/llmId";
+import * as CanvasModels from "./canvasModels";
 import * as NodeDataModels from "./nodeDataModels";
+import * as SearchableChunkModels from "./searchableChunkModels";
 import * as ThreadMetadataModels from "./threadMetadataModels";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
+import type { NodePatchProps } from "../schemas/nodesSchema";
 import { threadNodeTouchKinds } from "../schemas/threadMetadataSchema";
 
 type NodeDoc = Doc<"nodes">;
@@ -18,6 +20,21 @@ export type NodeCreateInput = Omit<
 >;
 
 const MAX_LLMID_ATTEMPTS = 5;
+
+function requireSameCanvasId(
+  canvasIds: Array<Id<"canvases">>,
+): Id<"canvases"> {
+  const first = canvasIds[0];
+  if (first === undefined) {
+    throw new ConvexError(errors.NODE_NOT_FOUND);
+  }
+  for (const canvasId of canvasIds) {
+    if (canvasId !== first) {
+      throw new ConvexError(errors.NODES_MUST_SHARE_CANVAS);
+    }
+  }
+  return first;
+}
 
 async function getCanvasOrThrow(
   ctx: MutationCtx,
@@ -43,16 +60,18 @@ async function generateUniqueLlmId(ctx: MutationCtx): Promise<string> {
 /**
  * Crée un node dans la table `nodes` (pas de double-écriture `canvases.nodes`).
  * Génère le llmId côté serveur avec contrôle d'unicité globale (`by_llmid`).
- * Retourne le llmId (contrat public `nodes.createWithNodeData`).
+ * Retourne le llmId.
  */
 export async function createNode(
   ctx: MutationCtx,
   {
     node,
     nodeDataId,
+    touchCanvas: shouldTouchCanvas = true,
   }: {
     node: NodeCreateInput;
     nodeDataId: Id<"nodeDatas">;
+    touchCanvas?: boolean;
   },
 ): Promise<string> {
   await getCanvasOrThrow(ctx, node.canvasId);
@@ -65,10 +84,9 @@ export async function createNode(
     nodeDataId,
   });
 
-  // Patch updatedAt of the canvas
-  await ctx.db.patch("canvases", node.canvasId, {
-    updatedAt: Date.now(),
-  });
+  if (shouldTouchCanvas) {
+    await CanvasModels.touchCanvas(ctx, node.canvasId);
+  }
 
   return llmId;
 }
@@ -89,11 +107,13 @@ export async function createNodeWithData(
     values,
     templateId,
     actor,
+    touchCanvas: shouldTouchCanvas = true,
   }: {
     node: NodeCreateInput;
     values: Record<string, unknown>;
     templateId?: Id<"nodeTemplates">;
     actor?: NodeDataVersionActor;
+    touchCanvas?: boolean;
   },
 ): Promise<{ nodeId: string; nodeDataId: Id<"nodeDatas"> }> {
   const nodeDataId = await NodeDataModels.createNodeData(ctx, {
@@ -112,8 +132,47 @@ export async function createNodeWithData(
     });
   }
 
-  const nodeId = await createNode(ctx, { node, nodeDataId });
+  const nodeId = await createNode(ctx, {
+    node,
+    nodeDataId,
+    touchCanvas: shouldTouchCanvas,
+  });
   return { nodeId, nodeDataId };
+}
+
+export async function createNodesWithData(
+  ctx: MutationCtx,
+  {
+    nodes,
+    actor,
+  }: {
+    nodes: Array<{
+      node: NodeCreateInput;
+      values: Record<string, unknown>;
+      templateId?: Id<"nodeTemplates">;
+    }>;
+    actor?: NodeDataVersionActor;
+  },
+): Promise<Array<{ nodeId: string; nodeDataId: Id<"nodeDatas"> }>> {
+  if (nodes.length === 0) return [];
+
+  const canvasId = requireSameCanvasId(nodes.map((item) => item.node.canvasId));
+
+  const created = [];
+  for (const item of nodes) {
+    created.push(
+      await createNodeWithData(ctx, {
+        node: item.node,
+        values: item.values,
+        templateId: item.templateId,
+        actor,
+        touchCanvas: false,
+      }),
+    );
+  }
+
+  await CanvasModels.touchCanvas(ctx, canvasId);
+  return created;
 }
 
 export async function getNodeByLlmId(
@@ -150,22 +209,184 @@ export async function getNodeByNodeDataId(
 }
 
 /**
+ * Patch des props visuelles/positionnelles d'un node (couleur, position,
+ * dimensions, verrouillage, …). Seuls les champs fournis sont écrits ;
+ * `data` est fusionné en shallow (parité avec le legacy `updateCanvasNodes`),
+ * le reste est remplacé. Props vide = no-op (retourne l'id sans toucher
+ * `canvases.updatedAt`). Retourne le llmId.
+ */
+export async function patchNode(
+  ctx: MutationCtx,
+  {
+    nodeId,
+    props,
+    touchCanvas: shouldTouchCanvas = true,
+  }: {
+    nodeId: string;
+    props: NodePatchProps;
+    touchCanvas?: boolean;
+  },
+): Promise<string> {
+  const node = await getNodeOrThrow(ctx, { nodeId });
+
+  const patch: Partial<Omit<NodeDoc, "_id" | "_creationTime">> = {};
+  if (props.position !== undefined) patch.position = props.position;
+  if (props.width !== undefined) patch.width = props.width;
+  if (props.height !== undefined) patch.height = props.height;
+  if (props.locked !== undefined) patch.locked = props.locked;
+  if (props.hidden !== undefined) patch.hidden = props.hidden;
+  if (props.zIndex !== undefined) patch.zIndex = props.zIndex;
+  if (props.color !== undefined) patch.color = props.color;
+  if (props.variant !== undefined) patch.variant = props.variant;
+  if (props.parentId !== undefined) patch.parentId = props.parentId;
+  if (props.extent !== undefined) patch.extent = props.extent;
+  if (props.extendParent !== undefined)
+    patch.extendParent = props.extendParent;
+  if (props.data !== undefined) {
+    patch.data = { ...(node.data ?? {}), ...props.data };
+  }
+
+  if (Object.keys(patch).length === 0) return node.id;
+
+  await ctx.db.patch(node._id, patch);
+
+  if (shouldTouchCanvas) {
+    await CanvasModels.touchCanvas(ctx, node.canvasId);
+  }
+
+  return node.id;
+}
+
+export async function patchNodes(
+  ctx: MutationCtx,
+  {
+    updates,
+  }: {
+    updates: Array<{ nodeId: string; props: NodePatchProps }>;
+  },
+): Promise<string[]> {
+  if (updates.length === 0) return [];
+
+  const nodes = await Promise.all(
+    updates.map((update) => getNodeOrThrow(ctx, { nodeId: update.nodeId })),
+  );
+  const canvasId = requireSameCanvasId(nodes.map((node) => node.canvasId));
+
+  const nodeIds: string[] = [];
+  for (const update of updates) {
+    nodeIds.push(
+      await patchNode(ctx, {
+        nodeId: update.nodeId,
+        props: update.props,
+        touchCanvas: false,
+      }),
+    );
+  }
+
+  await CanvasModels.touchCanvas(ctx, canvasId);
+  return nodeIds;
+}
+
+/**
  * Corbeille logique (soft delete) : `status = "trashed"`, idempotent.
  * Le nodeData et les chunks sont conservés (restauration possible).
  * Retourne le llmId.
  */
 export async function trashNode(
   ctx: MutationCtx,
-  { nodeId }: { nodeId: string },
+  {
+    nodeId,
+    touchCanvas: shouldTouchCanvas = true,
+  }: {
+    nodeId: string;
+    touchCanvas?: boolean;
+  },
 ): Promise<string> {
   const node = await getNodeOrThrow(ctx, { nodeId });
   if (node.status === "trashed") return node.id;
 
   await ctx.db.patch(node._id, { status: "trashed" });
 
-  await ctx.db.patch("canvases", node.canvasId, {
-    updatedAt: Date.now(),
-  });
+  if (shouldTouchCanvas) {
+    await CanvasModels.touchCanvas(ctx, node.canvasId);
+  }
 
   return node.id;
+}
+
+export async function trashNodes(
+  ctx: MutationCtx,
+  { nodeIds }: { nodeIds: Array<string> },
+): Promise<string[]> {
+  const uniqueIds = [...new Set(nodeIds)];
+  if (uniqueIds.length === 0) return [];
+
+  const nodes = await Promise.all(
+    uniqueIds.map((nodeId) => getNodeOrThrow(ctx, { nodeId })),
+  );
+  const canvasId = requireSameCanvasId(nodes.map((node) => node.canvasId));
+
+  const trashed: string[] = [];
+  for (const nodeId of uniqueIds) {
+    trashed.push(await trashNode(ctx, { nodeId, touchCanvas: false }));
+  }
+
+  await CanvasModels.touchCanvas(ctx, canvasId);
+  return trashed;
+}
+
+/**
+ * Déplace des nodes vers un autre canvas. Parité legacy `moveToCanvas` :
+ * les edges de la table `edges` qui touchent un node déplacé sont
+ * supprimées (pas migrées). nodeData + chunks suivent le canvas.
+ */
+export async function moveNodes(
+  ctx: MutationCtx,
+  {
+    nodeIds,
+    targetCanvasId,
+  }: {
+    nodeIds: Array<string>;
+    targetCanvasId: Id<"canvases">;
+  },
+): Promise<string[]> {
+  const uniqueIds = [...new Set(nodeIds)];
+  if (uniqueIds.length === 0) return [];
+
+  const nodes = await Promise.all(
+    uniqueIds.map((nodeId) => getNodeOrThrow(ctx, { nodeId })),
+  );
+  const sourceCanvasId = requireSameCanvasId(
+    nodes.map((node) => node.canvasId),
+  );
+  if (sourceCanvasId === targetCanvasId) {
+    throw new ConvexError(errors.SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT);
+  }
+
+  await getCanvasOrThrow(ctx, targetCanvasId);
+
+  const movedIds = new Set(nodes.map((node) => node.id));
+
+  for (const node of nodes) {
+    await ctx.db.patch(node._id, { canvasId: targetCanvasId });
+    await ctx.db.patch(node.nodeDataId, { canvasId: targetCanvasId });
+    await SearchableChunkModels.updateCanvasId(ctx, {
+      nodeDataId: node.nodeDataId,
+      canvasId: targetCanvasId,
+    });
+  }
+
+  const edges = await ctx.db
+    .query("edges")
+    .withIndex("by_canvas", (q) => q.eq("canvasId", sourceCanvasId))
+    .collect();
+  for (const edge of edges) {
+    if (movedIds.has(edge.source) || movedIds.has(edge.target)) {
+      await ctx.db.delete(edge._id);
+    }
+  }
+
+  await CanvasModels.touchCanvas(ctx, sourceCanvasId);
+  await CanvasModels.touchCanvas(ctx, targetCanvasId);
+  return nodes.map((node) => node.id);
 }

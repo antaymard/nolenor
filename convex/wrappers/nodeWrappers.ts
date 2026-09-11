@@ -4,46 +4,66 @@ import {
   internalQuery,
 } from "../_generated/server";
 import * as NodeModels from "../models/nodeModels";
-import { nodesValidator } from "../schemas/nodesSchema";
+import {
+  nodeCreateWithDataItemValidator,
+  nodePatchUpdateValidator,
+} from "../schemas/nodesSchema";
 import { nodeDataVersionActorValidator } from "../schemas/nodeDataVersionsSchema";
 
-const nodeCreateValidator = nodesValidator.omit("id", "nodeDataId", "status");
+const createdNodeReturnValidator = v.object({
+  nodeId: v.string(),
+  nodeDataId: v.id("nodeDatas"),
+});
 
-/**
- * Orchestrateur interne (agent, scheduler) : crée le nodeData PUIS le node
- * dans la même transaction, via `NodeModels.createNodeWithData` — la même
- * fonction que la mutation publique `nodes.createWithNodeData`. Retourne les deux ids :
- * l'agent a besoin du `nodeDataId` (lecture/édition) comme du `nodeId`
- * (position, edges).
- */
 export const createWithNodeData = internalMutation({
   args: {
-    node: nodeCreateValidator,
-    nodeDataValues: v.record(v.string(), v.any()),
-    nodeDataTemplateId: v.optional(v.id("nodeTemplates")),
+    nodes: v.array(nodeCreateWithDataItemValidator),
     actor: v.optional(nodeDataVersionActorValidator),
   },
-  returns: v.object({
-    nodeId: v.string(),
-    nodeDataId: v.id("nodeDatas"),
-  }),
+  returns: v.array(createdNodeReturnValidator),
   handler: async (ctx, args) => {
-    return NodeModels.createNodeWithData(ctx, {
-      node: args.node,
-      values: args.nodeDataValues,
-      templateId: args.nodeDataTemplateId,
+    return NodeModels.createNodesWithData(ctx, {
+      nodes: args.nodes.map((item) => ({
+        node: item.node,
+        values: item.nodeDataValues,
+        templateId: item.nodeDataTemplateId,
+      })),
       actor: args.actor,
     });
   },
 });
 
+export const patch = internalMutation({
+  args: {
+    updates: v.array(nodePatchUpdateValidator),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    return NodeModels.patchNodes(ctx, { updates: args.updates });
+  },
+});
+
 export const trash = internalMutation({
   args: {
-    nodeId: v.string(),
+    nodeIds: v.array(v.string()),
   },
-  returns: v.string(),
+  returns: v.array(v.string()),
   handler: async (ctx, args) => {
-    return NodeModels.trashNode(ctx, { nodeId: args.nodeId });
+    return NodeModels.trashNodes(ctx, { nodeIds: args.nodeIds });
+  },
+});
+
+export const move = internalMutation({
+  args: {
+    nodeIds: v.array(v.string()),
+    targetCanvasId: v.id("canvases"),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    return NodeModels.moveNodes(ctx, {
+      nodeIds: args.nodeIds,
+      targetCanvasId: args.targetCanvasId,
+    });
   },
 });
 
@@ -56,7 +76,6 @@ export const read = internalQuery({
   },
 });
 
-/** Résolution inverse pour la recherche (cf. resolveNodeIds). */
 export const getByNodeDataId = internalQuery({
   args: {
     nodeDataId: v.id("nodeDatas"),

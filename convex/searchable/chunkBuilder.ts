@@ -92,11 +92,11 @@ async function rebuildChunksForNodeData(
     text: stripLoneSurrogates(chunk.text),
   }));
 
-  // console.log("[chunkBuilder] rebuildChunks:chunks-built", {
-  //   nodeDataId,
-  //   nodeType: nodeData.type,
-  //   chunkCount: chunks.length,
-  // });
+  console.log("[chunkBuilder] rebuildChunks:chunks-built", {
+    nodeDataId,
+    nodeType: nodeData.type,
+    chunkCount: chunks.length,
+  });
 
   await ctx.runMutation(
     internal.wrappers.searchableChunkWrappers.upsertChunks,
@@ -152,11 +152,11 @@ async function buildChunks(
   updatedKeys?: string[],
   template?: Doc<"nodeTemplates"> | null,
 ): Promise<ChunkInput[]> {
-  // console.log("[chunkBuilder] buildChunks:start", {
-  //   nodeDataId: nodeData._id,
-  //   nodeType: nodeData.type,
-  //   updatedKeys,
-  // });
+  console.log("[chunkBuilder] buildChunks:start", {
+    nodeDataId: nodeData._id,
+    nodeType: nodeData.type,
+    updatedKeys,
+  });
 
   // Guard: for expensive branches (LLM/OCR), skip if the content field wasn't updated
   if (updatedKeys) {

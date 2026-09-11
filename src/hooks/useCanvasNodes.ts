@@ -195,7 +195,10 @@ export function useCanvasNodes(
       failureMessage?: string;
     }) => {
       const pending = dragPendingRef.current;
-      if (pending.size === 0) return;
+      if (pending.size === 0) {
+        dragOriginsRef.current.clear();
+        return;
+      }
       const updates = [...pending.entries()].map(([nodeId, position]) => ({
         nodeId,
         props: { position },
@@ -606,6 +609,7 @@ export function useCanvasNodes(
               logTitleSizing("no-meaningful-dimension-change");
             }
             lastPositionChangesWhenResizing.current = null;
+            dragOriginsRef.current.clear();
             return;
           }
 
@@ -679,6 +683,11 @@ export function useCanvasNodes(
             });
           }
           lastPositionChangesWhenResizing.current = null;
+          // Un redimensionnement avale les changements de position qu'il
+          // entraîne : les origines capturées pour eux ne doivent pas survivre
+          // au geste, sinon le drag suivant du même node ramènerait sa
+          // position d'avant le redimensionnement.
+          dragOriginsRef.current.clear();
         }
       } else if (positionChanges.length > 0) {
         const { descendantIds, descendantSet } = draggedChildrenCache.current;

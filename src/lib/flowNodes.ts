@@ -23,17 +23,6 @@ export function toCanvasNode(doc: Doc<"nodes">): CanvasNode {
   };
 }
 
-export function mergeFlowNodes(
-  tableNodes: Doc<"nodes">[] | undefined,
-  embeddedNodes: CanvasNode[] | undefined,
-): CanvasNode[] | undefined {
-  if (tableNodes === undefined) return embeddedNodes;
-  const fromTable = tableNodes.map(toCanvasNode);
-  const tableIds = new Set(fromTable.map((node) => node.id));
-  const extras = (embeddedNodes ?? []).filter((node) => !tableIds.has(node.id));
-  return [...fromTable, ...extras];
-}
-
 type NodePatch = {
   nodeId: string;
   props: {
@@ -88,5 +77,21 @@ export function applyNodePatchesToListQuery(
         }),
       };
     }),
+  );
+}
+
+export function removeNodesFromListQuery(
+  localStore: OptimisticLocalStore,
+  canvasId: Id<"canvases">,
+  nodeIds: string[],
+) {
+  if (nodeIds.length === 0) return;
+  const existing = localStore.getQuery(api.nodes.listFromCanvas, { canvasId });
+  if (existing === undefined) return;
+  const removed = new Set(nodeIds);
+  localStore.setQuery(
+    api.nodes.listFromCanvas,
+    { canvasId },
+    existing.filter((node) => !removed.has(node.id)),
   );
 }

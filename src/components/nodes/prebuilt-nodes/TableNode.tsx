@@ -86,7 +86,9 @@ function TableNode(xyNode: XyNodeProps) {
             )}
             <div
               ref={scrollRef}
-              className="flex-1 min-h-0 overflow-auto relative"
+              // `overscroll-x-none` : coupe le chaînage vers le "back"
+              // navigateur au bord horizontal, sans bloquer le scroll interne.
+              className="flex-1 min-h-0 overflow-auto overscroll-x-none relative"
             >
               {isTableEmpty ? (
                 <NodeEmptyState icon={<TbTable size={22} />} action="double-click" />

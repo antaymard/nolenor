@@ -3,6 +3,7 @@ import {
   ReactFlow,
   SelectionMode,
   MarkerType,
+  PanOnScrollMode,
   Background,
   useReactFlow,
   type Connection,
@@ -284,7 +285,7 @@ export default function CanvasFlow({
         // contre un changement de défaut — `preventScrolling` bloque le scroll
         // navigateur, `free` garde le pan 2-doigts horizontal/vertical.
         preventScrolling
-        panOnScrollMode="free"
+        panOnScrollMode={PanOnScrollMode.Free}
         // Au doigt, le drag sur le pane pan toujours. À la souris, on garde le
         // clic molette pour panner et on laisse le clic gauche au lasso.
         panOnDrag={panWithFinger ? true : [1]}

@@ -133,7 +133,10 @@ function BlocknoteNode(xyNode: XyNodeProps) {
         {xyNode.data.variant !== "title" && (
           <div
             ref={setContainerRef}
-            className="h-full [content-visibility:auto] [contain-intrinsic-size:auto_300px]"
+            // `overscroll-x-none` : le swipe trackpad horizontal qui naît ici
+            // ne doit pas chaîner jusqu'au geste "back" navigateur — le scroll
+            // vertical interne reste inchangé.
+            className="h-full overscroll-x-none [content-visibility:auto] [contain-intrinsic-size:auto_300px]"
           >
             {isVisible ? (
               <>
@@ -144,10 +147,10 @@ function BlocknoteNode(xyNode: XyNodeProps) {
                   />
                 ) : (
                   <BlockNoteErrorBoundary resetKey={docString}>
-                    <BlockNoteStatic
-                      blocks={blocks}
-                      className="h-full min-h-0 overflow-y-auto p-4 select-none bn-readonly-container"
-                    />
+                      <BlockNoteStatic
+                        blocks={blocks}
+                        className="h-full min-h-0 overflow-y-auto overscroll-x-none p-4 select-none bn-readonly-container"
+                      />
                   </BlockNoteErrorBoundary>
                 )}
               </>

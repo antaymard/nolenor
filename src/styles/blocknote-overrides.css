@@ -386,6 +386,9 @@
 .bn-readonly-container .bn-block-content[data-content-type="codeBlock"] > pre,
 .bn-readonly-container pre {
   overflow-x: auto;
+  /* Le scroll horizontal reste possible, mais son overscroll au bord ne doit
+     pas chaîner jusqu'au geste "back" navigateur (trackpad 2 doigts). */
+  overscroll-behavior-x: none;
   margin: 0.25rem 0;
   padding: 2rem 1rem 2rem 2rem;
   border-radius: calc(var(--radius) - 2px);
@@ -443,6 +446,8 @@
 .bn-static-table-wrapper {
   max-width: 100%;
   overflow-x: auto;
+  /* Même raison que les blocs code : scroller légitime, chaînage "back" coupé. */
+  overscroll-behavior-x: none;
   padding-block: var(--doc-block-gap);
 }
 

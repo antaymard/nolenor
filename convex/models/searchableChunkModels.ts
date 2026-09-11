@@ -108,7 +108,10 @@ export async function resolveNodeIds(
         .query("nodes")
         .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
         .first();
-      if (node) {
+      // Un node à la corbeille est traité comme un orphelin : ses chunks
+      // vivent jusqu'à la purge (30 j), mais il ne doit plus remonter en
+      // recherche — ni dans la modale, ni dans le tool `full_text_search`.
+      if (node && node.status !== "trashed") {
         resolved.set(nodeDataId, node.id);
       } else {
         misses.push(nodeDataId);

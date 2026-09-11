@@ -5,6 +5,11 @@ import { nodeTypeValidator } from "./nodeTypeSchema";
 const nodesValidator = v.object({
   id: v.string(), // llmid
   status: v.optional(v.literal("trashed")),
+  // Horodatage du passage à la corbeille, posé par `trashNode` et effacé par
+  // `untrashNode`. Porté ici et pas déduit d'un `updatedAt` : la table n'en a
+  // pas, et surtout la purge doit compter depuis la mise à la corbeille, pas
+  // depuis la dernière écriture quelconque.
+  trashedAt: v.optional(v.number()),
   nodeDataId: v.id("nodeDatas"),
   canvasId: v.id("canvases"),
   type: nodeTypeValidator,
@@ -33,7 +38,8 @@ export { nodesValidator };
 /**
  * Props modifiables via `patch` : tout le visuel/positionnel, rien de
  * l'identité (`id`, `nodeDataId`, `canvasId`, `type`) ni du lifecycle
- * (`status`, réservé à `trash`). Chaque champ est optionnel : seuls les
+ * (`status`/`trashedAt`, réservés à `trash`/`untrash`). Chaque champ est
+ * optionnel : seuls les
  * champs fournis sont écrits (`position`/`width`/`height`/… en remplacement,
  * `data` en fusion shallow comme le legacy `updateCanvasNodes`).
  */
@@ -70,13 +76,14 @@ type NodePatchProps = Infer<typeof nodePatchPropsValidator>;
  */
 export type CanvasNode = Omit<
   Infer<typeof nodesValidator>,
-  "canvasId" | "status" | "nodeDataId"
+  "canvasId" | "status" | "trashedAt" | "nodeDataId"
 > & { nodeDataId?: Id<"nodeDatas"> };
 
 const nodeCreateInputValidator = nodesValidator.omit(
   "id",
   "nodeDataId",
   "status",
+  "trashedAt",
 );
 
 const nodeCreateWithDataItemValidator = v.object({

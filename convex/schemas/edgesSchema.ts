@@ -3,6 +3,8 @@ import { v, type Infer } from "convex/values";
 const edgesValidator = v.object({
   id: v.string(), // llmid
   status: v.optional(v.literal("trashed")),
+  // Cf. `nodesSchema` : date de mise à la corbeille, lue par le cron de purge.
+  trashedAt: v.optional(v.number()),
   source: v.string(),
   target: v.string(),
   canvasId: v.id("canvases"),
@@ -24,7 +26,7 @@ const edgesValidator = v.object({
  */
 const edgeCreateItemValidator = v.object({
   id: v.optional(v.string()),
-  ...edgesValidator.omit("id", "status").fields,
+  ...edgesValidator.omit("id", "status", "trashedAt").fields,
 });
 
 /**
@@ -46,7 +48,7 @@ type EdgePatchUpdate = Infer<typeof edgePatchUpdateValidator>;
  */
 export type CanvasEdge = Omit<
   Infer<typeof edgesValidator>,
-  "canvasId" | "status"
+  "canvasId" | "status" | "trashedAt"
 >;
 
 export {

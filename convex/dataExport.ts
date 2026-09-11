@@ -90,13 +90,24 @@ export const listNodeDatasForExport = query({
       .withIndex("by_canvasId", (q) => q.eq("canvasId", args.canvasId))
       .paginate({ ...args.paginationOpts, maximumBytesRead: MAX_BYTES_PER_PAGE });
 
-    // Les nodes retirés du canvas restent en base (corbeille de fait) mais
-    // n'ont plus de place dans un export du contenu courant. Filtré après la
-    // pagination : le curseur doit rester celui de la query, pas du filtre.
+    // Les nodes mis à la corbeille restent en base jusqu'à la purge, mais
+    // n'ont plus de place dans un export du contenu courant. Le statut se lit
+    // sur la ligne `nodes` — source de vérité unique de la corbeille — et non
+    // sur un miroir porté par le nodeData, qui pourrait diverger.
+    //
+    // Filtré après la pagination : le curseur doit rester celui de la query,
+    // pas du filtre. Une lecture indexée par nodeData de la page, bornée par
+    // `maximumBytesRead` ; `listRecentByCanvasId` paie déjà le même prix.
+    const statuses = await Promise.all(
+      result.page.map((nodeData) =>
+        NodeModels.getNodeByNodeDataId(ctx, { nodeDataId: nodeData._id }),
+      ),
+    );
+
     return {
       ...result,
       page: result.page.filter(
-        (nodeData) => nodeData.removedFromCanvasAt === undefined,
+        (_nodeData, index) => statuses[index]?.status !== "trashed",
       ),
     };
   },

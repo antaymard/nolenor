@@ -1,31 +1,21 @@
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { ConvexError } from "convex/values";
-import errors from "../config/errorsConfig";
+import * as EdgeModels from "./edgeModels";
+
+/**
+ * Shims legacy `api.canvasEdges.*` / `canvasEdgeWrappers.*` : signatures
+ * inchangées pour les appelants (front `useCanvasEdges` /
+ * `useUpdateCanvasEdge`, tools IA `createConnectionTool` /
+ * `createNodeTool`), mais tout vit dans la table `edges` — plus aucune
+ * écriture `canvases.edges`. Miroir de ce que `canvasNodeModels` est devenu
+ * pour les nodes pendant la transition.
+ */
 
 type CanvasEdge = NonNullable<Doc<"canvases">["edges"]>[number];
 
 type EdgeUpdate = {
   id: string;
   data?: Record<string, unknown>;
-};
-
-async function getCanvas(
-  ctx: MutationCtx,
-  canvasId: Doc<"canvases">["_id"],
-): Promise<Doc<"canvases">> {
-  const canvas = await ctx.db.get("canvases", canvasId);
-  if (!canvas) {
-    throw new ConvexError(errors.CANVAS_NOT_FOUND);
-  }
-  return canvas;
-}
-
-const DEFAULT_MARKER_END = {
-  type: "arrow",
-  width: 30,
-  height: 30,
-  strokeWidth: 1,
 };
 
 export async function addCanvasEdges(
@@ -38,23 +28,14 @@ export async function addCanvasEdges(
     edges: Array<CanvasEdge>;
   },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
+  if (edges.length === 0) return true;
 
-  if (edges.some((edge) => edge.source === edge.target)) {
-    throw new ConvexError(errors.EDGE_SELF_CONNECTION_NOT_ALLOWED);
-  }
-
-  const edgesWithDefaults = edges.map((edge) => ({
-    ...edge,
-    markerEnd: edge.markerEnd ?? DEFAULT_MARKER_END,
-  }));
-
-  await ctx.db.patch("canvases", canvasId, {
-    edges: [...(canvas.edges ?? []), ...edgesWithDefaults],
-    updatedAt: Date.now(),
+  // Les ids clients (onConnect, duplicate, tools IA) sont préservés : le
+  // state ReactFlow local et la table doivent désigner la même edge.
+  await EdgeModels.createEdges(ctx, {
+    edges: edges.map((edge) => ({ ...edge, canvasId })),
   });
 
-  console.log(`✅ Added ${edges.length} edges to canvas ${canvasId}`);
   return true;
 }
 
@@ -68,27 +49,21 @@ export async function updateCanvasEdges(
     edgeUpdates: Array<EdgeUpdate>;
   },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
-  const edges = canvas.edges ?? [];
+  if (edgeUpdates.length === 0) return true;
 
-  const updatedEdges = edges.map((edge) => {
-    const update = edgeUpdates.find((item) => item.id === edge.id);
-    if (!update) {
-      return edge;
-    }
+  // Parité legacy : les updates visant des edges hors de ce canvas sont
+  // ignorées en silence (l'ancien code mappait seulement l'array du canvas).
+  const updates: Array<{ edgeId: string; data?: Record<string, unknown> }> =
+    [];
+  for (const update of edgeUpdates) {
+    const edge = await EdgeModels.getEdgeByLlmId(ctx, { edgeId: update.id });
+    if (!edge || edge.canvasId !== canvasId) continue;
+    updates.push({ edgeId: update.id, data: update.data });
+  }
 
-    return {
-      ...edge,
-      data: update.data ? { ...(edge.data ?? {}), ...update.data } : edge.data,
-    };
-  });
+  if (updates.length === 0) return true;
 
-  await ctx.db.patch("canvases", canvasId, {
-    edges: updatedEdges,
-    updatedAt: Date.now(),
-  });
-
-  console.log(`✅ Updated ${edgeUpdates.length} edges in canvas ${canvasId}`);
+  await EdgeModels.patchEdges(ctx, { updates });
   return true;
 }
 
@@ -102,13 +77,17 @@ export async function removeCanvasEdges(
     edgeIds: Array<string>;
   },
 ): Promise<boolean> {
-  const canvas = await getCanvas(ctx, canvasId);
+  if (edgeIds.length === 0) return true;
 
-  await ctx.db.patch("canvases", canvasId, {
-    edges: (canvas.edges ?? []).filter((edge) => !edgeIds.includes(edge.id)),
-    updatedAt: Date.now(),
-  });
+  // Parité legacy : suppression scopée au canvas, ids inconnus ignorés.
+  const scopedIds: string[] = [];
+  for (const edgeId of edgeIds) {
+    const edge = await EdgeModels.getEdgeByLlmId(ctx, { edgeId });
+    if (edge && edge.canvasId === canvasId) scopedIds.push(edgeId);
+  }
 
-  console.log(`✅ Removed ${edgeIds.length} edges from canvas ${canvasId}`);
+  if (scopedIds.length === 0) return true;
+
+  await EdgeModels.trashEdges(ctx, { edgeIds: scopedIds });
   return true;
 }

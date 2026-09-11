@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { query } from "./_generated/server";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
+import * as EdgeModels from "./models/edgeModels";
 import * as NodeModels from "./models/nodeModels";
 
 // Lecture seule, pour l'export de données depuis Settings.
@@ -65,9 +66,13 @@ export const getCanvasForExport = query({
       "owner",
     );
     const tableNodes = await NodeModels.listFromCanvas(ctx, { canvasId });
+    const tableEdges = await EdgeModels.listFromCanvas(ctx, { canvasId });
     return {
       ...canvas,
       nodes: tableNodes.map(NodeModels.toCanvasNode),
+      // Override explicite : `...canvas` porte l'array `edges` legacy
+      // (figé depuis la bascule table), l'export doit servir le présent.
+      edges: tableEdges.map(EdgeModels.toCanvasEdge),
     };
   },
 });

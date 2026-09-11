@@ -8,7 +8,7 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useNoleStore } from "@/stores/noleStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
-import { toCanvasNode } from "@/lib/flowNodes";
+import { toCanvasEdge, toCanvasNode } from "@/lib/flowNodes";
 
 /**
  * Charge un canvas et synchronise les stores globaux qui en dépendent.
@@ -72,6 +72,19 @@ export function useCanvasBootstrap(
     () =>
       tableNodes === undefined ? undefined : tableNodes.map(toCanvasNode),
     [tableNodes],
+  );
+
+  // Edges de la table `edges` : même query séparée que les nodes —
+  // `readCanvas` porte encore l'array legacy mais il est figé depuis la
+  // bascule des writers.
+  const { data: tableEdges } = useRichQuery(api.edges.listFromCanvas, {
+    canvasId,
+  });
+
+  const flowEdges = useMemo(
+    () =>
+      tableEdges === undefined ? undefined : tableEdges.map(toCanvasEdge),
+    [tableEdges],
   );
 
   // Fetch nodeDatas for this canvas
@@ -175,6 +188,7 @@ export function useCanvasBootstrap(
   return {
     canvas,
     flowNodes,
+    flowEdges,
     isCanvasError,
     canvasError,
     isNodeDatasError,

@@ -66,7 +66,9 @@ const schema = defineSchema({
     .index("by_canvas", ["canvasId"])
     .index("by_llmid", ["id"])
     .index("by_nodeDataId", ["nodeDataId"]),
-  edges: defineTable(edgesValidator).index("by_canvas", ["canvasId"]),
+  edges: defineTable(edgesValidator)
+    .index("by_canvas", ["canvasId"])
+    .index("by_llmid", ["id"]),
 
   nodeDatas: defineTable(nodeDatasValidator)
     .index("by_canvasId", ["canvasId"])

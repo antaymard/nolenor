@@ -6,6 +6,7 @@ import errors from "../config/errorsConfig";
 import { nodeDataConfig } from "../config/nodeConfig";
 import { generateLlmId } from "../lib/llmId";
 import * as CanvasModels from "./canvasModels";
+import * as EdgeModels from "./edgeModels";
 import * as NodeDataModels from "./nodeDataModels";
 import * as SearchableChunkModels from "./searchableChunkModels";
 import * as ThreadMetadataModels from "./threadMetadataModels";
@@ -443,6 +444,10 @@ export async function trashNode(
   return node.id;
 }
 
+/**
+ * Trash batch + cascades : nodeData (chunks, R2) via scheduler, et les edges
+ * de la table `edges` qui touchent un node trashé. 1 seul `touchCanvas`.
+ */
 export async function trashNodes(
   ctx: MutationCtx,
   {
@@ -471,6 +476,15 @@ export async function trashNodes(
       { nodeDataId: node.nodeDataId, actor },
     );
   }
+
+  // Cascade : les edges vivantes qui touchent un node trashé partent avec
+  // lui. Tous les ids passés (déjà trashed inclus) — idempotent, et ça
+  // rattrape au passage les edges restées vivantes par erreur sur un node
+  // trashed avant cette cascade.
+  await EdgeModels.trashEdgesTouchingNodes(ctx, {
+    canvasId,
+    nodeIds: nodes.map((node) => node.id),
+  });
 
   await CanvasModels.touchCanvas(ctx, canvasId);
   return trashed;

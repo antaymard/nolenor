@@ -77,6 +77,7 @@ function CanvasContent({
   const {
     canvas,
     flowNodes,
+    flowEdges,
     isCanvasError,
     canvasError,
     isNodeDatasError,
@@ -117,7 +118,7 @@ function CanvasContent({
       <CanvasFlow
         canvasId={canvasId}
         canvasNodes={flowNodes}
-        canvasEdges={canvas.edges}
+        canvasEdges={flowEdges}
         background={canvas.background}
         canEdit={canvas._permission !== "viewer"}
         variant="desktop"

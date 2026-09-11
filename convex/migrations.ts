@@ -117,3 +117,91 @@ export const backfillNodesFromCanvases = internalMutation({
     };
   },
 });
+
+/**
+ * Backfill `canvases.edges` embarquées → table `edges` (additive, idempotent).
+ *
+ * - Préserve les `id` (llmId) tels quels : ReactFlow, les tools IA et les
+ *   références les utilisent comme chaînes, aucun remap.
+ * - Aucune validation métier (self-connection, endpoints vivants) : copie
+ *   conforme au legacy, qui n'en faisait pas non plus à l'écriture.
+ * - Conflit `by_llmid` (même id, canvas différent) : sauté + rapporté.
+ * - Ne supprime PAS l'embarqué : le front le lit encore. Le prune est une
+ *   étape ultérieure, à la bascule des lecteurs.
+ * - À jouer au moment de la bascule writers/lecteurs (pas avant) : entre
+ *   deux runs, les writers legacy ne font qu'ajouter à l'array, mais une
+ *   edge supprimée de l'array ne serait pas retirée de la table — le
+ *   backfill est idempotent pour les ajouts, pas pour les suppressions.
+ *
+ * Usage :
+ *   npx convex run migrations:backfillEdgesFromCanvases '{"dryRun": true}'
+ *   npx convex run migrations:backfillEdgesFromCanvases '{}'
+ */
+export const backfillEdgesFromCanvases = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    migrated: v.number(),
+    skippedExisting: v.number(),
+    conflictCount: v.number(),
+    conflicts: v.array(v.string()),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? false;
+    const page = await ctx.db
+      .query("canvases")
+      .order("asc")
+      .paginate({ numItems: 25, cursor: args.cursor ?? null });
+
+    let migrated = 0;
+    let skippedExisting = 0;
+    const conflicts: Array<string> = [];
+
+    for (const canvas of page.page) {
+      for (const edge of canvas.edges ?? []) {
+        const existing = await ctx.db
+          .query("edges")
+          .withIndex("by_llmid", (q) => q.eq("id", edge.id))
+          .first();
+        if (existing) {
+          if (existing.canvasId === canvas._id) {
+            skippedExisting++;
+          } else if (conflicts.length < 50) {
+            conflicts.push(
+              `id ${edge.id} (canvas ${canvas._id}) déjà pris par canvas ${existing.canvasId}`,
+            );
+          }
+          continue;
+        }
+        if (!dryRun) {
+          const { id: _id, ...rest } = edge;
+          await ctx.db.insert("edges", {
+            ...rest,
+            id: edge.id,
+            canvasId: canvas._id,
+          });
+        }
+        migrated++;
+      }
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillEdgesFromCanvases,
+        { cursor: page.continueCursor, dryRun },
+      );
+    }
+
+    return {
+      migrated,
+      skippedExisting,
+      conflictCount: conflicts.length,
+      conflicts,
+      isDone: page.isDone,
+    };
+  },
+});

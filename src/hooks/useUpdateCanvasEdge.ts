@@ -4,7 +4,7 @@ import { useParams } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
-import type { Edge as CanvasEdge } from "@/types/convex";
+import { applyEdgeDataPatchesToListQuery } from "@/lib/flowNodes";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
 
@@ -28,9 +28,9 @@ interface UseUpdateCanvasEdgeReturn {
 /**
  * Persists edge `data` updates (label, color, strokeWidth, strokeStyle,
  * bendPoints, markers) to Convex via `api.canvasEdges.update`, with an
- * optimistic update of the `readCanvas` query so the convex → reactflow
- * sync in `useCanvasEdges` does not briefly bounce `data` back to its
- * pre-mutation value.
+ * optimistic update of the `edges.listFromCanvas` query so the convex →
+ * reactflow sync in `useCanvasEdges` does not briefly bounce `data` back
+ * to its pre-mutation value.
  *
  * Mirrors `useUpdateCanvasNode` (snapshot / optimistic / revert on error).
  */
@@ -45,33 +45,10 @@ export function useUpdateCanvasEdge(): UseUpdateCanvasEdgeReturn {
     api.canvasEdges.update,
   ).withOptimisticUpdate(
     (localStore, { canvasId: targetCanvasId, edgeUpdates }) => {
-      const existing = localStore.getQuery(api.canvases.readCanvas, {
-        canvasId: targetCanvasId,
-      });
-      if (!existing || !existing.edges) return;
-      const updatesById = new Map<
-        string,
-        Record<string, unknown> | undefined
-      >();
-      for (const item of edgeUpdates as Array<{
-        id: string;
-        data?: Record<string, unknown>;
-      }>) {
-        updatesById.set(item.id, item.data);
-      }
-      if (updatesById.size === 0) return;
-      localStore.setQuery(
-        api.canvases.readCanvas,
-        { canvasId: targetCanvasId },
-        {
-          ...existing,
-          edges: existing.edges.map((edge: CanvasEdge) => {
-            const dataUpdate = updatesById.get(edge.id);
-            if (dataUpdate === undefined) return edge;
-            const nextData = mergeEdgeData(edge.data, dataUpdate);
-            return { ...edge, data: nextData };
-          }),
-        },
+      applyEdgeDataPatchesToListQuery(
+        localStore,
+        targetCanvasId,
+        edgeUpdates,
       );
     },
   );

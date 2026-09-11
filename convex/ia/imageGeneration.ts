@@ -14,6 +14,7 @@ import { enforceRateLimit } from "../lib/rateLimits";
 import errors from "../config/errorsConfig";
 import { readStoredImages } from "../lib/storedImages";
 import * as NodeDataModels from "../models/nodeDataModels";
+import * as EdgeModels from "../models/edgeModels";
 import * as NodeModels from "../models/nodeModels";
 
 /**
@@ -79,10 +80,13 @@ async function resolveAutoReferenceImageUrls(
   if (!selfNodeId) throw new ConvexError(errors.NODE_NOT_FOUND);
 
   // Ordre des edges préservé : c'est l'ordre d'envoi des références, et celui
-  // que l'UI affiche.
+  // que l'UI affiche. Table `edges` triée par `_creationTime` via `by_canvas`.
   const seen = new Set<string>();
   const inputNodeDataIds: Id<"nodeDatas">[] = [];
-  for (const edge of canvas.edges ?? []) {
+  const edgeDocs = await EdgeModels.listFromCanvas(ctx, {
+    canvasId: canvas._id,
+  });
+  for (const edge of edgeDocs) {
     if (edge.target !== selfNodeId) continue;
     const ref = nodeDataIdByCanvasId.get(edge.source);
     if (!ref || seen.has(ref)) continue;

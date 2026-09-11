@@ -33,6 +33,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
   const {
     canvas,
     flowNodes,
+    flowEdges,
     isCanvasError,
     canvasError,
     isNodeDatasError,
@@ -108,7 +109,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
               <MobileCanvasTab
                 canvasId={canvasId}
                 canvasNodes={flowNodes}
-                canvasEdges={canvas.edges}
+                canvasEdges={flowEdges}
                 background={canvas.background}
                 canEdit={canEdit}
               />

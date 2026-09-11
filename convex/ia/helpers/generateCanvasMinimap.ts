@@ -4,6 +4,7 @@ import { internalQuery } from "../../_generated/server";
 import type { QueryCtx } from "../../_generated/server";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
+import * as EdgeModels from "../../models/edgeModels";
 import * as NodeModels from "../../models/nodeModels";
 
 // ---- Types ----
@@ -92,7 +93,8 @@ export const generate = internalQuery({
     const nodes = tableNodes
       .map(NodeModels.toCanvasNode)
       .filter((node) => isNodeTypeReadableByAgent(node.type)) as RawCanvasNode[];
-    const edges = (canvas.edges ?? []) as RawCanvasEdge[];
+    const edgeDocs = await EdgeModels.listFromCanvas(ctx, { canvasId });
+    const edges = edgeDocs.map(EdgeModels.toCanvasEdge) as RawCanvasEdge[];
 
     const hubs = await buildHubs(ctx, nodes, edges);
 

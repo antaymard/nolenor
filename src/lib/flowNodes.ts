@@ -1,7 +1,7 @@
 import type { OptimisticLocalStore } from "convex/browser";
 import { api } from "@/../convex/_generated/api";
 import type { Doc, Id } from "@/../convex/_generated/dataModel";
-import type { CanvasNode } from "@/types/convex";
+import type { CanvasNode, Edge } from "@/types/convex";
 
 export function toCanvasNode(doc: Doc<"nodes">): CanvasNode {
   return {
@@ -19,6 +19,18 @@ export function toCanvasNode(doc: Doc<"nodes">): CanvasNode {
     ...(doc.parentId !== undefined && { parentId: doc.parentId }),
     ...(doc.extent !== undefined && { extent: doc.extent }),
     ...(doc.extendParent !== undefined && { extendParent: doc.extendParent }),
+    ...(doc.data !== undefined && { data: doc.data }),
+  };
+}
+
+export function toCanvasEdge(doc: Doc<"edges">): Edge {
+  return {
+    id: doc.id,
+    source: doc.source,
+    target: doc.target,
+    ...(doc.sourceHandle !== undefined && { sourceHandle: doc.sourceHandle }),
+    ...(doc.targetHandle !== undefined && { targetHandle: doc.targetHandle }),
+    ...(doc.markerEnd !== undefined && { markerEnd: doc.markerEnd }),
     ...(doc.data !== undefined && { data: doc.data }),
   };
 }
@@ -93,5 +105,36 @@ export function removeNodesFromListQuery(
     api.nodes.listFromCanvas,
     { canvasId },
     existing.filter((node) => !removed.has(node.id)),
+  );
+}
+
+type EdgeDataPatch = {
+  id: string;
+  data?: Record<string, unknown>;
+};
+
+/**
+ * Optimistic des patchs `data` d'edges sur `edges.listFromCanvas` : fusion
+ * shallow par edge (parité serveur `updateCanvasEdges`), pour éviter le
+ * bounce Convex → ReactFlow pendant l'aller-retour mutation.
+ */
+export function applyEdgeDataPatchesToListQuery(
+  localStore: OptimisticLocalStore,
+  canvasId: Id<"canvases">,
+  edgeUpdates: EdgeDataPatch[],
+) {
+  if (edgeUpdates.length === 0) return;
+  const existing = localStore.getQuery(api.edges.listFromCanvas, { canvasId });
+  if (existing === undefined) return;
+
+  const byId = new Map(edgeUpdates.map((update) => [update.id, update.data]));
+  localStore.setQuery(
+    api.edges.listFromCanvas,
+    { canvasId },
+    existing.map((edge) => {
+      const dataUpdate = byId.get(edge.id);
+      if (dataUpdate === undefined) return edge;
+      return { ...edge, data: { ...(edge.data ?? {}), ...dataUpdate } };
+    }),
   );
 }

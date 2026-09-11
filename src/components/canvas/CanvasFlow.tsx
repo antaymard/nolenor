@@ -12,7 +12,6 @@ import {
 import { useHotkey } from "@tanstack/react-hotkeys";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { CanvasNode } from "@/types/convex";
-import { generateLlmId } from "@/../convex/lib/llmId";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
 import { nodeTypes } from "@/components/nodes/nodeTypes";
 import { edgeTypes } from "@/components/edges/edgeTypes";
@@ -21,6 +20,7 @@ import ContextMenu from "@/components/canvas/context-menus";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { useCanvasNodes } from "@/hooks/useCanvasNodes";
 import { useCanvasEdges } from "@/hooks/useCanvasEdges";
+import { useCreateEdge } from "@/hooks/useCreateEdge";
 import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
 import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import CanvasDropOverlay from "./CanvasDropOverlay";
@@ -207,6 +207,7 @@ export default function CanvasFlow({
 
   // Canvas edges management
   const { edges, handleEdgeChange } = useCanvasEdges(canvasId, canvasEdges);
+  const { createEdge } = useCreateEdge();
 
   // Inject edge color into marker objects so React Flow renders colored arrows
   const edgesWithColoredMarkers = useMemo(
@@ -243,29 +244,41 @@ export default function CanvasFlow({
 
   const onConnect = useCallback(
     (params: Connection) => {
-      if (!params.source || !params.target || params.source === params.target) {
+      // Destructurés avant la garde : le narrowing doit survivre dans le
+      // callback `.then` (les paramètres ne le conservent pas).
+      const { source, target } = params;
+      const sourceHandle = params.sourceHandle ?? undefined;
+      const targetHandle = params.targetHandle ?? undefined;
+      if (!source || !target || source === target) {
         return;
       }
-      handleEdgeChange([
-        {
-          type: "add" as const,
-          item: {
-            id: generateLlmId(),
-            source: params.source,
-            target: params.target,
-            sourceHandle: params.sourceHandle ?? undefined,
-            targetHandle: params.targetHandle ?? undefined,
-            markerEnd: {
-              type: MarkerType.Arrow,
-              width: 30,
-              height: 30,
-              strokeWidth: 1,
+      // Persistance serveur d'abord, ajout local ensuite avec l'id
+      // définitif — miroir de `useCreateNode`. Le markerEnd explicite reste
+      // pour le rendu immédiat, identique au default serveur.
+      void createEdge({ source, target, sourceHandle, targetHandle })
+        .then((edgeId) => {
+          handleEdgeChange([
+            {
+              type: "add" as const,
+              item: {
+                id: edgeId,
+                source,
+                target,
+                sourceHandle,
+                targetHandle,
+                markerEnd: {
+                  type: MarkerType.Arrow,
+                  width: 30,
+                  height: 30,
+                  strokeWidth: 1,
+                },
+              },
             },
-          },
-        },
-      ]);
+          ]);
+        })
+        .catch(() => undefined);
     },
-    [handleEdgeChange],
+    [createEdge, handleEdgeChange],
   );
 
   // Fond partagé : stocké sur le doc canvas, défauts front si absent

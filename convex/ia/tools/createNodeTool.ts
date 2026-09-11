@@ -4,7 +4,6 @@ import { internal } from "../../_generated/api";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { getDefaultValuesForTemplate } from "../../config/fieldConfig";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { generateLlmId } from "../../lib/llmId";
 import {
   generateBlockId,
   stringifyBlockNoteDocumentForStorage,
@@ -354,20 +353,23 @@ export default function createNodeTool({
                 to: toRect,
               });
 
-            const edgeId = generateLlmId();
-
-            await ctx.runMutation(internal.wrappers.canvasEdgeWrappers.add, {
-              canvasId,
-              edges: [
-                {
-                  id: edgeId,
-                  source: sourceNodeId,
-                  target: nodeId,
-                  sourceHandle,
-                  targetHandle,
-                },
-              ],
-            });
+            // Id serveur via `edgeWrappers.create` : le node vient d'être
+            // commit par `createWithNodeData`, la validation des endpoints
+            // passe.
+            const [edgeId] = await ctx.runMutation(
+              internal.wrappers.edgeWrappers.create,
+              {
+                edges: [
+                  {
+                    canvasId,
+                    source: sourceNodeId,
+                    target: nodeId,
+                    sourceHandle,
+                    targetHandle,
+                  },
+                ],
+              },
+            );
 
             createdEdges.push({
               id: edgeId,

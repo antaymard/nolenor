@@ -43,17 +43,6 @@ export async function touchCanvas(
   await ctx.db.patch("canvases", canvasId, { updatedAt: Date.now() });
 }
 
-export async function getLastModifiedForUser(
-  ctx: QueryCtx,
-  { authUserId }: { authUserId: Id<"users"> },
-): Promise<Doc<"canvases"> | null> {
-  return await ctx.db
-    .query("canvases")
-    .withIndex("by_creator_and_updatedAt", (q) => q.eq("creatorId", authUserId))
-    .order("desc")
-    .first();
-}
-
 export async function listUserCanvasesWithShares(
   ctx: QueryCtx,
   { authUserId }: { authUserId: Id<"users"> },
@@ -151,8 +140,6 @@ export async function createCanvasForUser(
     name,
     description,
     ...(background !== undefined ? { background } : {}),
-    nodes: [],
-    edges: [],
     updatedAt: Date.now(),
   });
 }
@@ -241,6 +228,27 @@ export async function deleteCanvasAndShares(
     console.log(
       `🗑️ Scheduled cascade deletion for ${nodeDatas.length} nodeDatas on canvas ${canvasId}`,
     );
+  }
+
+  // Les rows layout (`nodes`) et les edges vivent en tables, pas dans le doc
+  // canvas : sans purge, chaque canvas supprimé les laisse derrière avec un
+  // canvasId dangling — stockage facturé pour rien. Hard-delete direct :
+  // la cascade nodeData est déjà schedulée ci-dessus, et un canvas entier
+  // n'a pas d'undo.
+  const nodes = await ctx.db
+    .query("nodes")
+    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
+    .collect();
+  for (const node of nodes) {
+    await ctx.db.delete(node._id);
+  }
+
+  const edges = await ctx.db
+    .query("edges")
+    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
+    .collect();
+  for (const edge of edges) {
+    await ctx.db.delete(edge._id);
   }
 
   // const tasks = await ctx.db

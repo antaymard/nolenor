@@ -115,8 +115,8 @@ type EdgeDataPatch = {
 
 /**
  * Optimistic des patchs `data` d'edges sur `edges.listFromCanvas` : fusion
- * shallow par edge (parité serveur `updateCanvasEdges`), pour éviter le
- * bounce Convex → ReactFlow pendant l'aller-retour mutation.
+ * shallow par edge (parité serveur `patchEdges`), pour éviter le bounce
+ * Convex → ReactFlow pendant l'aller-retour mutation.
  */
 export function applyEdgeDataPatchesToListQuery(
   localStore: OptimisticLocalStore,
@@ -136,5 +136,21 @@ export function applyEdgeDataPatchesToListQuery(
       if (dataUpdate === undefined) return edge;
       return { ...edge, data: { ...(edge.data ?? {}), ...dataUpdate } };
     }),
+  );
+}
+
+export function removeEdgesFromListQuery(
+  localStore: OptimisticLocalStore,
+  canvasId: Id<"canvases">,
+  edgeIds: string[],
+) {
+  if (edgeIds.length === 0) return;
+  const existing = localStore.getQuery(api.edges.listFromCanvas, { canvasId });
+  if (existing === undefined) return;
+  const removed = new Set(edgeIds);
+  localStore.setQuery(
+    api.edges.listFromCanvas,
+    { canvasId },
+    existing.filter((edge) => !removed.has(edge.id)),
   );
 }

@@ -9,13 +9,18 @@ import {
 import { useMutation } from "convex/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { api } from "@/../convex/_generated/api";
+import { removeEdgesFromListQuery } from "@/lib/flowNodes";
+import { toastError } from "@/components/utils/errorUtils";
 
 export function useCanvasEdges(canvasId: Id<"canvases">, canvasEdges?: Edge[]) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // CONVEX MUTATIONS
-  const addCanvasEdgesToConvex = useMutation(api.canvasEdges.add);
-  const removeCanvasEdgesInConvex = useMutation(api.canvasEdges.remove);
+  const trashEdgesInConvex = useMutation(api.edges.trash).withOptimisticUpdate(
+    (localStore, { edgeIds }) => {
+      removeEdgesFromListQuery(localStore, canvasId, edgeIds);
+    },
+  );
 
   // Sync convex -> reactflow edges
   useEffect(() => {
@@ -49,30 +54,19 @@ export function useCanvasEdges(canvasId: Id<"canvases">, canvasEdges?: Edge[]) {
 
       // ADD EDGES
       if (addedChanges.length > 0) {
-        // Envoi direct à Convex
-        return addCanvasEdgesToConvex({
-          edges: addedChanges.map((c) => ({
-            ...c.item,
-            sourceHandle: c.item.sourceHandle ?? undefined,
-            targetHandle: c.item.targetHandle ?? undefined,
-          })),
-          canvasId,
-        });
+        // Persistée en amont par `useCreateEdge` (onConnect) : le change
+        // arrive déjà avec l'id serveur, rien à envoyer ici.
+        return;
       } else if (removedChanges.length > 0) {
         // REMOVE EDGES
-        // Envoi direct à Convex
-        removeCanvasEdgesInConvex({
+        void trashEdgesInConvex({
           edgeIds: removedChanges.map((c) => c.id),
-          canvasId,
+        }).catch((error) => {
+          toastError(error, "Could not delete the connection");
         });
       }
     },
-    [
-      canvasId,
-      addCanvasEdgesToConvex,
-      removeCanvasEdgesInConvex,
-      onEdgesChange,
-    ],
+    [trashEdgesInConvex, onEdgesChange],
   );
 
   return {

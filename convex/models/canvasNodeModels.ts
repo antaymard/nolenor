@@ -192,29 +192,17 @@ export async function removeCanvasNodes(
 
 export async function moveToCanvas(
   ctx: MutationCtx,
-  {
-    sourceCanvasId,
-    targetCanvasId,
-    nodeCanvasIds,
-  }: {
+  args: {
     sourceCanvasId: Id<"canvases">;
     targetCanvasId: Id<"canvases">;
     nodeCanvasIds: Array<string>;
   },
 ): Promise<boolean> {
+  // `moveNodes` gère tout : déplacement nodeData/chunks + suppression des
+  // edges de la table `edges` qui touchent un node déplacé.
   await NodeModels.moveNodes(ctx, {
-    nodeIds: nodeCanvasIds,
-    targetCanvasId,
-  });
-
-  const sourceCanvas = await getCanvas(ctx, sourceCanvasId);
-  const nodeCanvasIdSet = new Set(nodeCanvasIds);
-  const remainingSourceEdges = (sourceCanvas.edges ?? []).filter(
-    (edge) =>
-      !nodeCanvasIdSet.has(edge.source) && !nodeCanvasIdSet.has(edge.target),
-  );
-  await ctx.db.patch("canvases", sourceCanvasId, {
-    edges: remainingSourceEdges,
+    nodeIds: args.nodeCanvasIds,
+    targetCanvasId: args.targetCanvasId,
   });
 
   return true;

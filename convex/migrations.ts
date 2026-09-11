@@ -205,3 +205,109 @@ export const backfillEdgesFromCanvases = internalMutation({
     };
   },
 });
+
+/**
+ * Strip `canvases.edges` : retire le champ des docs canvas une fois la
+ * table `edges` authentifiée. À jouer APRÈS `backfillEdgesFromCanvases`
+ * sur chaque déploiement, et seulement quand plus aucun writer n'écrit
+ * l'array (bascule écrivains déployée). `db.patch(id, { edges: undefined })`
+ * supprime le champ — c'est le dégonflement des docs canvas (jusqu'à
+ * 1 Mo d'edges inline) et de `readCanvas` côté front.
+ *
+ * Le prune du champ dans `canvasesSchema` (deploy suivant) exige que ce
+ * strip soit passé partout : sinon le push schéma échoue sur les docs
+ * existants non conformes.
+ *
+ * Usage :
+ *   npx convex run migrations:stripEdgesFromCanvases '{"dryRun": true}'
+ *   npx convex run migrations:stripEdgesFromCanvases '{}'
+ */
+export const stripEdgesFromCanvases = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    stripped: v.number(),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? false;
+    const page = await ctx.db
+      .query("canvases")
+      .order("asc")
+      .paginate({ numItems: 25, cursor: args.cursor ?? null });
+
+    let stripped = 0;
+    for (const canvas of page.page) {
+      if (canvas.edges === undefined) continue;
+      if (!dryRun) {
+        await ctx.db.patch("canvases", canvas._id, { edges: undefined });
+      }
+      stripped++;
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.stripEdgesFromCanvases,
+        { cursor: page.continueCursor, dryRun },
+      );
+    }
+
+    return { stripped, isDone: page.isDone };
+  },
+});
+
+/**
+ * Strip `canvases.nodes` : retire le champ des docs canvas une fois la
+ * table `nodes` authentifiée. À jouer APRÈS `backfillNodesFromCanvases`
+ * sur chaque déploiement, et seulement quand plus aucun writer n'écrit
+ * l'array (bascule écrivains nodes déployée). `db.patch(id, { nodes:
+ * undefined })` supprime le champ — c'est le dégonflement des docs canvas
+ * (jusqu'à 1 Mo de nodes inline) et de `readCanvas` côté front.
+ *
+ * Le prune du champ dans `canvasesSchema` (deploy suivant) exige que ce
+ * strip soit passé partout : sinon le push schéma échoue sur les docs
+ * existants non conformes.
+ *
+ * Usage :
+ *   npx convex run migrations:stripNodesFromCanvases '{"dryRun": true}'
+ *   npx convex run migrations:stripNodesFromCanvases '{}'
+ */
+export const stripNodesFromCanvases = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    stripped: v.number(),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? false;
+    const page = await ctx.db
+      .query("canvases")
+      .order("asc")
+      .paginate({ numItems: 25, cursor: args.cursor ?? null });
+
+    let stripped = 0;
+    for (const canvas of page.page) {
+      if (canvas.nodes === undefined) continue;
+      if (!dryRun) {
+        await ctx.db.patch("canvases", canvas._id, { nodes: undefined });
+      }
+      stripped++;
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.stripNodesFromCanvases,
+        { cursor: page.continueCursor, dryRun },
+      );
+    }
+
+    return { stripped, isDone: page.isDone };
+  },
+});

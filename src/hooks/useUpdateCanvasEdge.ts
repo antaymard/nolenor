@@ -13,7 +13,7 @@ interface UpdateEdgeInput {
   /**
    * Partial edge data to merge onto the existing `edge.data`.
    * Use `null` as a value to clear a field (e.g. `{ label: null }`).
-   * The Convex `updateCanvasEdges` model does a shallow merge, so keys
+   * The Convex `edges.patch` mutation does a shallow merge, so keys
    * not present here are preserved.
    */
   data: Record<string, unknown>;
@@ -27,7 +27,7 @@ interface UseUpdateCanvasEdgeReturn {
 
 /**
  * Persists edge `data` updates (label, color, strokeWidth, strokeStyle,
- * bendPoints, markers) to Convex via `api.canvasEdges.update`, with an
+ * bendPoints, markers) to Convex via `api.edges.patch`, with an
  * optimistic update of the `edges.listFromCanvas` query so the convex →
  * reactflow sync in `useCanvasEdges` does not briefly bounce `data` back
  * to its pre-mutation value.
@@ -41,17 +41,15 @@ export function useUpdateCanvasEdge(): UseUpdateCanvasEdgeReturn {
 
   const { getEdge, setEdges } = useReactFlow();
 
-  const updateCanvasEdgesMutation = useMutation(
-    api.canvasEdges.update,
-  ).withOptimisticUpdate(
-    (localStore, { canvasId: targetCanvasId, edgeUpdates }) => {
-      applyEdgeDataPatchesToListQuery(
-        localStore,
-        targetCanvasId,
-        edgeUpdates,
-      );
-    },
-  );
+  const updateEdgesMutation = useMutation(
+    api.edges.patch,
+  ).withOptimisticUpdate((localStore, { updates }) => {
+    applyEdgeDataPatchesToListQuery(
+      localStore,
+      canvasId,
+      updates.map((update) => ({ id: update.edgeId, data: update.data })),
+    );
+  });
 
   const snapshotsRef = useRef<Map<string, Edge>>(new Map());
   const isUpdatingRef = useRef(false);
@@ -105,19 +103,16 @@ export function useUpdateCanvasEdge(): UseUpdateCanvasEdgeReturn {
 
   const executeServerUpdate = useCallback(
     async (inputs: UpdateEdgeInput[]): Promise<void> => {
-      const edgeUpdates = inputs.map(({ edgeId, data }) => ({
-        id: edgeId,
-        data: data as Record<string, unknown>,
-      }));
-
       await trackCanvasSync(() =>
-        updateCanvasEdgesMutation({
-          canvasId,
-          edgeUpdates,
+        updateEdgesMutation({
+          updates: inputs.map(({ edgeId, data }) => ({
+            edgeId,
+            data: data as Record<string, unknown>,
+          })),
         }),
       );
     },
-    [canvasId, updateCanvasEdgesMutation],
+    [updateEdgesMutation],
   );
 
   const updateEdges = useCallback(
@@ -164,7 +159,7 @@ export function useUpdateCanvasEdge(): UseUpdateCanvasEdgeReturn {
 /**
  * Merge an edge data update into the existing data.
  *
- * The Convex `updateCanvasEdges` model does a shallow merge:
+ * The Convex `edges.patch` mutation does a shallow merge:
  *   `{ ...(edge.data ?? {}), ...update.data }`
  * To delete a field (e.g. clearing a label), the caller passes `null` or
  * `""` for that key. We mirror the same semantics on the client so the

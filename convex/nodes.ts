@@ -1,30 +1,31 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
-import { nodeTypeValidator } from "./schemas/nodeTypeSchema";
+import * as NodeModels from "./models/nodeModels";
 import { nodesValidator } from "./schemas/nodesSchema";
 
-export const create = mutation({
+export const createWithNodeData = mutation({
   args: {
-    node: nodesValidator.omit("id", "nodeDataId"),
+    node: nodesValidator.omit("id", "nodeDataId", "status"),
     nodeDataValues: v.record(v.string(), v.any()),
-    nodeDataTemplateId: v.optional(v.id("nodeDataTemplates")),
+    nodeDataTemplateId: v.optional(v.id("nodeTemplates")),
   },
+  returns: v.string(),
   handler: async (ctx, args) => {
-    // Get permissions from canvasId and user
     const authUserId = await requireAuth(ctx);
-    const { canvasId } = args;
-    await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
+    await requireCanvasAccess(ctx, args.node.canvasId, authUserId, "editor");
 
-    // Create nodeData => use Models ? Validate schema
-    // Return nodeDataId
-
-    // Create node with position etc
-    // 1. create llmId
-    // 2. Check if no conflict with existing llmId, of conflict, regenerate
-    // 3. Create node with nodeDataId and llmId
-
-    // Return nodeId
+    // Même orchestrateur que le wrapper interne de l'agent
+    // (`nodeWrappers.createWithNodeData`) : les deux voies partagent
+    // au niveau Models, comme d'habitude (le public ne passe jamais par
+    // un wrapper, il appelle les Models directement).
+    const { nodeId } = await NodeModels.createNodeWithData(ctx, {
+      node: args.node,
+      values: args.nodeDataValues,
+      templateId: args.nodeDataTemplateId,
+      actor: { type: "user", userId: authUserId },
+    });
+    return nodeId;
   },
 });
 
@@ -32,15 +33,15 @@ export const trash = mutation({
   args: {
     nodeId: v.string(),
   },
+  returns: v.string(),
   handler: async (ctx, args) => {
-    // check permissions
     const authUserId = await requireAuth(ctx);
 
-    // Get canvasId from nodeId
-    //
-    // Check permissions on canvasId
-    //
-    // Update node to status = trashed
-    // Return nodeId
+    const node = await NodeModels.getNodeOrThrow(ctx, {
+      nodeId: args.nodeId,
+    });
+    await requireCanvasAccess(ctx, node.canvasId, authUserId, "editor");
+
+    return NodeModels.trashNode(ctx, { nodeId: args.nodeId });
   },
 });

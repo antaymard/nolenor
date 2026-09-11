@@ -111,7 +111,10 @@ async function generateUniqueLlmId(ctx: MutationCtx): Promise<string> {
 
 /**
  * Crée un node dans la table `nodes` (pas de double-écriture `canvases.nodes`).
- * Génère le llmId côté serveur avec contrôle d'unicité globale (`by_llmid`).
+ * Sans `id`, génère le llmId côté serveur avec contrôle d'unicité globale
+ * (`by_llmid`). Avec `id` (création local-first côté client), l'appelant
+ * garantit l'unicité — `createNodeWithData` l'a vérifiée dans la même
+ * transaction.
  * Retourne le llmId.
  */
 export async function createNode(
@@ -119,16 +122,18 @@ export async function createNode(
   {
     node,
     nodeDataId,
+    id: providedId,
     touchCanvas: shouldTouchCanvas = true,
   }: {
     node: NodeCreateInput;
     nodeDataId: Id<"nodeDatas">;
+    id?: string;
     touchCanvas?: boolean;
   },
 ): Promise<string> {
   await getCanvasOrThrow(ctx, node.canvasId);
 
-  const llmId = await generateUniqueLlmId(ctx);
+  const llmId = providedId ?? (await generateUniqueLlmId(ctx));
   const withVariant = withDefaultVariant(node);
 
   await ctx.db.insert("nodes", {
@@ -160,15 +165,35 @@ export async function createNodeWithData(
     values,
     templateId,
     actor,
+    id: providedId,
     touchCanvas: shouldTouchCanvas = true,
   }: {
     node: NodeCreateInput;
     values: Record<string, unknown>;
     templateId?: Id<"nodeTemplates">;
     actor?: NodeDataVersionActor;
+    id?: string;
     touchCanvas?: boolean;
   },
 ): Promise<{ nodeId: string; nodeDataId: Id<"nodeDatas"> }> {
+  // Id fourni (création local-first côté client) : le check passe AVANT la
+  // création du nodeData — sinon un retry idempotent en orphelinerait un.
+  // Déjà en table sur le même canvas = mutation déjà commitée (retry réseau)
+  // → on retourne l'existant sans rien écrire ; cross-canvas → collision
+  // d'id refusée.
+  if (providedId !== undefined) {
+    const existing = await ctx.db
+      .query("nodes")
+      .withIndex("by_llmid", (q) => q.eq("id", providedId))
+      .unique();
+    if (existing) {
+      if (existing.canvasId === node.canvasId) {
+        return { nodeId: existing.id, nodeDataId: existing.nodeDataId };
+      }
+      throw new ConvexError(errors.NODE_ID_ALREADY_TAKEN);
+    }
+  }
+
   const nodeDataId = await NodeDataModels.createNodeData(ctx, {
     type: node.type,
     values,
@@ -188,6 +213,7 @@ export async function createNodeWithData(
   const nodeId = await createNode(ctx, {
     node,
     nodeDataId,
+    id: providedId,
     touchCanvas: shouldTouchCanvas,
   });
   return { nodeId, nodeDataId };
@@ -200,6 +226,7 @@ export async function createNodesWithData(
     actor,
   }: {
     nodes: Array<{
+      id?: string;
       node: NodeCreateInput;
       values: Record<string, unknown>;
       templateId?: Id<"nodeTemplates">;
@@ -215,6 +242,7 @@ export async function createNodesWithData(
   for (const item of nodes) {
     created.push(
       await createNodeWithData(ctx, {
+        id: item.id,
         node: item.node,
         values: item.values,
         templateId: item.templateId,

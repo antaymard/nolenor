@@ -17,6 +17,7 @@ const errors = {
   SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT:
     "Source and target canvases must be different.",
   NODES_MUST_SHARE_CANVAS: "These nodes must belong to the same canvas.",
+  NODE_ID_ALREADY_TAKEN: "This node id is already used in another canvas.",
   INSUFFICIENT_PERMISSIONS:
     "You do not have the required permission for this action.",
   THREAD_NOT_FOUND_OR_FORBIDDEN: "Thread not found or access denied.",

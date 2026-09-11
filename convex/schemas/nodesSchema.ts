@@ -67,6 +67,9 @@ const nodeCreateInputValidator = nodesValidator.omit(
 );
 
 const nodeCreateWithDataItemValidator = v.object({
+  // llmId optionnel : fourni par le client (création local-first, le visuel
+  // précède la confirmation serveur), sinon généré côté serveur.
+  id: v.optional(v.string()),
   node: nodeCreateInputValidator,
   nodeDataValues: v.record(v.string(), v.any()),
   nodeDataTemplateId: v.optional(v.id("nodeTemplates")),

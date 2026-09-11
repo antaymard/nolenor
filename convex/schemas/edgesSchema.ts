@@ -14,11 +14,18 @@ const edgesValidator = v.object({
 
 /**
  * Champs de l'edge fournis par l'appelant à la création : tout sauf clés
- * système, `id` (llmId généré côté serveur) et `status` (réservé à `trash`).
+ * système et `status` (réservé à `trash`). `id` (llmId) est optionnel :
+ * fourni par le client (création local-first), il est préservé tel quel —
+ * idempotent sur le même canvas (retry réseau), conflit refusé
+ * cross-canvas (cf. `EdgeModels.createEdges`) ; absent, un llmId unique
+ * est généré côté serveur.
  * Une edge est une entité unique — pas de nested `{node, …}` à la
  * `createWithNodeData`.
  */
-const edgeCreateItemValidator = edgesValidator.omit("id", "status");
+const edgeCreateItemValidator = v.object({
+  id: v.optional(v.string()),
+  ...edgesValidator.omit("id", "status").fields,
+});
 
 /**
  * Update patchable via `patch` : `data` seul, fusionné en shallow (parité

@@ -59,6 +59,7 @@ export const createWithNodeData = mutation({
 
     return NodeModels.createNodesWithData(ctx, {
       nodes: args.nodes.map((item) => ({
+        id: item.id,
         node: item.node,
         values: item.nodeDataValues,
         templateId: item.nodeDataTemplateId,

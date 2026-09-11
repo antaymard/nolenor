@@ -206,7 +206,10 @@ export default function CanvasFlow({
   const { nodes, handleNodeChange } = useCanvasNodes(canvasId, canvasNodes);
 
   // Canvas edges management
-  const { edges, handleEdgeChange } = useCanvasEdges(canvasId, canvasEdges);
+  const { edges, setEdges, handleEdgeChange } = useCanvasEdges(
+    canvasId,
+    canvasEdges,
+  );
   const { createEdge } = useCreateEdge();
 
   // Inject edge color into marker objects so React Flow renders colored arrows
@@ -245,40 +248,47 @@ export default function CanvasFlow({
   const onConnect = useCallback(
     (params: Connection) => {
       // Destructurés avant la garde : le narrowing doit survivre dans le
-      // callback `.then` (les paramètres ne le conservent pas).
+      // callback `.catch` (les paramètres ne le conservent pas).
       const { source, target } = params;
       const sourceHandle = params.sourceHandle ?? undefined;
       const targetHandle = params.targetHandle ?? undefined;
       if (!source || !target || source === target) {
         return;
       }
-      // Persistance serveur d'abord, ajout local ensuite avec l'id
-      // définitif — miroir de `useCreateNode`. Le markerEnd explicite reste
-      // pour le rendu immédiat, identique au default serveur.
-      void createEdge({ source, target, sourceHandle, targetHandle })
-        .then((edgeId) => {
-          handleEdgeChange([
-            {
-              type: "add" as const,
-              item: {
-                id: edgeId,
-                source,
-                target,
-                sourceHandle,
-                targetHandle,
-                markerEnd: {
-                  type: MarkerType.Arrow,
-                  width: 30,
-                  height: 30,
-                  strokeWidth: 1,
-                },
-              },
+      // Local-first : l'edge apparaît au relâcher du geste avec son llmId
+      // définitif (généré client, préservé par le serveur) — le markerEnd
+      // explicite est identique au default serveur. En échec, on retire
+      // l'edge en local uniquement : pas de `trash` serveur d'un edge
+      // jamais créé.
+      const { edgeId, settled } = createEdge({
+        source,
+        target,
+        sourceHandle,
+        targetHandle,
+      });
+      handleEdgeChange([
+        {
+          type: "add" as const,
+          item: {
+            id: edgeId,
+            source,
+            target,
+            sourceHandle,
+            targetHandle,
+            markerEnd: {
+              type: MarkerType.Arrow,
+              width: 30,
+              height: 30,
+              strokeWidth: 1,
             },
-          ]);
-        })
-        .catch(() => undefined);
+          },
+        },
+      ]);
+      void settled.catch(() => {
+        setEdges((current) => current.filter((edge) => edge.id !== edgeId));
+      });
     },
-    [createEdge, handleEdgeChange],
+    [createEdge, handleEdgeChange, setEdges],
   );
 
   // Fond partagé : stocké sur le doc canvas, défauts front si absent

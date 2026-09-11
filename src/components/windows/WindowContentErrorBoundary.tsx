@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/shadcn/button";
 import ErrorDisplay from "@/components/ui/ErrorDisplay";
+import { applyUpdate } from "@/lib/appUpdate";
 import { reportError } from "@/lib/analytics";
 
 /**
@@ -13,8 +14,9 @@ import { reportError } from "@/lib/analytics";
  * sauvegardés compris. Une seule fenêtre doit tomber, pas l'app.
  *
  * Un seul bouton, recharger : `React.lazy` mémorise le rejet, donc réessayer
- * ne relancerait aucune requête. Quand la cause est un déploiement, le bandeau
- * de mise à jour est déjà à l'écran pour l'expliquer.
+ * ne relancerait aucune requête. Le rechargement reprend le build frais
+ * (`applyUpdate`) — quand la cause est un déploiement, c'est la seule
+ * action utile.
  */
 interface WindowContentErrorBoundaryProps {
   children: ReactNode;
@@ -52,9 +54,9 @@ export class WindowContentErrorBoundary extends Component<
         title="This window could not be opened"
         message="Reloading the page usually fixes it — your work is saved on the server."
         cta={
-          <Button onClick={() => window.location.reload()}>
-            Reload the page
-          </Button>
+          // Build frais plutôt que précache : la cause typique est un chunk
+          // disparu au déploiement, re-rendre le même build ne sert à rien.
+          <Button onClick={applyUpdate}>Reload the page</Button>
         }
       />
     );

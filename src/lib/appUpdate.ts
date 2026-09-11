@@ -21,7 +21,19 @@ import { reportError } from "@/lib/analytics";
 let updateServiceWorker: (() => Promise<void>) | undefined;
 let hasWaitingUpdate = false;
 
-function applyUpdate(): void {
+/**
+ * Recharge le build frais, pas le précache courant.
+ *
+ * Un simple `location.reload()` resert les bundles du service worker qui
+ * contrôle l'onglet : un onglet resté sur un build décalé du backend
+ * (endpoint disparu, chunk manquant) retombe alors sur le même bug. Ici,
+ * le SW en attente prend la main et recharge lui-même ; sans SW (première
+ * visite), le réseau sert directement le dernier déploiement.
+ *
+ * Branché sur les reloads des error boundaries : quand la cause est un
+ * déploiement, recharger n'a de sens que si l'on récupère le nouveau build.
+ */
+export function applyUpdate(): void {
   // Avec un service worker en attente, c'est lui qui recharge la page en
   // prenant la main (listener posé par `virtual:pwa-register`). Sans lui —
   // onglet d'une première visite, que rien ne contrôle encore — il n'y a que

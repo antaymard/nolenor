@@ -12,7 +12,11 @@ const chunkTypeValidator = v.union(
 // ── Main validator ──────────────────────────────────────────────────────
 
 const searchableChunksValidator = v.object({
-  nodeId: v.string(),
+  // Déprécié (étape 1/2) : le rattachement visuel se résout désormais à la
+  // lecture via nodeDataId (cf. resolveNodeIds), plus écrit à la création.
+  // Les chunks existants gardent leur valeur stockée, ignorée en lecture.
+  // Étape 2/2 (post-transition) : supprimer le champ + l'index `by_nodeId`.
+  nodeId: v.optional(v.string()),
   nodeDataId: v.id("nodeDatas"),
   canvasId: v.id("canvases"),
   chunkType: chunkTypeValidator,

@@ -73,21 +73,9 @@ async function rebuildChunksForNodeData(
     return;
   }
 
-  const { nodes } = await ctx.runQuery(
-    internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
-    { canvasId: nodeData.canvasId },
-  );
-  const matchingCanvasNode = nodes.find(
-    (node) => node.nodeDataId === nodeDataId,
-  );
-  const nodeId = matchingCanvasNode?.id ?? (nodeDataId as string);
-
-  if (!matchingCanvasNode) {
-    console.warn("[chunkBuilder] rebuildChunks:canvas-node-not-found", {
-      nodeDataId,
-      canvasId: nodeData.canvasId,
-    });
-  }
+  // Pas de résolution du llmId ici : les chunks ne portent plus leur
+  // rattachement visuel, il se résout à la lecture (cf. resolveNodeIds).
+  // Le builder est donc insensible à l'ordre création/attachement.
 
   // Custom nodes : le template porte les noms de champs (texte indexé) et
   // le titleFieldId (titre du chunk).
@@ -97,7 +85,7 @@ async function rebuildChunksForNodeData(
       })
     : null;
 
-  const rawChunks = await buildChunks(nodeData, nodeId, updatedKeys, template);
+  const rawChunks = await buildChunks(nodeData, updatedKeys, template);
   const chunks = rawChunks.map((chunk) => ({
     ...chunk,
     title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
@@ -161,7 +149,6 @@ export const rebuildChunksBatch = internalAction({
 
 async function buildChunks(
   nodeData: Doc<"nodeDatas">,
-  nodeId: string,
   updatedKeys?: string[],
   template?: Doc<"nodeTemplates"> | null,
 ): Promise<ChunkInput[]> {
@@ -185,7 +172,6 @@ async function buildChunks(
     }
   }
   const base = {
-    nodeId,
     nodeDataId: nodeData._id,
     canvasId: nodeData.canvasId,
     nodeType: nodeData.type,

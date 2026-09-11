@@ -83,6 +83,50 @@ export async function updateCanvasId(
   }
 }
 
+/**
+ * Résout nodeDataId → llmId pour l'affichage des résultats. Les chunks ne
+ * portent plus leur rattachement visuel (cf. searchableChunksSchema) : il se
+ * résout ici, à la lecture. Table `nodes` d'abord, monde legacy
+ * (`canvases.nodes` embarqué) ensuite. Absent des deux = orphelin : exclu
+ * (avec warn), les contrats de sortie exigent un `nodeId: string`.
+ */
+export async function resolveNodeIds(
+  ctx: QueryCtx,
+  {
+    canvasId,
+    nodeDataIds,
+  }: {
+    canvasId: Id<"canvases">;
+    nodeDataIds: Array<Id<"nodeDatas">>;
+  },
+): Promise<Map<Id<"nodeDatas">, string>> {
+  const resolved = new Map<Id<"nodeDatas">, string>();
+  const misses: Array<Id<"nodeDatas">> = [];
+
+  await Promise.all(
+    [...new Set(nodeDataIds)].map(async (nodeDataId) => {
+      const node = await ctx.db
+        .query("nodes")
+        .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+        .first();
+      if (node) {
+        resolved.set(nodeDataId, node.id);
+      } else {
+        misses.push(nodeDataId);
+      }
+    }),
+  );
+
+  for (const nodeDataId of misses) {
+    console.warn("[search] resolveNodeIds:orphan-chunk", {
+      nodeDataId,
+      canvasId,
+    });
+  }
+
+  return resolved;
+}
+
 export async function listByNodeDataId(
   ctx: QueryCtx,
   { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
@@ -304,26 +348,27 @@ export async function collectExcludedNodeIds(
   {
     canvasId,
     excluded,
-    haystacksByNodeId,
+    haystacksByNode,
   }: {
     canvasId: Id<"canvases">;
     excluded: ExcludedNeedle[];
-    haystacksByNodeId: Map<string, string[]>;
+    /** Clés = nodeDataId (regroupement), pas llmId. */
+    haystacksByNode: Map<string, string[]>;
   },
 ): Promise<Set<string>> {
   const excludedNodeIds = new Set<string>();
-  if (excluded.length === 0 || haystacksByNodeId.size === 0) {
+  if (excluded.length === 0 || haystacksByNode.size === 0) {
     return excludedNodeIds;
   }
 
   // 1) Ce qui est déjà chargé : gratuit.
-  for (const [nodeId, haystacks] of haystacksByNodeId) {
+  for (const [nodeKey, haystacks] of haystacksByNode) {
     if (
       excluded.some((needle) =>
         haystacksContainToken(haystacks, needle.normalized),
       )
     ) {
-      excludedNodeIds.add(nodeId);
+      excludedNodeIds.add(nodeKey);
     }
   }
 
@@ -341,11 +386,12 @@ export async function collectExcludedNodeIds(
 
   for (const { needle, chunks } of batches) {
     for (const chunk of chunks) {
-      if (!haystacksByNodeId.has(chunk.nodeId)) continue;
-      if (excludedNodeIds.has(chunk.nodeId)) continue;
+      const nodeKey = chunk.nodeDataId;
+      if (!haystacksByNode.has(nodeKey)) continue;
+      if (excludedNodeIds.has(nodeKey)) continue;
       const haystacks = normalizeHaystacks([chunk.title, chunk.text]);
       if (haystacksContainToken(haystacks, needle.normalized)) {
-        excludedNodeIds.add(chunk.nodeId);
+        excludedNodeIds.add(nodeKey);
       }
     }
   }
@@ -404,58 +450,77 @@ export async function fullTextSearch(
     isNodeTypeReadableByAgent(chunk.nodeType),
   );
 
-  // 4) Apply optional node-level filtering.
-  const nodeIdFilter =
-    nodeIds && nodeIds.length > 0 ? new Set(nodeIds) : undefined;
-
-  const scoped = nodeIdFilter
-    ? visibleChunks.filter((chunk) => nodeIdFilter.has(chunk.nodeId))
-    : visibleChunks;
-
-  // 5) Les contraintes se jugent par node, pas par chunk.
-  const haystacksByNodeId = new Map<string, string[]>();
-  for (const chunk of scoped) {
+  // 4) Les contraintes se jugent par node, pas par chunk — regroupés sur
+  // nodeDataId (stable, porté par le chunk), pas sur le llmId.
+  const haystacksByNode = new Map<string, string[]>();
+  for (const chunk of visibleChunks) {
     const normalized = normalizeHaystacks([chunk.title, chunk.text]);
-    const existing = haystacksByNodeId.get(chunk.nodeId);
+    const existing = haystacksByNode.get(chunk.nodeDataId);
     if (existing) {
       existing.push(...normalized);
     } else {
-      haystacksByNodeId.set(chunk.nodeId, normalized);
+      haystacksByNode.set(chunk.nodeDataId, normalized);
     }
   }
 
-  const excludedNodeIds = await collectExcludedNodeIds(ctx, {
+  const excludedNodeKeys = await collectExcludedNodeIds(ctx, {
     canvasId,
     excluded: parsed.excluded,
-    haystacksByNodeId,
+    haystacksByNode,
   });
 
-  const kept = scoped.filter((chunk) => !excludedNodeIds.has(chunk.nodeId));
-  const strictNodeIds = new Set(
-    Array.from(haystacksByNodeId.entries())
+  const kept = visibleChunks.filter(
+    (chunk) => !excludedNodeKeys.has(chunk.nodeDataId),
+  );
+  const strictNodeKeys = new Set(
+    Array.from(haystacksByNode.entries())
       .filter(
-        ([nodeId, haystacks]) =>
-          !excludedNodeIds.has(nodeId) && matchesParsedQuery(haystacks, parsed),
+        ([nodeKey, haystacks]) =>
+          !excludedNodeKeys.has(nodeKey) &&
+          matchesParsedQuery(haystacks, parsed),
       )
-      .map(([nodeId]) => nodeId),
+      .map(([nodeKey]) => nodeKey),
   );
 
-  const strict = kept.filter((chunk) => strictNodeIds.has(chunk.nodeId));
+  const strict = kept.filter((chunk) => strictNodeKeys.has(chunk.nodeDataId));
 
   // Le filtrage strict travaille sur une fenêtre bornée : plutôt que de rendre
   // le vide, on élargit en le signalant. Les exclusions restent appliquées.
   const relaxed = strict.length === 0 && kept.length > 0;
   const filtered = relaxed ? kept : strict;
 
+  // 5) Résolution nodeDataId → llmId (une fois, sur les survivants), puis
+  // filtre llmId éventuel. Les orphelins irrésolvables sont écartés ici.
+  const resolved = await resolveNodeIds(ctx, {
+    canvasId,
+    nodeDataIds: filtered.map((chunk) => chunk.nodeDataId),
+  });
+
+  const nodeIdFilter =
+    nodeIds && nodeIds.length > 0 ? new Set(nodeIds) : undefined;
+
+  const addressable = filtered.filter((chunk) => {
+    const nodeId = resolved.get(chunk.nodeDataId);
+    if (!nodeId) return false;
+    return !nodeIdFilter || nodeIdFilter.has(nodeId);
+  });
+
   // 6) Truncate for payload size, then project to the compact response shape.
-  const selected = filtered.slice(0, effectiveLimit);
+  // Le contrat de sortie est inchangé (`nodeId: string`) : les appelants
+  // (outil agent, mentions) ne voient pas la différence.
+  const selected = addressable.slice(0, effectiveLimit);
 
   // If we had more filtered hits than returned OR we hit the scan cap, signal truncation.
-  const truncated = filtered.length > effectiveLimit || chunks.length >= scanLimit;
+  const truncated =
+    addressable.length > effectiveLimit || chunks.length >= scanLimit;
 
-  return {
-    hits: selected.map((chunk) => ({
-      nodeId: chunk.nodeId,
+  const hits: FullTextSearchHit[] = [];
+  for (const chunk of selected) {
+    // Garanti par `addressable` ci-dessus : tous les sélectionnés sont résolus.
+    const nodeId = resolved.get(chunk.nodeDataId);
+    if (!nodeId) continue;
+    hits.push({
+      nodeId,
       nodeDataId: chunk.nodeDataId,
       nodeType: chunk.nodeType,
       chunkType: chunk.chunkType,
@@ -464,7 +529,11 @@ export async function fullTextSearch(
       title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
       page: getPage(chunk.metadata),
       sectionTitle: getSectionTitle(chunk.metadata),
-    })),
+    });
+  }
+
+  return {
+    hits,
     scanned: chunks.length,
     limit: effectiveLimit,
     truncated,

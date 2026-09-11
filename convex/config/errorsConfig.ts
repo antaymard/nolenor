@@ -8,8 +8,15 @@ const errors = {
   EMAIL_NOT_FOUND: "No user found with this email address.",
   SHARING_WITH_SELF: "You cannot share with yourself.",
   EDGE_SELF_CONNECTION_NOT_ALLOWED: "A node cannot be connected to itself.",
+  EDGE_NOT_FOUND: "This connection does not exist in this canvas.",
+  EDGES_MUST_SHARE_CANVAS: "These connections must belong to the same canvas.",
+  EDGE_SOURCE_NOT_FOUND: "The source node of this connection does not exist.",
+  EDGE_TARGET_NOT_FOUND: "The target node of this connection does not exist.",
+  EDGE_ID_ALREADY_TAKEN:
+    "This connection id is already used in another canvas.",
   SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT:
     "Source and target canvases must be different.",
+  NODES_MUST_SHARE_CANVAS: "These nodes must belong to the same canvas.",
   INSUFFICIENT_PERMISSIONS:
     "You do not have the required permission for this action.",
   THREAD_NOT_FOUND_OR_FORBIDDEN: "Thread not found or access denied.",

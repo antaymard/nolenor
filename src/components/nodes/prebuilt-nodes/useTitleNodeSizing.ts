@@ -10,6 +10,7 @@ import { useMutation } from "convex/react";
 import { useParams } from "@tanstack/react-router";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
+import { applyNodePatchesToListQuery } from "@/lib/flowNodes";
 
 const MIN_DELTA = 0.5;
 const PERSIST_DEBOUNCE_MS = 120;
@@ -86,36 +87,9 @@ export function useTitleNodeSizing({
     canvasId: Id<"canvases">;
   };
   const { setNodes } = useReactFlow();
-  const updateDimensions = useMutation(
-    api.canvasNodes.updatePositionOrDimensions,
-  ).withOptimisticUpdate(
-    (localStore, { canvasId: targetCanvasId, nodeChanges }) => {
-      const existing = localStore.getQuery(api.canvases.readCanvas, {
-        canvasId: targetCanvasId,
-      });
-      if (!existing || !existing.nodes) return;
-      const changeById = new Map<string, { width: number; height: number }>();
-      for (const change of nodeChanges as Array<{
-        id: string;
-        dimensions?: { width: number; height: number };
-      }>) {
-        if (change.dimensions) {
-          changeById.set(change.id, change.dimensions);
-        }
-      }
-      if (changeById.size === 0) return;
-      localStore.setQuery(
-        api.canvases.readCanvas,
-        { canvasId: targetCanvasId },
-        {
-          ...existing,
-          nodes: existing.nodes.map((node) => {
-            const dim = changeById.get(node.id);
-            if (!dim) return node;
-            return { ...node, width: dim.width, height: dim.height };
-          }),
-        },
-      );
+  const updateDimensions = useMutation(api.nodes.patch).withOptimisticUpdate(
+    (localStore, { updates }) => {
+      applyNodePatchesToListQuery(localStore, canvasId, updates);
     },
   );
 
@@ -178,11 +152,10 @@ export function useTitleNodeSizing({
         height: dim.height,
       });
       void updateDimensions({
-        canvasId,
-        nodeChanges: [
+        updates: [
           {
-            id: nodeId,
-            dimensions: dim,
+            nodeId,
+            props: { width: dim.width, height: dim.height },
           },
         ],
       });
@@ -230,15 +203,14 @@ export function useTitleNodeSizing({
     pendingAutoSizeIds.delete(nodeId);
     logTitleSizing(nodeId, "flush-commit-mutation", dims);
     void updateDimensions({
-      canvasId,
-      nodeChanges: [
+      updates: [
         {
-          id: nodeId,
-          dimensions: dims,
+          nodeId,
+          props: { width: dims.width, height: dims.height },
         },
       ],
     });
-  }, [canvasId, nodeId, updateDimensions]);
+  }, [nodeId, updateDimensions]);
 
   // Measure & sync whenever the relevant inputs change.
   useLayoutEffect(() => {

@@ -28,19 +28,21 @@ export async function listByCreator(
   return filtered.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// Résout les templates référencés par les nodes d'un canvas, quel que soit
-// leur creator (viewers de canvases partagés) et y compris archivés (les
-// instances vivantes doivent continuer à rendre). Tri stable par _id : la
-// query qui appelle ceci relit le doc canvas à chaque drag de node, un
-// résultat stable évite des pushes inutiles aux subscribers.
+// Résout les templates référencés par les nodeDatas d'un canvas, quel que
+// soit leur creator (viewers de canvases partagés) et y compris archivés
+// (les instances vivantes doivent continuer à rendre). Tri stable par _id.
 export async function resolveTemplatesForCanvas(
   ctx: Ctx,
-  canvas: Doc<"canvases">,
+  canvasId: Id<"canvases">,
 ): Promise<Doc<"nodeTemplates">[]> {
+  const nodeDatas = await ctx.db
+    .query("nodeDatas")
+    .withIndex("by_canvasId", (q) => q.eq("canvasId", canvasId))
+    .collect();
+
   const ids = new Set<string>();
-  for (const node of canvas.nodes ?? []) {
-    const templateId = node.data?.templateId;
-    if (typeof templateId === "string") ids.add(templateId);
+  for (const nodeData of nodeDatas) {
+    if (nodeData.templateId) ids.add(nodeData.templateId);
   }
   if (ids.size === 0) return [];
 

@@ -14,6 +14,7 @@ import TemplateEditorModal from "@/components/settings/templates/TemplateEditorM
 import ErrorDisplay from "@/components/ui/ErrorDisplay";
 import { Button } from "@/components/shadcn/button";
 import { api } from "@/../convex/_generated/api";
+import { applyUpdate } from "@/lib/appUpdate";
 import { identifyUser, reportError } from "@/lib/analytics";
 import CommandCenter from "@/components/command-center/CommandCenter";
 
@@ -66,7 +67,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
             >
               Back to my canvases
             </Button>
-            <Button onClick={() => window.location.reload()}>Reload</Button>
+            <Button onClick={applyUpdate}>Reload</Button>
           </div>
         }
       />

@@ -14,6 +14,8 @@ import { enforceRateLimit } from "../lib/rateLimits";
 import errors from "../config/errorsConfig";
 import { readStoredImages } from "../lib/storedImages";
 import * as NodeDataModels from "../models/nodeDataModels";
+import * as EdgeModels from "../models/edgeModels";
+import * as NodeModels from "../models/nodeModels";
 
 /**
  * Au-delà de cette durée, un statut `running` ne peut plus correspondre à une
@@ -65,24 +67,26 @@ async function resolveAutoReferenceImageUrls(
     imageModelOptions.find((option) => option.value === model)
       ?.maxReferenceImages ?? 0;
 
-  // Une seule passe sur `canvas.nodes` : le node courant (pour retrouver son
-  // id canvas, le seul langage des edges) et la correspondance `id canvas →
-  // nodeDataId` pour les entrées.
+  const tableNodes = await NodeModels.listFromCanvas(ctx, {
+    canvasId: canvas._id,
+  });
   const nodeDataIdByCanvasId = new Map<string, string>();
   let selfNodeId: string | undefined;
 
-  for (const node of canvas.nodes ?? []) {
-    if (!node.nodeDataId) continue;
+  for (const node of tableNodes) {
     if (node.nodeDataId === nodeDataId) selfNodeId = node.id;
     nodeDataIdByCanvasId.set(node.id, node.nodeDataId);
   }
   if (!selfNodeId) throw new ConvexError(errors.NODE_NOT_FOUND);
 
   // Ordre des edges préservé : c'est l'ordre d'envoi des références, et celui
-  // que l'UI affiche.
+  // que l'UI affiche. Table `edges` triée par `_creationTime` via `by_canvas`.
   const seen = new Set<string>();
   const inputNodeDataIds: Id<"nodeDatas">[] = [];
-  for (const edge of canvas.edges ?? []) {
+  const edgeDocs = await EdgeModels.listFromCanvas(ctx, {
+    canvasId: canvas._id,
+  });
+  for (const edge of edgeDocs) {
     if (edge.target !== selfNodeId) continue;
     const ref = nodeDataIdByCanvasId.get(edge.source);
     if (!ref || seen.has(ref)) continue;

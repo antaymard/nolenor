@@ -1,9 +1,9 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as NodeDataModel from "./models/nodeDataModels";
+import * as NodeModels from "./models/nodeModels";
 import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
 
 export const create = mutation({
@@ -48,28 +48,14 @@ export const listByCanvasId = query({
   args: { canvasId: v.id("canvases") },
   handler: async (ctx, { canvasId }) => {
     const authUserId = await optionalAuth(ctx);
-    const { canvas } = await requireCanvasAccess(
-      ctx,
-      canvasId,
-      authUserId,
-      "viewer",
-      { allowPublic: true },
-    );
+    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer", {
+      allowPublic: true,
+    });
 
-    // Extraire les nodeDataIds des nodes du canvas
-    const nodeDataIds = (canvas.nodes || [])
-      .map((node) => node.nodeDataId)
-      .filter((id): id is Id<"nodeDatas"> => id !== undefined);
-
-    if (nodeDataIds.length === 0) return [];
-
-    // Fetch les nodeDatas en parallèle
-    const nodeDatas = await Promise.all(
-      nodeDataIds.map((id) => ctx.db.get(id)),
-    );
-
-    // Filtrer les nulls (au cas où un nodeData aurait été supprimé)
-    return nodeDatas.filter((nd) => nd !== null);
+    return await ctx.db
+      .query("nodeDatas")
+      .withIndex("by_canvasId", (q) => q.eq("canvasId", canvasId))
+      .collect();
   },
 });
 
@@ -80,37 +66,29 @@ export const listRecentByCanvasId = query({
   },
   handler: async (ctx, { canvasId, limit }) => {
     const authUserId = await optionalAuth(ctx);
-    const { canvas } = await requireCanvasAccess(
-      ctx,
-      canvasId,
-      authUserId,
-      "viewer",
-      { allowPublic: true },
+    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer", {
+      allowPublic: true,
+    });
+
+    const nodeDatas = await ctx.db
+      .query("nodeDatas")
+      .withIndex("by_canvasId", (q) => q.eq("canvasId", canvasId))
+      .collect();
+
+    const filtered = nodeDatas.sort(
+      (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
     );
-
-    const nodeByDataId = new Map<Id<"nodeDatas">, string>();
-    for (const node of canvas.nodes || []) {
-      if (node.nodeDataId) {
-        nodeByDataId.set(node.nodeDataId, node.id);
-      }
-    }
-
-    if (nodeByDataId.size === 0) return [];
-
-    const nodeDatas = await Promise.all(
-      Array.from(nodeByDataId.keys()).map((id) => ctx.db.get(id)),
-    );
-
-    const filtered = nodeDatas
-      .filter((nd) => nd !== null)
-      .sort((a, b) => (b!.updatedAt ?? 0) - (a!.updatedAt ?? 0));
-
     const sliced = limit ? filtered.slice(0, limit) : filtered;
 
-    return sliced.map((nd) => ({
-      nodeData: nd!,
-      xyNodeId: nodeByDataId.get(nd!._id)!,
-    }));
+    const result = [];
+    for (const nodeData of sliced) {
+      const node = await NodeModels.getNodeByNodeDataId(ctx, {
+        nodeDataId: nodeData._id,
+      });
+      if (!node || node.status === "trashed") continue;
+      result.push({ nodeData, xyNodeId: node.id });
+    }
+    return result;
   },
 });
 

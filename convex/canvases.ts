@@ -4,20 +4,6 @@ import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as CanvasModels from "./models/canvasModels";
 import { canvasBackgroundValidator } from "./schemas/canvasesSchema";
 
-export const getLastModified = query({
-  args: {},
-  returns: v.object({ success: v.boolean(), canvas: v.any() }),
-  handler: async (ctx) => {
-    const authUserId = await requireAuth(ctx);
-
-    const canvas = await CanvasModels.getLastModifiedForUser(ctx, {
-      authUserId,
-    });
-
-    return { success: true, canvas };
-  },
-});
-
 export const listUserCanvases = query({
   args: {},
   returns: v.array(

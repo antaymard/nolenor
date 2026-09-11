@@ -14,8 +14,6 @@ import type { Node } from "@xyflow/react";
 import { useReactFlow } from "@xyflow/react";
 import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
-import { useParams } from "@tanstack/react-router";
-import type { Id } from "@/../convex/_generated/dataModel";
 import { colors } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
@@ -73,12 +71,7 @@ export default function NodeContextMenu({
   const { duplicateNode, duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
-  const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
-    from: "/canvas/$canvasId",
-  });
-  const updatePositionOrDimensions = useMutation(
-    api.canvasNodes.updatePositionOrDimensions,
-  );
+  const patchNodes = useMutation(api.nodes.patch);
 
   // Custom nodes : édition du template depuis le canvas, sans passer par les
   // settings. Masquée si le template n'est pas le mien — seul son
@@ -124,9 +117,16 @@ export default function NodeContextMenu({
             });
 
             // Envoyer la mutation, puis libérer le flag resizing
-            await updatePositionOrDimensions({
-              canvasId,
-              nodeChanges: [{ id: xyNode.id, dimensions }],
+            await patchNodes({
+              updates: [
+                {
+                  nodeId: xyNode.id,
+                  props: {
+                    width: dimensions.width,
+                    height: dimensions.height,
+                  },
+                },
+              ],
             });
 
             updateNode(xyNode.id, { resizing: false });

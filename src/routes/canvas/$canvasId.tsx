@@ -4,7 +4,6 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import CanvasErrorScreen from "@/components/canvas/CanvasErrorScreen";
 import { lazy, Suspense } from "react";
-import type { CanvasNode } from "@/types/convex";
 import WindowsContainer from "@/components/windows/WindowsContainer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CanvasSidebar from "@/components/canvas/CanvasSidebar";
@@ -77,6 +76,8 @@ function CanvasContent({
 }) {
   const {
     canvas,
+    flowNodes,
+    flowEdges,
     isCanvasError,
     canvasError,
     isNodeDatasError,
@@ -116,8 +117,8 @@ function CanvasContent({
       <WindowsContainer />
       <CanvasFlow
         canvasId={canvasId}
-        canvasNodes={canvas.nodes as CanvasNode[] | undefined}
-        canvasEdges={canvas.edges}
+        canvasNodes={flowNodes}
+        canvasEdges={flowEdges}
         background={canvas.background}
         canEdit={canvas._permission !== "viewer"}
         variant="desktop"

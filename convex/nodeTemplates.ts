@@ -57,14 +57,10 @@ export const listForCanvas = query({
   args: { canvasId: v.id("canvases") },
   handler: async (ctx, { canvasId }) => {
     const authUserId = await optionalAuth(ctx);
-    const { canvas } = await requireCanvasAccess(
-      ctx,
-      canvasId,
-      authUserId,
-      "viewer",
-      { allowPublic: true },
-    );
-    return NodeTemplateModels.resolveTemplatesForCanvas(ctx, canvas);
+    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer", {
+      allowPublic: true,
+    });
+    return NodeTemplateModels.resolveTemplatesForCanvas(ctx, canvasId);
   },
 });
 

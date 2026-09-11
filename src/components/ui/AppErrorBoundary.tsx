@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/shadcn/button";
 import ErrorDisplay from "@/components/ui/ErrorDisplay";
+import { applyUpdate } from "@/lib/appUpdate";
 import { reportError } from "@/lib/analytics";
 
 /**
@@ -39,8 +40,10 @@ export class AppErrorBoundary extends Component<
     });
   }
 
+  // Build frais plutôt que précache : l'erreur peut venir d'un onglet resté
+  // sur un build décalé du backend (cf. `applyUpdate`).
   handleReload = (): void => {
-    window.location.reload();
+    applyUpdate();
   };
 
   // Navigation dure plutôt que routeur : quand ce boundary rend, l'arbre React

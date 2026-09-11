@@ -75,22 +75,24 @@ export const search = query({
       limit: MAX_MATCHING_CHUNKS,
     });
 
-    const groupedByNodeId = new Map<string, typeof chunks>();
+    // Regroupés sur nodeDataId (stable, porté par le chunk) : le llmId
+    // d'affichage se résout à la projection (cf. resolveNodeIds).
+    const groupedByNode = new Map<string, typeof chunks>();
     for (const chunk of chunks) {
-      const existing = groupedByNodeId.get(chunk.nodeId);
+      const existing = groupedByNode.get(chunk.nodeDataId);
       if (existing) {
         existing.push(chunk);
       } else {
-        groupedByNodeId.set(chunk.nodeId, [chunk]);
+        groupedByNode.set(chunk.nodeDataId, [chunk]);
       }
     }
 
     // Les contraintes se jugent au niveau du NODE : « ce document contient tous
     // les mots », pas « ce passage les contient ».
-    const haystacksByNodeId = new Map<string, string[]>();
-    for (const [nodeId, nodeChunks] of groupedByNodeId) {
-      haystacksByNodeId.set(
-        nodeId,
+    const haystacksByNode = new Map<string, string[]>();
+    for (const [nodeKey, nodeChunks] of groupedByNode) {
+      haystacksByNode.set(
+        nodeKey,
         normalizeHaystacks([
           // Les chunks d'un même node partagent leur titre : le dédupliquer
           // évite de le normaliser 50 fois pour un PDF.
@@ -100,20 +102,20 @@ export const search = query({
       );
     }
 
-    const excludedNodeIds = await SearchableChunkModels.collectExcludedNodeIds(
+    const excludedNodeKeys = await SearchableChunkModels.collectExcludedNodeIds(
       ctx,
       {
         canvasId: args.canvasId,
         excluded: parsed.excluded,
-        haystacksByNodeId,
+        haystacksByNode,
       },
     );
 
-    const candidates = Array.from(groupedByNodeId.entries()).filter(
-      ([nodeId]) => !excludedNodeIds.has(nodeId),
+    const candidates = Array.from(groupedByNode.entries()).filter(
+      ([nodeKey]) => !excludedNodeKeys.has(nodeKey),
     );
-    const strict = candidates.filter(([nodeId]) =>
-      matchesParsedQuery(haystacksByNodeId.get(nodeId) ?? [], parsed),
+    const strict = candidates.filter(([nodeKey]) =>
+      matchesParsedQuery(haystacksByNode.get(nodeKey) ?? [], parsed),
     );
 
     // Le filtrage strict s'appuie sur les chunks remontés (bornés) : quand il
@@ -125,7 +127,17 @@ export const search = query({
     const terms = parsed.normalizedTerms;
     const phrase = parsed.phrases[0] ?? terms.join(" ");
 
-    const scored = selected.map(([nodeId, nodeChunks]) => {
+    // Résolution nodeDataId → llmId (une fois, sur les sélectionnés).
+    // Contrat de sortie inchangé : le front reçoit toujours un `nodeId`.
+    const resolved = await SearchableChunkModels.resolveNodeIds(ctx, {
+      canvasId: args.canvasId,
+      nodeDataIds: selected.map(([, nodeChunks]) => nodeChunks[0].nodeDataId),
+    });
+
+    const scored = selected.flatMap(([, nodeChunks]) => {
+      const nodeId = resolved.get(nodeChunks[0].nodeDataId);
+      // Orphelin irrésolvable : écarté (cf. resolveNodeIds).
+      if (!nodeId) return [];
       const result = {
         type: nodeChunks[0].nodeType,
         nodeId,

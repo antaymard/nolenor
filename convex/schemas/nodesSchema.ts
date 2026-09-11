@@ -1,0 +1,84 @@
+import { v, type Infer } from "convex/values";
+import { nodeTypeValidator } from "./nodeTypeSchema";
+
+const nodesValidator = v.object({
+  id: v.string(), // llmid
+  status: v.optional(v.literal("trashed")),
+  nodeDataId: v.id("nodeDatas"),
+  canvasId: v.id("canvases"),
+  type: nodeTypeValidator,
+  position: v.object({
+    x: v.number(),
+    y: v.number(),
+  }),
+  width: v.number(),
+  height: v.number(),
+  locked: v.optional(v.boolean()),
+  hidden: v.optional(v.boolean()),
+  zIndex: v.optional(v.number()),
+  color: v.optional(v.string()),
+  variant: v.optional(v.string()),
+
+  parentId: v.optional(v.string()),
+  extent: v.optional(
+    v.union(v.literal("parent"), v.array(v.array(v.number()))),
+  ),
+  extendParent: v.optional(v.boolean()),
+  data: v.optional(v.record(v.string(), v.any())),
+});
+
+export { nodesValidator };
+
+/**
+ * Props modifiables via `patch` : tout le visuel/positionnel, rien de
+ * l'identité (`id`, `nodeDataId`, `canvasId`, `type`) ni du lifecycle
+ * (`status`, réservé à `trash`). Chaque champ est optionnel : seuls les
+ * champs fournis sont écrits (`position`/`width`/`height`/… en remplacement,
+ * `data` en fusion shallow comme le legacy `updateCanvasNodes`).
+ */
+const nodePatchPropsValidator = v.object({
+  position: v.optional(
+    v.object({
+      x: v.number(),
+      y: v.number(),
+    }),
+  ),
+  width: v.optional(v.number()),
+  height: v.optional(v.number()),
+  locked: v.optional(v.boolean()),
+  hidden: v.optional(v.boolean()),
+  zIndex: v.optional(v.number()),
+  color: v.optional(v.string()),
+  variant: v.optional(v.string()),
+  parentId: v.optional(v.string()),
+  extent: v.optional(
+    v.union(v.literal("parent"), v.array(v.array(v.number()))),
+  ),
+  extendParent: v.optional(v.boolean()),
+  data: v.optional(v.record(v.string(), v.any())),
+});
+
+type NodePatchProps = Infer<typeof nodePatchPropsValidator>;
+
+const nodeCreateInputValidator = nodesValidator.omit(
+  "id",
+  "nodeDataId",
+  "status",
+);
+
+const nodeCreateWithDataItemValidator = v.object({
+  node: nodeCreateInputValidator,
+  nodeDataValues: v.record(v.string(), v.any()),
+  nodeDataTemplateId: v.optional(v.id("nodeTemplates")),
+});
+
+const nodePatchUpdateValidator = v.object({
+  nodeId: v.string(),
+  props: nodePatchPropsValidator,
+});
+
+type NodeCreateWithDataItem = Infer<typeof nodeCreateWithDataItemValidator>;
+type NodePatchUpdate = Infer<typeof nodePatchUpdateValidator>;
+
+export { nodePatchPropsValidator, nodeCreateWithDataItemValidator, nodePatchUpdateValidator };
+export type { NodePatchProps, NodeCreateWithDataItem, NodePatchUpdate };

@@ -69,10 +69,21 @@ export async function createNodeData(
   // Les champs porteurs de fichiers d'un custom node sont décrits par son
   // template : sans lui, il n'y a rien à référencer.
   const template = templateId ? await ctx.db.get(templateId) : null;
+
+  // Track the R2 references
   await R2ObjectModels.syncRefs(ctx, {
     nodeDataId,
     keys: extractR2Keys({ type, values }, template),
   });
+
+  // Launch chunk rebuild for the nodeData
+  await ctx.scheduler.runAfter(
+    0,
+    internal.searchable.chunkBuilder.rebuildChunksBatch,
+    {
+      nodeDataIds: [nodeDataId],
+    },
+  );
 
   return nodeDataId;
 }

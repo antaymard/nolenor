@@ -1,6 +1,10 @@
 import { v } from "convex/values";
+import { ConvexError } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
+import errors from "../config/errorsConfig";
 import * as CanvasNodeModels from "../models/canvasNodeModels";
+import * as EdgeModels from "../models/edgeModels";
+import * as NodeModels from "../models/nodeModels";
 import { canvasNodesValidator } from "../schemas/canvasesSchema";
 
 export const add = internalMutation({
@@ -91,14 +95,20 @@ export const getCanvasNodesAndEdges = internalQuery({
   },
   handler: async (ctx, args) => {
     const canvas = await ctx.db.get("canvases", args.canvasId);
-
     if (!canvas) {
-      throw new Error("Canvas not found");
+      throw new ConvexError(errors.CANVAS_NOT_FOUND);
     }
 
+    const nodes = await NodeModels.listFromCanvas(ctx, {
+      canvasId: args.canvasId,
+    });
+    const edgeDocs = await EdgeModels.listFromCanvas(ctx, {
+      canvasId: args.canvasId,
+    });
+
     return {
-      nodes: canvas.nodes ?? [],
-      edges: canvas.edges ?? [],
+      nodes: nodes.map(NodeModels.toCanvasNode),
+      edges: edgeDocs.map(EdgeModels.toCanvasEdge),
     };
   },
 });

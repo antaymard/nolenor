@@ -2,7 +2,6 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../_generated/api";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import { generateLlmId } from "../../lib/llmId";
 import {
   EXPLANATION_FIELD,
   getClosestHandlesForDirectedEdge,
@@ -95,20 +94,22 @@ export default function createConnectionTool({
           },
         );
 
-        const edgeId = generateLlmId();
-
-        await ctx.runMutation(internal.wrappers.canvasEdgeWrappers.add, {
-          canvasId,
-          edges: [
-            {
-              id: edgeId,
-              source: sourceNodeId,
-              target: targetNodeId,
-              sourceHandle,
-              targetHandle,
-            },
-          ],
-        });
+        // Id serveur via `edgeWrappers.create` : le llmId est généré et
+        // vérifié côté base, jamais côté tool.
+        const [edgeId] = await ctx.runMutation(
+          internal.wrappers.edgeWrappers.create,
+          {
+            edges: [
+              {
+                canvasId,
+                source: sourceNodeId,
+                target: targetNodeId,
+                sourceHandle,
+                targetHandle,
+              },
+            ],
+          },
+        );
 
         return {
           success: true,

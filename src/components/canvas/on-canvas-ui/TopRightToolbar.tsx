@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { memo } from "react";
 import { useConvexAuth } from "convex/react";
 import SharingModal from "./SharingModal";
+import TrashModal from "./TrashModal";
 import CanvasStatus from "./CanvasStatus";
 
 function TopRightToolbar() {
@@ -15,6 +16,7 @@ function TopRightToolbar() {
       <div className="px-2">
         <CanvasStatus />
       </div>
+      <TrashModal />
       <SharingModal />
       <Button variant="ghost" size="icon-sm" asChild>
         <Link

@@ -1,9 +1,5 @@
 import { memo, useCallback, useMemo } from "react";
-import {
-  useReactFlow,
-  useStore,
-  type ReactFlowState,
-} from "@xyflow/react";
+import { useStore, type ReactFlowState } from "@xyflow/react";
 import { TbDirections , TbLocation, TbRefresh, TbTrash } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
@@ -19,6 +15,7 @@ import {
 } from "@/hooks/useViewportFraming";
 import { readFraming } from "@/lib/canvasViewportFraming";
 import { cn } from "@/lib/utils";
+import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 
 type ViewportNodeRef = {
   id: string;
@@ -104,7 +101,7 @@ function ViewportRow({
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const captureFraming = useCaptureFraming();
   const goToFraming = useGoToFraming();
-  const { deleteElements } = useReactFlow();
+  const { deleteCanvasElements } = useDeleteCanvasElements();
 
   const view = values?.view;
   const framing = useMemo(() => readFraming(view), [view]);
@@ -138,8 +135,11 @@ function ViewportRow({
   // `useCanvasNodes` traduit le change `remove` en mutation Convex et gère la
   // cascade. Une mutation dédiée court-circuiterait tout ça.
   const remove = useCallback(() => {
-    void deleteElements({ nodes: [{ id: canvasNodeId }] });
-  }, [canvasNodeId, deleteElements]);
+    void deleteCanvasElements(
+      { nodes: [{ id: canvasNodeId }] },
+      { label: "Delete viewport" },
+    );
+  }, [canvasNodeId, deleteCanvasElements]);
 
   return (
     <div

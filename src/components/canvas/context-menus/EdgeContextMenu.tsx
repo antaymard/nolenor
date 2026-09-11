@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { MAX_BEND_POINTS } from "@/components/edges/edgeStyleUtils";
 import { generateLlmId } from "@/../convex/lib/llmId";
 import { getNodeDataId } from "@/lib/nodeIdentity";
+import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 
 const STROKE_WIDTH_OPTIONS: { key: EdgeStrokeWidth; label: string }[] = [
   { key: "thin", label: "Thin" },
@@ -56,7 +57,8 @@ export default function EdgeContextMenu({
   xyEdge: Edge;
   position: { x: number; y: number };
 }) {
-  const { deleteElements, screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition } = useReactFlow();
+  const { deleteCanvasElements } = useDeleteCanvasElements();
   const { updateCanvasEdge } = useUpdateCanvasEdge();
   const goToNode = useGoToNode();
 
@@ -232,7 +234,10 @@ export default function EdgeContextMenu({
       <DropdownMenuItem
         className="whitespace-nowrap"
         onClick={() => {
-          deleteElements({ edges: [xyEdge] });
+          void deleteCanvasElements(
+            { edges: [xyEdge] },
+            { label: "Delete connection" },
+          );
           closeMenu();
         }}
       >

@@ -22,6 +22,7 @@ import { useCanvasNodes } from "@/hooks/useCanvasNodes";
 import { useCanvasEdges } from "@/hooks/useCanvasEdges";
 import { useCreateEdge } from "@/hooks/useCreateEdge";
 import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
+import { useCanvasHistory } from "@/hooks/useCanvasHistory";
 import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
@@ -201,6 +202,49 @@ export default function CanvasFlow({
   // Création d'un node au curseur (T titre, B blocknote, I image, A table,
   // V repère de navigation)
   useCreateNodeHotkeys({ canEdit, isTouch });
+
+  // ── Annulation ──────────────────────────────────────────────────────────
+  // La pile ne contient que les gestes de CET utilisateur dans CET onglet :
+  // ni les écritures de Nolë, ni celles d'un collaborateur (cf.
+  // `canvasHistoryStore`). Elle couvre la mise en page et la structure ; le
+  // contenu d'un node garde l'undo de son propre éditeur.
+  const { undo, redo, canUndo, canRedo } = useCanvasHistory(canvasId);
+  const historyEnabled = canEdit && focus === "canvas";
+
+  // `ignoreInputs` est ce qui laisse BlockNote garder son Ctrl+Z : sans lui,
+  // le raccourci se déclencherait dans un contenteditable, où c'est la frappe
+  // qu'on veut annuler, pas le canvas. Le test `isEditableTarget` double la
+  // garde — `ignoreInputs` ne couvre pas un focus sorti du champ mais resté
+  // dans la surface d'édition (cf. `useCreateNodeHotkeys`).
+  useHotkey(
+    "Mod+Z",
+    (event) => {
+      if (isEditableTarget(event.target)) return;
+      void undo();
+    },
+    { enabled: historyEnabled && canUndo, ignoreInputs: true },
+  );
+
+  // Mod+Shift+Z et Mod+Y : les deux conventions de « refaire ». Les
+  // modificateurs sont comparés à l'identique, donc Mod+Z ne se déclenche pas
+  // quand Shift est tenu.
+  useHotkey(
+    "Mod+Shift+Z",
+    (event) => {
+      if (isEditableTarget(event.target)) return;
+      void redo();
+    },
+    { enabled: historyEnabled && canRedo, ignoreInputs: true },
+  );
+
+  useHotkey(
+    "Mod+Y",
+    (event) => {
+      if (isEditableTarget(event.target)) return;
+      void redo();
+    },
+    { enabled: historyEnabled && canRedo, ignoreInputs: true },
+  );
 
   // Canvas nodes management
   const { nodes, handleNodeChange } = useCanvasNodes(canvasId, canvasNodes);

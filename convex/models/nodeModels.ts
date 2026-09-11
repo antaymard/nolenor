@@ -136,6 +136,20 @@ export async function getNodeOrThrow(
 }
 
 /**
+ * Résolution inverse nodeDataId → node (1:1 en pratique). Premier trouvé :
+ * table `nodes` d'abord, `null` sinon (l'appelant tente le monde legacy).
+ */
+export async function getNodeByNodeDataId(
+  ctx: QueryCtx | MutationCtx,
+  { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
+): Promise<NodeDoc | null> {
+  return await ctx.db
+    .query("nodes")
+    .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+    .first();
+}
+
+/**
  * Corbeille logique (soft delete) : `status = "trashed"`, idempotent.
  * Le nodeData et les chunks sont conservés (restauration possible).
  * Retourne le llmId.

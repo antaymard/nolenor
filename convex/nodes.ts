@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as NodeModels from "./models/nodeModels";
 import { nodesValidator } from "./schemas/nodesSchema";
@@ -29,6 +29,16 @@ export const createWithNodeData = mutation({
   },
 });
 
+// Color, dimensions, index etc
+// TODO: vraie signature à définir.
+export const patch = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async () => {
+    return null;
+  },
+});
+
 export const trash = mutation({
   args: {
     nodeId: v.string(),
@@ -43,5 +53,16 @@ export const trash = mutation({
     await requireCanvasAccess(ctx, node.canvasId, authUserId, "editor");
 
     return NodeModels.trashNode(ctx, { nodeId: args.nodeId });
+  },
+});
+
+export const listFromCanvas = query({
+  args: {
+    canvasId: v.id("canvases"),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    // TODO
+    return [];
   },
 });

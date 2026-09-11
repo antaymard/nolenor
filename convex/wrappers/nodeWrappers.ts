@@ -55,3 +55,15 @@ export const read = internalQuery({
     return NodeModels.getNodeOrThrow(ctx, { nodeId: args.nodeId });
   },
 });
+
+/** Résolution inverse pour la recherche (cf. resolveNodeIds). */
+export const getByNodeDataId = internalQuery({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+  },
+  handler: async (ctx, args) => {
+    return NodeModels.getNodeByNodeDataId(ctx, {
+      nodeDataId: args.nodeDataId,
+    });
+  },
+});

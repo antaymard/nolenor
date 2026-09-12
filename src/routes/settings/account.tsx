@@ -8,6 +8,7 @@ import { api } from "@/../convex/_generated/api";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
+import DeleteAccountDialog from "@/components/settings/account/DeleteAccountDialog";
 import { toastError } from "@/components/utils/errorUtils";
 
 export const Route = createFileRoute("/settings/account")({
@@ -172,6 +173,22 @@ function RouteComponent() {
           </Button>
         </ConfirmableButton>
       </div>
+
+      {/* Séparé de « Sign out », et pas côté à côte : les deux boutons se
+          ressembleraient alors qu'un seul est irréversible. La suppression
+          n'apparaît qu'une fois l'adresse connue — c'est elle que la modale
+          fait retaper, et le serveur refuse tout ce qui ne lui correspond
+          pas. */}
+      {me?.email && (
+        <div className="mt-10 rounded-md border border-red-200 bg-red-50/50 p-3">
+          <h2 className="text-sm font-semibold text-red-700">Danger zone</h2>
+          <p className="mt-1 mb-3 text-sm text-muted-foreground">
+            Deleting your account erases your canvases, your conversations and
+            everything Nolë remembers. It cannot be undone.
+          </p>
+          <DeleteAccountDialog email={me.email} />
+        </div>
+      )}
     </div>
   );
 }

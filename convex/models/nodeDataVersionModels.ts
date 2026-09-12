@@ -130,3 +130,26 @@ export async function pruneExpiredBatch(ctx: MutationCtx): Promise<boolean> {
 
   return expired.length === PRUNE_BATCH_SIZE;
 }
+
+// Supprime un lot de versions d'UN nodeData, quel que soit son âge. Même
+// contrat de retour que `pruneExpiredBatch` : true si le lot était plein.
+//
+// Le TTL de 30 jours est une commodité (récupérer un node supprimé par
+// erreur) ; la suppression de compte, elle, doit emporter le contenu tout de
+// suite. C'est le seul appelant : une suppression de node ordinaire garde
+// délibérément ses snapshots.
+export async function deleteAllForNodeDataBatch(
+  ctx: MutationCtx,
+  { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
+): Promise<boolean> {
+  const versions = await ctx.db
+    .query("nodeDataVersions")
+    .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+    .take(PRUNE_BATCH_SIZE);
+
+  for (const version of versions) {
+    await ctx.db.delete(version._id);
+  }
+
+  return versions.length === PRUNE_BATCH_SIZE;
+}

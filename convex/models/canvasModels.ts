@@ -196,10 +196,14 @@ export async function deleteCanvasAndShares(
   {
     canvasId,
     actor,
+    purgeVersions = false,
   }: {
     canvasId: Id<"canvases">;
     // Attribution des snapshots de suppression (versioning) ; system par défaut.
     actor?: NodeDataVersionActor;
+    // Cf. `deleteNodeDataWithCascade` : détruit l'historique des nodes au lieu
+    // de le laisser vivre sa rétention. Réservé à la suppression de compte.
+    purgeVersions?: boolean;
   },
 ): Promise<Id<"canvases">> {
   await getCanvasOrThrow(ctx, canvasId);
@@ -221,7 +225,7 @@ export async function deleteCanvasAndShares(
     await ctx.scheduler.runAfter(
       0,
       internal.wrappers.nodeDataWrappers.deleteWithCascade,
-      { nodeDataId: nodeData._id, actor },
+      { nodeDataId: nodeData._id, actor, purgeVersions },
     );
   }
   if (nodeDatas.length > 0) {

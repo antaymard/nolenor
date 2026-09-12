@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { ReactFlowProvider, Panel } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -22,8 +23,21 @@ import CanvasNavigatorBridge from "@/components/canvas/viewport-markers/CanvasNa
 // Mobile-only surface: don't ship it to desktop sessions.
 const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
 
+// `?v=cx,cy,zoom` : le cadrage sur lequel ouvrir le canvas, porté par un lien
+// partagé (cf. `useInitialViewportFromUrl` et le bouton de `SharingModal`).
+//
+// Déclaré ici et non sur la racine comme `?template=` : un cadrage n'a de sens
+// que dans un canvas donné, donc changer de canvas doit le laisser tomber.
+// `.catch(undefined)` comme les autres params qui viennent de l'extérieur
+// (cf. `signin.tsx`) : une URL abîmée ne doit pas casser la route. Le triple
+// n'est pas décodé ici — le parse tolérant vit dans `canvasViewportFraming`.
+const canvasSearchSchema = z.object({
+  v: z.string().optional().catch(undefined),
+});
+
 export const Route = createFileRoute("/canvas/$canvasId")({
   component: RouteComponent,
+  validateSearch: canvasSearchSchema,
 });
 
 function RouteComponent() {

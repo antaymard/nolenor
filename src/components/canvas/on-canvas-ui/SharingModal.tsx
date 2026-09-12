@@ -3,6 +3,8 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useCanvasStore } from "@/stores/canvasStore";
+import { useCaptureFraming } from "@/hooks/useViewportFraming";
+import { framingToParam } from "@/lib/canvasViewportFraming";
 import {
   Dialog,
   DialogContent,
@@ -52,6 +54,8 @@ export default function SharingModal() {
           canvasId={canvas._id}
           isPublic={canvas.isPublic ?? false}
         />
+        <Separator />
+        <ViewLinkSection />
         <Separator />
         <ShareForm canvasId={canvas._id} />
         <ShareList canvasId={canvas._id} />
@@ -124,6 +128,62 @@ function PublicLinkSection({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Un lien vers le canvas *cadré comme on le voit* (`?v=cx,cy,zoom`).
+ *
+ * Volontairement hors de `PublicLinkSection` et donc non conditionné à
+ * `isPublic` : un canvas partagé par email a autant besoin de pointer une zone
+ * précise. Le « Copy link » ci-dessus reste, lui, le lien nu du canvas.
+ *
+ * `useCaptureFraming` exige le `ReactFlowProvider` : vrai pour les deux points
+ * de montage de cette modale, `TopRightToolbar` (un `<Panel>` du canvas) et
+ * `MobileTopBar` (sous le provider de `MobileCanvas`).
+ */
+function ViewLinkSection() {
+  const captureFraming = useCaptureFraming();
+
+  const handleCopyViewLink = async () => {
+    const framing = captureFraming();
+    if (!framing) {
+      toast.error("The canvas is not ready yet.");
+      return;
+    }
+
+    try {
+      // Reconstruit depuis `origin` + `pathname` au lieu de partir de
+      // `window.location.href` : le lien ne doit porter que `v`, et surtout pas
+      // un `?template=` qui ouvrirait l'éditeur de template chez le
+      // destinataire.
+      const url =
+        `${window.location.origin}${window.location.pathname}` +
+        `?v=${framingToParam(framing)}`;
+      await navigator.clipboard.writeText(url);
+      toast.success("Link to this view copied to clipboard");
+    } catch (err) {
+      toastError(err, "Failed to copy link");
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium">Link to this view</span>
+        <p className="text-xs text-muted-foreground">
+          Opens the canvas framed exactly as you see it now.
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={handleCopyViewLink}
+      >
+        Copy
+      </Button>
     </div>
   );
 }

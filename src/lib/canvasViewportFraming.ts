@@ -30,6 +30,16 @@ const NEAR_ZOOM_RATIO_MAX = 2;
 export const VIEWPORT_TRANSITION_MS = 500;
 
 /**
+ * Les bornes de zoom du canvas.
+ *
+ * Passées à `<ReactFlow>` (cf. `CanvasFlow`) *et* appliquées au parse du param
+ * d'URL : sans source unique, un cadrage venu d'un lien pourrait sortir des
+ * bornes que l'utilisateur peut atteindre à la molette.
+ */
+export const CANVAS_MIN_ZOOM = 0.1;
+export const CANVAS_MAX_ZOOM = 4;
+
+/**
  * Le rectangle du pane React Flow.
  *
  * Et non `window.innerWidth/Height` : le canvas vit dans `CanvasSidebar`, donc
@@ -294,4 +304,50 @@ export function readFraming(value: unknown): ViewportFraming | null {
     return null;
   }
   return { cx, cy, zoom };
+}
+
+/** Le séparateur du param `?v=` — un cadrage y tient en trois nombres. */
+const PARAM_SEPARATOR = ",";
+
+/**
+ * Le cadrage tel qu'il voyage dans l'URL (`?v=cx,cy,zoom`).
+ *
+ * `cx`/`cy` à l'entier — l'unité monde est le pixel, le sous-pixel n'est que du
+ * bruit dans un lien — et `zoom` à trois décimales : l'URL reste courte, la
+ * précision reste sous le seuil de l'œil.
+ */
+export function framingToParam(framing: ViewportFraming): string {
+  return [
+    Math.round(framing.cx),
+    Math.round(framing.cy),
+    Number(framing.zoom.toFixed(3)),
+  ].join(PARAM_SEPARATOR);
+}
+
+/**
+ * Lit un `?v=cx,cy,zoom` en tolérant n'importe quoi : lien tronqué, URL
+ * bricolée à la main, param vide. Même contrat que `readFraming` — `null` dès
+ * que ce ne sont pas trois nombres exploitables, et l'appelant retombe alors
+ * sur le `defaultViewport`.
+ *
+ * Le zoom est *borné* plutôt que rejeté : un lien qui demande 9999 doit
+ * atterrir au zoom maximum, pas échouer silencieusement. Ça couvre aussi
+ * l'infini, que `zoom > 0` laisse passer.
+ */
+export function framingFromParam(
+  raw: string | undefined,
+): ViewportFraming | null {
+  if (!raw) return null;
+
+  const parts = raw.split(PARAM_SEPARATOR);
+  if (parts.length !== 3) return null;
+
+  const [cx, cy, zoom] = parts.map((part) => Number(part.trim()));
+  if (!Number.isFinite(cx) || !Number.isFinite(cy) || !(zoom > 0)) return null;
+
+  return {
+    cx,
+    cy,
+    zoom: Math.min(Math.max(zoom, CANVAS_MIN_ZOOM), CANVAS_MAX_ZOOM),
+  };
 }

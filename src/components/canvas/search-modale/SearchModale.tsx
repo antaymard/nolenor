@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Spinner } from "@/components/shadcn/spinner";
+import { Switch } from "@/components/shadcn/switch";
 import { Kbd, KbdGroup } from "@/components/shadcn/kbd";
 import { cn } from "@/lib/utils";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
@@ -72,6 +73,8 @@ export default function SearchModale() {
     nodeTypes,
     toggleNodeType,
     clearNodeTypes,
+    titleOnly,
+    toggleTitleOnly,
   } = useSearch({ canvasId, query: searchQuery, enabled: isOpen });
 
   const listboxId = useId();
@@ -84,7 +87,8 @@ export default function SearchModale() {
     const active = resultsContainerRef.current?.querySelector(
       '[data-active="true"]',
     );
-    if (active instanceof HTMLElement) active.scrollIntoView({ block: "nearest" });
+    if (active instanceof HTMLElement)
+      active.scrollIntoView({ block: "nearest" });
   }, [activeIndex, navigableCount]);
 
   const handleOpenResult = useCallback(
@@ -180,7 +184,11 @@ export default function SearchModale() {
             aria-controls={listboxId}
             aria-activedescendant={activeDescendant}
             aria-label="Search"
-            placeholder={'Search — "exact phrase", -exclude, a OR b'}
+            placeholder={
+              titleOnly
+                ? 'Search titles — "exact phrase", -exclude, a OR b'
+                : 'Search — "exact phrase", -exclude, a OR b'
+            }
             className="min-w-0 flex-1 border-none bg-transparent outline-none placeholder:text-muted-foreground"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -211,7 +219,7 @@ export default function SearchModale() {
           </Button>
         </div>
 
-        {/* Type filters + syntax hint */}
+        {/* Type filters + title-only toggle + syntax hint */}
         <div className="flex items-center gap-3 border-b px-3 py-2">
           <SearchTypeFilter
             selected={nodeTypes}
@@ -219,8 +227,23 @@ export default function SearchModale() {
             onClear={clearNodeTypes}
             className="min-w-0 flex-1"
           />
+          <label
+            className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none"
+            title="Ne chercher que dans les titres"
+            // Keep focus in the input: keyboard navigation depends on it.
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            <Switch
+              checked={titleOnly}
+              onCheckedChange={toggleTitleOnly}
+              aria-label="Titles only"
+            />
+            Titles only
+          </label>
           <span className="hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground lg:flex">
-            <code className="rounded bg-muted px-1">&quot;exact phrase&quot;</code>
+            <code className="rounded bg-muted px-1">
+              &quot;exact phrase&quot;
+            </code>
             <code className="rounded bg-muted px-1">-exclude</code>
             <code className="rounded bg-muted px-1">a OR b</code>
           </span>
@@ -284,10 +307,7 @@ export default function SearchModale() {
               </>
             )
           ) : !recents || recents.length === 0 ? (
-            <SearchEmpty
-              icon={<TbSearch />}
-              title="No nodes yet"
-            />
+            <SearchEmpty icon={<TbSearch />} title="No nodes yet" />
           ) : (
             <>
               <h4 className="px-2 pt-1 pb-2 text-xs uppercase tracking-wider text-muted-foreground">

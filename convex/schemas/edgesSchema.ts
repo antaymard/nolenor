@@ -10,6 +10,7 @@ const edgesValidator = v.object({
   targetHandle: v.optional(v.string()),
   markerEnd: v.optional(v.any()),
   data: v.optional(v.record(v.string(), v.any())),
+  trashedAt: v.optional(v.number()),
 });
 
 /**
@@ -49,9 +50,5 @@ export type CanvasEdge = Omit<
   "canvasId" | "status"
 >;
 
-export {
-  edgesValidator,
-  edgeCreateItemValidator,
-  edgePatchUpdateValidator,
-};
+export { edgesValidator, edgeCreateItemValidator, edgePatchUpdateValidator };
 export type { EdgeCreateItem, EdgePatchUpdate };

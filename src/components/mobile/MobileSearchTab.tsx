@@ -3,6 +3,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { Input } from "@/components/shadcn/input";
 import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
+import { Switch } from "@/components/shadcn/switch";
 import { TbSearch, TbX } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useWindowsStore } from "@/stores/windowsStore";
@@ -52,6 +53,8 @@ export default function MobileSearchTab({
     nodeTypes,
     toggleNodeType,
     clearNodeTypes,
+    titleOnly,
+    toggleTitleOnly,
   } = useSearch({ canvasId, query, enabled: active });
 
   // Le node s'ouvre en plein écran via MobileNodeOverlay.
@@ -71,7 +74,11 @@ export default function MobileSearchTab({
         <Input
           type="text"
           aria-label="Search"
-          placeholder={'Search — "phrase", -exclude, a OR b'}
+          placeholder={
+            titleOnly
+              ? 'Search titles — "phrase", -exclude, a OR b'
+              : 'Search — "phrase", -exclude, a OR b'
+          }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="border-0 px-0 shadow-none focus-visible:ring-0"
@@ -91,12 +98,21 @@ export default function MobileSearchTab({
           </Button>
         ) : null}
       </div>
-      <div className="shrink-0 border-b px-3 py-2">
+      <div className="flex shrink-0 items-center gap-3 border-b px-3 py-2">
         <SearchTypeFilter
           selected={nodeTypes}
           onToggle={toggleNodeType}
           onClear={clearNodeTypes}
+          className="min-w-0 flex-1"
         />
+        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
+          <Switch
+            checked={titleOnly}
+            onCheckedChange={toggleTitleOnly}
+            aria-label="Titles only"
+          />
+          Titles only
+        </label>
       </div>
       <div className="flex-1 overflow-y-auto">
         {isInitialLoading ? (

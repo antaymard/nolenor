@@ -26,6 +26,7 @@ const nodesValidator = v.object({
   ),
   extendParent: v.optional(v.boolean()),
   data: v.optional(v.record(v.string(), v.any())),
+  trashedAt: v.optional(v.number()),
 });
 
 export { nodesValidator };
@@ -96,5 +97,9 @@ const nodePatchUpdateValidator = v.object({
 type NodeCreateWithDataItem = Infer<typeof nodeCreateWithDataItemValidator>;
 type NodePatchUpdate = Infer<typeof nodePatchUpdateValidator>;
 
-export { nodePatchPropsValidator, nodeCreateWithDataItemValidator, nodePatchUpdateValidator };
+export {
+  nodePatchPropsValidator,
+  nodeCreateWithDataItemValidator,
+  nodePatchUpdateValidator,
+};
 export type { NodePatchProps, NodeCreateWithDataItem, NodePatchUpdate };

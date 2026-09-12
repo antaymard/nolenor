@@ -32,6 +32,9 @@ import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
 import { isEditableTarget } from "@/lib/editableTarget";
 import { withTouchDragGate } from "./touchDragGate";
 import { markCanvasMoved } from "@/lib/canvasPanGesture";
+import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "@/lib/canvasViewportFraming";
+import { useInitialViewportFromUrl } from "@/hooks/useInitialViewportFromUrl";
+import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
   resolveCanvasBackground,
@@ -104,6 +107,11 @@ export default function CanvasFlow({
   } = useContextMenu();
 
   const { screenToFlowPosition, getNodes, getEdges } = useReactFlow();
+  // Ouvre le canvas sur le cadrage d'un lien partagé (`?v=cx,cy,zoom`).
+  // Ici plutôt que dans la route : ce composant est le canvas des deux
+  // surfaces, desktop et mobile.
+  const { onFlowInit, isPending: isUrlViewportPending } =
+    useInitialViewportFromUrl();
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const focus = useCanvasStore((state) => state.focus);
   const { duplicateNodes } = useDuplicateNode();
@@ -413,6 +421,13 @@ export default function CanvasFlow({
     <>
       {isDraggingOver && <CanvasDropOverlay />}
       <ReactFlow
+        onInit={onFlowInit}
+        // Le canvas reste invisible le temps qu'un cadrage venu de l'URL
+        // soit posé, sinon la première frame se peint au `defaultViewport`
+        // puis saute à la cible (cf. `useInitialViewportFromUrl`).
+        // `opacity` et non `visibility`/`display` : le pane doit rester
+        // mesurable, `getPaneRect` en dépend.
+        className={cn(isUrlViewportPending && "opacity-0")}
         panOnScroll
         // Explicite (défauts React Flow) : fige l'anti swipe-back trackpad
         // contre un changement de défaut — `preventScrolling` bloque le scroll
@@ -422,13 +437,14 @@ export default function CanvasFlow({
         // Au doigt, le drag sur le pane pan toujours. À la souris, on garde le
         // clic molette pour panner et on laisse le clic gauche au lasso.
         panOnDrag={panWithFinger ? true : [1]}
+        // Le cas sans `?v=` : tout canvas s'ouvre à l'origine du monde.
         defaultViewport={{
           x: 0,
           y: 0,
           zoom: 0.75,
         }}
-        minZoom={0.1}
-        maxZoom={4}
+        minZoom={CANVAS_MIN_ZOOM}
+        maxZoom={CANVAS_MAX_ZOOM}
         selectNodesOnDrag={false}
         // Sans ça React Flow ajoute +1000 au z d'un node sélectionné : le
         // "send to back" ne se verrait pas tant que le node reste sélectionné.

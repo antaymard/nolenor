@@ -10,6 +10,7 @@ import {
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import AddBlockMenuContent from "@/components/canvas/context-menus/AddBlockMenuContent";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
+import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 
 /**
  * La barre d'outils du canvas mobile.
@@ -24,7 +25,8 @@ export default function MobileCanvasToolbar({
   containerRef: RefObject<HTMLDivElement | null>;
 }) {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  const { screenToFlowPosition, getNodes, deleteElements } = useReactFlow();
+  const { screenToFlowPosition, getNodes } = useReactFlow();
+  const { deleteCanvasElements } = useDeleteCanvasElements();
   const { duplicateNode } = useDuplicateNode();
 
   // On ne souscrit qu'à l'ensemble des ids sélectionnés : pan, zoom et drag ne
@@ -60,7 +62,10 @@ export default function MobileCanvasToolbar({
   };
 
   const handleDelete = () => {
-    void deleteElements({ nodes: selectedIds.map((id) => ({ id })) });
+    void deleteCanvasElements(
+      { nodes: selectedIds.map((id) => ({ id })) },
+      { label: "Delete selection" },
+    );
   };
 
   return (

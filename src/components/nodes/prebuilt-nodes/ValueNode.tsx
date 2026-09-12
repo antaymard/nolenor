@@ -136,7 +136,13 @@ function ValueNode(xyNode: XyNodeProps) {
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <div className="flex flex-col gap-3">
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSave();
+              }}
+            >
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">Type</span>
                 <ToggleGroup
@@ -200,10 +206,10 @@ function ValueNode(xyNode: XyNodeProps) {
                 onChange={(e) => setInputLabel(e.target.value)}
               />
 
-              <Button onClick={handleSave} size="sm">
+              <Button type="submit" size="sm">
                 Save
               </Button>
-            </div>
+            </form>
           </PopoverContent>
         </Popover>
       </CanvasNodeToolbar>

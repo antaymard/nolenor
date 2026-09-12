@@ -108,25 +108,24 @@ function AppNode(xyNode: XyNodeProps) {
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <div className="flex flex-col gap-2">
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveTitle();
+              }}
+            >
               <Input
                 onDoubleClick={(e) => e.stopPropagation()}
                 type="text"
                 placeholder="Title (optional)"
                 value={inputTitle}
                 onChange={(e) => setInputTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSaveTitle();
-                }}
               />
-              <Button
-                onClick={handleSaveTitle}
-                size="sm"
-                disabled={!inputTitle.trim()}
-              >
+              <Button type="submit" size="sm" disabled={!inputTitle.trim()}>
                 Save
               </Button>
-            </div>
+            </form>
           </PopoverContent>
         </Popover>
       </CanvasNodeToolbar>

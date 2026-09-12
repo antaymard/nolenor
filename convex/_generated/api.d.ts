@@ -14,6 +14,7 @@ import type * as adminNotifications from "../adminNotifications.js";
 import type * as aiUsage from "../aiUsage.js";
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
+import type * as canvasOps from "../canvasOps.js";
 import type * as canvases from "../canvases.js";
 import type * as config_errorsConfig from "../config/errorsConfig.js";
 import type * as config_fieldConfig from "../config/fieldConfig.js";
@@ -21,6 +22,7 @@ import type * as config_fieldVariants from "../config/fieldVariants.js";
 import type * as config_nodeConfig from "../config/nodeConfig.js";
 import type * as config_optionDescriptors from "../config/optionDescriptors.js";
 import type * as config_templateConfig from "../config/templateConfig.js";
+import type * as config_trashConfig from "../config/trashConfig.js";
 import type * as config_uploadsConfig from "../config/uploadsConfig.js";
 import type * as crons from "../crons.js";
 import type * as dataExport from "../dataExport.js";
@@ -42,6 +44,7 @@ import type * as ia_helpers_makeNodeDataLLMFriendly from "../ia/helpers/makeNode
 import type * as ia_helpers_nodeDataSchemaXml from "../ia/helpers/nodeDataSchemaXml.js";
 import type * as ia_helpers_nodeFieldsAndTypesHelper from "../ia/helpers/nodeFieldsAndTypesHelper.js";
 import type * as ia_helpers_nodeInputSchemaValidatorForLLM from "../ia/helpers/nodeInputSchemaValidatorForLLM.js";
+import type * as ia_helpers_nodePlacement from "../ia/helpers/nodePlacement.js";
 import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkFormatters.js";
 import type * as ia_helpers_resolveNodeMentionTokens from "../ia/helpers/resolveNodeMentionTokens.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
@@ -134,6 +137,7 @@ import type * as schemas_aiUsageEventsSchema from "../schemas/aiUsageEventsSchem
 import type * as schemas_aiUsageSourceSchema from "../schemas/aiUsageSourceSchema.js";
 import type * as schemas_aiUsageTokensSchema from "../schemas/aiUsageTokensSchema.js";
 import type * as schemas_apiTokensSchema from "../schemas/apiTokensSchema.js";
+import type * as schemas_canvasOpsSchema from "../schemas/canvasOpsSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_edgesSchema from "../schemas/edgesSchema.js";
 import type * as schemas_fieldTypeSchema from "../schemas/fieldTypeSchema.js";
@@ -192,6 +196,7 @@ declare const fullApi: ApiFromModules<{
   aiUsage: typeof aiUsage;
   apiTokens: typeof apiTokens;
   auth: typeof auth;
+  canvasOps: typeof canvasOps;
   canvases: typeof canvases;
   "config/errorsConfig": typeof config_errorsConfig;
   "config/fieldConfig": typeof config_fieldConfig;
@@ -199,6 +204,7 @@ declare const fullApi: ApiFromModules<{
   "config/nodeConfig": typeof config_nodeConfig;
   "config/optionDescriptors": typeof config_optionDescriptors;
   "config/templateConfig": typeof config_templateConfig;
+  "config/trashConfig": typeof config_trashConfig;
   "config/uploadsConfig": typeof config_uploadsConfig;
   crons: typeof crons;
   dataExport: typeof dataExport;
@@ -220,6 +226,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/nodeDataSchemaXml": typeof ia_helpers_nodeDataSchemaXml;
   "ia/helpers/nodeFieldsAndTypesHelper": typeof ia_helpers_nodeFieldsAndTypesHelper;
   "ia/helpers/nodeInputSchemaValidatorForLLM": typeof ia_helpers_nodeInputSchemaValidatorForLLM;
+  "ia/helpers/nodePlacement": typeof ia_helpers_nodePlacement;
   "ia/helpers/pdfChunkFormatters": typeof ia_helpers_pdfChunkFormatters;
   "ia/helpers/resolveNodeMentionTokens": typeof ia_helpers_resolveNodeMentionTokens;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
@@ -312,6 +319,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/aiUsageSourceSchema": typeof schemas_aiUsageSourceSchema;
   "schemas/aiUsageTokensSchema": typeof schemas_aiUsageTokensSchema;
   "schemas/apiTokensSchema": typeof schemas_apiTokensSchema;
+  "schemas/canvasOpsSchema": typeof schemas_canvasOpsSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/edgesSchema": typeof schemas_edgesSchema;
   "schemas/fieldTypeSchema": typeof schemas_fieldTypeSchema;

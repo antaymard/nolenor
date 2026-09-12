@@ -35,6 +35,7 @@ import { TbHome, TbPlus } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
+import CanvasHistoryControls from "@/components/canvas/on-canvas-ui/CanvasHistoryControls";
 
 export default function CanvasSidebar({
   children,
@@ -249,6 +250,7 @@ export default function CanvasSidebar({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          <CanvasHistoryControls canvasId={canvasId} />
         </div>
         {children}
       </SidebarInset>

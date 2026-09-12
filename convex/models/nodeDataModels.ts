@@ -100,22 +100,28 @@ export async function deleteNodeDataWithCascade(
 ): Promise<void> {
   const nodeData = await ctx.db.get(nodeDataId);
 
+  // Idempotent : sans ce retour, le `ctx.db.delete` final jetterait sur une
+  // ligne déjà supprimée. Inatteignable tant que la cascade partait en
+  // `runAfter(0)` depuis le trash (un seul appel possible) ; la corbeille l'a
+  // rendu atteignable — le cron de purge peut retomber sur un nodeData déjà
+  // détruit par l'ancienne cascade immédiate, ou rejouer un lot.
+  if (!nodeData) return;
+
   // Only keys this node held the last reference to. A duplicate still pointing
   // at the same file keeps it alive.
   const r2Keys = await R2ObjectModels.releaseRefs(ctx, { nodeDataId });
 
-  if (nodeData) {
-    // Snapshot final : les versions survivent volontairement au node
-    // (corbeille de fait, purgée par TTL) pour permettre une récupération
-    // après une suppression accidentelle.
-    await NodeDataVersionModels.maybeCheckpoint(ctx, {
-      nodeData,
-      actor,
-      changedKeys: [],
-      trigger: "delete",
-      force: true,
-    });
-  }
+  // Snapshot final : les versions survivent volontairement au node
+  // (purgées par leur propre TTL) pour permettre une récupération après une
+  // suppression accidentelle. Depuis la corbeille, ce snapshot est pris au
+  // moment de la purge et non du trash — le contenu n'est détruit qu'ici.
+  await NodeDataVersionModels.maybeCheckpoint(ctx, {
+    nodeData,
+    actor,
+    changedKeys: [],
+    trigger: "delete",
+    force: true,
+  });
 
   // Delete memories
   const memories = await ctx.db

@@ -31,6 +31,7 @@ import type { colorsEnum } from "@/types/domain";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { getNodeDataId } from "@/lib/nodeIdentity";
+import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -39,7 +40,8 @@ export default function SelectionContextMenu({
   closeMenu: () => void;
   elements: Node[] | object | null;
 }) {
-  const { deleteElements, updateNode } = useReactFlow();
+  const { updateNode } = useReactFlow();
+  const { deleteCanvasElements } = useDeleteCanvasElements();
   const { duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
@@ -170,7 +172,14 @@ export default function SelectionContextMenu({
     // fichier R2 que si plus aucun node ne le référence, et le node cible
     // vient précisément d'en prendre la référence ci-dessus. Les vider
     // d'abord n'ajoutait qu'un snapshot de version inutile.
-    deleteElements({ nodes: others.map((n) => ({ id: n.id })) });
+    // Hors pile d'annulation : la fusion des images qui précède n'est pas
+    // annulable (c'est une écriture de contenu), donc rendre les sources
+    // seules laisserait les images en double. Une demi-annulation est pire
+    // que pas d'annulation.
+    await deleteCanvasElements(
+      { nodes: others.map((n) => ({ id: n.id })) },
+      { undoable: false },
+    );
   }
 
   return (
@@ -290,7 +299,10 @@ export default function SelectionContextMenu({
       {/* Suppression */}
       <DropdownMenuItem
         onClick={() => {
-          deleteElements({ nodes: elements as Node[] });
+          void deleteCanvasElements(
+            { nodes: elements as Node[] },
+            { label: "Delete selection" },
+          );
           closeMenu();
         }}
       >

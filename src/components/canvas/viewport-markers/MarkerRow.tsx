@@ -1,5 +1,4 @@
 import { memo, useCallback, useMemo } from "react";
-import { useReactFlow } from "@xyflow/react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -21,6 +20,7 @@ import {
   useGoToFraming,
 } from "@/hooks/useViewportFraming";
 import { readFraming } from "@/lib/canvasViewportFraming";
+import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +48,7 @@ function MarkerRow({
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const captureFraming = useCaptureFraming();
   const goToFraming = useGoToFraming();
-  const { deleteElements } = useReactFlow();
+  const { deleteCanvasElements } = useDeleteCanvasElements();
 
   // Un viewer n'a que la navigation : le serveur refuse déjà ses écritures
   // (`requireCanvasAccess("editor")`), les lui proposer ne produisait qu'un
@@ -96,12 +96,16 @@ function MarkerRow({
     onNavigate?.();
   }, [framing, goToFraming, onNavigate]);
 
-  // La suppression passe par React Flow, comme le menu contextuel d'un node :
+  // La suppression passe par `useDeleteCanvasElements` (donc React Flow +
+  // historique annulable), comme le menu contextuel d'un node :
   // `useCanvasNodes` traduit le change `remove` en mutation Convex et gère la
   // cascade. Une mutation dédiée court-circuiterait tout ça.
   const remove = useCallback(() => {
-    void deleteElements({ nodes: [{ id: canvasNodeId }] });
-  }, [canvasNodeId, deleteElements]);
+    void deleteCanvasElements(
+      { nodes: [{ id: canvasNodeId }] },
+      { label: "Delete viewport" },
+    );
+  }, [canvasNodeId, deleteCanvasElements]);
 
   return (
     <div

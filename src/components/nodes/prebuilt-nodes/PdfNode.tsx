@@ -139,7 +139,13 @@ function PdfNode(xyNode: XyNodeProps) {
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <div className="flex flex-col gap-2">
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSave();
+              }}
+            >
               <UploadFile
                 accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,text/markdown,application/json,application/xml,application/zip,audio/*,video/*"
                 onUploadComplete={handleUploadComplete}
@@ -150,14 +156,11 @@ function PdfNode(xyNode: XyNodeProps) {
                 placeholder="Title (optional)"
                 value={titleDraft}
                 onChange={(e) => setTitleDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSave();
-                }}
               />
-              <Button size="sm" onClick={handleSave}>
+              <Button type="submit" size="sm">
                 Save
               </Button>
-            </div>
+            </form>
           </PopoverContent>
         </Popover>
       </CanvasNodeToolbar>

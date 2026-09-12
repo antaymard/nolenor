@@ -62,13 +62,24 @@ const schema = defineSchema({
       filterFields: ["creatorId"],
     }),
 
+  // `by_status_and_trashedAt` sert le cron de purge, et lui seul : sans clé sur
+  // le statut il devrait scanner toute la table pour trouver la poignée de
+  // lignes à la corbeille.
+  //
+  // Attention au tri : `trashedAt` absent (lignes jetées avant l'existence du
+  // champ) trie AVANT tout nombre, donc ces lignes tombent d'office dans la
+  // fenêtre `lt(cutoff)` de la purge. Elles ne sont pas purgées pour autant —
+  // les deux `purgeTrashedBatch` les datent au premier passage et leur
+  // accordent la rétention normale (cf. leur commentaire).
   nodes: defineTable(nodesValidator)
     .index("by_canvas", ["canvasId"])
     .index("by_llmid", ["id"])
-    .index("by_nodeDataId", ["nodeDataId"]),
+    .index("by_nodeDataId", ["nodeDataId"])
+    .index("by_status_and_trashedAt", ["status", "trashedAt"]),
   edges: defineTable(edgesValidator)
     .index("by_canvas", ["canvasId"])
-    .index("by_llmid", ["id"]),
+    .index("by_llmid", ["id"])
+    .index("by_status_and_trashedAt", ["status", "trashedAt"]),
 
   nodeDatas: defineTable(nodeDatasValidator)
     .index("by_canvasId", ["canvasId"])

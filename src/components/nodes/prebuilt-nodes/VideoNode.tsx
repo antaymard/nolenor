@@ -319,7 +319,13 @@ function VideoNode(xyNode: XyNodeProps) {
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <div className="flex flex-col gap-2">
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRename();
+              }}
+            >
               <UploadFile
                 accept="video/*"
                 onUploadComplete={handleUploadComplete}
@@ -332,16 +338,13 @@ function VideoNode(xyNode: XyNodeProps) {
                     placeholder="File name"
                     value={titleDraft}
                     onChange={(e) => setTitleDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRename();
-                    }}
                   />
-                  <Button size="sm" onClick={handleRename}>
+                  <Button type="submit" size="sm">
                     Save
                   </Button>
                 </>
               )}
-            </div>
+            </form>
           </PopoverContent>
         </Popover>
       </CanvasNodeToolbar>

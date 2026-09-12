@@ -14,6 +14,7 @@ import {
 import { ScrollArea } from "@/components/shadcn/scroll-area";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
+import { useCanvasHistoryStore } from "@/stores/canvasHistoryStore";
 
 type MoveNodeToCanvasModalProps = {
   open: boolean;
@@ -60,6 +61,10 @@ export default function MoveNodeToCanvasModal({
         nodeIds: [nodeCanvasId],
         targetCanvasId: selectedCanvasId,
       });
+      // `moveNodes` supprime pour de bon les connexions incidentes : aucune
+      // opération inverse ne les rendrait. Plutôt que de laisser la pile
+      // promettre une annulation qu'elle ne tiendrait qu'à moitié, on la vide.
+      useCanvasHistoryStore.getState().reset();
       onOpenChange(false);
       onSuccess?.();
     } finally {

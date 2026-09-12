@@ -108,7 +108,10 @@ export async function resolveNodeIds(
         .query("nodes")
         .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
         .first();
-      if (node) {
+      // Un node à la corbeille est traité comme un orphelin : ses chunks
+      // vivent jusqu'à la purge (30 j), mais il ne doit plus remonter en
+      // recherche — ni dans la modale, ni dans le tool `full_text_search`.
+      if (node && node.status !== "trashed") {
         resolved.set(nodeDataId, node.id);
       } else {
         misses.push(nodeDataId);
@@ -284,6 +287,8 @@ function getSectionTitle(metadata: unknown): string | undefined {
  * Recherche indexée sur le contenu ET le titre, scopée au canvas, dédupliquée.
  * Le type de node est poussé dans l'index quand le fan-out reste raisonnable,
  * et re-filtré en TS dans tous les cas (exact et gratuit).
+ * `titleOnly` (recherche utilisateur Cmd+K uniquement) ne touche que l'index
+ * `search_title` : le chemin agent (`fullTextSearch`) garde le défaut `false`.
  */
 export async function searchChunks(
   ctx: QueryCtx,
@@ -292,11 +297,14 @@ export async function searchChunks(
     text,
     nodeTypes,
     limit,
+    titleOnly,
   }: {
     canvasId: Id<"canvases">;
     text: string;
     nodeTypes?: NodeType[];
     limit: number;
+    /** Ne chercher que dans le titre (UI Cmd+K), jamais côté agent. */
+    titleOnly?: boolean;
   },
 ): Promise<SearchableChunk[]> {
   const types = nodeTypes ?? [];
@@ -304,24 +312,27 @@ export async function searchChunks(
     types.length > 0 && types.length <= CHUNK_SEARCH_LIMITS.MAX_INDEXED_NODE_TYPES
       ? types
       : [undefined];
+  const onlyTitle = titleOnly === true;
 
   const batches = await Promise.all(
-    indexedTypes.flatMap((nodeType) => [
-      ctx.db
-        .query("searchableChunks")
-        .withSearchIndex("search_text", (q) => {
-          const scoped = q.search("text", text).eq("canvasId", canvasId);
-          return nodeType ? scoped.eq("nodeType", nodeType) : scoped;
-        })
-        .take(limit),
-      ctx.db
+    indexedTypes.flatMap((nodeType) => {
+      const titleQuery = ctx.db
         .query("searchableChunks")
         .withSearchIndex("search_title", (q) => {
           const scoped = q.search("title", text).eq("canvasId", canvasId);
           return nodeType ? scoped.eq("nodeType", nodeType) : scoped;
         })
-        .take(limit),
-    ]),
+        .take(limit);
+      if (onlyTitle) return [titleQuery];
+      const textQuery = ctx.db
+        .query("searchableChunks")
+        .withSearchIndex("search_text", (q) => {
+          const scoped = q.search("text", text).eq("canvasId", canvasId);
+          return nodeType ? scoped.eq("nodeType", nodeType) : scoped;
+        })
+        .take(limit);
+      return [textQuery, titleQuery];
+    }),
   );
 
   const deduped = Array.from(
@@ -348,11 +359,14 @@ export async function collectExcludedNodeIds(
     canvasId,
     excluded,
     haystacksByNode,
+    titleOnly,
   }: {
     canvasId: Id<"canvases">;
     excluded: ExcludedNeedle[];
     /** Clés = nodeDataId (regroupement), pas llmId. */
     haystacksByNode: Map<string, string[]>;
+    /** En mode titre-seulement, l'exclusion est jugée sur le titre uniquement. */
+    titleOnly?: boolean;
   },
 ): Promise<Set<string>> {
   const excludedNodeIds = new Set<string>();
@@ -372,6 +386,7 @@ export async function collectExcludedNodeIds(
   }
 
   // 2) Le reste du node, via l'index.
+  const onlyTitle = titleOnly === true;
   const batches = await Promise.all(
     excluded.map(async (needle) => ({
       needle,
@@ -379,6 +394,7 @@ export async function collectExcludedNodeIds(
         canvasId,
         text: needle.original,
         limit: CHUNK_SEARCH_LIMITS.EXCLUSION_SCAN,
+        titleOnly: onlyTitle,
       }),
     })),
   );
@@ -388,7 +404,9 @@ export async function collectExcludedNodeIds(
       const nodeKey = chunk.nodeDataId;
       if (!haystacksByNode.has(nodeKey)) continue;
       if (excludedNodeIds.has(nodeKey)) continue;
-      const haystacks = normalizeHaystacks([chunk.title, chunk.text]);
+      const haystacks = onlyTitle
+        ? normalizeHaystacks([chunk.title])
+        : normalizeHaystacks([chunk.title, chunk.text]);
       if (haystacksContainToken(haystacks, needle.normalized)) {
         excludedNodeIds.add(nodeKey);
       }

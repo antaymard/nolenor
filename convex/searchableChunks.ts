@@ -23,6 +23,8 @@ export const search = query({
     canvasId: v.id("canvases"),
     /** Filtre de type piloté par les chips de l'UI (pas par la syntaxe). */
     nodeTypes: v.optional(v.array(nodeTypeValidator)),
+    /** Recherche Cmd+K uniquement : ne matcher que le titre (jamais côté agent). */
+    titleOnly: v.optional(v.boolean()),
   },
   returns: v.object({
     results: v.array(
@@ -68,11 +70,14 @@ export const search = query({
       return { results: [], relaxed: false, terms: parsed.highlightTerms };
     }
 
+    const titleOnly = args.titleOnly === true;
+
     const chunks = await SearchableChunkModels.searchChunks(ctx, {
       canvasId: args.canvasId,
       text: parsed.searchText,
       nodeTypes: args.nodeTypes,
       limit: MAX_MATCHING_CHUNKS,
+      titleOnly,
     });
 
     // Regroupés sur nodeDataId (stable, porté par le chunk) : le llmId
@@ -89,16 +94,24 @@ export const search = query({
 
     // Les contraintes se jugent au niveau du NODE : « ce document contient tous
     // les mots », pas « ce passage les contient ».
+    // En mode titre-seulement, les haystacks ne contiennent que le titre pour
+    // que le post-filtre (`matchesParsedQuery`) n'accepte aucun match body.
     const haystacksByNode = new Map<string, string[]>();
     for (const [nodeKey, nodeChunks] of groupedByNode) {
       haystacksByNode.set(
         nodeKey,
-        normalizeHaystacks([
-          // Les chunks d'un même node partagent leur titre : le dédupliquer
-          // évite de le normaliser 50 fois pour un PDF.
-          ...new Set(nodeChunks.map((chunk) => chunk.title)),
-          ...nodeChunks.map((chunk) => chunk.text),
-        ]),
+        titleOnly
+          ? normalizeHaystacks([
+              // Les chunks d'un même node partagent leur titre : le dédupliquer
+              // évite de le normaliser 50 fois pour un PDF.
+              ...new Set(nodeChunks.map((chunk) => chunk.title)),
+            ])
+          : normalizeHaystacks([
+              // Les chunks d'un même node partagent leur titre : le dédupliquer
+              // évite de le normaliser 50 fois pour un PDF.
+              ...new Set(nodeChunks.map((chunk) => chunk.title)),
+              ...nodeChunks.map((chunk) => chunk.text),
+            ]),
       );
     }
 
@@ -108,6 +121,7 @@ export const search = query({
         canvasId: args.canvasId,
         excluded: parsed.excluded,
         haystacksByNode,
+        titleOnly,
       },
     );
 
@@ -188,12 +202,16 @@ export const search = query({
       };
 
       // Score titre > body, pondéré par couverture + proximité des termes.
+      // En mode titre-seulement, le body n'influence pas le tri (extraits
+      // affichés inchangés par ailleurs).
       const score =
         terms.length === 0
           ? 0
           : scoreNode({
               title: nodeChunks[0].title,
-              texts: nodeChunks.map((chunk) => chunk.text),
+              texts: titleOnly
+                ? []
+                : nodeChunks.map((chunk) => chunk.text),
               terms,
               phrase,
             });

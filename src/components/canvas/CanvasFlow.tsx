@@ -22,6 +22,8 @@ import { useCanvasNodes } from "@/hooks/useCanvasNodes";
 import { useCanvasEdges } from "@/hooks/useCanvasEdges";
 import { useCreateEdge } from "@/hooks/useCreateEdge";
 import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
+import { useCanvasHistory } from "@/hooks/useCanvasHistory";
+import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
@@ -101,7 +103,7 @@ export default function CanvasFlow({
     onEdgeContextMenu,
   } = useContextMenu();
 
-  const { screenToFlowPosition, getNodes } = useReactFlow();
+  const { screenToFlowPosition, getNodes, getEdges } = useReactFlow();
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const focus = useCanvasStore((state) => state.focus);
   const { duplicateNodes } = useDuplicateNode();
@@ -161,7 +163,12 @@ export default function CanvasFlow({
       event.preventDefault();
       void duplicateNodes(selectedNodes);
     },
-    { enabled: canDuplicateNodes && focus === "canvas" },
+    // `ignoreInputs` est obligatoire sur un combo Mod : la lib le met à `false`
+    // par défaut pour eux (`getDefaultIgnoreInputs`) et applique
+    // `preventDefault`/`stopPropagation` AVANT d'appeler le callback. Le test
+    // `isEditableTarget` ci-dessus arrive donc trop tard — sans cette option,
+    // le raccourci natif est déjà cassé dans un champ de saisie.
+    { enabled: canDuplicateNodes && focus === "canvas", ignoreInputs: true },
   );
 
   // Copier la sélection dans le presse-papiers interne ; le coller (Ctrl+V)
@@ -195,12 +202,115 @@ export default function CanvasFlow({
         }
       }
     },
-    { enabled: canDuplicateNodes && focus === "canvas" },
+    // Cf. Mod+D : sans `ignoreInputs`, un Ctrl+C dans une cellule de table ou
+    // le composer de Nolë — surfaces qui ne touchent pas au store de focus —
+    // voyait sa copie navigateur annulée.
+    { enabled: canDuplicateNodes && focus === "canvas", ignoreInputs: true },
   );
 
   // Création d'un node au curseur (T titre, B blocknote, I image, A table,
   // V repère de navigation)
   useCreateNodeHotkeys({ canEdit, isTouch });
+
+  // ── Suppression au clavier ──────────────────────────────────────────────
+  // React Flow sait le faire tout seul (prop `deleteKeyCode`), mais son
+  // handler appelle `deleteElements` en interne
+  // (`useGlobalKeyHandler`) : il court-circuiterait
+  // `useDeleteCanvasElements`, et donc l'historique. Les nodes partiraient
+  // bien, mais sans laisser d'entrée — et le Ctrl+Z suivant annulerait le
+  // geste d'AVANT, ce qui est pire que pas d'annulation du tout. D'où le
+  // `deleteKeyCode={null}` conservé plus bas, et ce raccourci qui repasse par
+  // l'entonnoir commun à tous les points de suppression.
+  const { deleteCanvasElements } = useDeleteCanvasElements();
+  const deleteSelection = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.repeat || isEditableTarget(event.target)) return;
+
+      const nodes = getNodes().filter((node) => node.selected);
+      const edges = getEdges().filter((edge) => edge.selected);
+      if (nodes.length === 0 && edges.length === 0) return;
+
+      void deleteCanvasElements(
+        { nodes, edges },
+        { label: "Delete selection" },
+      );
+    },
+    [deleteCanvasElements, getEdges, getNodes],
+  );
+
+  // `ignoreInputs` vaut déjà `true` par défaut pour une touche nue, mais on
+  // l'écrit : Backspace est destructif, et c'est ce qui garantit qu'il efface
+  // du texte dans un champ plutôt que la sélection derrière.
+  //
+  // `focus === "canvas"` est gardé ici, contrairement à Ctrl+Z juste au-dessus,
+  // et l'asymétrie est voulue : les deux modes d'échec ne coûtent pas le même
+  // prix. Un focus resté coincé rend l'annulation muette — pénible ; il rend la
+  // suppression inerte — sans danger. Pour un geste destructif, on préfère
+  // douter.
+  useHotkey("Delete", deleteSelection, {
+    enabled: canEdit && focus === "canvas",
+    ignoreInputs: true,
+  });
+  useHotkey("Backspace", deleteSelection, {
+    enabled: canEdit && focus === "canvas",
+    ignoreInputs: true,
+  });
+
+  // ── Annulation ──────────────────────────────────────────────────────────
+  // La pile ne contient que les gestes de CET utilisateur dans CET onglet :
+  // ni les écritures de Nolë, ni celles d'un collaborateur (cf.
+  // `canvasHistoryStore`). Elle couvre la mise en page et la structure ; le
+  // contenu d'un node garde l'undo de son propre éditeur.
+  const { undo, redo, canUndo, canRedo } = useCanvasHistory(canvasId);
+
+  // Ce qui sépare notre Ctrl+Z de celui de BlockNote, c'est `ignoreInputs`,
+  // pas le store de focus. La lib écarte la registration AVANT de matcher et
+  // AVANT tout `preventDefault` dès que l'événement vient d'un input, d'un
+  // textarea ou d'un contenteditable : ProseMirror reçoit sa frappe intacte.
+  // C'est un signal vivant, évalué à chaque touche, là où le store est un
+  // miroir qui peut se désynchroniser.
+  //
+  // D'où l'absence volontaire de `focus === "canvas"` ici, contrairement aux
+  // autres raccourcis du fichier. Ce test échangerait un risque bénin — un
+  // Ctrl+Z sur un menu portalé de BlockNote annulerait un geste du canvas,
+  // rattrapable d'un Ctrl+Shift+Z — contre un risque bien pire : un focus
+  // resté bloqué sur `richtext-editor` rendrait l'annulation définitivement
+  // muette, sans rien pour l'expliquer. `modal` reste en garde, lui : une
+  // modale possède réellement le clavier, et son garde est porté par un
+  // montage/démontage, donc il ne peut pas se coincer.
+  const historyEnabled = canEdit && focus !== "modal";
+
+  useHotkey(
+    "Mod+Z",
+    (event) => {
+      // Ceinture et bretelles : `ignoreInputs` ne couvre pas un focus sorti du
+      // champ mais resté dans la surface d'édition (cf. `useCreateNodeHotkeys`).
+      if (isEditableTarget(event.target)) return;
+      void undo();
+    },
+    { enabled: historyEnabled && canUndo, ignoreInputs: true },
+  );
+
+  // Mod+Shift+Z et Mod+Y : les deux conventions de « refaire ». Les
+  // modificateurs sont comparés à l'identique, donc Mod+Z ne se déclenche pas
+  // quand Shift est tenu.
+  useHotkey(
+    "Mod+Shift+Z",
+    (event) => {
+      if (isEditableTarget(event.target)) return;
+      void redo();
+    },
+    { enabled: historyEnabled && canRedo, ignoreInputs: true },
+  );
+
+  useHotkey(
+    "Mod+Y",
+    (event) => {
+      if (isEditableTarget(event.target)) return;
+      void redo();
+    },
+    { enabled: historyEnabled && canRedo, ignoreInputs: true },
+  );
 
   // Canvas nodes management
   const { nodes, handleNodeChange } = useCanvasNodes(canvasId, canvasNodes);
@@ -346,6 +456,8 @@ export default function CanvasFlow({
         // du geste, d'où `onMoveStart` en plus.
         onMoveStart={markCanvasMoved}
         onMove={markCanvasMoved}
+        // Volontaire : la suppression clavier passe par notre propre
+        // raccourci, pour rester annulable (cf. plus haut).
         deleteKeyCode={null}
         nodes={flowNodes}
         edges={edgesWithColoredMarkers}

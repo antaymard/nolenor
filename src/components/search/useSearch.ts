@@ -60,6 +60,8 @@ export function useSearch({
   const hasQuery = debouncedQuery.length > 0;
 
   const [nodeTypes, setNodeTypes] = useState<NodeType[]>([]);
+  // Mode "titre seulement" (Cmd+K uniquement, jamais côté agent).
+  const [titleOnly, setTitleOnly] = useState(false);
 
   const toggleNodeType = useCallback((type: NodeType) => {
     setNodeTypes((current) =>
@@ -71,6 +73,10 @@ export function useSearch({
 
   const clearNodeTypes = useCallback(() => setNodeTypes([]), []);
 
+  const toggleTitleOnly = useCallback(() => {
+    setTitleOnly((current) => !current);
+  }, []);
+
   const {
     data: searchData,
     isPending: searchPending,
@@ -78,7 +84,12 @@ export function useSearch({
   } = useRichQuery(
     api.searchableChunks.search,
     enabled && hasQuery
-      ? { query: debouncedQuery, canvasId, nodeTypes }
+      ? {
+          query: debouncedQuery,
+          canvasId,
+          nodeTypes,
+          ...(titleOnly ? { titleOnly: true } : {}),
+        }
       : "skip",
   );
 
@@ -115,7 +126,7 @@ export function useSearch({
   const [activeIndex, setActiveIndex] = useState(0);
   useEffect(() => {
     setActiveIndex(0);
-  }, [debouncedQuery, nodeTypes]);
+  }, [debouncedQuery, nodeTypes, titleOnly]);
   useEffect(() => {
     setActiveIndex((i) =>
       navigableCount === 0 ? 0 : Math.min(i, navigableCount - 1),
@@ -149,5 +160,8 @@ export function useSearch({
     nodeTypes,
     toggleNodeType,
     clearNodeTypes,
+    titleOnly,
+    toggleTitleOnly,
+    setTitleOnly,
   };
 }

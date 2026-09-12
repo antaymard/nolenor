@@ -30,6 +30,7 @@ import {
   consumePendingCreation,
   isNodePendingCreation,
 } from "@/lib/pendingCreatedNodes";
+import { recordUndo } from "@/stores/canvasHistoryStore";
 
 /**
  * Écriture serveur d'un changement de nœud.
@@ -125,6 +126,15 @@ export function useCanvasNodes(
     new Map(),
   );
 
+  // Position de chaque node AVANT le geste en cours, pour l'annulation.
+  // Capturée à la première frame où il bouge, depuis `getNodes()` lu avant que
+  // `onNodesChange` n'applique le changement — après, l'état local porte déjà
+  // la nouvelle position et l'ancienne est perdue. Vidée au flush, en même
+  // temps que le buffer qu'elle accompagne.
+  const dragOriginsRef = useRef<Map<string, { x: number; y: number }>>(
+    new Map(),
+  );
+
   const draggedChildrenCache = useRef<{
     draggedNodeId: string | null;
     descendantIds: string[];
@@ -185,12 +195,31 @@ export function useCanvasNodes(
       failureMessage?: string;
     }) => {
       const pending = dragPendingRef.current;
-      if (pending.size === 0) return;
+      if (pending.size === 0) {
+        dragOriginsRef.current.clear();
+        return;
+      }
       const updates = [...pending.entries()].map(([nodeId, position]) => ({
         nodeId,
         props: { position },
       }));
+
+      // Un déplacement de N nodes sélectionnés est UN geste : une seule entrée
+      // d'historique, avec les N positions d'origine.
+      const origins = dragOriginsRef.current;
+      const undoUpdates = updates.flatMap((update) => {
+        const origin = origins.get(update.nodeId);
+        return origin ? [{ nodeId: update.nodeId, props: { position: origin } }] : [];
+      });
+      if (undoUpdates.length > 0) {
+        recordUndo(
+          { kind: "patchNodes", updates: undoUpdates },
+          { kind: "patchNodes", updates },
+        );
+      }
+
       pending.clear();
+      origins.clear();
       return persistLayoutUpdates(updates, opts);
     },
     [persistLayoutUpdates],
@@ -217,6 +246,7 @@ export function useCanvasNodes(
   useEffect(() => {
     clearPendingCreations();
     dragPendingRef.current.clear();
+    dragOriginsRef.current.clear();
   }, [canvasId]);
 
   // Sync Convex -> React Flow nodes while preserving drag/resize state
@@ -310,6 +340,25 @@ export function useCanvasNodes(
         (change: NodeChange) => change.type === "position",
       ) as NodePositionChange[];
 
+      // AVANT `onNodesChange` : c'est le dernier instant où l'état local porte
+      // encore la position d'origine. « Si absent » : un drag rejoue ce
+      // handler à chaque frame, seule la première compte.
+      if (positionChanges.length > 0) {
+        const origins = dragOriginsRef.current;
+        const missing = positionChanges.filter(
+          (change) => change.position && !origins.has(change.id),
+        );
+        if (missing.length > 0) {
+          const currentById = new Map(
+            getNodes().map((node) => [node.id, node.position]),
+          );
+          for (const change of missing) {
+            const position = currentById.get(change.id);
+            if (position) origins.set(change.id, { ...position });
+          }
+        }
+      }
+
       // Move children along with dragged parent (unless Ctrl is held)
       // Compute delta BEFORE onNodesChange applies the parent's new position
       const isDragging = positionChanges.some((change) => change.dragging);
@@ -358,6 +407,16 @@ export function useCanvasNodes(
                     x: descNode.position.x - firstDraggedNode.position.x,
                     y: descNode.position.y - firstDraggedNode.position.y,
                   });
+                  // Les descendants entraînés n'émettent pas de change React
+                  // Flow : leur position d'origine ne serait capturée nulle
+                  // part, et l'annulation du drag les laisserait sur place
+                  // pendant que le parent reviendrait. Ici, `currentNodes` est
+                  // encore l'état d'avant le geste.
+                  if (!dragOriginsRef.current.has(descId)) {
+                    dragOriginsRef.current.set(descId, {
+                      ...descNode.position,
+                    });
+                  }
                 }
               }
             }
@@ -550,6 +609,7 @@ export function useCanvasNodes(
               logTitleSizing("no-meaningful-dimension-change");
             }
             lastPositionChangesWhenResizing.current = null;
+            dragOriginsRef.current.clear();
             return;
           }
 
@@ -568,17 +628,46 @@ export function useCanvasNodes(
             };
           });
 
-          void persistLayoutUpdates(
-            mergedChanges.map((change) => ({
-              nodeId: change.id,
-              props: {
-                ...(change.position && { position: change.position }),
-                ...(change.dimensions && {
-                  width: change.dimensions.width,
-                  height: change.dimensions.height,
-                }),
+          const resizeUpdates = mergedChanges.map((change) => ({
+            nodeId: change.id,
+            props: {
+              ...(change.position && { position: change.position }),
+              ...(change.dimensions && {
+                width: change.dimensions.width,
+                height: change.dimensions.height,
+              }),
+            },
+          }));
+
+          // Le redimensionnement et le déplacement qu'il entraîne (poignée
+          // haut/gauche) sont déjà fusionnés dans `mergedChanges` : une seule
+          // entrée, donc un seul Ctrl+Z pour un seul coup de souris. L'état
+          // d'avant est `canvasNodes`, le dernier persisté.
+          const undoResize = resizeUpdates.flatMap((update) => {
+            const before = canvasNodes?.find((n) => n.id === update.nodeId);
+            if (!before) return [];
+            return [
+              {
+                nodeId: update.nodeId,
+                props: {
+                  ...(update.props.position && { position: before.position }),
+                  ...(update.props.width !== undefined && {
+                    width: before.width,
+                    height: before.height,
+                  }),
+                },
               },
-            })),
+            ];
+          });
+          if (undoResize.length > 0) {
+            recordUndo(
+              { kind: "patchNodes", updates: undoResize },
+              { kind: "patchNodes", updates: resizeUpdates },
+            );
+          }
+
+          void persistLayoutUpdates(
+            resizeUpdates,
             {
               touchCanvas: true,
               track: true,
@@ -594,6 +683,11 @@ export function useCanvasNodes(
             });
           }
           lastPositionChangesWhenResizing.current = null;
+          // Un redimensionnement avale les changements de position qu'il
+          // entraîne : les origines capturées pour eux ne doivent pas survivre
+          // au geste, sinon le drag suivant du même node ramènerait sa
+          // position d'avant le redimensionnement.
+          dragOriginsRef.current.clear();
         }
       } else if (positionChanges.length > 0) {
         const { descendantIds, descendantSet } = draggedChildrenCache.current;

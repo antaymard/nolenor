@@ -117,6 +117,10 @@ export function extractToolNodeIds(
     }
     pushIfValid(input.sourceNodeId);
     pushIfValid(input.targetNodeId);
+    pushIfValid(input.anchorNodeId);
+    if (Array.isArray(input.sourceNodes)) {
+      input.sourceNodes.forEach(pushIfValid);
+    }
   }
 
   if (name === "create_node" && isRecord(output)) {

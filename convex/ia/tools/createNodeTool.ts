@@ -21,6 +21,12 @@ import {
   type ToolConfig,
   toolError,
 } from "./toolHelpers";
+import {
+  contentAnchor,
+  resolveRelativePlacement,
+  type PlacementRequest,
+  type PlacementSide,
+} from "../helpers/nodePlacement";
 
 // Tool compaction config
 export const createNodeToolConfig: ToolConfig = {
@@ -30,6 +36,14 @@ export const createNodeToolConfig: ToolConfig = {
     toolAgentNames.worker,
   ],
   mcp: { access: "write" },
+};
+
+/** Retour du placement au modèle : ce qui a été demandé, ce qui a été appliqué. */
+type PlacementReport = {
+  requested: PlacementRequest | "absolute";
+  applied: PlacementSide | "scan" | "origin" | "absolute";
+  anchorNodeId?: string;
+  fallback?: "empty_canvas" | "anchor_not_found" | "no_anchor";
 };
 
 const nodeColorValues = [
@@ -168,7 +182,7 @@ export default function createNodeTool({
 
   return createTool({
     description:
-      "Create an empty node you can then populate with data or manipulate using other tools. Default dimensions of the node type (or template) are applied automatically.",
+      "Create an empty node you can then populate with data or manipulate using other tools. Default dimensions of the node type (or template) are applied automatically. By default the node is placed relative to an anchor (anchorNodeId/placement) without overlapping existing nodes; pass position only for exact absolute placement.",
     inputSchema: z.object({
       // Enum restreint aux types exposés : `viewport` et consorts ne sont ni
       // listés dans le schema, ni acceptés en entrée.
@@ -181,12 +195,27 @@ export default function createNodeTool({
           'Required when nodeType is "custom": the node template id (see <user_node_templates>). Ignored otherwise.',
         ),
       explanation: EXPLANATION_FIELD,
+      anchorNodeId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional anchor node id for relative placement. Defaults to the last valid entry of sourceNodes, then to the edge of the existing content. Ignored when position is provided.",
+        ),
+      placement: z
+        .enum(["left", "right", "above", "below", "auto"])
+        .optional()
+        .describe(
+          'Where to place the node relative to the anchor. Default "auto": first free spot among right, below, left, above. Existing nodes are never overlapped — a nearby free spot is found instead. Ignored when position is provided.',
+        ),
       position: z
         .object({
           x: z.number(),
           y: z.number(),
         })
-        .describe("Position x/y of the node on the canvas."),
+        .optional()
+        .describe(
+          "Optional absolute canvas position, used exactly as given even if it overlaps existing nodes. Prefer anchorNodeId/placement for automatic non-overlapping placement.",
+        ),
       color: z.enum(nodeColorValues).describe("Color of the node."),
       nodeTitle: z
         .string()
@@ -198,7 +227,7 @@ export default function createNodeTool({
         .array(z.string())
         .optional()
         .describe(
-          "Optional list of existing nodeIds to connect FROM each source node TO the newly created node. Unknown or invalid ids are skipped and reported in skippedSources.",
+          "Optional list of existing nodeIds to connect FROM each source node TO the newly created node. Unknown or invalid ids are skipped and reported in skippedSources. Its last valid entry is the default anchor for relative placement.",
         ),
     }),
     execute: async (ctx, input) => {
@@ -282,6 +311,79 @@ export default function createNodeTool({
           titleApplied = titled.titleApplied;
         }
 
+        // ── Placement ──
+        // `position` absolu = strict : posé tel quel, même s'il overlappe
+        // (prévisibilité MCP, position attachée par l'utilisateur). Sinon
+        // placement relatif sans overlap : ancre explicite, sinon dernière
+        // source valide, sinon bord du contenu existant.
+        let finalPosition: { x: number; y: number };
+        let placementReport: PlacementReport;
+        let nodeRectsById: Map<string, NodeRect> | null = null;
+
+        if (input.position) {
+          finalPosition = input.position;
+          placementReport = { requested: "absolute", applied: "absolute" };
+        } else {
+          const { nodes } = await ctx.runQuery(
+            internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
+            {
+              canvasId,
+            },
+          );
+          const nodeRects: NodeRect[] = nodes.map((node) => ({
+            id: node.id,
+            position: node.position,
+            width: node.width,
+            height: node.height,
+          }));
+          nodeRectsById = new Map(nodeRects.map((rect) => [rect.id, rect]));
+
+          const requestedPlacement = input.placement ?? "auto";
+
+          if (nodeRects.length === 0) {
+            finalPosition = { x: 0, y: 0 };
+            placementReport = {
+              requested: requestedPlacement,
+              applied: "origin",
+              fallback: "empty_canvas",
+            };
+          } else {
+            let anchor: NodeRect | null = null;
+            let anchorFallback: PlacementReport["fallback"];
+
+            if (input.anchorNodeId) {
+              anchor = nodeRectsById.get(input.anchorNodeId) ?? null;
+              if (!anchor) {
+                anchorFallback = "anchor_not_found";
+              }
+            }
+            if (!anchor && input.sourceNodes && input.sourceNodes.length > 0) {
+              for (const sourceNodeId of input.sourceNodes) {
+                const found = nodeRectsById.get(sourceNodeId);
+                if (found) {
+                  anchor = found;
+                }
+              }
+            }
+
+            const anchorRect = anchor ?? contentAnchor(nodeRects)!;
+            const { x, y, applied } = resolveRelativePlacement({
+              anchor: anchorRect,
+              size: defaultDimensions,
+              placement: requestedPlacement,
+              obstacles: nodeRects,
+            });
+            finalPosition = { x, y };
+            placementReport = {
+              requested: requestedPlacement,
+              applied,
+              ...(anchor
+                ? { anchorNodeId: anchor.id }
+                : { fallback: anchorFallback ?? "no_anchor" }),
+            };
+          }
+        }
+
         const [created] = await ctx.runMutation(
           internal.wrappers.nodeWrappers.createWithNodeData,
           {
@@ -290,7 +392,7 @@ export default function createNodeTool({
                 node: {
                   canvasId,
                   type: input.nodeType,
-                  position: input.position,
+                  position: finalPosition,
                   width: defaultDimensions.width,
                   height: defaultDimensions.height,
                   ...(input.color && { color: input.color }),
@@ -322,9 +424,31 @@ export default function createNodeTool({
           [];
 
         if (input.sourceNodes && input.sourceNodes.length > 0) {
+          // Fetch partagé avec le placement relatif : en placement absolu,
+          // le batch n'a pas encore été lu.
+          if (!nodeRectsById) {
+            const { nodes } = await ctx.runQuery(
+              internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
+              {
+                canvasId,
+              },
+            );
+            nodeRectsById = new Map(
+              nodes.map((node) => [
+                node.id,
+                {
+                  id: node.id,
+                  position: node.position,
+                  width: node.width,
+                  height: node.height,
+                },
+              ]),
+            );
+          }
+
           const toRect: NodeRect = {
             id: nodeId,
-            position: input.position,
+            position: finalPosition,
             width: defaultDimensions.width,
             height: defaultDimensions.height,
           };
@@ -339,22 +463,16 @@ export default function createNodeTool({
               continue;
             }
 
+            const fromRect = nodeRectsById.get(sourceNodeId);
+            if (!fromRect) {
+              skippedSources.push({
+                sourceNodeId,
+                reason: "source node not found on this canvas",
+              });
+              continue;
+            }
+
             try {
-              const fromNodeLookup = await ctx.runQuery(
-                internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
-                {
-                  canvasId,
-                  nodeId: sourceNodeId,
-                },
-              );
-
-              const fromRect: NodeRect = {
-                id: fromNodeLookup.node.id,
-                position: fromNodeLookup.node.position,
-                width: fromNodeLookup.node.width,
-                height: fromNodeLookup.node.height,
-              };
-
               const { sourceHandle, targetHandle } =
                 getClosestHandlesForDirectedEdge({
                   from: fromRect,
@@ -386,7 +504,7 @@ export default function createNodeTool({
                 reason:
                   error instanceof Error
                     ? error.message
-                    : "source node lookup or connection failed",
+                    : "connection failed",
               });
             }
           }
@@ -405,7 +523,8 @@ export default function createNodeTool({
           nodeId,
           nodeType: input.nodeType,
           titleApplied,
-          position: input.position,
+          position: finalPosition,
+          placement: placementReport,
           color: input.color,
           dimensions: {
             width: defaultDimensions.width,

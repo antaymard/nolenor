@@ -23,6 +23,7 @@ import { useCanvasEdges } from "@/hooks/useCanvasEdges";
 import { useCreateEdge } from "@/hooks/useCreateEdge";
 import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
 import { useCanvasHistory } from "@/hooks/useCanvasHistory";
+import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
@@ -102,7 +103,7 @@ export default function CanvasFlow({
     onEdgeContextMenu,
   } = useContextMenu();
 
-  const { screenToFlowPosition, getNodes } = useReactFlow();
+  const { screenToFlowPosition, getNodes, getEdges } = useReactFlow();
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const focus = useCanvasStore((state) => state.focus);
   const { duplicateNodes } = useDuplicateNode();
@@ -210,6 +211,50 @@ export default function CanvasFlow({
   // Création d'un node au curseur (T titre, B blocknote, I image, A table,
   // V repère de navigation)
   useCreateNodeHotkeys({ canEdit, isTouch });
+
+  // ── Suppression au clavier ──────────────────────────────────────────────
+  // React Flow sait le faire tout seul (prop `deleteKeyCode`), mais son
+  // handler appelle `deleteElements` en interne
+  // (`useGlobalKeyHandler`) : il court-circuiterait
+  // `useDeleteCanvasElements`, et donc l'historique. Les nodes partiraient
+  // bien, mais sans laisser d'entrée — et le Ctrl+Z suivant annulerait le
+  // geste d'AVANT, ce qui est pire que pas d'annulation du tout. D'où le
+  // `deleteKeyCode={null}` conservé plus bas, et ce raccourci qui repasse par
+  // l'entonnoir commun à tous les points de suppression.
+  const { deleteCanvasElements } = useDeleteCanvasElements();
+  const deleteSelection = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.repeat || isEditableTarget(event.target)) return;
+
+      const nodes = getNodes().filter((node) => node.selected);
+      const edges = getEdges().filter((edge) => edge.selected);
+      if (nodes.length === 0 && edges.length === 0) return;
+
+      void deleteCanvasElements(
+        { nodes, edges },
+        { label: "Delete selection" },
+      );
+    },
+    [deleteCanvasElements, getEdges, getNodes],
+  );
+
+  // `ignoreInputs` vaut déjà `true` par défaut pour une touche nue, mais on
+  // l'écrit : Backspace est destructif, et c'est ce qui garantit qu'il efface
+  // du texte dans un champ plutôt que la sélection derrière.
+  //
+  // `focus === "canvas"` est gardé ici, contrairement à Ctrl+Z juste au-dessus,
+  // et l'asymétrie est voulue : les deux modes d'échec ne coûtent pas le même
+  // prix. Un focus resté coincé rend l'annulation muette — pénible ; il rend la
+  // suppression inerte — sans danger. Pour un geste destructif, on préfère
+  // douter.
+  useHotkey("Delete", deleteSelection, {
+    enabled: canEdit && focus === "canvas",
+    ignoreInputs: true,
+  });
+  useHotkey("Backspace", deleteSelection, {
+    enabled: canEdit && focus === "canvas",
+    ignoreInputs: true,
+  });
 
   // ── Annulation ──────────────────────────────────────────────────────────
   // La pile ne contient que les gestes de CET utilisateur dans CET onglet :
@@ -411,6 +456,8 @@ export default function CanvasFlow({
         // du geste, d'où `onMoveStart` en plus.
         onMoveStart={markCanvasMoved}
         onMove={markCanvasMoved}
+        // Volontaire : la suppression clavier passe par notre propre
+        // raccourci, pour rester annulable (cf. plus haut).
         deleteKeyCode={null}
         nodes={flowNodes}
         edges={edgesWithColoredMarkers}

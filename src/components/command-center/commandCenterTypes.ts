@@ -22,6 +22,12 @@ export type CommandItem = {
   icon?: IconType;
   /** Exécutée à l'Enter / au clic. La fermeture de la modale est automatique. */
   run: () => void;
+  /**
+   * Garder la modale ouverte après `run`. Pour les commandes qui *préparent*
+   * une recherche au lieu de l'exécuter — basculer en mode « go », par
+   * exemple : la fermer reviendrait à annuler ce qu'on vient de demander.
+   */
+  keepOpen?: boolean;
 };
 
 /** Une commande retenue par le filtre, avec de quoi surligner le libellé. */

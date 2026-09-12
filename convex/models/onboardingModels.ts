@@ -100,6 +100,11 @@ async function cloneCanvasForUser(
     authUserId,
     name: source.name,
     description: source.description,
+    // Le fond fait partie du dessin d'un canvas de démarrage : sans lui, le
+    // tuto arrive sur la grille par défaut alors qu'il a été composé sur la
+    // sienne. `isPublic` en revanche n'est PAS repris — la visibilité du
+    // modèle n'a aucune raison de devenir celle de la copie personnelle.
+    ...(source.background !== undefined && { background: source.background }),
   });
 
   const sourceNodeDatas = await ctx.db

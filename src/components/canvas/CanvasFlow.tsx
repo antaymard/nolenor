@@ -162,7 +162,12 @@ export default function CanvasFlow({
       event.preventDefault();
       void duplicateNodes(selectedNodes);
     },
-    { enabled: canDuplicateNodes && focus === "canvas" },
+    // `ignoreInputs` est obligatoire sur un combo Mod : la lib le met à `false`
+    // par défaut pour eux (`getDefaultIgnoreInputs`) et applique
+    // `preventDefault`/`stopPropagation` AVANT d'appeler le callback. Le test
+    // `isEditableTarget` ci-dessus arrive donc trop tard — sans cette option,
+    // le raccourci natif est déjà cassé dans un champ de saisie.
+    { enabled: canDuplicateNodes && focus === "canvas", ignoreInputs: true },
   );
 
   // Copier la sélection dans le presse-papiers interne ; le coller (Ctrl+V)
@@ -196,7 +201,10 @@ export default function CanvasFlow({
         }
       }
     },
-    { enabled: canDuplicateNodes && focus === "canvas" },
+    // Cf. Mod+D : sans `ignoreInputs`, un Ctrl+C dans une cellule de table ou
+    // le composer de Nolë — surfaces qui ne touchent pas au store de focus —
+    // voyait sa copie navigateur annulée.
+    { enabled: canDuplicateNodes && focus === "canvas", ignoreInputs: true },
   );
 
   // Création d'un node au curseur (T titre, B blocknote, I image, A table,
@@ -209,16 +217,29 @@ export default function CanvasFlow({
   // `canvasHistoryStore`). Elle couvre la mise en page et la structure ; le
   // contenu d'un node garde l'undo de son propre éditeur.
   const { undo, redo, canUndo, canRedo } = useCanvasHistory(canvasId);
-  const historyEnabled = canEdit && focus === "canvas";
 
-  // `ignoreInputs` est ce qui laisse BlockNote garder son Ctrl+Z : sans lui,
-  // le raccourci se déclencherait dans un contenteditable, où c'est la frappe
-  // qu'on veut annuler, pas le canvas. Le test `isEditableTarget` double la
-  // garde — `ignoreInputs` ne couvre pas un focus sorti du champ mais resté
-  // dans la surface d'édition (cf. `useCreateNodeHotkeys`).
+  // Ce qui sépare notre Ctrl+Z de celui de BlockNote, c'est `ignoreInputs`,
+  // pas le store de focus. La lib écarte la registration AVANT de matcher et
+  // AVANT tout `preventDefault` dès que l'événement vient d'un input, d'un
+  // textarea ou d'un contenteditable : ProseMirror reçoit sa frappe intacte.
+  // C'est un signal vivant, évalué à chaque touche, là où le store est un
+  // miroir qui peut se désynchroniser.
+  //
+  // D'où l'absence volontaire de `focus === "canvas"` ici, contrairement aux
+  // autres raccourcis du fichier. Ce test échangerait un risque bénin — un
+  // Ctrl+Z sur un menu portalé de BlockNote annulerait un geste du canvas,
+  // rattrapable d'un Ctrl+Shift+Z — contre un risque bien pire : un focus
+  // resté bloqué sur `richtext-editor` rendrait l'annulation définitivement
+  // muette, sans rien pour l'expliquer. `modal` reste en garde, lui : une
+  // modale possède réellement le clavier, et son garde est porté par un
+  // montage/démontage, donc il ne peut pas se coincer.
+  const historyEnabled = canEdit && focus !== "modal";
+
   useHotkey(
     "Mod+Z",
     (event) => {
+      // Ceinture et bretelles : `ignoreInputs` ne couvre pas un focus sorti du
+      // champ mais resté dans la surface d'édition (cf. `useCreateNodeHotkeys`).
       if (isEditableTarget(event.target)) return;
       void undo();
     },

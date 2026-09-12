@@ -277,6 +277,15 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     setFocus("canvas");
   }, [setFocus]);
 
+  // Cf. `BlockNoteFieldEditor` : un démontage n'émet pas de `blur`, et le
+  // store resterait bloqué sur `richtext-editor`. `closeWindow` couvre la
+  // fermeture par le bouton, pas les autres démontages.
+  const releaseFocus = useCanvasStore((s) => s.releaseFocus);
+  useEffect(
+    () => () => releaseFocus("richtext-editor"),
+    [releaseFocus],
+  );
+
   if (!nodeDataValues) return null;
 
   if (!shouldMountEditor) {

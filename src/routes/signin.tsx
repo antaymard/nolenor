@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { z } from "zod";
 import { Button } from "@/components/shadcn/button";
@@ -58,6 +58,21 @@ function RouteComponent() {
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
   const navigate = useNavigate();
 
+  // Où déposer l'utilisateur une fois la session ouverte. "/" par défaut (la
+  // home, ses workspaces) ; "/onboarding" quand c'est une INSCRIPTION qui vient
+  // d'aboutir.
+  //
+  // Une ref et pas un state : c'est l'effet ci-dessous qui navigue, déclenché
+  // par le passage de `isAuthenticated` à vrai — pas par un re-render à nous.
+  // Il doit lire la valeur posée à la soumission, sans que cette valeur ait
+  // elle-même à provoquer un rendu pour être visible.
+  //
+  // Repositionnée à CHAQUE soumission plutôt qu'une fois pour toutes :
+  // l'utilisateur peut échouer à s'inscrire, basculer sur « Sign In » et
+  // réussir là — sans remise à zéro, cette connexion hériterait de la
+  // destination de la tentative d'inscription.
+  const postAuthTargetRef = useRef<"/" | "/onboarding">("/");
+
   // Le formulaire entier est gelé pendant qu'une des deux méthodes travaille :
   // lancer un mot de passe pendant que Google redirige laisserait deux flux
   // d'authentification concurrents sur la même page.
@@ -70,7 +85,7 @@ function RouteComponent() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate({ to: "/" });
+      navigate({ to: postAuthTargetRef.current });
     }
   }, [isAuthenticated, isLoading, navigate]);
 
@@ -82,9 +97,18 @@ function RouteComponent() {
     // sans verifier. L'allowlist de `convex/auth.ts` décide si l'origine est
     // suivie.
     //
-    // Retour sur "/" : c'est le dispatcher (dernier canvas, sinon création
-    // d'espace de travail).
-    signIn("google", { redirectTo: `${window.location.origin}/` }).catch((e) => {
+    // Retour sur "/onboarding" plutôt que sur la home quand le formulaire est
+    // en mode inscription — le seul signal disponible ici. Google ne dit pas
+    // au client s'il vient de créer le compte ou d'en rouvrir un : le serveur
+    // le sait (`afterUserCreatedOrUpdated`, convex/auth.ts) mais le callback
+    // `redirect` ne reçoit que l'URL demandée, sans l'utilisateur. On suit donc
+    // l'intention affichée. Conséquence assumée : quelqu'un qui clique « Sign
+    // Up » alors qu'il a déjà un compte repasse par l'onboarding — une page
+    // qu'il peut quitter, aucun accès n'en dépend.
+    const destination = credentialsFlow === "signUp" ? "/onboarding" : "/";
+    signIn("google", {
+      redirectTo: `${window.location.origin}${destination}`,
+    }).catch((e) => {
       console.error(e);
       // Pas de `finally` : quand ça marche, le navigateur part sur Google et
       // remettre le bouton à l'état normal ne ferait que le faire clignoter.
@@ -98,6 +122,12 @@ function RouteComponent() {
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "");
+
+    // Posé AVANT l'appel : `signIn` peut ouvrir la session sans repasser par
+    // l'étape de code, et l'effet de redirection part alors sur le flanc de
+    // `isAuthenticated`, sans attendre le `.then()` ci-dessous.
+    postAuthTargetRef.current =
+      credentialsFlow === "signUp" ? "/onboarding" : "/";
 
     signIn("password", formData)
       .then((result) => {
@@ -160,6 +190,12 @@ function RouteComponent() {
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
 
+    // Volontairement sans toucher à `postAuthTargetRef` : cette étape prolonge
+    // la soumission précédente, qui l'a déjà réglée. Le même écran sert en
+    // effet deux cas que rien ne distingue ici — une inscription, et la
+    // première connexion d'un compte antérieur à la vérification d'email
+    // (cf. le commentaire de `handleCredentials`) : seul le flux d'origine sait
+    // lequel mène à l'onboarding.
     signIn("password", formData)
       .then((result) => {
         // Ici, contrairement à l'étape précédente, un code refusé ne lève pas
@@ -186,6 +222,10 @@ function RouteComponent() {
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "");
+
+    // Réinitialiser son mot de passe ouvre une session comme les autres, mais
+    // ce n'est jamais une inscription : le compte existait déjà.
+    postAuthTargetRef.current = "/";
 
     signIn("password", formData)
       .then(() => {

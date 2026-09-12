@@ -7,6 +7,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { applyEdgeDataPatchesToListQuery } from "@/lib/flowNodes";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
+import { recordUndo } from "@/stores/canvasHistoryStore";
 
 interface UpdateEdgeInput {
   edgeId: string;
@@ -129,6 +130,40 @@ export function useUpdateCanvasEdge(): UseUpdateCanvasEdgeReturn {
 
       try {
         await executeServerUpdate(validInputs);
+
+        // L'inverse se lit dans les snapshots déjà pris pour le rollback
+        // d'erreur. Une clé absente du snapshot revient à `null` : c'est la
+        // convention d'effacement du merge shallow (cf. `mergeEdgeData`), donc
+        // l'inverse d'un ajout de clé est bien sa disparition.
+        const undoUpdates = validInputs.flatMap((input) => {
+          const snapshot = snapshotsRef.current.get(input.edgeId);
+          if (!snapshot) return [];
+          const previous = (snapshot.data ?? {}) as Record<string, unknown>;
+          return [
+            {
+              edgeId: input.edgeId,
+              data: Object.fromEntries(
+                Object.keys(input.data).map((key) => [
+                  key,
+                  previous[key] ?? null,
+                ]),
+              ),
+            },
+          ];
+        });
+        if (undoUpdates.length > 0) {
+          recordUndo(
+            { kind: "patchEdges", updates: undoUpdates },
+            {
+              kind: "patchEdges",
+              updates: validInputs.map(({ edgeId, data }) => ({
+                edgeId,
+                data: data as Record<string, unknown>,
+              })),
+            },
+          );
+        }
+
         validInputs.forEach((input) =>
           snapshotsRef.current.delete(input.edgeId),
         );

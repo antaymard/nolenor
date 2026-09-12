@@ -9,6 +9,13 @@ import { useNoleStore } from "@/stores/noleStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { toCanvasEdge, toCanvasNode } from "@/lib/flowNodes";
+import {
+  clearCanvasDocCache,
+  rememberEdgeDocs,
+  rememberNodeDataDocs,
+  rememberNodeDocs,
+} from "@/lib/canvasDocCache";
+import { useCanvasHistoryStore } from "@/stores/canvasHistoryStore";
 
 /**
  * Charge un canvas et synchronise les stores globaux qui en dépendent.
@@ -52,6 +59,10 @@ export function useCanvasBootstrap(
     setCanvas(null);
     clearNodeDatas();
     clearTemplates();
+    // La pile d'annulation ne suit pas l'utilisateur d'un canvas à l'autre, et
+    // le registre de documents qui sert ses updates optimistes non plus.
+    useCanvasHistoryStore.getState().setCanvasId(canvasId);
+    clearCanvasDocCache();
     lastCanvasSnapshotRef.current = null;
   }, [canvasId, clearNodeDatas, clearTemplates, setCanvas]);
 
@@ -74,6 +85,14 @@ export function useCanvasBootstrap(
     [tableNodes],
   );
 
+  // Le registre garde le DERNIER doc serveur connu de chaque élément, y
+  // compris après sa disparition de la liste : c'est ce document-là que
+  // l'update optimiste d'une restauration doit réinsérer. Alimenté ici, avant
+  // `toCanvasNode`/`toCanvasEdge`, qui laissent tomber `_id` et `canvasId`.
+  useEffect(() => {
+    if (tableNodes) rememberNodeDocs(tableNodes);
+  }, [tableNodes]);
+
   // Edges de la table `edges` : même query séparée que les nodes.
   const { data: tableEdges } = useRichQuery(api.edges.listFromCanvas, {
     canvasId,
@@ -84,6 +103,10 @@ export function useCanvasBootstrap(
       tableEdges === undefined ? undefined : tableEdges.map(toCanvasEdge),
     [tableEdges],
   );
+
+  useEffect(() => {
+    if (tableEdges) rememberEdgeDocs(tableEdges);
+  }, [tableEdges]);
 
   // Fetch nodeDatas for this canvas
   const {
@@ -164,6 +187,7 @@ export function useCanvasBootstrap(
   useEffect(() => {
     if (nodeDatas) {
       setNodeDatas(nodeDatas);
+      rememberNodeDataDocs(nodeDatas);
     }
   }, [nodeDatas, setNodeDatas]);
 

@@ -272,9 +272,14 @@ function TitleNode(xyNode: XyNodeProps) {
         sizingMode !== "manual" &&
         Math.abs(params.width - initial) >= RESIZE_THRESHOLD_PX
       ) {
+        // Conséquence du redimensionnement qu'on vient de finir, pas un geste
+        // en soi : le laisser entrer dans la pile demanderait deux Ctrl+Z
+        // pour défaire un seul coup de souris. Le bouton de la toolbar, lui,
+        // reste annulable.
         void updateCanvasNode({
           nodeId: xyNode.id,
           data: { titleSizing: "manual" },
+          undoable: false,
         });
       }
     },

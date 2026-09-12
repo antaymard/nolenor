@@ -197,6 +197,16 @@ function BlockNoteFieldEditor({
   );
   const handleBlur = useCallback(() => setFocus("canvas"), [setFocus]);
 
+  // `blur` ne part pas quand un élément focalisé est démonté — node supprimé
+  // pendant la frappe, canvas quitté. Sans ce relâchement, le store resterait
+  // sur `richtext-editor` et les raccourcis du canvas (undo compris) seraient
+  // morts sans que rien ne le dise.
+  const releaseFocus = useCanvasStore((s) => s.releaseFocus);
+  useEffect(
+    () => () => releaseFocus("richtext-editor"),
+    [releaseFocus],
+  );
+
   return (
     <div className="relative" onFocus={handleFocus} onBlur={handleBlur}>
       <BlockNoteErrorBoundary resetKey={value}>

@@ -22,4 +22,23 @@ crons.daily(
   {},
 );
 
+// Corbeille du canvas : les nodes et edges mis à la corbeille depuis plus de
+// TRASH_RETENTION_MS (cf. config/trashConfig) sont réellement détruits. C'est
+// ce délai qui rend une suppression annulable — par l'undo dans la seconde,
+// par la modale corbeille bien après. Les deux passes sont espacées pour ne
+// pas empiler leurs cascades sur le même créneau.
+crons.daily(
+  "purge trashed canvas nodes",
+  { hourUTC: 4, minuteUTC: 30 },
+  internal.nodes.purgeTrashed,
+  {},
+);
+
+crons.daily(
+  "purge trashed canvas edges",
+  { hourUTC: 4, minuteUTC: 45 },
+  internal.edges.purgeTrashed,
+  {},
+);
+
 export default crons;

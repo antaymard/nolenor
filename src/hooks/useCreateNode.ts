@@ -19,6 +19,7 @@ import { addPendingNodeDatasToListQuery } from "@/lib/flowNodes";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
 import { useCaptureFraming } from "./useViewportFraming";
+import { recordUndo } from "@/stores/canvasHistoryStore";
 
 type CreateNodeOptions = {
   node: Node;
@@ -246,6 +247,15 @@ export function useCreateNode() {
         n.id === nodeId ? { ...n, data: { ...n.data, nodeDataId } } : n,
       );
     });
+
+    // Enregistré APRÈS la confirmation serveur : un `trash` sur un node que le
+    // serveur ne connaît pas encore échouerait. Annuler une création, c'est la
+    // mettre à la corbeille — pas la supprimer —, donc la refaire rend le même
+    // nodeData avec tout ce qui y a été saisi entre-temps.
+    recordUndo(
+      { kind: "trashNodes", nodeIds: [nodeId] },
+      { kind: "untrashNodes", nodeIds: [nodeId] },
+    );
 
     return { nodeId, nodeDataId };
   };

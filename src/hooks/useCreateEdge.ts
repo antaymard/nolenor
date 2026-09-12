@@ -6,6 +6,7 @@ import { useParams } from "@tanstack/react-router";
 import { addPendingEdgesToListQuery } from "@/lib/flowNodes";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
+import { recordUndo } from "@/stores/canvasHistoryStore";
 
 type CreateEdgeInput = {
   source: string;
@@ -88,10 +89,20 @@ export function useCreateEdge() {
           },
         ],
       }),
-    ).catch((error: unknown) => {
-      toastError(error, "Could not add the connection");
-      throw error;
-    });
+    )
+      .then((result) => {
+        // À la confirmation seulement : une edge jamais créée n'a rien à
+        // annuler, et l'appelant retire déjà la locale en cas d'échec.
+        recordUndo(
+          { kind: "trashEdges", edgeIds: [edgeId] },
+          { kind: "untrashEdges", edgeIds: [edgeId] },
+        );
+        return result;
+      })
+      .catch((error: unknown) => {
+        toastError(error, "Could not add the connection");
+        throw error;
+      });
     return { edgeId, settled };
   };
 

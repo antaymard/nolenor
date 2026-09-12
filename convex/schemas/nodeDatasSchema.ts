@@ -7,6 +7,10 @@ const nodeDatasValidator = v.object({
   canvasId: v.id("canvases"),
   type: nodeTypeValidator,
   updatedAt: v.number(),
+  // Vestige : plus écrit ni lu par personne. Le retrait d'un node du canvas
+  // se lit sur `nodes.status === "trashed"`, seule source de vérité de la
+  // corbeille. Le champ reste déclaré tant qu'aucune migration n'a nettoyé
+  // les documents qui le portent encore.
   removedFromCanvasAt: v.optional(v.number()),
   // Présent ssi type === "custom" : le template qui définit les champs et
   // les layouts. Lien autoritaire (une copie write-once existe aussi dans

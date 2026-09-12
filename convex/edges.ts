@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import errors from "./config/errorsConfig";
@@ -87,6 +88,37 @@ export const trash = mutation({
     await requireEditorOnEdgesCanvas(ctx, authUserId, args.edgeIds);
 
     return EdgeModels.trashEdges(ctx, { edgeIds: args.edgeIds });
+  },
+});
+
+/**
+ * Sortie de corbeille. Retourne les llmIds RÉELLEMENT remis en service : une
+ * edge dont une extrémité dort encore à la corbeille est écartée en silence
+ * (cf. `EdgeModels.untrashEdge`), elle n'a nulle part où s'accrocher.
+ */
+export const untrash = mutation({
+  args: {
+    edgeIds: v.array(v.string()),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const authUserId = await requireAuth(ctx);
+    await requireEditorOnEdgesCanvas(ctx, authUserId, args.edgeIds);
+
+    return EdgeModels.untrashEdges(ctx, { edgeIds: args.edgeIds });
+  },
+});
+
+/** Pendant de `nodes.purgeTrashed` pour les edges. Cf. convex/crons.ts. */
+export const purgeTrashed = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx): Promise<null> => {
+    const hasMore = await EdgeModels.purgeTrashedBatch(ctx);
+    if (hasMore) {
+      await ctx.scheduler.runAfter(0, internal.edges.purgeTrashed, {});
+    }
+    return null;
   },
 });
 

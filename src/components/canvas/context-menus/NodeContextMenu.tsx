@@ -40,6 +40,7 @@ import { useState } from "react";
 import type { IconType } from "react-icons";
 import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
 import { createPortal } from "react-dom";
+import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 
 type NodeSubMenuItem = {
   label: string;
@@ -67,7 +68,8 @@ export default function NodeContextMenu({
   xyNode: Node;
 }) {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const { deleteElements, updateNode, getNodes } = useReactFlow();
+  const { updateNode, getNodes } = useReactFlow();
+  const { deleteCanvasElements } = useDeleteCanvasElements();
   const { duplicateNode, duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
@@ -219,7 +221,10 @@ export default function NodeContextMenu({
       label: "Delete",
       icon: HiOutlineTrash,
       onClick: () => {
-        deleteElements({ nodes: [xyNode] });
+        void deleteCanvasElements(
+          { nodes: [xyNode] },
+          { label: "Delete node" },
+        );
       },
     },
   ];

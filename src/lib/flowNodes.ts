@@ -108,6 +108,50 @@ export function removeNodesFromListQuery(
   );
 }
 
+/**
+ * Remet des docs `nodes` complets dans le cache de `nodes.listFromCanvas` :
+ * l'update optimiste d'une restauration (undo d'une suppression, modale
+ * corbeille). Pendant exact de `removeNodesFromListQuery`.
+ *
+ * Déduplication par llmId : le push serveur peut nous avoir devancés, et deux
+ * lignes de même id feraient monter deux `NodeWrapper` sous la même key. Les
+ * docs viennent de `canvasDocCache`, qui a déjà retiré `status`/`trashedAt`.
+ */
+export function restoreNodesInListQuery(
+  localStore: OptimisticLocalStore,
+  canvasId: Id<"canvases">,
+  docs: Doc<"nodes">[],
+) {
+  if (docs.length === 0) return;
+  const existing = localStore.getQuery(api.nodes.listFromCanvas, { canvasId });
+  if (existing === undefined) return;
+  const known = new Set(existing.map((node) => node.id));
+  const missing = docs.filter((doc) => !known.has(doc.id));
+  if (missing.length === 0) return;
+  localStore.setQuery(api.nodes.listFromCanvas, { canvasId }, [
+    ...existing,
+    ...missing,
+  ]);
+}
+
+/** Pendant de `restoreNodesInListQuery` pour les edges. */
+export function restoreEdgesInListQuery(
+  localStore: OptimisticLocalStore,
+  canvasId: Id<"canvases">,
+  docs: Doc<"edges">[],
+) {
+  if (docs.length === 0) return;
+  const existing = localStore.getQuery(api.edges.listFromCanvas, { canvasId });
+  if (existing === undefined) return;
+  const known = new Set(existing.map((edge) => edge.id));
+  const missing = docs.filter((doc) => !known.has(doc.id));
+  if (missing.length === 0) return;
+  localStore.setQuery(api.edges.listFromCanvas, { canvasId }, [
+    ...existing,
+    ...missing,
+  ]);
+}
+
 type EdgeDataPatch = {
   id: string;
   data?: Record<string, unknown>;

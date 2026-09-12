@@ -2,6 +2,10 @@ import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import errors from "../config/errorsConfig";
+import {
+  TRASH_PURGE_BATCH_SIZE,
+  TRASH_RETENTION_MS,
+} from "../config/trashConfig";
 import { generateLlmId } from "../lib/llmId";
 import * as CanvasModels from "./canvasModels";
 import type { CanvasEdge } from "../schemas/edgesSchema";
@@ -26,7 +30,10 @@ export function toCanvasEdge(doc: EdgeDoc): CanvasEdge {
 }
 
 /** Champs de l'edge fournis par l'appelant : tout sauf clés système, `id` (llmId généré ici) et `status`. */
-export type EdgeCreateInput = Omit<EdgeDoc, "_id" | "_creationTime" | "id" | "status">;
+export type EdgeCreateInput = Omit<
+  EdgeDoc,
+  "_id" | "_creationTime" | "id" | "status" | "trashedAt"
+>;
 
 const MAX_LLMID_ATTEMPTS = 5;
 
@@ -99,15 +106,22 @@ export async function getEdgeOrThrow(
  * d'import de `nodeModels` : `nodeModels` importe déjà `edgeModels` pour la
  * cascade trash, l'import inverse créerait un cycle).
  */
-async function requireLiveEndpointNode(
+async function isLiveEndpointNode(
   ctx: MutationCtx,
-  { canvasId, nodeId, error }: { canvasId: Id<"canvases">; nodeId: string; error: string },
-): Promise<void> {
+  { canvasId, nodeId }: { canvasId: Id<"canvases">; nodeId: string },
+): Promise<boolean> {
   const node = await ctx.db
     .query("nodes")
     .withIndex("by_llmid", (q) => q.eq("id", nodeId))
     .unique();
-  if (!node || node.canvasId !== canvasId || node.status === "trashed") {
+  return !!node && node.canvasId === canvasId && node.status !== "trashed";
+}
+
+async function requireLiveEndpointNode(
+  ctx: MutationCtx,
+  { canvasId, nodeId, error }: { canvasId: Id<"canvases">; nodeId: string; error: string },
+): Promise<void> {
+  if (!(await isLiveEndpointNode(ctx, { canvasId, nodeId }))) {
     throw new ConvexError(error);
   }
 }
@@ -249,10 +263,39 @@ export async function patchEdges(
 }
 
 /**
- * Corbeille logique (soft delete) : `status = "trashed"`, idempotent.
- * Retourne le llmId.
+ * Corbeille logique (soft delete) : `status = "trashed"` + `trashedAt`,
+ * idempotent. Retourne le llmId.
  */
 export async function trashEdge(
+  ctx: MutationCtx,
+  {
+    edgeId,
+    trashedAt = Date.now(),
+    touchCanvas: shouldTouchCanvas = true,
+  }: {
+    edgeId: string;
+    trashedAt?: number;
+    touchCanvas?: boolean;
+  },
+): Promise<string> {
+  const edge = await getEdgeOrThrow(ctx, { edgeId });
+  if (edge.status === "trashed") return edge.id;
+
+  await ctx.db.patch(edge._id, { status: "trashed", trashedAt });
+
+  if (shouldTouchCanvas) {
+    await CanvasModels.touchCanvas(ctx, edge.canvasId);
+  }
+  return edge.id;
+}
+
+/**
+ * Sortie de corbeille, idempotent. Une edge dont une extrémité est toujours à
+ * la corbeille est IGNORÉE plutôt que refusée : restaurer un node en rétablit
+ * les connexions qu'il peut, et laisse dormir celles qui pointent vers un
+ * voisin encore supprimé. Retourne les llmIds réellement remis en service.
+ */
+export async function untrashEdge(
   ctx: MutationCtx,
   {
     edgeId,
@@ -261,11 +304,23 @@ export async function trashEdge(
     edgeId: string;
     touchCanvas?: boolean;
   },
-): Promise<string> {
+): Promise<string | null> {
   const edge = await getEdgeOrThrow(ctx, { edgeId });
-  if (edge.status === "trashed") return edge.id;
+  if (edge.status !== "trashed") return edge.id;
 
-  await ctx.db.patch(edge._id, { status: "trashed" });
+  const [sourceLives, targetLives] = await Promise.all([
+    isLiveEndpointNode(ctx, {
+      canvasId: edge.canvasId,
+      nodeId: edge.source,
+    }),
+    isLiveEndpointNode(ctx, {
+      canvasId: edge.canvasId,
+      nodeId: edge.target,
+    }),
+  ]);
+  if (!sourceLives || !targetLives) return null;
+
+  await ctx.db.patch(edge._id, { status: undefined, trashedAt: undefined });
 
   if (shouldTouchCanvas) {
     await CanvasModels.touchCanvas(ctx, edge.canvasId);
@@ -273,9 +328,15 @@ export async function trashEdge(
   return edge.id;
 }
 
-export async function trashEdges(
+export async function untrashEdges(
   ctx: MutationCtx,
-  { edgeIds }: { edgeIds: Array<string> },
+  {
+    edgeIds,
+    touchCanvas: shouldTouchCanvas = true,
+  }: {
+    edgeIds: Array<string>;
+    touchCanvas?: boolean;
+  },
 ): Promise<string[]> {
   const uniqueIds = [...new Set(edgeIds)];
   if (uniqueIds.length === 0) return [];
@@ -285,12 +346,45 @@ export async function trashEdges(
   );
   const canvasId = requireSameCanvasId(edges.map((edge) => edge.canvasId));
 
-  const trashed: string[] = [];
+  const untrashed: string[] = [];
   for (const edgeId of uniqueIds) {
-    trashed.push(await trashEdge(ctx, { edgeId, touchCanvas: false }));
+    const restored = await untrashEdge(ctx, { edgeId, touchCanvas: false });
+    if (restored !== null) untrashed.push(restored);
   }
 
-  await CanvasModels.touchCanvas(ctx, canvasId);
+  if (shouldTouchCanvas) {
+    await CanvasModels.touchCanvas(ctx, canvasId);
+  }
+  return untrashed;
+}
+
+export async function trashEdges(
+  ctx: MutationCtx,
+  {
+    edgeIds,
+    touchCanvas: shouldTouchCanvas = true,
+  }: {
+    edgeIds: Array<string>;
+    touchCanvas?: boolean;
+  },
+): Promise<string[]> {
+  const uniqueIds = [...new Set(edgeIds)];
+  if (uniqueIds.length === 0) return [];
+
+  const edges = await Promise.all(
+    uniqueIds.map((edgeId) => getEdgeOrThrow(ctx, { edgeId })),
+  );
+  const canvasId = requireSameCanvasId(edges.map((edge) => edge.canvasId));
+
+  const trashedAt = Date.now();
+  const trashed: string[] = [];
+  for (const edgeId of uniqueIds) {
+    trashed.push(await trashEdge(ctx, { edgeId, trashedAt, touchCanvas: false }));
+  }
+
+  if (shouldTouchCanvas) {
+    await CanvasModels.touchCanvas(ctx, canvasId);
+  }
   return trashed;
 }
 
@@ -301,7 +395,15 @@ export async function trashEdges(
  */
 export async function trashEdgesTouchingNodes(
   ctx: MutationCtx,
-  { canvasId, nodeIds }: { canvasId: Id<"canvases">; nodeIds: Array<string> },
+  {
+    canvasId,
+    nodeIds,
+    trashedAt = Date.now(),
+  }: {
+    canvasId: Id<"canvases">;
+    nodeIds: Array<string>;
+    trashedAt?: number;
+  },
 ): Promise<string[]> {
   if (nodeIds.length === 0) return [];
 
@@ -315,10 +417,88 @@ export async function trashEdgesTouchingNodes(
   for (const edge of edges) {
     if (edge.status === "trashed") continue;
     if (!nodeIdsSet.has(edge.source) && !nodeIdsSet.has(edge.target)) continue;
-    await ctx.db.patch(edge._id, { status: "trashed" });
+    await ctx.db.patch(edge._id, { status: "trashed", trashedAt });
     trashed.push(edge.id);
   }
   return trashed;
+}
+
+/**
+ * Rend les edges mises à la corbeille EN MÊME TEMPS qu'un lot de nodes —
+ * appariement sur l'égalité exacte de `trashedAt`, que `trashNodes` pose une
+ * fois pour toute sa transaction.
+ *
+ * C'est ce qui distingue « les connexions parties avec ce node », qu'on veut
+ * rendre, de « les connexions que l'utilisateur avait supprimées avant », qu'on
+ * doit laisser dormir. Voie de la modale corbeille, qui ne connaît que des
+ * nodes ; l'undo du canvas, lui, nomme ses edges (il les tient de
+ * `deleteElements`).
+ */
+export async function untrashEdgesTrashedWith(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    nodeIds,
+    trashedAt,
+  }: {
+    canvasId: Id<"canvases">;
+    nodeIds: Array<string>;
+    trashedAt: number;
+  },
+): Promise<string[]> {
+  if (nodeIds.length === 0) return [];
+
+  const nodeIdsSet = new Set(nodeIds);
+  const edges = await ctx.db
+    .query("edges")
+    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
+    .collect();
+
+  const candidates = edges.filter(
+    (edge) =>
+      edge.status === "trashed" &&
+      edge.trashedAt === trashedAt &&
+      (nodeIdsSet.has(edge.source) || nodeIdsSet.has(edge.target)),
+  );
+
+  const restored: string[] = [];
+  for (const edge of candidates) {
+    const result = await untrashEdge(ctx, {
+      edgeId: edge.id,
+      touchCanvas: false,
+    });
+    if (result !== null) restored.push(result);
+  }
+  return restored;
+}
+
+/**
+ * Purge un lot d'edges à la corbeille depuis plus de `TRASH_RETENTION_MS`.
+ * Pendant de `NodeModels.purgeTrashedBatch`, sans cascade : une edge ne
+ * possède rien. Retourne `true` si le lot était plein.
+ */
+export async function purgeTrashedBatch(ctx: MutationCtx): Promise<boolean> {
+  const cutoff = Date.now() - TRASH_RETENTION_MS;
+  const expired = await ctx.db
+    .query("edges")
+    .withIndex("by_status_and_trashedAt", (q) =>
+      q.eq("status", "trashed").lt("trashedAt", cutoff),
+    )
+    .take(TRASH_PURGE_BATCH_SIZE);
+
+  for (const edge of expired) {
+    // Backfill paresseux, cf. `NodeModels.purgeTrashedBatch`. Vital ici : une
+    // edge à la corbeille n'a JAMAIS rien perdu (le trash d'edge n'a jamais
+    // cascadé), donc la purger d'emblée faute de `trashedAt` serait une vraie
+    // perte de données, pas le ménage d'une coquille vide.
+    if (edge.trashedAt === undefined) {
+      await ctx.db.patch(edge._id, { trashedAt: Date.now() });
+      continue;
+    }
+    await ctx.db.delete(edge._id);
+  }
+
+  return expired.length === TRASH_PURGE_BATCH_SIZE;
 }
 
 export async function listFromCanvas(

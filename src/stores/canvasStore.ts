@@ -44,6 +44,20 @@ interface CanvasStore {
   /** Remise à zéro au changement de canvas : le compteur ne doit pas fuiter. */
   resetSync: () => void;
   setFocus: (focus: Focus) => void;
+  /**
+   * Rend le clavier au canvas, mais seulement si `owner` le détient encore.
+   *
+   * À appeler au démontage d'une surface qui avait pris le focus. `blur` ne se
+   * déclenche PAS quand un élément focalisé est démonté (node supprimé, window
+   * fermée, changement de canvas) : sans ça le store reste bloqué sur
+   * `richtext-editor` et tous les raccourcis du canvas meurent en silence,
+   * jusqu'à ce que l'utilisateur pense à cliquer dans puis hors d'un autre
+   * éditeur.
+   *
+   * Conditionné à `owner` pour ne pas voler le clavier à qui l'a pris depuis :
+   * une modale ouverte par-dessus, typiquement.
+   */
+  releaseFocus: (owner: Focus) => void;
   setTool: (tool: Tool) => void;
   openSearchModal: (query?: string) => void;
   closeSearchModal: () => void;
@@ -68,6 +82,9 @@ export const useCanvasStore = create<CanvasStore>()(
       },
       setFocus: (focus) => {
         set({ focus });
+      },
+      releaseFocus: (owner) => {
+        set((state) => (state.focus === owner ? { focus: "canvas" } : state));
       },
       setCanvas: (canvas) => {
         set({ canvas });

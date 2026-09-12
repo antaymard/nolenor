@@ -13,6 +13,7 @@ import { extractAudioMetadata } from "@/lib/audioMetadata";
 import { captureVideoPoster, posterFileFrom } from "@/lib/videoPoster";
 import { buildTableFromParsedCsv, parseCsvFile } from "@/components/table/csv";
 import { isImageUrl, resolveFileNodeType } from "@/lib/nodeTypeForFile";
+import { withUndoTransaction } from "@/stores/canvasHistoryStore";
 
 /** Espacement entre deux nodes lors d'un drop multi-fichiers. */
 const GRID_GAP = 24;
@@ -417,8 +418,13 @@ export function useCanvasContentIngest() {
       if (files.length === 0) return;
 
       const positions = layoutPositions(files.map(resolveFileNodeType), origin);
-      const results = await Promise.allSettled(
-        files.map((file, index) => createNodeFromFile(file, positions[index])),
+      // Déposer cinq fichiers est UN geste : sans cette transaction, chaque
+      // node confirmé ouvrirait sa propre entrée d'historique et il faudrait
+      // cinq Ctrl+Z pour défaire un seul glisser-déposer.
+      const results = await withUndoTransaction("Add files", () =>
+        Promise.allSettled(
+          files.map((file, index) => createNodeFromFile(file, positions[index])),
+        ),
       );
 
       const failed = results.filter((r) => r.status === "rejected").length;

@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { useCreateNode } from "@/hooks/useCreateNode";
 import type { NodeClipboardItem } from "@/stores/nodeClipboardStore";
 import { canNodeTypeBeCreated } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
+import { withUndoTransaction } from "@/stores/canvasHistoryStore";
 
 /**
  * La fabrique partagée du coller (Ctrl+V) et du duplicate (Ctrl+D) : recrée
@@ -43,19 +44,28 @@ export function useCreateNodesFromItems() {
       const minX = Math.min(...creatable.map((item) => item.node.position.x));
       const minY = Math.min(...creatable.map((item) => item.node.position.y));
 
+      // Une transaction explicite autour de la boucle : N créations, mais un
+      // seul geste — un Ctrl+Z doit retirer le lot entier, pas le dernier
+      // node. La transaction implicite de `record` ne couvrirait qu'un tick,
+      // or chaque `createNode` attend son aller-retour serveur.
       const createdIds: string[] = [];
-      for (const item of creatable) {
-        const { nodeId } = await createNode({
-          node: item.node,
-          position: {
-            x: anchor.x + (item.node.position.x - minX),
-            y: anchor.y + (item.node.position.y - minY),
-          },
-          initialValues: item.values,
-          selectNewNode: false,
-        });
-        createdIds.push(nodeId);
-      }
+      await withUndoTransaction(
+        verb === "pasted" ? "Paste nodes" : "Duplicate nodes",
+        async () => {
+          for (const item of creatable) {
+            const { nodeId } = await createNode({
+              node: item.node,
+              position: {
+                x: anchor.x + (item.node.position.x - minX),
+                y: anchor.y + (item.node.position.y - minY),
+              },
+              initialValues: item.values,
+              selectNewNode: false,
+            });
+            createdIds.push(nodeId);
+          }
+        },
+      );
 
       // Sélection finale en un bloc : les nouveaux sélectionnés, les anciens
       // désélectionnés, sans toucher au viewport. Le registre pending

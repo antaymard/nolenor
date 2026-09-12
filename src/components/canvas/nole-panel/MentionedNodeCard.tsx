@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
@@ -6,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNodeDataIdOf } from "@/lib/nodeIdentity";
+import type { DeltaTarget } from "@/lib/canvasViewportFraming";
+import TargetDeltaIndicator from "../navigation/TargetDeltaIndicator";
 
 interface MentionedNodeCardProps {
   nodeId: string;
@@ -25,6 +28,12 @@ export function MentionedNodeCard({
   const openWindow = useWindowsStore((state) => state.openWindow);
 
   const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
+  // Objet stable : un littéral inline recréerait le sélecteur à chaque render.
+  // Test : cap + distance live vers le node (rien quand la vue est dessus).
+  const deltaTarget = useMemo<DeltaTarget | null>(
+    () => ({ kind: "node", nodeId }),
+    [nodeId],
+  );
 
   if (!nodeData) {
     // Pas de node correspondant : on tombe en fallback sur le texte d'origine
@@ -69,6 +78,7 @@ export function MentionedNodeCard({
       <span className="truncate max-w-37.5 font-medium">
         {title || nodeData.type}
       </span>
+      <TargetDeltaIndicator target={deltaTarget} />
     </button>
   );
 }

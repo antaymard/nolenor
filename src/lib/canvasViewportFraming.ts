@@ -1,4 +1,4 @@
-import type { Viewport } from "@xyflow/react";
+import type { Node, Viewport } from "@xyflow/react";
 
 /**
  * Le cadrage qu'un node `viewport` enregistre : un centre en coordonnées MONDE
@@ -38,6 +38,18 @@ export const VIEWPORT_TRANSITION_MS = 500;
  */
 function getPaneRect(): DOMRect | null {
   return document.querySelector(".react-flow")?.getBoundingClientRect() ?? null;
+}
+
+/**
+ * Les dimensions du pane, ou `null` s'il n'est pas monté.
+ *
+ * Pour les appelants impératifs hors React (poignée du command center) : les
+ * composants abonnés liront plutôt `state.width`/`state.height` du store.
+ */
+export function getPaneSize(): PaneSize | null {
+  const rect = getPaneRect();
+  if (!rect || rect.width === 0 || rect.height === 0) return null;
+  return { width: rect.width, height: rect.height };
 }
 
 /**
@@ -147,6 +159,124 @@ export function getFramingMatch(
   }
 
   return null;
+}
+
+export type FramingDelta = {
+  /**
+   * `here` quand la vue est sur la cible (mêmes seuils que `getFramingMatch`
+   * pour un cadrage ; centre à moins de 4 px pour un node, sans critère zoom).
+   */
+  match: FramingMatch;
+  /** Distance entre les centres, en fractions d'écran (1 ≈ un écran). */
+  screens: number;
+  /**
+   * Cap écran vers la cible, en degrés horaires depuis le haut — base d'une
+   * flèche qui pointe vers le haut (`rotate()` CSS tourne en horaire).
+   * Forcé à 0 sous 5 % d'écran, où l'angle n'est que du bruit.
+   */
+  angleDeg: number;
+  /**
+   * `current.zoom / target.zoom` — `null` pour une cible node, qui n'a pas de
+   * zoom de référence.
+   */
+  zoomRatio: number | null;
+  /** Distance entre les centres, en px écran (pour le tooltip). */
+  distancePx: number;
+};
+
+/**
+ * Une cible de l'indicateur de cap : un cadrage enregistré (node `viewport`)
+ * ou la position d'un node du canvas.
+ */
+export type DeltaTarget =
+  | { kind: "framing"; framing: ViewportFraming }
+  | { kind: "node"; nodeId: string };
+
+/**
+ * Seuil « centré » partagé : snap de l'angle à 0, branche zoom du badge,
+ * égalité du hook.
+ */
+export const CENTERED_SCREENS = 0.05;
+
+/**
+ * Le centre monde d'une cible : le cadrage lui-même, ou le centre du node
+ * (`position` + taille mesurée, même convention que `node-types-converter`).
+ * Node introuvable (supprimé) → `null`.
+ */
+export function resolveDeltaPoint(
+  target: DeltaTarget,
+  nodes: ReadonlyArray<Node>,
+): { x: number; y: number } | null {
+  if (target.kind === "framing") {
+    return { x: target.framing.cx, y: target.framing.cy };
+  }
+  const node = nodes.find((n) => n.id === target.nodeId);
+  if (!node) return null;
+  const width = node.measured?.width ?? node.width ?? 0;
+  const height = node.measured?.height ?? node.height ?? 0;
+  return { x: node.position.x + width / 2, y: node.position.y + height / 2 };
+}
+
+/**
+ * Où se trouve un point monde par rapport à la vue courante : cap et distance
+ * pour l'indicateur de navigation.
+ *
+ * Même repère que `getFramingMatch` (centre monde + zoom courant), mais
+ * continu au lieu de discrétisé : c'est l'appelant (hook) qui quantifie pour
+ * borner les re-renders, pas cette fonction pure.
+ */
+export function getPointDelta(
+  point: { x: number; y: number },
+  current: ViewportFraming,
+  paneSize: PaneSize,
+  targetZoom: number | null,
+): FramingDelta | null {
+  if (!(current.zoom > 0)) return null;
+  if (targetZoom !== null && !(targetZoom > 0)) return null;
+  if (paneSize.width <= 0 || paneSize.height <= 0) return null;
+
+  const dxPx = (point.x - current.cx) * current.zoom;
+  const dyPx = (point.y - current.cy) * current.zoom;
+  const distancePx = Math.hypot(dxPx, dyPx);
+  const screens = Math.hypot(dxPx / paneSize.width, dyPx / paneSize.height);
+
+  return {
+    // Sans zoom de référence, « dessus » = centre à moins de 4 px.
+    match:
+      targetZoom === null
+        ? distancePx < HERE_DISTANCE_PX
+          ? "here"
+          : null
+        : getFramingMatch(
+            { cx: point.x, cy: point.y, zoom: targetZoom },
+            current,
+            paneSize,
+          ),
+    screens,
+    angleDeg:
+      screens < CENTERED_SCREENS
+        ? 0
+        : (Math.atan2(dxPx, -dyPx) * 180) / Math.PI,
+    zoomRatio: targetZoom === null ? null : current.zoom / targetZoom,
+    distancePx,
+  };
+}
+
+/**
+ * Où se trouve un cadrage enregistré par rapport à la vue courante : cap et
+ * distance pour l'indicateur des listes de repères.
+ */
+export function getFramingDelta(
+  target: ViewportFraming,
+  current: ViewportFraming,
+  paneSize: PaneSize,
+): FramingDelta | null {
+  return getPointDelta(
+    { x: target.cx, y: target.cy },
+    current,
+    paneSize,
+    target.zoom,
+  );
 }
 
 /** Lit un `values.view` de nodeData, en tolérant une value absente ou abîmée. */

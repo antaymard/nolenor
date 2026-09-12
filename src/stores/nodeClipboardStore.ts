@@ -35,9 +35,9 @@ export const useNodeClipboardStore = create<NodeClipboardStore>()((set) => ({
 /**
  * Photographie des nodes : snapshot des values au moment de l'appel, déjà
  * filtré (`valuesNotDuplicated`), `data` sans `nodeDataId` (nouveau doc
- * `nodeDatas` à la création). Pur vis-à-vis du store : ne touche pas au
- * presse-papiers — le duplicate l'utilise directement pour ne pas écraser un
- * Ctrl+C en attente.
+ * `nodeDatas` à la création) ni `order` (rang propre à l'original). Pur
+ * vis-à-vis du store : ne touche pas au presse-papiers — le duplicate
+ * l'utilise directement pour ne pas écraser un Ctrl+C en attente.
  */
 export function snapshotNodesToItems(nodes: Node[]): NodeClipboardItem[] {
   const getNodeData = useNodeDataStore.getState().getNodeData;
@@ -54,10 +54,15 @@ export function snapshotNodesToItems(nodes: Node[]): NodeClipboardItem[] {
       }
     }
 
-    const { nodeDataId: _omitted, ...data } = (node.data ?? {}) as Record<
-      string,
-      unknown
-    >;
+    // `order` retiré comme `nodeDataId` : c'est le rang du node *original*
+    // dans la liste des repères de navigation. Le recopier collerait la
+    // copie sur son modèle ; sans lui, elle atterrit en fin de liste
+    // (cf. `sortMarkers`).
+    const {
+      nodeDataId: _omitted,
+      order: _orderOmitted,
+      ...data
+    } = (node.data ?? {}) as Record<string, unknown>;
     return {
       node: { ...node, id: "", selected: false, data },
       values,

@@ -42,6 +42,7 @@ import type * as ia_helpers_makeNodeDataLLMFriendly from "../ia/helpers/makeNode
 import type * as ia_helpers_nodeDataSchemaXml from "../ia/helpers/nodeDataSchemaXml.js";
 import type * as ia_helpers_nodeFieldsAndTypesHelper from "../ia/helpers/nodeFieldsAndTypesHelper.js";
 import type * as ia_helpers_nodeInputSchemaValidatorForLLM from "../ia/helpers/nodeInputSchemaValidatorForLLM.js";
+import type * as ia_helpers_nodePlacement from "../ia/helpers/nodePlacement.js";
 import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkFormatters.js";
 import type * as ia_helpers_resolveNodeMentionTokens from "../ia/helpers/resolveNodeMentionTokens.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
@@ -220,6 +221,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/nodeDataSchemaXml": typeof ia_helpers_nodeDataSchemaXml;
   "ia/helpers/nodeFieldsAndTypesHelper": typeof ia_helpers_nodeFieldsAndTypesHelper;
   "ia/helpers/nodeInputSchemaValidatorForLLM": typeof ia_helpers_nodeInputSchemaValidatorForLLM;
+  "ia/helpers/nodePlacement": typeof ia_helpers_nodePlacement;
   "ia/helpers/pdfChunkFormatters": typeof ia_helpers_pdfChunkFormatters;
   "ia/helpers/resolveNodeMentionTokens": typeof ia_helpers_resolveNodeMentionTokens;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;

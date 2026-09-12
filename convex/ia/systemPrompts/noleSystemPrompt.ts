@@ -144,7 +144,7 @@ ${userTemplatesContext}
 <tool_use_instructions>
   <instructions>
   1. Read before edit. Always.
-  2. Node position and edges are important. When creating or modifying a node, define its position and its edges to other nodes cleverly. Don't overuse it though.
+  2. Node position and edges are important. When creating nodes, prefer relative placement (anchorNodeId + placement): positions are computed to avoid overlapping existing nodes. Use an absolute position only when the user explicitly gave one (e.g. an attached position). Connect related nodes with edges. Don't overuse it though.
   3. **For table and blocknote nodes, use the specific tools designed for them to manipulate their content, rather than trying to set their data directly.For new TableNode, you must instantiate its columns using table_update_schema*
   4. To explore the canvas, you can list_nodes, full_text_search, or read_nodes. Use them if you need more information before answering, or if you want to gather information to answer a question or perform a task.
   5. For table_insert_rows and table_update_rows, always use column IDs from read_nodes output (section "Column IDs"). For updates, use row IDs from the _rowId column.

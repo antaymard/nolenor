@@ -88,7 +88,7 @@ function formatStructuredMessageContext(
   let attachedPosTag = "";
   const attachedPosition = context.attachedPosition;
   if (attachedPosition) {
-    attachedPosTag = `<target_position_on_canvas (${Math.round(attachedPosition.x)}, ${Math.round(attachedPosition.y)}) hint="The user attached this position on purpose. Use it cleverly to position new nodes." />`;
+      attachedPosTag = `<target_position_on_canvas (${Math.round(attachedPosition.x)}, ${Math.round(attachedPosition.y)}) hint="The user attached this position on purpose. Pass it as the absolute position (position arg of create_node) when creating nodes here." />`;
   }
 
   let attachedNodesSection = "";

@@ -28,7 +28,7 @@ function TargetDeltaBadge({
   // montrer, et la flèche n'aurait aucun sens).
   if (delta.screens < CENTERED_SCREENS) {
     if (delta.zoomRatio === null) return null;
-    const label = `Same position · zoom ×${delta.zoomRatio.toFixed(2)} vs this ${noun}`;
+    const label = `You're at this ${noun} — only the zoom differs (×${delta.zoomRatio.toFixed(1)})`;
     return (
       <span
         className="shrink-0 text-[11px] font-medium whitespace-nowrap text-muted-foreground tabular-nums"
@@ -40,11 +40,7 @@ function TargetDeltaBadge({
     );
   }
 
-  const zoomSuffix =
-    delta.zoomRatio === null
-      ? ""
-      : ` · zoom ×${delta.zoomRatio.toFixed(2)}`;
-  const label = `${delta.screens.toFixed(1)} screens away (${Math.round(delta.distancePx)} px from view center)${zoomSuffix}`;
+  const label = `This ${noun} is about ${delta.screens.toFixed(1)} screens away — the arrow points toward it`;
   return (
     <span
       className="flex shrink-0 items-center gap-0.5 text-muted-foreground"

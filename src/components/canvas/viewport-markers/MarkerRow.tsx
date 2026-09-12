@@ -170,6 +170,7 @@ function MarkerRow({
       value={title}
       onSave={rename}
       as="span"
+      singleLine={isPanel}
       className={cn(
         "min-w-0 flex-1 truncate font-medium",
         isPanel ? "text-sm" : "text-base",
@@ -360,7 +361,10 @@ function MarkerRow({
             « Go » toujours visible (découvrabilité + tactile), et un « … »
             pour recapture/suppression. */
         <div
-          className={cn("flex items-center gap-1", framing && "cursor-pointer")}
+          className={cn(
+            "flex min-w-0 items-center gap-1",
+            framing && "cursor-pointer",
+          )}
           onClick={handleRowClick}
         >
           {panelLeading}

@@ -198,21 +198,24 @@ function ViewportNode(xyNode: XyNodeProps) {
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <div className="flex flex-col gap-2">
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveTitle();
+              }}
+            >
               <Input
                 onDoubleClick={(e) => e.stopPropagation()}
                 type="text"
                 placeholder="Untitled marker"
                 value={inputTitle}
                 onChange={(e) => setInputTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSaveTitle();
-                }}
               />
-              <Button onClick={handleSaveTitle} size="sm">
+              <Button type="submit" size="sm">
                 Save
               </Button>
-            </div>
+            </form>
           </PopoverContent>
         </Popover>
       </CanvasNodeToolbar>

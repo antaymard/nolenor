@@ -133,6 +133,15 @@
   padding-block: 0.75rem;
 }
 
+/* Mobile : la gouttière desktop (2.25rem de chaque côté) mange ~20 % d'un
+ * écran de 360px. On la réduit à 1rem — le drag handle reste utilisable au
+ * tactile, où il s'affiche à la sélection plutôt qu'au survol. */
+@media (max-width: 640px) {
+  .bn-editor {
+    padding-inline: 1rem;
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * Headings
  *

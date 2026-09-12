@@ -15,7 +15,7 @@ export default function MobileTopBar({
   return (
     <div
       className="flex shrink-0 items-center gap-1 border-b px-2 py-2"
-      style={{ paddingTop: "env(safe-area-inset-top)" }}
+      style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
     >
       <button
         type="button"

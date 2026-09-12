@@ -401,7 +401,13 @@ function AudioNode(xyNode: XyNodeProps) {
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <div className="flex flex-col gap-2">
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRename();
+              }}
+            >
               <UploadFile
                 accept="audio/*"
                 onUploadComplete={handleUploadComplete}
@@ -414,16 +420,13 @@ function AudioNode(xyNode: XyNodeProps) {
                     placeholder="Nom du fichier"
                     value={titleDraft}
                     onChange={(e) => setTitleDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRename();
-                    }}
                   />
-                  <Button size="sm" onClick={handleRename}>
+                  <Button type="submit" size="sm">
                     Enregistrer
                   </Button>
                 </>
               )}
-            </div>
+            </form>
           </PopoverContent>
         </Popover>
       </CanvasNodeToolbar>

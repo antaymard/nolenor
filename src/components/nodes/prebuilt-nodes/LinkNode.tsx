@@ -135,7 +135,13 @@ function LinkNode(xyNode: XyNodeProps) {
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <div className="flex flex-col gap-2">
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!isLoading) void handleSave();
+              }}
+            >
               <Input
                 onDoubleClick={(e) => e.stopPropagation()}
                 type="text"
@@ -150,10 +156,10 @@ function LinkNode(xyNode: XyNodeProps) {
                 value={linkTitle}
                 onChange={(e) => setLinkTitle(e.target.value)}
               />
-              <Button onClick={handleSave} disabled={isLoading} size="sm">
+              <Button type="submit" disabled={isLoading} size="sm">
                 {isLoading ? "Loading..." : "Save"}
               </Button>
-            </div>
+            </form>
           </PopoverContent>
         </Popover>
         {linkValue.href && (

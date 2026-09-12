@@ -138,7 +138,7 @@ function RouteComponent() {
       {/* Barre du haut, mobile seulement : le menu et la sortie des settings. */}
       <div
         className="flex shrink-0 items-center gap-2 border-b border-gray-300 px-3 py-2 md:hidden"
-        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
+        style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
       >
         <button
           type="button"

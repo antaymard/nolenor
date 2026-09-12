@@ -103,5 +103,9 @@ const nodePatchUpdateValidator = v.object({
 type NodeCreateWithDataItem = Infer<typeof nodeCreateWithDataItemValidator>;
 type NodePatchUpdate = Infer<typeof nodePatchUpdateValidator>;
 
-export { nodePatchPropsValidator, nodeCreateWithDataItemValidator, nodePatchUpdateValidator };
+export {
+  nodePatchPropsValidator,
+  nodeCreateWithDataItemValidator,
+  nodePatchUpdateValidator,
+};
 export type { NodePatchProps, NodeCreateWithDataItem, NodePatchUpdate };

@@ -169,7 +169,7 @@ export default function FullscreenBlocknoteWindow({
         {!isTabletPortrait && <NoleAside />}
 
         {/* Middle: editor (full width container, content centered) */}
-        <main className="flex min-w-0 flex-1 overflow-hidden [&_.bn-editor]:px-[max(2rem,calc((100%-56rem)/2))]!">
+        <main className="flex min-w-0 flex-1 overflow-hidden [&_.bn-editor]:px-[max(1rem,calc((100%-56rem)/2))]!">
           <div ref={editorScrollRef} className="h-full w-full overflow-y-auto">
             <BlocknoteWindow
               nodeDataId={nodeDataId}

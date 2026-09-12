@@ -51,9 +51,5 @@ export type CanvasEdge = Omit<
   "canvasId" | "status" | "trashedAt"
 >;
 
-export {
-  edgesValidator,
-  edgeCreateItemValidator,
-  edgePatchUpdateValidator,
-};
+export { edgesValidator, edgeCreateItemValidator, edgePatchUpdateValidator };
 export type { EdgeCreateItem, EdgePatchUpdate };

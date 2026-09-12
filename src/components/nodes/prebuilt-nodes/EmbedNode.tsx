@@ -176,16 +176,19 @@ function EmbedNode(xyNode: XyNodeProps) {
             </Button>
           </PopoverTrigger>
           <PopoverContent>
-            <div className="flex flex-col gap-2">
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSave();
+              }}
+            >
               <Input
                 onDoubleClick={(e) => e.stopPropagation()}
                 type="text"
                 placeholder="URL or <iframe> embed code..."
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSave();
-                }}
               />
               <Input
                 onDoubleClick={(e) => e.stopPropagation()}
@@ -194,14 +197,10 @@ function EmbedNode(xyNode: XyNodeProps) {
                 value={inputTitle}
                 onChange={(e) => setInputTitle(e.target.value)}
               />
-              <Button
-                onClick={handleSave}
-                size="sm"
-                disabled={!inputUrl.trim()}
-              >
+              <Button type="submit" size="sm" disabled={!inputUrl.trim()}>
                 Save
               </Button>
-            </div>
+            </form>
           </PopoverContent>
         </Popover>
       </CanvasNodeToolbar>

@@ -14,7 +14,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import type { Id } from "@/../convex/_generated/dataModel";
+import { TbDirections } from "react-icons/tb";
 import { ScrollArea } from "@/components/shadcn/scroll-area";
+import { cn } from "@/lib/utils";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import {
   markersFromNodes,
@@ -39,17 +41,24 @@ const selectMarkers = (state: ReactFlowState): MarkerRef[] =>
  * réordonnancement au drag.
  *
  * Rendu par deux surfaces — la fenêtre singleton d'un node `viewport`
- * (`ViewportWindow`) et l'encart de la `CanvasToolbar` (`MarkersPanel`) — qui
- * ne diffèrent que par leur coquille. Doit vivre dans un `ReactFlowProvider`.
+ * (`ViewportWindow`, `variant="window"`) et l'encart de la `CanvasToolbar`
+ * (`MarkersPanel`, `variant="panel"`). Doit vivre dans un `ReactFlowProvider`.
  */
 function MarkerList({
   currentNodeDataId,
   onNavigate,
+  variant = "window",
 }: {
   /** Le repère « propriétaire », surligné. La fenêtre s'en sert, l'encart non. */
   currentNodeDataId?: Id<"nodeDatas">;
   onNavigate?: () => void;
+  /**
+   * `panel` = encart de la `CanvasToolbar` (espacement aéré + empty state
+   * guidé) ; `window` = fenêtre `ViewportWindow`, inchangée.
+   */
+  variant?: "panel" | "window";
 }) {
+  const isPanel = variant === "panel";
   const markers = useStore(selectMarkers, sameMarkers);
   const sorted = useMemo(() => sortMarkers(markers), [markers]);
   const { updateCanvasNodes } = useUpdateCanvasNode();
@@ -90,9 +99,22 @@ function MarkerList({
     <div className="flex h-full min-h-0 flex-col">
       <ScrollArea className="min-h-0 flex-1">
         {sorted.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            No markers on this canvas.
-          </div>
+          isPanel ? (
+            <div className="flex flex-col items-center gap-1.5 px-3 py-8 text-center">
+              <span className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <TbDirections size={16} />
+              </span>
+              <p className="text-sm font-medium">No markers yet</p>
+              <p className="text-xs text-muted-foreground">
+                Add a Viewport block from the + menu (shortcut V) to jump back
+                here anytime.
+              </p>
+            </div>
+          ) : (
+            <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+              No markers on this canvas.
+            </div>
+          )
         ) : (
           <DndContext
             sensors={sensors}
@@ -100,7 +122,7 @@ function MarkerList({
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-1 p-2">
+              <div className={cn("flex flex-col gap-1 p-2", isPanel && "gap-1.5")}>
                 {sorted.map((marker) => (
                   <MarkerRow
                     key={marker.id}
@@ -111,6 +133,7 @@ function MarkerList({
                       marker.nodeDataId === currentNodeDataId
                     }
                     onNavigate={onNavigate}
+                    variant={variant}
                   />
                 ))}
               </div>

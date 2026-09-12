@@ -82,6 +82,9 @@ export function useCommandCenterItems({
           // montre — le cacher laisserait l'utilisateur le chercher — mais il
           // ne mène nulle part.
           hint: marker.framing ? undefined : "No view saved",
+          // Figé à l'instantané d'entrée en mode « go » : la vue ne bouge pas
+          // tant que la modale est ouverte, il est donc toujours juste.
+          delta: marker.delta,
           run: () => {
             const { navigator } = useCanvasNavigatorStore.getState();
             if (!navigator) return;

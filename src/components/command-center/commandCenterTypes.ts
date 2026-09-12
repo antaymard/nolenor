@@ -1,4 +1,5 @@
 import type { IconType } from "react-icons";
+import type { FramingDelta } from "@/lib/canvasViewportFraming";
 
 /**
  * Une entrée exécutable du command center.
@@ -17,6 +18,11 @@ export type CommandItem = {
   group: string;
   /** Texte discret affiché à droite (badge, contexte…). */
   hint?: string;
+  /**
+   * Cap + distance figés (mode « go ») : la vue ne bouge pas tant que la
+   * modale est ouverte, aucun abonnement n'est nécessaire.
+   */
+  delta?: FramingDelta | null;
   /** Termes supplémentaires pris en compte par le filtrage, non affichés. */
   keywords?: string[];
   icon?: IconType;

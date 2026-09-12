@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { Id } from "@/../convex/_generated/dataModel";
-import type { ViewportFraming } from "@/lib/canvasViewportFraming";
+import type { FramingDelta, ViewportFraming } from "@/lib/canvasViewportFraming";
 
 /** Un repère de navigation, tel que la palette a besoin de le connaître. */
 export type NavigatorMarker = {
@@ -10,6 +10,12 @@ export type NavigatorMarker = {
   title: string;
   /** `null` si la value `view` est absente ou abîmée : ligne non navigable. */
   framing: ViewportFraming | null;
+  /**
+   * Cap + distance au moment de l'instantané (`null` si pas de cadrage ou pane
+   * non mesuré). Figé et non abonné : la vue ne bouge pas tant que la modale
+   * est ouverte, il est donc toujours juste — cf. `CommandCenter`.
+   */
+  delta: FramingDelta | null;
 };
 
 /**

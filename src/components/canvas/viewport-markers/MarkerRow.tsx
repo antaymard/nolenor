@@ -1,25 +1,43 @@
-import { memo, useCallback, useMemo, type MouseEvent } from "react";
+import { memo, useCallback, useMemo, useState, type MouseEvent } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   TbDirections,
+  TbDots,
   TbGripVertical,
   TbLocation,
   TbRefresh,
   TbTrash,
 } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
-import { Button } from "@/components/shadcn/button";
+import { Button, buttonVariants } from "@/components/shadcn/button";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/shadcn/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import {
   useCaptureFraming,
-  useFramingMatch,
   useGoToFraming,
 } from "@/hooks/useViewportFraming";
-import { readFraming } from "@/lib/canvasViewportFraming";
+import { readFraming, type DeltaTarget } from "@/lib/canvasViewportFraming";
+import TargetDeltaIndicator from "../navigation/TargetDeltaIndicator";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
@@ -56,6 +74,9 @@ function MarkerRow({
   const captureFraming = useCaptureFraming();
   const goToFraming = useGoToFraming();
   const { deleteCanvasElements } = useDeleteCanvasElements();
+  // Encart : le « … » ouvre un menu, dont l'item supprimer arme ce dialogue
+  // (mêmes textes que `ConfirmableButton`, dont la fenêtre garde l'usage).
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   // Un viewer n'a que la navigation : le serveur refuse déjà ses écritures
   // (`requireCanvasAccess("editor")`), les lui proposer ne produisait qu'un
@@ -75,7 +96,11 @@ function MarkerRow({
 
   const view = values?.view;
   const framing = useMemo(() => readFraming(view), [view]);
-  const match = useFramingMatch(framing);
+  // Objet stable : un littéral inline recréerait le sélecteur à chaque render.
+  const deltaTarget = useMemo<DeltaTarget | null>(
+    () => (framing ? { kind: "framing", framing } : null),
+    [framing],
+  );
 
   const title = typeof values?.title === "string" ? values.title : "";
 
@@ -103,9 +128,9 @@ function MarkerRow({
     onNavigate?.();
   }, [framing, goToFraming, onNavigate]);
 
-  // Encart : la première ligne navigue au clic — hors titre (réservé au
-  // double-clic de renommage : son texte porte `.cursor-text`) et hors
-  // boutons/champs. Le bouton « Go » reste l'accès clavier et tactile.
+  // Encart : la ligne navigue au clic — hors titre (réservé au double-clic
+  // de renommage : son texte porte `.cursor-text`) et hors boutons/champs.
+  // Le bouton « Go » reste l'accès clavier et tactile.
   const handleRowClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       if (!isPanel || !framing) return;
@@ -128,12 +153,37 @@ function MarkerRow({
   }, [canvasNodeId, deleteCanvasElements]);
 
   // Contrôles factorisés : les deux variantes composent les mêmes boutons,
-  // seule leur visibilité diffère (encart : « Go » toujours visible).
+  // seule leur disposition diffère (encart : tout sur une ligne).
+  const titleControl = isViewer ? (
+    <span
+      className={cn(
+        "min-w-0 flex-1 truncate font-medium",
+        isPanel ? "text-sm" : "text-base",
+      )}
+    >
+      {title || (
+        <span className="italic text-muted-foreground">Untitled marker</span>
+      )}
+    </span>
+  ) : (
+    <InlineEditableText
+      value={title}
+      onSave={rename}
+      as="span"
+      className={cn(
+        "min-w-0 flex-1 truncate font-medium",
+        isPanel ? "text-sm" : "text-base",
+      )}
+      inputClassName={cn("font-medium", isPanel ? "text-sm" : "text-base")}
+      placeholder="Untitled marker"
+    />
+  );
+
   const goControl = (
     <Button
       size="icon"
       variant="ghost"
-      className="size-6"
+      className="size-6 shrink-0"
       title="Go to this marker"
       aria-label={`Go to marker ${title || "untitled"}`}
       disabled={!framing}
@@ -143,6 +193,7 @@ function MarkerRow({
     </Button>
   );
 
+  // Fenêtre : recapture + suppression en boutons directs (aspect d'origine).
   const secondaryControls = isViewer ? null : (
     <>
       <Button
@@ -179,24 +230,113 @@ function MarkerRow({
 
   // `touch-none` : sans lui le geste tactile scrolle la liste au lieu d'armer
   // le drag (même patron que `ImageNode`).
+  const dragListeners = { ...attributes, ...listeners };
+  // Fenêtre : poignée à droite (aspect d'origine).
   const dragControl = isViewer ? null : (
     <button
       type="button"
-      className={cn(
-        "ml-auto cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground",
-        // Encart : poignée discrète, révélée au survol comme les secondaires.
-        isPanel &&
-          "text-muted-foreground/60 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-        isPanel && isDragging && "opacity-100",
-      )}
+      className="ml-auto cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground"
       title="Drag to reorder"
       aria-label={`Reorder marker ${title || "untitled"}`}
-      {...attributes}
-      {...listeners}
+      {...dragListeners}
     >
       <TbGripVertical className="size-3.5" />
     </button>
   );
+
+  // Encart : la poignée occupe le même slot que le cap + distance et le
+  // remplace au survol (grille empilée, sans état) : au repos seul
+  // l'indicateur prend de la place, le titre y gagne la largeur de la
+  // poignée. `isDragging` garde la poignée visible, le pointeur ayant quitté
+  // la ligne pendant le drag. Viewer : pas de drag, indicateur seul.
+  const panelLeading = !isPanel ? null : isViewer ? (
+    <TargetDeltaIndicator target={deltaTarget} />
+  ) : (
+    <span className="grid shrink-0 items-center">
+        <span
+          className={cn(
+            "col-start-1 row-start-1 transition-opacity group-hover:opacity-0",
+            isDragging && "opacity-0",
+          )}
+        >
+          {/* Cap + distance vers le repère — rien quand la vue est dessus. */}
+          <TargetDeltaIndicator target={deltaTarget} />
+        </span>
+        <button
+          type="button"
+          className={cn(
+            // `hidden` bat `flex` en cascade (même spécificité, trié après) :
+            // les deux display sont donc exclusifs, pas cumulés.
+            isDragging
+              ? "flex"
+              : "hidden group-hover:flex",
+            "col-start-1 row-start-1 cursor-grab touch-none items-center justify-center rounded p-1 text-muted-foreground/60 hover:text-foreground",
+          )}
+          title="Drag to reorder"
+          aria-label={`Reorder marker ${title || "untitled"}`}
+          {...dragListeners}
+        >
+          <TbGripVertical className="size-3.5" />
+        </button>
+      </span>
+    );
+
+  // Encart : recapture + suppression regroupées derrière un « … », la
+  // suppression gardant sa confirmation (mêmes textes que la fenêtre).
+  const panelMenu =
+    isViewer || !isPanel ? null : (
+      <>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-6 shrink-0"
+              title="Marker actions"
+              aria-label={`Actions for marker ${title || "untitled"}`}
+            >
+              <TbDots size={16} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom">
+            <DropdownMenuItem
+              disabled={!nodeDataId}
+              onSelect={() => recapture()}
+            >
+              <TbRefresh className="size-3.5" />
+              Save current view here
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => setIsDeleteOpen(true)}
+            >
+              <TbTrash className="size-3.5" />
+              Delete marker…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this marker?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The node is removed from the canvas. This action is permanent.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => remove()}
+                className={buttonVariants({ variant: "destructive" })}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    );
 
   return (
     <div
@@ -210,103 +350,49 @@ function MarkerRow({
         "group rounded-md border border-transparent p-1.5 transition hover:border-border hover:bg-muted/50",
         isCurrent && "border-border bg-muted/30",
         // Variante encart : carte un peu plus généreuse ; la navigation passe
-        // par la première ligne ou le bouton « Go », toujours visible.
+        // par la ligne ou le bouton « Go », toujours visible.
         isPanel && "p-2 hover:bg-muted/60",
         isPanel && isCurrent && "bg-muted/60",
       )}
     >
-      <div
-        className={cn(
-          "flex items-center gap-2",
-          isPanel && framing && "cursor-pointer",
-        )}
-        onClick={isPanel ? handleRowClick : undefined}
-      >
-        <span
-          aria-hidden
-          title={
-            match === "here"
-              ? "View is on this marker"
-              : match === "near"
-                ? "View is close to this marker"
-                : undefined
-          }
-          className={cn(
-            "size-2 shrink-0 rounded-full border transition-colors",
-            isPanel && "size-2.5",
-            match === "here"
-              ? "border-emerald-600 bg-emerald-600"
-              : match === "near"
-                ? "border-emerald-600 bg-transparent"
-                : "border-transparent bg-transparent",
-            isPanel && match === "here" && "ring-2 ring-emerald-600/20",
-          )}
-        />
-        {isPanel ? (
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <TbDirections size={14} />
-          </span>
-        ) : (
-          <TbDirections size={14} className="shrink-0 text-muted-foreground" />
-        )}
-        {isViewer ? (
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate font-medium",
-              isPanel ? "text-sm" : "text-base",
-            )}
-          >
-            {title || (
-              <span className="italic text-muted-foreground">
-                Untitled marker
-              </span>
-            )}
-          </span>
-        ) : (
-          <InlineEditableText
-            value={title}
-            onSave={rename}
-            as="span"
-            className={cn(
-              "min-w-0 flex-1 truncate font-medium",
-              isPanel ? "text-sm" : "text-base",
-            )}
-            inputClassName={cn(
-              "font-medium",
-              isPanel ? "text-sm" : "text-base",
-            )}
-            placeholder="Untitled marker"
-          />
-        )}
-      </div>
       {isPanel ? (
-        /* Encart : le « Go » reste visible (découvrabilité + tactile), le reste
-            se révèle au survol — et la première ligne navigue déjà. */
-        <div className="mt-1 flex items-center gap-0.5 pl-8">
+        /* Encart : tout sur une ligne — slot poignée/indicateur, titre,
+            « Go » toujours visible (découvrabilité + tactile), et un « … »
+            pour recapture/suppression. */
+        <div
+          className={cn("flex items-center gap-1", framing && "cursor-pointer")}
+          onClick={handleRowClick}
+        >
+          {panelLeading}
+          {titleControl}
           {goControl}
-          <span
+          {panelMenu}
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            {/* Cap + distance vers le repère — rien quand la vue est dessus. */}
+            <TargetDeltaIndicator target={deltaTarget} />
+            <TbDirections
+              size={14}
+              className="shrink-0 text-muted-foreground"
+            />
+            {titleControl}
+          </div>
+          {/* `isDragging` garde la rangée d'actions visible : le pointeur
+              quitte la ligne pendant le drag, et la poignée disparaîtrait sous
+              la main. */}
+          <div
             className={cn(
-              "flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
+              "mt-1 flex items-center gap-0.5 pl-6 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
               isDragging && "opacity-100",
             )}
           >
+            {goControl}
             {secondaryControls}
-          </span>
-          {dragControl}
-        </div>
-      ) : (
-        /* `isDragging` garde la rangée d'actions visible : le pointeur quitte
-            la ligne pendant le drag, et la poignée disparaîtrait sous la main. */
-        <div
-          className={cn(
-            "mt-1 flex items-center gap-0.5 pl-6 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
-            isDragging && "opacity-100",
-          )}
-        >
-          {goControl}
-          {secondaryControls}
-          {dragControl}
-        </div>
+            {dragControl}
+          </div>
+        </>
       )}
     </div>
   );

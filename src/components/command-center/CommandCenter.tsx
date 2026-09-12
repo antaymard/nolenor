@@ -34,6 +34,7 @@ import {
 import type { MatchedCommandItem } from "./commandCenterTypes";
 import { filterCommands } from "./commandMatching";
 import { useCommandCenterItems } from "./useCommandCenterItems";
+import TargetDeltaBadge from "../canvas/navigation/TargetDeltaBadge";
 
 /**
  * Palette de commandes globale (Ctrl/Cmd + P).
@@ -381,6 +382,11 @@ function CommandRow({
         label={item.label}
         matchedIndices={item.matchedIndices}
       />
+      {/* Cap + distance figés (mode « go » uniquement) : la vue ne bouge pas
+          tant que la modale est ouverte — rien quand on est dessus. */}
+      {item.delta !== undefined ? (
+        <TargetDeltaBadge delta={item.delta} noun="marker" />
+      ) : null}
       {item.hint ? (
         <span className="shrink-0 rounded bg-muted px-1.5 text-xs text-muted-foreground">
           {item.hint}

@@ -92,6 +92,26 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, limits);
 type RateLimitName = keyof typeof limits;
 
 /**
+ * Les limites dont la clé est un `userId` — par opposition à celles clées sur
+ * une adresse email ou une IP.
+ *
+ * Leur compteur est une ligne de la table du composant, qui ne s'efface jamais
+ * d'elle-même : elle est seulement réécrite au prochain appel. Une suppression
+ * de compte les remet à zéro (cf. `purgeUserDataStep`), faute de quoi il
+ * resterait des lignes clées sur un utilisateur qui n'existe plus.
+ *
+ * À tenir à jour en ajoutant une limite ci-dessus : le seul rattrapage est de
+ * relire les appels à `enforceRateLimit`.
+ */
+export const USER_KEYED_RATE_LIMITS = [
+  "noleMessage",
+  "imageGeneration",
+  "speechTranscribe",
+  "linkMetadata",
+  "uploadUrl",
+] as const satisfies ReadonlyArray<keyof typeof limits>;
+
+/**
  * Consomme un jeton et lève une `ConvexError` lisible si le quota est dépassé.
  *
  * On n'utilise pas l'option `throws` du composant : elle lève une

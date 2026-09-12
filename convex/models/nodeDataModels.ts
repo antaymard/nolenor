@@ -93,9 +93,14 @@ export async function deleteNodeDataWithCascade(
   {
     nodeDataId,
     actor = { type: "system" },
+    purgeVersions = false,
   }: {
     nodeDataId: Id<"nodeDatas">;
     actor?: NodeDataVersionActor;
+    // Emporte aussi l'historique du node, au lieu de le laisser vivre sa
+    // rétention. Réservé à la suppression de compte : un compte effacé ne
+    // laisse pas trente jours de snapshots de son contenu derrière lui.
+    purgeVersions?: boolean;
   },
 ): Promise<void> {
   const nodeData = await ctx.db.get(nodeDataId);
@@ -111,17 +116,30 @@ export async function deleteNodeDataWithCascade(
   // at the same file keeps it alive.
   const r2Keys = await R2ObjectModels.releaseRefs(ctx, { nodeDataId });
 
-  // Snapshot final : les versions survivent volontairement au node
-  // (purgées par leur propre TTL) pour permettre une récupération après une
-  // suppression accidentelle. Depuis la corbeille, ce snapshot est pris au
-  // moment de la purge et non du trash — le contenu n'est détruit qu'ici.
-  await NodeDataVersionModels.maybeCheckpoint(ctx, {
-    nodeData,
-    actor,
-    changedKeys: [],
-    trigger: "delete",
-    force: true,
-  });
+  if (purgeVersions) {
+    // L'inverse exact du cas normal : pas de snapshot final — il recréerait
+    // le contenu qu'on est en train de détruire — et l'historique déjà
+    // accumulé part avec. En lots re-schedulés : un node édité pendant des
+    // semaines peut porter des centaines de versions, chacune pesant tout son
+    // `values`, ce qui ne tient pas dans cette transaction.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.nodeDataVersions.purgeForNodeData,
+      { nodeDataId },
+    );
+  } else {
+    // Snapshot final : les versions survivent volontairement au node
+    // (purgées par leur propre TTL) pour permettre une récupération après une
+    // suppression accidentelle. Depuis la corbeille, ce snapshot est pris au
+    // moment de la purge et non du trash — le contenu n'est détruit qu'ici.
+    await NodeDataVersionModels.maybeCheckpoint(ctx, {
+      nodeData,
+      actor,
+      changedKeys: [],
+      trigger: "delete",
+      force: true,
+    });
+  }
 
   // Delete memories
   const memories = await ctx.db

@@ -116,6 +116,9 @@ export const deleteWithCascade = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),
     actor: v.optional(nodeDataVersionActorValidator),
+    // Cf. `deleteNodeDataWithCascade` : emporte aussi l'historique du node.
+    // Posé uniquement par la suppression de compte.
+    purgeVersions: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {

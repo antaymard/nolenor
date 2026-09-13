@@ -19,6 +19,7 @@ import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
 import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanner";
 import { useConvexAuth } from "convex/react";
 import SearchModale from "@/components/canvas/search-modale/SearchModale";
+import CanvasWelcomeModal from "@/components/canvas/welcome/CanvasWelcomeModal";
 import CanvasNavigatorBridge from "@/components/canvas/viewport-markers/CanvasNavigatorBridge";
 // Mobile-only surface: don't ship it to desktop sessions.
 const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
@@ -128,6 +129,9 @@ function CanvasContent({
 
   return (
     <div className="flex-1 w-full h-full overflow-hidden overscroll-none">
+      {/* Après le garde `!canvas` ci-dessus : on accueille sur un canvas
+          affiché, pas sur un spinner. */}
+      <CanvasWelcomeModal />
       <SearchModale />
       {/* Ne rend rien : donne au command center (monté à la racine, hors du
           `ReactFlowProvider`) de quoi lister les repères et bouger la vue. */}

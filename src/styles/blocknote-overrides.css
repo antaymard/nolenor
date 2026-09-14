@@ -636,3 +636,43 @@
     column-gap: 1rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Suggestion menus (slash "/" and mention "@") — fixed width.
+ *
+ * The menu root only sets `min-width: 8rem` and `overflow-x: hidden`, so its
+ * width grows with the longest item: a single node with a very long title
+ * stretches the whole "@" dropdown. Fix the width (320px, shrinking on
+ * narrow viewports) and truncate each item's title/subtext with an ellipsis
+ * instead. The `> .flex-1` / `[data-position]` hooks match the DOM emitted
+ * by @blocknote/shadcn's SuggestionMenuItem (icon | flex-1(title+subtext) |
+ * badge) — `min-width: 0` on the flex child is what actually allows the
+ * ellipsis to kick in inside the flex row.
+ * The `#bn-suggestion-menu` id hook keeps specificity above the Tailwind
+ * utilities on the same elements regardless of which portal the menu lands
+ * in (document.body, outside `.bn-shadcn`).
+ * ------------------------------------------------------------------------- */
+#bn-suggestion-menu.bn-suggestion-menu {
+  width: 20rem;
+  min-width: 0;
+  max-width: min(20rem, calc(100vw - 20px));
+}
+
+#bn-suggestion-menu .bn-suggestion-menu-item {
+  min-width: 0;
+}
+
+#bn-suggestion-menu .bn-suggestion-menu-item > [data-position] {
+  flex-shrink: 0;
+}
+
+#bn-suggestion-menu .bn-suggestion-menu-item > .flex-1 {
+  min-width: 0;
+  overflow: hidden;
+}
+
+#bn-suggestion-menu .bn-suggestion-menu-item > .flex-1 > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

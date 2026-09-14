@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SigninRouteImport } from './routes/signin'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
@@ -29,11 +28,6 @@ import { Route as SettingsRecipesEditRecipeIdRouteImport } from './routes/settin
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
   path: '/signin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRouteRoute = SettingsRouteRouteImport.update({
@@ -111,7 +105,6 @@ const SettingsRecipesEditRecipeIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteRouteWithChildren
-  '/onboarding': typeof OnboardingRoute
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -128,7 +121,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/onboarding': typeof OnboardingRoute
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -147,7 +139,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteRouteWithChildren
-  '/onboarding': typeof OnboardingRoute
   '/signin': typeof SigninRoute
   '/canvas/$canvasId': typeof CanvasCanvasIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -167,7 +158,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
-    | '/onboarding'
     | '/signin'
     | '/canvas/$canvasId'
     | '/settings/account'
@@ -184,7 +174,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/onboarding'
     | '/signin'
     | '/canvas/$canvasId'
     | '/settings/account'
@@ -202,7 +191,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/settings'
-    | '/onboarding'
     | '/signin'
     | '/canvas/$canvasId'
     | '/settings/account'
@@ -221,7 +209,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
-  OnboardingRoute: typeof OnboardingRoute
   SigninRoute: typeof SigninRoute
   CanvasCanvasIdRoute: typeof CanvasCanvasIdRoute
 }
@@ -233,13 +220,6 @@ declare module '@tanstack/react-router' {
       path: '/signin'
       fullPath: '/signin'
       preLoaderRoute: typeof SigninRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -378,7 +358,6 @@ const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,
-  OnboardingRoute: OnboardingRoute,
   SigninRoute: SigninRoute,
   CanvasCanvasIdRoute: CanvasCanvasIdRoute,
 }

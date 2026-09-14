@@ -142,6 +142,31 @@ export const pruneExpired = internalMutation({
   },
 });
 
+// Purge intégrale de l'historique d'UN nodeData, en lots re-schedulés.
+//
+// Interne, et un seul appelant : la cascade de suppression de compte
+// (`purgeVersions`, cf. models/nodeDataModels). Les versions survivent
+// normalement au node qu'elles décrivent — c'est ce qui permet de récupérer un
+// contenu supprimé par erreur — mais un compte effacé ne doit rien laisser
+// derrière lui, et surtout pas trente jours de snapshots de son contenu.
+export const purgeForNodeData = internalMutation({
+  args: { nodeDataId: v.id("nodeDatas") },
+  returns: v.null(),
+  handler: async (ctx, { nodeDataId }): Promise<null> => {
+    const hasMore = await NodeDataVersionModels.deleteAllForNodeDataBatch(ctx, {
+      nodeDataId,
+    });
+    if (hasMore) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.nodeDataVersions.purgeForNodeData,
+        { nodeDataId },
+      );
+    }
+    return null;
+  },
+});
+
 export const getThreadsThatCreatedVersions = query({
   args: {
     nodeDataId: v.id("nodeDatas"),

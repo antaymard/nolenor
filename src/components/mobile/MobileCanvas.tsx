@@ -15,6 +15,7 @@ import MobileSearchTab from "./MobileSearchTab";
 import MobileCanvasTab from "./MobileCanvasTab";
 import MobileCanvasSwitcherSheet from "./MobileCanvasSwitcherSheet";
 import MobileNodeOverlay from "./MobileNodeOverlay";
+import CanvasWelcomeModal from "@/components/canvas/welcome/CanvasWelcomeModal";
 
 export default function MobileCanvas({
   canvasId,
@@ -126,6 +127,9 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
         />
         {/* Hors de la colonne flex : un node ouvert recouvre tout l'écran. */}
         <MobileNodeOverlay />
+        {/* Le pendant mobile du montage de `CanvasContent` : même modale, même
+            garde de chargement, copy choisie par l'appareil. */}
+        <CanvasWelcomeModal />
       </MobileNoleProvider>
     </MobileShellContext.Provider>
   );

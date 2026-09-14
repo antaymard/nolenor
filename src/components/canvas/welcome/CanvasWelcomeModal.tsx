@@ -18,7 +18,8 @@ import {
 } from "./WelcomeIllustrations";
 
 /**
- * L'accueil d'une première visite sur un canvas : trois gestes, puis on sort.
+ * L'accueil d'une première visite sur un canvas : trois gestes en step-by-step,
+ * puis on sort.
  *
  * Sur le canvas et pas sur une route dédiée : ces gestes ne s'apprennent que
  * devant l'objet qu'ils manipulent. Le drapeau vit dans le `localStorage`
@@ -145,6 +146,7 @@ function touchSteps(): Step[] {
 
 export default function CanvasWelcomeModal() {
   const [isOpen, setIsOpen] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
   // `useIsTouchFirst` et pas `useIsTouchDevice` : c'est le signal qui pilote
   // `panWithFinger` dans `CanvasFlow`, donc la copy ne peut pas décrire un
   // geste que l'appareil ne fait pas. Il a en plus un état initial synchrone,
@@ -164,6 +166,8 @@ export default function CanvasWelcomeModal() {
   };
 
   const steps = isTouchFirst ? touchSteps() : pointerSteps();
+  const current = steps[Math.min(stepIndex, steps.length - 1)];
+  const isLast = stepIndex >= steps.length - 1;
 
   return (
     <Dialog open={isOpen}>
@@ -177,9 +181,8 @@ export default function CanvasWelcomeModal() {
         onEscapeKeyDown={(e) => e.preventDefault()}
         // Colonne flex à hauteur bornée, et c'est le CONTENU qui défile, pas la
         // modale : le bouton est la seule sortie, il ne doit jamais partir sous
-        // la ligne de flottaison. Empilé sur trois blocs, le cas se produit dès
-        // le premier téléphone venu.
-        className="flex max-h-[90vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl lg:max-w-5xl"
+        // la ligne de flottaison.
+        className="flex max-h-[90vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="text-xl">Welcome to Nolënor</DialogTitle>
@@ -188,22 +191,66 @@ export default function CanvasWelcomeModal() {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Une colonne par geste au-delà de `md`, empilées en dessous. */}
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-6 py-6 md:grid-cols-3">
-          {steps.map((step) => (
-            <section key={step.key} className="flex flex-col gap-3">
-              {step.illustration}
-              <div className="flex flex-col gap-1.5">
-                <h3 className="font-medium text-foreground">{step.title}</h3>
-                <p className="text-sm text-muted-foreground">{step.body}</p>
-                {step.hint ? <div className="pt-0.5">{step.hint}</div> : null}
-              </div>
-            </section>
-          ))}
+        {/* Une étape à la fois. `key` = remontage à chaque step, ce qui relance
+            les animations CSS des illustrations. */}
+        <div
+          key={current.key}
+          aria-live="polite"
+          className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-6 py-6"
+        >
+          <section className="flex flex-col gap-3">
+            {current.illustration}
+            <div className="flex flex-col gap-1.5">
+              <h3 className="font-medium text-foreground">{current.title}</h3>
+              <p className="text-sm text-muted-foreground">{current.body}</p>
+              {current.hint ? (
+                <div className="pt-0.5">{current.hint}</div>
+              ) : null}
+            </div>
+          </section>
         </div>
 
-        <DialogFooter className="border-t px-6 py-4">
-          <Button onClick={close}>Got it</Button>
+        {/* Stepper : dots cliquables + compteur. */}
+        <div className="flex items-center justify-center gap-2 pb-2">
+          {steps.map((step, i) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={() => setStepIndex(i)}
+              aria-label={`Go to step ${i + 1}: ${step.title}`}
+              aria-current={i === stepIndex ? "step" : undefined}
+              className={
+                i === stepIndex
+                  ? "h-2 w-6 rounded-full bg-primary transition-all"
+                  : "h-2 w-2 rounded-full bg-muted-foreground/30 transition-all hover:bg-muted-foreground/60"
+              }
+            />
+          ))}
+        </div>
+        <p className="pb-4 text-center text-xs text-muted-foreground">
+          Step {stepIndex + 1} of {steps.length}
+        </p>
+
+        <DialogFooter className="flex-row justify-between border-t px-6 py-4 sm:justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+            disabled={stepIndex === 0}
+            className={stepIndex === 0 ? "invisible" : undefined}
+          >
+            Back
+          </Button>
+          {isLast ? (
+            <Button onClick={close}>Got it</Button>
+          ) : (
+            <Button
+              onClick={() =>
+                setStepIndex((i) => Math.min(steps.length - 1, i + 1))
+              }
+            >
+              Next
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -4,6 +4,7 @@ import {
   parseDatePillValue,
   toIsoDateString,
 } from "@/../convex/lib/datePill";
+import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/shadcn/calendar";
 import {
   Popover,
@@ -39,8 +40,38 @@ export function formatDatePillLabel(date: string): string {
   });
 }
 
-const pillClassName =
-  "w-fit cursor-pointer rounded-sm bg-muted px-1 text-muted-foreground";
+const pillBaseClassName = "w-fit rounded-sm px-1";
+
+export type DatePillTone = "today" | "overdue" | "soon" | "default";
+
+/**
+ * Couleur de la pill selon l'écart calendaire à aujourd'hui (temps local) :
+ *   - today   (jour même)                  → bleu
+ *   - overdue (dépassée depuis ≤ 7 jours)  → rouge
+ *   - soon    (à venir dans 1 à 3 jours)   → jaune (amber, meilleur contraste)
+ *   - default (sinon : loin devant, dépassée depuis > 7 j, ou illisible) → gris
+ */
+export function getDatePillTone(date: string): DatePillTone {
+  const elementDate = parseDatePillValue(date);
+  if (!elementDate) return "default";
+  const diffDays = Math.round(
+    (startOfDay(elementDate) - startOfDay(new Date())) / DAY_MS,
+  );
+  if (diffDays === 0) return "today";
+  if (diffDays < 0) return diffDays >= -7 ? "overdue" : "default";
+  return diffDays <= 3 ? "soon" : "default";
+}
+
+const pillToneClassName: Record<DatePillTone, string> = {
+  today: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+  overdue: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  soon: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  default: "bg-muted text-muted-foreground",
+};
+
+export function getDatePillClassName(date?: string): string {
+  return cn(pillBaseClassName, pillToneClassName[getDatePillTone(date ?? "")]);
+}
 
 /**
  * Static (read-only) rendering of the date pill: a plain span with the human
@@ -49,7 +80,11 @@ const pillClassName =
  * surfaces never diverge.
  */
 export function DatePillView({ date }: { date?: string }) {
-  return <span className={pillClassName}>{formatDatePillLabel(date ?? "")}</span>;
+  return (
+    <span className={getDatePillClassName(date)}>
+      {formatDatePillLabel(date ?? "")}
+    </span>
+  );
 }
 
 /**
@@ -75,7 +110,12 @@ export const dateInlineContentSpec = createReactInlineContentSpec(
     render: (props) => (
       <Popover>
         <PopoverTrigger asChild>
-          <span className={pillClassName}>
+          <span
+            className={cn(
+              getDatePillClassName(props.inlineContent.props.date),
+              "cursor-pointer",
+            )}
+          >
             {formatDatePillLabel(props.inlineContent.props.date)}
           </span>
         </PopoverTrigger>

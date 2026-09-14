@@ -112,11 +112,8 @@ import type * as mcp_registry from "../mcp/registry.js";
 import type * as mcp_server from "../mcp/server.js";
 import type * as memories from "../memories.js";
 import type * as messageMetadata from "../messageMetadata.js";
-<<<<<<< HEAD
 import type * as migrations from "../migrations.js";
-=======
 import type * as models_accountDeletionModels from "../models/accountDeletionModels.js";
->>>>>>> 26fd679b02bf858baaef884a5685243b40fe9ecf
 import type * as models_aiUsageModels from "../models/aiUsageModels.js";
 import type * as models_canvasModels from "../models/canvasModels.js";
 import type * as models_canvasNodeModels from "../models/canvasNodeModels.js";
@@ -300,11 +297,8 @@ declare const fullApi: ApiFromModules<{
   "mcp/server": typeof mcp_server;
   memories: typeof memories;
   messageMetadata: typeof messageMetadata;
-<<<<<<< HEAD
   migrations: typeof migrations;
-=======
   "models/accountDeletionModels": typeof models_accountDeletionModels;
->>>>>>> 26fd679b02bf858baaef884a5685243b40fe9ecf
   "models/aiUsageModels": typeof models_aiUsageModels;
   "models/canvasModels": typeof models_canvasModels;
   "models/canvasNodeModels": typeof models_canvasNodeModels;

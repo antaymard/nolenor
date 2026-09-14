@@ -355,7 +355,7 @@ function parseStructuredImageMetadata(
  * décrivent ce qu'il a sous les yeux. `VISIBLE_TEXT`, lui, reste : c'est une
  * transcription verbatim produite par une passe mono-image dédiée, et un modèle
  * qui regarde une vignette parmi quatre lit moins bien un graphe, un tableau ou
- * une UI dense. C'est aussi ce qui autorise de réduire les pixels à 768 px
+ * une UI dense. C'est aussi ce qui autorise de réduire les pixels envoyés
  * (cf. `lib/imageTransform.ts`).
  */
 function formatStructuredImageBlock(

@@ -201,7 +201,7 @@ Les pixels partent dans le résultat du tool. Le bloc texte est réduit à `VISI
 le modèle voit l'image, donc `SUMMARY`, `KEY_FACTS` et `SEARCH_TERMS` ne lui apprennent
 plus rien. `VISIBLE_TEXT` reste, parce qu'il vient d'une passe OCR mono-image dédiée et
 qu'un modèle de vision lit moins bien un graphe ou une UI dense — c'est aussi ce qui
-autorise de réduire les pixels à 768 px.
+autorise de réduire les pixels envoyés (cf. `lib/imageTransform.ts`).
 
 ```xml
 <image url="…" filename="…" order="0" attached="true">
@@ -229,9 +229,10 @@ modèle reçoit N images sans étiquette) :
 - Les URLs jointes sont lues dans `values.images` (`readStoredImages`), **pas** dans les
   metadata du chunk : celles-ci datent de l'indexation et pointent dans le vide si
   l'image a été remplacée depuis.
-- Elles passent par `toModelImageUrl` (`convex/lib/imageTransform.ts`), qui réduit à
-  768 px via Cloudflare **si et seulement si** `R2_IMAGE_TRANSFORM=cloudflare`. Sinon,
-  URL d'origine.
+- Elles passent par `toModelImageUrl` (`convex/lib/imageTransform.ts`), qui les réduit
+  via Cloudflare **si et seulement si** `R2_IMAGE_TRANSFORM=cloudflare` (taille réglable
+  par `R2_IMAGE_MAX_EDGE`, défaut 768 px). Sinon, URL d'origine inchangée. Désactivé par
+  défaut : le gain dépend de l'encodeur du modèle et se mesure, il ne se déduit pas.
 - `<warning>` émis dans quatre cas : nœud non-image dans `viewImages`, nœud sans image,
   nodeId absent de `nodeIds`, modèle non multimodal.
 - **Image non indexée** (aucun chunk) : `<imageStatus>Image content not yet indexed…</imageStatus>`

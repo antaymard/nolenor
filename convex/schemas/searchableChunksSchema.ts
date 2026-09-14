@@ -19,7 +19,6 @@ const searchableChunksValidator = v.object({
   // `by_nodeId`, seul usage qu'il lui reste), puis supprimer ce champ ET
   // l'index dans une poussée séparée — l'ordre compte, la validation de
   // schéma refuse un champ stocké absent du validateur.
-  nodeId: v.optional(v.string()),
   nodeDataId: v.id("nodeDatas"),
   canvasId: v.id("canvases"),
   chunkType: chunkTypeValidator,

@@ -130,7 +130,6 @@ const schema = defineSchema({
   // ============================================================================
   searchableChunks: defineTable(searchableChunksValidator)
     .index("by_nodeDataId", ["nodeDataId"])
-    .index("by_nodeId", ["nodeId"])
     .index("by_canvasId", ["canvasId"])
     .searchIndex("search_text", {
       searchField: "text",

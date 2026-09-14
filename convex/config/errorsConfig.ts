@@ -5,6 +5,10 @@ const errors = {
   NODE_DATA_NOT_FOUND: "This nodeData does not exist.",
   UNAUTHORIZED_USER: "You are not authenticated or do not have access.",
   USER_NOT_FOUND: "This user does not exist.",
+  ACCOUNT_DELETION_EMAIL_MISMATCH:
+    "This is not the email address of your account.",
+  ACCOUNT_DELETION_NO_EMAIL:
+    "This account has no email address, so it cannot be deleted from here. Please contact support.",
   EMAIL_NOT_FOUND: "No user found with this email address.",
   SHARING_WITH_SELF: "You cannot share with yourself.",
   EDGE_SELF_CONNECTION_NOT_ALLOWED: "A node cannot be connected to itself.",

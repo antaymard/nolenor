@@ -1,4 +1,4 @@
-import { useCallback, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { useReactFlow, useStore } from "@xyflow/react";
 import {
   TbArrowBackUp,
@@ -35,6 +35,25 @@ export default function MobileCanvasToolbar({
   containerRef: RefObject<HTMLDivElement | null>;
 }) {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  // Décalage pour recentrer le menu sur le viewport : le trigger (+) est
+  // excentré à gauche de la barre, et le menu fait quasi plein écran —
+  // sans ça il s'ancre sur le bouton puis se fait recaler contre le bord.
+  const [menuAlignOffset, setMenuAlignOffset] = useState(0);
+  const centerMenuOnViewport = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setMenuAlignOffset(
+      window.innerWidth / 2 - (rect.left + rect.width / 2),
+    );
+  }, []);
+
+  // Recalcule si l'orientation change pendant que le menu est ouvert.
+  useEffect(() => {
+    if (!isAddMenuOpen) return;
+    window.addEventListener("resize", centerMenuOnViewport);
+    return () => window.removeEventListener("resize", centerMenuOnViewport);
+  }, [isAddMenuOpen, centerMenuOnViewport]);
   const { screenToFlowPosition, getNodes } = useReactFlow();
   const { deleteCanvasElements } = useDeleteCanvasElements();
   const { duplicateNode } = useDuplicateNode();
@@ -81,13 +100,28 @@ export default function MobileCanvasToolbar({
 
   return (
     <div className="canvas-ui-container px-0!">
-      <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+      <DropdownMenu
+        open={isAddMenuOpen}
+        onOpenChange={(open) => {
+          // Calculé AVANT le montage du contenu : pas de saut visible.
+          if (open) centerMenuOnViewport();
+          setIsAddMenuOpen(open);
+        }}
+      >
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label="Ajouter un bloc">
-            <TbPlus size={20} />
-          </Button>
+          <span ref={triggerRef} className="inline-flex">
+            <Button variant="ghost" size="icon" aria-label="Ajouter un bloc">
+              <TbPlus size={20} />
+            </Button>
+          </span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="center" sideOffset={10}>
+        <DropdownMenuContent
+          side="top"
+          align="center"
+          alignOffset={menuAlignOffset}
+          collisionPadding={16}
+          sideOffset={10}
+        >
           <AddBlockMenuContent
             getCreatePosition={getCreatePosition}
             onCreated={() => setIsAddMenuOpen(false)}

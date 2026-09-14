@@ -25,6 +25,28 @@ async function resolveToolOutput(raw: unknown): Promise<unknown> {
   return resolved;
 }
 
+/**
+ * La sortie d'un tool, ramenée au texte que le transport MCP sait porter.
+ *
+ * `toModelOutput` n'est jamais consulté ici (cf. `returns: v.string()`) : un
+ * tool qui rend autre chose qu'une chaîne verrait sa sortie partir en
+ * `JSON.stringify` — pour `read_nodes`, tout le XML ré-échappé dans du JSON.
+ * Les tools qui portent des médias rendent `{ text, images }` : seul `text`
+ * traverse, et la sortie MCP reste identique à ce qu'elle a toujours été. Les
+ * URLs des images sont de toute façon déjà dans le XML.
+ */
+function flattenToolOutput(output: unknown): string {
+  if (typeof output === "string") return output;
+  if (
+    output !== null &&
+    typeof output === "object" &&
+    typeof (output as { text?: unknown }).text === "string"
+  ) {
+    return (output as { text: string }).text;
+  }
+  return JSON.stringify(output);
+}
+
 export const run = internalAction({
   args: {
     toolName: v.string(),
@@ -79,6 +101,6 @@ export const run = internalAction({
       }),
     );
 
-    return typeof output === "string" ? output : JSON.stringify(output);
+    return flattenToolOutput(output);
   },
 });

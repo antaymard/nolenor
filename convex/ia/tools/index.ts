@@ -16,7 +16,7 @@ import listNodesTool, { listNodesToolConfig } from "./listNodesTool";
 import loadSkillTool, { loadSkillToolConfig } from "./loadSkillTool";
 import memoryToolFactory, { memoryToolConfig } from "./memoryTool";
 import { openWebPageTool, openWebPageToolConfig } from "./openWebPageTool";
-import { viewImageTool, viewImageToolConfig } from "./viewImageTool";
+import viewImageTool, { viewImageToolConfig } from "./viewImageTool";
 import readNodesTool, { readNodesToolConfig } from "./readNodesTool";
 import setNodeDataTool, { setNodeDataToolConfig } from "./setNodeDataTool";
 import tableDeleteRowsTool, {
@@ -119,6 +119,12 @@ function withActivityTracking(tool: AgentTool): AgentTool {
 type ToolFactoryContext = {
   agentName: ToolAgentName;
   threadCtx: ThreadCtx;
+  /**
+   * Le modèle de CE run sait-il lire une image. Distinct de
+   * `ToolConfig.requireMultiModal`, qui décide si un tool existe : ici un tool
+   * existant adapte ce qu'il rend (cf. `read_nodes` et son `viewImages`).
+   */
+  isMultimodal: boolean;
 };
 
 type ToolRegistration = {
@@ -145,11 +151,12 @@ const toolRegistry: ToolRegistration[] = [
   },
   {
     config: readNodesToolConfig,
-    factory: ({ threadCtx }) => readNodesTool({ threadCtx }),
+    factory: ({ threadCtx, isMultimodal }) =>
+      readNodesTool({ threadCtx, isMultimodal }),
   },
   {
     config: viewImageToolConfig,
-    factory: () => viewImageTool,
+    factory: ({ threadCtx }) => viewImageTool({ threadCtx }),
   },
   {
     config: openWebPageToolConfig,
@@ -220,7 +227,7 @@ export function getToolsForAgent({
       continue;
     }
 
-    const tool = registration.factory({ agentName, threadCtx });
+    const tool = registration.factory({ agentName, threadCtx, isMultimodal });
     if (!tool) {
       continue;
     }

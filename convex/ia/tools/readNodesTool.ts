@@ -23,6 +23,8 @@ import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
+import { readStoredImages } from "../../lib/storedImages";
+import { toModelImageUrl } from "../../lib/imageTransform";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 const PDF_HINTS = {
@@ -36,9 +38,32 @@ const PDF_HINTS = {
   notAPdf: "pdfPages was provided for a non-pdf node and was ignored.",
 } as const;
 
+/**
+ * Une image attachée coûte ~800 tokens, et un résultat de tool est renvoyé en
+ * entrée à CHAQUE step restant du run (`stopWhen: stepCountIs(25)`). Quatre
+ * images lues au step 2 se repaient donc une vingtaine de fois. Le cap est la
+ * seule borne qui tienne : la transcription, elle, coûte quelques centaines de
+ * tokens une fois pour toutes.
+ */
+const MAX_ATTACHED_IMAGES_PER_CALL = 4;
+
 const IMAGE_HINTS = {
   notIndexed:
     "Image content not yet indexed. Raw image URLs are listed below; use view_image if needed.",
+  canView: (nodeId: string, count: number) =>
+    `${count} image(s) on this node. The description above was written by an indexing pass, not by you. ` +
+    `To look at the pixels yourself, re-call read_nodes with viewImages=["${nodeId}"], or call view_image. ` +
+    `Do it only when the description is not enough — an attached image costs ~800 tokens on every following step.`,
+  notAnImage: "viewImages was provided for a non-image node and was ignored.",
+  notMultimodal:
+    "viewImages was requested but the current model cannot read images; only the text description is returned.",
+  noImages: "viewImages was requested for a node that holds no image.",
+  notRead: (nodeIds: string[]) =>
+    `viewImages named ${nodeIds.join(", ")}, which ${nodeIds.length > 1 ? "are" : "is"} not in nodeIds and ` +
+    `${nodeIds.length > 1 ? "were" : "was"} not read. Add ${nodeIds.length > 1 ? "them" : "it"} to nodeIds to see the image(s).`,
+  capped: (attached: number, requested: number) =>
+    `Attached ${attached} of ${requested} images (cap ${MAX_ATTACHED_IMAGES_PER_CALL} per call). ` +
+    `Re-call read_nodes with viewImages for the rest.`,
 } as const;
 
 const TABLE_DEFAULT_ROW_LIMIT = 50;
@@ -322,26 +347,67 @@ function parseStructuredImageMetadata(
   };
 }
 
-function formatStructuredImageBlock(image: StructuredImageMetadata): string {
+/**
+ * Le bloc d'une image, avec ou sans ses pixels joints.
+ *
+ * `attached` ne garde que `VISIBLE_TEXT` : le modèle voit l'image, donc
+ * `SUMMARY`, `KEY_FACTS` et `SEARCH_TERMS` ne lui apprennent plus rien — ils
+ * décrivent ce qu'il a sous les yeux. `VISIBLE_TEXT`, lui, reste : c'est une
+ * transcription verbatim produite par une passe mono-image dédiée, et un modèle
+ * qui regarde une vignette parmi quatre lit moins bien un graphe, un tableau ou
+ * une UI dense. C'est aussi ce qui autorise de réduire les pixels envoyés
+ * (cf. `lib/imageTransform.ts`).
+ */
+function formatStructuredImageBlock(
+  image: StructuredImageMetadata,
+  { attached = false }: { attached?: boolean } = {},
+): string {
   const attrs = [
     `url="${escapeXmlAttribute(image.url)}"`,
     `filename="${escapeXmlAttribute(image.filename)}"`,
     `order="${String(image.order)}"`,
+    ...(attached ? [`attached="true"`] : []),
   ].join(" ");
 
   const searchTerms =
     image.searchTerms.length > 0 ? image.searchTerms.join(", ") : "NONE";
 
-  const body = [
-    `TITLE: ${escapeXmlText(image.title)}`,
-    `IMAGE_TYPE: ${escapeXmlText(image.imageType)}`,
-    `SUMMARY: ${escapeXmlText(image.summary)}`,
-    `VISIBLE_TEXT: ${escapeXmlText(image.visibleText)}`,
-    `KEY_FACTS: ${escapeXmlText(image.keyFacts)}`,
-    `SEARCH_TERMS: ${escapeXmlText(searchTerms)}`,
-  ].join("\n");
+  const body = attached
+    ? `VISIBLE_TEXT: ${escapeXmlText(image.visibleText)}`
+    : [
+        `TITLE: ${escapeXmlText(image.title)}`,
+        `IMAGE_TYPE: ${escapeXmlText(image.imageType)}`,
+        `SUMMARY: ${escapeXmlText(image.summary)}`,
+        `VISIBLE_TEXT: ${escapeXmlText(image.visibleText)}`,
+        `KEY_FACTS: ${escapeXmlText(image.keyFacts)}`,
+        `SEARCH_TERMS: ${escapeXmlText(searchTerms)}`,
+      ].join("\n");
 
   return `<image ${attrs}>\n${body}\n</image>`;
+}
+
+/**
+ * Les deux valeurs d'un node image qui ne décrivent aucune image : le prompt de
+ * génération, et le drapeau qui dit si les images des nodes en entrée servent de
+ * références. L'agent doit les voir pour itérer dessus plutôt que les écraser.
+ *
+ * `imageIncludeReferences` n'est rendu que s'il vaut `false` : l'inclusion est
+ * le défaut, et le silence suffit pour le cas nominal.
+ */
+function renderImageGenerationValues(values: Record<string, unknown>): string {
+  const parts: string[] = [];
+
+  const prompt = values.imagePrompt;
+  if (typeof prompt === "string" && prompt.length > 0) {
+    parts.push(`<imagePrompt>${escapeXmlText(prompt)}</imagePrompt>`);
+  }
+  if (values.imageIncludeReferences === false) {
+    parts.push(
+      `<imageIncludeReferences>false</imageIncludeReferences>`,
+    );
+  }
+
+  return parts.join("\n");
 }
 
 function buildImageNodeBody(
@@ -350,13 +416,14 @@ function buildImageNodeBody(
     text: string;
     metadata?: Record<string, unknown>;
   }>,
+  { attached = false }: { attached?: boolean } = {},
 ): string | null {
   const parts = chunks
     .sort((a, b) => a.order - b.order)
     .map((chunk) => {
       const image = parseStructuredImageMetadata(chunk.metadata);
       if (image) {
-        return formatStructuredImageBlock(image);
+        return formatStructuredImageBlock(image, { attached });
       }
 
       const trimmedText = chunk.text.trim();
@@ -376,14 +443,36 @@ export const readNodesToolConfig: ToolConfig = {
   mcp: { access: "read" },
 };
 
+/**
+ * Ce que rend `execute`, et la raison pour laquelle ce n'est plus une chaîne.
+ *
+ * `text` est le XML, strictement ce qui partait avant. `images` porte les URLs
+ * que `toModelOutput` transforme en parts image — le seul chemin par lequel des
+ * pixels atteignent le modèle. Le champ `text` n'est pas décoratif : c'est le
+ * contrat que lit `flattenToolOutput` côté MCP, dont le transport est textuel.
+ */
+type ReadNodesOutput = { text: string; images: string[] };
+
 // is v1.0
-export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
+export default function readNodesTool({
+  threadCtx,
+  // Défaut `false` : un site d'appel oublié dégrade en texte, il ne casse pas.
+  isMultimodal = false,
+}: {
+  threadCtx: ThreadCtx;
+  isMultimodal?: boolean;
+}) {
   const { canvasId } = threadCtx;
 
   return createTool({
     description:
       "A tool to read multiple nodes from the current canvas and return their nodeData as LLM-friendly XML. " +
       "For image nodes, returns indexed textual image descriptions by default when available. " +
+      (isMultimodal
+        ? "Pass `viewImages=[nodeId]` to also attach the actual images so you can look at them yourself — " +
+          `at most ${MAX_ATTACHED_IMAGES_PER_CALL} per call, and only when the text description is not enough ` +
+          "(an attached image costs ~800 tokens on every following step). "
+        : "") +
       "For pdf nodes, by default returns a paginated table of contents in markdown ('# Heading [pageNumber]') along with the total page count. " +
       "Pass `pdfPages=[{nodeId, pages:[…]}]` to read the full OCR markdown of specific 1-based pages instead. " +
       "PDF chunks come from cached Mistral OCR; nodes not yet indexed are flagged. " +
@@ -400,6 +489,19 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         .optional()
         .describe(
           "Whether to include x/y position and dimensions attributes in each node tag",
+        ),
+      // Toujours dans le schéma, même quand le modèle ne sait pas lire d'image :
+      // le construire conditionnellement ferait inférer une union (ou `any`) à
+      // `createTool` pour tout l'input. C'est la `description` qui varie, et
+      // l'exécution qui rend un hint quand l'argument ne peut pas être honoré.
+      viewImages: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "For image nodes only: node IDs whose actual images should be attached to the result " +
+            "so you can look at them. Only honored by multimodal models, " +
+            `and capped at ${MAX_ATTACHED_IMAGES_PER_CALL} images per call (listed order is the priority). ` +
+            "Omit it to get only the indexed text description, which is much cheaper.",
         ),
       pdfPages: z
         .array(
@@ -445,7 +547,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             `If omitted, the table returns up to ${TABLE_DEFAULT_ROW_LIMIT} rows with a hint when truncated.`,
         ),
     }),
-    execute: async (ctx, input): Promise<string> => {
+    execute: async (ctx, input): Promise<ReadNodesOutput> => {
       console.log(
         `🖼️ Reading ${input.nodeIds.length} node(s) from canvas ${canvasId}`,
       );
@@ -483,6 +585,18 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         for (const entry of input.tableRows ?? []) {
           tableRowsByNodeId.set(entry.nodeId, entry);
         }
+
+        // Ce que le modèle a demandé, et ce qu'on lui accorde vraiment. Les deux
+        // sont distincts : `viewImagesSet` sert à signaler un node non-image
+        // (comme `pdfPages` sur un node qui n'est pas un pdf), `attachImagesFor`
+        // porte le cap. L'ordre donné par le modèle est sa priorité, on le suit.
+        const requestedViewImages = (input.viewImages ?? []).filter(
+          (nodeId, index, all) => all.indexOf(nodeId) === index,
+        );
+        const viewImagesSet = new Set(requestedViewImages);
+        const attachImagesFor = isMultimodal
+          ? new Set(requestedViewImages)
+          : new Set<string>();
 
         // Nodes a read node POINTS AT rather than one that was asked for:
         // `node` table cells, and the mention pills inside blocknote documents.
@@ -708,6 +822,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                 embedUrl: null as string | null,
                 embedIframeUrl: null as string | null,
                 embedType: null as string | null,
+                imageUrls: [] as string[],
                 error: error ?? "Unknown node read error",
               };
             }
@@ -738,8 +853,15 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             let tableBody: string | null = null;
             let tableTotalRows: number | null = null;
             let tableDisplayedRows: number | null = null;
+            let imageUrls: string[] = [];
 
             if (node.type === "image") {
+              // Les URLs vivantes, pas celles des metadata du chunk : celles-ci
+              // datent de l'indexation, et pointent dans le vide si l'image a
+              // été remplacée depuis.
+              const storedImages = readStoredImages(nodeData.values);
+              const attach = attachImagesFor.has(nodeId);
+
               const imageChunks = await ctx.runQuery(
                 internal.wrappers.searchableChunkWrappers.listByNodeDataId,
                 { nodeDataId: nodeData._id },
@@ -747,13 +869,37 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
               const imageBody = buildImageNodeBody(
                 imageChunks.filter((chunk) => chunk.chunkType === "node"),
+                { attached: attach },
               );
 
-              if (imageBody) {
-                content = imageBody;
-              } else {
-                content = `<imageStatus>${escapeXmlText(IMAGE_HINTS.notIndexed)}</imageStatus>\n${content}`;
+              // Écraser `content` faisait disparaître `imagePrompt` et
+              // `imageIncludeReferences` dès qu'un chunk existait — l'agent
+              // réécrivait donc un prompt de génération sans voir l'ancien.
+              // On les re-rend ici plutôt que de garder tout `content` : celui-ci
+              // liste aussi les images en markdown, ce que `<image url=…>` dit
+              // déjà. Les valeurs sont lues comme `values.files` et
+              // `values.table` le sont plus bas.
+              content = imageBody
+                ? [imageBody, renderImageGenerationValues(nodeData.values)]
+                    .filter(Boolean)
+                    .join("\n")
+                : `<imageStatus>${escapeXmlText(IMAGE_HINTS.notIndexed)}</imageStatus>\n${content}`;
+
+              if (attach) {
+                imageUrls = storedImages.map((image) => image.url);
+                if (imageUrls.length === 0) {
+                  content = `<warning>${escapeXmlText(IMAGE_HINTS.noImages)}</warning>\n${content}`;
+                }
+              } else if (isMultimodal && storedImages.length > 0) {
+                // Seulement si le modèle sait lire une image : sinon le hint
+                // désigne `viewImages` et `view_image`, dont l'un est ignoré et
+                // l'autre même pas enregistré pour lui.
+                content = `${content}\n<imageHint>${escapeXmlText(
+                  IMAGE_HINTS.canView(nodeId, storedImages.length),
+                )}</imageHint>`;
               }
+            } else if (viewImagesSet.has(nodeId)) {
+              content = `<warning>${escapeXmlText(IMAGE_HINTS.notAnImage)}</warning>\n${content}`;
             }
 
             if (node.type === "pdf") {
@@ -807,6 +953,7 @@ export default function readNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               tableBody,
               tableTotalRows,
               tableDisplayedRows,
+              imageUrls,
               embedUrl:
                 typeof embed?.url === "string" && embed.url.length > 0
                   ? embed.url
@@ -985,14 +1132,91 @@ ${content}
           })(),
         ].join("\n");
 
-        console.log("✅ Node read complete");
-        return xml;
+        // Les images, dans l'ordre demandé par le modèle : c'est sa priorité,
+        // et si le cap tranche, il tranche dans la queue de SA liste.
+        const imagesByNodeId = new Map(
+          nodes.map((node) => [node.nodeId, node.imageUrls]),
+        );
+        const attachments: Array<{ nodeId: string; url: string }> = [];
+        let requestedCount = 0;
+        for (const nodeId of requestedViewImages) {
+          for (const url of imagesByNodeId.get(nodeId) ?? []) {
+            requestedCount += 1;
+            if (attachments.length < MAX_ATTACHED_IMAGES_PER_CALL) {
+              attachments.push({ nodeId, url });
+            }
+          }
+        }
+
+        const trailer: string[] = [];
+        if (requestedViewImages.length > 0 && !isMultimodal) {
+          trailer.push(
+            `<warning>${escapeXmlText(IMAGE_HINTS.notMultimodal)}</warning>`,
+          );
+        }
+        // Un nodeId demandé en `viewImages` mais absent de `nodeIds` ne produit
+        // rien du tout : sans ça, le modèle attend des pixels qui n'arrivent
+        // jamais et n'a aucun moyen de comprendre pourquoi.
+        const notRead = requestedViewImages.filter(
+          (nodeId) => !imagesByNodeId.has(nodeId),
+        );
+        if (notRead.length > 0) {
+          trailer.push(
+            `<warning>${escapeXmlText(IMAGE_HINTS.notRead(notRead))}</warning>`,
+          );
+        }
+        if (attachments.length > 0) {
+          // Le modèle reçoit N parts image sans étiquette : sans ce manifeste il
+          // ne sait pas laquelle vient de quel node. ~15 tokens par image, et ça
+          // survit à un fournisseur qui réordonne ou fusionne les parts texte.
+          trailer.push(
+            `<attachedImages count="${attachments.length}" cap="${MAX_ATTACHED_IMAGES_PER_CALL}">`,
+            ...attachments.map(
+              ({ nodeId, url }, index) =>
+                `${index + 1} | ${nodeId} | ${escapeXmlText(url)}`,
+            ),
+            "</attachedImages>",
+          );
+        }
+        if (requestedCount > attachments.length) {
+          trailer.push(
+            `<imageHint>${escapeXmlText(
+              IMAGE_HINTS.capped(attachments.length, requestedCount),
+            )}</imageHint>`,
+          );
+        }
+
+        console.log("✅ Node read complete", {
+          attachedImages: attachments.length,
+        });
+        return {
+          text: trailer.length > 0 ? `${xml}\n${trailer.join("\n")}` : xml,
+          images: attachments.map(({ url }) => toModelImageUrl(url)),
+        } satisfies ReadNodesOutput;
       } catch (error) {
         console.error("Read nodes error:", error);
-        return toolError(
-          `Failed to read nodes: ${error instanceof Error ? error.message : "Unknown error"}. Please verify the IDs and try again.`,
-        );
+        return {
+          text: toolError(
+            `Failed to read nodes: ${error instanceof Error ? error.message : "Unknown error"}. Please verify the IDs and try again.`,
+          ),
+          images: [],
+        } satisfies ReadNodesOutput;
       }
+    },
+    toModelOutput: (_ctx, { output }) => {
+      // Sans image, byte-identique à ce qui partait avant. Et surtout pas
+      // `error-text` sur le chemin d'erreur : ça changerait la façon dont le
+      // composant agent marque le step.
+      if (output.images.length === 0) {
+        return { type: "text", value: output.text };
+      }
+      return {
+        type: "content",
+        value: [
+          { type: "text", text: output.text },
+          ...output.images.map((url) => ({ type: "image-url" as const, url })),
+        ],
+      };
     },
   });
 }

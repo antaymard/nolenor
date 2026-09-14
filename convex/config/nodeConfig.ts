@@ -221,7 +221,9 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
               url: z
                 .string()
                 .describe(
-                  "The URL of the image. Use the view_image tool to view it.",
+                  "The URL of the image. read_nodes returns its indexed text description; " +
+                    "to look at the image itself, re-call read_nodes with viewImages=[nodeId], " +
+                    "or use the view_image tool.",
                 ),
             }),
           )

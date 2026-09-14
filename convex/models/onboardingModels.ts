@@ -29,14 +29,18 @@ function readStarterCanvasIds(): Array<Id<"canvases">> {
 /**
  * Clone les canvases de démarrage pour un compte qui vient d'être créé.
  *
- * Rend les ids créés, dans l'ordre de `STARTER_CANVAS_IDS`. Tout est fait
- * dans une seule transaction : soit le compte reçoit son jeu de départ, soit
- * il n'en reçoit aucun et la home affiche son écran de bienvenue, qui sait
- * déjà créer un workspace. Une liste déraisonnablement longue se heurterait
- * aux limites de transaction Convex — l'échec serait propre (rien de
- * committé), pas un demi-jeu.
+ * Rend les ids créés, dans l'ordre de `STARTER_CANVAS_IDS`. Tout ou rien :
+ * une liste déraisonnablement longue se heurte aux limites de transaction
+ * Convex, et l'échec doit rester propre — un demi-jeu de démarrage serait pire
+ * que pas de jeu du tout.
+ *
+ * Ne garantit RIEN sur le nombre de canvases rendus : zéro est un retour
+ * normal (variable non configurée, ids irrésolvables), et lever est un
+ * comportement attendu. C'est `onboarding.provisionForNewUser` qui transforme
+ * les deux cas en « le compte a au moins un canvas », depuis une transaction
+ * qui, elle, survit à l'échec de celle-ci.
  */
-export async function provisionStarterCanvasesForUser(
+export async function cloneStarterCanvasesForUser(
   ctx: MutationCtx,
   { authUserId }: { authUserId: Id<"users"> },
 ): Promise<Array<Id<"canvases">>> {
@@ -61,22 +65,6 @@ export async function provisionStarterCanvasesForUser(
         // seule transaction et que les `Date.now()` internes des modèles n'y
         // sont pas garantis croissants.
         updatedAt: now - index,
-      }),
-    );
-  }
-
-  // Rien de configuré, ou aucun id résolvable : repli sur un canvas vide,
-  // comme avant la feature. Le signup ne doit jamais échouer faute de
-  // canvases de démarrage.
-  //
-  // Volontairement SANS `isSystem` : ce canvas ne porte aucun contenu système,
-  // c'est un workspace vide identique à celui qu'on obtient en cliquant
-  // « Create a workspace ». Le badger induirait l'UI en erreur.
-  if (created.length === 0) {
-    created.push(
-      await CanvasModels.createCanvasForUser(ctx, {
-        authUserId,
-        name: "My first canvas",
       }),
     );
   }

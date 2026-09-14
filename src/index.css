@@ -16,6 +16,18 @@
   --animate-appear-down: appear-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-appear-zoom: appear-zoom 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-node-appear: node-appear 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Boucles des illustrations de la modale d'accueil (CanvasWelcomeModal).
+     Durées volontairement différentes : trois boucles au même tempo battent
+     la mesure ensemble, ce qui attire l'œil au lieu de le laisser lire. */
+  --animate-welcome-pan-zoom: welcome-pan-zoom 4s ease-in-out infinite;
+  --animate-welcome-wheel: welcome-wheel 4s ease-in-out infinite;
+  --animate-welcome-pointer-drag: welcome-pointer-drag 4s ease-in-out infinite;
+  --animate-welcome-pointer-tap: welcome-pointer-tap 3.2s ease-in-out infinite;
+  --animate-welcome-ripple: welcome-ripple 3.2s ease-out infinite;
+  --animate-welcome-window: welcome-window 3.2s ease-in-out infinite;
+  --animate-welcome-pointer-right: welcome-pointer-right 3.6s ease-in-out infinite;
+  --animate-welcome-menu: welcome-menu 3.6s ease-in-out infinite;
+  --animate-welcome-row: welcome-row 3.6s ease-in-out infinite;
   --font-sans: "Poppins", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --color-text: #475569;
@@ -79,12 +91,176 @@
   }
 }
 
+/* Illustrations de la modale d'accueil.
+   Règle de construction : l'état AU REPOS de chaque élément (son CSS statique,
+   pas son keyframe 0%) doit déjà former une image juste. `animation: none` plus
+   bas ne rejoue pas le 0%, il rend l'élément tel que son CSS le décrit — c'est
+   ce qui garde les trois vignettes lisibles quand l'utilisateur a demandé moins
+   de mouvement. */
+
+/* 1. Navigation : le plan glisse (pan), puis grandit d'un cran (zoom). */
+@keyframes welcome-pan-zoom {
+  0%,
+  8% {
+    transform: translate(0, 0) scale(1);
+  }
+  32%,
+  46% {
+    transform: translate(-13px, -7px) scale(1);
+  }
+  70%,
+  86% {
+    transform: translate(-13px, -7px) scale(1.16);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* La molette du glyphe de souris, pendant la phase de zoom. */
+@keyframes welcome-wheel {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  60% {
+    transform: translateY(-2px);
+    opacity: 1;
+  }
+  78% {
+    transform: translateY(2px);
+    opacity: 1;
+  }
+}
+
+@keyframes welcome-pointer-drag {
+  0%,
+  8% {
+    transform: translate(0, 0);
+  }
+  32%,
+  86% {
+    transform: translate(-13px, -7px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* 2. Ouvrir un node : le curseur double-clique, une window s'ouvre. */
+@keyframes welcome-pointer-tap {
+  0% {
+    transform: translate(10px, 8px) scale(1);
+  }
+  22%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  30%,
+  42% {
+    transform: translate(0, 0) scale(0.88);
+  }
+  36% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes welcome-ripple {
+  0%,
+  26% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  32% {
+    opacity: 0.55;
+  }
+  58%,
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+/* Reprend le vocabulaire de `node-appear` : même scale de départ, même sortie. */
+@keyframes welcome-window {
+  0%,
+  34% {
+    opacity: 0;
+    transform: scale(0.96) translateY(5px);
+  }
+  46%,
+  92% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96) translateY(5px);
+  }
+}
+
+/* 3. Clic droit : le curseur arrive, le menu s'ouvre, une entrée se surligne. */
+@keyframes welcome-pointer-right {
+  0% {
+    transform: translate(-12px, 10px);
+  }
+  24%,
+  88% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(-12px, 10px);
+  }
+}
+
+@keyframes welcome-menu {
+  0%,
+  28% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  40%,
+  88% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes welcome-row {
+  0%,
+  52% {
+    opacity: 0;
+  }
+  64%,
+  84% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-appear,
   .animate-appear-up,
   .animate-appear-down,
   .animate-appear-zoom,
-  .animate-node-appear {
+  .animate-node-appear,
+  .animate-welcome-pan-zoom,
+  .animate-welcome-wheel,
+  .animate-welcome-pointer-drag,
+  .animate-welcome-pointer-tap,
+  .animate-welcome-ripple,
+  .animate-welcome-window,
+  .animate-welcome-pointer-right,
+  .animate-welcome-menu,
+  .animate-welcome-row {
     animation: none !important;
   }
 }

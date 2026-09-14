@@ -46,7 +46,14 @@ export function findMcpEntry(toolName: string): McpRegistryEntry | null {
  * tool "témoin" avec des ids vides juste pour lire description + inputSchema.
  */
 export function buildTool(entry: McpRegistryEntry, threadCtx: ThreadCtx) {
-  return entry.factory({ agentName: toolAgentNames.mcp, threadCtx });
+  return entry.factory({
+    agentName: toolAgentNames.mcp,
+    threadCtx,
+    // Le transport MCP est textuel : `mcp/execute.ts` appelle `execute` puis
+    // aplatit, sans jamais consulter `toModelOutput`. Aucun tool ne doit donc
+    // rendre d'image sur ce chemin — le client n'en verrait rien.
+    isMultimodal: false,
+  });
 }
 
 const WITNESS_THREAD_CTX: ThreadCtx = {

@@ -281,6 +281,7 @@ Set with `npx convex env set NAME value`, or through the Convex dashboard.
 | `R2_SECRET_ACCESS_KEY` | ⚠️ | R2 API secret | idem |
 | `R2_BUCKET_NAME` | ⚠️ | Bucket holding uploads | your bucket |
 | `R2_PUBLIC_URL` | ⚠️ | Public base URL objects are served from | custom domain on the bucket |
+| `R2_IMAGE_TRANSFORM` | — | Set to `cloudflare` to serve model-bound images through Cloudflare Image Transformations (768 px, WebP), roughly halving what an image costs Nolë in tokens. Requires Transformations enabled on the R2 custom domain's zone — a metered Cloudflare feature; when it is not enabled, `/cdn-cgi/image/…` returns 404, which is why this is opt-in. Unset, full-size originals are sent. | Cloudflare → Images → Transformations |
 | `AUTH_EMAIL_FROM` | — | `From:` of auth emails. Defaults to `Nolenor <onboarding@resend.dev>`, which only delivers to your own Resend account address. | a verified Resend domain |
 | `AUTH_GOOGLE_ID` | — | Enables "Sign in with Google". Email + password works without it. | Google Cloud console |
 | `AUTH_GOOGLE_SECRET` | — | idem | idem |

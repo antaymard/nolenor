@@ -38,7 +38,14 @@ export default function HomePage() {
   const isEmpty = !isLoading && ownCanvases.length === 0;
 
   return (
-    <div className="min-h-dvh w-full overflow-y-auto bg-[#f7f7f8]">
+    // `h-full` (et non `min-h-dvh`) : le shell root est en `overflow-hidden` à
+    // hauteur fixe, donc un enfant en hauteur auto grandirait avec son contenu
+    // et déborderait du parent sans jamais scroller lui-même — le scroll
+    // restait coincé, visible surtout en mobile où la grille passe à 1 colonne
+    // et dépasse du viewport. Contraint à `h-full`, l'overflow a lieu dans ce
+    // conteneur et `overflow-y-auto` s'enclenche. `touch-pan-y` garantit le pan
+    // tactile vertical, `overscroll-y-contain` évite le chaînage au body.
+    <div className="h-full w-full touch-pan-y overflow-y-auto overscroll-y-contain bg-[#f7f7f8]">
       <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
         <HomeHeader canJump={ownCanvases.length + sharedCanvases.length > 0} />
 

@@ -88,8 +88,9 @@ export function useCreateNodeHotkeys({
   const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
   const isCommandCenterOpen = useCommandCenterStore((state) => state.isOpen);
 
-  // `createNode` est asynchrone (mutation Convex) : sans ce verrou, deux frappes
-  // rapprochées posent deux nodes exactement au même point.
+  // La persistance (`settled`, mutation Convex) est asynchrone : sans ce
+  // verrou, deux frappes rapprochées posent deux nodes exactement au même
+  // point.
   const isCreatingRef = useRef(false);
 
   const enabled =
@@ -118,11 +119,13 @@ export function useCreateNodeHotkeys({
       const point = getPointerFlowPosition();
 
       isCreatingRef.current = true;
+      // Verrou libéré à la confirmation serveur, comme avant : l'id
+      // synchrone ne change rien au rythme des frappes.
       void createNode({
         node: nodeToCreate,
         position: point,
         autoEdit: true,
-      }).finally(() => {
+      }).settled.finally(() => {
         isCreatingRef.current = false;
       });
     },

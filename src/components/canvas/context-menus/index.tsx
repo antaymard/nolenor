@@ -9,7 +9,11 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import SelectionContextMenu from "./SelectionContextMenu";
 
-import type { ContextMenuState } from "@/types/ui/context-menu.types";
+import {
+  isPendingCanvasConnectionElement,
+  type ConnectedNodeCreatedInfo,
+  type ContextMenuState,
+} from "@/types/ui/context-menu.types";
 
 // Marge minimale entre le menu et les bords de la fenêtre, partagée par le
 // repositionnement et le plafond de hauteur.
@@ -18,9 +22,12 @@ const VIEWPORT_MARGIN = 10;
 export default function ContextMenuWrapper({
   contextMenu,
   setContextMenu,
+  onConnectionNodeCreated,
 }: {
   contextMenu: ContextMenuState;
   setContextMenu: (contextMenu: ContextMenuState) => void;
+  /** Chaîne l'edge quand le node naît d'un drag lâché dans le vide. */
+  onConnectionNodeCreated?: (info: ConnectedNodeCreatedInfo) => void;
 }) {
   const { type, position, element } = contextMenu;
   const [adjustedPosition, setAdjustedPosition] = useState(position);
@@ -76,7 +83,14 @@ export default function ContextMenuWrapper({
     switch (type) {
       case "canvas":
         return (
-          <CanvasContextMenu closeMenu={handleClose} position={position} />
+          <CanvasContextMenu
+            closeMenu={handleClose}
+            position={position}
+            element={
+              isPendingCanvasConnectionElement(element) ? element : null
+            }
+            onConnectionNodeCreated={onConnectionNodeCreated}
+          />
         );
       case "node":
         return (

@@ -91,11 +91,12 @@ export function useCanvasContentIngest() {
         return null;
       }
 
-      const { nodeId, nodeDataId } = await createNode({
+      const { nodeId, settled } = createNode({
         node: imageNodeConfig.node,
         position,
         initialValues: { images: url ? [{ url }] : [] },
       });
+      const { nodeDataId } = await settled;
 
       return { nodeId, nodeDataId };
     },
@@ -113,7 +114,7 @@ export function useCanvasContentIngest() {
         return null;
       }
 
-      const { nodeId, nodeDataId } = await createNode({
+      const { nodeId, settled } = createNode({
         node: linkNodeConfig.node,
         position,
         initialValues: {
@@ -123,6 +124,7 @@ export function useCanvasContentIngest() {
           },
         },
       });
+      const { nodeDataId } = await settled;
 
       // Fetch metadata in background and update the nodeData
       if (nodeDataId) {
@@ -167,7 +169,7 @@ export function useCanvasContentIngest() {
         node: blocknoteNodeConfig.node,
         position,
         initialValues: { doc },
-      });
+      }).settled;
     },
     [createNode],
   );
@@ -198,7 +200,7 @@ export function useCanvasContentIngest() {
             title: file.name.replace(/\.csv$/i, ""),
           },
         },
-      });
+      }).settled;
     },
     [createNode],
   );
@@ -241,10 +243,11 @@ export function useCanvasContentIngest() {
         return;
       }
 
-      const { nodeId, nodeDataId } = await createNode({
+      const { nodeId, settled } = createNode({
         node: audioNodeConfig.node,
         position,
       });
+      const { nodeDataId } = await settled;
 
       try {
         const fileData = await uploadFile(file);
@@ -299,10 +302,11 @@ export function useCanvasContentIngest() {
         return;
       }
 
-      const { nodeId, nodeDataId } = await createNode({
+      const { nodeId, settled } = createNode({
         node: videoNodeConfig.node,
         position,
       });
+      const { nodeDataId } = await settled;
 
       try {
         // The capture reads the local file, so it costs nothing to run it
@@ -356,10 +360,11 @@ export function useCanvasContentIngest() {
         return;
       }
 
-      const { nodeId, nodeDataId } = await createNode({
+      const { nodeId, settled } = createNode({
         node: pdfNodeConfig.node,
         position,
       });
+      const { nodeDataId } = await settled;
 
       try {
         const fileData = await uploadFile(file);

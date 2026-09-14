@@ -81,13 +81,26 @@ export function useCreateNode() {
     from: "/canvas/$canvasId",
   });
 
-  const createNode = async ({
+  /**
+   * Crée un node en local-first et retourne **aussitôt** son `nodeId` : le
+   * node est déjà visible quand l'appel rend la main. `settled` résout à la
+   * confirmation serveur (`{ nodeId, nodeDataId }`) et rejette en cas
+   * d'échec (rollback local + toast déjà effectués dans le hook).
+   *
+   * Motif miroir de `useCreateEdge` : qui a besoin de l'id sans attendre
+   * (ex. chaîner une edge) l'utilise directement, qui a besoin du
+   * `nodeDataId` fait `await settled`.
+   */
+  const createNode = ({
     node,
     position,
     initialValues = {},
     autoEdit = false,
     selectNewNode = true,
-  }: CreateNodeOptions): Promise<CreateNodeResult> => {
+  }: CreateNodeOptions): {
+    nodeId: string;
+    settled: Promise<CreateNodeResult>;
+  } => {
     // Custom nodes : défauts calculés depuis le template (values keyées
     // par fieldId), templateId persisté sur le nodeData (lien autoritaire ;
     // node.data.templateId reste la copie dénormalisée côté canvas).
@@ -187,77 +200,81 @@ export function useCreateNode() {
     // réponse : un titre fraîchement créé est éditable immédiatement.
     useNodeEditorStore.getState().setEditingNodeId(autoEdit ? nodeId : null);
 
-    let created: Array<{ nodeId: string; nodeDataId: Id<"nodeDatas"> }>;
-    try {
-      created = await trackCanvasSync(() =>
-        createWithNodeData({
-          nodes: [
-            {
-              id: nodeId,
-              node: {
-                canvasId,
-                type: (node.type ?? "default") as NodeType,
-                position,
-                width: node.measured?.width ?? node.width ?? 0,
-                height: node.measured?.height ?? node.height ?? 0,
-                zIndex,
-                ...(color && { color }),
-                variant: variant ?? "default",
-                ...(node.parentId && { parentId: node.parentId }),
-                ...(node.extent && {
-                  extent: node.extent as
-                    | "parent"
-                    | Array<Array<number>>,
-                }),
-                ...(node.expandParent && { extendParent: true }),
-                ...(Object.keys(restData).length > 0 && { data: restData }),
-              },
-              nodeDataValues: values,
-              ...(templateId && { nodeDataTemplateId: templateId }),
+    // `settled` résout à la confirmation serveur ; en attendant, le node est
+    // déjà visible (local-first ci-dessus) et `nodeId` est utilisable
+    // aussitôt — c'est ce qui permet de chaîner une edge sans latence.
+    const settled: Promise<CreateNodeResult> = trackCanvasSync(() =>
+      createWithNodeData({
+        nodes: [
+          {
+            id: nodeId,
+            node: {
+              canvasId,
+              type: (node.type ?? "default") as NodeType,
+              position,
+              width: node.measured?.width ?? node.width ?? 0,
+              height: node.measured?.height ?? node.height ?? 0,
+              zIndex,
+              ...(color && { color }),
+              variant: variant ?? "default",
+              ...(node.parentId && { parentId: node.parentId }),
+              ...(node.extent && {
+                extent: node.extent as
+                  | "parent"
+                  | Array<Array<number>>,
+              }),
+              ...(node.expandParent && { extendParent: true }),
+              ...(Object.keys(restData).length > 0 && { data: restData }),
             },
-          ],
-        }),
-      );
-    } catch (error) {
-      // Rollback du local-first : le cache optimiste est rétabli par Convex,
-      // le node local et le pending restent à notre charge.
-      consumePendingCreation(nodeId);
-      setNodes((current) => current.filter((n) => n.id !== nodeId));
-      if (useNodeEditorStore.getState().editingNodeId === nodeId) {
-        useNodeEditorStore.getState().setEditingNodeId(null);
-      }
-      toastError(error, "Could not add the node");
-      throw error;
-    }
+            nodeDataValues: values,
+            ...(templateId && { nodeDataTemplateId: templateId }),
+          },
+        ],
+      }),
+    )
+      .then((created) => {
+        const { nodeDataId } = created[0];
 
-    const { nodeDataId } = created[0];
+        // Relier au vrai nodeData dès la réponse — no-op si le push serveur a
+        // déjà remplacé le node local (même llmId).
+        setNodes((current) => {
+          const local = current.find((n) => n.id === nodeId);
+          if (
+            !local ||
+            (local.data as { nodeDataId?: Id<"nodeDatas"> } | undefined)
+              ?.nodeDataId === nodeDataId
+          ) {
+            return current;
+          }
+          return current.map((n) =>
+            n.id === nodeId ? { ...n, data: { ...n.data, nodeDataId } } : n,
+          );
+        });
 
-    // Relier au vrai nodeData dès la réponse — no-op si le push serveur a
-    // déjà remplacé le node local (même llmId).
-    setNodes((current) => {
-      const local = current.find((n) => n.id === nodeId);
-      if (
-        !local ||
-        (local.data as { nodeDataId?: Id<"nodeDatas"> } | undefined)
-          ?.nodeDataId === nodeDataId
-      ) {
-        return current;
-      }
-      return current.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, nodeDataId } } : n,
-      );
-    });
+        // Enregistré APRÈS la confirmation serveur : un `trash` sur un node que le
+        // serveur ne connaît pas encore échouerait. Annuler une création, c'est la
+        // mettre à la corbeille — pas la supprimer —, donc la refaire rend le même
+        // nodeData avec tout ce qui y a été saisi entre-temps.
+        recordUndo(
+          { kind: "trashNodes", nodeIds: [nodeId] },
+          { kind: "untrashNodes", nodeIds: [nodeId] },
+        );
 
-    // Enregistré APRÈS la confirmation serveur : un `trash` sur un node que le
-    // serveur ne connaît pas encore échouerait. Annuler une création, c'est la
-    // mettre à la corbeille — pas la supprimer —, donc la refaire rend le même
-    // nodeData avec tout ce qui y a été saisi entre-temps.
-    recordUndo(
-      { kind: "trashNodes", nodeIds: [nodeId] },
-      { kind: "untrashNodes", nodeIds: [nodeId] },
-    );
+        return { nodeId, nodeDataId };
+      })
+      .catch((error: unknown) => {
+        // Rollback du local-first : le cache optimiste est rétabli par Convex,
+        // le node local et le pending restent à notre charge.
+        consumePendingCreation(nodeId);
+        setNodes((current) => current.filter((n) => n.id !== nodeId));
+        if (useNodeEditorStore.getState().editingNodeId === nodeId) {
+          useNodeEditorStore.getState().setEditingNodeId(null);
+        }
+        toastError(error, "Could not add the node");
+        throw error;
+      });
 
-    return { nodeId, nodeDataId };
+    return { nodeId, settled };
   };
 
   return { createNode };

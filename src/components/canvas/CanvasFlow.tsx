@@ -8,6 +8,7 @@ import {
   useReactFlow,
   type Connection,
   type Edge,
+  type FinalConnectionState,
 } from "@xyflow/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import type { Id } from "@/../convex/_generated/dataModel";
@@ -47,6 +48,19 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useIsTouchFirst } from "@/hooks/useTabletMode";
 import "@xyflow/react/dist/style.css";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
+import { generateLlmId } from "@/../convex/lib/llmId";
+import {
+  FALLBACK_NODE_HEIGHT,
+  FALLBACK_NODE_WIDTH,
+  getBestTargetHandle,
+  getClosestHandlesForDirectedEdge,
+  parseSourceSide,
+  type ConnectionNodeRect,
+} from "@/lib/connectionHandles";
+import type {
+  ConnectedNodeCreatedInfo,
+  PendingCanvasConnection,
+} from "@/types/ui/context-menu.types";
 
 /**
  * `desktop` : souris et clavier, sélection au lasso, menu contextuel.
@@ -409,6 +423,163 @@ export default function CanvasFlow({
     [createEdge, handleEdgeChange, setEdges],
   );
 
+  // Drag d'un handle source lâché dans le vide : ouvre le menu « Add a node »
+  // au point de drop. Desktop uniquement (`panWithFinger` couvre tactile,
+  // mobile et touch-first) : au doigt, le drag part en pan. `toNode` non nul
+  // = drop sur un node, `onConnect` a déjà pris le relais. Les handles
+  // cibles sont invisibles hors connexion : seul un drag source est possible.
+  const handleConnectEnd = useCallback(
+    (
+      event: globalThis.MouseEvent | globalThis.TouchEvent,
+      connectionState: FinalConnectionState,
+    ) => {
+      if (panWithFinger || !canEdit) {
+        return;
+      }
+      if (connectionState.toNode) {
+        return;
+      }
+      const fromNode = connectionState.fromNode;
+      const fromHandle = connectionState.fromHandle;
+      if (!fromNode || !fromHandle || fromHandle.type !== "source") {
+        return;
+      }
+      // Lâché hors du canvas (sidebar, panneau) : rien à poser.
+      const target = event.target as Element | null;
+      if (
+        target &&
+        typeof target.closest === "function" &&
+        !target.closest(".react-flow")
+      ) {
+        return;
+      }
+      let clientX: number | null = null;
+      let clientY: number | null = null;
+      if ("changedTouches" in event) {
+        const touch = event.changedTouches[0] ?? event.touches[0];
+        if (touch) {
+          clientX = touch.clientX;
+          clientY = touch.clientY;
+        }
+      } else {
+        clientX = event.clientX;
+        clientY = event.clientY;
+      }
+      if (clientX == null || clientY == null) {
+        return;
+      }
+      const pending: PendingCanvasConnection = {
+        sourceNodeId: fromNode.id,
+        sourceHandleId: fromHandle.id ?? null,
+        dropFlowPosition: screenToFlowPosition({ x: clientX, y: clientY }),
+      };
+      setContextMenu({
+        type: "canvas",
+        position: { x: clientX, y: clientY },
+        element: pending,
+      });
+    },
+    [panWithFinger, canEdit, screenToFlowPosition, setContextMenu],
+  );
+
+  // Chaînage de l'edge après création du node depuis un drag dans le vide :
+  // le handle source reste celui attrapé par l'utilisateur, seul le handle
+  // cible du nouveau node est calculé (le plus proche du point source).
+  // L'edge visuelle est posée aussitôt (même frame que le node) ; sa
+  // persistance attend la confirmation serveur du node — le serveur refuse
+  // une edge vers un node pas encore commité.
+  const handleConnectionNodeCreated = useCallback(
+    (info: ConnectedNodeCreatedInfo) => {
+      const { pendingConnection, nodeId, position } = info;
+      if (nodeId === pendingConnection.sourceNodeId) {
+        return;
+      }
+      const sourceNode = getNodes().find(
+        (node) => node.id === pendingConnection.sourceNodeId,
+      );
+      if (!sourceNode) {
+        return;
+      }
+      const sourceRect: ConnectionNodeRect = {
+        id: sourceNode.id,
+        position: { ...sourceNode.position },
+        width:
+          sourceNode.measured?.width ??
+          sourceNode.width ??
+          FALLBACK_NODE_WIDTH,
+        height:
+          sourceNode.measured?.height ??
+          sourceNode.height ??
+          FALLBACK_NODE_HEIGHT,
+      };
+      const targetRect: ConnectionNodeRect = {
+        id: nodeId,
+        position: { ...position },
+        width: info.width,
+        height: info.height,
+      };
+      const sourceSide = parseSourceSide(pendingConnection.sourceHandleId);
+      let sourceHandle: string;
+      let targetHandle: string;
+      if (pendingConnection.sourceHandleId && sourceSide) {
+        sourceHandle = pendingConnection.sourceHandleId;
+        targetHandle = getBestTargetHandle({
+          sourceRect,
+          sourceSide,
+          target: targetRect,
+        });
+      } else {
+        const handles = getClosestHandlesForDirectedEdge({
+          from: sourceRect,
+          to: targetRect,
+        });
+        sourceHandle = handles.sourceHandle;
+        targetHandle = handles.targetHandle;
+      }
+      // Id pré-généré : le visuel et la persistance (différée) partagent le
+      // même llmId, préservé tel quel par le serveur.
+      const edgeId = generateLlmId();
+      const removeLocalEdge = () => {
+        setEdges((current) => current.filter((edge) => edge.id !== edgeId));
+      };
+      handleEdgeChange([
+        {
+          type: "add" as const,
+          item: {
+            id: edgeId,
+            source: sourceRect.id,
+            target: nodeId,
+            sourceHandle,
+            targetHandle,
+            markerEnd: {
+              type: MarkerType.Arrow,
+              width: 30,
+              height: 30,
+              strokeWidth: 1,
+            },
+          },
+        },
+      ]);
+      // Persistance différée : le node doit exister côté serveur avant l'edge.
+      // Échec du node (toast + rollback déjà gérés par son hook) : on retire
+      // l'edge orpheline, sans second toast.
+      void info.nodeSettled.then(
+        () => {
+          const { settled } = createEdge({
+            edgeId,
+            source: sourceRect.id,
+            target: nodeId,
+            sourceHandle,
+            targetHandle,
+          });
+          void settled.catch(removeLocalEdge);
+        },
+        removeLocalEdge,
+      );
+    },
+    [createEdge, getNodes, handleEdgeChange, setEdges],
+  );
+
   // Fond partagé : stocké sur le doc canvas, défauts front si absent
   // (nouveaux canvas + anciens sans champ). `none` => pas de motif.
   const resolvedBackground = useMemo(
@@ -480,6 +651,11 @@ export default function CanvasFlow({
         onEdgesChange={handleEdgeChange}
         onNodesChange={handleNodeChange}
         onConnect={onConnect}
+        // Desktop uniquement : au doigt, le drag sur le pane pan toujours et
+        // les viewers (`!canEdit`) ne créent rien.
+        onConnectEnd={
+          !canEdit || panWithFinger ? undefined : handleConnectEnd
+        }
         isValidConnection={isValidConnection}
       >
         {backgroundVariant ? (
@@ -510,6 +686,7 @@ export default function CanvasFlow({
           <ContextMenu
             contextMenu={contextMenu}
             setContextMenu={setContextMenu}
+            onConnectionNodeCreated={handleConnectionNodeCreated}
           />
         )}
       </ReactFlow>

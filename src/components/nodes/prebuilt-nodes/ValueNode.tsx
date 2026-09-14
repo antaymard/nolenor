@@ -12,7 +12,7 @@ import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Switch } from "@/components/shadcn/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
-import { TbTag, TbCheck, TbX, TbPencil } from "react-icons/tb";
+import { TbTag, TbCheck, TbX, TbPencil, TbChevronDown } from "react-icons/tb";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import type { XyNodeProps } from "@/types/domain";
@@ -20,17 +20,15 @@ import type { XyNodeProps } from "@/types/domain";
 export type ValueDataType = "text" | "number" | "boolean";
 
 export type ValueType = {
-  type: ValueDataType;
+  type?: ValueDataType;
   value: string | number | boolean | null;
-  unit: string;
-  label: string;
+  unit?: string;
+  label?: string;
 };
 
 const defaultValue: ValueType = {
   type: "text",
   value: null,
-  unit: "",
-  label: "",
 };
 
 function ValueNode(xyNode: XyNodeProps) {
@@ -44,8 +42,10 @@ function ValueNode(xyNode: XyNodeProps) {
   const [inputUnit, setInputUnit] = useState("");
   const [inputLabel, setInputLabel] = useState("");
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
 
   const valueData = (values?.value as ValueType | undefined) ?? defaultValue;
+  const valueType = valueData.type ?? "text";
 
   const handleSave = () => {
     if (!nodeDataId) return;
@@ -82,16 +82,23 @@ function ValueNode(xyNode: XyNodeProps) {
   const handlePopoverOpenChange = (open: boolean) => {
     setIsPopoverOpen(open);
     if (open) {
-      setInputType(valueData.type ?? "text");
-      if (valueData.type === "boolean") {
+      const currentType = valueData.type ?? "text";
+      setInputType(currentType);
+      if (currentType === "boolean") {
         setInputBoolean(valueData.value === true);
         setInputValue("");
       } else {
         setInputValue(valueData.value !== null ? String(valueData.value) : "");
         setInputBoolean(false);
       }
-      setInputUnit(valueData.unit);
-      setInputLabel(valueData.label);
+      setInputUnit(valueData.unit ?? "");
+      setInputLabel(valueData.label ?? "");
+      // Options repliées par défaut, sauf si déjà renseignées.
+      setShowOptions(
+        currentType !== "text" ||
+          (valueData.unit?.length ?? 0) > 0 ||
+          (valueData.label?.length ?? 0) > 0,
+      );
     }
   };
 
@@ -112,11 +119,11 @@ function ValueNode(xyNode: XyNodeProps) {
   };
 
   const hasContent = valueData?.value !== null;
-  const hasUnit = valueData.unit?.length > 0;
-  const hasLabel = valueData.label?.length > 0;
+  const hasUnit = (valueData.unit?.length ?? 0) > 0;
+  const hasLabel = (valueData.label?.length ?? 0) > 0;
 
   const renderValue = () => {
-    if (valueData.type === "boolean") {
+    if (valueType === "boolean") {
       return valueData.value ? (
         <TbCheck className="text-green-500" size={32} />
       ) : (
@@ -144,28 +151,6 @@ function ValueNode(xyNode: XyNodeProps) {
               }}
             >
               <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">Type</span>
-                <ToggleGroup
-                  type="single"
-                  value={inputType}
-                  onValueChange={handleTypeChange}
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                >
-                  <ToggleGroupItem value="text" className="flex-1">
-                    Text
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="number" className="flex-1">
-                    Number
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="boolean" className="flex-1">
-                    Yes/No
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-
-              <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">Value</span>
                 {inputType === "boolean" ? (
                   <div className="flex items-center gap-2 py-1">
@@ -188,23 +173,72 @@ function ValueNode(xyNode: XyNodeProps) {
                 )}
               </div>
 
-              {inputType !== "boolean" && (
-                <Input
-                  onDoubleClick={(e) => e.stopPropagation()}
-                  type="text"
-                  placeholder="Unit (kg, $, %...)"
-                  value={inputUnit}
-                  onChange={(e) => setInputUnit(e.target.value)}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowOptions((v) => !v)}
+                className="justify-between text-muted-foreground"
+              >
+                Options (optional)
+                <TbChevronDown
+                  className={showOptions ? "rotate-180 transition-transform" : "transition-transform"}
                 />
-              )}
+              </Button>
 
-              <Input
-                onDoubleClick={(e) => e.stopPropagation()}
-                type="text"
-                placeholder="Label"
-                value={inputLabel}
-                onChange={(e) => setInputLabel(e.target.value)}
-              />
+              {showOptions && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Type</span>
+                    <ToggleGroup
+                      type="single"
+                      value={inputType}
+                      onValueChange={handleTypeChange}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <ToggleGroupItem value="text" className="flex-1">
+                        Text
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="number" className="flex-1">
+                        Number
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="boolean" className="flex-1">
+                        Yes/No
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
+
+                  {inputType !== "boolean" && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-muted-foreground">
+                        Unit (optional)
+                      </span>
+                      <Input
+                        onDoubleClick={(e) => e.stopPropagation()}
+                        type="text"
+                        placeholder="kg, $, %..."
+                        value={inputUnit}
+                        onChange={(e) => setInputUnit(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      Label (optional)
+                    </span>
+                    <Input
+                      onDoubleClick={(e) => e.stopPropagation()}
+                      type="text"
+                      placeholder="Label"
+                      value={inputLabel}
+                      onChange={(e) => setInputLabel(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
 
               <Button type="submit" size="sm">
                 Save
@@ -219,7 +253,7 @@ function ValueNode(xyNode: XyNodeProps) {
             <>
               <div className="flex items-baseline gap-1">
                 {renderValue()}
-                {hasUnit && valueData.type !== "boolean" && (
+                {hasUnit && valueType !== "boolean" && (
                   <span className="text-sm text-muted-foreground">
                     {valueData.unit}
                   </span>

@@ -9,6 +9,11 @@ import { trackCanvasSync } from "@/lib/trackCanvasSync";
 import { recordUndo } from "@/stores/canvasHistoryStore";
 
 type CreateEdgeInput = {
+  /**
+   * Id local-first pré-généré (ex. edge posée visuellement avant sa
+   * persistance) : préservé tel quel par le serveur. Absent = généré ici.
+   */
+  edgeId?: string;
   source: string;
   target: string;
   sourceHandle?: string;
@@ -70,12 +75,12 @@ export function useCreateEdge() {
   });
 
   const createEdge = ({
+    edgeId = generateLlmId(),
     source,
     target,
     sourceHandle,
     targetHandle,
   }: CreateEdgeInput) => {
-    const edgeId = generateLlmId();
     const settled = trackCanvasSync(() =>
       createEdges({
         edges: [

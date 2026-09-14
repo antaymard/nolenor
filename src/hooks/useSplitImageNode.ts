@@ -92,7 +92,7 @@ export function useSplitImageNode(): UseSplitImageNodeReturn {
           // La source garde la sélection : sa toolbar (et le Dialog
           // d'édition) reste montée, la modale ne se ferme pas.
           selectNewNode: false,
-        });
+        }).settled;
         return true;
       } catch (error) {
         toastError(error, "Error extracting image");

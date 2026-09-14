@@ -53,7 +53,7 @@ export function useCreateNodesFromItems() {
         verb === "pasted" ? "Paste nodes" : "Duplicate nodes",
         async () => {
           for (const item of creatable) {
-            const { nodeId } = await createNode({
+            const { nodeId, settled } = createNode({
               node: item.node,
               position: {
                 x: anchor.x + (item.node.position.x - minX),
@@ -62,6 +62,9 @@ export function useCreateNodesFromItems() {
               initialValues: item.values,
               selectNewNode: false,
             });
+            // Attente conservée : la transaction undo couvre les confirmations
+            // serveur, et un rejet interrompt la boucle comme avant.
+            await settled;
             createdIds.push(nodeId);
           }
         },

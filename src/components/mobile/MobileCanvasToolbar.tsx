@@ -1,6 +1,13 @@
 import { useCallback, useState, type RefObject } from "react";
 import { useReactFlow, useStore } from "@xyflow/react";
-import { TbCopy, TbPlus, TbTrash } from "react-icons/tb";
+import {
+  TbArrowBackUp,
+  TbArrowForwardUp,
+  TbCopy,
+  TbPlus,
+  TbTrash,
+} from "react-icons/tb";
+import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import {
   DropdownMenu,
@@ -11,6 +18,7 @@ import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import AddBlockMenuContent from "@/components/canvas/context-menus/AddBlockMenuContent";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
+import { useCanvasHistory } from "@/hooks/useCanvasHistory";
 
 /**
  * La barre d'outils du canvas mobile.
@@ -20,14 +28,17 @@ import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
  * chemin pour supprimer ou dupliquer un node au doigt.
  */
 export default function MobileCanvasToolbar({
+  canvasId,
   containerRef,
 }: {
+  canvasId: Id<"canvases">;
   containerRef: RefObject<HTMLDivElement | null>;
 }) {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const { screenToFlowPosition, getNodes } = useReactFlow();
   const { deleteCanvasElements } = useDeleteCanvasElements();
   const { duplicateNode } = useDuplicateNode();
+  const { undo, redo, canUndo, canRedo } = useCanvasHistory(canvasId);
 
   // On ne souscrit qu'à l'ensemble des ids sélectionnés : pan, zoom et drag ne
   // doivent pas re-rendre la barre.
@@ -84,6 +95,25 @@ export default function MobileCanvasToolbar({
           />
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={!canUndo}
+        onClick={() => void undo()}
+        aria-label="Annuler"
+      >
+        <TbArrowBackUp size={20} />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={!canRedo}
+        onClick={() => void redo()}
+        aria-label="Rétablir"
+      >
+        <TbArrowForwardUp size={20} />
+      </Button>
 
       {selectedIds.length === 1 && (
         <Button

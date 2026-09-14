@@ -33,7 +33,10 @@ export default function MobileCanvasTab({
       >
         {canEdit ? (
           <Panel position="bottom-center">
-            <MobileCanvasToolbar containerRef={containerRef} />
+            <MobileCanvasToolbar
+              canvasId={canvasId}
+              containerRef={containerRef}
+            />
           </Panel>
         ) : null}
       </CanvasFlow>

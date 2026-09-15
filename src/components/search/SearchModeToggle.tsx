@@ -2,7 +2,10 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { cn } from "@/lib/utils";
 import type { SearchMode } from "./useSearch";
 
-const LABELS: Record<SearchMode, { full: string; short: string; hint: string }> = {
+const LABELS: Record<
+  SearchMode,
+  { full: string; short: string; hint: string }
+> = {
   keyword: { full: "Keyword", short: "Key", hint: "Keyword search" },
   auto: { full: "Auto", short: "Auto", hint: "Hybrid search" },
   semantic: { full: "Semantic", short: "Sem", hint: "Semantic search" },
@@ -36,7 +39,12 @@ export function SearchModeToggle({
       className={cn("shrink-0", className)}
     >
       {MODES.map((mode) => (
-        <ToggleGroupItem key={mode} value={mode} aria-label={LABELS[mode].hint}>
+        <ToggleGroupItem
+          key={mode}
+          value={mode}
+          aria-label={LABELS[mode].hint}
+          className="text-xs"
+        >
           {compact ? LABELS[mode].short : LABELS[mode].full}
         </ToggleGroupItem>
       ))}

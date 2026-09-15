@@ -217,26 +217,6 @@ export default function SearchModale() {
               <TbX />
             </Button>
           ) : null}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            aria-label="Close"
-            onClick={() => closeSearchModal()}
-          >
-            <TbX />
-          </Button>
-        </div>
-
-        {/* Type filters + search mode + title-only toggle + syntax hint */}
-        <div className="flex items-center gap-3 border-b px-3 py-2">
-          <SearchTypeFilter
-            selected={nodeTypes}
-            onToggle={toggleNodeType}
-            onClear={clearNodeTypes}
-            className="min-w-0 flex-1"
-          />
-          <SearchModeToggle value={searchMode} onChange={setSearchMode} />
           <label
             className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none"
             title={
@@ -255,13 +235,26 @@ export default function SearchModale() {
             />
             Titles only
           </label>
-          <span className="hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground lg:flex">
-            <code className="rounded bg-muted px-1">
-              &quot;exact phrase&quot;
-            </code>
-            <code className="rounded bg-muted px-1">-exclude</code>
-            <code className="rounded bg-muted px-1">a OR b</code>
-          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            aria-label="Close"
+            onClick={() => closeSearchModal()}
+          >
+            <TbX />
+          </Button>
+        </div>
+
+        {/* Type filters + search mode */}
+        <div className="flex items-center gap-3 border-b px-3 py-2">
+          <SearchTypeFilter
+            selected={nodeTypes}
+            onToggle={toggleNodeType}
+            onClear={clearNodeTypes}
+            className="min-w-0 flex-1"
+          />
+          <SearchModeToggle value={searchMode} onChange={setSearchMode} />
         </div>
 
         {/* Screen reader announcement */}

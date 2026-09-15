@@ -11,6 +11,11 @@ import {
   parseSearchQuery,
 } from "./lib/searchQuery";
 import { stripLoneSurrogates } from "./lib/textSanitize";
+import {
+  getImageUrlFromMetadata,
+  getImageUrlsFromMetadata,
+  getPageFromMetadata,
+} from "./lib/chunkMetadata";
 
 const SNIPPET_RADIUS = 90;
 const MAX_SNIPPETS_PER_CHUNK = 1;
@@ -268,7 +273,7 @@ export const listPdfPages = query({
 });
 
 /** Extraits centrés sur les mots POSITIFS de la requête (jamais sur `-exclu`). */
-function buildChunkSnippets(text: string, queryTerms: string[]) {
+export function buildChunkSnippets(text: string, queryTerms: string[]) {
   const normalizedText = text.replace(/\s+/g, " ").trim();
   if (!normalizedText) return [];
 
@@ -331,39 +336,6 @@ function buildChunkSnippets(text: string, queryTerms: string[]) {
   }
 
   return matches;
-}
-
-function getPageFromMetadata(metadata: unknown): number | undefined {
-  if (!metadata || typeof metadata !== "object") return undefined;
-  const maybePage = (metadata as { page?: unknown }).page;
-  return typeof maybePage === "number" ? maybePage : undefined;
-}
-
-function getImageUrlFromMetadata(metadata: unknown): string | undefined {
-  const urls = getImageUrlsFromMetadata(metadata);
-  return urls[0];
-}
-
-function getImageUrlsFromMetadata(metadata: unknown): string[] {
-  if (!metadata || typeof metadata !== "object") return [];
-
-  const structuredImage = (metadata as { image?: unknown }).image;
-  if (structuredImage && typeof structuredImage === "object") {
-    const structuredImageUrl = (structuredImage as { url?: unknown }).url;
-    if (typeof structuredImageUrl === "string") {
-      return [structuredImageUrl];
-    }
-  }
-
-  const maybeImageUrls = (metadata as { imageUrls?: unknown }).imageUrls;
-  if (Array.isArray(maybeImageUrls)) {
-    return maybeImageUrls.filter(
-      (value): value is string => typeof value === "string",
-    );
-  }
-
-  const maybeImageUrl = (metadata as { imageUrl?: unknown }).imageUrl;
-  return typeof maybeImageUrl === "string" ? [maybeImageUrl] : [];
 }
 
 function ellipsize(text: string): string {

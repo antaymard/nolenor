@@ -7,6 +7,10 @@ import {
 } from "@/components/shadcn/dialog";
 import { Spinner } from "@/components/shadcn/spinner";
 import { Switch } from "@/components/shadcn/switch";
+import {
+  SearchDegradedNotice,
+  SearchModeToggle,
+} from "@/components/search/SearchModeToggle";
 import { Kbd, KbdGroup } from "@/components/shadcn/kbd";
 import { cn } from "@/lib/utils";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
@@ -75,6 +79,9 @@ export default function SearchModale() {
     clearNodeTypes,
     titleOnly,
     toggleTitleOnly,
+    searchMode,
+    setSearchMode,
+    degraded,
   } = useSearch({ canvasId, query: searchQuery, enabled: isOpen });
 
   const listboxId = useId();
@@ -187,7 +194,9 @@ export default function SearchModale() {
             placeholder={
               titleOnly
                 ? 'Search titles — "exact phrase", -exclude, a OR b'
-                : 'Search — "exact phrase", -exclude, a OR b'
+                : searchMode === "semantic"
+                  ? "Semantic search — describe the idea in your own words"
+                  : 'Search — "exact phrase", -exclude, a OR b'
             }
             className="min-w-0 flex-1 border-none bg-transparent outline-none placeholder:text-muted-foreground"
             value={searchQuery}
@@ -208,6 +217,24 @@ export default function SearchModale() {
               <TbX />
             </Button>
           ) : null}
+          <label
+            className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none"
+            title={
+              searchMode === "keyword"
+                ? "Ne chercher que dans les titres"
+                : "Disponible en mode Keyword uniquement"
+            }
+            // Keep focus in the input: keyboard navigation depends on it.
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            <Switch
+              checked={titleOnly}
+              onCheckedChange={toggleTitleOnly}
+              disabled={searchMode !== "keyword"}
+              aria-label="Titles only"
+            />
+            Titles only
+          </label>
           <Button
             variant="ghost"
             size="icon"
@@ -219,7 +246,7 @@ export default function SearchModale() {
           </Button>
         </div>
 
-        {/* Type filters + title-only toggle + syntax hint */}
+        {/* Type filters + search mode */}
         <div className="flex items-center gap-3 border-b px-3 py-2">
           <SearchTypeFilter
             selected={nodeTypes}
@@ -227,26 +254,7 @@ export default function SearchModale() {
             onClear={clearNodeTypes}
             className="min-w-0 flex-1"
           />
-          <label
-            className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none"
-            title="Ne chercher que dans les titres"
-            // Keep focus in the input: keyboard navigation depends on it.
-            onMouseDown={(event) => event.preventDefault()}
-          >
-            <Switch
-              checked={titleOnly}
-              onCheckedChange={toggleTitleOnly}
-              aria-label="Titles only"
-            />
-            Titles only
-          </label>
-          <span className="hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground lg:flex">
-            <code className="rounded bg-muted px-1">
-              &quot;exact phrase&quot;
-            </code>
-            <code className="rounded bg-muted px-1">-exclude</code>
-            <code className="rounded bg-muted px-1">a OR b</code>
-          </span>
+          <SearchModeToggle value={searchMode} onChange={setSearchMode} />
         </div>
 
         {/* Screen reader announcement */}
@@ -286,6 +294,9 @@ export default function SearchModale() {
                   <div className="mx-2 mt-1 mb-2 rounded-md border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                     No exact results — showing close matches.
                   </div>
+                ) : null}
+                {degraded ? (
+                  <SearchDegradedNotice className="mx-2 mt-1 mb-2" />
                 ) : null}
                 <div className="px-2 pt-1 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
                   {resultCount} result{resultCount > 1 ? "s" : ""}

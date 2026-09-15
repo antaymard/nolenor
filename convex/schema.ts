@@ -138,6 +138,17 @@ const schema = defineSchema({
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["canvasId", "nodeDataId", "nodeType", "chunkType"],
+    })
+    // Recherche sémantique : dimensions = output_dimension Voyage (512).
+    // Seul `canvasId` en filterField : le filter du vectorSearch n'a pas de
+    // AND inter-champs, donc `nodeType` / `nodeDataId` se filtrent en TS après
+    // hydratation. Pas de `staged: true` : un index stagé est exclu des types
+    // (VectorIndexNames = never) ET inutilisable en requête jusqu'au 2ᵉ
+    // deploy — la table est petite, le backfill direct est acceptable.
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 512,
+      filterFields: ["canvasId"],
     }),
 
   wishlistEmails: defineTable(wishlistEmailsValidator).index("by_email", [

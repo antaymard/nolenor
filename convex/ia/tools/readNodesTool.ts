@@ -50,10 +50,18 @@ const MAX_ATTACHED_IMAGES_PER_CALL = 4;
 const IMAGE_HINTS = {
   notIndexed:
     "Image content not yet indexed. Raw image URLs are listed below; use view_image if needed.",
-  canView: (nodeId: string, count: number) =>
-    `${count} image(s) on this node. The description above was written by an indexing pass, not by you. ` +
-    `To look at the pixels yourself, re-call read_nodes with viewImages=["${nodeId}"], or call view_image. ` +
-    `Do it only when the description is not enough — an attached image costs ~800 tokens on every following step.`,
+  // Émis UNE fois en trailer, jamais par node : le texte était identique à
+  // ~60 tokens près par node image lu sans `viewImages`.
+  canView: (entries: Array<{ nodeId: string; count: number }>) =>
+    `Indexed descriptions only (written by an indexing pass, not seen by you) for ` +
+    entries
+      .map(
+        ({ nodeId, count }) =>
+          `${nodeId} (${count} image${count > 1 ? "s" : ""})`,
+      )
+      .join(", ") +
+    `. Re-call with viewImages=[${entries.map(({ nodeId }) => `"${nodeId}"`).join(", ")}] ` +
+    `or call view_image for pixels (~800 tokens/step each).`,
   notAnImage: "viewImages was provided for a non-image node and was ignored.",
   notMultimodal:
     "viewImages was requested but the current model cannot read images; only the text description is returned.",
@@ -63,7 +71,7 @@ const IMAGE_HINTS = {
     `${nodeIds.length > 1 ? "were" : "was"} not read. Add ${nodeIds.length > 1 ? "them" : "it"} to nodeIds to see the image(s).`,
   capped: (attached: number, requested: number) =>
     `Attached ${attached} of ${requested} images (cap ${MAX_ATTACHED_IMAGES_PER_CALL} per call). ` +
-    `Re-call read_nodes with viewImages for the rest.`,
+    `Call view_image with a nodeId and offset to see the rest.`,
 } as const;
 
 const TABLE_DEFAULT_ROW_LIMIT = 50;
@@ -73,7 +81,7 @@ const TABLE_MAX_CHARS = 60_000;
 const TABLE_HINTS = {
   notATable: "tableRows was provided for a non-table node and was ignored.",
   defaultCap: (totalRows: number, displayedCount: number) =>
-    `Showing ${displayedCount} of ${totalRows} rows (default cap: ${TABLE_DEFAULT_ROW_LIMIT}). Use full_text_search for token lookup, or call read_nodes with tableRows=[{nodeId, offset, limit}] or tableRows=[{nodeId, rowIds:[…]}] to target specific rows.`,
+    `Showing ${displayedCount} of ${totalRows} rows (default cap: ${TABLE_DEFAULT_ROW_LIMIT}). Use search_canvas for token lookup, or call read_nodes with tableRows=[{nodeId, offset, limit}] or tableRows=[{nodeId, rowIds:[…]}] to target specific rows.`,
   hardCap: (totalRows: number, displayedCount: number) =>
     `Showing ${displayedCount} of ${totalRows} rows (capped at ${TABLE_MAX_ROW_LIMIT}). Re-call with a smaller limit or specific rowIds.`,
   charLimit: (totalRows: number, displayedCount: number) =>
@@ -477,7 +485,7 @@ export default function readNodesTool({
       "Pass `pdfPages=[{nodeId, pages:[…]}]` to read the full OCR markdown of specific 1-based pages instead. " +
       "PDF chunks come from cached Mistral OCR; nodes not yet indexed are flagged. " +
       `For table nodes, by default returns the first ${TABLE_DEFAULT_ROW_LIMIT} rows along with column definitions (incl. select options and node references). ` +
-      "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after full_text_search to read matched rows).",
+      "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after search_canvas to read matched rows).",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeIds: z
@@ -822,7 +830,8 @@ export default function readNodesTool({
                 embedUrl: null as string | null,
                 embedIframeUrl: null as string | null,
                 embedType: null as string | null,
-                imageUrls: [] as string[],
+                images: [] as Array<{ url: string; name: string | null }>,
+                storedImageCount: 0,
                 error: error ?? "Unknown node read error",
               };
             }
@@ -853,7 +862,8 @@ export default function readNodesTool({
             let tableBody: string | null = null;
             let tableTotalRows: number | null = null;
             let tableDisplayedRows: number | null = null;
-            let imageUrls: string[] = [];
+            let images: Array<{ url: string; name: string | null }> = [];
+            let storedImageCount = 0;
 
             if (node.type === "image") {
               // Les URLs vivantes, pas celles des metadata du chunk : celles-ci
@@ -861,6 +871,7 @@ export default function readNodesTool({
               // été remplacée depuis.
               const storedImages = readStoredImages(nodeData.values);
               const attach = attachImagesFor.has(nodeId);
+              storedImageCount = storedImages.length;
 
               const imageChunks = await ctx.runQuery(
                 internal.wrappers.searchableChunkWrappers.listByNodeDataId,
@@ -886,18 +897,20 @@ export default function readNodesTool({
                 : `<imageStatus>${escapeXmlText(IMAGE_HINTS.notIndexed)}</imageStatus>\n${content}`;
 
               if (attach) {
-                imageUrls = storedImages.map((image) => image.url);
-                if (imageUrls.length === 0) {
+                images = storedImages.map((image) => ({
+                  url: image.url,
+                  name:
+                    typeof image.filename === "string" &&
+                    image.filename.length > 0
+                      ? image.filename
+                      : null,
+                }));
+                if (images.length === 0) {
                   content = `<warning>${escapeXmlText(IMAGE_HINTS.noImages)}</warning>\n${content}`;
                 }
-              } else if (isMultimodal && storedImages.length > 0) {
-                // Seulement si le modèle sait lire une image : sinon le hint
-                // désigne `viewImages` et `view_image`, dont l'un est ignoré et
-                // l'autre même pas enregistré pour lui.
-                content = `${content}\n<imageHint>${escapeXmlText(
-                  IMAGE_HINTS.canView(nodeId, storedImages.length),
-                )}</imageHint>`;
               }
+              // Pas de hint `canView` ici : il part une seule fois en trailer,
+              // consolidé sur tous les nodes image non-attachés (voir plus bas).
             } else if (viewImagesSet.has(nodeId)) {
               content = `<warning>${escapeXmlText(IMAGE_HINTS.notAnImage)}</warning>\n${content}`;
             }
@@ -953,7 +966,8 @@ export default function readNodesTool({
               tableBody,
               tableTotalRows,
               tableDisplayedRows,
-              imageUrls,
+              images,
+              storedImageCount,
               embedUrl:
                 typeof embed?.url === "string" && embed.url.length > 0
                   ? embed.url
@@ -1135,15 +1149,23 @@ ${content}
         // Les images, dans l'ordre demandé par le modèle : c'est sa priorité,
         // et si le cap tranche, il tranche dans la queue de SA liste.
         const imagesByNodeId = new Map(
-          nodes.map((node) => [node.nodeId, node.imageUrls]),
+          nodes.map((node) => [node.nodeId, node.images]),
         );
-        const attachments: Array<{ nodeId: string; url: string }> = [];
+        const attachments: Array<{
+          nodeId: string;
+          url: string;
+          name: string | null;
+        }> = [];
         let requestedCount = 0;
         for (const nodeId of requestedViewImages) {
-          for (const url of imagesByNodeId.get(nodeId) ?? []) {
+          for (const image of imagesByNodeId.get(nodeId) ?? []) {
             requestedCount += 1;
             if (attachments.length < MAX_ATTACHED_IMAGES_PER_CALL) {
-              attachments.push({ nodeId, url });
+              attachments.push({
+                nodeId,
+                url: image.url,
+                name: image.name,
+              });
             }
           }
         }
@@ -1167,13 +1189,15 @@ ${content}
         }
         if (attachments.length > 0) {
           // Le modèle reçoit N parts image sans étiquette : sans ce manifeste il
-          // ne sait pas laquelle vient de quel node. ~15 tokens par image, et ça
-          // survit à un fournisseur qui réordonne ou fusionne les parts texte.
+          // ne sait pas laquelle vient de quel node. Index + nodeId + filename
+          // (~15 tokens par image) — pas l'URL, déjà portée par la part image
+          // et le bloc `<image>` du node. Ça survit à un fournisseur qui
+          // réordonne ou fusionne les parts texte.
           trailer.push(
             `<attachedImages count="${attachments.length}" cap="${MAX_ATTACHED_IMAGES_PER_CALL}">`,
             ...attachments.map(
-              ({ nodeId, url }, index) =>
-                `${index + 1} | ${nodeId} | ${escapeXmlText(url)}`,
+              ({ nodeId, name }, index) =>
+                `${index + 1} | ${nodeId} | ${name ?? "image"}`,
             ),
             "</attachedImages>",
           );
@@ -1184,6 +1208,30 @@ ${content}
               IMAGE_HINTS.capped(attachments.length, requestedCount),
             )}</imageHint>`,
           );
+        }
+        // Un seul hint `canView` pour tous les nodes image lus sans leurs
+        // pixels — le texte est identique, le payer une fois suffit. Seulement
+        // si le modèle sait lire une image (même condition que l'ancien hint
+        // par node).
+        if (isMultimodal) {
+          const descriptionOnly = nodes.filter(
+            (node) =>
+              node.nodeType === "image" &&
+              node.storedImageCount > 0 &&
+              !attachImagesFor.has(node.nodeId),
+          );
+          if (descriptionOnly.length > 0) {
+            trailer.push(
+              `<imageHint>${escapeXmlText(
+                IMAGE_HINTS.canView(
+                  descriptionOnly.map((node) => ({
+                    nodeId: node.nodeId,
+                    count: node.storedImageCount,
+                  })),
+                ),
+              )}</imageHint>`,
+            );
+          }
         }
 
         console.log("✅ Node read complete", {

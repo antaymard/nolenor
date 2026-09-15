@@ -218,8 +218,11 @@ export default function CanvasFlow({
         return;
       }
 
-      const selectedNodes = getNodes().filter((node) => node.selected);
-      if (copyNodesToClipboard(selectedNodes)) {
+      const allNodes = getNodes();
+      const selectedNodes = allNodes.filter((node) => node.selected);
+      // `allNodes` sert à résoudre la position monde d'un node copié depuis
+      // une frame, même si la frame n'est pas dans la sélection.
+      if (copyNodesToClipboard(selectedNodes, allNodes)) {
         event.preventDefault();
         // Le `preventDefault` ne vide pas le clipboard système : sans ça, un
         // texte copié avant continuerait de prendre le pas sur les nodes au

@@ -20,7 +20,13 @@ export const viewImageToolConfig: ToolConfig = {
 const MAX_VIEW_IMAGES = 4;
 
 type ViewImageOutput =
-  | { success: true; urls: string[] }
+  | {
+      success: true;
+      /** Canvas node id, ou null pour une URL hors canvas. */
+      nodeId: string | null;
+      images: Array<{ url: string; name: string | null }>;
+      total: number;
+    }
   | { success: false; message: string };
 
 export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
@@ -31,7 +37,7 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
       "Look at one or more images yourself, instead of relying on their indexed text description. " +
       "Pass `nodeId` for an image node of the current canvas (preferred: short, and it reads the node's current images), " +
       "or `url` for an image that is not on the canvas (a web search result, a page you opened). " +
-      `Exactly one of the two. At most ${MAX_VIEW_IMAGES} images are returned.`,
+      `Exactly one of the two. At most ${MAX_VIEW_IMAGES} images are returned, from "offset" on; "total" says how many the node holds.`,
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       // Le « exactement un des deux » est vérifié dans `execute`, jamais par un
@@ -51,10 +57,20 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         .describe(
           "The URL of an image to fetch and view. Use it only for images that are not on the canvas.",
         ),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe(
+          "For nodeId only: index of the first image to show (default 0). " +
+            "When the node holds more images than returned, re-call with a higher offset for the rest.",
+        ),
     }),
     execute: async (ctx, input): Promise<ViewImageOutput> => {
       const hasNodeId = typeof input.nodeId === "string" && input.nodeId !== "";
       const hasUrl = typeof input.url === "string" && input.url !== "";
+      const offset = Math.max(Math.trunc(input.offset ?? 0), 0);
 
       if (hasNodeId === hasUrl) {
         return {
@@ -67,7 +83,12 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
       if (hasUrl) {
         console.log(`🖼️ Routing image URL to model: ${input.url}`);
-        return { success: true, urls: [toModelImageUrl(input.url as string)] };
+        return {
+          success: true,
+          nodeId: null,
+          images: [{ url: toModelImageUrl(input.url as string), name: null }],
+          total: 1,
+        };
       }
 
       const nodeId = input.nodeId as string;
@@ -92,14 +113,21 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           };
         }
 
+        const shown = images.slice(offset, offset + MAX_VIEW_IMAGES);
         console.log(
-          `🖼️ Routing ${Math.min(images.length, MAX_VIEW_IMAGES)} image(s) of node ${nodeId} to model`,
+          `🖼️ Routing ${shown.length} image(s) of node ${nodeId} to model (offset ${offset}, total ${images.length})`,
         );
         return {
           success: true,
-          urls: images
-            .slice(0, MAX_VIEW_IMAGES)
-            .map((image) => toModelImageUrl(image.url)),
+          nodeId,
+          images: shown.map((image) => ({
+            url: toModelImageUrl(image.url),
+            name:
+              typeof image.filename === "string" && image.filename.length > 0
+                ? image.filename
+                : null,
+          })),
+          total: images.length,
         };
       } catch (error) {
         return {
@@ -114,9 +142,30 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
       if (!output.success) {
         return { type: "error-text", value: toolError(output.message) };
       }
+      // Une ligne d'ancrage devant les pixels, sinon le modèle reçoit des
+      // images nues sans savoir laquelle est laquelle — ni s'il en manque.
+      const shown = output.images.length;
+      const subject =
+        output.nodeId !== null
+          ? `Images of node ${output.nodeId} (${shown} of ${output.total})`
+          : "Image from URL";
+      const anchor =
+        subject +
+        output.images
+          .map((image, index) => `\n${index + 1}. ${image.name ?? "image"}`)
+          .join("") +
+        (output.total > shown
+          ? `\nShowing ${shown} of ${output.total} — re-call with a higher offset for the rest.`
+          : "");
       return {
         type: "content",
-        value: output.urls.map((url) => ({ type: "image-url" as const, url })),
+        value: [
+          { type: "text" as const, text: anchor },
+          ...output.images.map((image) => ({
+            type: "image-url" as const,
+            url: image.url,
+          })),
+        ],
       };
     },
   });

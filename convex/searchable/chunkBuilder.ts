@@ -331,6 +331,16 @@ async function buildChunks(
       return [{ ...base, chunkType: "node", order: 0, text: title }];
     }
 
+    case "frame": {
+      // Même forme que `viewport`, même raison : le contenu d'une frame est
+      // fait des nodes qu'elle groupe, qui s'indexent chacun pour soi. Elle
+      // n'apporte que son titre. Sans ce `case`, le `default` rendrait une
+      // liste vide et la frame serait introuvable — silencieusement.
+      const title = String(nodeData.values.title ?? "").trim();
+      if (!title) return [];
+      return [{ ...base, chunkType: "node", order: 0, text: title }];
+    }
+
     case "custom": {
       // Concatène les champs textuels (`nom: valeur` par ligne, labels de
       // select résolus, unités incluses). Pas d'indexation vision en V1.

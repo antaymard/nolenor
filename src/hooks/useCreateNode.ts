@@ -9,7 +9,7 @@ import { getDefaultNodeDataValues } from "@/../convex/config/nodeConfig";
 import { getDefaultValuesForTemplate } from "@/../convex/config/fieldConfig";
 import { useParams } from "@tanstack/react-router";
 import { useTemplatesStore } from "@/stores/templatesStore";
-import { nextTopZIndex } from "@/lib/nodeLayering";
+import { nextFrameZIndex, nextTopZIndex } from "@/lib/nodeLayering";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import {
   consumePendingCreation,
@@ -143,7 +143,14 @@ export function useCreateNode() {
       variant?: string;
       [key: string]: unknown;
     };
-    const zIndex = nextTopZIndex(getNodes());
+    // Une frame naît sous les nodes : elle est tracée autour de nodes
+    // existants, la poser au-dessus les masquerait tous à l'instant du tracé.
+    // Décidé ici et pas par l'appelant : c'est une propriété du type, comme le
+    // cadrage capturé d'un `viewport` juste au-dessus.
+    const zIndex =
+      node.type === "frame"
+        ? nextFrameZIndex(getNodes())
+        : nextTopZIndex(getNodes());
 
     // ── Local-first ─────────────────────────────────────────────────
     // Le llmId est généré côté client et passé à la mutation : le node et

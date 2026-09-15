@@ -56,6 +56,10 @@ export function fromCanvasNodeToXyNode(canvasNode: CanvasNode): Node {
     ...(canvasNode.locked === true && { draggable: false }),
     ...(canvasNode.hidden === true && { hidden: true }),
     ...(canvasNode.zIndex != null && { zIndex: canvasNode.zIndex }),
+    // Une frame ne se déplace que par sa barre de titre. Prop client, jamais
+    // persistée : c'est une propriété du TYPE, pas de l'instance — la stocker
+    // en base la rendrait modifiable node par node pour rien.
+    ...(canvasNode.type === "frame" && { dragHandle: ".frame-drag-handle" }),
     data: {
       ...(canvasNode.nodeDataId != null && {
         nodeDataId: canvasNode.nodeDataId,
@@ -70,6 +74,20 @@ export function fromCanvasNodeToXyNode(canvasNode: CanvasNode): Node {
   };
 }
 
+/**
+ * React Flow exige qu'un parent précède ses enfants dans le tableau `nodes` :
+ * un enfant rencontré avant son parent est rendu à des coordonnées absolues,
+ * donc décalé du parent tant que rien ne le re-trie.
+ *
+ * Tri stable en deux passes et non tri topologique général : il n'existe pas
+ * de frame dans une frame, la hiérarchie n'a donc qu'un seul niveau. L'ordre
+ * relatif à l'intérieur de chaque groupe est préservé — c'est lui qui
+ * départage les `zIndex` égaux (cf. `toPaintOrder` dans `nodeLayering`).
+ */
 export function fromCanvasNodesToXyNodes(canvasNodes: CanvasNode[]): Node[] {
-  return canvasNodes.map(fromCanvasNodeToXyNode);
+  const parentsFirst = [
+    ...canvasNodes.filter((node) => !node.parentId),
+    ...canvasNodes.filter((node) => node.parentId),
+  ];
+  return parentsFirst.map(fromCanvasNodeToXyNode);
 }

@@ -92,6 +92,7 @@ import type * as lib_imageTransform from "../lib/imageTransform.js";
 import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
 import type * as lib_llmId from "../lib/llmId.js";
 import type * as lib_memoryLimits from "../lib/memoryLimits.js";
+import type * as lib_nodeGeometry from "../lib/nodeGeometry.js";
 import type * as lib_parseModelPrice from "../lib/parseModelPrice.js";
 import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js";
 import type * as lib_r2 from "../lib/r2.js";
@@ -283,6 +284,7 @@ declare const fullApi: ApiFromModules<{
   "lib/jsonSchemaMinimap": typeof lib_jsonSchemaMinimap;
   "lib/llmId": typeof lib_llmId;
   "lib/memoryLimits": typeof lib_memoryLimits;
+  "lib/nodeGeometry": typeof lib_nodeGeometry;
   "lib/parseModelPrice": typeof lib_parseModelPrice;
   "lib/parseSkillFrontmatter": typeof lib_parseSkillFrontmatter;
   "lib/r2": typeof lib_r2;

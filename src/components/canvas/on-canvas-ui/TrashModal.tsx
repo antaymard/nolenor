@@ -93,7 +93,24 @@ function TrashList({ canvasId }: { canvasId: Id<"canvases"> }) {
     );
   }
 
-  if (trashed.length === 0) {
+  // Le contenu parti AVEC sa frame ne se liste pas à part : restaurer la
+  // frame le ramène, et le voir aligné sous elle donnerait N entrées pour une
+  // seule suppression. L'appariement se fait sur l'égalité de `trashedAt`,
+  // celle que `trashNodes` pose pour toute sa transaction — un node supprimé
+  // dans la frame AVANT qu'elle ne parte a une autre date, et reste listé,
+  // parce que lui se restaure bien tout seul.
+  const frameTrashedAt = new Map(
+    trashed
+      .filter(({ node }) => node.type === "frame")
+      .map(({ node }) => [node.id, node.trashedAt]),
+  );
+  const visible = trashed.filter(({ node }) => {
+    if (!node.parentId) return true;
+    if (!frameTrashedAt.has(node.parentId)) return true;
+    return frameTrashedAt.get(node.parentId) !== node.trashedAt;
+  });
+
+  if (visible.length === 0) {
     return (
       <p className="text-muted-foreground py-8 text-center text-sm">
         Nothing in the trash.
@@ -104,7 +121,14 @@ function TrashList({ canvasId }: { canvasId: Id<"canvases"> }) {
   async function restore(nodeId: string) {
     setRestoringId(nodeId);
     try {
-      await untrash({ nodeIds: [nodeId], restoreIncidentEdges: true });
+      await untrash({
+        nodeIds: [nodeId],
+        restoreIncidentEdges: true,
+        // Restaurer une frame restaure ce qui est parti avec elle : la liste
+        // ne montre que la frame (cf. `visible` plus bas), c'est donc à elle
+        // de ramener son contenu.
+        restoreChildren: true,
+      });
     } catch (error) {
       toastError(error, "Could not restore this block");
     } finally {
@@ -115,7 +139,7 @@ function TrashList({ canvasId }: { canvasId: Id<"canvases"> }) {
   return (
     <ScrollArea className="max-h-[50vh]">
       <ul className="flex flex-col gap-1">
-        {trashed.map(({ node, title, hasContent }) => {
+        {visible.map(({ node, title, hasContent }) => {
           const Icon = NODE_TYPE_ICON_MAP[node.type] ?? NODE_TYPE_ICON_MAP.title;
           return (
             <li

@@ -26,7 +26,9 @@ import { useCanvasPasteHandler } from "@/hooks/useCanvasPasteHandler";
 import { useCanvasHistory } from "@/hooks/useCanvasHistory";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
+import { useFrameDrawTool } from "@/hooks/useFrameDrawTool";
 import CanvasDropOverlay from "./CanvasDropOverlay";
+import FrameDrawOverlay from "./FrameDrawOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
 import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
@@ -109,6 +111,14 @@ export default function CanvasFlow({
 
   // Handle files/links/text dropped anywhere on the window
   const { isDraggingOver } = useCanvasDropHandler({ canEdit });
+
+  // Le mode « tracer une frame » : tant qu'il est actif, le lasso, le pan et le
+  // drag des nodes sont suspendus et le pointeur dessine un rectangle.
+  const {
+    isFrameTool,
+    rect: frameDrawRect,
+    handlers: frameDrawHandlers,
+  } = useFrameDrawTool({ canEdit });
 
   // Context menu management
   const {
@@ -208,8 +218,11 @@ export default function CanvasFlow({
         return;
       }
 
-      const selectedNodes = getNodes().filter((node) => node.selected);
-      if (copyNodesToClipboard(selectedNodes)) {
+      const allNodes = getNodes();
+      const selectedNodes = allNodes.filter((node) => node.selected);
+      // `allNodes` sert à résoudre la position monde d'un node copié depuis
+      // une frame, même si la frame n'est pas dans la sélection.
+      if (copyNodesToClipboard(selectedNodes, allNodes)) {
         event.preventDefault();
         // Le `preventDefault` ne vide pas le clipboard système : sans ça, un
         // texte copié avant continuerait de prendre le pas sur les nodes au
@@ -335,7 +348,10 @@ export default function CanvasFlow({
   );
 
   // Canvas nodes management
-  const { nodes, handleNodeChange } = useCanvasNodes(canvasId, canvasNodes);
+  const { nodes, handleNodeChange, onNodeDrag, onNodeDragStop } = useCanvasNodes(
+    canvasId,
+    canvasNodes,
+  );
 
   // Canvas edges management
   const { edges, setEdges, handleEdgeChange } = useCanvasEdges(
@@ -607,7 +623,9 @@ export default function CanvasFlow({
         panOnScrollMode={PanOnScrollMode.Free}
         // Au doigt, le drag sur le pane pan toujours. À la souris, on garde le
         // clic molette pour panner et on laisse le clic gauche au lasso.
-        panOnDrag={panWithFinger ? true : [1]}
+        // Le temps d'un tracé de frame, plus rien ne pan : le clic molette
+        // déplacerait le monde sous le rectangle en cours.
+        panOnDrag={isFrameTool ? false : panWithFinger ? true : [1]}
         // Le cas sans `?v=` : tout canvas s'ouvre à l'origine du monde.
         defaultViewport={{
           x: 0,
@@ -623,9 +641,12 @@ export default function CanvasFlow({
         // pas du z. Cf. l'override de .react-flow__node-toolbar dans index.css.
         elevateNodesOnSelect={false}
         selectionMode={SelectionMode.Partial}
-        selectionOnDrag={!panWithFinger}
+        // Pendant un tracé de frame, le lasso et le drag des nodes sont
+        // suspendus : le geste est le même (appuyer, tirer, relâcher), il ne
+        // peut pas signifier trois choses à la fois.
+        selectionOnDrag={!panWithFinger && !isFrameTool}
         // Tactile : draggable est accordé node par node via withTouchDragGate.
-        nodesDraggable={!isTouch}
+        nodesDraggable={!isTouch && !isFrameTool}
         // Tactile : le double-tap sert à ouvrir un node, pas à zoomer.
         zoomOnDoubleClick={!isTouch}
         nodeTypes={nodeTypes}
@@ -650,6 +671,11 @@ export default function CanvasFlow({
         edges={edgesWithColoredMarkers}
         onEdgesChange={handleEdgeChange}
         onNodesChange={handleNodeChange}
+        // Appartenance aux frames : la cible se décide pendant le geste, parce
+        // que React Flow pousse les positions (donc `onNodesChange`, donc le
+        // flush) AVANT `onNodeDragStop`. Cf. `useCanvasNodes`.
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         // Desktop uniquement : au doigt, le drag sur le pane pan toujours et
         // les viewers (`!canEdit`) ne créent rien.
@@ -680,6 +706,12 @@ export default function CanvasFlow({
             className="absolute inset-0"
             style={{ backgroundColor: resolvedBackground.bgColor }}
           />
+        )}
+        {/* Avant `children` : la surface de tracé couvre le canvas mais doit
+            rester sous les panneaux d'UI (toolbar, dock, panneau Nolë), sinon
+            elle avale le clic qui sert à sortir du mode. */}
+        {isFrameTool && (
+          <FrameDrawOverlay rect={frameDrawRect} handlers={frameDrawHandlers} />
         )}
         {children}
         {contextMenu.type && (

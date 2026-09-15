@@ -3,6 +3,7 @@ import type { Node } from "@xyflow/react";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { getNodeDataId } from "@/lib/nodeIdentity";
 import { valuesToDuplicate } from "@/lib/nodeDuplicateValues";
+import { absolutePositionOf } from "@/lib/frameMembership";
 
 export type NodeClipboardItem = {
   /**
@@ -39,8 +40,17 @@ export const useNodeClipboardStore = create<NodeClipboardStore>()((set) => ({
  * vis-à-vis du store : ne touche pas au presse-papiers — le duplicate
  * l'utilise directement pour ne pas écraser un Ctrl+C en attente.
  */
-export function snapshotNodesToItems(nodes: Node[]): NodeClipboardItem[] {
+export function snapshotNodesToItems(
+  nodes: Node[],
+  /**
+   * Tous les nodes du canvas, pour résoudre les positions des enfants de
+   * frame en coordonnées monde. Par défaut la sélection elle-même — ce qui
+   * suffit tant qu'elle contient les frames concernées.
+   */
+  allNodes: Node[] = nodes,
+): NodeClipboardItem[] {
   const getNodeData = useNodeDataStore.getState().getNodeData;
+  const byId = new Map(allNodes.map((node) => [node.id, node]));
   return nodes.map((node) => {
     let values: Record<string, unknown> = {};
     const nodeDataId = getNodeDataId(node);
@@ -63,8 +73,26 @@ export function snapshotNodesToItems(nodes: Node[]): NodeClipboardItem[] {
       order: _orderOmitted,
       ...data
     } = (node.data ?? {}) as Record<string, unknown>;
+
+    // L'appartenance à une frame ne se recopie pas : la copie serait rattachée
+    // à la frame de l'ORIGINAL, y compris collée sur un autre canvas où cette
+    // frame n'existe pas. La position repasse donc en coordonnées monde, celle
+    // dans laquelle `createNodesFromItems` ancre le collage.
+    const {
+      parentId: _parentOmitted,
+      extent: _extentOmitted,
+      expandParent: _expandOmitted,
+      ...rest
+    } = node;
+
     return {
-      node: { ...node, id: "", selected: false, data },
+      node: {
+        ...rest,
+        id: "",
+        selected: false,
+        position: absolutePositionOf(node, byId),
+        data,
+      },
       values,
     };
   });
@@ -77,8 +105,13 @@ export function snapshotNodesToItems(nodes: Node[]): NodeClipboardItem[] {
  *
  * Sélection vide → no-op : on n'efface pas un coller en attente par accident.
  */
-export function copyNodesToClipboard(nodes: Node[]): boolean {
+export function copyNodesToClipboard(
+  nodes: Node[],
+  allNodes: Node[] = nodes,
+): boolean {
   if (nodes.length === 0) return false;
-  useNodeClipboardStore.getState().setClipboard(snapshotNodesToItems(nodes));
+  useNodeClipboardStore
+    .getState()
+    .setClipboard(snapshotNodesToItems(nodes, allNodes));
   return true;
 }

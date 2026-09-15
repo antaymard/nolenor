@@ -45,6 +45,10 @@ export function areNodePropsEqual(
     prev.dragging === next.dragging &&
     prev.width === next.width &&
     prev.height === next.height &&
-    prev.type === next.type
+    prev.type === next.type &&
+    // Entrer dans une frame ou en sortir ne change rien d'autre dans les
+    // props : sans cette comparaison, un node mémoïsé garderait le rendu
+    // qu'il avait avant le changement d'appartenance.
+    prev.parentId === next.parentId
   );
 }

@@ -106,9 +106,12 @@ async function cloneCanvasForUser(
   // Nodes recréés un à un via la voie de création canonique (nodeData
   // inclus, chunks rebuild planifiés, variant par défaut appliqué) avec des
   // llmIds FRAIS — un clone ne partage aucune référence avec sa source.
-  // `listFromCanvas` est ordonné chronologiquement : les parents précèdent
-  // leurs enfants, donc le remap `parentId` (vieux llmId → neuf) trouve
-  // toujours le parent déjà cloné.
+  //
+  // Les frames passent d'abord, pour que le remap `parentId` (vieux llmId →
+  // neuf) trouve toujours le parent déjà cloné. L'ordre chronologique de
+  // `listFromCanvas` n'y suffit pas : une frame se trace AUTOUR de nodes
+  // existants, elle est donc créée après eux, et le clone perdrait le
+  // groupement en silence.
   //
   // Les nodes "custom" pointent un nodeTemplates scopé au compte source ; le
   // partage cross-utilisateur de ce lien après clonage n'est pas garanti côté
@@ -116,9 +119,13 @@ async function cloneCanvasForUser(
   // saute plutôt que de cloner un node cassé — et `createNodeData` lèverait
   // de toute façon sur un custom sans templateId.
   const oldToNewNodeIds = new Map<string, string>();
-  const sourceNodes = await NodeModels.listFromCanvas(ctx, {
+  const chronological = await NodeModels.listFromCanvas(ctx, {
     canvasId: source._id,
   });
+  const sourceNodes = [
+    ...chronological.filter((node) => node.type === "frame"),
+    ...chronological.filter((node) => node.type !== "frame"),
+  ];
 
   for (const node of sourceNodes) {
     const nodeData = nodeDataById.get(node.nodeDataId);

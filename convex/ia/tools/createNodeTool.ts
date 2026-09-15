@@ -27,6 +27,7 @@ import {
   type PlacementRequest,
   type PlacementSide,
 } from "../helpers/nodePlacement";
+import { absolutePositionsById } from "../../lib/nodeGeometry";
 
 // Tool compaction config
 export const createNodeToolConfig: ToolConfig = {
@@ -330,9 +331,14 @@ export default function createNodeTool({
               canvasId,
             },
           );
+          // Positions MONDE : un node qui vit dans une frame porte une
+          // position relative à elle. Sans conversion, le placement le verrait
+          // à quelques dizaines de pixels de l'origine et poserait le nouveau
+          // node par-dessus ce qui s'y trouve.
+          const worldPositions = absolutePositionsById(nodes);
           const nodeRects: NodeRect[] = nodes.map((node) => ({
             id: node.id,
-            position: node.position,
+            position: worldPositions.get(node.id) ?? node.position,
             width: node.width,
             height: node.height,
           }));

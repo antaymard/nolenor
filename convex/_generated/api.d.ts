@@ -60,7 +60,6 @@ import type * as ia_systemPrompts_workerSystemPrompt from "../ia/systemPrompts/w
 import type * as ia_tools_blockNoteTools from "../ia/tools/blockNoteTools.js";
 import type * as ia_tools_createConnectionTool from "../ia/tools/createConnectionTool.js";
 import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
-import type * as ia_tools_fullTextSearchTool from "../ia/tools/fullTextSearchTool.js";
 import type * as ia_tools_index from "../ia/tools/index.js";
 import type * as ia_tools_listNodesTool from "../ia/tools/listNodesTool.js";
 import type * as ia_tools_listUserCanvasesTool from "../ia/tools/listUserCanvasesTool.js";
@@ -70,6 +69,7 @@ import type * as ia_tools_openWebPageTool from "../ia/tools/openWebPageTool.js";
 import type * as ia_tools_patchAppNodeCodeTool from "../ia/tools/patchAppNodeCodeTool.js";
 import type * as ia_tools_readNodesTool from "../ia/tools/readNodesTool.js";
 import type * as ia_tools_runSubAgentTool from "../ia/tools/runSubAgentTool.js";
+import type * as ia_tools_searchTool from "../ia/tools/searchTool.js";
 import type * as ia_tools_setNodeDataTool from "../ia/tools/setNodeDataTool.js";
 import type * as ia_tools_tableDeleteRowsTools from "../ia/tools/tableDeleteRowsTools.js";
 import type * as ia_tools_tableInsertRowsTool from "../ia/tools/tableInsertRowsTool.js";
@@ -251,7 +251,6 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/blockNoteTools": typeof ia_tools_blockNoteTools;
   "ia/tools/createConnectionTool": typeof ia_tools_createConnectionTool;
   "ia/tools/createNodeTool": typeof ia_tools_createNodeTool;
-  "ia/tools/fullTextSearchTool": typeof ia_tools_fullTextSearchTool;
   "ia/tools/index": typeof ia_tools_index;
   "ia/tools/listNodesTool": typeof ia_tools_listNodesTool;
   "ia/tools/listUserCanvasesTool": typeof ia_tools_listUserCanvasesTool;
@@ -261,6 +260,7 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/patchAppNodeCodeTool": typeof ia_tools_patchAppNodeCodeTool;
   "ia/tools/readNodesTool": typeof ia_tools_readNodesTool;
   "ia/tools/runSubAgentTool": typeof ia_tools_runSubAgentTool;
+  "ia/tools/searchTool": typeof ia_tools_searchTool;
   "ia/tools/setNodeDataTool": typeof ia_tools_setNodeDataTool;
   "ia/tools/tableDeleteRowsTools": typeof ia_tools_tableDeleteRowsTools;
   "ia/tools/tableInsertRowsTool": typeof ia_tools_tableInsertRowsTool;

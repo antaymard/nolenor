@@ -28,7 +28,7 @@ import { buildChunkSnippets } from "./searchableChunks";
 // ── Recherche sémantique & hybride ─────────────────────────────────────────
 // `ctx.vectorSearch` n'existe qu'en action : toute la partie vectorielle vit
 // ici. Le mode keyword pur reste servi par la query réactive
-// `api.searchableChunks.search` (front) et `fullTextSearch` (agent).
+// `api.searchableChunks.search` (front) et le tool `search_canvas` (agent).
 // Le filtre vectoriel est `canvasId` uniquement (pas de AND inter-champs
 // côté Convex) : `nodeTypes` / `nodeIds` se filtrent en TS après hydratation
 // (cf. `hydrateVectorHits` dans les models).
@@ -122,13 +122,21 @@ async function semanticCore(
 
 type BranchHit = Omit<FusedHit, "score" | "sources">;
 
-const hybridArgsValidator = {
+const baseSearchArgsValidator = {
   canvasId: v.id("canvases"),
-  query: v.string(),
   nodeIds: v.optional(v.array(v.string())),
   nodeTypes: v.optional(v.array(nodeTypeValidator)),
   limit: v.optional(v.number()),
   agentReadableOnly: v.optional(v.boolean()),
+};
+
+// Chaque branche reçoit sa propre formulation : syntaxe opérateurs côté
+// keyword, phrases affirmatives côté sémantique. Au moins une des deux doit
+// être fournie (validé côté tool) ; les deux → fusion hybride RRF.
+const hybridArgsValidator = {
+  ...baseSearchArgsValidator,
+  keywordQuery: v.optional(v.string()),
+  semanticQuery: v.optional(v.string()),
 };
 
 const hybridReturnsValidator = v.object({
@@ -155,7 +163,7 @@ type HybridResult = {
 };
 
 export const runSemanticSearch = internalAction({
-  args: hybridArgsValidator,
+  args: { ...baseSearchArgsValidator, query: v.string() },
   returns: hybridReturnsValidator,
   // Annotation explicite : le module s'auto-référence via `internal`
   // (cf. guidelines sur la circularité TS).
@@ -194,18 +202,20 @@ export const runHybridSearch = internalAction({
   returns: hybridReturnsValidator,
   handler: async (ctx, args): Promise<HybridResult> => {
     const effectiveLimit = clampLimit(args.limit);
-    const useKeyword = args.useKeyword !== false;
-    const useSemantic = args.useSemantic !== false;
+    const keywordQuery = args.keywordQuery?.trim() ?? "";
+    const semanticQuery = args.semanticQuery?.trim() ?? "";
+    const useKeyword = args.useKeyword !== false && keywordQuery.length > 0;
+    const useSemantic = args.useSemantic !== false && semanticQuery.length > 0;
     // Agent : filtre les types illisibles ; front : voit tout.
     const readableOnly = args.agentReadableOnly === true;
     const scanLimit = Math.min(effectiveLimit * 5, 250);
 
     const keywordResult = useKeyword
       ? await ctx.runQuery(
-          internal.wrappers.searchableChunkWrappers.fullTextSearch,
+          internal.wrappers.searchableChunkWrappers.keywordSearch,
           {
             canvasId: args.canvasId,
-            query: args.query,
+            query: keywordQuery,
             nodeIds: args.nodeIds,
             nodeTypes: args.nodeTypes,
             limit: scanLimit,
@@ -220,7 +230,7 @@ export const runHybridSearch = internalAction({
       try {
         semanticResult = await semanticCore(ctx, {
           canvasId: args.canvasId,
-          query: args.query,
+          query: semanticQuery,
           nodeIds: args.nodeIds,
           nodeTypes: args.nodeTypes,
           limit: effectiveLimit,
@@ -375,7 +385,8 @@ export const search = action({
           })
         : await ctx.runAction(internal.semanticSearch.runHybridSearch, {
             canvasId: args.canvasId,
-            query: args.query,
+            keywordQuery: args.query,
+            semanticQuery: args.query,
             nodeTypes: args.nodeTypes,
             limit: RANKING.MAX_RESULTS,
             useKeyword: true,

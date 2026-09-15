@@ -115,7 +115,7 @@ export async function resolveNodeIds(
         .first();
       // Un node à la corbeille est traité comme un orphelin : ses chunks
       // vivent jusqu'à la purge (30 j), mais il ne doit plus remonter en
-      // recherche — ni dans la modale, ni dans le tool `full_text_search`.
+      // recherche — ni dans la modale, ni dans le tool `search_canvas`.
       if (node && node.status !== "trashed") {
         resolved.set(nodeDataId, node.id);
       } else {
@@ -230,7 +230,7 @@ type FullTextSearchHit = {
   sectionTitle?: string;
 };
 
-type FullTextSearchResult = {
+type KeywordSearchResult = {
   hits: FullTextSearchHit[];
   scanned: number;
   limit: number;
@@ -277,7 +277,7 @@ function getPage(metadata: unknown): number | undefined {
  * Le type de node est poussé dans l'index quand le fan-out reste raisonnable,
  * et re-filtré en TS dans tous les cas (exact et gratuit).
  * `titleOnly` (recherche utilisateur Cmd+K uniquement) ne touche que l'index
- * `search_title` : le chemin agent (`fullTextSearch`) garde le défaut `false`.
+  * `search_title` : le chemin agent (`keywordSearch`) garde le défaut `false`.
  */
 export async function searchChunks(
   ctx: QueryCtx,
@@ -405,7 +405,7 @@ export async function collectExcludedNodeIds(
   return excludedNodeIds;
 }
 
-export async function fullTextSearch(
+export async function keywordSearch(
   ctx: QueryCtx,
   {
     canvasId,
@@ -420,7 +420,7 @@ export async function fullTextSearch(
     nodeTypes?: NodeType[];
     limit?: number;
   },
-): Promise<FullTextSearchResult> {
+): Promise<KeywordSearchResult> {
   // 1) Resolve effective limits for response and scan window.
   const effectiveLimit = clampLimit(limit);
 
@@ -449,7 +449,7 @@ export async function fullTextSearch(
   });
 
   // 3bis) Les types invisibles pour l'agent ne remontent jamais ici.
-  // Volontairement dans `fullTextSearch` et pas dans `searchChunks` : ce
+  // Volontairement dans `keywordSearch` et pas dans `searchChunks` : ce
   // dernier sert aussi la recherche de l'utilisateur, où un viewport node se
   // trouve par son titre comme n'importe quel autre node.
   const visibleChunks = chunks.filter((chunk) =>

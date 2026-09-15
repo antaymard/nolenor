@@ -8,8 +8,8 @@ import type { FusedHit } from "../../schemas/searchableChunksSchema";
 import { type ThreadCtx, toolAgentNames } from "../agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig } from "./toolHelpers";
 
-export const fullTextSearchToolConfig: ToolConfig = {
-  name: "full_text_search",
+export const searchToolConfig: ToolConfig = {
+  name: "search_canvas",
   authorized_agents: [
     toolAgentNames.nole,
     toolAgentNames.worker,
@@ -50,9 +50,9 @@ function clampHitsPerNode(hitsPerNode: number | undefined): number {
 function hintForStatus(status: SearchStatus): string {
   switch (status) {
     case "invalid_query":
-      return "Use a more specific token (at least 2 characters).";
+      return "Provide at least one of keyword_search or semantic_search, with at least 2 characters each.";
     case "no_results":
-      return "No exact match found; try spelling variants or a shorter token.";
+      return "No match found; try spelling variants, a shorter keyword token, or a differently phrased semantic query.";
     case "relaxed":
       return "No node satisfied every constraint, so results were widened to approximate matches; drop a term or an operator to tighten.";
     case "truncated":
@@ -105,79 +105,90 @@ function toJsonString(value: unknown): string {
 
 const DESCRIPTION_PARTS = [
   "Hybrid search over the current canvas using indexed chunks, every node type is searchable (pdf included).",
-  "Keyword + semantic run together by default (Reciprocal Rank Fusion); set keyword_search or semantic_search to false to restrict to one mode.",
-  'Keyword is for precise lookup (names, acronyms, reference IDs, rare words) with Google-style operators: every bare word is required, "quoted text" must appear verbatim, -word excludes any node containing it, and `a OR b` accepts either.',
-  "Semantic is for conceptual lookup: phrase the query as short affirmative statements carrying content words, never as a question.",
+  "Provide keyword_search and/or semantic_search (at least one is required, both must express the same intent): keyword_search alone runs a precise keyword lookup, semantic_search alone runs a conceptual vector lookup, and providing both combines them (Reciprocal Rank Fusion).",
+  'keyword_search is for precise lookup (names, acronyms, reference IDs, rare words) with Google-style operators: every bare word is required, "quoted text" must appear verbatim, -word excludes any node containing it, and `a OR b` accepts either.',
+  "semantic_search is for conceptual lookup: short affirmative statements carrying content words, never a question.",
   "Returns compact snippets and metadata to quickly decide what to read next.",
 ];
 
-export default function fullTextSearchTool({
-  threadCtx,
-}: {
-  threadCtx: ThreadCtx;
-}) {
+const searchInputSchema = z
+  .object({
+    explanation: EXPLANATION_FIELD,
+    keyword_search: z
+      .string()
+      .optional()
+      .describe(
+        'Precise keyword query: all bare words must appear in the same node; use "quoted text" for a verbatim phrase, -word to exclude nodes containing it, and `a OR b` for alternatives.',
+      ),
+    semantic_search: z
+      .string()
+      .optional()
+      .describe(
+        "Conceptual query: short affirmative statements with content words, never a question.",
+      ),
+    nodeIds: z
+      .array(z.string())
+      .optional()
+      .describe("Optional node IDs to narrow the search scope."),
+    nodeTypes: z
+      .array(z.enum(nodeTypeValues))
+      .optional()
+      .describe(
+        'Optional node types to restrict the search to, e.g. ["pdf"]. Prefer this over adding words to the query.',
+      ),
+    groupByNode: z
+      .boolean()
+      .optional()
+      .describe(
+        "When true, returns one grouped result per node instead of raw chunk hits.",
+      ),
+    hitsPerNode: z
+      .number()
+      .optional()
+      .describe(
+        "When groupByNode=true, number of top snippets returned per node (default 1, max 5).",
+      ),
+    limit: z
+      .number()
+      .optional()
+      .describe("Maximum number of hits to return (default 20, max 50)."),
+  })
+  .superRefine((input, ctx) => {
+    if (
+      (input.keyword_search?.trim().length ?? 0) === 0 &&
+      (input.semantic_search?.trim().length ?? 0) === 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Provide at least one of keyword_search or semantic_search (both must express the same intent when provided together).",
+      });
+    }
+  });
+
+export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   const { canvasId } = threadCtx;
 
   return createTool({
     description: DESCRIPTION_PARTS.join(" "),
-    inputSchema: z.object({
-      explanation: EXPLANATION_FIELD,
-      query: z
-        .string()
-        .describe(
-          'The tokens to search for. Keyword: all bare words must appear in the same node; use "quoted text" for a verbatim phrase, -word to exclude nodes containing it, and `a OR b` for alternatives. Semantic: short affirmative statements with content words, never a question.',
-        ),
-      nodeIds: z
-        .array(z.string())
-        .optional()
-        .describe("Optional node IDs to narrow the search scope."),
-      nodeTypes: z
-        .array(z.enum(nodeTypeValues))
-        .optional()
-        .describe(
-          'Optional node types to restrict the search to, e.g. ["pdf"]. Prefer this over adding words to the query.',
-        ),
-      groupByNode: z
-        .boolean()
-        .optional()
-        .describe(
-          "When true, returns one grouped result per node instead of raw chunk hits.",
-        ),
-      hitsPerNode: z
-        .number()
-        .optional()
-        .describe(
-          "When groupByNode=true, number of top snippets returned per node (default 1, max 5).",
-        ),
-      limit: z
-        .number()
-        .optional()
-        .describe("Maximum number of hits to return (default 20, max 50)."),
-      keyword_search: z
-        .boolean()
-        .optional()
-        .describe(
-          "Run the keyword (full-text) branch. Default true; set false for pure semantic search.",
-        ),
-      semantic_search: z
-        .boolean()
-        .optional()
-        .describe(
-          "Run the semantic (vector) branch. Default true; set false for pure keyword search.",
-        ),
-    }),
+    inputSchema: searchInputSchema,
     execute: async (ctx, input): Promise<string> => {
-      const normalizedQuery = input.query.trim();
+      const keywordQuery = input.keyword_search?.trim() ?? "";
+      const semanticQuery = input.semantic_search?.trim() ?? "";
       const limit = clampLimit(input.limit);
       const groupByNode = input.groupByNode ?? false;
       const hitsPerNode = clampHitsPerNode(input.hitsPerNode);
-      const useKeyword = input.keyword_search !== false;
-      const useSemantic = input.semantic_search !== false;
+      const useKeyword = keywordQuery.length > 0;
+      const useSemantic = semanticQuery.length > 0;
       const requestedMode = useKeyword
         ? useSemantic
           ? "hybrid"
           : "keyword"
         : "semantic";
+      const echoQueries = {
+        ...(useKeyword ? { keywordQuery } : {}),
+        ...(useSemantic ? { semanticQuery } : {}),
+      };
 
       type BridgeResult = {
         hits: FusedHit[];
@@ -189,11 +200,14 @@ export default function fullTextSearchTool({
         degraded: boolean;
       };
 
-      if (normalizedQuery.length < 2) {
+      if (
+        (useKeyword && keywordQuery.length < 2) ||
+        (useSemantic && semanticQuery.length < 2)
+      ) {
         return toJsonString({
           success: false,
           status: "invalid_query",
-          query: normalizedQuery,
+          ...echoQueries,
           mode: requestedMode,
           returned: 0,
           limit,
@@ -204,7 +218,7 @@ export default function fullTextSearchTool({
         });
       }
 
-      console.log(`🔎 Running full_text_search on canvas ${canvasId}`);
+      console.log(`🔎 Running search_canvas on canvas ${canvasId}`);
 
       try {
         const searchLimit = groupByNode
@@ -217,57 +231,40 @@ export default function fullTextSearchTool({
             )
           : limit;
 
-        // Branche sémantique (hybride RRF par défaut) via action — le
-        // vectorSearch n'existe qu'en action. Repli keyword seul sinon.
-        const result: BridgeResult = useSemantic
-          ? await ctx
-              .runAction(internal.semanticSearch.runHybridSearch, {
-                canvasId: canvasId as Id<"canvases">,
-                query: normalizedQuery,
-                nodeIds: input.nodeIds,
-                nodeTypes: input.nodeTypes,
-                limit: searchLimit,
-                useKeyword,
-                useSemantic: true,
-                agentReadableOnly: true,
-              })
-              .then((hybrid) => ({
-                hits: hybrid.hits,
-                scanned: hybrid.scanned,
-                truncated: hybrid.truncated,
-                relaxed: hybrid.relaxed,
-                terms: hybrid.terms,
-                mode: hybrid.mode,
-                degraded: hybrid.degraded ?? false,
-              }))
-          : await ctx
-              .runQuery(
-                internal.wrappers.searchableChunkWrappers.fullTextSearch,
-                {
-                  canvasId: canvasId as Id<"canvases">,
-                  query: normalizedQuery,
-                  nodeIds: input.nodeIds,
-                  nodeTypes: input.nodeTypes,
-                  limit: searchLimit,
-                },
-              )
-              .then((keyword) => ({
-                hits: keyword.hits.map((hit) => ({
-                  ...hit,
-                  score: 0,
-                  sources: ["keyword" as const],
-                })),
-                scanned: keyword.scanned,
-                truncated: keyword.truncated,
-                relaxed: keyword.relaxed,
-                terms: keyword.terms,
-                mode: requestedMode,
-                degraded: false,
-              }));
+        // Chaque branche reçoit sa propre formulation. La branche
+        // sémantique (vectorSearch en action uniquement) ne doit jamais
+        // faire échouer la recherche : repli keyword seul sinon.
+        const result: BridgeResult = await ctx
+          .runAction(internal.semanticSearch.runHybridSearch, {
+            canvasId: canvasId as Id<"canvases">,
+            keywordQuery: useKeyword ? keywordQuery : undefined,
+            semanticQuery: useSemantic ? semanticQuery : undefined,
+            nodeIds: input.nodeIds,
+            nodeTypes: input.nodeTypes,
+            limit: searchLimit,
+            useKeyword,
+            useSemantic,
+            agentReadableOnly: true,
+          })
+          .then((hybrid) => ({
+            hits: hybrid.hits,
+            scanned: hybrid.scanned,
+            truncated: hybrid.truncated,
+            relaxed: hybrid.relaxed,
+            terms: hybrid.terms,
+            mode: hybrid.mode,
+            degraded: hybrid.degraded ?? false,
+          }));
 
+        // Centre les snippets sur les termes keyword ; en sémantique pure,
+        // retombe sur les mots porteurs de la requête sémantique.
+        const snippetTerms =
+          result.terms.length > 0
+            ? result.terms
+            : semanticQuery.split(/\s+/).filter((word) => word.length >= 2);
         const hits = result.hits.map((hit) => ({
           ...hit,
-          snippet: buildSnippet(hit.text, result.terms),
+          snippet: buildSnippet(hit.text, snippetTerms),
         }));
 
         // De-duplicate same snippet per node to reduce repetitive noise.
@@ -307,7 +304,7 @@ export default function fullTextSearchTool({
 
           return toJsonString({
             status,
-            query: normalizedQuery,
+            ...echoQueries,
             mode: "flat",
             searchMode: result.mode,
             degraded: result.degraded,
@@ -440,7 +437,7 @@ export default function fullTextSearchTool({
 
         return toJsonString({
           status,
-          query: normalizedQuery,
+          ...echoQueries,
           mode: "grouped",
           searchMode: result.mode,
           degraded: result.degraded,
@@ -453,12 +450,12 @@ export default function fullTextSearchTool({
           hits: groupedHits,
         });
       } catch (error) {
-        console.error("full_text_search error:", error);
+        console.error("search_canvas error:", error);
 
         return toJsonString({
           success: false,
           status: "error",
-          query: normalizedQuery,
+          ...echoQueries,
           mode: groupByNode ? "grouped" : "flat",
           searchMode: requestedMode,
           degraded: false,

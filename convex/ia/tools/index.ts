@@ -9,9 +9,7 @@ import patchAppNodeCodeTool, {
   patchAppNodeCodeToolConfig,
 } from "./patchAppNodeCodeTool";
 import { blockNoteToolDefinitions } from "./blockNoteTools";
-import fullTextSearchTool, {
-  fullTextSearchToolConfig,
-} from "./fullTextSearchTool";
+import searchTool, { searchToolConfig } from "./searchTool";
 import listNodesTool, { listNodesToolConfig } from "./listNodesTool";
 import loadSkillTool, { loadSkillToolConfig } from "./loadSkillTool";
 import memoryToolFactory, { memoryToolConfig } from "./memoryTool";
@@ -142,8 +140,8 @@ const toolRegistry: ToolRegistration[] = [
     factory: ({ threadCtx }) => patchAppNodeCodeTool({ threadCtx }),
   },
   {
-    config: fullTextSearchToolConfig,
-    factory: ({ threadCtx }) => fullTextSearchTool({ threadCtx }),
+    config: searchToolConfig,
+    factory: ({ threadCtx }) => searchTool({ threadCtx }),
   },
   {
     config: memoryToolConfig,

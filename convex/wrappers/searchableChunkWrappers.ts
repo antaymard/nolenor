@@ -78,7 +78,7 @@ export const listPdfPagesByNodeDataId = internalQuery({
     SearchableChunkModels.listPdfPagesByNodeDataId(ctx, args),
 });
 
-export const fullTextSearch = internalQuery({
+export const keywordSearch = internalQuery({
   args: {
     canvasId: v.id("canvases"),
     query: v.string(),
@@ -110,7 +110,7 @@ export const fullTextSearch = internalQuery({
     relaxed: v.boolean(),
     terms: v.array(v.string()),
   }),
-  handler: async (ctx, args) => SearchableChunkModels.fullTextSearch(ctx, args),
+  handler: async (ctx, args) => SearchableChunkModels.keywordSearch(ctx, args),
 });
 
 /** Garde d'accès canvas pour les actions (pas de `ctx.db` en action). */

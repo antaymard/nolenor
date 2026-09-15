@@ -44,9 +44,10 @@ const usageSummaryValidator = v.object({
  * Le récapitulatif d'usage du thread : coût cumulé, dernier modèle utilisé,
  * fenêtre de contexte occupée.
  *
- * Read set volontairement minuscule et de taille fixe : le doc `threadMetadata`
- * (coût cumulé par le `usageHandler` de l'agent, pas dérivé par message) et la
- * seule dernière ligne assistant, lue par index.
+ * Read set volontairement borné et de taille fixe par ligne : le doc
+ * `threadMetadata` (coût cumulé par le `usageHandler` de l'agent, pas dérivé
+ * par message), les lignes de ses threads de sous-agents, et la seule dernière
+ * ligne assistant, lue par index.
  */
 export const getThreadUsageSummary = query({
   args: { threadId: v.string() },
@@ -65,19 +66,38 @@ export const getThreadUsageSummary = query({
       threadId,
     });
 
+    // Un sous-agent tourne dans SON propre thread : le `usageHandler` crédite
+    // sa ligne à lui, pas celle de la conversation. Sans cette somme, un tour
+    // qui délègue tout son travail à des workers affiche un coût quasi nul —
+    // ce que `masterThreadId` et son index existaient déjà pour permettre, mais
+    // que personne n'additionnait.
+    const subThreads = await ThreadMetadataModels.listSubThreads(ctx, {
+      masterThreadId: threadId,
+    });
+
     const lastAssistant =
       await MessageMetadataModels.findLastAssistantByThreadId(ctx, {
         threadId,
       });
 
-    // `usage` est un record opaque côté schéma : on ne promet un nombre au
-    // validateur de sortie que si c'en est un.
-    const totalTokens = lastAssistant?.usage?.totalTokens;
+    // Repli sur `usage.totalTokens` pour les lignes écrites avant
+    // `contextTokens` : cette somme des steps surestime le contexte (cf. la
+    // note du schéma), mais afficher un anneau faux le temps d'un tour vaut
+    // mieux que faire disparaître le badge, et le premier nouveau tour du
+    // thread le remplace. `usage` est un record opaque côté schéma, d'où le
+    // contrôle de type avant de promettre un nombre au validateur de sortie.
+    const legacyTotalTokens = lastAssistant?.usage?.totalTokens;
+    const contextWindowUsed =
+      lastAssistant?.contextTokens ??
+      (typeof legacyTotalTokens === "number" ? legacyTotalTokens : null);
 
     return {
-      totalCostUsd: threadMetadata?.totalUsageUsd ?? 0,
+      totalCostUsd: subThreads.reduce(
+        (total, row) => total + row.totalUsageUsd,
+        threadMetadata?.totalUsageUsd ?? 0,
+      ),
       lastModelUsed: lastAssistant?.model ?? null,
-      contextWindowUsed: typeof totalTokens === "number" ? totalTokens : null,
+      contextWindowUsed,
     };
   },
 });

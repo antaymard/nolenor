@@ -76,6 +76,37 @@ export async function listNoleThreadsByUser(
 }
 
 /**
+ * Borne de lecture des threads de sous-agents d'une conversation.
+ *
+ * Un tour ne peut lancer qu'une poignée de sous-agents, mais un thread vit
+ * longtemps : la borne existe pour qu'une conversation qui en aurait lancé des
+ * centaines ne transforme pas le récapitulatif d'usage — souscrit en
+ * permanence dès qu'un chat est ouvert — en scan non maîtrisé. Au-delà, le
+ * total est sous-évalué plutôt que la query coûteuse.
+ */
+export const MAX_SUB_THREADS_READ = 64;
+
+/**
+ * Threads de sous-agents lancés par une conversation.
+ *
+ * Leur dépense est créditée à leur propre ligne (c'est le thread que le
+ * `usageHandler` retrouve depuis `args.threadId`), donc le total de la
+ * conversation parente ne l'inclut pas de lui-même : c'est à l'appelant de
+ * l'additionner. `masterThreadId` est indexé pour exactement ça.
+ */
+export async function listSubThreads(
+  ctx: QueryCtx,
+  { masterThreadId }: { masterThreadId: string },
+): Promise<ThreadMetadata[]> {
+  return await ctx.db
+    .query("threadMetadata")
+    .withIndex("by_masterThreadId", (q) =>
+      q.eq("masterThreadId", masterThreadId),
+    )
+    .take(MAX_SUB_THREADS_READ);
+}
+
+/**
  * Dernière activité connue d'un thread : l'envoi/réponse le plus récent, ou à
  * défaut sa création (un thread créé mais jamais utilisé).
  */

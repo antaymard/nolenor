@@ -4,6 +4,20 @@ import { api } from "@/../convex/_generated/api";
 import { getModelMaxContext } from "@/lib/getModelLabel";
 import type { ChatModelOption } from "@/types/convex";
 
+/**
+ * Un compteur de tokens d'une ligne de metadata.
+ *
+ * `usage` est un `v.record(v.string(), v.any())` : le typage ne garantit rien,
+ * et un provider qui n'annonce pas l'un des compteurs le fait simplement
+ * disparaître du document (Convex retire les champs `undefined`). Additionner
+ * la valeur brute suffisait alors à propager un `NaN` dans tout le récapitulatif
+ * — et à faire afficher « NaN tk » au survol du badge.
+ */
+function tokenCount(usage: Record<string, unknown>, key: string): number {
+  const value = usage[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 export type ThreadStats = {
   isLoading: boolean;
   contextWindowUsed: number;
@@ -66,9 +80,9 @@ export function useThreadStats({
         totalTokens: 0,
       };
       perModelMap.set(modelKey, {
-        inputTokens: prev.inputTokens + row.usage.inputTokens,
-        outputTokens: prev.outputTokens + row.usage.outputTokens,
-        totalTokens: prev.totalTokens + row.usage.totalTokens,
+        inputTokens: prev.inputTokens + tokenCount(row.usage, "inputTokens"),
+        outputTokens: prev.outputTokens + tokenCount(row.usage, "outputTokens"),
+        totalTokens: prev.totalTokens + tokenCount(row.usage, "totalTokens"),
       });
     }
 

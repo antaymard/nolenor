@@ -854,6 +854,12 @@ export function useCanvasNodes(
   const onNodeDrag = useCallback(
     (_event: unknown, _node: Node, draggedNodes: Node[]) => {
       const current = getNodes();
+      // Sortie immédiate sur un canvas sans frame — c'est-à-dire sur presque
+      // tous. Ce handler tourne à chaque frame du geste : il ne doit rien
+      // coûter quand il n'a rien à faire.
+      const frames = current.filter((node) => node.type === "frame");
+      if (frames.length === 0) return;
+
       const byId = new Map(current.map((node) => [node.id, node]));
       const pending = pendingReparentRef.current;
 
@@ -863,7 +869,7 @@ export function useCanvasNodes(
         const node = byId.get(dragged.id) ?? dragged;
         if (!canJoinFrame(node)) continue;
 
-        const frame = findFrameAtPoint(current, centerOf(node, byId));
+        const frame = findFrameAtPoint(frames, centerOf(node, byId));
         const previousParentId = node.parentId ?? null;
         const nextParentId = frame?.id ?? null;
 

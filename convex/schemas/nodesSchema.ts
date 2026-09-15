@@ -57,7 +57,17 @@ const nodePatchPropsValidator = v.object({
   zIndex: v.optional(v.number()),
   color: v.optional(v.string()),
   variant: v.optional(v.string()),
-  parentId: v.optional(v.string()),
+  /**
+   * `null` = sortir le node de sa frame, absent = ne pas y toucher.
+   *
+   * Seul champ du validator à distinguer les deux : partout ailleurs
+   * « absent » suffit, parce qu'aucune valeur ne s'efface — on remplace une
+   * position par une autre, une couleur par une autre. L'appartenance à une
+   * frame, elle, a un état « aucune » qu'il faut pouvoir écrire : c'est le
+   * geste « je sors ce node de la frame », et c'est aussi l'inverse d'undo de
+   * « je l'y fais entrer ».
+   */
+  parentId: v.optional(v.union(v.string(), v.null())),
   extent: v.optional(
     v.union(v.literal("parent"), v.array(v.array(v.number()))),
   ),

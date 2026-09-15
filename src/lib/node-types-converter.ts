@@ -70,6 +70,20 @@ export function fromCanvasNodeToXyNode(canvasNode: CanvasNode): Node {
   };
 }
 
+/**
+ * React Flow exige qu'un parent précède ses enfants dans le tableau `nodes` :
+ * un enfant rencontré avant son parent est rendu à des coordonnées absolues,
+ * donc décalé du parent tant que rien ne le re-trie.
+ *
+ * Tri stable en deux passes et non tri topologique général : il n'existe pas
+ * de frame dans une frame, la hiérarchie n'a donc qu'un seul niveau. L'ordre
+ * relatif à l'intérieur de chaque groupe est préservé — c'est lui qui
+ * départage les `zIndex` égaux (cf. `toPaintOrder` dans `nodeLayering`).
+ */
 export function fromCanvasNodesToXyNodes(canvasNodes: CanvasNode[]): Node[] {
-  return canvasNodes.map(fromCanvasNodeToXyNode);
+  const parentsFirst = [
+    ...canvasNodes.filter((node) => !node.parentId),
+    ...canvasNodes.filter((node) => node.parentId),
+  ];
+  return parentsFirst.map(fromCanvasNodeToXyNode);
 }

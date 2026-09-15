@@ -315,7 +315,10 @@ export async function patchNode(
   if (props.zIndex !== undefined) patch.zIndex = props.zIndex;
   if (props.color !== undefined) patch.color = props.color;
   if (props.variant !== undefined) patch.variant = props.variant;
-  if (props.parentId !== undefined) patch.parentId = props.parentId;
+  // `null` (sortir de la frame) devient `undefined`, que `db.patch` traduit
+  // par « retirer le champ ». `undefined` en entrée ne passe pas ce test : ne
+  // rien dire sur `parentId` laisse l'appartenance intacte.
+  if (props.parentId !== undefined) patch.parentId = props.parentId ?? undefined;
   if (props.extent !== undefined) patch.extent = props.extent;
   if (props.extendParent !== undefined)
     patch.extendParent = props.extendParent;

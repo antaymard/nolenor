@@ -28,10 +28,18 @@ type NodeVariant = {
 type NodeCapabilities = {
   agent: {
     /**
-     * Le TYPE est présenté à l'agent : catalogue de `<available_node_types>`,
-     * enum des types que `create_node` accepte.
+     * Le TYPE est décrit à l'agent, dans le catalogue
+     * `<available_node_types>` du system prompt.
+     *
+     * Distinct de `creatable` : un conteneur comme `frame` doit être compris
+     * — l'agent va en croiser dans `list_nodes` et dans la minimap — sans
+     * pour autant être créable. Les deux étaient un seul flag jusqu'à
+     * l'arrivée des frames, ce qui ne laissait le choix qu'entre « créable »
+     * et « inconnu ».
      */
     exposed: boolean;
+    /** Le TYPE figure dans l'enum des types que `create_node` accepte. */
+    creatable: boolean;
     /**
      * Les INSTANCES lui sont visibles : `list_nodes`, `read_nodes`, recherche
      * plein texte agent, minimap du canvas, contexte de message.
@@ -64,7 +72,7 @@ type NodeCapabilitiesInput = Partial<
 };
 
 const DEFAULT_NODE_CAPABILITIES: NodeCapabilities = {
-  agent: { exposed: true, readable: true, writable: true },
+  agent: { exposed: true, creatable: true, readable: true, writable: true },
   mentionable: true,
   versioned: true,
   search: { embed: true },
@@ -882,7 +890,12 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     // (texte multi-lignes + bouton de navigation en bas à droite).
     defaultDimensions: { width: baseWidth, height: titleVariantHeight, resizable: true },
     capabilities: {
-      agent: { exposed: false, readable: false, writable: false },
+      agent: {
+        exposed: false,
+        creatable: false,
+        readable: false,
+        writable: false,
+      },
       mentionable: false,
       // Un cadrage n'a pas d'historique à remonter : le recapturer, c'est
       // justement vouloir écraser l'ancien.
@@ -953,16 +966,19 @@ function isNodeTypeEmbedded(nodeType: string): boolean {
 }
 
 /**
- * `nodeTypeZodValidator` amputé des types que l'agent ne voit pas : le JSON
- * schema publié par `create_node` ne les liste donc pas, et une valeur envoyée
- * quand même est rejetée par zod.
+ * `nodeTypeZodValidator` amputé des types que l'agent ne peut pas créer : le
+ * JSON schema publié par `create_node` ne les liste donc pas, et une valeur
+ * envoyée quand même est rejetée par zod.
+ *
+ * Filtre sur `creatable` et non sur `exposed` : un type peut être décrit à
+ * l'agent sans lui être ouvert à la création (cf. `frame`).
  *
  * Le type inféré reste l'union complète — les branches par type en aval
  * continuent de typer normalement, seule la liste runtime est restreinte.
  */
 const agentCreatableNodeTypeZodValidator = z.enum(
   nodeTypeValues.filter(
-    (type) => getNodeCapabilities(type).agent.exposed,
+    (type) => getNodeCapabilities(type).agent.creatable,
   ) as unknown as [
     z.infer<typeof nodeTypeZodValidator>,
     ...Array<z.infer<typeof nodeTypeZodValidator>>,

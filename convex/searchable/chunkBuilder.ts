@@ -10,6 +10,7 @@ import { blocksToMarkdown } from "../ia/helpers/blockNoteMarkdown";
 import { parseStoredBlockNoteDocument } from "../lib/blockNoteDocument";
 import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFriendly";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
+import { isNodeTypeEmbedded } from "../config/nodeConfig";
 import { getSearchableTextForTemplateValues } from "../config/fieldConfig";
 import { stripLoneSurrogates } from "../lib/textSanitize";
 import {
@@ -97,10 +98,18 @@ async function rebuildChunksForNodeData(
     text: stripLoneSurrogates(chunk.text),
   }));
 
-  // Vectorisation Voyage-4 (title + text). En cas d'échec (clé absente,
-  // réseau, quota), on dégrade : upsert sans embedding, la recherche keyword
-  // reste opérationnelle et le backfill couvrira le chunk plus tard.
-  if (chunks.length > 0) {
+  // Vectorisation Voyage-4 (title + text), sauf types exclus via
+  // `nodeConfig` (`search.embed: false` : title, embed, audio, video,
+  // viewport) — leurs chunks restent keyword seuls. En cas d'échec (clé
+  // absente, réseau, quota), on dégrade : upsert sans embedding, la recherche
+  // keyword reste opérationnelle et le backfill couvrira le chunk plus tard.
+  if (chunks.length > 0 && !isNodeTypeEmbedded(nodeData.type)) {
+    console.log("[chunkBuilder] rebuildChunks:skip-embed-by-config", {
+      nodeDataId,
+      nodeType: nodeData.type,
+      chunkCount: chunks.length,
+    });
+  } else if (chunks.length > 0) {
     try {
       const embeddings = await embedDocuments(
         chunks.map((chunk) => buildEmbeddingText(chunk.title, chunk.text)),

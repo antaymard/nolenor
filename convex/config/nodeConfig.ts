@@ -44,18 +44,30 @@ type NodeCapabilities = {
   mentionable: boolean;
   /** Une écriture peut poser un checkpoint dans `nodeDataVersions`. */
   versioned: boolean;
+  /**
+   * Indexation de recherche : `embed: false` garde les chunks keyword
+   * (`search_title` / `search_text`) mais saute la vectorisation Voyage
+   * (pas d'`embedding`, exclu du vector search). Défaut `true`.
+   */
+  search: {
+    embed: boolean;
+  };
 };
 
 // Déclaration partielle : une entrée ne précise que ce qui s'écarte des
 // défauts, `getNodeCapabilities` complète le reste.
-type NodeCapabilitiesInput = Partial<Omit<NodeCapabilities, "agent">> & {
+type NodeCapabilitiesInput = Partial<
+  Omit<NodeCapabilities, "agent" | "search">
+> & {
   agent?: Partial<NodeCapabilities["agent"]>;
+  search?: Partial<NodeCapabilities["search"]>;
 };
 
 const DEFAULT_NODE_CAPABILITIES: NodeCapabilities = {
   agent: { exposed: true, readable: true, writable: true },
   mentionable: true,
   versioned: true,
+  search: { embed: true },
 };
 
 type NodeDataConfigItem = {
@@ -117,6 +129,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       "For sections headings, hubs nodes, parents of related sub nodes. Use this node for titles (for branches in trees of thought), subtitles, or any standalone text that doesn't require rich formatting. If you need rich text formatting (bold, italic, lists, etc.), use the Blocknote node instead. \nThe required data values for this node are 'text' (the content of the label) and 'level' (the heading level, which can be 'h1', 'h2', 'h3', or 'p').",
     defaultDimensions: { width: baseWidth, height: titleVariantHeight, resizable: true },
     defaultColor: "transparent",
+    // Titre court redondant : keyword suffit, pas de valeur sémantique.
+    capabilities: {
+      search: { embed: false },
+    },
     dataValuesSchema: z
       .object({
         text: z.string().describe("The text content of the label.").default(""),
@@ -396,6 +412,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       },
     },
 
+    // URL + domaine seuls : keyword suffit, pas de valeur sémantique.
+    capabilities: {
+      search: { embed: false },
+    },
     dataValuesSchema: z
       .object({
         embed: z
@@ -621,6 +641,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         resizable: false,
       },
     },
+    // Filename + tags seuls (pas de transcription) : keyword suffit.
+    capabilities: {
+      search: { embed: false },
+    },
     dataValuesSchema: z
       .object({
         audio: z
@@ -763,6 +787,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         resizable: false,
       },
     },
+    // Filename seul (pas de transcription ni vision) : keyword suffit.
+    capabilities: {
+      search: { embed: false },
+    },
     dataValuesSchema: z
       .object({
         video: z
@@ -859,6 +887,8 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       // Un cadrage n'a pas d'historique à remonter : le recapturer, c'est
       // justement vouloir écraser l'ancien.
       versioned: false,
+      // Titre de repère seul : keyword suffit.
+      search: { embed: false },
     },
     dataValuesSchema: z
       .object({
@@ -905,12 +935,21 @@ function getNodeCapabilities(nodeType: string): NodeCapabilities {
     agent: { ...DEFAULT_NODE_CAPABILITIES.agent, ...declared.agent },
     mentionable: declared.mentionable ?? DEFAULT_NODE_CAPABILITIES.mentionable,
     versioned: declared.versioned ?? DEFAULT_NODE_CAPABILITIES.versioned,
+    search: { ...DEFAULT_NODE_CAPABILITIES.search, ...declared.search },
   };
 }
 
 /** Raccourci : l'agent n'a pas à connaître l'existence de ces nodes. */
 function isNodeTypeReadableByAgent(nodeType: string): boolean {
   return getNodeCapabilities(nodeType).agent.readable;
+}
+
+/**
+ * Raccourci : les chunks de ce type sont-ils vectorisés (Voyage) ?
+ * `false` = keyword seul (`search_title` / `search_text`), pas d'`embedding`.
+ */
+function isNodeTypeEmbedded(nodeType: string): boolean {
+  return getNodeCapabilities(nodeType).search.embed;
 }
 
 /**
@@ -936,6 +975,7 @@ export {
   getDefaultNodeDataValues,
   getNodeCapabilities,
   isNodeTypeReadableByAgent,
+  isNodeTypeEmbedded,
   agentCreatableNodeTypeZodValidator,
   DEFAULT_NODE_CAPABILITIES,
 };

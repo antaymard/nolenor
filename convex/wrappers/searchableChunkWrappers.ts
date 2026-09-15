@@ -166,11 +166,24 @@ export const listChunkPage = internalQuery({
       ...page,
       page: page.page.map((chunk) => ({
         _id: chunk._id,
+        nodeType: chunk.nodeType,
         title: chunk.title,
         text: chunk.text,
+        hasEmbedding: chunk.embedding !== undefined,
         needsEmbedding: chunk.embeddingModel !== EMBEDDING_MODEL_TAG,
       })),
     };
+  },
+});
+
+export const stripChunkEmbeddings = internalMutation({
+  args: {
+    ids: v.array(v.id("searchableChunks")),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await SearchableChunkModels.stripEmbeddingsByIds(ctx, args);
+    return null;
   },
 });
 

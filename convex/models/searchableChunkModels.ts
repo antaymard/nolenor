@@ -89,6 +89,22 @@ export async function updateCanvasId(
 }
 
 /**
+ * Retire le vecteur d'embedding de chunks (retour au keyword seul).
+ * `patch` avec `undefined` supprime le champ optionnel.
+ */
+export async function stripEmbeddingsByIds(
+  ctx: MutationCtx,
+  { ids }: { ids: Array<Id<"searchableChunks">> },
+): Promise<void> {
+  for (const id of ids) {
+    await ctx.db.patch(id, {
+      embedding: undefined,
+      embeddingModel: undefined,
+    });
+  }
+}
+
+/**
  * Résout nodeDataId → llmId pour l'affichage des résultats. Les chunks ne
  * portent plus leur rattachement visuel (cf. searchableChunksSchema) : il se
  * résout ici, à la lecture, via la table `nodes`. Introuvable = orphelin :

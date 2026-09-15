@@ -10,6 +10,11 @@ import {
 import type { NodeType } from "../schemas/nodeTypeSchema";
 import { isNodeTypeReadableByAgent } from "../config/nodeConfig";
 import { stripLoneSurrogates } from "../lib/textSanitize";
+import {
+  getImageUrlFromMetadata,
+  getSectionTitleFromMetadata,
+} from "../lib/chunkMetadata";
+import type { FusedHit } from "../schemas/searchableChunksSchema";
 
 type SearchableChunk = Doc<"searchableChunks">;
 
@@ -84,6 +89,22 @@ export async function updateCanvasId(
 }
 
 /**
+ * Retire le vecteur d'embedding de chunks (retour au keyword seul).
+ * `patch` avec `undefined` supprime le champ optionnel.
+ */
+export async function stripEmbeddingsByIds(
+  ctx: MutationCtx,
+  { ids }: { ids: Array<Id<"searchableChunks">> },
+): Promise<void> {
+  for (const id of ids) {
+    await ctx.db.patch(id, {
+      embedding: undefined,
+      embeddingModel: undefined,
+    });
+  }
+}
+
+/**
  * Résout nodeDataId → llmId pour l'affichage des résultats. Les chunks ne
  * portent plus leur rattachement visuel (cf. searchableChunksSchema) : il se
  * résout ici, à la lecture, via la table `nodes`. Introuvable = orphelin :
@@ -110,7 +131,7 @@ export async function resolveNodeIds(
         .first();
       // Un node à la corbeille est traité comme un orphelin : ses chunks
       // vivent jusqu'à la purge (30 j), mais il ne doit plus remonter en
-      // recherche — ni dans la modale, ni dans le tool `full_text_search`.
+      // recherche — ni dans la modale, ni dans le tool `search_canvas`.
       if (node && node.status !== "trashed") {
         resolved.set(nodeDataId, node.id);
       } else {
@@ -225,7 +246,7 @@ type FullTextSearchHit = {
   sectionTitle?: string;
 };
 
-type FullTextSearchResult = {
+type KeywordSearchResult = {
   hits: FullTextSearchHit[];
   scanned: number;
   limit: number;
@@ -267,28 +288,12 @@ function getPage(metadata: unknown): number | undefined {
   return typeof page === "number" ? page : undefined;
 }
 
-// For PDF chunks, keep only the first section title as a compact locator.
-function getSectionTitle(metadata: unknown): string | undefined {
-  if (!metadata || typeof metadata !== "object") return undefined;
-  const sections = (metadata as { sections?: unknown }).sections;
-  if (!Array.isArray(sections) || sections.length === 0) return undefined;
-
-  const firstSection = sections[0];
-  if (!firstSection || typeof firstSection !== "object") return undefined;
-
-  const title = (firstSection as { title?: unknown }).title;
-  if (typeof title !== "string") return undefined;
-
-  const trimmed = title.trim();
-  return trimmed.length > 0 ? stripLoneSurrogates(trimmed) : undefined;
-}
-
 /**
  * Recherche indexée sur le contenu ET le titre, scopée au canvas, dédupliquée.
  * Le type de node est poussé dans l'index quand le fan-out reste raisonnable,
  * et re-filtré en TS dans tous les cas (exact et gratuit).
  * `titleOnly` (recherche utilisateur Cmd+K uniquement) ne touche que l'index
- * `search_title` : le chemin agent (`fullTextSearch`) garde le défaut `false`.
+  * `search_title` : le chemin agent (`keywordSearch`) garde le défaut `false`.
  */
 export async function searchChunks(
   ctx: QueryCtx,
@@ -416,7 +421,7 @@ export async function collectExcludedNodeIds(
   return excludedNodeIds;
 }
 
-export async function fullTextSearch(
+export async function keywordSearch(
   ctx: QueryCtx,
   {
     canvasId,
@@ -431,7 +436,7 @@ export async function fullTextSearch(
     nodeTypes?: NodeType[];
     limit?: number;
   },
-): Promise<FullTextSearchResult> {
+): Promise<KeywordSearchResult> {
   // 1) Resolve effective limits for response and scan window.
   const effectiveLimit = clampLimit(limit);
 
@@ -460,7 +465,7 @@ export async function fullTextSearch(
   });
 
   // 3bis) Les types invisibles pour l'agent ne remontent jamais ici.
-  // Volontairement dans `fullTextSearch` et pas dans `searchChunks` : ce
+  // Volontairement dans `keywordSearch` et pas dans `searchChunks` : ce
   // dernier sert aussi la recherche de l'utilisateur, où un viewport node se
   // trouve par son titre comme n'importe quel autre node.
   const visibleChunks = chunks.filter((chunk) =>
@@ -545,7 +550,7 @@ export async function fullTextSearch(
       text: stripLoneSurrogates(chunk.text),
       title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
       page: getPage(chunk.metadata),
-      sectionTitle: getSectionTitle(chunk.metadata),
+      sectionTitle: getSectionTitleFromMetadata(chunk.metadata),
     });
   }
 
@@ -557,4 +562,75 @@ export async function fullTextSearch(
     relaxed,
     terms: parsed.highlightTerms,
   };
+}
+
+/**
+ * Hydrate des hits `ctx.vectorSearch` (`{_id, _score}`, ordre de pertinence
+ * préservé) en documents projetés (sans l'embedding). Applique les filtres
+ * que l'index vectoriel ne peut pas pousser (pas de AND inter-champs) :
+ * `nodeTypes`, visibilité agent, `nodeIds`, corbeille/orphelins.
+ */
+export async function hydrateVectorHits(
+  ctx: QueryCtx,
+  {
+    canvasId,
+    hits,
+    nodeIds,
+    nodeTypes,
+    agentReadableOnly,
+  }: {
+    canvasId: Id<"canvases">;
+    hits: Array<{ id: Id<"searchableChunks">; score: number }>;
+    nodeIds?: string[];
+    nodeTypes?: NodeType[];
+    agentReadableOnly?: boolean;
+  },
+): Promise<Array<Omit<FusedHit, "sources">>> {
+  const types = nodeTypes ?? [];
+  const readableOnly = agentReadableOnly === true;
+
+  const docs = await Promise.all(
+    hits.map(async (hit) => ({
+      doc: await ctx.db.get(hit.id),
+      score: hit.score,
+    })),
+  );
+
+  const kept = docs.flatMap(({ doc, score }) => {
+    if (!doc) return [];
+    // Sécurité : le filtre vectoriel est déjà scopé, on re-vérifie ici.
+    if (doc.canvasId !== canvasId) return [];
+    if (types.length > 0 && !types.includes(doc.nodeType)) return [];
+    if (readableOnly && !isNodeTypeReadableByAgent(doc.nodeType)) return [];
+    return [{ doc, score }] as const;
+  });
+
+  const resolved = await resolveNodeIds(ctx, {
+    canvasId,
+    nodeDataIds: kept.map(({ doc }) => doc.nodeDataId),
+  });
+
+  const nodeIdFilter =
+    nodeIds && nodeIds.length > 0 ? new Set(nodeIds) : undefined;
+
+  return kept.flatMap(({ doc, score }) => {
+    const nodeId = resolved.get(doc.nodeDataId);
+    if (!nodeId) return [];
+    if (nodeIdFilter && !nodeIdFilter.has(nodeId)) return [];
+    return [
+      {
+        nodeId,
+        nodeDataId: doc.nodeDataId,
+        nodeType: doc.nodeType,
+        chunkType: doc.chunkType,
+        order: doc.order,
+        text: stripLoneSurrogates(doc.text),
+        title: doc.title ? stripLoneSurrogates(doc.title) : doc.title,
+        page: getPage(doc.metadata),
+        sectionTitle: getSectionTitleFromMetadata(doc.metadata),
+        imageUrl: getImageUrlFromMetadata(doc.metadata),
+        score,
+      },
+    ];
+  });
 }

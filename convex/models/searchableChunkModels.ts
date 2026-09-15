@@ -10,6 +10,11 @@ import {
 import type { NodeType } from "../schemas/nodeTypeSchema";
 import { isNodeTypeReadableByAgent } from "../config/nodeConfig";
 import { stripLoneSurrogates } from "../lib/textSanitize";
+import {
+  getImageUrlFromMetadata,
+  getSectionTitleFromMetadata,
+} from "../lib/chunkMetadata";
+import type { FusedHit } from "../schemas/searchableChunksSchema";
 
 type SearchableChunk = Doc<"searchableChunks">;
 
@@ -265,22 +270,6 @@ function getPage(metadata: unknown): number | undefined {
   if (!metadata || typeof metadata !== "object") return undefined;
   const page = (metadata as { page?: unknown }).page;
   return typeof page === "number" ? page : undefined;
-}
-
-// For PDF chunks, keep only the first section title as a compact locator.
-function getSectionTitle(metadata: unknown): string | undefined {
-  if (!metadata || typeof metadata !== "object") return undefined;
-  const sections = (metadata as { sections?: unknown }).sections;
-  if (!Array.isArray(sections) || sections.length === 0) return undefined;
-
-  const firstSection = sections[0];
-  if (!firstSection || typeof firstSection !== "object") return undefined;
-
-  const title = (firstSection as { title?: unknown }).title;
-  if (typeof title !== "string") return undefined;
-
-  const trimmed = title.trim();
-  return trimmed.length > 0 ? stripLoneSurrogates(trimmed) : undefined;
 }
 
 /**
@@ -545,7 +534,7 @@ export async function fullTextSearch(
       text: stripLoneSurrogates(chunk.text),
       title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
       page: getPage(chunk.metadata),
-      sectionTitle: getSectionTitle(chunk.metadata),
+      sectionTitle: getSectionTitleFromMetadata(chunk.metadata),
     });
   }
 
@@ -557,4 +546,75 @@ export async function fullTextSearch(
     relaxed,
     terms: parsed.highlightTerms,
   };
+}
+
+/**
+ * Hydrate des hits `ctx.vectorSearch` (`{_id, _score}`, ordre de pertinence
+ * préservé) en documents projetés (sans l'embedding). Applique les filtres
+ * que l'index vectoriel ne peut pas pousser (pas de AND inter-champs) :
+ * `nodeTypes`, visibilité agent, `nodeIds`, corbeille/orphelins.
+ */
+export async function hydrateVectorHits(
+  ctx: QueryCtx,
+  {
+    canvasId,
+    hits,
+    nodeIds,
+    nodeTypes,
+    agentReadableOnly,
+  }: {
+    canvasId: Id<"canvases">;
+    hits: Array<{ id: Id<"searchableChunks">; score: number }>;
+    nodeIds?: string[];
+    nodeTypes?: NodeType[];
+    agentReadableOnly?: boolean;
+  },
+): Promise<Array<Omit<FusedHit, "sources">>> {
+  const types = nodeTypes ?? [];
+  const readableOnly = agentReadableOnly === true;
+
+  const docs = await Promise.all(
+    hits.map(async (hit) => ({
+      doc: await ctx.db.get(hit.id),
+      score: hit.score,
+    })),
+  );
+
+  const kept = docs.flatMap(({ doc, score }) => {
+    if (!doc) return [];
+    // Sécurité : le filtre vectoriel est déjà scopé, on re-vérifie ici.
+    if (doc.canvasId !== canvasId) return [];
+    if (types.length > 0 && !types.includes(doc.nodeType)) return [];
+    if (readableOnly && !isNodeTypeReadableByAgent(doc.nodeType)) return [];
+    return [{ doc, score }] as const;
+  });
+
+  const resolved = await resolveNodeIds(ctx, {
+    canvasId,
+    nodeDataIds: kept.map(({ doc }) => doc.nodeDataId),
+  });
+
+  const nodeIdFilter =
+    nodeIds && nodeIds.length > 0 ? new Set(nodeIds) : undefined;
+
+  return kept.flatMap(({ doc, score }) => {
+    const nodeId = resolved.get(doc.nodeDataId);
+    if (!nodeId) return [];
+    if (nodeIdFilter && !nodeIdFilter.has(nodeId)) return [];
+    return [
+      {
+        nodeId,
+        nodeDataId: doc.nodeDataId,
+        nodeType: doc.nodeType,
+        chunkType: doc.chunkType,
+        order: doc.order,
+        text: stripLoneSurrogates(doc.text),
+        title: doc.title ? stripLoneSurrogates(doc.title) : doc.title,
+        page: getPage(doc.metadata),
+        sectionTitle: getSectionTitleFromMetadata(doc.metadata),
+        imageUrl: getImageUrlFromMetadata(doc.metadata),
+        score,
+      },
+    ];
+  });
 }

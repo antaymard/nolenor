@@ -4,6 +4,7 @@ import { internal } from "../../_generated/api";
 import { type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
+import type { FusedHit } from "../../schemas/searchableChunksSchema";
 import { type ThreadCtx, toolAgentNames } from "../agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig } from "./toolHelpers";
 
@@ -102,6 +103,14 @@ function toJsonString(value: unknown): string {
   return JSON.stringify(value);
 }
 
+const DESCRIPTION_PARTS = [
+  "Hybrid search over the current canvas using indexed chunks, every node type is searchable (pdf included).",
+  "Keyword + semantic run together by default (Reciprocal Rank Fusion); set keyword_search or semantic_search to false to restrict to one mode.",
+  'Keyword is for precise lookup (names, acronyms, reference IDs, rare words) with Google-style operators: every bare word is required, "quoted text" must appear verbatim, -word excludes any node containing it, and `a OR b` accepts either.',
+  "Semantic is for conceptual lookup: phrase the query as short affirmative statements carrying content words, never as a question.",
+  "Returns compact snippets and metadata to quickly decide what to read next.",
+];
+
 export default function fullTextSearchTool({
   threadCtx,
 }: {
@@ -110,14 +119,13 @@ export default function fullTextSearchTool({
   const { canvasId } = threadCtx;
 
   return createTool({
-    description:
-      "Search exact tokens in the current canvas using full-text indexed chunks, every node type is searchable (pdf included). Use this for precise lookup (names, acronyms, reference IDs, rare words). Supports Google-style operators: every bare word is required, \"quoted text\" must appear verbatim, -word excludes any node containing it, and `a OR b` accepts either. Returns compact snippets and metadata to quickly decide what to read next.",
+    description: DESCRIPTION_PARTS.join(" "),
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       query: z
         .string()
         .describe(
-          'The tokens to search for. All bare words must appear in the same node; use "quoted text" for a verbatim phrase, -word to exclude nodes containing it, and `a OR b` for alternatives.',
+          'The tokens to search for. Keyword: all bare words must appear in the same node; use "quoted text" for a verbatim phrase, -word to exclude nodes containing it, and `a OR b` for alternatives. Semantic: short affirmative statements with content words, never a question.',
         ),
       nodeIds: z
         .array(z.string())
@@ -145,19 +153,48 @@ export default function fullTextSearchTool({
         .number()
         .optional()
         .describe("Maximum number of hits to return (default 20, max 50)."),
+      keyword_search: z
+        .boolean()
+        .optional()
+        .describe(
+          "Run the keyword (full-text) branch. Default true; set false for pure semantic search.",
+        ),
+      semantic_search: z
+        .boolean()
+        .optional()
+        .describe(
+          "Run the semantic (vector) branch. Default true; set false for pure keyword search.",
+        ),
     }),
     execute: async (ctx, input): Promise<string> => {
       const normalizedQuery = input.query.trim();
       const limit = clampLimit(input.limit);
       const groupByNode = input.groupByNode ?? false;
       const hitsPerNode = clampHitsPerNode(input.hitsPerNode);
+      const useKeyword = input.keyword_search !== false;
+      const useSemantic = input.semantic_search !== false;
+      const requestedMode = useKeyword
+        ? useSemantic
+          ? "hybrid"
+          : "keyword"
+        : "semantic";
+
+      type BridgeResult = {
+        hits: FusedHit[];
+        scanned: number;
+        truncated: boolean;
+        relaxed: boolean;
+        terms: string[];
+        mode: string;
+        degraded: boolean;
+      };
 
       if (normalizedQuery.length < 2) {
         return toJsonString({
           success: false,
           status: "invalid_query",
           query: normalizedQuery,
-          mode: groupByNode ? "grouped" : "flat",
+          mode: requestedMode,
           returned: 0,
           limit,
           scanned: 0,
@@ -180,16 +217,53 @@ export default function fullTextSearchTool({
             )
           : limit;
 
-        const result = await ctx.runQuery(
-          internal.wrappers.searchableChunkWrappers.fullTextSearch,
-          {
-            canvasId: canvasId as Id<"canvases">,
-            query: normalizedQuery,
-            nodeIds: input.nodeIds,
-            nodeTypes: input.nodeTypes,
-            limit: searchLimit,
-          },
-        );
+        // Branche sémantique (hybride RRF par défaut) via action — le
+        // vectorSearch n'existe qu'en action. Repli keyword seul sinon.
+        const result: BridgeResult = useSemantic
+          ? await ctx
+              .runAction(internal.semanticSearch.runHybridSearch, {
+                canvasId: canvasId as Id<"canvases">,
+                query: normalizedQuery,
+                nodeIds: input.nodeIds,
+                nodeTypes: input.nodeTypes,
+                limit: searchLimit,
+                useKeyword,
+                useSemantic: true,
+                agentReadableOnly: true,
+              })
+              .then((hybrid) => ({
+                hits: hybrid.hits,
+                scanned: hybrid.scanned,
+                truncated: hybrid.truncated,
+                relaxed: hybrid.relaxed,
+                terms: hybrid.terms,
+                mode: hybrid.mode,
+                degraded: hybrid.degraded ?? false,
+              }))
+          : await ctx
+              .runQuery(
+                internal.wrappers.searchableChunkWrappers.fullTextSearch,
+                {
+                  canvasId: canvasId as Id<"canvases">,
+                  query: normalizedQuery,
+                  nodeIds: input.nodeIds,
+                  nodeTypes: input.nodeTypes,
+                  limit: searchLimit,
+                },
+              )
+              .then((keyword) => ({
+                hits: keyword.hits.map((hit) => ({
+                  ...hit,
+                  score: 0,
+                  sources: ["keyword" as const],
+                })),
+                scanned: keyword.scanned,
+                truncated: keyword.truncated,
+                relaxed: keyword.relaxed,
+                terms: keyword.terms,
+                mode: requestedMode,
+                degraded: false,
+              }));
 
         const hits = result.hits.map((hit) => ({
           ...hit,
@@ -217,6 +291,7 @@ export default function fullTextSearchTool({
               snippet: hit.snippet,
               page: hit.page,
               sectionTitle: hit.sectionTitle,
+              ...(hit.sources ? { sources: hit.sources } : {}),
             }));
 
           const truncated =
@@ -234,6 +309,8 @@ export default function fullTextSearchTool({
             status,
             query: normalizedQuery,
             mode: "flat",
+            searchMode: result.mode,
+            degraded: result.degraded,
             returned: rankedFlat.length,
             limit,
             scanned: result.scanned,
@@ -365,6 +442,8 @@ export default function fullTextSearchTool({
           status,
           query: normalizedQuery,
           mode: "grouped",
+          searchMode: result.mode,
+          degraded: result.degraded,
           returned: groupedHits.length,
           limit,
           scanned: result.scanned,
@@ -381,6 +460,8 @@ export default function fullTextSearchTool({
           status: "error",
           query: normalizedQuery,
           mode: groupByNode ? "grouped" : "flat",
+          searchMode: requestedMode,
+          degraded: false,
           returned: 0,
           limit,
           scanned: 0,

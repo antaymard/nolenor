@@ -12,6 +12,11 @@ import { makeTableNodeDataLLMFriendly } from "../ia/helpers/makeNodeDataLLMFrien
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
 import { getSearchableTextForTemplateValues } from "../config/fieldConfig";
 import { stripLoneSurrogates } from "../lib/textSanitize";
+import {
+  EMBEDDING_MODEL_TAG,
+  buildEmbeddingText,
+  embedDocuments,
+} from "../lib/voyage";
 import type { Doc } from "../_generated/dataModel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -91,6 +96,27 @@ async function rebuildChunksForNodeData(
     title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
     text: stripLoneSurrogates(chunk.text),
   }));
+
+  // Vectorisation Voyage-4 (title + text). En cas d'échec (clé absente,
+  // réseau, quota), on dégrade : upsert sans embedding, la recherche keyword
+  // reste opérationnelle et le backfill couvrira le chunk plus tard.
+  if (chunks.length > 0) {
+    try {
+      const embeddings = await embedDocuments(
+        chunks.map((chunk) => buildEmbeddingText(chunk.title, chunk.text)),
+      );
+      chunks.forEach((chunk, i) => {
+        chunk.embedding = embeddings[i];
+        chunk.embeddingModel = EMBEDDING_MODEL_TAG;
+      });
+    } catch (error) {
+      console.warn("[chunkBuilder] rebuildChunks:embed-failed", {
+        nodeDataId,
+        chunkCount: chunks.length,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   console.log("[chunkBuilder] rebuildChunks:chunks-built", {
     nodeDataId,

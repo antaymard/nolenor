@@ -4,6 +4,10 @@ import { Input } from "@/components/shadcn/input";
 import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import { Switch } from "@/components/shadcn/switch";
+import {
+  SearchDegradedNotice,
+  SearchModeToggle,
+} from "@/components/search/SearchModeToggle";
 import { TbSearch, TbX } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useWindowsStore } from "@/stores/windowsStore";
@@ -55,6 +59,9 @@ export default function MobileSearchTab({
     clearNodeTypes,
     titleOnly,
     toggleTitleOnly,
+    searchMode,
+    setSearchMode,
+    degraded,
   } = useSearch({ canvasId, query, enabled: active });
 
   // Le node s'ouvre en plein écran via MobileNodeOverlay.
@@ -77,7 +84,9 @@ export default function MobileSearchTab({
           placeholder={
             titleOnly
               ? 'Search titles — "phrase", -exclude, a OR b'
-              : 'Search — "phrase", -exclude, a OR b'
+              : searchMode === "semantic"
+                ? "Semantic search — describe the idea"
+                : 'Search — "phrase", -exclude, a OR b'
           }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -105,10 +114,16 @@ export default function MobileSearchTab({
           onClear={clearNodeTypes}
           className="min-w-0 flex-1"
         />
+        <SearchModeToggle
+          compact
+          value={searchMode}
+          onChange={setSearchMode}
+        />
         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
           <Switch
             checked={titleOnly}
             onCheckedChange={toggleTitleOnly}
+            disabled={searchMode !== "keyword"}
             aria-label="Titles only"
           />
           Titles only
@@ -134,6 +149,7 @@ export default function MobileSearchTab({
                   No exact results — showing close matches.
                 </div>
               ) : null}
+              {degraded ? <SearchDegradedNotice /> : null}
               {results.map((result) => (
                 <MobileResultRow
                   key={result.nodeId}

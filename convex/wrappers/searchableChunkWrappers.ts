@@ -1,8 +1,14 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { internalMutation, internalQuery } from "../_generated/server";
 import * as SearchableChunkModels from "../models/searchableChunkModels";
-import { searchableChunksValidator } from "../schemas/searchableChunksSchema";
+import {
+  fusedHitValidator,
+  searchableChunksValidator,
+} from "../schemas/searchableChunksSchema";
 import { nodeTypeValidator } from "../schemas/nodeTypeSchema";
+import { requireAuth, requireCanvasAccess } from "../lib/auth";
+import { EMBEDDING_MODEL_TAG } from "../lib/voyage";
 
 const chunkInputValidator = v.object(searchableChunksValidator.fields);
 
@@ -105,4 +111,80 @@ export const fullTextSearch = internalQuery({
     terms: v.array(v.string()),
   }),
   handler: async (ctx, args) => SearchableChunkModels.fullTextSearch(ctx, args),
+});
+
+/** Garde d'accès canvas pour les actions (pas de `ctx.db` en action). */
+export const checkCanvasAccess = internalQuery({
+  args: { canvasId: v.id("canvases") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await requireAuth(ctx);
+    await requireCanvasAccess(ctx, args.canvasId, userId);
+    return null;
+  },
+});
+
+/**
+ * Hydrate des hits `ctx.vectorSearch` (`{_id, _score}`) en documents projetés.
+ * Couche fine : toute la logique vit dans `SearchableChunkModels`.
+ */
+export const hydrateVectorHits = internalQuery({
+  args: {
+    canvasId: v.id("canvases"),
+    hits: v.array(v.object({ id: v.id("searchableChunks"), score: v.number() })),
+    nodeIds: v.optional(v.array(v.string())),
+    nodeTypes: v.optional(v.array(nodeTypeValidator)),
+    agentReadableOnly: v.optional(v.boolean()),
+  },
+  // `sources` est ajouté par l'appelant (`semanticCore`), pas par l'hydratation.
+  returns: v.array(
+    v.object({
+      ...fusedHitValidator.fields,
+      sources: v.optional(fusedHitValidator.fields.sources),
+    }),
+  ),
+  handler: async (ctx, args) =>
+    SearchableChunkModels.hydrateVectorHits(ctx, args),
+});
+
+// ── Backfill embeddings (migration) ────────────────────────────────────────
+
+export const listChunkPage = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("searchableChunks")
+      .order("asc")
+      .paginate(args.paginationOpts);
+    return {
+      ...page,
+      page: page.page.map((chunk) => ({
+        _id: chunk._id,
+        title: chunk.title,
+        text: chunk.text,
+        needsEmbedding: chunk.embeddingModel !== EMBEDDING_MODEL_TAG,
+      })),
+    };
+  },
+});
+
+export const patchChunkEmbeddings = internalMutation({
+  args: {
+    items: v.array(
+      v.object({
+        id: v.id("searchableChunks"),
+        embedding: v.array(v.float64()),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for (const item of args.items) {
+      await ctx.db.patch(item.id, {
+        embedding: item.embedding,
+        embeddingModel: EMBEDDING_MODEL_TAG,
+      });
+    }
+    return null;
+  },
 });

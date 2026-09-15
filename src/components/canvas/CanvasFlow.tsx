@@ -345,7 +345,10 @@ export default function CanvasFlow({
   );
 
   // Canvas nodes management
-  const { nodes, handleNodeChange } = useCanvasNodes(canvasId, canvasNodes);
+  const { nodes, handleNodeChange, onNodeDrag, onNodeDragStop } = useCanvasNodes(
+    canvasId,
+    canvasNodes,
+  );
 
   // Canvas edges management
   const { edges, setEdges, handleEdgeChange } = useCanvasEdges(
@@ -665,6 +668,11 @@ export default function CanvasFlow({
         edges={edgesWithColoredMarkers}
         onEdgesChange={handleEdgeChange}
         onNodesChange={handleNodeChange}
+        // Appartenance aux frames : la cible se décide pendant le geste, parce
+        // que React Flow pousse les positions (donc `onNodesChange`, donc le
+        // flush) AVANT `onNodeDragStop`. Cf. `useCanvasNodes`.
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         // Desktop uniquement : au doigt, le drag sur le pane pan toujours et
         // les viewers (`!canEdit`) ne créent rien.

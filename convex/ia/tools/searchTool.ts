@@ -32,6 +32,11 @@ const SNIPPET_RADIUS = 50;
 const GROUPED_SCAN_MULTIPLIER = 20;
 const GROUPED_MIN_SCAN_LIMIT = 100;
 const GROUPED_MAX_SCAN_LIMIT = 250;
+// Vue compacte : entrées {nodeId, nodeType, title, hitCount} sans snippets,
+// ~5-10x moins chères qu'une entrée groupée complète.
+const COMPACT_MAX = 150;
+
+type SearchView = "flat" | "grouped" | "compact";
 
 function clampLimit(limit: number | undefined): number {
   if (typeof limit !== "number" || Number.isNaN(limit)) {
@@ -108,6 +113,8 @@ const DESCRIPTION_PARTS = [
   "Provide keyword_search and/or semantic_search (at least one is required, both must express the same intent): keyword_search alone runs a precise keyword lookup, semantic_search alone runs a conceptual vector lookup, and providing both combines them (Reciprocal Rank Fusion).",
   'keyword_search is for precise lookup (names, acronyms, reference IDs, rare words) with Google-style operators: every bare word is required, "quoted text" must appear verbatim, -word excludes any node containing it, and `a OR b` accepts either.',
   "semantic_search is for conceptual lookup: short affirmative statements carrying content words, never a question.",
+  "Response shape: status (ok | no_results | relaxed | truncated | invalid_query | error), view (flat | grouped | compact — the effective rendering), searchMode (the branch that actually ran: keyword | semantic | hybrid), hint, hits.",
+  "When groupByNode is true and more nodes match than the limit, results switch automatically to a compact view (id/type/title/hitCount only, up to 150 nodes) instead of truncating; pass nodeIds to narrow or read_nodes for detail.",
   "Returns compact snippets and metadata to quickly decide what to read next.",
 ];
 
@@ -185,10 +192,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           ? "hybrid"
           : "keyword"
         : "semantic";
-      const echoQueries = {
-        ...(useKeyword ? { keywordQuery } : {}),
-        ...(useSemantic ? { semanticQuery } : {}),
-      };
+      const requestedView: SearchView = groupByNode ? "grouped" : "flat";
 
       type BridgeResult = {
         hits: FusedHit[];
@@ -205,14 +209,9 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         (useSemantic && semanticQuery.length < 2)
       ) {
         return toJsonString({
-          success: false,
           status: "invalid_query",
-          ...echoQueries,
-          mode: requestedMode,
-          returned: 0,
-          limit,
-          scanned: 0,
-          truncated: false,
+          view: requestedView,
+          searchMode: requestedMode,
           hint: hintForStatus("invalid_query"),
           hits: [],
         });
@@ -275,20 +274,19 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         );
 
         if (!groupByNode) {
+          const isHybrid = result.mode === "hybrid";
           const rankedFlat = dedupedByNodeSnippet
             .sort((a, b) => a.order - b.order)
             .slice(0, limit)
             .map((hit) => ({
               nodeId: hit.nodeId,
-              nodeDataId: hit.nodeDataId,
               nodeType: hit.nodeType,
               chunkType: hit.chunkType,
-              order: hit.order,
               title: hit.title,
               snippet: hit.snippet,
               page: hit.page,
               sectionTitle: hit.sectionTitle,
-              ...(hit.sources ? { sources: hit.sources } : {}),
+              ...(isHybrid && hit.sources ? { sources: hit.sources } : {}),
             }));
 
           const truncated =
@@ -304,15 +302,9 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
           return toJsonString({
             status,
-            ...echoQueries,
-            mode: "flat",
+            view: "flat" satisfies SearchView,
             searchMode: result.mode,
-            degraded: result.degraded,
-            returned: rankedFlat.length,
-            limit,
-            scanned: result.scanned,
-            truncated,
-            relaxed: result.relaxed,
+            ...(result.degraded ? { degraded: true } : {}),
             hint: hintForStatus(status),
             hits: rankedFlat,
           });
@@ -367,32 +359,62 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           return b.hitCount - a.hitCount;
         });
 
-        const selectedGroups = groupedEntries.slice(0, limit);
-
         // Fallback: fetch titles only for pre-existing chunks that don't carry one yet.
-        const groupsMissingTitle = selectedGroups.filter(
-          (group) => !group.title,
-        );
-        const titlesByNodeId = new Map<string, string>();
+        const fetchMissingTitles = async (
+          groups: Array<{ nodeId: string; title?: string }>,
+        ): Promise<Map<string, string>> => {
+          const titlesByNodeId = new Map<string, string>();
+          const missing = groups.filter((group) => !group.title);
+          if (missing.length > 0) {
+            await Promise.all(
+              missing.map(async (group) => {
+                try {
+                  const { nodeData } = await ctx.runQuery(
+                    internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+                    {
+                      canvasId: canvasId as Id<"canvases">,
+                      nodeId: group.nodeId,
+                    },
+                  );
+                  titlesByNodeId.set(group.nodeId, getNodeDataTitle(nodeData));
+                } catch {
+                  titlesByNodeId.set(group.nodeId, "Untitled");
+                }
+              }),
+            );
+          }
+          return titlesByNodeId;
+        };
 
-        if (groupsMissingTitle.length > 0) {
-          await Promise.all(
-            groupsMissingTitle.map(async (group) => {
-              try {
-                const { nodeData } = await ctx.runQuery(
-                  internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
-                  {
-                    canvasId: canvasId as Id<"canvases">,
-                    nodeId: group.nodeId,
-                  },
-                );
-                titlesByNodeId.set(group.nodeId, getNodeDataTitle(nodeData));
-              } catch {
-                titlesByNodeId.set(group.nodeId, "Untitled");
-              }
-            }),
-          );
+        // Débordement groupé : vue compacte (id/type/titre/hitCount, sans
+        // snippets) au lieu de tronquer — ~5-10x moins chère par entrée.
+        if (groupedEntries.length > limit) {
+          const totalMatches = groupedEntries.length;
+          const compactEntries = groupedEntries.slice(0, COMPACT_MAX);
+          const compactTitles = await fetchMissingTitles(compactEntries);
+          const truncated = totalMatches > COMPACT_MAX;
+          const status: SearchStatus = truncated ? "truncated" : "ok";
+          return toJsonString({
+            status,
+            view: "compact" satisfies SearchView,
+            searchMode: result.mode,
+            ...(result.degraded ? { degraded: true } : {}),
+            totalMatches,
+            hint: truncated
+              ? `Compact view: showing ${COMPACT_MAX} of ${totalMatches} matching nodes (id/type/title only). Pass nodeIds or nodeTypes to narrow the scope.`
+              : `Compact view: ${totalMatches} matching nodes listed with id/type/title only. Pass nodeIds to search within a subset, or read_nodes for detail.`,
+            hits: compactEntries.map((group) => ({
+              nodeId: group.nodeId,
+              nodeType: group.nodeType,
+              title:
+                group.title ?? compactTitles.get(group.nodeId) ?? "Untitled",
+              hitCount: group.hitCount,
+            })),
+          });
         }
+
+        const selectedGroups = groupedEntries.slice(0, limit);
+        const titlesByNodeId = await fetchMissingTitles(selectedGroups);
 
         const groupedHits = selectedGroups.map((group) => {
           const uniqueBestCandidates = Array.from(
@@ -425,7 +447,9 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           };
         });
 
-        const truncated = result.truncated || groupedEntries.length > limit;
+        // Le débordement ne peut plus venir d'ici (bascule compacte
+        // ci-dessus) : seul `result.truncated` compte.
+        const truncated = result.truncated;
         const status: SearchStatus =
           groupedHits.length === 0
             ? "no_results"
@@ -437,15 +461,9 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
         return toJsonString({
           status,
-          ...echoQueries,
-          mode: "grouped",
+          view: "grouped" satisfies SearchView,
           searchMode: result.mode,
-          degraded: result.degraded,
-          returned: groupedHits.length,
-          limit,
-          scanned: result.scanned,
-          truncated,
-          relaxed: result.relaxed,
+          ...(result.degraded ? { degraded: true } : {}),
           hint: hintForStatus(status),
           hits: groupedHits,
         });
@@ -453,16 +471,9 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         console.error("search_canvas error:", error);
 
         return toJsonString({
-          success: false,
           status: "error",
-          ...echoQueries,
-          mode: groupByNode ? "grouped" : "flat",
+          view: requestedView,
           searchMode: requestedMode,
-          degraded: false,
-          returned: 0,
-          limit,
-          scanned: 0,
-          truncated: false,
           hint: hintForStatus("error"),
           hits: [],
         });

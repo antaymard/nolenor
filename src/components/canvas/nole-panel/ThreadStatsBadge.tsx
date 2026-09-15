@@ -83,6 +83,12 @@ export default function ThreadStatsBadge({
           <p className="font-medium">Thread usage</p>
           {stats.perModel.length > 0 ? (
             <div className="flex flex-col gap-0.5">
+              {/* Tokens CONSOMMÉS par modèle, somme de tous les steps de tous
+                  les tours — à ne pas confondre avec la ligne « Contexte
+                  actuel » en dessous, qui mesure l'occupation de la fenêtre.
+                  Les deux sont des tokens et n'ont pas du tout le même ordre
+                  de grandeur, d'où le libellé. */}
+              <p className="text-slate-300">Consommé</p>
               {stats.perModel.map((m) => (
                 <div key={m.model} className="flex justify-between gap-2">
                   <span>{getModelLabel(m.model, modelOptions)}</span>

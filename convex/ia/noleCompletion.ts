@@ -1,6 +1,8 @@
 "use node";
 import { v } from "convex/values";
 
+import type { LanguageModelUsage } from "ai";
+
 import { internalAction } from "../_generated/server";
 import { createNoleAgent, getChatModel } from "./agents";
 import { generateNoleSystemPrompt } from "./systemPrompts/noleSystemPrompt";
@@ -11,6 +13,36 @@ import {
   threadRunStatuses,
   type ThreadRunEndStatus,
 } from "../schemas/threadMetadataSchema";
+
+/**
+ * Occupation de la fenêtre de contexte à la fin d'un tour, en tokens.
+ *
+ * Se lit sur le DERNIER step (`result.usage`) et jamais sur `result.totalUsage` :
+ * ce dernier somme les steps, or chaque step renvoie au modèle toute la
+ * conversation. Sur un tour Nolë (jusqu'à 25 steps) la somme vaut donc plusieurs
+ * fois le contexte réel, et elle redescend dès que le tour suivant tient en un
+ * seul step — un compteur qui monte et redescend sans rapport avec la longueur
+ * de la conversation.
+ *
+ * L'entrée du dernier step est la conversation entière (historique + résultats
+ * d'outils du tour), sa sortie la réponse finale : `input + output` est bien ce
+ * que la fenêtre contient une fois le tour terminé.
+ *
+ * `undefined` quand le provider n'a renvoyé aucun compteur — à ne pas confondre
+ * avec zéro, que le badge interprète comme « rien à afficher ».
+ */
+function contextTokensFromLastStep(
+  usage: LanguageModelUsage | undefined,
+): number | undefined {
+  if (!usage) return undefined;
+  if (typeof usage.totalTokens === "number") return usage.totalTokens;
+
+  const { inputTokens, outputTokens } = usage;
+  if (typeof inputTokens !== "number" && typeof outputTokens !== "number") {
+    return undefined;
+  }
+  return (inputTokens ?? 0) + (outputTokens ?? 0);
+}
 
 function isExpectedAbortedStreamError(error: unknown): boolean {
   if (!(error instanceof Error)) {
@@ -189,6 +221,15 @@ export const streamResponse = internalAction({
           savedMessages[savedMessages.length - 1];
 
         if (assistantMessage) {
+          // Les deux usages du tour, et ils ne sont pas interchangeables :
+          // `totalUsage` somme les steps (la dépense), `usage` est celui du
+          // dernier step (la fenêtre de contexte). Cf.
+          // `contextTokensFromLastStep`.
+          const [turnUsage, lastStepUsage] = await Promise.all([
+            result.totalUsage,
+            result.usage,
+          ]);
+
           await ctx.runMutation(
             internal.wrappers.messageMetadataWrappers.recordAssistantUsage,
             {
@@ -199,7 +240,8 @@ export const streamResponse = internalAction({
               model: assistantMessage.model,
               provider: assistantMessage.provider ?? "openrouter",
               order: result.order,
-              usage: await result.totalUsage,
+              usage: turnUsage,
+              contextTokens: contextTokensFromLastStep(lastStepUsage),
             },
           );
         }

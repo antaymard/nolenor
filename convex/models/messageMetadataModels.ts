@@ -112,6 +112,11 @@ export async function recordUserAttachments(
 
 // Called once per assistant turn, after the stream completes, with usage/cost
 // aggregated across the turn's steps and `order` matching the visible message.
+//
+// `usage` et `contextTokens` ne mesurent PAS la même chose et ne sont pas
+// dérivables l'un de l'autre : le premier est la dépense du tour (somme des
+// steps), le second l'occupation de la fenêtre à la fin du tour (dernier step).
+// Cf. la note du schéma.
 export async function recordAssistantUsage(
   ctx: MutationCtx,
   {
@@ -122,6 +127,7 @@ export async function recordAssistantUsage(
     model,
     provider,
     usage,
+    contextTokens,
     costUsd,
     order,
   }: {
@@ -132,6 +138,7 @@ export async function recordAssistantUsage(
     model?: string;
     provider?: string;
     usage: Usage;
+    contextTokens?: number;
     costUsd?: number;
     order?: number;
   },
@@ -145,6 +152,7 @@ export async function recordAssistantUsage(
     model,
     provider,
     usage,
+    contextTokens,
     costUsd,
     order,
   });

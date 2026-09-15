@@ -11,6 +11,7 @@ export const recordAssistantUsage = internalMutation({
     model: v.optional(v.string()),
     provider: v.optional(v.string()),
     usage: v.record(v.string(), v.any()),
+    contextTokens: v.optional(v.number()),
     costUsd: v.optional(v.number()),
     order: v.optional(v.number()),
   },

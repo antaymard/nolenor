@@ -287,6 +287,63 @@ export async function listFromCanvas(
 }
 
 /**
+ * Les nodes que ces frames contiennent, corbeille comprise.
+ *
+ * Pas d'index sur `parentId` : on balaie le canvas et on filtre, exactement
+ * comme `listFromCanvas`. C'est déjà la granularité de lecture de tout ce qui
+ * touche au canvas ici, et un index de plus ne se justifierait qu'à partir du
+ * moment où l'appartenance se lirait sans le reste du canvas.
+ *
+ * Les nodes à la corbeille sont inclus : les appelants sont les cascades de
+ * `trash` et `untrash`, qui ont précisément besoin de les voir.
+ */
+export async function listChildren(
+  ctx: QueryCtx | MutationCtx,
+  { canvasId, parentIds }: { canvasId: Id<"canvases">; parentIds: string[] },
+): Promise<NodeDoc[]> {
+  if (parentIds.length === 0) return [];
+  const wanted = new Set(parentIds);
+  const nodes = await ctx.db
+    .query("nodes")
+    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
+    .collect();
+  return nodes.filter(
+    (node) => node.parentId !== undefined && wanted.has(node.parentId),
+  );
+}
+
+/**
+ * Un node peut-il être rattaché à ce parent ?
+ *
+ * Trois règles, vérifiées ici et pas seulement dans l'UI : `nodes.patch` est
+ * public, et l'appartenance porte la cascade de suppression — un `parentId`
+ * qui désigne n'importe quoi emporterait n'importe quoi avec lui.
+ *
+ * Une frame ne peut pas avoir de parent (pas de frame dans une frame), ce qui
+ * exclut du même coup tout cycle : la relation n'a qu'un seul niveau par
+ * construction, il n'y a pas de chaîne dans laquelle boucler.
+ */
+async function assertCanBeChildOf(
+  ctx: QueryCtx | MutationCtx,
+  node: NodeDoc,
+  parentId: string,
+): Promise<void> {
+  if (node.type === "frame") {
+    throw new ConvexError(errors.FRAME_CANNOT_BE_NESTED);
+  }
+  if (parentId === node.id) {
+    throw new ConvexError(errors.NODE_PARENT_MUST_BE_A_FRAME);
+  }
+  const parent = await getNodeByLlmId(ctx, { nodeId: parentId });
+  if (!parent || parent.type !== "frame") {
+    throw new ConvexError(errors.NODE_PARENT_MUST_BE_A_FRAME);
+  }
+  if (parent.canvasId !== node.canvasId) {
+    throw new ConvexError(errors.NODES_MUST_SHARE_CANVAS);
+  }
+}
+
+/**
  * Patch des props visuelles/positionnelles d'un node (couleur, position,
  * dimensions, verrouillage, …). Seuls les champs fournis sont écrits ;
  * `data` est fusionné en shallow, le reste est remplacé. Props vide = no-op (retourne l'id sans toucher
@@ -305,6 +362,10 @@ export async function patchNode(
   },
 ): Promise<string> {
   const node = await getNodeOrThrow(ctx, { nodeId });
+
+  if (props.parentId !== undefined && props.parentId !== null) {
+    await assertCanBeChildOf(ctx, node, props.parentId);
+  }
 
   const patch: Partial<Omit<NodeDoc, "_id" | "_creationTime">> = {};
   if (props.position !== undefined) patch.position = props.position;
@@ -413,6 +474,12 @@ export async function trashNode(
  * fois l'undo du canvas (Mod+Z sur une suppression) et la restauration
  * manuelle depuis la modale corbeille — un seul chemin, donc un seul
  * comportement à garantir. Retourne le llmId.
+ *
+ * Un node dont la frame n'est pas revenue avec lui en ressort libre : c'est le
+ * cas de la modale corbeille, où on peut restaurer un enfant seul. React Flow
+ * refuse de rendre un node dont le parent est absent (il le dit dans la
+ * console et le laisse invisible), donc le rendre « dans » une frame qui
+ * n'existe plus reviendrait à ne pas le rendre du tout.
  */
 export async function untrashNode(
   ctx: MutationCtx,
@@ -427,7 +494,29 @@ export async function untrashNode(
   const node = await getNodeOrThrow(ctx, { nodeId });
   if (node.status !== "trashed") return node.id;
 
-  await ctx.db.patch(node._id, { status: undefined, trashedAt: undefined });
+  const parent = node.parentId
+    ? await getNodeByLlmId(ctx, { nodeId: node.parentId })
+    : null;
+  const losesItsFrame =
+    node.parentId !== undefined && (!parent || parent.status === "trashed");
+
+  await ctx.db.patch(node._id, {
+    status: undefined,
+    trashedAt: undefined,
+    ...(losesItsFrame && {
+      parentId: undefined,
+      // Sa position était relative à la frame : telle quelle, elle se lirait
+      // désormais en coordonnées monde et le node réapparaîtrait près de
+      // l'origine. On la repasse en absolu — sauf si la frame a été purgée,
+      // auquel cas il ne reste rien pour le faire.
+      position: parent
+        ? {
+            x: parent.position.x + node.position.x,
+            y: parent.position.y + node.position.y,
+          }
+        : node.position,
+    }),
+  });
 
   if (shouldTouchCanvas) {
     await CanvasModels.touchCanvas(ctx, node.canvasId);
@@ -463,12 +552,34 @@ export async function trashNodes(
   const uniqueIds = [...new Set(nodeIds)];
   if (uniqueIds.length === 0) return [];
 
-  const nodes = await Promise.all(
+  const named = await Promise.all(
     uniqueIds.map((nodeId) => getNodeOrThrow(ctx, { nodeId })),
   );
-  const canvasId = requireSameCanvasId(nodes.map((node) => node.canvasId));
+  const canvasId = requireSameCanvasId(named.map((node) => node.canvasId));
 
-  // Une seule date pour toute la transaction — cf. `trashNode`.
+  // Supprimer une frame, c'est supprimer son contenu : elle n'a pas d'autre
+  // substance que ce qu'elle groupe, la laisser partir seule abandonnerait des
+  // nodes rattachés à un parent disparu — que React Flow ne sait pas rendre.
+  //
+  // `deleteElements` côté client remonte déjà les enfants, donc ce chemin ne
+  // se voit que depuis l'agent, MCP, ou toute suppression qui ne passe pas par
+  // le canvas. Idempotent : les enfants déjà nommés par l'appelant sont
+  // dédupliqués juste après.
+  const namedIds = new Set(named.map((node) => node.id));
+  const children = await listChildren(ctx, {
+    canvasId,
+    parentIds: named
+      .filter((node) => node.type === "frame")
+      .map((node) => node.id),
+  });
+  const nodes = [
+    ...named,
+    ...children.filter((child) => !namedIds.has(child.id)),
+  ];
+
+  // Une seule date pour toute la transaction — cf. `trashNode`. C'est cette
+  // égalité qui permettra à `untrashNodes` de rendre exactement les enfants
+  // partis AVEC leur frame.
   const trashedAt = Date.now();
 
   const trashed: string[] = [];
@@ -516,26 +627,59 @@ export async function trashNodes(
  * de supprimer séparément. C'est la voie de la modale corbeille, qui ne sait
  * rien des edges ; l'undo du canvas, lui, nomme ses edges explicitement
  * (il les tient de `deleteElements`).
+ *
+ * `restoreChildren` fait la même chose pour le contenu d'une frame, sur le
+ * même critère et pour la même raison : rendre une frame doit rendre ce qui
+ * est parti avec elle, pas ce que l'utilisateur avait supprimé dedans avant.
  */
 export async function untrashNodes(
   ctx: MutationCtx,
   {
     nodeIds,
     restoreIncidentEdges = false,
+    restoreChildren = false,
     touchCanvas: shouldTouchCanvas = true,
   }: {
     nodeIds: Array<string>;
     restoreIncidentEdges?: boolean;
+    restoreChildren?: boolean;
     touchCanvas?: boolean;
   },
 ): Promise<{ nodeIds: string[]; edgeIds: string[] }> {
   const uniqueIds = [...new Set(nodeIds)];
   if (uniqueIds.length === 0) return { nodeIds: [], edgeIds: [] };
 
-  const nodes = await Promise.all(
+  const named = await Promise.all(
     uniqueIds.map((nodeId) => getNodeOrThrow(ctx, { nodeId })),
   );
-  const canvasId = requireSameCanvasId(nodes.map((node) => node.canvasId));
+  const canvasId = requireSameCanvasId(named.map((node) => node.canvasId));
+
+  // Les enfants partis avec leur frame reviennent avec elle : appariement sur
+  // l'égalité exacte de `trashedAt`, que `trashNodes` pose une fois pour toute
+  // sa transaction. Un node supprimé dans la frame AVANT qu'elle ne parte a
+  // une autre date, et reste donc à la corbeille.
+  const namedIds = new Set(named.map((node) => node.id));
+  const restoredChildren = restoreChildren
+    ? (
+        await listChildren(ctx, {
+          canvasId,
+          parentIds: named
+            .filter((node) => node.type === "frame")
+            .map((node) => node.id),
+        })
+      ).filter(
+        (child) =>
+          !namedIds.has(child.id) &&
+          child.status === "trashed" &&
+          named.some(
+            (parent) =>
+              parent.id === child.parentId &&
+              parent.trashedAt !== undefined &&
+              parent.trashedAt === child.trashedAt,
+          ),
+      )
+    : [];
+  const nodes = [...named, ...restoredChildren];
 
   // Les dates de mise à la corbeille sont lues AVANT le untrash, qui les
   // efface.
@@ -630,6 +774,10 @@ export async function purgeTrashedBatch(ctx: MutationCtx): Promise<boolean> {
  * Déplace des nodes vers un autre canvas : les edges de la table `edges`
  * qui touchent un node déplacé sont supprimées (pas migrées). nodeData +
  * chunks suivent le canvas.
+ *
+ * Une frame emmène son contenu, et un node qui laisse sa frame derrière lui en
+ * ressort libre : `parentId` ne traverse pas les canvas, il désignerait un
+ * node resté sur l'autre.
  */
 export async function moveNodes(
   ctx: MutationCtx,
@@ -644,11 +792,11 @@ export async function moveNodes(
   const uniqueIds = [...new Set(nodeIds)];
   if (uniqueIds.length === 0) return [];
 
-  const nodes = await Promise.all(
+  const named = await Promise.all(
     uniqueIds.map((nodeId) => getNodeOrThrow(ctx, { nodeId })),
   );
   const sourceCanvasId = requireSameCanvasId(
-    nodes.map((node) => node.canvasId),
+    named.map((node) => node.canvasId),
   );
   if (sourceCanvasId === targetCanvasId) {
     throw new ConvexError(errors.SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT);
@@ -656,10 +804,46 @@ export async function moveNodes(
 
   await getCanvasOrThrow(ctx, targetCanvasId);
 
+  // Déplacer une frame déplace ce qu'elle contient : la laisser partir seule
+  // ne lui laisserait rien à montrer, et abandonnerait des nodes rattachés à
+  // un parent devenu hors canvas.
+  const namedIds = new Set(named.map((node) => node.id));
+  const children = await listChildren(ctx, {
+    canvasId: sourceCanvasId,
+    parentIds: named
+      .filter((node) => node.type === "frame")
+      .map((node) => node.id),
+  });
+  const nodes = [
+    ...named,
+    ...children.filter((child) => !namedIds.has(child.id)),
+  ];
+
   const movedIds = new Set(nodes.map((node) => node.id));
 
   for (const node of nodes) {
-    await ctx.db.patch(node._id, { canvasId: targetCanvasId });
+    // Le node part sans sa frame : sa position redevient absolue, sinon il
+    // atterrirait près de l'origine du canvas d'accueil. La frame est relue
+    // ici et pas cherchée parmi les déplacés — par définition elle n'en est
+    // pas, c'est tout le problème.
+    const orphaned =
+      node.parentId !== undefined && !movedIds.has(node.parentId);
+    const frame = orphaned
+      ? await getNodeByLlmId(ctx, { nodeId: node.parentId as string })
+      : null;
+
+    await ctx.db.patch(node._id, {
+      canvasId: targetCanvasId,
+      ...(orphaned && {
+        parentId: undefined,
+        position: frame
+          ? {
+              x: frame.position.x + node.position.x,
+              y: frame.position.y + node.position.y,
+            }
+          : node.position,
+      }),
+    });
     await ctx.db.patch(node.nodeDataId, { canvasId: targetCanvasId });
     await SearchableChunkModels.updateCanvasId(ctx, {
       nodeDataId: node.nodeDataId,

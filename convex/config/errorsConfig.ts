@@ -22,6 +22,9 @@ const errors = {
     "Source and target canvases must be different.",
   NODES_MUST_SHARE_CANVAS: "These nodes must belong to the same canvas.",
   NODE_ID_ALREADY_TAKEN: "This node id is already used in another canvas.",
+  NODE_PARENT_MUST_BE_A_FRAME:
+    "A node can only belong to a frame of the same canvas.",
+  FRAME_CANNOT_BE_NESTED: "A frame cannot be placed inside another frame.",
   INSUFFICIENT_PERMISSIONS:
     "You do not have the required permission for this action.",
   THREAD_NOT_FOUND_OR_FORBIDDEN: "Thread not found or access denied.",

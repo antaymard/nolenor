@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { Node } from "@xyflow/react";
+import { useReactFlow, type Node } from "@xyflow/react";
 import toast from "react-hot-toast";
 import { canNodeTypeBeCreated } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { snapshotNodesToItems } from "@/stores/nodeClipboardStore";
@@ -7,6 +7,7 @@ import { useCreateNodesFromItems } from "@/hooks/useCreateNodesFromItems";
 
 export function useDuplicateNode() {
   const { createNodesFromItems } = useCreateNodesFromItems();
+  const { getNodes } = useReactFlow();
 
   /**
    * Duplique un groupe de nodes en conservant leurs offsets relatifs : le
@@ -17,16 +18,21 @@ export function useDuplicateNode() {
   const duplicateNodes = useCallback(
     async (nodesToDuplicate: Node[]) => {
       if (nodesToDuplicate.length === 0) return;
-      const items = snapshotNodesToItems(nodesToDuplicate);
-      const minX = Math.min(...nodesToDuplicate.map((n) => n.position.x));
-      const minY = Math.min(...nodesToDuplicate.map((n) => n.position.y));
+      // `getNodes()` en plus de la sélection : résoudre la position monde d'un
+      // node dupliqué depuis une frame demande de connaître la frame, qui
+      // n'est pas forcément sélectionnée.
+      const items = snapshotNodesToItems(nodesToDuplicate, getNodes());
+      // Les positions du snapshot sont déjà en monde — c'est elles qu'il faut
+      // ancrer, pas les positions brutes, qui sont relatives pour un enfant.
+      const minX = Math.min(...items.map((item) => item.node.position.x));
+      const minY = Math.min(...items.map((item) => item.node.position.y));
       return createNodesFromItems(
         items,
         { x: minX + 50, y: minY + 50 },
         "duplicated",
       );
     },
-    [createNodesFromItems],
+    [createNodesFromItems, getNodes],
   );
 
   const duplicateNode = useCallback(

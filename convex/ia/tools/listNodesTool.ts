@@ -4,6 +4,7 @@ import { internal } from "../../_generated/api";
 import { type Doc, type Id } from "../../_generated/dataModel";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
+import { absolutePositionsById } from "../../lib/nodeGeometry";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { escapeXmlAttribute } from "../../lib/xml";
@@ -63,6 +64,12 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         .describe(
           "Filter nodes within 500 canvas units of the specified node's position",
         ),
+      frameId: z
+        .string()
+        .optional()
+        .describe(
+          "Filter to the nodes contained in this frame (the frame's node ID). Frames are the canvas's explicit grouping: use this instead of guessing membership from positions.",
+        ),
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(`📋 Listing nodes from canvas ${canvasId}`);
@@ -75,9 +82,10 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           },
         );
 
-        const nodePosById = new Map(
-          canvasNodes.map((n) => [n.id, { x: n.position.x, y: n.position.y }]),
-        );
+        // Positions MONDE : un node qui vit dans une frame porte une position
+        // relative à elle, et tout ce qui suit (filtres `area`/`near`,
+        // coordonnées rendues) raisonne en monde.
+        const nodePosById = absolutePositionsById(canvasNodes);
 
         // Resolve connected node IDs if targetNode filter is set
         let connectedNodeIds: Set<string> | null = null;
@@ -120,16 +128,20 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             if (!connectedNodeIds.has(node.id)) return false;
           }
 
+          if (input.frameId && node.parentId !== input.frameId) return false;
+
+          const position = nodePosById.get(node.id) ?? node.position;
+
           if (input.area) {
             const { x1, y1, x2, y2 } = input.area;
-            const nx = node.position.x;
-            const ny = node.position.y;
+            const nx = position.x;
+            const ny = position.y;
             if (nx < x1 || nx > x2 || ny < y1 || ny > y2) return false;
           }
 
           if (input.near && nearCenter) {
-            const dx = node.position.x - nearCenter.x;
-            const dy = node.position.y - nearCenter.y;
+            const dx = position.x - nearCenter.x;
+            const dy = position.y - nearCenter.y;
             if (Math.sqrt(dx * dx + dy * dy) > 500) return false;
           }
 
@@ -209,12 +221,17 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                 // keep "Untitled"
               }
             }
+            const position = nodePosById.get(node.id) ?? node.position;
             return {
               id: node.id,
               type: node.type,
               title,
-              x: Math.trunc(node.position.x),
-              y: Math.trunc(node.position.y),
+              x: Math.trunc(position.x),
+              y: Math.trunc(position.y),
+              // La frame qui contient ce node, quand il y en a une : c'est le
+              // seul groupement explicite du canvas, et le lire ici évite un
+              // aller-retour pour savoir ce qui va avec quoi.
+              frameId: node.parentId ?? null,
               embedUrl,
               embedIframeUrl,
               embedType,
@@ -243,10 +260,22 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         const xml = [
           `<nodes count="${displayedEntries.length}"${truncated ? ` truncated="true" total="${nodeEntries.length}"` : ""}>`,
           ...displayedEntries.map(
-            ({ id, type, title, x, y, embedUrl, embedIframeUrl, embedType }) =>
-              type === "embed"
-                ? `  <node id="${id}" type="embed" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""} />`
-                : `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}" />`,
+            ({
+              id,
+              type,
+              title,
+              x,
+              y,
+              frameId,
+              embedUrl,
+              embedIframeUrl,
+              embedType,
+            }) => {
+              const frameAttr = frameId ? ` frameId="${frameId}"` : "";
+              return type === "embed"
+                ? `  <node id="${id}" type="embed" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${frameAttr}${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""} />`
+                : `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${frameAttr} />`;
+            },
           ),
           "</nodes>",
           "<nodeDataSchemas>",

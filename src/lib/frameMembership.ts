@@ -1,4 +1,5 @@
 import type { InternalNode, Node } from "@xyflow/react";
+import { absolutePosition } from "@/../convex/lib/nodeGeometry";
 
 /**
  * L'appartenance d'un node à une frame, côté géométrie.
@@ -20,26 +21,12 @@ function dimensionsOf(node: Node | InternalNode): XY {
 /**
  * La position d'un node en coordonnées MONDE.
  *
- * Un node dans une frame porte une `position` relative à elle : c'est la
- * convention de React Flow, et c'est ce qui fait qu'il suit sa frame sans que
- * personne n'ait à propager le déplacement. Tout ce qui raisonne en monde doit
- * donc passer par ici.
- *
- * Un seul niveau de résolution parce qu'il n'y a pas de frame dans une frame.
- * Si ça changeait, c'est cette fonction qui deviendrait récursive, et elle
- * seule.
+ * La règle vit dans `convex/lib/nodeGeometry`, partagée avec le backend qui en
+ * a besoin pour la minimap, `list_nodes` et le placement des nodes de l'agent.
+ * Ici, elle ne fait que s'appliquer à la forme `Node` de React Flow.
  */
-export function absolutePositionOf(
-  node: Node,
-  byId: Map<string, Node>,
-): XY {
-  if (!node.parentId) return node.position;
-  const parent = byId.get(node.parentId);
-  if (!parent) return node.position;
-  return {
-    x: parent.position.x + node.position.x,
-    y: parent.position.y + node.position.y,
-  };
+export function absolutePositionOf(node: Node, byId: Map<string, Node>): XY {
+  return absolutePosition(node, byId);
 }
 
 /** Le centre d'un node en coordonnées monde. */

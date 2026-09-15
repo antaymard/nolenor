@@ -919,6 +919,47 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       })
       .default({ title: "", view: { cx: 0, cy: 0, zoom: 1 } }),
   },
+  {
+    type: "frame",
+    label: "Frame",
+    description:
+      "Container that groups nodes. Nodes inside a frame move with it and are addressable as a set.",
+    llmDescription:
+      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `list_nodes` with `frameId` to list a frame's contents. Only the user draws frames — you cannot create one, nor rename one. \nIts only data value is 'title'.",
+    // Grand gabarit : une frame est tracée autour de nodes existants, elle
+    // part donc d'une taille qui en contient plusieurs. Ces dimensions ne
+    // servent qu'aux frames créées sans tracé (aucune aujourd'hui) — l'outil
+    // rectangle impose les siennes.
+    defaultDimensions: { width: 600, height: 400, resizable: true },
+    capabilities: {
+      agent: {
+        // Décrite mais pas créable : l'agent va croiser des frames dans
+        // `list_nodes` et dans la minimap, il lui faut savoir ce que c'est.
+        exposed: true,
+        creatable: false,
+        readable: true,
+        // `set_node_data` remplace `values` en bloc, et la seule value d'une
+        // frame est son titre : lui ouvrir l'écriture, c'est lui permettre de
+        // renommer silencieusement la structure du canvas de l'utilisateur,
+        // sans contrepartie — il n'a aucun contenu à y produire. À rouvrir
+        // quand la frame portera de l'automation.
+        writable: false,
+      },
+      // Mentionner une frame ne mène à aucun contenu à lire.
+      mentionable: false,
+      // Un titre n'a pas d'historique à remonter (même raison que `viewport`).
+      versioned: false,
+      // Titre de conteneur seul : keyword suffit. Même raison que `viewport`
+      // et `title` — le contenu d'une frame, ce sont les nodes qu'elle groupe,
+      // qui se vectorisent chacun pour soi.
+      search: { embed: false },
+    },
+    dataValuesSchema: z
+      .object({
+        title: z.string().default(""),
+      })
+      .default({ title: "" }),
+  },
 ];
 
 function getDefaultNodeDataValues(

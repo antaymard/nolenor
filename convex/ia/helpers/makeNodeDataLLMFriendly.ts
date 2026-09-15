@@ -446,6 +446,14 @@ export async function makeNodeDataLLMFriendly(
       return `${prefix}${text}`;
     }
 
+    case "frame": {
+      // Le corps d'une frame, c'est ce qu'elle groupe — et ça se lit avec
+      // `list_nodes(frameId)`, pas ici. Sans ce `case`, le `default` lâcherait
+      // le JSON de `values` dans le rendu.
+      const title = String(values.title ?? "").trim();
+      return title ? `Frame: ${title}` : "Frame (untitled)";
+    }
+
     case "pdf": {
       const files = values.files as
         | Array<{ url: string; filename: string; mimeType?: string }>

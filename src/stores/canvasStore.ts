@@ -20,7 +20,13 @@ type Status = "idle" | "unsynced" | "saving" | "saved" | "error";
  * under every new surface.
  */
 type Focus = "canvas" | "richtext-editor" | "modal";
-type Tool = "edit" | "draw";
+/**
+ * `edit` : le comportement normal du canvas (lasso, drag, sélection).
+ * `frame` : la souris trace le rectangle d'une nouvelle frame, et repasse en
+ *           `edit` dès le tracé terminé ou annulé. Un mode, donc, et pas un
+ *           réglage : rien ne doit pouvoir y rester coincé.
+ */
+type Tool = "edit" | "frame";
 
 interface CanvasStore {
   canvas: CanvasInStore | null;

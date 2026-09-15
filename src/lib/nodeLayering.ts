@@ -101,7 +101,44 @@ export function computeLayerUpdates(
   const isMoving = (node: Node) => selectedIds.has(node.id);
   if (!nodes.some(isMoving)) return [];
 
-  const before = toPaintOrder(nodes);
+  // Les deux bandes se renumérotent séparément : une frame reste derrière les
+  // nodes quoi qu'on lui demande, « premier plan » ne la fait monter que
+  // devant les autres frames. Sans ça, avancer une frame la ferait passer
+  // devant son propre contenu — et la commande ne sert de toute façon qu'à
+  // départager des frames qui se chevauchent.
+  const frames = nodes.filter(isFrame);
+  const regular = nodes.filter((node) => !isFrame(node));
+
+  return [
+    ...reorderBand(frames, isMoving, command, -frames.length),
+    ...reorderBand(regular, isMoving, command, 0),
+  ];
+}
+
+/** Un node de la bande basse : les conteneurs, toujours derrière le reste. */
+function isFrame(node: Node): boolean {
+  return node.type === "frame";
+}
+
+/**
+ * Renumérote une bande à partir de `firstRank`, et ne rend que les écritures
+ * réellement nécessaires.
+ *
+ * Les frames occupent `[-f, -1]` et les autres nodes `[0, n-1]`. Le négatif
+ * est réservé à cette bande et à elle seule : il fait passer les frames sous
+ * les edges (qui sont à 0), ce qui est exactement ce qu'on veut d'un fond —
+ * les connexions restent lisibles par-dessus. Chaque bande garde des rangs
+ * denses, donc pas de dérive d'entiers.
+ */
+function reorderBand(
+  band: Node[],
+  isMoving: (node: Node) => boolean,
+  command: LayerCommand,
+  firstRank: number,
+): LayerUpdate[] {
+  if (band.length === 0 || !band.some(isMoving)) return [];
+
+  const before = toPaintOrder(band);
   const after = reorder(before, isMoving, command);
 
   // Ordre inchangé (déjà au premier plan, canvas d'un seul node…) : on ne
@@ -111,7 +148,8 @@ export function computeLayerUpdates(
   if (after.every((node, i) => node === before[i])) return [];
 
   const updates: LayerUpdate[] = [];
-  after.forEach((node, zIndex) => {
+  after.forEach((node, index) => {
+    const zIndex = firstRank + index;
     if ((node.zIndex ?? 0) === zIndex) return;
     updates.push({ nodeId: node.id, props: { zIndex } });
   });
@@ -134,4 +172,30 @@ export function nextTopZIndex(nodes: Node[]): number {
     if (z > max) max = z;
   }
   return max + 1;
+}
+
+/**
+ * Le `zIndex` d'une frame fraîchement tracée : sous tous les nodes, et sous
+ * les frames déjà posées.
+ *
+ * Une frame naît autour de nodes existants ; la poser au-dessus les
+ * masquerait tous à l'instant du tracé. Le pendant exact de `nextTopZIndex`,
+ * dans l'autre sens et dans l'autre bande.
+ *
+ * La dernière tracée se retrouve la plus profonde. Sans conséquence tant que
+ * deux frames ne se chevauchent pas — et si ça arrive, les commandes de plan
+ * renumérotent la bande.
+ *
+ * React Flow garantit par ailleurs qu'un enfant est peint au-dessus de son
+ * parent (`z: parentZ >= childZ ? parentZ + 1 : childZ`), quel que soit son
+ * propre zIndex : le contenu d'une frame ne peut pas passer dessous.
+ */
+export function nextFrameZIndex(nodes: Node[]): number {
+  let min = 0;
+  for (const node of nodes) {
+    if (node.type !== "frame") continue;
+    const z = node.zIndex ?? 0;
+    if (z < min) min = z;
+  }
+  return min - 1;
 }

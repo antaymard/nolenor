@@ -4,6 +4,7 @@ import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
+import { useIsFrameHovered } from "@/stores/frameHoverStore";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,12 @@ function FrameNode(xyNode: XyNodeProps) {
 
   const title = typeof values?.title === "string" ? values.title : "";
   const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];
+
+  // Un node dragué survole cette frame : elle s'entoure pour dire « au
+  // relâcher, il est ici ». Abonnement au seul booléen qui la concerne, donc
+  // deux frames re-rendent quand le survol passe de l'une à l'autre, pas tout
+  // le canvas à chaque frame du geste.
+  const isDropTarget = useIsFrameHovered(xyNode.id);
 
   // Sélecteur booléen : seule la frame concernée re-rend, pas toutes celles du
   // canvas. Et surtout pas un initialiseur `useState`, que StrictMode invoque
@@ -159,7 +166,7 @@ function FrameNode(xyNode: XyNodeProps) {
 
       <div
         className={cn(
-          "h-full w-full rounded-[5px] border-2",
+          "h-full w-full rounded-[5px] border-2 transition-colors duration-100",
           nodeColor.nodeBorder,
           // Fond très léger : une frame se place derrière les nodes (cf. la
           // bande basse de zIndex dans `nodeLayering`), elle doit se lire sans
@@ -168,6 +175,9 @@ function FrameNode(xyNode: XyNodeProps) {
             ? "bg-transparent"
             : "bg-slate-500/5",
           xyNode.selected && "ring-2 ring-blue-500/70",
+          // Cible de dépôt : la bordure prime sur la couleur du node, c'est
+          // une réponse au geste en cours et pas un état du document.
+          isDropTarget && "border-blue-500 bg-blue-500/10",
         )}
       />
     </>

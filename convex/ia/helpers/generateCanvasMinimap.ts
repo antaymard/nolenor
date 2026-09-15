@@ -16,6 +16,8 @@ type RawCanvasNode = {
   width?: number;
   height?: number;
   nodeDataId?: Id<"nodeDatas">;
+  /** La frame qui contient ce node, s'il y en a une. */
+  parentId?: string;
 };
 
 type RawCanvasEdge = {
@@ -46,6 +48,12 @@ type Hub = {
   childHubs: Hub[];
   leaves: LeafElement[];
   totalChildren: number;
+  /**
+   * Ce hub est une frame, pas un titre : un groupement que l'utilisateur a
+   * écrit, et non une structure déduite. La distinction vaut d'être dite au
+   * modèle — elle lui indique où le regroupement est sûr.
+   */
+  isFrame?: boolean;
 };
 
 // ---- Constants ----
@@ -96,7 +104,7 @@ export const generate = internalQuery({
     const edgeDocs = await EdgeModels.listFromCanvas(ctx, { canvasId });
     const edges = edgeDocs.map(EdgeModels.toCanvasEdge) as RawCanvasEdge[];
 
-    const hubs = await buildHubs(ctx, nodes, edges);
+    const hubs = await buildCanvasHubs(ctx, nodes, edges);
 
     return {
       canvasId: canvas._id,
@@ -107,6 +115,125 @@ export const generate = internalQuery({
     };
   },
 });
+
+/**
+ * Le plan du canvas : les frames d'abord, puis ce qui vit en dehors.
+ *
+ * Une frame est le seul groupement que l'utilisateur a ÉCRIT. Tout le reste
+ * de cette minimap est de l'inférence — des edges title→node, et à défaut la
+ * proximité géométrique. Une frame passe donc devant, et son contenu sort du
+ * jeu de l'inférence : sans ça, un node dans une frame serait rattaché deux
+ * fois, une fois à sa frame et une fois au titre le plus proche au-dessus,
+ * qui peut très bien être à l'extérieur.
+ *
+ * Le contenu d'une frame est lui-même passé à `buildHubs` : les titres
+ * gardent leur rôle d'organisateurs À L'INTÉRIEUR. Et comme les positions d'un
+ * enfant sont relatives à sa frame, les enfants d'une même frame partagent
+ * leur repère : la proximité s'y calcule sans conversion, du moment qu'on ne
+ * les mélange jamais aux nodes du dehors.
+ */
+async function buildCanvasHubs(
+  ctx: QueryCtx,
+  nodes: RawCanvasNode[],
+  edges: RawCanvasEdge[],
+): Promise<Hub[]> {
+  const frames = nodes.filter((node) => node.type === "frame");
+  if (frames.length === 0) return buildHubs(ctx, nodes, edges);
+
+  const childrenByFrame = new Map<string, RawCanvasNode[]>();
+  for (const frame of frames) childrenByFrame.set(frame.id, []);
+  const free: RawCanvasNode[] = [];
+  for (const node of nodes) {
+    if (node.type === "frame") continue;
+    const siblings = node.parentId
+      ? childrenByFrame.get(node.parentId)
+      : undefined;
+    if (siblings) siblings.push(node);
+    else free.push(node);
+  }
+
+  const frameHubs: Hub[] = [];
+  for (const frame of frames) {
+    const children = childrenByFrame.get(frame.id) ?? [];
+    // `buildHubs` ignore les edges dont une extrémité lui est inconnue : lui
+    // passer toutes celles du canvas suffit, celles qui traversent la
+    // frontière de la frame tombent d'elles-mêmes.
+    const innerHubs = await buildHubs(ctx, children, edges);
+
+    const captured = new Set<string>();
+    for (const hub of innerHubs) {
+      captured.add(hub.title.id);
+      for (const leaf of hub.leaves) captured.add(leaf.id);
+      for (const child of hub.childHubs) {
+        captured.add(child.title.id);
+        for (const leaf of child.leaves) captured.add(leaf.id);
+      }
+    }
+
+    const loose = children.filter((child) => !captured.has(child.id));
+    const looseLeaves = await enrichLooseLeaves(ctx, loose);
+
+    frameHubs.push({
+      rank: 1,
+      title: {
+        id: frame.id,
+        text: await readFrameTitle(ctx, frame),
+        level: "p",
+        position: frame.position,
+        width: frame.width ?? 0,
+        height: frame.height ?? 0,
+      },
+      score: 0,
+      // Les hubs internes redescendent d'un rang : la frame occupe le rang 1,
+      // et `formatRank2Hub` ne perd rien au passage — il n'affichait déjà que
+      // les feuilles et le compte des enfants.
+      childHubs: innerHubs.map((hub) => ({ ...hub, rank: 2 as const })),
+      leaves: looseLeaves,
+      totalChildren: children.length,
+      isFrame: true,
+    });
+  }
+
+  return [...frameHubs, ...(await buildHubs(ctx, free, edges))];
+}
+
+/** Le titre porté par le nodeData d'une frame. */
+async function readFrameTitle(
+  ctx: QueryCtx,
+  frame: RawCanvasNode,
+): Promise<string> {
+  if (!frame.nodeDataId) return "";
+  const nodeData = await ctx.db.get("nodeDatas", frame.nodeDataId);
+  if (!nodeData) return "";
+  return typeof nodeData.values?.title === "string"
+    ? nodeData.values.title
+    : "";
+}
+
+/**
+ * Les nodes d'une frame qu'aucun titre interne n'a captés : ils se listent
+ * directement sous elle, au même format que n'importe quelle feuille.
+ */
+async function enrichLooseLeaves(
+  ctx: QueryCtx,
+  nodes: RawCanvasNode[],
+): Promise<LeafElement[]> {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const nodeDatas = await fetchLeafNodeDatas(
+    ctx,
+    nodes.map((node) => node.id),
+    nodeById,
+  );
+  return nodes.map((node) => {
+    const nodeData = nodeDatas.get(node.id);
+    return {
+      id: node.id,
+      type: node.type,
+      title: nodeData ? extractLeafTitle(node.type, nodeData.values ?? {}) : null,
+      infoWeight: 0,
+    };
+  });
+}
 
 // ---- Pass 1: Construction & Scoring ----
 
@@ -565,7 +692,11 @@ function formatMinimapText(hubs: Hub[]): string {
 function formatRank1Hub(hub: Hub): string {
   const { title, childHubs, leaves } = hub;
   const textPart = title.text.trim() ? ` ${title.text.trim()}` : "";
-  const header = `📍 ${title.id}${textPart} (x:${Math.round(title.position.x)}, y:${Math.round(title.position.y)})`;
+  // 📦 pour une frame, 📍 pour un hub déduit d'un titre : ce n'est pas la même
+  // certitude, et la légende du prompt le dit.
+  const header = hub.isFrame
+    ? `📦 ${title.id} [frame]${textPart} (${hub.totalChildren} nodes, x:${Math.round(title.position.x)}, y:${Math.round(title.position.y)})`
+    : `📍 ${title.id}${textPart} (x:${Math.round(title.position.x)}, y:${Math.round(title.position.y)})`;
 
   const lines: string[] = [header];
 

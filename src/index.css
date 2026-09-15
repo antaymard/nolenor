@@ -470,6 +470,25 @@
   z-index: 1001 !important;
 }
 
+/* Une frame ne se sélectionne et ne se déplace que depuis son titre : son
+   corps laisse passer les clics. Le `pointer-events: none` doit porter sur le
+   wrapper `.react-flow__node` lui-même et pas seulement sur le contenu rendu
+   par `FrameNode` — le wrapper est un div plein, il intercepterait les clics
+   sur toute la surface de la frame. Conséquence voulue : le lasso continue de
+   fonctionner À L'INTÉRIEUR d'une frame, et un node posé dessus reste
+   attrapable.
+
+   Réactivé pour les deux surfaces qui doivent rester vivantes : la barre de
+   titre (rendue par FrameNode) et les poignées du NodeResizer (rendues par
+   React Flow en frères du contenu, donc à l'intérieur du wrapper). */
+.react-flow__node-frame {
+  pointer-events: none;
+}
+.react-flow__node-frame .frame-interactive,
+.react-flow__node-frame .react-flow__resize-control {
+  pointer-events: auto;
+}
+
 /* LinkNode preview: masquer la description quand le noeud est petit */
 .link-preview-container {
   container-type: size;

@@ -127,6 +127,13 @@ export function getNodeDataTitle(
         : "Viewport";
     }
 
+    case "frame": {
+      const title = nodeData.values.title;
+      return typeof title === "string" && title.trim().length > 0
+        ? title
+        : "Frame";
+    }
+
     case "custom": {
       if (template?.titleFieldId) {
         const title = nodeData.values[template.titleFieldId];

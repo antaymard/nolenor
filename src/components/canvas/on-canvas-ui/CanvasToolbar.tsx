@@ -1,6 +1,12 @@
 import { Button } from "@/components/shadcn/button";
 import { useCanvasStore } from "@/stores/canvasStore";
-import { TbCommand, TbDirections, TbPlus, TbSearch } from "react-icons/tb";
+import {
+  TbCommand,
+  TbDirections,
+  TbFrame,
+  TbPlus,
+  TbSearch,
+} from "react-icons/tb";
 import { Kbd } from "@/components/shadcn/kbd";
 import { useCommandCenterStore } from "@/stores/commandCenterStore";
 import {
@@ -16,6 +22,8 @@ import MarkersPanel from "../viewport-markers/MarkersPanel";
 export default function CanvasToolbar() {
   const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
   const toggleSearchModal = useCanvasStore((state) => state.toggleSearchModal);
+  const tool = useCanvasStore((state) => state.tool);
+  const setTool = useCanvasStore((state) => state.setTool);
   const isCommandCenterOpen = useCommandCenterStore((state) => state.isOpen);
   const toggleCommandCenter = useCommandCenterStore((state) => state.toggle);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -42,6 +50,21 @@ export default function CanvasToolbar() {
             />
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Une frame ne se pose pas depuis le menu d'ajout : elle se trace
+            autour de ce qu'elle doit contenir, donc elle a son propre mode. Le
+            bouton bascule, et le mode se rend tout seul dès le tracé fini (ou
+            sur Échap) — cf. `useFrameDrawTool`. */}
+        <Button
+          variant={tool === "frame" ? "default" : "ghost"}
+          size="icon"
+          className="h-11 w-11"
+          onClick={() => setTool(tool === "frame" ? "edit" : "frame")}
+          aria-pressed={tool === "frame"}
+          aria-label="Draw a frame"
+          title="Draw a frame to group nodes"
+        >
+          <TbFrame size={20} />
+        </Button>
         {/* <Button variant="ghost" size="icon" className="h-11 w-11">
           <TbUpload size={20} />
         </Button> */}

@@ -17,6 +17,17 @@ interface ConvexNodeProps {
   zIndex?: number;
   color?: colorsEnum;
   variant?: string;
+  /**
+   * L'appartenance à une frame. `null` = en sortir, absent = ne pas y
+   * toucher — la seule prop du lot à distinguer les deux, parce que c'est la
+   * seule dont « aucune valeur » est un état qu'on écrit.
+   *
+   * Va de pair avec `position` : les coordonnées d'un node changent de
+   * repère quand il entre dans une frame ou en sort, les deux doivent partir
+   * dans la même écriture pour ne faire qu'un Ctrl+Z.
+   */
+  parentId?: string | null;
+  position?: { x: number; y: number };
 }
 
 interface UpdateNodeInput {
@@ -59,6 +70,13 @@ function inverseProps(
   if (props?.variant !== undefined) {
     inverse.variant = (snapshotData.variant as string | undefined) ?? "default";
   }
+  // `?? null` et pas « clé absente » : le node d'avant pouvait n'avoir aucune
+  // frame, et c'est un état qu'il faut savoir réécrire pour que l'annulation
+  // le fasse ressortir.
+  if (props?.parentId !== undefined) {
+    inverse.parentId = snapshot.parentId ?? null;
+  }
+  if (props?.position !== undefined) inverse.position = snapshot.position;
   if (data) {
     inverse.data = Object.fromEntries(
       Object.keys(data).map((key) => [key, snapshotData[key] ?? null]),
@@ -142,6 +160,13 @@ export function useUpdateCanvasNode(): UseUpdateCanvasNodeReturn {
               structuralUpdates.hidden = props.hidden;
             if (props.zIndex !== undefined)
               structuralUpdates.zIndex = props.zIndex;
+            // `null` devient `undefined` : React Flow lit l'absence de
+            // `parentId`, pas un `null`, et laisserait sinon le node rattaché
+            // à une frame qu'il vient de quitter.
+            if (props.parentId !== undefined)
+              structuralUpdates.parentId = props.parentId ?? undefined;
+            if (props.position !== undefined)
+              structuralUpdates.position = props.position;
           }
 
           // Data (color, variant + custom data)

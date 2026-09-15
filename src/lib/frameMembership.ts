@@ -46,16 +46,16 @@ export function centerOf(node: Node, byId: Map<string, Node>): XY {
  *
  * « La plus en avant » se lit sur le zIndex, avec l'ordre du tableau pour
  * départager, comme partout ailleurs sur ce canvas (cf. `toPaintOrder`).
+ *
+ * `frames` est déjà filtré par l'appelant : ce test tourne à chaque frame d'un
+ * drag, il n'a pas à balayer tout le canvas pour retrouver les conteneurs.
  */
-export function findFrameAtPoint(
-  nodes: Node[],
-  point: XY,
-): Node | null {
+export function findFrameAtPoint(frames: Node[], point: XY): Node | null {
   let best: Node | null = null;
   let bestZ = -Infinity;
 
-  for (const node of nodes) {
-    if (node.type !== "frame" || node.hidden) continue;
+  for (const node of frames) {
+    if (node.hidden) continue;
     const size = dimensionsOf(node);
     if (
       point.x < node.position.x ||

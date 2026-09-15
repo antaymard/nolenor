@@ -693,8 +693,18 @@ export async function untrashNodes(
     ),
   ];
 
+  // Les frames d'abord : `untrashNode` libère un node dont la frame est
+  // encore à la corbeille, et l'undo d'une suppression nomme frame et enfants
+  // dans l'ordre où `deleteElements` les a rendus — rien ne garantit que la
+  // frame y vienne en premier. Sans ce tri, annuler la suppression d'une frame
+  // en ressortirait le contenu.
+  const parentsFirst = [
+    ...nodes.filter((node) => node.type === "frame"),
+    ...nodes.filter((node) => node.type !== "frame"),
+  ];
+
   const untrashedNodeIds: string[] = [];
-  for (const node of nodes) {
+  for (const node of parentsFirst) {
     untrashedNodeIds.push(
       await untrashNode(ctx, { nodeId: node.id, touchCanvas: false }),
     );

@@ -150,12 +150,18 @@ export const hydrateVectorHits = internalQuery({
 // ── Backfill embeddings (migration) ────────────────────────────────────────
 
 export const listChunkPage = internalQuery({
-  args: { paginationOpts: paginationOptsValidator },
+  args: {
+    paginationOpts: paginationOptsValidator,
+    canvasId: v.optional(v.id("canvases")),
+  },
   handler: async (ctx, args) => {
-    const page = await ctx.db
-      .query("searchableChunks")
-      .order("asc")
-      .paginate(args.paginationOpts);
+    const base = ctx.db.query("searchableChunks");
+    const page =
+      args.canvasId !== undefined
+        ? await base
+            .withIndex("by_canvasId", (q) => q.eq("canvasId", args.canvasId!))
+            .paginate(args.paginationOpts)
+        : await base.order("asc").paginate(args.paginationOpts);
     return {
       ...page,
       page: page.page.map((chunk) => ({

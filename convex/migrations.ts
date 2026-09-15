@@ -10,6 +10,8 @@ import { buildEmbeddingText, embedDocuments } from "./lib/voyage";
 //
 // Lancer avec : `npx convex run migrations:backfillEmbeddings '{}'`
 // (ou depuis le dashboard). Idempotent : relançable sans risque.
+// Pour un seul canvas :
+// `npx convex run migrations:backfillEmbeddings '{"canvasId":"<id>"}'`
 
 const PAGE_SIZE = 100;
 
@@ -17,6 +19,7 @@ export const backfillEmbeddings = internalAction({
   args: {
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
+    canvasId: v.optional(v.id("canvases")),
   },
   returns: v.object({
     done: v.boolean(),
@@ -38,7 +41,10 @@ export const backfillEmbeddings = internalAction({
     const numItems = Math.min(Math.max(args.limit ?? PAGE_SIZE, 1), PAGE_SIZE);
     const slice = await ctx.runQuery(
       internal.wrappers.searchableChunkWrappers.listChunkPage,
-      { paginationOpts: { numItems, cursor: args.cursor ?? null } },
+      {
+        paginationOpts: { numItems, cursor: args.cursor ?? null },
+        canvasId: args.canvasId,
+      },
     );
 
     const missing = slice.page.filter(
@@ -80,6 +86,7 @@ export const backfillEmbeddings = internalAction({
       await ctx.scheduler.runAfter(0, internal.migrations.backfillEmbeddings, {
         cursor: slice.continueCursor,
         limit: numItems,
+        canvasId: args.canvasId,
       });
     } else {
       console.log("[migrations] backfillEmbeddings:complete");

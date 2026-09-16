@@ -21,12 +21,21 @@ type Status = "idle" | "unsynced" | "saving" | "saved" | "error";
  */
 type Focus = "canvas" | "richtext-editor" | "modal";
 /**
- * `edit` : le comportement normal du canvas (lasso, drag, sélection).
- * `frame` : la souris trace le rectangle d'une nouvelle frame, et repasse en
- *           `edit` dès le tracé terminé ou annulé. Un mode, donc, et pas un
- *           réglage : rien ne doit pouvoir y rester coincé.
+ * L'outil actif du canvas. Trois modes exclusifs, comme dans n'importe quel
+ * éditeur de canvas :
+ *
+ * - `select` : le comportement normal — lasso au clic gauche, drag des nodes,
+ *   sélection. Le clic molette pan.
+ * - `hand` : le clic gauche pan le viewport. Plus rien ne se déplace, mais
+ *   tout le reste répond encore : sélection au clic, création d'edges,
+ *   double-clic, clic droit.
+ * - `frame` : la souris trace le rectangle d'une nouvelle frame, et repasse en
+ *   `select` dès le tracé terminé ou annulé.
+ *
+ * `frame` est un mode de passage — rien ne doit pouvoir y rester coincé —
+ * là où `select` et `hand` sont deux façons durables de tenir le canvas.
  */
-type Tool = "edit" | "frame";
+type Tool = "select" | "hand" | "frame";
 
 interface CanvasStore {
   canvas: CanvasInStore | null;
@@ -79,7 +88,7 @@ export const useCanvasStore = create<CanvasStore>()(
       status: "idle",
       pendingWrites: 0,
       focus: "canvas",
-      tool: "edit",
+      tool: "select",
       isSearchModalOpen: false,
       searchQuery: "",
 

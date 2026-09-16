@@ -4,10 +4,17 @@ import {
   TbCommand,
   TbDirections,
   TbFrame,
+  TbHandStop,
   TbPlus,
+  TbPointer,
   TbSearch,
 } from "react-icons/tb";
 import { Kbd } from "@/components/shadcn/kbd";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/shadcn/toggle-group";
+import { Separator } from "@/components/shadcn/separator";
 import { useCommandCenterStore } from "@/stores/commandCenterStore";
 import {
   DropdownMenu,
@@ -35,6 +42,54 @@ export default function CanvasToolbar() {
   return (
     <div className="flex flex-col-reverse items-center gap-3 animate-appear-up">
       <div className="canvas-ui-container px-0!">
+        {/* Les deux façons durables de tenir le canvas, en tête de barre comme
+            dans n'importe quel éditeur. `type="single"` sans valeur vide
+            possible : on est toujours dans un mode — quand `frame` est actif,
+            aucun des deux n'est enfoncé, ce que Radix rend en passant `value`
+            à une chaîne qu'aucun item ne porte. */}
+        <ToggleGroup
+          type="single"
+          value={tool === "hand" ? "hand" : tool === "select" ? "select" : ""}
+          onValueChange={(next) => {
+            // Re-cliquer l'outil actif renvoie "" : on ignore, sinon le canvas
+            // se retrouverait sans mode.
+            if (next === "select" || next === "hand") setTool(next);
+          }}
+          aria-label="Canvas tool"
+        >
+          <ToggleGroupItem
+            value="select"
+            className="h-11 w-11 p-0"
+            aria-label="Select tool"
+            title="Select, move and lasso"
+          >
+            <TbPointer size={20} />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="hand"
+            className="h-11 w-11 p-0"
+            aria-label="Hand tool"
+            title="Hand: drag to pan the canvas"
+          >
+            <TbHandStop size={20} />
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <Separator orientation="vertical" className="mx-1 h-6!" />
+        {/* Une frame ne se pose pas depuis le menu d'ajout : elle se trace
+            autour de ce qu'elle doit contenir, donc elle a son propre mode. Le
+            bouton bascule, et le mode se rend tout seul dès le tracé fini (ou
+            sur Échap) — cf. `useFrameDrawTool`. */}
+        <Button
+          variant={tool === "frame" ? "default" : "ghost"}
+          size="icon"
+          className="h-11 w-11"
+          onClick={() => setTool(tool === "frame" ? "select" : "frame")}
+          aria-pressed={tool === "frame"}
+          aria-label="Draw a frame"
+          title="Draw a frame to group nodes (F)"
+        >
+          <TbFrame size={20} />
+        </Button>
         <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
           <DropdownMenuTrigger asChild>
             {/* `h-11 w-11` : même hauteur que le bouton Nolë (`NoleCanvasPanel`)
@@ -50,21 +105,6 @@ export default function CanvasToolbar() {
             />
           </DropdownMenuContent>
         </DropdownMenu>
-        {/* Une frame ne se pose pas depuis le menu d'ajout : elle se trace
-            autour de ce qu'elle doit contenir, donc elle a son propre mode. Le
-            bouton bascule, et le mode se rend tout seul dès le tracé fini (ou
-            sur Échap) — cf. `useFrameDrawTool`. */}
-        <Button
-          variant={tool === "frame" ? "default" : "ghost"}
-          size="icon"
-          className="h-11 w-11"
-          onClick={() => setTool(tool === "frame" ? "edit" : "frame")}
-          aria-pressed={tool === "frame"}
-          aria-label="Draw a frame"
-          title="Draw a frame to group nodes (F)"
-        >
-          <TbFrame size={20} />
-        </Button>
         {/* <Button variant="ghost" size="icon" className="h-11 w-11">
           <TbUpload size={20} />
         </Button> */}

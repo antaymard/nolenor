@@ -74,7 +74,7 @@ export function useFrameDrawTool({
       // Une touche maintenue rejouerait le binding et ferait clignoter le mode
       // — `requireReset` est faux par défaut.
       if (event.repeat) return;
-      setTool(tool === "frame" ? "edit" : "frame");
+      setTool(tool === "frame" ? "select" : "frame");
     },
     { enabled: hotkeysEnabled, ignoreInputs: true },
   );
@@ -94,7 +94,7 @@ export function useFrameDrawTool({
     if (!isFrameTool) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      setTool("edit");
+      setTool("select");
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -239,7 +239,7 @@ export function useFrameDrawTool({
       setRect(null);
       // L'outil rend la main quoi qu'il arrive : une frame se trace en un
       // geste, rester en mode dessin après coup n'aiderait personne.
-      setTool("edit");
+      setTool("select");
 
       if (drawn.width < MIN_DRAWN_SIZE || drawn.height < MIN_DRAWN_SIZE) return;
       void commit(drawn, origin);

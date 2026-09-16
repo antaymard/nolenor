@@ -460,6 +460,17 @@
   cursor: default !important;
 }
 
+/* Outil main : le pane retrouve les curseurs que React Flow lui donne
+   nativement (`.draggable` → grab, `.dragging` → grabbing) et que l'override
+   ci-dessus lui retire partout ailleurs. `!important` pour la même raison
+   qu'au-dessus : c'est cet override qu'on annule, pas un style de la lib. */
+.canvas-hand-tool .react-flow__pane.draggable {
+  cursor: grab !important;
+}
+.canvas-hand-tool .react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
 /* NodeToolbar se pose à `zIndex = max(z des nodes sélectionnés) + 1` et se
    portalise dans `.react-flow__renderer`, en frère de `.react-flow__viewport`
    (z-index: 2). Avec `elevateNodesOnSelect={false}` (cf. CanvasFlow), le +1000

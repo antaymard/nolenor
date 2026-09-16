@@ -138,6 +138,11 @@ export default function CanvasFlow({
     useInitialViewportFromUrl();
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const focus = useCanvasStore((state) => state.focus);
+  // Outil main : le clic gauche pan au lieu de lasso, et plus rien ne se
+  // déplace. Tout le reste répond encore — sélection, edges, double-clic, clic
+  // droit — d'où un `isHandTool` qui ne touche que trois props de <ReactFlow>
+  // et jamais `elementsSelectable` ni `nodesConnectable`.
+  const isHandTool = useCanvasStore((state) => state.tool) === "hand";
   const { duplicateNodes } = useDuplicateNode();
   const canDuplicateNodes = canEdit;
 
@@ -614,7 +619,13 @@ export default function CanvasFlow({
         // puis saute à la cible (cf. `useInitialViewportFromUrl`).
         // `opacity` et non `visibility`/`display` : le pane doit rester
         // mesurable, `getPaneRect` en dépend.
-        className={cn(isUrlViewportPending && "opacity-0")}
+        // `canvas-hand-tool` rend au pane ses curseurs grab/grabbing, que
+        // l'override `.react-flow__pane { cursor: default !important }`
+        // d'index.css lui retire partout ailleurs.
+        className={cn(
+          isUrlViewportPending && "opacity-0",
+          isHandTool && "canvas-hand-tool",
+        )}
         panOnScroll
         // Explicite (défauts React Flow) : fige l'anti swipe-back trackpad
         // contre un changement de défaut — `preventScrolling` bloque le scroll
@@ -622,10 +633,19 @@ export default function CanvasFlow({
         preventScrolling
         panOnScrollMode={PanOnScrollMode.Free}
         // Au doigt, le drag sur le pane pan toujours. À la souris, on garde le
-        // clic molette pour panner et on laisse le clic gauche au lasso.
+        // clic molette pour panner et on laisse le clic gauche au lasso —
+        // sauf en mode main, où le clic gauche pan lui aussi.
         // Le temps d'un tracé de frame, plus rien ne pan : le clic molette
         // déplacerait le monde sous le rectangle en cours.
-        panOnDrag={isFrameTool ? false : panWithFinger ? true : [1]}
+        panOnDrag={
+          isFrameTool
+            ? false
+            : panWithFinger
+              ? true
+              : isHandTool
+                ? [0, 1]
+                : [1]
+        }
         // Le cas sans `?v=` : tout canvas s'ouvre à l'origine du monde.
         defaultViewport={{
           x: 0,
@@ -641,12 +661,12 @@ export default function CanvasFlow({
         // pas du z. Cf. l'override de .react-flow__node-toolbar dans index.css.
         elevateNodesOnSelect={false}
         selectionMode={SelectionMode.Partial}
-        // Pendant un tracé de frame, le lasso et le drag des nodes sont
-        // suspendus : le geste est le même (appuyer, tirer, relâcher), il ne
-        // peut pas signifier trois choses à la fois.
-        selectionOnDrag={!panWithFinger && !isFrameTool}
+        // Pendant un tracé de frame comme en mode main, le lasso et le drag des
+        // nodes sont suspendus : le geste est le même (appuyer, tirer,
+        // relâcher), il ne peut pas signifier trois choses à la fois.
+        selectionOnDrag={!panWithFinger && !isFrameTool && !isHandTool}
         // Tactile : draggable est accordé node par node via withTouchDragGate.
-        nodesDraggable={!isTouch && !isFrameTool}
+        nodesDraggable={!isTouch && !isFrameTool && !isHandTool}
         // Tactile : le double-tap sert à ouvrir un node, pas à zoomer.
         zoomOnDoubleClick={!isTouch}
         nodeTypes={nodeTypes}

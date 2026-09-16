@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useState } from "react";
-import { NodeResizer, useReactFlow } from "@xyflow/react";
+import { NodeResizer, useReactFlow, useStore } from "@xyflow/react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
+import NodeHandles from "../NodeHandles";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
@@ -23,26 +24,38 @@ const EMPTY_MIN_WIDTH = 160;
 const EMPTY_MIN_HEIGHT = 120;
 
 /**
+ * Le titre garde sa taille à l'écran quand on dézoome.
+ *
+ * `Math.max(1 / zoom, 1)` — copié de `scaleSelector` dans React Flow, qui
+ * l'applique à ses poignées de resize : le titre grossit à mesure qu'on
+ * s'éloigne, donc reste lisible, mais ne rétrécit jamais sous sa taille CSS
+ * quand on zoome dedans. Les poignées du `NodeResizer` juste à côté suivent
+ * exactement la même règle, l'ensemble reste cohérent.
+ */
+const titleScaleSelector = (state: { transform: [number, number, number] }) =>
+  Math.max(1 / state.transform[2], 1);
+
+/**
  * Un conteneur : il groupe des nodes, qui le déclarent en `parentId` et
  * portent dès lors une position relative à lui. C'est le seul node du canvas
  * dont le contenu est fait d'autres nodes.
  *
  * Ne passe volontairement pas par `NodeFrame`, qui câble le double-clic sur
- * `openWindow` et pose des `NodeHandles`. Une frame n'ouvre pas de fenêtre et
- * ne se connecte à rien : son corps doit rester une surface inerte.
+ * `openWindow` : une frame n'ouvre pas de fenêtre. Elle pose en revanche les
+ * mêmes `NodeHandles` que tout le monde — purement visuels, il n'y a aucun
+ * système de dépendances derrière les edges.
  *
- * La règle « on ne la sélectionne et on ne la déplace que depuis son titre »
- * tient à deux choses qui doivent rester ensemble : le `pointer-events: none`
- * posé sur `.react-flow__node-frame` dans `index.css` (le corps laisse passer
- * les clics), et le `dragHandle` posé par `fromCanvasNodeToXyNode` (React Flow
- * ne démarre un drag que depuis la barre de titre). Retirer l'un des deux
- * laisse la frame attrapable par son fond.
+ * Se déplace et se sélectionne depuis TOUT son corps, comme n'importe quel
+ * node. Conséquence assumée : un drag qui part de l'intérieur d'une frame la
+ * déplace au lieu de lasso-sélectionner son contenu — pour ça, partir du
+ * dehors. C'est le comportement de Figma, le fond d'une frame lui appartient.
  */
 function FrameNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const { getNodes } = useReactFlow();
+  const titleScale = useStore(titleScaleSelector);
 
   const title = typeof values?.title === "string" ? values.title : "";
   const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];
@@ -132,6 +145,7 @@ function FrameNode(xyNode: XyNodeProps) {
 
   return (
     <>
+      <NodeHandles showSourceHandles={xyNode.selected} nodeId={xyNode.id} />
       <NodeResizer
         isVisible={xyNode.selected}
         minWidth={minSize.width}
@@ -143,13 +157,18 @@ function FrameNode(xyNode: XyNodeProps) {
 
       {/* Au-dessus du bord haut et non dedans, comme dans Figma : la barre ne
           mange pas la surface utile, et le contenu de la frame ne passe jamais
-          sous elle. `frame-interactive` est ce qui lui rend les pointer-events
-          que le wrapper coupe ; `frame-drag-handle` est ce que React Flow
-          cherche pour démarrer un drag. */}
+          sous elle. D'où l'origine de transformation en bas à gauche — le titre
+          grandit vers le haut et la droite, en restant collé au coin de la
+          frame. */}
       <div
-        className="frame-interactive frame-drag-handle absolute bottom-full left-0 mb-1 flex max-w-full cursor-grab items-center gap-1 active:cursor-grabbing"
+        className="absolute bottom-full left-0 mb-1 flex max-w-full cursor-grab items-center gap-1 active:cursor-grabbing"
+        style={{ scale: String(titleScale), transformOrigin: "bottom left" }}
         title={title || undefined}
       >
+        {/* `nodrag` : sans ça, le pointerdown qui ouvre l'édition du titre
+            démarrerait un déplacement de la frame, puisque tout le corps drague
+            désormais. C'est la classe que React Flow exclut de son drag (cf.
+            `noDragClassName`), la même que portent ses `<Handle>`. */}
         <InlineEditableText
           value={title}
           onSave={rename}
@@ -157,8 +176,8 @@ function FrameNode(xyNode: XyNodeProps) {
           singleLine
           placeholder="Untitled frame"
           className={cn(
-            "max-w-[40ch] truncate rounded px-1 text-xs font-medium",
-            xyNode.selected ? "text-blue-600" : "text-muted-foreground",
+            "nodrag max-w-[40ch] truncate rounded px-1 text-xs font-medium",
+            nodeColor.textColor,
           )}
           inputClassName="text-xs font-medium"
         />
@@ -168,12 +187,12 @@ function FrameNode(xyNode: XyNodeProps) {
         className={cn(
           "h-full w-full rounded-[5px] border-2 transition-colors duration-100",
           nodeColor.nodeBorder,
-          // Fond très léger : une frame se place derrière les nodes (cf. la
-          // bande basse de zIndex dans `nodeLayering`), elle doit se lire sans
-          // assombrir ce qu'elle contient.
-          xyNode.data?.color === "transparent"
-            ? "bg-transparent"
-            : "bg-slate-500/5",
+          // `lightBg` et non `nodeBg` : c'est la teinte la plus claire de la
+          // palette, celle qui tient sur une grande surface. Une frame en
+          // `nodeBg` écraserait les nodes blancs posés dessus. Le cas
+          // `transparent` tombe juste tout seul — fond ET bordure y sont
+          // transparents, la frame se réduit à son titre.
+          nodeColor.lightBg,
           xyNode.selected && "ring-2 ring-blue-500/70",
           // Cible de dépôt : la bordure prime sur la couleur du node, c'est
           // une réponse au geste en cours et pas un état du document.

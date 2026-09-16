@@ -56,10 +56,6 @@ export function fromCanvasNodeToXyNode(canvasNode: CanvasNode): Node {
     ...(canvasNode.locked === true && { draggable: false }),
     ...(canvasNode.hidden === true && { hidden: true }),
     ...(canvasNode.zIndex != null && { zIndex: canvasNode.zIndex }),
-    // Une frame ne se déplace que par sa barre de titre. Prop client, jamais
-    // persistée : c'est une propriété du TYPE, pas de l'instance — la stocker
-    // en base la rendrait modifiable node par node pour rien.
-    ...(canvasNode.type === "frame" && { dragHandle: ".frame-drag-handle" }),
     data: {
       ...(canvasNode.nodeDataId != null && {
         nodeDataId: canvasNode.nodeDataId,

@@ -1,4 +1,7 @@
-import { useFileUpload } from "../../hooks/useFilesUpload";
+import {
+  useFileUpload,
+  type UploadedFileData,
+} from "../../hooks/useFilesUpload";
 
 interface UploadFileProps {
   onUploadComplete: (
@@ -14,21 +17,64 @@ interface UploadFileProps {
     // the upload result carries — audio tags, for instance.
     file: File,
   ) => void;
+  /**
+   * Appelé une seule fois avec tous les fichiers réussis quand `multiple`
+   * est actif. Si absent, on retombe sur un appel `onUploadComplete` par
+   * fichier réussi.
+   */
+  onUploadsComplete?: (filesData: UploadedFileData[], files: File[]) => void;
   accept?: string;
+  multiple?: boolean;
 }
 
-export const UploadFile = ({ onUploadComplete, accept }: UploadFileProps) => {
+export const UploadFile = ({
+  onUploadComplete,
+  onUploadsComplete,
+  accept,
+  multiple,
+}: UploadFileProps) => {
   const { uploadFile, uploads } = useFileUpload();
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const input = e.target;
+    const files = Array.from(input.files ?? []).filter((f) => f.size > 0);
+    if (files.length === 0) return;
 
     try {
-      const fileData = await uploadFile(file);
-      onUploadComplete(fileData, file);
+      if (!multiple) {
+        const fileData = await uploadFile(files[0]);
+        onUploadComplete(fileData, files[0]);
+        return;
+      }
+
+      // Succès partiels : un fichier en échec ne doit pas faire perdre les
+      // autres (`uploadMultiple` fait un `Promise.all` qui rejette tout).
+      const results = await Promise.allSettled(
+        files.map((file) => uploadFile(file)),
+      );
+      const succeededData: UploadedFileData[] = [];
+      const succeededFiles: File[] = [];
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          succeededData.push(result.value);
+          succeededFiles.push(files[index]);
+        } else {
+          console.error(`Upload failed for ${files[index].name}:`, result.reason);
+        }
+      });
+      if (succeededData.length === 0) return;
+      if (onUploadsComplete) {
+        onUploadsComplete(succeededData, succeededFiles);
+      } else {
+        succeededData.forEach((fileData, index) => {
+          onUploadComplete(fileData, succeededFiles[index]);
+        });
+      }
     } catch (error) {
       console.error("Upload failed:", error);
+    } finally {
+      // Permet de re-sélectionner les mêmes fichiers juste après.
+      input.value = "";
     }
   };
 
@@ -41,6 +87,7 @@ export const UploadFile = ({ onUploadComplete, accept }: UploadFileProps) => {
         type="file"
         onChange={handleFileSelect}
         accept={accept}
+        multiple={multiple}
         disabled={isUploading}
         className="block w-full text-sm text-gray-500
           file:mr-4 file:py-2 file:px-4

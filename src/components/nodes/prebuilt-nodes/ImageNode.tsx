@@ -150,6 +150,7 @@ function SortableImageItem({
 function ImageEditDialog({
   currentValue,
   onUploadComplete,
+  onUploadsComplete,
   onDelete,
   onReorder,
   onExtract,
@@ -165,6 +166,16 @@ function ImageEditDialog({
     uploadedAt: number;
     key: string;
   }) => void;
+  onUploadsComplete: (
+    filesData: Array<{
+      url: string;
+      filename: string;
+      mimeType: string;
+      size: number;
+      uploadedAt: number;
+      key: string;
+    }>,
+  ) => void;
   onDelete: (url: string) => void;
   onReorder: (newImages: Value) => void;
   onExtract?: (url: string) => void;
@@ -235,8 +246,13 @@ function ImageEditDialog({
             Split all ({localImages.length})
           </Button>
         )}
-        <p className="text-xs text-muted-foreground mb-2">Add an image</p>
-        <UploadFile accept="image/*" onUploadComplete={onUploadComplete} />
+        <p className="text-xs text-muted-foreground mb-2">Add images</p>
+        <UploadFile
+          accept="image/*"
+          multiple
+          onUploadComplete={onUploadComplete}
+          onUploadsComplete={onUploadsComplete}
+        />
       </div>
     </div>
   );
@@ -494,6 +510,41 @@ function ImageNode(xyNode: XyNodeProps) {
     [nodeDataId, currentValue, updateNodeDataValues],
   );
 
+  // Un seul update pour tout le lot : N mutations `[...current, +1]` en
+  // parallèle s'écraseraient (le client remplace tout le tableau), et chaque
+  // mutation ouvre un snapshot de version.
+  const handleUploadsComplete = useCallback(
+    (
+      filesData: Array<{
+        url: string;
+        filename: string;
+        mimeType: string;
+        size: number;
+        uploadedAt: number;
+        key: string;
+      }>,
+    ) => {
+      if (!nodeDataId || filesData.length === 0) return;
+      updateNodeDataValues({
+        nodeDataId,
+        values: {
+          images: [
+            ...currentValue,
+            ...filesData.map((fileData) => ({
+              url: fileData.url,
+              filename: fileData.filename,
+              mimeType: fileData.mimeType,
+              size: fileData.size,
+              uploadedAt: fileData.uploadedAt,
+              key: fileData.key,
+            })),
+          ],
+        },
+      });
+    },
+    [nodeDataId, currentValue, updateNodeDataValues],
+  );
+
   const handleDelete = useCallback(
     (url: string) => {
       if (!nodeDataId) return;
@@ -637,6 +688,7 @@ function ImageNode(xyNode: XyNodeProps) {
                   <ImageEditDialog
                     currentValue={currentValue}
                     onUploadComplete={handleUploadComplete}
+                    onUploadsComplete={handleUploadsComplete}
                     onDelete={handleDelete}
                     onReorder={handleReorder}
                     onExtract={

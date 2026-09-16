@@ -118,7 +118,7 @@ export default function CanvasFlow({
     isFrameTool,
     rect: frameDrawRect,
     handlers: frameDrawHandlers,
-  } = useFrameDrawTool({ canEdit });
+  } = useFrameDrawTool({ canEdit, isTouch });
 
   // Context menu management
   const {

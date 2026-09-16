@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useReactFlow, type Node } from "@xyflow/react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useCanvasStore } from "@/stores/canvasStore";
+import { useCanvasHotkeysEnabled } from "@/hooks/useCanvasHotkeysEnabled";
 import { useCreateNode } from "@/hooks/useCreateNode";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { withUndoTransaction } from "@/stores/canvasHistoryStore";
@@ -44,15 +46,38 @@ function toRect(a: ScreenPoint, b: ScreenPoint) {
  * ressortis. C'est pour ça que la création est attendue (`await settled`)
  * avant le reparentage : `parentId` doit désigner un node que le serveur
  * connaît.
+ *
+ * Les trois portes du mode sont ici : `F` pour entrer et sortir, Échap pour
+ * sortir, et le relâcher du tracé qui rend la main tout seul.
  */
-export function useFrameDrawTool({ canEdit }: { canEdit: boolean }) {
+export function useFrameDrawTool({
+  canEdit,
+  isTouch,
+}: {
+  canEdit: boolean;
+  isTouch: boolean;
+}) {
   const tool = useCanvasStore((state) => state.tool);
   const setTool = useCanvasStore((state) => state.setTool);
   const { screenToFlowPosition, getNodes } = useReactFlow();
   const { createNode } = useCreateNode();
   const { updateCanvasNodes } = useUpdateCanvasNode();
+  const hotkeysEnabled = useCanvasHotkeysEnabled({ canEdit, isTouch });
 
   const isFrameTool = canEdit && tool === "frame";
+
+  // Bascule, et pas simple entrée : le bouton de la toolbar bascule lui aussi,
+  // les deux commandes doivent dire la même chose.
+  useHotkey(
+    "F",
+    (event) => {
+      // Une touche maintenue rejouerait le binding et ferait clignoter le mode
+      // — `requireReset` est faux par défaut.
+      if (event.repeat) return;
+      setTool(tool === "frame" ? "edit" : "frame");
+    },
+    { enabled: hotkeysEnabled, ignoreInputs: true },
+  );
 
   const startRef = useRef<ScreenPoint | null>(null);
   const [rect, setRect] = useState<DrawnRect | null>(null);

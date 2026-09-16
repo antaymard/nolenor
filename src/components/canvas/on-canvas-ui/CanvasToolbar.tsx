@@ -61,7 +61,7 @@ export default function CanvasToolbar() {
           onClick={() => setTool(tool === "frame" ? "edit" : "frame")}
           aria-pressed={tool === "frame"}
           aria-label="Draw a frame"
-          title="Draw a frame to group nodes"
+          title="Draw a frame to group nodes (F)"
         >
           <TbFrame size={20} />
         </Button>

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { useHotkey } from "@tanstack/react-hotkeys";
 import { cn } from "@/lib/utils";
 import {
   useWindowsStore,
@@ -85,16 +84,11 @@ export default function WindowFrame({
   const [isDraggingOrResizing, setIsDraggingOrResizing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  useHotkey(
-    "Mod+S",
-    (e) => {
-      e.preventDefault();
-      void handleSave();
-    },
-    { target: containerRef, enabled: !!saveHandler && isDirty && !isSaving },
-  );
+  // Le `Mod+S` est global (voir `WindowsContainer`) : il résout la fenêtre au
+  // premier plan via le store et appelle son handler enregistré. Plus de
+  // hotkey scopé ici — le focus pouvait être hors de ce div (canvas, chat,
+  // autre fenêtre) et le save du browser partait.
 
   // Stored as refs to avoid stale closures in the event listeners
   const dragRef = useRef<{ startX: number; startY: number } | null>(null);
@@ -293,10 +287,7 @@ export default function WindowFrame({
             "after:pointer-events-none after:absolute after:inset-0 after:rounded-[12px] after:border-2 after:border-dashed after:border-violet-500/90",
         )}
       >
-        <div
-          ref={containerRef}
-          className="relative flex h-full w-full flex-col overflow-hidden rounded-lg border bg-white shadow-2xl/10"
-        >
+          <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg border bg-white shadow-2xl/10">
           {/* ── Resize handles ───────────────────────────────────────── */}
 
           {/* Corners (12×12, priority z-20) */}

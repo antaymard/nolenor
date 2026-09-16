@@ -2,11 +2,9 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { useHotkey } from "@tanstack/react-hotkeys";
 import { Check, Minimize2, Minus, Save, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -22,6 +20,7 @@ import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { WindowFrameContext, type SaveHandler } from "./WindowFrameContext";
+import { useRegisterWindowSaveHandler } from "./windowSaveRegistry";
 import { Spinner } from "@/components/shadcn/spinner";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import {
@@ -77,8 +76,6 @@ export default function FullscreenWindowFrame({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     if (saveState !== "saved") return;
     const timeoutId = window.setTimeout(() => setSaveState("idle"), 1500);
@@ -109,14 +106,9 @@ export default function FullscreenWindowFrame({
     return () => removeDirtyNode(xyNodeId);
   }, [isDirty, xyNodeId, addDirtyNode, removeDirtyNode]);
 
-  useHotkey(
-    "Mod+S",
-    (e) => {
-      e.preventDefault();
-      void handleSave();
-    },
-    { target: containerRef, enabled: !!saveHandler && isDirty && !isSaving },
-  );
+  // Même enregistrement que `useWindowFrameState` (cet état local en est la
+  // copie) pour le hotkey global `Mod+S` de `WindowsContainer`.
+  useRegisterWindowSaveHandler(xyNodeId, handleSave);
 
   const contextValue = useMemo(
     () => ({
@@ -133,10 +125,7 @@ export default function FullscreenWindowFrame({
 
   return (
     <WindowFrameContext.Provider value={contextValue}>
-      <div
-        ref={containerRef}
-        className="fixed inset-0 z-50 flex flex-col bg-white"
-      >
+      <div className="fixed inset-0 z-50 flex flex-col bg-white">
         {/* ── Header ────────────────────────────────────────────────── */}
         <div
           className="flex select-none items-center gap-2 border-b bg-white px-4 py-2"

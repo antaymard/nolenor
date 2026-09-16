@@ -1,9 +1,14 @@
 import { useState, useCallback, lazy, Suspense } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { cn } from "@/lib/utils";
 import { useWindowsStore, type SnapSide } from "@/stores/windowsStore";
 import { useExistingNodeIds } from "@/lib/nodeIdentity";
 import WindowFrame from "./WindowFrame";
 import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
+import {
+  getWindowSaveHandler,
+  useHasWindowSaveHandler,
+} from "./windowSaveRegistry";
 
 // Fullscreen windows share the heavy editor dependencies of their windowed
 // counterparts; load them on demand instead of with the canvas chunk.
@@ -30,6 +35,32 @@ export default function WindowsContainer() {
   const fullscreenWindow = fullscreenNodeId
     ? openedWindows.find((w) => w.xyNodeId === fullscreenNodeId)
     : undefined;
+
+  // `Mod+S` global, topmost strict : d'où que vienne le focus (canvas, chat,
+  // cellule de table, BlockNote...), le save s'applique à la fenêtre au
+  // premier plan — plein écran d'abord, sinon `zIndex` max hors minimisées.
+  // Le `preventDefault` bloque le dialog système même si cette fenêtre n'a
+  // rien à sauver ; sans aucune fenêtre sauvegardable, `enabled` rend la
+  // main au browser (settings, canvas vide...). Le handler appelé porte déjà
+  // les gardes `isDirty` / `isSaving`.
+  const hasSaveHandler = useHasWindowSaveHandler();
+  useHotkey(
+    "Mod+S",
+    () => {
+      const state = useWindowsStore.getState();
+      const visible = state.openedWindows.filter(
+        (w) => w.windowState !== "minimized",
+      );
+      if (visible.length === 0) return;
+      const topmost =
+        state.fullscreenNodeId !== null
+          ? (visible.find((w) => w.xyNodeId === state.fullscreenNodeId) ??
+            visible.reduce((a, b) => (b.zIndex > a.zIndex ? b : a)))
+          : visible.reduce((a, b) => (b.zIndex > a.zIndex ? b : a));
+      getWindowSaveHandler(topmost.xyNodeId)?.();
+    },
+    { preventDefault: true, enabled: hasSaveHandler },
+  );
 
   const handleSnapPreviewChange = useCallback(
     (side: SnapSide | null) => setSnapPreview(side),

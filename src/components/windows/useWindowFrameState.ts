@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWindowsStore } from "@/stores/windowsStore";
 import type { SaveHandler } from "./WindowFrameContext";
+import { useRegisterWindowSaveHandler } from "./windowSaveRegistry";
 
 export type SaveState = "idle" | "saving" | "saved";
 
@@ -43,6 +44,11 @@ export function useWindowFrameState(xyNodeId: string) {
       setIsSaving(false);
     }
   }, [isDirty, isSaving, saveHandler]);
+
+  // Expose le save au hotkey global `Mod+S` (topmost strict, voir
+  // `WindowsContainer`) : le handler porte déjà les gardes `isDirty` /
+  // `isSaving`, l'appelant global n'a qu'à le déclencher.
+  useRegisterWindowSaveHandler(xyNodeId, handleSave);
 
   useEffect(() => {
     if (isDirty) {

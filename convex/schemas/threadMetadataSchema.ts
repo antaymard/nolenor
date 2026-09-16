@@ -97,9 +97,8 @@ const threadMetadataValidator = v.object({
   userId: v.id("users"),
   canvasId: v.id("canvases"),
   // Absent sur un thread racine ; sur un thread de sous-agent, le threadId de
-  // la conversation Nolë qui l'a déclenché (même vocabulaire que
-  // taskExecutions.masterThreadId). Permet d'agréger les coûts d'un thread et
-  // de sa descendance.
+  // la conversation Nolë qui l'a déclenché. Permet d'agréger les coûts d'un
+  // thread et de sa descendance.
   masterThreadId: v.optional(v.string()),
   totalUsageUsd: v.number(),
   // Nodes touchés par l'agent au cours du thread, dans l'ordre de première

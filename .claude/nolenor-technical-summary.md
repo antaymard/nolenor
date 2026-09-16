@@ -63,7 +63,7 @@ La différenciation par rapport aux concurrents (Spine, Flowith, Miro AI) : Nol�
 
 ### Modèles IA utilisés
 
-- `minimax/minimax-m2.7` (via OpenRouter) — agent Nolë principal + automation
+- `minimax/minimax-m2.7` (via OpenRouter) — agent Nolë principal
 - `stepfun/step-3.5-flash:free` (via OpenRouter) — agent Brain (génération interne)
 - `anthropic/claude-sonnet-4-5` (via OpenRouter) — analyse de PDF
 - `anthropic/claude-haiku-4-5` (via OpenRouter) — analyse d'images
@@ -96,12 +96,8 @@ Données persistantes de chaque nœud (séparées du canvas pour le temps réel)
 - `templateId` : référence au template (si nœud custom)
 - `type` : type de nœud
 - `values` : record clé-valeur (contenu du nœud)
-- `status` : idle | working | error
-- `automationMode` : off | agent | dataProcessing
-- `agent` : configuration de l'agent (model, instructions, touchableFields)
-- `automationProgress` : suivi temps réel (currentStepType, currentStepData, timestamps)
-- `dependencies` : tableau de dépendances input/output avec d'autres nœuds
-- `dataProcessing` : tableau de transformations champ par champ (field, sourceNode, expression)
+- `imageGeneration` : génération d'image en cours ou en échec, sur un nœud image
+- `removedFromCanvasAt` : vestige, plus écrit ni lu
 
 ### shares
 
@@ -162,13 +158,10 @@ Chaque nœud vit sur le canvas React Flow avec drag & drop, redimensionnement, c
 
 Les nœuds peuvent être ouverts en fenêtres agrandies. Plusieurs fenêtres peuvent coexister simultanément. Navigation par liens entre fenêtres. Géré par le windowsStore.
 
-### Edges et dépendances
+### Edges
 
-- Connexion entre nœuds avec edges
-- Tracking automatique des dépendances input/output
-- Les dépendances alimentent le système d'automation (les nœuds en input fournissent du contexte à l'agent)
-- Types : input, output
-- Champs optionnels : degree, shouldTriggerUpdate
+- Connexion entre nœuds avec edges, label et couleur éditables
+- `data` est un record libre : il porte aujourd'hui le label et la couleur, rien d'autre
 
 ### Partage et collaboration
 
@@ -201,13 +194,13 @@ Tools exposés par Nolë Chat :
 5. `string_replace_document_content` (`stringReplaceDocumentContentTool`) — remplacement ciblé de contenu dans les nœuds document.
 6. `insert_document_content` (`insertDocumentContentTool`) — insertion de contenu à un emplacement précis dans les nœuds document.
 
-**Automation sur les nœuds** :
-
-- 3 modes : off, agent, dataProcessing
-- Mode agent : l'IA reçoit des instructions custom et le contexte des nœuds input. L'exécution est orchestrée par `createAutomationAgent` (max 5 steps), avec un outillage d'update de nodeData branché dynamiquement côté automation.
-- Mode dataProcessing : transformations champ par champ via expressions (sans agent IA)
-- Suivi de progression temps réel : step types (automation_launched, tool_launched=X, tool_completed=X, automation_completed)
-- Statut du nœud : idle → working → idle/error
+**Automation sur les nœuds** : jamais construite. Ce document a longtemps
+décrit un moteur d'automation (modes off/agent/dataProcessing,
+`createAutomationAgent`, champs `automationMode` / `automationProgress` /
+`dependencies` / `dataProcessing`) qui n'a **jamais existé dans le code** —
+l'historique git le confirme, ces identifiants n'ont jamais touché autre chose
+que ce fichier. Les amorces qui en restaient (tables `scheduledJobs` et
+`taskExecutions`, jamais lues ni écrites) ont été supprimées en septembre 2026.
 
 ### Speech-to-text
 
@@ -256,7 +249,7 @@ Type de nœud pour les requêtes HTTP (GET/POST/PUT/DELETE avec headers, query p
 - Nolë qui opère par blocs et opérations visuelles, pas par texte : créer un nœud, mettre à jour une valeur, connecter deux éléments, au lieu de cracher un mur de texte
 - Orchestration non-bloquante : Nolë met à jour un nœud pendant que l'humain travaille sur un autre
 - Mode Tony Stark complet : co-pilotage synchrone humain-IA, délégation de tâches de computing/recherche à l'agent
-- Amélioration du système d'automation : chaînage de nœuds en workflows, cascade automatique, résultats intermédiaires visibles
+- Automation des nœuds, à construire : chaînage de nœuds en workflows, cascade automatique, résultats intermédiaires visibles
 - Voice interaction (ElevenLabs déjà dans les dépendances) pour une interaction type Jarvis
 
 ### Custom nodes (après refonte templates)
@@ -310,12 +303,11 @@ Fonctions backend :
 ```
 /convex/                    Backend Convex
   /ia/                      Agents IA
-    agents.ts               Assemblage des agents (Nolë, automation, tool-agent)
+    agents.ts               Assemblage des agents (Nolë, worker, tool-agent)
     nole.ts                 Entrée principale du chat Nolë (streaming)
     noleToolRuntimeContext.ts Runtime context des tools (authUserId, canvasId)
     /nole/                  Prompting/système de l'agent Nolë
     /tools/                 Tools IA (web, lecture de nœuds, manipulation nœuds/edges, édition document)
-  /automation/              Pipeline d'automation des nœuds
   /model/                   Couche business logic
   /schemas/                 Validateurs de données (Zod)
   /config/                  Configuration (erreurs, etc.)

@@ -8,6 +8,7 @@ import { createNoleAgent, getChatModel } from "./agents";
 import { generateNoleSystemPrompt } from "./systemPrompts/noleSystemPrompt";
 import { components, internal } from "../_generated/api";
 import { generateMessageContext } from "./helpers/generateMessageContext";
+import { isExpectedAbortedStreamError } from "./helpers/abortedStream";
 import { vMetadata } from "./nole";
 import {
   threadRunStatuses,
@@ -42,19 +43,6 @@ function contextTokensFromLastStep(
     return undefined;
   }
   return (inputTokens ?? 0) + (outputTokens ?? 0);
-}
-
-function isExpectedAbortedStreamError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("stream") &&
-    message.includes("aborted") &&
-    (message.includes("trying to finish") || message.includes("finish"))
-  );
 }
 
 // Internal action that handles streaming
@@ -280,6 +268,23 @@ export const streamResponse = internalAction({
       } catch (statusError) {
         // Ne jamais masquer l'erreur d'origine avec un incident de traçabilité.
         console.error("Failed to record thread run status:", statusError);
+      }
+
+      // APRÈS `markRunEnded`, et l'ordre est le tout : `deliverIfReady` refuse
+      // de réveiller un thread encore `running`, ce que celui-ci était jusqu'à
+      // la ligne précédente. Deux appelants se partagent cette remise — le
+      // worker qui finit, et ce tour-ci qui s'achève — parce qu'aucun des deux
+      // ne suffit : un worker qui termine pendant le tour ne peut pas
+      // réveiller, et un tour qui s'achève avant ses workers n'a rien à
+      // remettre. Le marquage étant dans la même transaction que le réveil,
+      // les deux peuvent appeler sans risque de doublon.
+      try {
+        await ctx.runMutation(internal.ia.subAgents.deliverIfReady, {
+          masterThreadId: threadId,
+        });
+      } catch (deliveryError) {
+        // Le balayage du cron rattrapera.
+        console.error("Failed to deliver subagent reports:", deliveryError);
       }
     }
 

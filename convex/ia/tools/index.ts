@@ -34,6 +34,7 @@ import { websearchTool, websearchToolConfig } from "./websearchTool";
 import listUserCanvasesTool, {
   listUserCanvasesToolConfig,
 } from "./listUserCanvasesTool";
+import runSubAgentTool, { runSubAgentConfig } from "./runSubAgentTool";
 
 type AgentTool = ToolSet[string];
 type ToolExecute = NonNullable<AgentTool["execute"]>;
@@ -200,6 +201,10 @@ const toolRegistry: ToolRegistration[] = [
   {
     config: listUserCanvasesToolConfig,
     factory: ({ threadCtx }) => listUserCanvasesTool({ threadCtx }),
+  },
+  {
+    config: runSubAgentConfig,
+    factory: ({ threadCtx }) => runSubAgentTool({ threadCtx }),
   },
 ];
 

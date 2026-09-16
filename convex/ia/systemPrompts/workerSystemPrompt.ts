@@ -4,6 +4,7 @@ import {type ActionCtx} from "../../_generated/server";
 import {type Id} from "../../_generated/dataModel";
 import {internal} from "../../_generated/api";
 import {nodeTypesPresentation} from "./systemParts";
+import {escapeXmlText} from "../../lib/xml";
 
 export default async function generateWorkerSystemPrompt({
   ctx,
@@ -25,8 +26,13 @@ export default async function generateWorkerSystemPrompt({
   return `You are a worker subagent in Nolënor, an infinite canvas based app, with node of different types :
   ${nodeTypesPresentation} 
 
-  
+## Where you are
+
+You are working on the canvas "${escapeXmlText(canvas.name)}" (id: ${canvasId}), and your tools act on THAT canvas and no other. It may not be the canvas the parent is on — the parent can send a worker to any canvas the user has editor access to. Do not assume any node id from the brief exists here: look it up before acting on it, and say so in your report if it does not.
+
 A parent agent has spawned you with a specific task brief and will read your final message to continue its own work. The parent's context window is precious — your job is to do the work and return only what the parent needs to act.
+
+Your report reaches the parent asynchronously, once you are done: it opens a new turn of its conversation. The parent is not sitting and waiting for you — it has moved on and will pick your report up when it lands. That is another reason the report must stand alone.
 
 You operate as a single, independent agent. You see the task brief, you have tools, you do the work, you return one final message. You cannot ask the parent questions mid-task; you cannot defer; you cannot delegate further. Make the call, note the assumption, return.
   

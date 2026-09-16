@@ -16,6 +16,8 @@ import {
   type ResolvedRunStatus,
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
+import { threadAgentNames } from "@/../convex/schemas/threadMetadataSchema";
+import { Bot } from "lucide-react";
 
 /**
  * Ce que Nolë a laissé en plan, vu de la home.
@@ -95,6 +97,7 @@ function PendingTaskRow({ task }: { task: HomePendingThread }) {
   const age = formatTaskAge(task);
   const activity = task.lastActivity?.text;
   const nodeCount = task.touchedNodesCount;
+  const isSubAgent = task.agentName === threadAgentNames.worker;
 
   return (
     <div
@@ -106,8 +109,17 @@ function PendingTaskRow({ task }: { task: HomePendingThread }) {
       <TaskStatusIcon status={status} className="size-4" />
 
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-medium text-gray-800">
-          {task.title || "Nolë"}
+        <span className="flex min-w-0 items-center gap-1">
+          {/* Une tâche déléguée peut tourner sur un canvas que l'utilisateur
+              n'a pas ouvert : c'est ici, et nulle part ailleurs, qu'il la voit
+              sans changer de page. Autant dire que ce n'est pas la
+              conversation. */}
+          {isSubAgent && (
+            <Bot className="size-3 shrink-0 text-gray-400" aria-hidden />
+          )}
+          <span className="truncate text-sm font-medium text-gray-800">
+            {task.title || (isSubAgent ? "Sous-agent" : "Nolë")}
+          </span>
         </span>
         {/* Ce que l'agent a formulé en dernier, et l'ampleur du chantier. Rien
             à dire tant qu'aucun tool n'a parlé : la ligne disparaît plutôt que

@@ -41,4 +41,19 @@ crons.daily(
   {},
 );
 
+// Filet des sous-agents. Deux passes : ramasser les tâches dont l'action est
+// morte avec son conteneur (aucun `finally` ne s'exécute alors), puis remettre
+// les rapports qu'aucun des deux chemins normaux n'a pu livrer. Sans ce
+// balayage, une seule tâche perdue bloque son lot POUR TOUJOURS et la
+// conversation attend un rapport qui ne viendra pas.
+//
+// Cinq minutes : c'est le délai maximal d'un rattrapage, pas la cadence
+// normale de la délégation, qui livre elle-même en temps réel.
+crons.interval(
+  "recover stranded subagents",
+  { minutes: 5 },
+  internal.ia.subAgents.recoverSubAgents,
+  {},
+);
+
 export default crons;

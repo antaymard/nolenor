@@ -14,6 +14,39 @@ import {
 
 type ThreadMetadata = Doc<"threadMetadata">;
 
+/**
+ * Ouvre la ligne de suivi d'un thread. Toujours à `totalUsageUsd: 0` : c'est
+ * `addUsage` qui la crédite ensuite, une fois par step LLM.
+ *
+ * `masterThreadId` n'est posé que sur un thread de sous-agent — la clé
+ * qu'`aiUsage` remonte pour agréger la dépense d'un tour et de sa descendance.
+ */
+export async function create(
+  ctx: MutationCtx,
+  {
+    threadId,
+    userId,
+    canvasId,
+    agentName,
+    masterThreadId,
+  }: {
+    threadId: string;
+    userId: Id<"users">;
+    canvasId: Id<"canvases">;
+    agentName: string;
+    masterThreadId?: string;
+  },
+): Promise<void> {
+  await ctx.db.insert("threadMetadata", {
+    threadId,
+    userId,
+    canvasId,
+    totalUsageUsd: 0,
+    agentName,
+    ...(masterThreadId ? { masterThreadId } : {}),
+  });
+}
+
 export async function findByThreadId(
   ctx: QueryCtx,
   { threadId }: { threadId: string },
@@ -44,6 +77,48 @@ export async function listNoleThreadsByUserAndCanvas(
         .eq("userId", userId)
         .eq("canvasId", canvasId)
         .eq("agentName", threadAgentNames.nole),
+    )
+    .order("desc")
+    .take(limit);
+}
+
+/**
+ * Threads de sous-agents d'un canvas.
+ *
+ * Un second scan d'index plutôt qu'un élargissement de la clé : le sélecteur
+ * de conversations, lui, ne doit PAS voir les sous-agents — c'est même la
+ * raison d'être d'`agentName` dans la clé. Seul le dock veut les deux, et il
+ * paie ce qu'il demande.
+ */
+export async function listWorkerThreadsByUserAndCanvas(
+  ctx: QueryCtx,
+  {
+    userId,
+    canvasId,
+    limit,
+  }: { userId: Id<"users">; canvasId: Id<"canvases">; limit: number },
+): Promise<ThreadMetadata[]> {
+  return await ctx.db
+    .query("threadMetadata")
+    .withIndex("by_userId_and_canvasId_and_agentName", (q) =>
+      q
+        .eq("userId", userId)
+        .eq("canvasId", canvasId)
+        .eq("agentName", threadAgentNames.worker),
+    )
+    .order("desc")
+    .take(limit);
+}
+
+/** Pendant de `listWorkerThreadsByUserAndCanvas` pour la home, tous canvas. */
+export async function listWorkerThreadsByUser(
+  ctx: QueryCtx,
+  { userId, limit }: { userId: Id<"users">; limit: number },
+): Promise<ThreadMetadata[]> {
+  return await ctx.db
+    .query("threadMetadata")
+    .withIndex("by_userId_and_agentName", (q) =>
+      q.eq("userId", userId).eq("agentName", threadAgentNames.worker),
     )
     .order("desc")
     .take(limit);

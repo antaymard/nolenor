@@ -10,6 +10,7 @@ import { sharesValidator } from "./schemas/sharesSchema";
 import { memoriesValidator } from "./schemas/memoriesSchema";
 import { searchableChunksValidator } from "./schemas/searchableChunksSchema";
 import { wishlistEmailsValidator } from "./schemas/wishlistEmailsSchema";
+import { taskExecutionsValidator } from "./schemas/taskExecutionsSchema";
 import { skillsValidator } from "./schemas/skillsSchema";
 import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
@@ -148,6 +149,45 @@ const schema = defineSchema({
   wishlistEmails: defineTable(wishlistEmailsValidator).index("by_email", [
     "email",
   ]),
+
+  // Les délégations à un sous-agent.
+  //
+  // La table avait été supprimée comme échafaudage mort — elle l'était : ni
+  // lecteur ni écrivain, et des models entièrement commentés qui référençaient
+  // une table `tasks` inexistante. Elle revient ici parce qu'elle a désormais
+  // les deux (`ia/subAgents.ts`, `ia/worker.ts`), et un rôle précis : porter
+  // l'état d'un sous-agent entre son dispatch et la remise de son rapport au
+  // thread parent — ce qu'aucune table de threads ne sait faire, puisque le
+  // fan-in raisonne sur un LOT et non sur un thread.
+  //
+  // Quatre index, un par lecture réelle :
+  //
+  // - `by_threadId` : retrouver la tâche depuis le thread du worker (l'abort
+  //   d'une conversation, qui ne connaît que des threadId).
+  // - `by_masterThreadId_and_deliveredAt` : le fan-in. `eq(master).eq(
+  //   "deliveredAt", undefined)` rend exactement le lot ouvert — ce qui tourne
+  //   encore ET les rapports pas encore remis. Clé composée plutôt que
+  //   `by_masterThreadId` seul : un thread qui vit longtemps accumule des
+  //   dizaines de tâches déjà livrées, et le fan-in n'a que faire d'elles.
+  // - `by_status_and_startedAt` : le reap du cron, `eq("running")` puis
+  //   `lt(startedAt, cutoff)`. Sert aussi à balayer les `to_run` oubliés, que
+  //   le `_creationTime` implicite en fin de clé suffit à ordonner.
+  // - `by_status_and_deliveredAt` : le sweep, `eq(<final>)` +
+  //   `eq("deliveredAt", undefined)`. Un filtre après scan ne réduirait pas
+  //   les lignes lues, et la table grossit à chaque délégation.
+  //
+  // Comme pour `nodes.by_status_and_trashedAt`, un champ optionnel absent trie
+  // AVANT tout nombre : `eq(…, undefined)` vise donc bien, et seulement, les
+  // lignes où il n'a jamais été écrit.
+  taskExecutions: defineTable(taskExecutionsValidator)
+    .index("by_threadId", ["threadId"])
+    .index("by_masterThreadId_and_deliveredAt", [
+      "masterThreadId",
+      "deliveredAt",
+    ])
+    .index("by_status_and_startedAt", ["status", "startedAt"])
+    .index("by_status_and_deliveredAt", ["status", "deliveredAt"]),
+
   // ============================================================================
   // SKILLS
   // ============================================================================

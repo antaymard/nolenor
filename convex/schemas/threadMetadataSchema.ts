@@ -114,9 +114,11 @@ const threadMetadataValidator = v.object({
   lastActivity: v.optional(threadLastActivityValidator),
   agentName: v.string(),
   lastMessageTime: v.optional(v.number()),
-  // Nombre de messages envoyés par l'utilisateur sur ce thread, incrémenté par
-  // `threadMetadataWrappers.markRunStarted`. À ne pas confondre avec le nombre
-  // de steps LLM, qui vit dans `aiUsageDaily.eventsCount`.
+  // Nombre de tours ouverts sur ce thread, incrémenté par `markRunStarted` :
+  // un envoi de l'utilisateur, ou la remise d'un lot de rapports de sous-agents
+  // (cf. `ia/subAgents.deliverIfReady`), qui rouvre un tour de la même façon.
+  // À ne pas confondre avec le nombre de steps LLM, qui vit dans
+  // `aiUsageDaily.eventsCount`.
   roundsNb: v.optional(v.number()),
   // Absent = jamais lancé, donc `idle` : aucune migration à faire.
   runStatus: v.optional(threadRunStatusValidator),

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { BorderBeam } from "border-beam";
 import { ThinkingOrb } from "thinking-orbs";
-import { X } from "lucide-react";
+import { Bot, X } from "lucide-react";
 import { TbAlertCircle, TbAlertTriangle, TbCheck } from "react-icons/tb";
 import {
   useResolvedRunStatus,
@@ -13,6 +13,7 @@ import {
   type ResolvedRunStatus,
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
+import { threadAgentNames } from "@/../convex/schemas/threadMetadataSchema";
 import TaskNodePills from "./TaskNodePills";
 
 /** Rayon du bloc, partagé avec le halo pour que les deux arrondis coïncident. */
@@ -46,7 +47,11 @@ export default function TaskCard({
   const duration = useRunDuration(thread, isRunning);
 
   const nodes = thread.touchedNodes;
-  const title = thread.title || "Nolë";
+  // Un sous-agent est titré par l'`explanation` que Nolë lui a donnée au
+  // lancement ; une conversation par son titre auto-généré. Le repli diffère
+  // donc : « Nolë » sur une conversation, « Sous-agent » sur une délégation.
+  const isSubAgent = thread.agentName === threadAgentNames.worker;
+  const title = thread.title || (isSubAgent ? "Sous-agent" : "Nolë");
   const activity = thread.lastActivity?.text;
 
   const card = (
@@ -83,8 +88,19 @@ export default function TaskCard({
         {nodes.length > 0 ? (
           <TaskNodePills touchedNodes={nodes} />
         ) : (
-          <span className="truncate text-xs font-medium text-slate-800">
-            {title}
+          <span className="flex min-w-0 items-center gap-1">
+            {/* Une puce, pas un libellé : la ligne du haut est déjà courte, et
+                ce qu'il faut savoir d'un sous-agent est qu'il n'est pas la
+                conversation — pas son nom. */}
+            {isSubAgent ? (
+              <Bot
+                className="size-3 shrink-0 text-slate-400"
+                aria-label="Sous-agent"
+              />
+            ) : null}
+            <span className="truncate text-xs font-medium text-slate-800">
+              {title}
+            </span>
           </span>
         )}
         {/* Rien à dire tant qu'aucun tool n'a parlé : la ligne disparaît plutôt

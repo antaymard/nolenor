@@ -94,6 +94,76 @@ export async function listUserCanvasesWithShares(
   ];
 }
 
+/**
+ * Les canvas qu'un utilisateur peut atteindre, avec son niveau d'accès.
+ *
+ * Volontairement plus maigre que `listUserCanvasesWithShares` : pas de
+ * `nodeCount`, qui coûte un `collect()` de tous les nodes PAR canvas. La
+ * version riche sert des surfaces d'affichage montées à la demande ; celle-ci
+ * sert le system prompt de Nolë, reconstruit à CHAQUE tour, et le tool
+ * `list_user_canvases`. Un compte à cinquante canvas y paierait cinquante
+ * scans de table par message.
+ *
+ * `permission` est ce qui rend la liste actionnable depuis que `run_subagent`
+ * peut viser un autre canvas : sans elle, le modèle ne peut pas savoir où il a
+ * le droit d'écrire, et découvre le refus après coup.
+ */
+export async function listAccessibleCanvases(
+  ctx: QueryCtx,
+  { userId }: { userId: Id<"users"> },
+): Promise<
+  Array<{
+    _id: Id<"canvases">;
+    name: string;
+    description?: string;
+    createdAt: number;
+    updatedAt: number;
+    permission: "owner" | "editor" | "viewer";
+  }>
+> {
+  const own = await ctx.db
+    .query("canvases")
+    .withIndex("by_creator_and_updatedAt", (q) => q.eq("creatorId", userId))
+    .order("desc")
+    .collect();
+
+  const shares = await ctx.db
+    .query("shares")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+
+  const shared = await Promise.all(
+    shares
+      .filter((share) => share.resourceType === "canvas")
+      .map(async (share) => {
+        const canvas = await ctx.db.get("canvases", share.canvasId);
+        if (!canvas) return null;
+        return {
+          _id: canvas._id,
+          name: canvas.name,
+          description: canvas.description,
+          createdAt: canvas._creationTime,
+          updatedAt: canvas.updatedAt,
+          permission: share.permission,
+        };
+      }),
+  );
+
+  return [
+    ...own.map((canvas) => ({
+      _id: canvas._id,
+      name: canvas.name,
+      description: canvas.description,
+      createdAt: canvas._creationTime,
+      updatedAt: canvas.updatedAt,
+      permission: "owner" as const,
+    })),
+    ...shared
+      .filter((canvas) => canvas !== null)
+      .sort((a, b) => b.updatedAt - a.updatedAt),
+  ];
+}
+
 export async function readCanvasById(
   ctx: QueryCtx,
   { canvasId }: { canvasId: Id<"canvases"> },

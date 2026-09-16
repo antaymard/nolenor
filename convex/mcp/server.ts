@@ -72,7 +72,7 @@ export function buildMcpServer(ctx: ActionCtx, auth: McpAuth): McpServer {
     "list_canvases",
     {
       description:
-        "List all canvases created by the user, with their IDs, names and descriptions. Use the returned IDs as the canvasId argument of the other tools.",
+        "List every canvas the user can reach — the ones they created and the ones shared with them — with their IDs, names, descriptions and the user's permission on each (owner, editor or viewer). Use the returned IDs as the canvasId argument of the other tools; write tools require editor or owner.",
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },

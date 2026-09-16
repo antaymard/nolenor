@@ -30,6 +30,19 @@ const limits = {
     period: MINUTE,
     capacity: 10,
   },
+  // Délégation à un sous-agent. Chaque spawn est un run d'agent complet de
+  // plus, lancé par le modèle et non par l'humain : `noleMessage` borne les
+  // messages, pas ce que l'agent décide d'engendrer derrière. Un seul message
+  // pouvait donc ouvrir autant de runs que le modèle en demandait.
+  //
+  // Le plafond de concurrence par conversation (`MAX_CONCURRENT_SUBAGENTS`,
+  // cf. `ia/subAgents.ts`) borne un tour ; celle-ci borne la durée.
+  subAgentSpawn: {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 5,
+  },
   // Génération d'images : facturée à l'image, et une requête peut en demander
   // plusieurs d'un coup. Plus serré que `noleMessage` pour cette raison.
   imageGeneration: {
@@ -105,6 +118,7 @@ type RateLimitName = keyof typeof limits;
  */
 export const USER_KEYED_RATE_LIMITS = [
   "noleMessage",
+  "subAgentSpawn",
   "imageGeneration",
   "speechTranscribe",
   "linkMetadata",

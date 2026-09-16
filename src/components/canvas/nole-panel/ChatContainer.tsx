@@ -16,6 +16,7 @@ import ChatInterface from "./ChatInterface";
 import ThreadSelector from "./ThreadSelector";
 import ThreadStatsBadge from "./ThreadStatsBadge";
 import ThreadStatusPill from "./ThreadStatusPill";
+import { threadAgentNames } from "@/../convex/schemas/threadMetadataSchema";
 
 type ChatContainerProps = {
   onClose?: () => void;
@@ -33,6 +34,11 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
     startSTT,
     stopSTT,
   } = chat;
+
+  // Le dock ouvre ici aussi bien une conversation qu'une tâche déléguée par
+  // Nolë (cf. `threads.listPendingThreads`). Les deux se lisent de la même
+  // façon ; seule la seconde ne se poursuit pas.
+  const isSubAgentThread = threadInfo?.agentName === threadAgentNames.worker;
 
   // Desktop push-to-talk: hold Ctrl+Alt.
   usePushToTalk({ onStart: startSTT, onStop: stopSTT });
@@ -119,28 +125,38 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
         )}
       </div>
 
-      {/* Composer */}
-      <ChatInput
-        onSend={handleSend}
-        isSending={chat.isSending}
-        isAssistantResponding={chat.isAssistantResponding}
-        isCancelling={chat.isCancelling}
-        onStopAssistantResponse={chat.stopAssistantResponse}
-        modelOptions={chat.modelOptions}
-        selectedModel={chat.selectedModel}
-        setSelectedModel={chat.setSelectedModel}
-        selectableNodes={chat.selectableNodes}
-        attachedNodes={chat.attachedNodes}
-        attachedPosition={chat.attachedPosition}
-        addAttachments={chat.addAttachments}
-        removeAttachments={chat.removeAttachments}
-        isRecording={chat.isRecording}
-        isTranscribing={chat.isTranscribing}
-        sttBusy={chat.sttBusy}
-        micLevel={chat.micLevel}
-        dirtyNodeIds={chat.dirtyNodeIds}
-        hasDirtyWindows={chat.hasDirtyWindows}
-      />
+      {/* Composer — sauf sur une tâche déléguée, qui ne se poursuit pas.
+          Le dock mène ici pour LIRE ce qu'un sous-agent a fait ; un envoi
+          ferait tourner un agent Nolë sur le thread d'un worker, avec son
+          historique et son canvas. */}
+      {isSubAgentThread ? (
+        <div className="text-muted-foreground border-t px-3 py-2.5 text-xs">
+          Tâche déléguée par Nolë. Cette conversation est en lecture seule —
+          reprends le fil dans la conversation qui l'a lancée.
+        </div>
+      ) : (
+        <ChatInput
+          onSend={handleSend}
+          isSending={chat.isSending}
+          isAssistantResponding={chat.isAssistantResponding}
+          isCancelling={chat.isCancelling}
+          onStopAssistantResponse={chat.stopAssistantResponse}
+          modelOptions={chat.modelOptions}
+          selectedModel={chat.selectedModel}
+          setSelectedModel={chat.setSelectedModel}
+          selectableNodes={chat.selectableNodes}
+          attachedNodes={chat.attachedNodes}
+          attachedPosition={chat.attachedPosition}
+          addAttachments={chat.addAttachments}
+          removeAttachments={chat.removeAttachments}
+          isRecording={chat.isRecording}
+          isTranscribing={chat.isTranscribing}
+          sttBusy={chat.sttBusy}
+          micLevel={chat.micLevel}
+          dirtyNodeIds={chat.dirtyNodeIds}
+          hasDirtyWindows={chat.hasDirtyWindows}
+        />
+      )}
     </div>
   );
 }

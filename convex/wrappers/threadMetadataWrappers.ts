@@ -28,19 +28,10 @@ export const create = internalMutation({
     // Renseigné pour un thread de sous-agent : le thread Nolë qui l'a déclenché.
     masterThreadId: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    const { threadId, userId, canvasId, agentName, masterThreadId } = args;
-    const newThreadMetadata = {
-      threadId,
-      userId,
-      canvasId,
-      totalUsageUsd: 0, // Init
-      agentName,
-      ...(masterThreadId ? { masterThreadId } : {}),
-    };
-
-    await ctx.db.insert("threadMetadata", newThreadMetadata);
-    return newThreadMetadata;
+    await ThreadMetadataModels.create(ctx, args);
+    return null;
   },
 });
 

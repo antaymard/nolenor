@@ -1,6 +1,9 @@
 import { internalQuery } from "../_generated/server";
 import { v } from "convex/values";
-import { readCanvasById } from "../models/canvasModels";
+import {
+  listAccessibleCanvases,
+  readCanvasById,
+} from "../models/canvasModels";
 
 export const read = internalQuery({
   args: {
@@ -11,35 +14,28 @@ export const read = internalQuery({
   },
 });
 
+/**
+ * Les canvas atteignables par l'utilisateur, pour les surfaces LLM (system
+ * prompt de Nolë, tool `list_user_canvases`, endpoint MCP).
+ *
+ * Les canvas PARTAGÉS en font partie depuis que `run_subagent` peut viser un
+ * autre canvas : n'en lister que les siens rendait invisible tout ce qu'on
+ * venait de lui ouvrir — le modèle ne pouvait pas nommer une cible qu'il
+ * n'avait aucun moyen de découvrir.
+ */
 export const listUserCanvases = internalQuery({
   args: {
     userId: v.id("users"),
   },
   handler: async (ctx, { userId }) => {
-    const canvases = await ctx.db
-      .query("canvases")
-      .withIndex("by_creator", (q) => q.eq("creatorId", userId))
-      .collect();
-
-    // Only returns basic infos
-    return canvases.map((i) => ({
-      _id: i._id,
-      name: i.name,
-      createdAt: i._creationTime,
-      description: i.description,
-    }));
+    return await listAccessibleCanvases(ctx, { userId });
   },
 });
 
-export const checkCanvasAccessForUser = internalQuery({
-  args: {
-    canvasId: v.id("canvases"),
-    userId: v.id("users"),
-  },
-  handler: async (ctx, { canvasId, userId }) => {
-    // Only for now, we only check if the user is the creator
-    const canvas = await ctx.db.get(canvasId);
-    if (!canvas) return false;
-    return canvas.creatorId === userId;
-  },
-});
+// `checkCanvasAccessForUser` vivait ici. Il ne regardait que `creatorId` :
+// un canvas partagé en editor était refusé au sous-agent, alors qu'un canvas
+// créé lui ouvrait tous les tools d'écriture sans distinguer viewer d'editor.
+// Son unique appelant (l'ancien `worker.startWorkerTask`) passe désormais par
+// `requireCanvasAccess(…, "editor")`, share-aware et commun avec le reste de
+// l'app. Supprimé plutôt que laissé en place : une garde plus laxiste que la
+// règle générale finit toujours par être réutilisée.

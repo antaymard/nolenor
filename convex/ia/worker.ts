@@ -1,138 +1,179 @@
 "use node";
-// ⚠️ Plus aucun appelant : le tool `run_subAgent` a été désenregistré du
-// registre de Nolë (la délégation n'était pas assez robuste pour le
-// lancement). Tout le reste est intact — ce fichier, le tool, l'agent worker,
-// son system prompt et son comptage d'usage — pour que réactiver la
-// délégation ne demande que de remettre l'entrée dans `ia/tools/index.ts`.
-import {v, ConvexError} from "convex/values";
-import {internalAction} from "../_generated/server";
-import {baseAgent, createWorkerAgent} from "./agents";
-import {components, internal} from "../_generated/api";
-import {createThread} from "@convex-dev/agent";
+import { v } from "convex/values";
+import { internalAction } from "../_generated/server";
+import { baseAgent, createWorkerAgent } from "./agents";
+import { internal } from "../_generated/api";
 import generateWorkerSystemPrompt from "./systemPrompts/workerSystemPrompt";
-import {type Id} from "../_generated/dataModel";
-import {asSubAgentErrorData, subAgentConvexError} from "./subAgentErrors";
-import {threadAgentNames} from "../schemas/threadMetadataSchema";
+import { isExpectedAbortedStreamError } from "./helpers/abortedStream";
+import {
+  threadRunStatuses,
+  type ThreadRunEndStatus,
+} from "../schemas/threadMetadataSchema";
+import { taskExecutionStatuses } from "../schemas/taskExecutionsSchema";
 
-export const startWorkerTask = internalAction({
+/**
+ * Le run d'un sous-agent, dans SA PROPRE action.
+ *
+ * C'est tout l'objet de la reprise de la délégation. Avant, le tool appelait
+ * `ctx.runAction` et attendait : le worker avait bien son enveloppe de dix
+ * minutes, mais l'horloge du parent continuait de tourner pendant ce temps, et
+ * le tour de Nolë — vingt-cinq steps, plus autant de workers que le modèle en
+ * lançait — mourait avec elle. Un `finally` ne s'exécute pas quand l'action
+ * meurt avec son conteneur : le thread restait `running` un quart d'heure, le
+ * travail du worker était orphelin, et rien n'était réessayé.
+ *
+ * Ici l'action est planifiée par `subAgents.dispatchSubAgent` et ne partage
+ * plus rien avec le parent. Elle rend compte par `reportSubAgentResult`, qui
+ * décide de la remise.
+ *
+ * Elle ne vit plus non plus dans le même fichier que les mutations qui
+ * l'encadrent : `"use node"` (que les tools blocknote imposent, cf.
+ * `mcp/execute.ts`) interdit de mêler queries et mutations au même module.
+ */
+export const runWorkerTask = internalAction({
   args: {
+    taskId: v.id("taskExecutions"),
     userId: v.id("users"),
-    // Validated below instead of via `v.id` so a malformed id surfaces as a
-    // classified `invalid_arguments` error we control, rather than an
-    // ArgumentValidationError that gets redacted to "Server Error" as it
-    // crosses back to the parent tool.
-    canvasId: v.string(),
+    canvasId: v.id("canvases"),
+    threadId: v.string(),
     instructions: v.string(),
-    // Thread Nolë qui a déclenché ce worker, quand il est connu. Permet
-    // d'agréger le coût d'un tour et de sa descendance via l'index
-    // `by_masterThreadId`.
-    masterThreadId: v.optional(v.string()),
+    // Jeton du tour ouvert au dispatch. Sans lui, la fin de ce run remettrait
+    // le thread au repos même si un autre l'avait relancé entre-temps.
+    runToken: v.optional(v.number()),
   },
-  handler: async (ctx, { userId, canvasId, instructions, masterThreadId }) => {
-    // --- Phase 1: authorize the target canvas -----------------------------
-    // A malformed id trips the query's `v.id` validator (→ invalid_arguments);
-    // a valid-but-unauthorized id returns false (→ access_denied).
-    let hasAccess: boolean;
+  returns: v.null(),
+  handler: async (
+    ctx,
+    { taskId, userId, canvasId, threadId, instructions, runToken },
+  ) => {
+    // Décidés dans le `try`/`catch`, écrits dans le `finally` : aucun chemin de
+    // sortie ne doit laisser la tâche en `running`, sans quoi elle bloquerait
+    // son lot et les rapports de ses sœurs ne partiraient jamais.
+    let threadEndStatus: ThreadRunEndStatus = threadRunStatuses.idle;
+    let outcome: {
+      status: "success" | "error";
+      resultMessage?: string;
+      errorMessage?: string;
+    } = {
+      status: taskExecutionStatuses.error,
+      errorMessage: "The worker stopped before producing a report.",
+    };
+
     try {
-      hasAccess = await ctx.runQuery(
-        internal.wrappers.canvasWrappers.checkCanvasAccessForUser,
-        {
-          canvasId: canvasId as Id<"canvases">,
-          userId,
-        },
-      );
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[startWorkerTask] invalid canvasId", {
-        canvasId,
-        userId,
-        detail,
-      });
-      throw subAgentConvexError(
-        "invalid_arguments",
-        `canvasId "${canvasId}" is not a valid canvas id.`,
-      );
-    }
-
-    if (!hasAccess) {
-      console.warn("[startWorkerTask] canvas access denied", {
-        canvasId,
-        userId,
-      });
-      throw subAgentConvexError(
-        "access_denied",
-        `User does not have access to canvas "${canvasId}".`,
-      );
-    }
-
-    // --- Phase 2: run the worker ------------------------------------------
-    // Anything thrown here is a worker/infra failure, not an argument problem
-    // the caller can fix, so it is reported as `worker_execution`.
-    try {
-      const threadId = await createThread(ctx, components.agent, {
-        userId,
-        title: `__WORKER__`,
-      });
-
-      // Sans cette ligne, la consommation du worker n'a aucun thread à créditer
-      // et son coût disparaît du total de la conversation parente. `agentName`
-      // fait partie de la clé d'index utilisée par le listing des
-      // conversations d'un canvas : les threads worker n'y apparaîtront pas.
-      await ctx.runMutation(internal.wrappers.threadMetadataWrappers.create, {
-        threadId,
-        userId,
-        canvasId: canvasId as Id<"canvases">,
-        agentName: threadAgentNames.worker,
-        masterThreadId,
-      });
+      await ctx.runMutation(internal.ia.subAgents.markTaskRunning, { taskId });
 
       const { messageId } = await baseAgent.saveMessage(ctx, {
         threadId,
-        prompt: `${instructions}`,
+        prompt: instructions,
       });
 
       const workerAgent = createWorkerAgent({
-        threadCtx: {
-          authUserId: userId,
-          canvasId: canvasId as Id<"canvases">,
-        },
+        threadCtx: { authUserId: userId, canvasId },
       });
 
       const workerSystemPrompt = await generateWorkerSystemPrompt({
         ctx,
-        canvasId: canvasId as Id<"canvases">,
-        userId,
-      });
-
-      const result = await workerAgent.generateText(
-        ctx,
-        {
-          threadId,
-          userId,
-        },
-        {
-          prompt: instructions,
-          promptMessageId: messageId,
-          system: workerSystemPrompt,
-        },
-      );
-
-      return result.text;
-    } catch (error) {
-      // Preserve an already-classified error untouched (defensive — phase 2
-      // does not throw these itself), otherwise wrap the real reason so it
-      // survives the ctx.runAction boundary as a worker execution failure.
-      if (error instanceof ConvexError && asSubAgentErrorData(error.data)) {
-        throw error;
-      }
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error("[startWorkerTask] worker execution failed", {
         canvasId,
         userId,
-        detail,
-        stack: error instanceof Error ? error.stack : undefined,
       });
-      throw subAgentConvexError("worker_execution", detail);
+
+      // `streamText` et non `generateText` : la carte du dock est cliquable
+      // depuis que les threads de sous-agents y figurent, et un panneau vide
+      // pendant trois minutes se lirait comme une panne. Mêmes réglages que
+      // `noleCompletion` — le `throttleMs` y est commenté au long.
+      const result = await workerAgent.streamText(
+        ctx,
+        { threadId, userId },
+        {
+          promptMessageId: messageId,
+          prompt: instructions,
+          system: workerSystemPrompt,
+        },
+        { saveStreamDeltas: { chunking: "word", throttleMs: 200 } },
+      );
+
+      await result.consumeStream();
+
+      const text = (await result.text)?.trim() ?? "";
+      outcome = {
+        status: taskExecutionStatuses.success,
+        resultMessage: text || "(the worker returned no text)",
+      };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+
+      // Coupé par l'utilisateur (cf. `subAgents.stopSubAgentsForThread`) : la
+      // tâche est déjà `stopped`, et son thread doit le rester. Sans cette
+      // distinction, le `finally` réécrirait `error` par-dessus l'`aborted`
+      // déjà posé — le dock afficherait en rouge une tâche que l'utilisateur
+      // vient lui-même d'arrêter.
+      if (isExpectedAbortedStreamError(error)) {
+        threadEndStatus = threadRunStatuses.aborted;
+      } else {
+        threadEndStatus = threadRunStatuses.error;
+        console.error("[runWorkerTask] worker execution failed", {
+          taskId,
+          canvasId,
+          userId,
+          detail,
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
+      outcome = { status: taskExecutionStatuses.error, errorMessage: detail };
+    } finally {
+      // Le compte rendu passe avant tout, y compris avant de laisser remonter
+      // l'erreur d'origine : c'est lui qui débloque le lot du parent. Chaque
+      // écriture est protégée pour qu'un incident de traçabilité ne masque pas
+      // la panne qu'il décrit — même prudence que `noleCompletion`.
+      try {
+        await ctx.runMutation(
+          internal.wrappers.threadMetadataWrappers.markRunEnded,
+          {
+            threadId,
+            status: threadEndStatus,
+            runToken,
+            errorMessage:
+              threadEndStatus === threadRunStatuses.error
+                ? outcome.errorMessage
+                : undefined,
+          },
+        );
+      } catch (statusError) {
+        console.error("[runWorkerTask] failed to close the worker thread", {
+          taskId,
+          detail:
+            statusError instanceof Error
+              ? statusError.message
+              : String(statusError),
+        });
+      }
+
+      try {
+        await ctx.runMutation(internal.ia.subAgents.reportSubAgentResult, {
+          taskId,
+          status: outcome.status,
+          resultMessage: outcome.resultMessage,
+          errorMessage: outcome.errorMessage,
+        });
+      } catch (reportError) {
+        // Le filet du cron rattrapera : la tâche reste sans `deliveredAt`, et
+        // le balayage la retrouvera.
+        console.error("[runWorkerTask] failed to report the result", {
+          taskId,
+          detail:
+            reportError instanceof Error
+              ? reportError.message
+              : String(reportError),
+        });
+      }
     }
+
+    return null;
   },
 });
+
+// `startWorkerTask` vivait ici : une action qui autorisait le canvas, créait le
+// thread ET faisait tourner le worker, le tout pendant que le tool appelant
+// l'attendait. Ses trois phases sont désormais séparées — l'autorisation et la
+// création dans `subAgents.dispatchSubAgent` (une transaction), le run
+// ci-dessus (une action à lui), la remise dans `subAgents.deliverIfReady`.

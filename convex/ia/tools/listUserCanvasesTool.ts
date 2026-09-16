@@ -17,11 +17,14 @@ export default function listUserCanvasesTool({
   threadCtx: ThreadCtx;
 }) {
   return createTool({
-    description: `Use this to list all canvases created by the user. This returns their IDs, titles and descriptions. Read-only context on what the user works on elsewhere: you cannot read or edit another canvas, only the current one.`,
+    description: `List every canvas the user can reach — the ones they created and the ones shared with them — with their IDs, names, descriptions and your permission on each ("owner", "editor" or "viewer").
+
+    Use the IDs as the canvasId argument of run_subagent: that is the only way to read or edit a canvas other than the current one. Your own tools stay bound to the current canvas.
+
+    Permission matters: run_subagent needs "editor" or "owner" on the target. A "viewer" canvas will be refused.`,
     inputSchema: z.object({ explanation: EXPLANATION_FIELD }),
     execute: async (ctx) => {
       try {
-        // For now, only list canvases whose creator is the user (not shared canvases)
         const canvases = await ctx.runQuery(
           internal.wrappers.canvasWrappers.listUserCanvases,
           {

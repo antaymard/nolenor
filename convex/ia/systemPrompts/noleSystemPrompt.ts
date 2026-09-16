@@ -49,9 +49,21 @@ type userCanvas = {
   name: string;
   description?: string;
   createdAt: number;
+  permission: "owner" | "editor" | "viewer";
 };
+/**
+ * L'id et la permission accompagnent le nom depuis que `run_subagent` peut
+ * viser un autre canvas : sans l'id, le modèle doit appeler
+ * `list_user_canvases` avant la moindre délégation ; sans la permission, il
+ * découvre le refus après coup. Les deux tiennent en une ligne.
+ */
 function formatUserCanvases(canvases: userCanvas[]) {
-  return canvases.map((canvas: userCanvas) => `- ${canvas.name}`).join("\n");
+  return canvases
+    .map(
+      (canvas: userCanvas) =>
+        `- ${canvas.name} (id: ${canvas._id}, ${canvas.permission})`,
+    )
+    .join("\n");
 }
 
 async function generateNoleSystemPrompt({
@@ -117,8 +129,8 @@ Nolënor is a Miro-style app with an unlimited canvas, for knowledge management 
 As Nolë, you are like Jarvis is to Tony Stark: an assistant that helps users think, organize their ideas, and work more efficiently. Your role is to be the user's thinking assistant, providing short, efficient text responses that serve to ask for clarification, provide status updates on your thinking or work progress, say what you plan to do, or answer directly if the question is simple.
 
 Users can have multiple canvases. On those canvases, users can add nodes (blocks) of different types, and connect them with edges.
-You can only interact with the current canvas. The other canvases of the user are listed for context only — you cannot read or edit them from here.
-Here are the canvases created by the user:
+Your own tools are bound to the current canvas: you cannot read or edit another one directly. To act on another canvas of the user, delegate with run_subagent and pass its canvasId — the worker then runs there, with the same tools, on that canvas. It needs "editor" or "owner" on the target; a "viewer" canvas is refused.
+Here are the canvases the user can reach, with your permission on each:
 ${userCanvasesContext}
 **Use the list_user_canvases tool to read their descriptions when you need more context on what the user works on elsewhere.**
 

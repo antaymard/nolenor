@@ -21,6 +21,8 @@ import {
   lastActivityTime,
   listNoleThreadsByUser,
   listNoleThreadsByUserAndCanvas,
+  listWorkerThreadsByUser,
+  listWorkerThreadsByUserAndCanvas,
   markReviewed,
   markRunEnded,
 } from "./models/threadMetadataModels";
@@ -109,10 +111,17 @@ async function loadNoleThreads<T>(
     canvasId,
     filter,
     project,
+    includeSubAgents = false,
   }: {
     canvasId: Id<"canvases">;
     filter?: (metadata: Doc<"threadMetadata">) => boolean;
     project: (metadata: Doc<"threadMetadata">, title: string | null) => T;
+    /**
+     * Ajoute les threads de sous-agents au périmètre. Réservé au dock : le
+     * sélecteur de conversations ne doit montrer que les vraies conversations,
+     * et c'est précisément pourquoi `agentName` est dans la clé d'index.
+     */
+    includeSubAgents?: boolean;
   },
 ): Promise<T[]> {
   const authUserId = await requireAuth(ctx);
@@ -124,7 +133,19 @@ async function loadNoleThreads<T>(
     limit: CANVAS_THREADS_SCAN_LIMIT,
   });
 
-  return await hydrateNoleThreads(ctx, { threads, filter, project });
+  const subAgentThreads = includeSubAgents
+    ? await listWorkerThreadsByUserAndCanvas(ctx, {
+        userId: authUserId,
+        canvasId,
+        limit: CANVAS_THREADS_SCAN_LIMIT,
+      })
+    : [];
+
+  return await hydrateNoleThreads(ctx, {
+    threads: [...threads, ...subAgentThreads],
+    filter,
+    project,
+  });
 }
 
 /**
@@ -280,12 +301,20 @@ export const listPendingThreads = query({
       // le tour comme après : le titre du thread ne dit que le sujet, pas où
       // en est le travail.
       lastActivity: v.union(threadLastActivityValidator, v.null()),
+      // Qui travaille : la conversation elle-même, ou un sous-agent qu'elle a
+      // lancé. Le dock les montre côte à côte, et une tâche déléguée ne se
+      // manipule pas comme une conversation — elle ne se poursuit pas.
+      agentName: v.string(),
     }),
   ),
   handler: async (ctx, { canvasId }) =>
     loadNoleThreads(ctx, {
       canvasId,
       filter: isDockCandidate,
+      // Le dock est la seule surface qui montre les sous-agents : c'est là
+      // qu'un travail délégué — y compris lancé depuis un AUTRE canvas — se
+      // signale sur le canvas où il opère.
+      includeSubAgents: true,
       project: (metadata, title) => ({
         threadId: metadata.threadId,
         title,
@@ -295,6 +324,7 @@ export const listPendingThreads = query({
         reviewedAt: metadata.reviewedAt ?? null,
         touchedNodes: metadata.touchedNodes ?? [],
         lastActivity: metadata.lastActivity ?? null,
+        agentName: metadata.agentName,
       }),
     }),
 });
@@ -332,18 +362,28 @@ export const listPendingThreadsForUser = query({
       reviewedAt: v.union(v.number(), v.null()),
       touchedNodesCount: v.number(),
       lastActivity: v.union(threadLastActivityValidator, v.null()),
+      agentName: v.string(),
     }),
   ),
   handler: async (ctx) => {
     const authUserId = await requireAuth(ctx);
 
-    const threads = await listNoleThreadsByUser(ctx, {
-      userId: authUserId,
-      limit: USER_THREADS_SCAN_LIMIT,
-    });
+    const [threads, subAgentThreads] = await Promise.all([
+      listNoleThreadsByUser(ctx, {
+        userId: authUserId,
+        limit: USER_THREADS_SCAN_LIMIT,
+      }),
+      // La home est le seul endroit où un sous-agent parti travailler sur un
+      // autre canvas se voit sans changer de page — et c'est justement le cas
+      // que `run_subagent` rend possible.
+      listWorkerThreadsByUser(ctx, {
+        userId: authUserId,
+        limit: USER_THREADS_SCAN_LIMIT,
+      }),
+    ]);
 
     return await hydrateNoleThreads(ctx, {
-      threads,
+      threads: [...threads, ...subAgentThreads],
       filter: isDockCandidate,
       limit: USER_PENDING_HYDRATE_LIMIT,
       project: (metadata, title) => ({
@@ -356,6 +396,7 @@ export const listPendingThreadsForUser = query({
         reviewedAt: metadata.reviewedAt ?? null,
         touchedNodesCount: metadata.touchedNodes?.length ?? 0,
         lastActivity: metadata.lastActivity ?? null,
+        agentName: metadata.agentName,
       }),
     });
   },
@@ -374,6 +415,10 @@ export const getThreadInfo = query({
       runStatus: v.union(threadRunStatusValidator, v.null()),
       runStartedAt: v.union(v.number(), v.null()),
       lastRunError: v.union(v.string(), v.null()),
+      // Ce qui distingue une conversation d'une tâche déléguée. Le panneau
+      // ouvre les deux (le dock y mène), mais on ne répond pas à un
+      // sous-agent : son thread est un journal, pas un fil de discussion.
+      agentName: v.union(v.string(), v.null()),
     }),
     v.null(),
   ),
@@ -398,6 +443,7 @@ export const getThreadInfo = query({
       runStatus: metadata?.runStatus ?? null,
       runStartedAt: metadata?.runStartedAt ?? null,
       lastRunError: metadata?.lastRunError ?? null,
+      agentName: metadata?.agentName ?? null,
     };
   },
 });
@@ -495,6 +541,14 @@ export const abortStream = mutation({
       // avant : `markReviewed` refuse un thread encore `running`.
       await markReviewed(ctx, { threadId });
     }
+
+    // Hors du `if (aborted)` : le tour de Nolë peut s'être déjà terminé alors
+    // que les sous-agents qu'il a lancés tournent encore. Sans ceci, couper la
+    // conversation laisserait des workers continuer d'écrire sur le canvas,
+    // puis venir la réveiller bien après que l'humain a dit stop.
+    await ctx.runMutation(internal.ia.subAgents.stopSubAgentsForThread, {
+      masterThreadId: threadId,
+    });
 
     return { aborted };
   },

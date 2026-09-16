@@ -202,6 +202,19 @@ l'historique git le confirme, ces identifiants n'ont jamais touché autre chose
 que ce fichier. Les amorces qui en restaient (tables `scheduledJobs` et
 `taskExecutions`, jamais lues ni écrites) ont été supprimées en septembre 2026.
 
+`taskExecutions` est depuis revenue, et cette fois branchée : elle porte l'état
+d'une délégation à un sous-agent entre son lancement et la remise de son
+rapport (cf. `convex/ia/subAgents.ts`). Ce n'est pas le moteur d'automation
+ci-dessus, qui reste inexistant.
+
+**Délégation à un sous-agent** : le tool `run_subagent` confie une tâche
+auto-portée à un worker, éventuellement **sur un autre canvas** de
+l'utilisateur (argument `canvasId`, ids via `list_user_canvases`, accès
+`editor` requis). Le tool rend la main immédiatement ; le worker tourne dans sa
+propre action Convex, et son rapport revient plus tard en rouvrant un tour de
+la conversation parente. Les threads de sous-agents apparaissent dans
+l'ActivityDock du canvas où ils opèrent et sur la home, en lecture seule.
+
 ### Speech-to-text
 
 - Enregistrement audio dans le navigateur

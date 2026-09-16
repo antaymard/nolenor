@@ -1,5 +1,6 @@
 import type { CanvasNode } from "@/types";
 import { isNodeTypeReadableByAgent } from "@/../convex/config/nodeConfig";
+import { absolutePositionsById } from "@/../convex/lib/nodeGeometry";
 
 type ViewportState = {
   x: number;
@@ -106,11 +107,17 @@ function getViewportBounds(
 function isNodeVisibleInBounds(
   node: CanvasNode,
   bounds: ViewportBounds,
+  /**
+   * Position MONDE du node. Un node qui vit dans une frame porte une position
+   * relative à elle : comparée telle quelle au cadrage, elle le dirait visible
+   * ou non au hasard.
+   */
+  position: { x: number; y: number },
 ): boolean {
   const nodeWidth = Math.max(1, node.width ?? 200);
   const nodeHeight = Math.max(1, node.height ?? 100);
-  const nodeX1 = node.position.x;
-  const nodeY1 = node.position.y;
+  const nodeX1 = position.x;
+  const nodeY1 = position.y;
   const nodeX2 = nodeX1 + nodeWidth;
   const nodeY2 = nodeY1 + nodeHeight;
 
@@ -166,8 +173,18 @@ export function generateMessageContext({
     viewportWidth,
     viewportHeight,
   );
+  // Résolu sur `allNodes` et pas sur `nodes` : la frame d'un node peut très
+  // bien être d'un type que l'agent ne lit pas — la position, elle, reste à
+  // résoudre.
+  const worldPositions = absolutePositionsById(allNodes);
   const visibleNodes = dedupeNodes(
-    nodes.filter((node) => isNodeVisibleInBounds(node, viewportBounds)),
+    nodes.filter((node) =>
+      isNodeVisibleInBounds(
+        node,
+        viewportBounds,
+        worldPositions.get(node.id) ?? node.position,
+      ),
+    ),
   );
   const uniqueAttachedNodes = dedupeNodes(attachedNodes);
 

@@ -1,6 +1,7 @@
 import type { OptimisticLocalStore } from "convex/browser";
 import { api } from "@/../convex/_generated/api";
 import type { Doc, Id } from "@/../convex/_generated/dataModel";
+import type { NodePatchProps } from "@/../convex/schemas/nodesSchema";
 import type { CanvasNode, Edge } from "@/types/convex";
 
 export function toCanvasNode(doc: Doc<"nodes">): CanvasNode {
@@ -35,22 +36,11 @@ export function toCanvasEdge(doc: Doc<"edges">): Edge {
   };
 }
 
+// Repris du validator serveur plutôt que redéclaré : le cache optimiste doit
+// accepter exactement ce que `nodes.patch` accepte, `parentId: null` compris.
 type NodePatch = {
   nodeId: string;
-  props: {
-    position?: { x: number; y: number };
-    width?: number;
-    height?: number;
-    locked?: boolean;
-    hidden?: boolean;
-    zIndex?: number;
-    color?: string;
-    variant?: string;
-    parentId?: string;
-    extent?: CanvasNode["extent"];
-    extendParent?: boolean;
-    data?: Record<string, unknown>;
-  };
+  props: NodePatchProps;
 };
 
 export function applyNodePatchesToListQuery(
@@ -79,7 +69,12 @@ export function applyNodePatchesToListQuery(
         ...(props.zIndex !== undefined && { zIndex: props.zIndex }),
         ...(props.color !== undefined && { color: props.color }),
         ...(props.variant !== undefined && { variant: props.variant }),
-        ...(props.parentId !== undefined && { parentId: props.parentId }),
+        // `null` = sortie de frame : la clé doit devenir absente, comme le
+        // `db.patch` serveur le fera. La reposer à `null` laisserait le node
+        // enfant d'une frame inexistante jusqu'au prochain aller-retour.
+        ...(props.parentId !== undefined && {
+          parentId: props.parentId ?? undefined,
+        }),
         ...(props.extent !== undefined && { extent: props.extent }),
         ...(props.extendParent !== undefined && {
           extendParent: props.extendParent,

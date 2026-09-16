@@ -50,8 +50,6 @@ editing another — nothing blocks, nothing needs refreshing.
 - **Nolë, the agent** — streams into the canvas via `@convex-dev/agent`, with tools
   for reading and writing nodes, editing documents block by block, web search, page
   reading, and image generation. Sub-agents run their own threads.
-- **Node automations** — a node can be told to refresh itself, either through an
-  agent or as a plain data-processing step.
 - **Skills and recipes** — skills are named capability packs (a description, its
   instructions, and file attachments), either shipped with the app under
   `convex/systemSkills/` or written by the user. Recipes are reusable instructions for

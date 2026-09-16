@@ -31,6 +31,12 @@ import {
   isNodePendingCreation,
 } from "@/lib/pendingCreatedNodes";
 import { recordUndo } from "@/stores/canvasHistoryStore";
+import { useFrameHoverStore } from "@/stores/frameHoverStore";
+import {
+  canJoinFrame,
+  centerOf,
+  findFrameAtPoint,
+} from "@/lib/frameMembership";
 
 /**
  * Écriture serveur d'un changement de nœud.
@@ -135,6 +141,28 @@ export function useCanvasNodes(
     new Map(),
   );
 
+  /**
+   * Les changements d'appartenance décidés pendant le drag en cours, à écrire
+   * au relâcher en même temps que les positions.
+   *
+   * Rempli par `onNodeDrag` et pas par `onNodeDragStop` : React Flow appelle
+   * `updateNodePositions` AVANT `onNodeDragStop` (cf. le handler `end` de
+   * XYDrag), donc `flushDragPositions` part le premier. Le remplir au relâcher
+   * arriverait trop tard — et scinder en deux écritures donnerait deux entrées
+   * d'historique pour un seul geste, plus un aller-retour visuel entre les
+   * deux.
+   *
+   * `previousParentId` est stocké là parce que `dragOriginsRef` ne porte que
+   * la position : sans lui, Ctrl+Z remettrait le node au bon endroit mais dans
+   * la mauvaise frame.
+   */
+  const pendingReparentRef = useRef<
+    Map<
+      string,
+      { parentId: string | null; previousParentId: string | null }
+    >
+  >(new Map());
+
   const draggedChildrenCache = useRef<{
     draggedNodeId: string | null;
     descendantIds: string[];
@@ -168,6 +196,8 @@ export function useCanvasNodes(
           position?: { x: number; y: number };
           width?: number;
           height?: number;
+          /** `null` = sortie de frame. Voyage avec `position` : cf. le flush. */
+          parentId?: string | null;
         };
       }>,
       {
@@ -199,17 +229,63 @@ export function useCanvasNodes(
         dragOriginsRef.current.clear();
         return;
       }
-      const updates = [...pending.entries()].map(([nodeId, position]) => ({
-        nodeId,
-        props: { position },
-      }));
+      // Les frames en jeu, pour convertir les positions d'un repère à
+      // l'autre. Les frames sont toujours de premier niveau : leur `position`
+      // est donc déjà en coordonnées monde.
+      const reparents = pendingReparentRef.current;
+      const nodesById =
+        reparents.size > 0
+          ? new Map(getNodes().map((node) => [node.id, node]))
+          : null;
+
+      const updates = [...pending.entries()].map(([nodeId, position]) => {
+        const reparent = reparents.get(nodeId);
+        if (!reparent || !nodesById) return { nodeId, props: { position } };
+
+        // La position bufferée est exprimée dans le repère d'AVANT le geste :
+        // React Flow ne reparente pas en cours de drag, le node garde son
+        // ancienne frame (ou aucune) jusqu'au relâcher. On repasse donc par le
+        // monde avant d'exprimer la position dans le nouveau repère.
+        const from = reparent.previousParentId
+          ? nodesById.get(reparent.previousParentId)
+          : undefined;
+        const to = reparent.parentId
+          ? nodesById.get(reparent.parentId)
+          : undefined;
+        const absolute = from
+          ? { x: position.x + from.position.x, y: position.y + from.position.y }
+          : position;
+
+        return {
+          nodeId,
+          props: {
+            position: to
+              ? { x: absolute.x - to.position.x, y: absolute.y - to.position.y }
+              : absolute,
+            parentId: reparent.parentId,
+          },
+        };
+      });
 
       // Un déplacement de N nodes sélectionnés est UN geste : une seule entrée
-      // d'historique, avec les N positions d'origine.
+      // d'historique, avec les N positions d'origine — et, quand le geste a
+      // changé l'appartenance, la frame d'origine avec. Les origines ont été
+      // capturées avant le geste, donc dans le repère d'avant : elles vont de
+      // pair avec `previousParentId`, jamais avec l'un sans l'autre.
       const origins = dragOriginsRef.current;
       const undoUpdates = updates.flatMap((update) => {
         const origin = origins.get(update.nodeId);
-        return origin ? [{ nodeId: update.nodeId, props: { position: origin } }] : [];
+        if (!origin) return [];
+        const reparent = reparents.get(update.nodeId);
+        return [
+          {
+            nodeId: update.nodeId,
+            props: {
+              position: origin,
+              ...(reparent && { parentId: reparent.previousParentId }),
+            },
+          },
+        ];
       });
       if (undoUpdates.length > 0) {
         recordUndo(
@@ -220,9 +296,10 @@ export function useCanvasNodes(
 
       pending.clear();
       origins.clear();
+      reparents.clear();
       return persistLayoutUpdates(updates, opts);
     },
-    [persistLayoutUpdates],
+    [getNodes, persistLayoutUpdates],
   );
 
   // Buffer pur, sans flush pendant le geste. Chaque écriture serveur en
@@ -247,6 +324,8 @@ export function useCanvasNodes(
     clearPendingCreations();
     dragPendingRef.current.clear();
     dragOriginsRef.current.clear();
+    pendingReparentRef.current.clear();
+    useFrameHoverStore.getState().setHoveredFrameId(null);
   }, [canvasId]);
 
   // Sync Convex -> React Flow nodes while preserving drag/resize state
@@ -391,6 +470,16 @@ export function useCanvasNodes(
             }
             for (const id of draggedIds) {
               allDescendants.delete(id);
+            }
+
+            // Un descendant qui vit dans une frame porte une position
+            // RELATIVE à elle, alors que l'entraînement calcule des offsets en
+            // coordonnées monde : le déplacer ici le projetterait à côté. Il
+            // reste où il est, dans sa frame — ce qui est aussi le
+            // comportement le moins surprenant : on ne sort pas un node de son
+            // groupe en déplaçant un voisin auquel il est connecté.
+            for (const node of currentNodes) {
+              if (node.parentId) allDescendants.delete(node.id);
             }
 
             // Store initial offsets: descendant position - parent position at drag start
@@ -752,9 +841,74 @@ export function useCanvasNodes(
     ],
   );
 
+  /**
+   * Décide, à chaque frame du drag, dans quelle frame le node atterrirait.
+   *
+   * Ici et pas au relâcher : React Flow appelle `updateNodePositions` — donc
+   * `handleNodeChange`, donc `flushDragPositions` — AVANT `onNodeDragStop`.
+   * La décision doit être prise pendant le geste pour que le flush la trouve.
+   *
+   * Recalculé à chaque frame plutôt que mémorisé : c'est un test de point dans
+   * quelques rectangles, et le survol doit suivre le curseur.
+   */
+  const onNodeDrag = useCallback(
+    (_event: unknown, _node: Node, draggedNodes: Node[]) => {
+      const current = getNodes();
+      // Sortie immédiate sur un canvas sans frame — c'est-à-dire sur presque
+      // tous. Ce handler tourne à chaque frame du geste : il ne doit rien
+      // coûter quand il n'a rien à faire.
+      const frames = current.filter((node) => node.type === "frame");
+      if (frames.length === 0) return;
+
+      const byId = new Map(current.map((node) => [node.id, node]));
+      const pending = pendingReparentRef.current;
+
+      let hovered: string | null = null;
+
+      for (const dragged of draggedNodes) {
+        const node = byId.get(dragged.id) ?? dragged;
+        if (!canJoinFrame(node)) continue;
+
+        const frame = findFrameAtPoint(frames, centerOf(node, byId));
+        const previousParentId = node.parentId ?? null;
+        const nextParentId = frame?.id ?? null;
+
+        // La frame d'accueil s'entoure, y compris quand le node y était déjà :
+        // le retour visuel dit « au relâcher, ce node est dans cette frame »,
+        // pas « ce node change de frame ».
+        if (nextParentId) hovered = nextParentId;
+
+        if (nextParentId === previousParentId) {
+          // Rien à écrire — et surtout : purger une décision prise plus tôt
+          // dans le même geste, quand le node est ressorti d'où il venait.
+          pending.delete(node.id);
+          continue;
+        }
+        pending.set(node.id, {
+          parentId: nextParentId,
+          previousParentId,
+        });
+      }
+
+      useFrameHoverStore.getState().setHoveredFrameId(hovered);
+    },
+    [getNodes],
+  );
+
+  /**
+   * Le relâcher n'a plus qu'à éteindre la surbrillance : l'écriture est déjà
+   * partie avec le flush des positions, dans la même mutation et la même
+   * entrée d'historique.
+   */
+  const onNodeDragStop = useCallback(() => {
+    useFrameHoverStore.getState().setHoveredFrameId(null);
+  }, []);
+
   return {
     nodes,
     setNodes,
     handleNodeChange,
+    onNodeDrag,
+    onNodeDragStop,
   };
 }

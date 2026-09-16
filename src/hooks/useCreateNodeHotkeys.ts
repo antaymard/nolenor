@@ -1,7 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useHotkey, type LetterKey } from "@tanstack/react-hotkeys";
-import { useCanvasStore } from "@/stores/canvasStore";
-import { useCommandCenterStore } from "@/stores/commandCenterStore";
+import { useCanvasHotkeysEnabled } from "./useCanvasHotkeysEnabled";
 import { useCreateNode } from "./useCreateNode";
 import { useCanvasPointerPosition } from "./useCanvasPointerPosition";
 import { shortcutCreatableNodes } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
@@ -84,25 +83,12 @@ export function useCreateNodeHotkeys({
   const { createNode } = useCreateNode();
   const { getPointerFlowPosition } = useCanvasPointerPosition();
 
-  const focus = useCanvasStore((state) => state.focus);
-  const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
-  const isCommandCenterOpen = useCommandCenterStore((state) => state.isOpen);
-
   // La persistance (`settled`, mutation Convex) est asynchrone : sans ce
   // verrou, deux frappes rapprochées posent deux nodes exactement au même
   // point.
   const isCreatingRef = useRef(false);
 
-  const enabled =
-    canEdit &&
-    !isTouch &&
-    // Test positif, comme l'impose le commentaire de `canvasStore` : toute
-    // nouvelle valeur de `focus` doit désactiver les raccourcis du canvas.
-    focus === "canvas" &&
-    // `ignoreInputs` ne couvre pas le cas où le focus a quitté l'input tout en
-    // restant dans la modale.
-    !isSearchModalOpen &&
-    !isCommandCenterOpen;
+  const enabled = useCanvasHotkeysEnabled({ canEdit, isTouch });
 
   const createNodeAtPointer = useCallback(
     (config: ShortcutNodeConfig) => {

@@ -7,7 +7,7 @@
 // wire formats) are declared exactly once.
 
 import type { Doc } from "../../_generated/dataModel";
-import { nodeDataConfig } from "../../config/nodeConfig";
+import { getNodeCapabilities, nodeDataConfig } from "../../config/nodeConfig";
 import { buildTemplateToolSchema } from "../../config/fieldConfig";
 import { formatZodSchemaAsMinimap } from "../../lib/jsonSchemaMinimap";
 
@@ -75,8 +75,14 @@ export function buildNodeDataSchemaXml(
   const dedicated = DEDICATED_TOOLS_SCHEMA_BY_TYPE[nodeType];
   if (dedicated) return dedicated;
 
-  const toolsAttr =
-    nodeType === "app"
+  // Un type non writable n'annonce aucun tool d'écriture : `set_node_data` le
+  // refuse au runtime (cf. setNodeDataTool), l'annoncer ne ferait qu'inviter
+  // le modèle à un appel qui échoue. C'est le cas de `frame`, qui n'a rien à
+  // écrire — son contenu est fait des nodes qu'elle groupe.
+  const isWritable = getNodeCapabilities(nodeType).agent.writable;
+  const toolsAttr = !isWritable
+    ? 'readOnly="true"'
+    : nodeType === "app"
       ? 'tools="set_node_data,patch_app_node_code"'
       : 'tool="set_node_data"';
 

@@ -6,12 +6,10 @@ import { canvasesValidator } from "./schemas/canvasesSchema";
 import { nodeDatasValidator } from "./schemas/nodeDatasSchema";
 import { nodeTemplatesValidator } from "./schemas/nodeTemplatesSchema";
 import { nodeDataVersionsValidator } from "./schemas/nodeDataVersionsSchema";
-import { scheduledJobsValidator } from "./schemas/scheduledJobsSchema";
 import { sharesValidator } from "./schemas/sharesSchema";
 import { memoriesValidator } from "./schemas/memoriesSchema";
 import { searchableChunksValidator } from "./schemas/searchableChunksSchema";
 import { wishlistEmailsValidator } from "./schemas/wishlistEmailsSchema";
-import { taskExecutionsValidator } from "./schemas/taskExecutionsSchema";
 import { skillsValidator } from "./schemas/skillsSchema";
 import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
@@ -114,10 +112,6 @@ const schema = defineSchema({
     .index("by_user", ["userId"])
     .index("by_canvas", ["canvasId"]),
 
-  scheduledJobs: defineTable(scheduledJobsValidator).index("by_nodeDataId", [
-    "nodesDataId",
-  ]),
-
   memories: defineTable(memoriesValidator)
     .index("by_subject_and_type", ["subjectId", "type"])
     .searchIndex("search_content", {
@@ -153,10 +147,6 @@ const schema = defineSchema({
 
   wishlistEmails: defineTable(wishlistEmailsValidator).index("by_email", [
     "email",
-  ]),
-
-  taskExecutions: defineTable(taskExecutionsValidator).index("by_threadId", [
-    "threadId",
   ]),
   // ============================================================================
   // SKILLS

@@ -18,6 +18,7 @@ import AppNode from "./AppNode";
 import AudioNode from "./AudioNode";
 import VideoNode from "./VideoNode";
 import ViewportNode from "./ViewportNode";
+import FrameNode from "./FrameNode";
 
 type NodeUiConfigItem = {
   nodeComponent: React.ComponentType<XyNodeProps>;
@@ -120,6 +121,20 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("viewport"),
     creatable: true,
     creationShortcut: "V",
+  },
+  frame: {
+    nodeComponent: FrameNode,
+    nodeIcon: NODE_TYPE_ICON_MAP.frame,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("frame"),
+    // Une frame se trace, elle ne se pose pas : sa taille et son contenu
+    // viennent du rectangle dessiné (cf. l'outil de la CanvasToolbar), pas
+    // d'un gabarit. `creatable: false` la sort donc du menu « Add a block ».
+    //
+    // Le même drapeau garde la duplication et le collage (`useDuplicateNode`,
+    // `useCreateNodesFromItems`), et c'est voulu : dupliquer une frame sans
+    // dupliquer ce qu'elle contient donnerait un cadre vide posé sur le
+    // contenu de l'original.
+    creatable: false,
   },
 };
 

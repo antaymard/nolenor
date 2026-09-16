@@ -115,6 +115,10 @@ export const untrash = mutation({
     // le demande (elle ne connaît que des nodes) ; l'undo du canvas non — il
     // nomme ses edges lui-même, il les tient de `deleteElements`.
     restoreIncidentEdges: v.optional(v.boolean()),
+    // Rendre aussi le contenu parti avec une frame, même critère : la modale
+    // corbeille ne liste que la frame, c'est donc elle qui doit ramener ses
+    // nodes. L'undo du canvas les nomme, là encore.
+    restoreChildren: v.optional(v.boolean()),
   },
   returns: v.object({
     nodeIds: v.array(v.string()),

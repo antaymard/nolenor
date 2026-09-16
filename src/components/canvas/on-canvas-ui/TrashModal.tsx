@@ -12,7 +12,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/shadcn/dialog";
-import { ScrollArea } from "@/components/shadcn/scroll-area";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { toastError } from "@/components/utils/errorUtils";
 import { formatDistanceToNowStrict } from "@/lib/date-utils";
@@ -136,18 +135,24 @@ function TrashList({ canvasId }: { canvasId: Id<"canvases"> }) {
     }
   }
 
+  // `div` natif plutôt que `ScrollArea` : le wrapper interne de Radix
+  // (`display: table; min-width: 100%`) mesure la liste en largeur
+  // intrinsèque, et un titre long en `truncate` (nowrap, donc insécable)
+  // élargit alors toute la ligne au lieu d'être ellipsé — le bouton Restore
+  // sort de la modale. Ici la largeur reste définie et le `truncate` fait
+  // son travail.
   return (
-    <ScrollArea className="max-h-[50vh]">
-      <ul className="flex flex-col gap-1">
+    <div className="max-h-[50vh] min-w-0 overflow-y-auto">
+      <ul className="flex min-w-0 flex-col gap-1">
         {visible.map(({ node, title, hasContent }) => {
           const Icon = NODE_TYPE_ICON_MAP[node.type] ?? NODE_TYPE_ICON_MAP.title;
           return (
             <li
               key={node._id}
-              className="hover:bg-accent flex items-center gap-3 rounded-md px-2 py-2"
+              className="hover:bg-accent flex min-w-0 items-center gap-3 rounded-md px-2 py-2"
             >
               <Icon className="text-muted-foreground shrink-0" size={18} />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 overflow-hidden">
                 <p className="truncate text-sm">{title}</p>
                 <p className="text-muted-foreground text-xs">
                   {node.trashedAt !== undefined
@@ -159,6 +164,7 @@ function TrashList({ canvasId }: { canvasId: Id<"canvases"> }) {
               <Button
                 variant="outline"
                 size="sm"
+                className="shrink-0"
                 disabled={restoringId === node.id}
                 onClick={() => void restore(node.id)}
               >
@@ -168,6 +174,6 @@ function TrashList({ canvasId }: { canvasId: Id<"canvases"> }) {
           );
         })}
       </ul>
-    </ScrollArea>
+    </div>
   );
 }

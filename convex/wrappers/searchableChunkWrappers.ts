@@ -166,6 +166,7 @@ export const listChunkPage = internalQuery({
       ...page,
       page: page.page.map((chunk) => ({
         _id: chunk._id,
+        nodeDataId: chunk.nodeDataId,
         nodeType: chunk.nodeType,
         title: chunk.title,
         text: chunk.text,

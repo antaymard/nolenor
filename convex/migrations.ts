@@ -192,3 +192,114 @@ export const stripExcludedEmbeddings = internalAction({
     };
   },
 });
+
+// ── Backfill des résumés Parallel sur les liens ────────────────────────────
+// Les LinkNodes créés avant l'indexation par résumé portent un chunk réduit à
+// `href | domain`. On rejoue `rebuildChunks` sur eux : la branche `link` va
+// alors interroger Parallel, et le chunk repart avec titre, description OG et
+// résumé de page — donc avec un embedding qui porte enfin quelque chose.
+//
+// Balayage des CHUNKS et non des nodeDatas : `nodeDatas` n'a pas d'index sur
+// `type`, et en ajouter un pour une migration jouée une fois ne se justifie
+// pas. Balayer les chunks cible d'ailleurs mieux — un LinkNode sans chunk est
+// un lien sans `href`, qui n'a aucun résumé à aller chercher.
+//
+// Lancer avec : `npx convex run migrations:backfillLinkSummaries '{}'`
+// Ou sur un seul canvas d'abord :
+// `npx convex run migrations:backfillLinkSummaries '{"canvasId":"<id>"}'`
+//
+// Idempotent : la branche `link` réutilise le résumé déjà stocké tant que
+// l'URL n'a pas changé, donc un relancement ne repaye pas Parallel.
+
+// Plus petit que `PAGE_SIZE` : `rebuildChunksBatch` boucle séquentiellement, et
+// une page de 100 liens enchaînerait 100 extractions Parallel dans une seule
+// action. 25 reste confortablement sous la limite de temps d'une action.
+const LINK_BACKFILL_PAGE_SIZE = 25;
+
+export const backfillLinkSummaries = internalAction({
+  args: {
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+    canvasId: v.optional(v.id("canvases")),
+  },
+  returns: v.object({
+    done: v.boolean(),
+    processed: v.number(),
+    rebuilt: v.number(),
+    continueCursor: v.optional(v.string()),
+  }),
+  // Annotation explicite : l'action se re-schedule elle-même via `internal`
+  // (même fichier), sans quoi l'inférence TS boucle (cf. guidelines).
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    done: boolean;
+    processed: number;
+    rebuilt: number;
+    continueCursor: string | undefined;
+  }> => {
+    const numItems = Math.min(
+      Math.max(args.limit ?? LINK_BACKFILL_PAGE_SIZE, 1),
+      LINK_BACKFILL_PAGE_SIZE,
+    );
+    const slice = await ctx.runQuery(
+      internal.wrappers.searchableChunkWrappers.listChunkPage,
+      {
+        paginationOpts: { numItems, cursor: args.cursor ?? null },
+        canvasId: args.canvasId,
+      },
+    );
+
+    const nodeDataIds = [
+      ...new Set(
+        slice.page
+          .filter((chunk) => chunk.nodeType === "link")
+          .map((chunk) => chunk.nodeDataId),
+      ),
+    ];
+
+    if (nodeDataIds.length > 0) {
+      // `runAction` et non `runMutation` : `migrations.ts` tourne dans le
+      // runtime V8 par défaut, `chunkBuilder.ts` est `"use node"`. C'est le cas
+      // documenté où appeler une action depuis une action est légitime.
+      //
+      // Awaité, et non planifié : cela sérialise les appels Parallel au lieu
+      // d'empiler des batches concurrents. Ni workpool ni retrier ne sont
+      // installés dans ce projet pour lisser une rafale.
+      await ctx.runAction(internal.searchable.chunkBuilder.rebuildChunksBatch, {
+        nodeDataIds,
+      });
+    }
+
+    console.log("[migrations] backfillLinkSummaries:page", {
+      processed: slice.page.length,
+      rebuilt: nodeDataIds.length,
+      isDone: slice.isDone,
+    });
+
+    const continueCursor: string | undefined = slice.isDone
+      ? undefined
+      : slice.continueCursor;
+    if (!slice.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillLinkSummaries,
+        {
+          cursor: slice.continueCursor,
+          limit: numItems,
+          canvasId: args.canvasId,
+        },
+      );
+    } else {
+      console.log("[migrations] backfillLinkSummaries:complete");
+    }
+
+    return {
+      done: slice.isDone,
+      processed: slice.page.length,
+      rebuilt: nodeDataIds.length,
+      continueCursor,
+    };
+  },
+});

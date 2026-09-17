@@ -52,14 +52,25 @@ function clampHitsPerNode(hitsPerNode: number | undefined): number {
   return Math.min(Math.max(Math.floor(hitsPerNode), 1), MAX_HITS_PER_NODE);
 }
 
-function hintForStatus(status: SearchStatus): string {
+/** Scores arrondis à 4 décimales : la granularité RRF vit dans les
+ *  millièmes en queue de classement, 3 décimales créeraient des ex-aequo
+ *  factices. */
+function roundScore(score: number): number {
+  return Math.round(score * 10000) / 10000;
+}
+
+function hintForStatus(status: SearchStatus, mode?: string): string {
   switch (status) {
     case "invalid_query":
       return "Provide at least one of keyword_search or semantic_search, with at least 2 characters each.";
     case "no_results":
       return "No match found; try spelling variants, a shorter keyword token, or a differently phrased semantic query.";
     case "relaxed":
-      return "No node satisfied every constraint, so results were widened to approximate matches; drop a term or an operator to tighten.";
+      // Le guidage dépend de la branche qui a élargi : opérateurs côté
+      // keyword, reformulation conceptuelle côté sémantique.
+      return mode === "semantic"
+        ? "Low-confidence semantic matches only; try rephrasing the concept with different words, or add a keyword_search to anchor it."
+        : "No node satisfied every constraint, so results were widened to approximate matches; drop a term or an operator to tighten.";
     case "truncated":
       return "Results truncated; refine query or pass nodeIds to narrow scope.";
     case "error":
@@ -109,13 +120,9 @@ function toJsonString(value: unknown): string {
 }
 
 const DESCRIPTION_PARTS = [
-  "Hybrid search over the current canvas using indexed chunks, every node type is searchable (pdf included).",
-  "Provide keyword_search and/or semantic_search (at least one is required, both must express the same intent): keyword_search alone runs a precise keyword lookup, semantic_search alone runs a conceptual vector lookup, and providing both combines them (Reciprocal Rank Fusion).",
-  'keyword_search is for precise lookup (names, acronyms, reference IDs, rare words) with Google-style operators: every bare word is required, "quoted text" must appear verbatim, -word excludes any node containing it, and `a OR b` accepts either.',
-  "semantic_search is for conceptual lookup: short affirmative statements carrying content words, never a question.",
-  "Response shape: status (ok | no_results | relaxed | truncated | invalid_query | error), view (flat | grouped | compact — the effective rendering), searchMode (the branch that actually ran: keyword | semantic | hybrid), hint, hits.",
-  "When groupByNode is true and more nodes match than the limit, results switch automatically to a compact view (id/type/title/hitCount only, up to 150 nodes) instead of truncating; pass nodeIds to narrow or read_nodes for detail.",
-  "Returns compact snippets and metadata to quickly decide what to read next.",
+  "Hybrid search over the canvas chunks (all node types, pdf included).",
+  "Provide keyword_search and/or semantic_search expressing the same intent. keyword_search is precise lookup with operators: bare words required, \"quoted text\" verbatim, -word excluded, a OR b. semantic_search is conceptual lookup: short affirmative statements, never a question. Both together run fused; either alone runs that branch.",
+  "Hits are scored — triage by score/bestScore, not hitCount (keyword-only scores 0). Scores compare within one response only, never across modes or calls. Status and hint tell you what to do next (reformulate, narrow with nodeIds, or read_nodes). groupByNode groups hits per node and auto-compacts beyond the limit.",
 ];
 
 const searchInputSchema = z
@@ -275,14 +282,18 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
         if (!groupByNode) {
           const isHybrid = result.mode === "hybrid";
+          // Tri par pertinence (le score RRF/vectoriel), pas par ordre des
+          // chunks : l'ordre documentaire ne départage qu'à score égal
+          // (cas keyword pur, tout à 0).
           const rankedFlat = dedupedByNodeSnippet
-            .sort((a, b) => a.order - b.order)
+            .sort((a, b) => b.score - a.score || a.order - b.order)
             .slice(0, limit)
             .map((hit) => ({
               nodeId: hit.nodeId,
               nodeType: hit.nodeType,
               chunkType: hit.chunkType,
               title: hit.title,
+              score: roundScore(hit.score),
               snippet: hit.snippet,
               page: hit.page,
               sectionTitle: hit.sectionTitle,
@@ -305,7 +316,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             view: "flat" satisfies SearchView,
             searchMode: result.mode,
             ...(result.degraded ? { degraded: true } : {}),
-            hint: hintForStatus(status),
+            hint: hintForStatus(status, result.mode),
             hits: rankedFlat,
           });
         }
@@ -317,6 +328,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             nodeType: string;
             title?: string;
             hitCount: number;
+            bestScore: number;
             candidates: Array<{
               snippet: string;
               order: number;
@@ -330,6 +342,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           const entry = grouped.get(hit.nodeId);
           if (entry) {
             entry.hitCount += 1;
+            if (hit.score > entry.bestScore) entry.bestScore = hit.score;
             if (!entry.title && hit.title) entry.title = hit.title;
             entry.candidates.push({
               snippet: hit.snippet,
@@ -343,6 +356,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               nodeType: hit.nodeType,
               title: hit.title,
               hitCount: 1,
+              bestScore: hit.score,
               candidates: [
                 {
                   snippet: hit.snippet,
@@ -355,8 +369,11 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           }
         }
 
+        // Tri par pertinence (meilleur score du node), quantité en
+        // tie-break : beaucoup de hits faibles ne doivent pas passer devant
+        // un hit fort unique.
         const groupedEntries = Array.from(grouped.values()).sort((a, b) => {
-          return b.hitCount - a.hitCount;
+          return b.bestScore - a.bestScore || b.hitCount - a.hitCount;
         });
 
         // Fallback: fetch titles only for pre-existing chunks that don't carry one yet.
@@ -393,7 +410,11 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           const compactEntries = groupedEntries.slice(0, COMPACT_MAX);
           const compactTitles = await fetchMissingTitles(compactEntries);
           const truncated = totalMatches > COMPACT_MAX;
-          const status: SearchStatus = truncated ? "truncated" : "ok";
+          const status: SearchStatus = truncated
+            ? "truncated"
+            : result.relaxed
+              ? "relaxed"
+              : "ok";
           return toJsonString({
             status,
             view: "compact" satisfies SearchView,
@@ -408,6 +429,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               nodeType: group.nodeType,
               title:
                 group.title ?? compactTitles.get(group.nodeId) ?? "Untitled",
+              bestScore: roundScore(group.bestScore),
               hitCount: group.hitCount,
             })),
           });
@@ -432,6 +454,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             nodeType: group.nodeType,
             title:
               group.title ?? titlesByNodeId.get(group.nodeId) ?? "Untitled",
+            bestScore: roundScore(group.bestScore),
             hitCount: group.hitCount,
             bestSnippet: best?.snippet,
             bestPage: best?.page,
@@ -464,7 +487,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           view: "grouped" satisfies SearchView,
           searchMode: result.mode,
           ...(result.degraded ? { degraded: true } : {}),
-          hint: hintForStatus(status),
+          hint: hintForStatus(status, result.mode),
           hits: groupedHits,
         });
       } catch (error) {

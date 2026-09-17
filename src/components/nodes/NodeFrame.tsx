@@ -63,29 +63,38 @@ function NodeFrame({
           borderWidth: 2,
         }}
         handleStyle={{
-          height: 8,
-          width: 8,
-          borderRadius: 2,
+          height: 10,
+          width: 10,
+          borderRadius: 999,
+          border: "2px solid white",
+          boxShadow: "0 1px 4px rgba(15,23,42,0.25)",
           zIndex: 10,
         }}
       />
       <div
         className={cn(
-          "relative rounded-[5px] text-card-foreground",
+          "relative rounded-xl text-card-foreground overflow-hidden",
+          // `overflow-hidden` : c'est lui qui garantit que le contenu (image,
+          // table, BlockNote, embed) est rogné au même rayon que le frame.
+          // Sans ça, l'inner à 10px + un enfant à coins carrés dépassait dans
+          // les coins du frame à 14px. Sans danger pour ring/resizer/handles :
+          // le ring est une ombre propre (pas rognée par l'overflow du même
+          // élément) et resizer/handles sont des siblings, pas des enfants.
           // `transition-[…]` explicite, et pas un `duration-150` nu : la valeur
           // initiale CSS de `transition-property` étant `all`, la durée seule
           // rendait *toute* propriété animable sur chaque node — donc 150 ms de
           // repaint au moindre changement de style, ring de survol compris.
           "group h-full flex flex-col border animate-node-appear",
-          "transition-[box-shadow,border-color] duration-150",
+          "transition-[box-shadow,border-color,transform] duration-200 ease-out",
           nodeColor.nodeBg,
           nodeColor.nodeBorder,
+          "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
           isAttachedToNole &&
-            "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[8px] after:border-2 after:border-dashed after:border-violet-500/90",
+            "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[14px] after:border-2 after:border-dashed after:border-violet-500/90",
           !canDrag && "nodrag",
           xyNode.selected
-            ? "ring-2 ring-blue-500/70"
-            : "hover:ring-1 hover:ring-blue-400/60",
+            ? "ring-1 ring-slate-900 shadow-[0_3px_12px_rgba(15,23,42,0.12)]"
+            : "hover:ring-1 hover:ring-slate-300 hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
         )}
         onDoubleClick={handleDoubleClick}
       >
@@ -98,10 +107,10 @@ function NodeFrame({
             que `BlocknoteNode`, qui l'applique déjà à son propre contenu. */}
         <div
           className={cn(
-            "h-full rounded-[4px] relative [content-visibility:auto]",
+            "h-full relative overflow-hidden [content-visibility:auto]",
             xyNode.data.color === "transparent"
               ? "bg-transparent"
-              : "bg-white/80",
+              : "bg-white/90",
           )}
         >
           {needsPointerShieldWhileMoving && (isResizing || xyNode.dragging) && (

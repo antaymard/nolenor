@@ -95,7 +95,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Base — use the app font (Poppins) and the app text size (15px) instead of
+ * Base — use the app font (Nunito) and the app text size (15px) instead of
  * BlockNote's Inter/16px, which come from `.bn-default-styles` on `.bn-editor`.
  * `line-height: 1.5` matches Plate's LineHeightKit `defaultNodeValue`.
  *

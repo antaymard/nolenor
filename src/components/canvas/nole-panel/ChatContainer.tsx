@@ -62,10 +62,10 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
   }
 
   return (
-    <div className="flex h-full w-full flex-col shadow-2xl/10">
+    <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
       {/* Header */}
-      <div className="flex items-center gap-1 rounded-t-lg border-b border-slate-200 bg-white/60 py-1 pr-1 pl-3">
-        <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
+      <div className="flex h-10 items-center gap-1 rounded-t-2xl border-b border-slate-200 bg-white pr-1 pl-3">
+        <p className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight text-slate-700">
           {threadId ? threadInfo?.title || "Untitled chat" : "New chat"}
         </p>
         <ThreadStatusPill status={chat.runStatus} />

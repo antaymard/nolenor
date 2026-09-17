@@ -287,7 +287,7 @@ export default function WindowFrame({
             "after:pointer-events-none after:absolute after:inset-0 after:rounded-[12px] after:border-2 after:border-dashed after:border-violet-500/90",
         )}
       >
-          <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg border bg-white shadow-2xl/10">
+          <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/40 bg-white/90 shadow-[0_6px_20px_rgba(15,23,42,0.12)] backdrop-blur-xl">
           {/* ── Resize handles ───────────────────────────────────────── */}
 
           {/* Corners (12×12, priority z-20) */}
@@ -352,7 +352,7 @@ export default function WindowFrame({
 
           {/* ── Header (draggable) ────────────────────────────────────── */}
           <div
-            className="flex cursor-grab select-none items-center gap-2 border-b px-3 py-2 hover:cursor-grab active:cursor-grabbing"
+            className="flex h-10 cursor-grab select-none items-center gap-2 rounded-t-2xl border-b border-slate-200/70 bg-white/60 px-3 backdrop-blur-xl hover:cursor-grab active:cursor-grabbing"
             onMouseDown={handleHeaderMouseDown}
             onDoubleClick={handleHeaderDoubleClick}
             title={title}
@@ -360,7 +360,7 @@ export default function WindowFrame({
             {NodeIcon ? (
               <NodeIcon className="size-4 shrink-0 text-slate-600" />
             ) : null}
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            <span className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight">
               {title ?? "—"}
             </span>
             {refreshHandler && (

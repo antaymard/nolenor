@@ -15,18 +15,18 @@ export default function NoleCanvasPanel() {
   return (
     <div className="relative">
       {layout === "expanded" && (
-        // `bottom-14` et non `bottom-10` : le bouton a grandi pour s'aligner
-        // sur les blocs du dock, et la conversation le recouvrait.
-        <div className="absolute bottom-12.5 canvas-ui-container p-0! w-95 h-[calc(100dvh-7rem)] animate-appear-zoom origin-bottom-left">
+        // `bottom-12.5` : le bouton fait h-10 comme la toolbar, la conversation
+        // le recouvrirait sinon. Pas de `canvas-ui-container` ici : c'est
+        // `ChatContainer` qui porte déjà le matériau (blur + ombre).
+        <div className="absolute bottom-12.5 w-95 h-[calc(100dvh-7.5rem)] animate-appear-zoom origin-bottom-left">
           <ChatContainer onClose={() => setPanelLayout("minimized")} />
         </div>
       )}
-      <div className="canvas-ui-container px-0! animate-appear-up">
-        {/* `h-11` : le bouton et les blocs du dock sont sur la même rangée et
-            doivent faire la même hauteur. */}
+      <div className="canvas-ui-container px-1! animate-appear-up">
+        {/* `h-10` : aligné sur CanvasToolbar et le dock, même rangée visuelle. */}
         <Button
           variant="ghost"
-          className="h-11"
+          className="h-10 rounded-lg px-3 font-bold tracking-tight"
           onClick={() => togglePanelLayout()}
         >
           <NoleIcon /> Nolë

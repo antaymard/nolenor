@@ -146,8 +146,7 @@ export const stripExcludedEmbeddings = internalAction({
     );
 
     const excluded = slice.page.filter(
-      (chunk) =>
-        !isNodeTypeEmbedded(chunk.nodeType) && chunk.hasEmbedding,
+      (chunk) => !isNodeTypeEmbedded(chunk.nodeType) && chunk.hasEmbedding,
     );
 
     let stripped = 0;
@@ -214,92 +213,92 @@ export const stripExcludedEmbeddings = internalAction({
 // Plus petit que `PAGE_SIZE` : `rebuildChunksBatch` boucle séquentiellement, et
 // une page de 100 liens enchaînerait 100 extractions Parallel dans une seule
 // action. 25 reste confortablement sous la limite de temps d'une action.
-const LINK_BACKFILL_PAGE_SIZE = 25;
+// const LINK_BACKFILL_PAGE_SIZE = 25;
 
-export const backfillLinkSummaries = internalAction({
-  args: {
-    cursor: v.optional(v.string()),
-    limit: v.optional(v.number()),
-    canvasId: v.optional(v.id("canvases")),
-  },
-  returns: v.object({
-    done: v.boolean(),
-    processed: v.number(),
-    rebuilt: v.number(),
-    continueCursor: v.optional(v.string()),
-  }),
-  // Annotation explicite : l'action se re-schedule elle-même via `internal`
-  // (même fichier), sans quoi l'inférence TS boucle (cf. guidelines).
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    done: boolean;
-    processed: number;
-    rebuilt: number;
-    continueCursor: string | undefined;
-  }> => {
-    const numItems = Math.min(
-      Math.max(args.limit ?? LINK_BACKFILL_PAGE_SIZE, 1),
-      LINK_BACKFILL_PAGE_SIZE,
-    );
-    const slice = await ctx.runQuery(
-      internal.wrappers.searchableChunkWrappers.listChunkPage,
-      {
-        paginationOpts: { numItems, cursor: args.cursor ?? null },
-        canvasId: args.canvasId,
-      },
-    );
+// export const backfillLinkSummaries = internalAction({
+//   args: {
+//     cursor: v.optional(v.string()),
+//     limit: v.optional(v.number()),
+//     canvasId: v.optional(v.id("canvases")),
+//   },
+//   returns: v.object({
+//     done: v.boolean(),
+//     processed: v.number(),
+//     rebuilt: v.number(),
+//     continueCursor: v.optional(v.string()),
+//   }),
+//   // Annotation explicite : l'action se re-schedule elle-même via `internal`
+//   // (même fichier), sans quoi l'inférence TS boucle (cf. guidelines).
+//   handler: async (
+//     ctx,
+//     args,
+//   ): Promise<{
+//     done: boolean;
+//     processed: number;
+//     rebuilt: number;
+//     continueCursor: string | undefined;
+//   }> => {
+//     const numItems = Math.min(
+//       Math.max(args.limit ?? LINK_BACKFILL_PAGE_SIZE, 1),
+//       LINK_BACKFILL_PAGE_SIZE,
+//     );
+//     const slice = await ctx.runQuery(
+//       internal.wrappers.searchableChunkWrappers.listChunkPage,
+//       {
+//         paginationOpts: { numItems, cursor: args.cursor ?? null },
+//         canvasId: args.canvasId,
+//       },
+//     );
 
-    const nodeDataIds = [
-      ...new Set(
-        slice.page
-          .filter((chunk) => chunk.nodeType === "link")
-          .map((chunk) => chunk.nodeDataId),
-      ),
-    ];
+//     const nodeDataIds = [
+//       ...new Set(
+//         slice.page
+//           .filter((chunk) => chunk.nodeType === "link")
+//           .map((chunk) => chunk.nodeDataId),
+//       ),
+//     ];
 
-    if (nodeDataIds.length > 0) {
-      // `runAction` et non `runMutation` : `migrations.ts` tourne dans le
-      // runtime V8 par défaut, `chunkBuilder.ts` est `"use node"`. C'est le cas
-      // documenté où appeler une action depuis une action est légitime.
-      //
-      // Awaité, et non planifié : cela sérialise les appels Parallel au lieu
-      // d'empiler des batches concurrents. Ni workpool ni retrier ne sont
-      // installés dans ce projet pour lisser une rafale.
-      await ctx.runAction(internal.searchable.chunkBuilder.rebuildChunksBatch, {
-        nodeDataIds,
-      });
-    }
+//     if (nodeDataIds.length > 0) {
+//       // `runAction` et non `runMutation` : `migrations.ts` tourne dans le
+//       // runtime V8 par défaut, `chunkBuilder.ts` est `"use node"`. C'est le cas
+//       // documenté où appeler une action depuis une action est légitime.
+//       //
+//       // Awaité, et non planifié : cela sérialise les appels Parallel au lieu
+//       // d'empiler des batches concurrents. Ni workpool ni retrier ne sont
+//       // installés dans ce projet pour lisser une rafale.
+//       await ctx.runAction(internal.searchable.chunkBuilder.rebuildChunksBatch, {
+//         nodeDataIds,
+//       });
+//     }
 
-    console.log("[migrations] backfillLinkSummaries:page", {
-      processed: slice.page.length,
-      rebuilt: nodeDataIds.length,
-      isDone: slice.isDone,
-    });
+//     console.log("[migrations] backfillLinkSummaries:page", {
+//       processed: slice.page.length,
+//       rebuilt: nodeDataIds.length,
+//       isDone: slice.isDone,
+//     });
 
-    const continueCursor: string | undefined = slice.isDone
-      ? undefined
-      : slice.continueCursor;
-    if (!slice.isDone) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.migrations.backfillLinkSummaries,
-        {
-          cursor: slice.continueCursor,
-          limit: numItems,
-          canvasId: args.canvasId,
-        },
-      );
-    } else {
-      console.log("[migrations] backfillLinkSummaries:complete");
-    }
+//     const continueCursor: string | undefined = slice.isDone
+//       ? undefined
+//       : slice.continueCursor;
+//     if (!slice.isDone) {
+//       await ctx.scheduler.runAfter(
+//         0,
+//         internal.migrations.backfillLinkSummaries,
+//         {
+//           cursor: slice.continueCursor,
+//           limit: numItems,
+//           canvasId: args.canvasId,
+//         },
+//       );
+//     } else {
+//       console.log("[migrations] backfillLinkSummaries:complete");
+//     }
 
-    return {
-      done: slice.isDone,
-      processed: slice.page.length,
-      rebuilt: nodeDataIds.length,
-      continueCursor,
-    };
-  },
-});
+//     return {
+//       done: slice.isDone,
+//       processed: slice.page.length,
+//       rebuilt: nodeDataIds.length,
+//       continueCursor,
+//     };
+//   },
+// });

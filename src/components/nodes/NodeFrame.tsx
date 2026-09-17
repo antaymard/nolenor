@@ -63,23 +63,19 @@ function NodeFrame({
           borderWidth: 2,
         }}
         handleStyle={{
-          height: 10,
-          width: 10,
-          borderRadius: 999,
-          border: "2px solid white",
-          boxShadow: "0 1px 4px rgba(15,23,42,0.25)",
+          height: 8,
+          width: 8,
+          borderRadius: 2,
           zIndex: 10,
         }}
       />
       <div
         className={cn(
-          "relative rounded-xl text-card-foreground overflow-hidden",
-          // `overflow-hidden` : c'est lui qui garantit que le contenu (image,
-          // table, BlockNote, embed) est rogné au même rayon que le frame.
-          // Sans ça, l'inner à 10px + un enfant à coins carrés dépassait dans
-          // les coins du frame à 14px. Sans danger pour ring/resizer/handles :
-          // le ring est une ombre propre (pas rognée par l'overflow du même
-          // élément) et resizer/handles sont des siblings, pas des enfants.
+          "relative rounded-xl text-card-foreground",
+          // PAS de `overflow-hidden` ici : il rognerait l'outline pointillé
+          // violet du node attaché à Nolë (`after:` en `-inset-1`, donc hors
+          // boîte). Le clip du contenu vit sur le conteneur interne, qui a
+          // lui le rayon de la face interne de la bordure (14px - 1px).
           // `transition-[…]` explicite, et pas un `duration-150` nu : la valeur
           // initiale CSS de `transition-property` étant `all`, la durée seule
           // rendait *toute* propriété animable sur chaque node — donc 150 ms de
@@ -90,11 +86,11 @@ function NodeFrame({
           nodeColor.nodeBorder,
           "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
           isAttachedToNole &&
-            "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[14px] after:border-2 after:border-dashed after:border-violet-500/90",
+            "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
           !canDrag && "nodrag",
           xyNode.selected
-            ? "ring-1 ring-slate-900 shadow-[0_3px_12px_rgba(15,23,42,0.12)]"
-            : "hover:ring-1 hover:ring-slate-300 hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
+            ? "ring-2 ring-blue-500/70 shadow-[0_3px_12px_rgba(15,23,42,0.12)]"
+            : "hover:ring-1 hover:ring-blue-400/60 hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
         )}
         onDoubleClick={handleDoubleClick}
       >
@@ -107,10 +103,16 @@ function NodeFrame({
             que `BlocknoteNode`, qui l'applique déjà à son propre contenu. */}
         <div
           className={cn(
-            "h-full relative overflow-hidden [content-visibility:auto]",
+            // `overflow-hidden` + rayon de la face interne de la bordure
+            // (rounded-xl = 14px, moins 1px de border) : c'est lui qui garantit
+            // que le contenu (image, table, BlockNote, embed) est rogné aux
+            // coins du frame. Sans ça, un enfant à coins carrés dépassait.
+            // La dernière fois on l'a mis sur le frame et ça avait rogné
+            // l'outline du node attaché — d'où ce placement.
+            "h-full relative overflow-hidden rounded-[13px] [content-visibility:auto]",
             xyNode.data.color === "transparent"
               ? "bg-transparent"
-              : "bg-white/90",
+              : "bg-white/80",
           )}
         >
           {needsPointerShieldWhileMoving && (isResizing || xyNode.dragging) && (

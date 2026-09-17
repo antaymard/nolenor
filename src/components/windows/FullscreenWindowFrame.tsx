@@ -128,7 +128,7 @@ export default function FullscreenWindowFrame({
       <div className="fixed inset-0 z-50 flex flex-col bg-white">
         {/* ── Header ────────────────────────────────────────────────── */}
         <div
-          className="flex select-none items-center gap-2 border-b bg-white px-4 py-2"
+          className="flex select-none items-center gap-2 border-b bg-white py-2 pl-4 pr-2"
           onDoubleClick={(e) => {
             if ((e.target as HTMLElement).closest('[data-window-control="true"]'))
               return;

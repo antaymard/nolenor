@@ -86,6 +86,13 @@ function CustomEdge({
   const strokeStyleKey =
     edgeData.strokeStyle ?? DEFAULT_EDGE_STROKE_STYLE;
   const hex = getEdgeHexColor(edgeData.color);
+  // Texte du label plus contrasté que le trait quand l'edge est grise
+  // (default / transparent / sans couleur) : #94a3b8 sur blanc est trop pâle.
+  const isGrayEdge =
+    !edgeData.color ||
+    edgeData.color === "default" ||
+    edgeData.color === "transparent";
+  const labelColor = isGrayEdge ? "#475569" : hex;
   const { svgWidth, labelFontSize } =
     edgeStrokeWidthMap[strokeWidthKey] ?? edgeStrokeWidthMap.thin;
   const dashArray = edgeDashArrayMap[strokeStyleKey];
@@ -181,7 +188,8 @@ function CustomEdge({
             labelX={labelX}
             labelY={labelY}
             fontSize={labelFontSize}
-            color={hex}
+            color={labelColor}
+            borderColor={hex}
             onSubmit={handleSubmitLabel}
             onCancel={handleCancelLabel}
           />
@@ -193,14 +201,12 @@ function CustomEdge({
                 transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
                 pointerEvents: "all",
                 fontSize: `${labelFontSize}px`,
-                fontWeight: 700,
-                fontFamily: "var(--font-sans)",
-                color: hex,
-                background: "rgba(255,255,255,0.9)",
-                padding: "2px 10px",
+                fontWeight: 400,
+                color: labelColor,
+                background: "#ffffff",
+                padding: "1px 8px",
                 borderRadius: 10,
-                border: "1px solid #e2e8f0",
-                boxShadow: "0 2px 8px rgba(15,23,42,0.08)",
+                border: `1px solid ${hex}`,
                 maxWidth: 200,
                 overflow: "hidden",
                 textOverflow: "ellipsis",

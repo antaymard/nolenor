@@ -352,7 +352,7 @@ export default function WindowFrame({
 
           {/* ── Header (draggable) ────────────────────────────────────── */}
           <div
-            className="flex h-10 cursor-grab select-none items-center gap-2 rounded-t-2xl border-b border-slate-200/70 bg-white/60 px-3 backdrop-blur-xl hover:cursor-grab active:cursor-grabbing"
+            className="flex h-10 cursor-grab select-none items-center gap-2 rounded-t-2xl border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1 backdrop-blur-xl hover:cursor-grab active:cursor-grabbing"
             onMouseDown={handleHeaderMouseDown}
             onDoubleClick={handleHeaderDoubleClick}
             title={title}

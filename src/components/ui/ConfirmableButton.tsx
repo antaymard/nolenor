@@ -6,6 +6,7 @@ import {
   useState,
   type MouseEventHandler,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import {
   AlertDialog,
@@ -35,6 +36,8 @@ interface ConfirmableButtonProps {
   // Colore le bouton de confirmation en rouge. Pour les actions qui détruisent
   // quelque chose — la couleur fait partie de l'avertissement.
   destructive?: boolean;
+  // Petit conseil affiché sous la description (ex. raccourci clavier utile).
+  hint?: ReactNode;
 }
 
 export default function ConfirmableButton({
@@ -53,6 +56,7 @@ export default function ConfirmableButton({
   showCloseButton = true,
   autoFocusConfirm = false,
   destructive = false,
+  hint,
 }: ConfirmableButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -100,6 +104,11 @@ export default function ConfirmableButton({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{text}</AlertDialogDescription>
         </AlertDialogHeader>
+        {hint && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            {hint}
+          </div>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => onCancel?.()}>
             {cancelLabel}

@@ -89,19 +89,10 @@ function NodeHandles({
           type={handle.type}
           id={handle.id}
           position={handle.position}
-          className={cn(
-            "transition-opacity duration-150 ease-out",
-            handle.visible ? "opacity-100 z-10" : "opacity-0",
-          )}
+          className={cn(handle.visible ? "opacity-100 z-10" : "opacity-0")}
           style={{
-            height: 10,
-            width: 10,
-            borderRadius: 999,
-            background: handle.visible ? "#0f172a" : "transparent",
-            border: "2px solid white",
-            boxShadow: handle.visible
-              ? "0 1px 4px rgba(15,23,42,0.3)"
-              : "none",
+            height: 9,
+            width: 9,
           }}
         />
       ))}

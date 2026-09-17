@@ -1,4 +1,4 @@
-import { NodeToolbar, type Node, useStore } from "@xyflow/react";
+import { NodeToolbar, Position, type Node, useStore } from "@xyflow/react";
 import type { XyNodeProps } from "@/types/domain";
 import { memo } from "react";
 
@@ -10,6 +10,12 @@ interface CanvasNodeToolbarProps {
   xyNode: XyNodeProps;
   className?: string;
   asSimpleDiv?: boolean;
+  /**
+   * Le bord du node où la barre se pose. Au-dessus par défaut, comme React
+   * Flow — sauf pour un node qui a déjà quelque chose là (le titre d'une
+   * frame, posé sur son bord haut).
+   */
+  position?: Position;
 }
 
 function CanvasNodeToolbar({
@@ -17,6 +23,7 @@ function CanvasNodeToolbar({
   xyNode,
   className = "",
   asSimpleDiv = false,
+  position = Position.Top,
 }: CanvasNodeToolbarProps) {
   // Early return si le node n'est pas sélectionné — aucun hook avant ce point
   // pour éviter que les nodes non-sélectionnés souscrivent au store global
@@ -29,6 +36,7 @@ function CanvasNodeToolbar({
       xyNode={xyNode}
       className={className}
       asSimpleDiv={asSimpleDiv}
+      position={position}
     >
       {children}
     </ToolbarContent>
@@ -40,6 +48,7 @@ function ToolbarContent({
   xyNode,
   className = "",
   asSimpleDiv = false,
+  position = Position.Top,
 }: CanvasNodeToolbarProps) {
   const selectedNodesCount = useStore(selectedNodesCountSelector);
 
@@ -53,6 +62,7 @@ function ToolbarContent({
     <NodeToolbar
       onContextMenu={(e) => e.stopPropagation()}
       isVisible={isVisible}
+      position={position}
       className={`flex gap-2 ${className}`}
       onDoubleClick={(e) => e.stopPropagation()}
     >

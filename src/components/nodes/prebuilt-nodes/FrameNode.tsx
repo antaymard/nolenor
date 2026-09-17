@@ -1,7 +1,23 @@
-import { memo, useCallback, useEffect, useState } from "react";
-import { NodeResizer, useReactFlow, useStore } from "@xyflow/react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import {
+  NodeResizeControl,
+  Position,
+  ResizeControlVariant,
+  useReactFlow,
+  useStore,
+} from "@xyflow/react";
+import { LuHeading1, LuHeading2, LuHeading3 } from "react-icons/lu";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeHandles from "../NodeHandles";
+import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
@@ -9,6 +25,11 @@ import { useIsFrameHovered } from "@/stores/frameHoverStore";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_FRAME_TITLE_LEVEL,
+  FRAME_TITLE_LEVELS,
+  type FrameTitleLevel,
+} from "@/../convex/config/nodeConfig";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 
 /**
@@ -24,16 +45,98 @@ const EMPTY_MIN_WIDTH = 160;
 const EMPTY_MIN_HEIGHT = 120;
 
 /**
+ * Les trois tailles du titre, avec les classes du node `title` : le canvas n'a
+ * qu'une échelle typographique, et le titre d'une frame en est un niveau comme
+ * un autre.
+ */
+const TITLE_LEVEL_CLASSNAMES: Record<FrameTitleLevel, string> = {
+  h1: "text-3xl font-semibold",
+  h2: "text-2xl font-semibold",
+  h3: "text-lg font-semibold",
+};
+
+const TITLE_LEVEL_ICONS: Record<FrameTitleLevel, ReactNode> = {
+  h1: <LuHeading1 />,
+  h2: <LuHeading2 />,
+  h3: <LuHeading3 />,
+};
+
+/**
  * Le titre garde sa taille à l'écran quand on dézoome.
  *
  * `Math.max(1 / zoom, 1)` — copié de `scaleSelector` dans React Flow, qui
  * l'applique à ses poignées de resize : le titre grossit à mesure qu'on
  * s'éloigne, donc reste lisible, mais ne rétrécit jamais sous sa taille CSS
- * quand on zoome dedans. Les poignées du `NodeResizer` juste à côté suivent
+ * quand on zoome dedans. Les poignées de resize juste à côté suivent
  * exactement la même règle, l'ensemble reste cohérent.
  */
 const titleScaleSelector = (state: { transform: [number, number, number] }) =>
   Math.max(1 / state.transform[2], 1);
+
+const RESIZE_LINE_STYLE: CSSProperties = { borderWidth: 2 };
+const RESIZE_HANDLE_STYLE: CSSProperties = {
+  height: 8,
+  width: 8,
+  borderRadius: 2,
+  zIndex: 10,
+};
+
+/**
+ * Les huit contrôles de redimensionnement, posés un par un.
+ *
+ * `NodeResizer` les pose lui-même, mais avec un seul `minWidth` et un seul
+ * `minHeight` pour tous. Une frame en a besoin de deux par axe (cf.
+ * `measureContent`), d'où ce rendu explicite — positions, variantes et styles
+ * sont exactement ceux que `NodeResizer` leur donnait.
+ *
+ * Le bord concerné se lit sur le nom de la position, comme dans
+ * `getControlDirection` chez React Flow : un contrôle « left » déplace le bord
+ * gauche, un contrôle « top » le bord haut.
+ */
+const RESIZE_CONTROLS = [
+  { position: "top", variant: ResizeControlVariant.Line },
+  { position: "right", variant: ResizeControlVariant.Line },
+  { position: "bottom", variant: ResizeControlVariant.Line },
+  { position: "left", variant: ResizeControlVariant.Line },
+  { position: "top-left", variant: ResizeControlVariant.Handle },
+  { position: "top-right", variant: ResizeControlVariant.Handle },
+  { position: "bottom-left", variant: ResizeControlVariant.Handle },
+  { position: "bottom-right", variant: ResizeControlVariant.Handle },
+] as const;
+
+/**
+ * Les bornes de rétrécissement d'une frame : une par bord, parce qu'un bord
+ * droit et un bord gauche ne butent pas sur la même chose.
+ *
+ * Tirer le bord DROIT (ou BAS) laisse le coin haut gauche en place : le contenu
+ * garde ses coordonnées, et la frame ne peut pas remonter au-dessus du bord
+ * droit (ou bas) de ce contenu. Tirer le bord GAUCHE (ou HAUT) déplace ce coin,
+ * et les enfants compensent pour ne pas bouger en coordonnées monde : ce qui
+ * borne alors, c'est le bord GAUCHE (ou HAUT) du contenu, que le bord de la
+ * frame ne doit pas franchir.
+ */
+type MinSize = {
+  widthFromRight: number;
+  widthFromLeft: number;
+  heightFromBottom: number;
+  heightFromTop: number;
+};
+
+/**
+ * Une borne ne doit jamais dépasser la taille actuelle.
+ *
+ * `getSizeClamp`, chez React Flow, retire l'excédent de la dimension en cours :
+ * une borne plus grande que la frame la ferait rétrécir sur un axe qu'on ne
+ * touche même pas — tirer le bord haut lui volerait de la largeur. Quand le
+ * contenu déborde déjà, la frame ne rétrécit donc plus, elle ne fait que
+ * grandir.
+ *
+ * `current` à 0 = node pas encore mesuré : la borne passe telle quelle, sinon
+ * plus aucun redimensionnement ne serait possible.
+ */
+function boundedBy(min: number, current: number) {
+  return current > 0 ? Math.min(min, current) : min;
+}
 
 /**
  * Un conteneur : il groupe des nodes, qui le déclarent en `parentId` et
@@ -59,6 +162,14 @@ function FrameNode(xyNode: XyNodeProps) {
 
   const title = typeof values?.title === "string" ? values.title : "";
   const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];
+
+  // Les frames tracées avant l'arrivée des niveaux n'ont pas de `level` :
+  // elles prennent le même défaut que zod applique aux nouvelles.
+  const level = (FRAME_TITLE_LEVELS as readonly string[]).includes(
+    values?.level as string,
+  )
+    ? (values?.level as FrameTitleLevel)
+    : DEFAULT_FRAME_TITLE_LEVEL;
 
   // Un node dragué survole cette frame : elle s'entoure pour dire « au
   // relâcher, il est ici ». Abonnement au seul booléen qui la concerne, donc
@@ -93,6 +204,16 @@ function FrameNode(xyNode: XyNodeProps) {
     [nodeDataId, updateNodeDataValues],
   );
 
+  const setLevel = useCallback(
+    (nextLevel: string) => {
+      // Un ToggleGroup `single` renvoie "" quand on re-clique l'option active :
+      // une frame a toujours un niveau, on ignore la désélection.
+      if (!nextLevel || !nodeDataId) return;
+      void updateNodeDataValues({ nodeDataId, values: { level: nextLevel } });
+    },
+    [nodeDataId, updateNodeDataValues],
+  );
+
   /**
    * On ne rétrécit pas une frame sous son contenu.
    *
@@ -108,19 +229,32 @@ function FrameNode(xyNode: XyNodeProps) {
    * soient bonnes dès le premier pixel — `ResizeControl` ne relit ses
    * `boundaries` que dans un effet.
    *
-   * Les positions des enfants sont déjà relatives à la frame : le coin bas
-   * droit du contenu se lit directement, sans conversion.
+   * Les positions des enfants sont déjà relatives à la frame : les bords du
+   * contenu se lisent directement, sans conversion.
    */
-  const [minSize, setMinSize] = useState({
-    width: EMPTY_MIN_WIDTH,
-    height: EMPTY_MIN_HEIGHT,
+  const [minSize, setMinSize] = useState<MinSize>({
+    widthFromRight: EMPTY_MIN_WIDTH,
+    widthFromLeft: EMPTY_MIN_WIDTH,
+    heightFromBottom: EMPTY_MIN_HEIGHT,
+    heightFromTop: EMPTY_MIN_HEIGHT,
   });
   const measureContent = useCallback(() => {
-    const children = getNodes().filter((node) => node.parentId === xyNode.id);
+    const nodes = getNodes();
+    const self = nodes.find((node) => node.id === xyNode.id);
+    const width = self?.measured?.width ?? self?.width ?? 0;
+    const height = self?.measured?.height ?? self?.height ?? 0;
+    const children = nodes.filter((node) => node.parentId === xyNode.id);
     if (children.length === 0) {
-      setMinSize({ width: EMPTY_MIN_WIDTH, height: EMPTY_MIN_HEIGHT });
+      setMinSize({
+        widthFromRight: boundedBy(EMPTY_MIN_WIDTH, width),
+        widthFromLeft: boundedBy(EMPTY_MIN_WIDTH, width),
+        heightFromBottom: boundedBy(EMPTY_MIN_HEIGHT, height),
+        heightFromTop: boundedBy(EMPTY_MIN_HEIGHT, height),
+      });
       return;
     }
+    const left = Math.min(...children.map((child) => child.position.x));
+    const top = Math.min(...children.map((child) => child.position.y));
     const right = Math.max(
       ...children.map(
         (child) => child.position.x + (child.measured?.width ?? child.width ?? 0),
@@ -133,8 +267,24 @@ function FrameNode(xyNode: XyNodeProps) {
       ),
     );
     setMinSize({
-      width: Math.max(EMPTY_MIN_WIDTH, right + CONTENT_PADDING),
-      height: Math.max(EMPTY_MIN_HEIGHT, bottom + CONTENT_PADDING),
+      widthFromRight: boundedBy(
+        Math.max(EMPTY_MIN_WIDTH, right + CONTENT_PADDING),
+        width,
+      ),
+      // Le bord droit ne bouge pas : ce qui reste entre lui et le bord gauche
+      // du contenu, c'est `width - left`.
+      widthFromLeft: boundedBy(
+        Math.max(EMPTY_MIN_WIDTH, width - left + CONTENT_PADDING),
+        width,
+      ),
+      heightFromBottom: boundedBy(
+        Math.max(EMPTY_MIN_HEIGHT, bottom + CONTENT_PADDING),
+        height,
+      ),
+      heightFromTop: boundedBy(
+        Math.max(EMPTY_MIN_HEIGHT, height - top + CONTENT_PADDING),
+        height,
+      ),
     });
   }, [getNodes, xyNode.id]);
 
@@ -145,15 +295,55 @@ function FrameNode(xyNode: XyNodeProps) {
 
   return (
     <>
+      {/* Sous la frame et non au-dessus, à l'inverse des autres nodes : son
+          bord haut porte déjà le titre. */}
+      <CanvasNodeToolbar xyNode={xyNode} position={Position.Bottom}>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          className="bg-card"
+          value={level}
+          onValueChange={setLevel}
+        >
+          {FRAME_TITLE_LEVELS.map((value) => (
+            <ToggleGroupItem
+              key={value}
+              value={value}
+              aria-label={`Title size ${value}`}
+            >
+              {TITLE_LEVEL_ICONS[value]}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </CanvasNodeToolbar>
+
       <NodeHandles showSourceHandles={xyNode.selected} nodeId={xyNode.id} />
-      <NodeResizer
-        isVisible={xyNode.selected}
-        minWidth={minSize.width}
-        minHeight={minSize.height}
-        onResizeStart={measureContent}
-        lineStyle={{ borderWidth: 2 }}
-        handleStyle={{ height: 8, width: 8, borderRadius: 2, zIndex: 10 }}
-      />
+
+      {xyNode.selected
+        ? RESIZE_CONTROLS.map(({ position, variant }) => (
+            <NodeResizeControl
+              key={position}
+              position={position}
+              variant={variant}
+              style={
+                variant === ResizeControlVariant.Line
+                  ? RESIZE_LINE_STYLE
+                  : RESIZE_HANDLE_STYLE
+              }
+              minWidth={
+                position.includes("left")
+                  ? minSize.widthFromLeft
+                  : minSize.widthFromRight
+              }
+              minHeight={
+                position.includes("top")
+                  ? minSize.heightFromTop
+                  : minSize.heightFromBottom
+              }
+              onResizeStart={measureContent}
+            />
+          ))
+        : null}
 
       {/* Au-dessus du bord haut et non dedans, comme dans Figma : la barre ne
           mange pas la surface utile, et le contenu de la frame ne passe jamais
@@ -176,10 +366,11 @@ function FrameNode(xyNode: XyNodeProps) {
           singleLine
           placeholder="Untitled frame"
           className={cn(
-            "nodrag max-w-[40ch] truncate rounded px-1 text-xs font-medium",
+            "nodrag max-w-[40ch] truncate rounded px-1 leading-tight",
+            TITLE_LEVEL_CLASSNAMES[level],
             nodeColor.textColor,
           )}
-          inputClassName="text-xs font-medium"
+          inputClassName={TITLE_LEVEL_CLASSNAMES[level]}
         />
       </div>
 

@@ -85,8 +85,7 @@ export default function AddBlockMenuContent({
       )
     : templates;
 
-  const showTemplates =
-    isAuthenticated && SHOW_DEV_ONLY_SETTINGS;
+  const showTemplates = isAuthenticated && SHOW_DEV_ONLY_SETTINGS;
 
   // Liste unifiée pour la navigation clavier : nodes prébuilt, templates,
   // puis l'entrée « Manage templates » quand elle est affichée.
@@ -241,8 +240,7 @@ export default function AddBlockMenuContent({
   function handleActivateItem(item: AddMenuItem | undefined) {
     if (!item) return;
     if (item.kind === "node") void handleCreateNode(item.config);
-    else if (item.kind === "template")
-      void handleCreateTemplate(item.template);
+    else if (item.kind === "template") void handleCreateTemplate(item.template);
     else handleManageTemplates();
   }
 
@@ -349,7 +347,7 @@ export default function AddBlockMenuContent({
                   }}
                   className={cn(
                     "flex cursor-pointer items-start gap-3 rounded-xl px-2.5 py-2.5",
-                    "focus:bg-accent data-[highlighted]:bg-accent",
+                    "focus:bg-accent data-highlighted:bg-accent",
                     safeActiveIndex === i && "bg-accent",
                   )}
                 >
@@ -398,8 +396,7 @@ export default function AddBlockMenuContent({
                       void handleCreateTemplate(template);
                     }}
                     onMouseMove={() => {
-                      if (activeIndex !== itemIndex)
-                        setActiveIndex(itemIndex);
+                      if (activeIndex !== itemIndex) setActiveIndex(itemIndex);
                     }}
                     className={cn(
                       "flex cursor-pointer items-start gap-3 rounded-xl px-2.5 py-2.5 focus:bg-accent data-[highlighted]:bg-accent",
@@ -438,7 +435,7 @@ export default function AddBlockMenuContent({
               if (activeIndex !== manageIndex) setActiveIndex(manageIndex);
             }}
             className={cn(
-              "mt-1 flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-sm text-muted-foreground focus:bg-accent data-[highlighted]:bg-accent",
+              "mt-1 flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-sm text-muted-foreground focus:bg-accent data-highlighted:bg-accent",
               safeActiveIndex === manageIndex && "bg-accent",
             )}
           >

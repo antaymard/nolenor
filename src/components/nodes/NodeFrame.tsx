@@ -71,21 +71,26 @@ function NodeFrame({
       />
       <div
         className={cn(
-          "relative rounded-[5px] text-card-foreground",
+          "relative rounded-xl text-card-foreground",
+          // PAS de `overflow-hidden` ici : il rognerait l'outline pointillé
+          // violet du node attaché à Nolë (`after:` en `-inset-1`, donc hors
+          // boîte). Le clip du contenu vit sur le conteneur interne, qui a
+          // lui le rayon de la face interne de la bordure (14px - 1px).
           // `transition-[…]` explicite, et pas un `duration-150` nu : la valeur
           // initiale CSS de `transition-property` étant `all`, la durée seule
           // rendait *toute* propriété animable sur chaque node — donc 150 ms de
           // repaint au moindre changement de style, ring de survol compris.
           "group h-full flex flex-col border animate-node-appear",
-          "transition-[box-shadow,border-color] duration-150",
+          "transition-[box-shadow,border-color,transform] duration-200 ease-out",
           nodeColor.nodeBg,
           nodeColor.nodeBorder,
+          "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
           isAttachedToNole &&
-            "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[8px] after:border-2 after:border-dashed after:border-violet-500/90",
+            "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
           !canDrag && "nodrag",
           xyNode.selected
-            ? "ring-2 ring-blue-500/70"
-            : "hover:ring-1 hover:ring-blue-400/60",
+            ? "ring-2 ring-blue-500/70 shadow-[0_3px_12px_rgba(15,23,42,0.12)]"
+            : "hover:ring-1 hover:ring-blue-400/60 hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
         )}
         onDoubleClick={handleDoubleClick}
       >
@@ -98,7 +103,13 @@ function NodeFrame({
             que `BlocknoteNode`, qui l'applique déjà à son propre contenu. */}
         <div
           className={cn(
-            "h-full rounded-[4px] relative [content-visibility:auto]",
+            // `overflow-hidden` + rayon de la face interne de la bordure
+            // (rounded-xl = 14px, moins 1px de border) : c'est lui qui garantit
+            // que le contenu (image, table, BlockNote, embed) est rogné aux
+            // coins du frame. Sans ça, un enfant à coins carrés dépassait.
+            // La dernière fois on l'a mis sur le frame et ça avait rogné
+            // l'outline du node attaché — d'où ce placement.
+            "h-full relative overflow-hidden rounded-[13px] [content-visibility:auto]",
             xyNode.data.color === "transparent"
               ? "bg-transparent"
               : "bg-white/80",

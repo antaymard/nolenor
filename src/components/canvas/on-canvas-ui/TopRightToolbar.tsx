@@ -12,13 +12,18 @@ function TopRightToolbar() {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="canvas-ui-container animate-appear-down">
-      <div className="px-2">
+    <div className="canvas-ui-container animate-appear-down px-1!">
+      <div className="flex h-8 items-center px-2">
         <CanvasStatus />
       </div>
       <TrashModal />
       <SharingModal />
-      <Button variant="ghost" size="icon-sm" asChild>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="rounded-lg"
+        asChild
+      >
         <Link
           to="/settings"
           state={{

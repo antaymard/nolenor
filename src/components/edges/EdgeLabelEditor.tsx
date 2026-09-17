@@ -15,6 +15,7 @@ export default function EdgeLabelEditor({
   labelY,
   fontSize,
   color,
+  borderColor,
   onSubmit,
   onCancel,
 }: {
@@ -23,6 +24,7 @@ export default function EdgeLabelEditor({
   labelY: number;
   fontSize: number;
   color: string;
+  borderColor?: string;
   onSubmit: (value: string) => void;
   onCancel: () => void;
 }) {
@@ -66,13 +68,14 @@ export default function EdgeLabelEditor({
         transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
         pointerEvents: "all",
         fontSize: `${fontSize}px`,
+        fontWeight: 400,
+        fontFamily: "var(--font-sans)",
         color,
         background: "#ffffff",
-        border: "1px solid #cbd5e1",
-        borderRadius: 4,
+        border: `1px solid ${borderColor ?? color}`,
+        borderRadius: 10,
         padding: "2px 6px",
         outline: "none",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
         minWidth: 80,
         textAlign: "center",
       }}

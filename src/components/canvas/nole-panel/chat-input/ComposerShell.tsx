@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 /** Rayon du composer. Partagé entre la surface et le halo pour que les deux
  *  arrondis coïncident : le wrapper du beam recadre son contenu. */
-const COMPOSER_RADIUS_PX = 14;
+const COMPOSER_RADIUS_PX = 16;
 
 type ComposerShellProps = {
   children: ReactNode;
@@ -46,10 +46,10 @@ export default function ComposerShell({
       <div
         style={{ borderRadius: COMPOSER_RADIUS_PX }}
         className={cn(
-          "flex flex-col bg-white transition-colors duration-200",
+          "flex flex-col bg-white transition-[box-shadow,border-color] duration-200 ease-out",
           hasDirtyWindows
             ? "border border-red-300"
-            : "border border-slate-300 focus-within:border-slate-400",
+            : "border border-slate-200 focus-within:border-slate-400 focus-within:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
         )}
       >
         {children}

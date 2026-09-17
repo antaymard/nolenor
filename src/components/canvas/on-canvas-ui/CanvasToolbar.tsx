@@ -40,8 +40,8 @@ export default function CanvasToolbar() {
   const { getViewportCenter: getViewportCenterPosition } = useFlowPosition();
 
   return (
-    <div className="flex flex-col-reverse items-center gap-3 animate-appear-up">
-      <div className="canvas-ui-container px-0!">
+    <div className="flex flex-col-reverse items-center gap-2 animate-appear-up">
+      <div className="canvas-ui-container px-1!">
         {/* Les deux façons durables de tenir le canvas, en tête de barre comme
             dans n'importe quel éditeur. `type="single"` sans valeur vide
             possible : on est toujours dans un mode — quand `frame` est actif,
@@ -59,19 +59,19 @@ export default function CanvasToolbar() {
         >
           <ToggleGroupItem
             value="select"
-            className="h-11 w-11 p-0"
+            className="h-10 w-10 rounded-lg p-0"
             aria-label="Select tool"
             title="Select, move and lasso"
           >
-            <TbPointer size={20} />
+            <TbPointer size={19} />
           </ToggleGroupItem>
           <ToggleGroupItem
             value="hand"
-            className="h-11 w-11 p-0"
+            className="h-10 w-10 rounded-lg p-0"
             aria-label="Hand tool"
             title="Hand: drag to pan the canvas"
           >
-            <TbHandStop size={20} />
+            <TbHandStop size={19} />
           </ToggleGroupItem>
         </ToggleGroup>
         <Separator orientation="vertical" className="mx-1 h-6!" />
@@ -82,23 +82,34 @@ export default function CanvasToolbar() {
         <Button
           variant={tool === "frame" ? "default" : "ghost"}
           size="icon"
-          className="h-11 w-11"
+          className="h-10 w-10 rounded-lg"
           onClick={() => setTool(tool === "frame" ? "select" : "frame")}
           aria-pressed={tool === "frame"}
           aria-label="Draw a frame"
           title="Draw a frame to group nodes (F)"
         >
-          <TbFrame size={20} />
+          <TbFrame size={19} />
         </Button>
         <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
           <DropdownMenuTrigger asChild>
-            {/* `h-11 w-11` : même hauteur que le bouton Nolë (`NoleCanvasPanel`)
-                et les blocs du dock, sur la même rangée visuelle. */}
-            <Button variant="ghost" size="icon" className="h-11 w-11">
-              <TbPlus size={20} />
+            {/* `h-10 w-10` : proche des 44px tactiles, aligné sur la rangée
+                Nolë + dock, avec le feedback press du matériau parent. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-lg"
+              aria-label="Add a block"
+              title="Add a block"
+            >
+              <TbPlus size={19} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="center" sideOffset={10}>
+          <DropdownMenuContent
+            side="top"
+            align="center"
+            sideOffset={12}
+            className="rounded-xl shadow-xl"
+          >
             <AddBlockMenuContent
               getCreatePosition={getViewportCenterPosition}
               onCreated={() => setIsAddMenuOpen(false)}
@@ -111,33 +122,33 @@ export default function CanvasToolbar() {
         <Button
           variant={isSearchModalOpen ? "default" : "ghost"}
           size="default"
-          className="h-11"
+          className="h-10 rounded-lg px-3"
           onClick={() => toggleSearchModal()}
         >
-          <TbSearch size={20} />
+          <TbSearch size={19} />
           <Kbd>Ctrl + K</Kbd>
         </Button>
         <Button
           variant={isCommandCenterOpen ? "default" : "ghost"}
           size="default"
-          className="h-11"
+          className="h-10 rounded-lg px-3"
           onClick={() => toggleCommandCenter()}
           aria-label="Open the command center"
           title="Command center: go to a canvas or a marker"
         >
-          <TbCommand size={20} />
+          <TbCommand size={19} />
           <Kbd>Ctrl + P</Kbd>
         </Button>
         <Button
           variant={isMarkersPanelOpen ? "default" : "ghost"}
           size="icon"
-          className="h-11 w-11"
+          className="h-10 w-10 rounded-lg"
           onClick={() => setIsMarkersPanelOpen((open) => !open)}
           aria-label="Show the navigation markers"
           aria-expanded={isMarkersPanelOpen}
           title="Navigation markers"
         >
-          <TbDirections size={20} />
+          <TbDirections size={19} />
         </Button>
       </div>
       {/* Rendu APRÈS le `canvas-ui-container` : le wrapper est en

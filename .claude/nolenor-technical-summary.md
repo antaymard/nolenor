@@ -142,7 +142,7 @@ Chaque nœud vit sur le canvas React Flow avec drag & drop, redimensionnement, c
 
 2. **Image** — upload et affichage. Stockage vers Cloudflare R2. Min 100x100px.
 
-3. **Link** — URL avec extraction automatique de métadonnées (titre, description, image de preview) via LinkPreview API. Taille fixe 220x40px. Deux variantes : default et preview.
+3. **Link** — URL avec extraction automatique de métadonnées (titre, description, image de preview) via LinkPreview API. À l'indexation, une seconde passe interroge Parallel (`beta.extract` avec un objectif de résumé) pour récupérer un résumé de la page : le chunk de recherche porte alors titre, URL, domaine, description OG et résumé, et son embedding avec. Le résumé est mis en cache dans `metadata.sourceUrl`/`metadata.summary` du chunk, donc une réécriture du node ne repaye pas l'appel tant que l'URL ne change pas. Taille fixe 220x40px. Deux variantes : default et preview.
 
 4. **PDF** — upload et visualisation de PDF. Stockage vers Cloudflare R2 avec URLs présignées. Taille fixe 220x40px.
 

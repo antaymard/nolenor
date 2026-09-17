@@ -5,6 +5,7 @@ import { internalAction, type ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { generateText } from "ai";
 import { openrouter } from "@openrouter/ai-sdk-provider";
+import Parallel from "parallel-web";
 import { uploadBuffer } from "../lib/r2";
 import { blocksToMarkdown } from "../ia/helpers/blockNoteMarkdown";
 import { parseStoredBlockNoteDocument } from "../lib/blockNoteDocument";
@@ -18,7 +19,7 @@ import {
   buildEmbeddingText,
   embedDocuments,
 } from "../lib/voyage";
-import type { Doc } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ async function rebuildChunksForNodeData(
       })
     : null;
 
-  const rawChunks = await buildChunks(nodeData, updatedKeys, template);
+  const rawChunks = await buildChunks(ctx, nodeData, updatedKeys, template);
   const chunks = rawChunks.map((chunk) => ({
     ...chunk,
     title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
@@ -183,6 +184,11 @@ export const rebuildChunksBatch = internalAction({
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 
 async function buildChunks(
+  // `ctx` n'est utilisé que par la branche `link`, qui relit les chunks
+  // existants du node pour réutiliser un résumé déjà payé. Le passer ici
+  // plutôt que de lire les chunks dans `rebuildChunksForNodeData` évite
+  // d'imposer cette lecture à TOUS les types — un PDF en porte des centaines.
+  ctx: ActionCtx,
   nodeData: Doc<"nodeDatas">,
   updatedKeys?: string[],
   template?: Doc<"nodeTemplates"> | null,
@@ -222,15 +228,7 @@ async function buildChunks(
     }
 
     case "link": {
-      const link = nodeData.values.link as
-        | { href?: string; pageTitle?: string }
-        | undefined;
-      if (!link?.href) return [];
-      const domain = safeDomain(link.href);
-      const parts = [link.href, domain].filter(Boolean);
-      return [
-        { ...base, chunkType: "node", order: 0, text: parts.join(" | ") },
-      ];
+      return await buildLinkChunks(ctx, base, nodeData);
     }
 
     case "value": {
@@ -625,6 +623,262 @@ function buildImageSearchText(image: StructuredImageMetadata): string {
     `KEY_FACTS: ${image.keyFacts}`,
     `SEARCH_TERMS: ${searchTerms}`,
   ].join("\n");
+}
+
+// ── Link branch ───────────────────────────────────────────────────────────────
+
+// La question posée à Parallel sur la page. En anglais comme les autres
+// call-sites Parallel (`websearchTool`, `openWebPageTool`) : c'est la langue
+// que l'API attend, et elle n'impose pas celle de la réponse, qui suit la page.
+const LINK_INDEXING_OBJECTIVE =
+  "Summarize this page so that it can be found later by keyword and by semantic search. " +
+  "State what the page is about, who published it, and its main claims, conclusions and key " +
+  "facts, figures and dates. Name the entities it covers: people, organisations, products, " +
+  "technologies, places. Prefer concrete, specific terms over generic ones. Do not speculate " +
+  "about content that is not on the page.";
+
+// Plafond du résumé. La contrainte n'est ni la limite Convex de 1 Mo par
+// document (très loin) ni le batching Voyage (200 000 caractères par requête,
+// que `splitBatch` découpe de toute façon), mais la qualité du vecteur :
+// `callVoyage` envoie `truncation: true`, donc au-delà du contexte du modèle la
+// fin du texte est silencieusement absente de l'embedding. 8 000 caractères
+// ≈ 2 000 tokens : tout le chunk est réellement vectorisé.
+const LINK_SUMMARY_MAX_CHARS = 8_000;
+
+// Indexer n'a pas besoin d'un fetch live : le cache Parallel fait l'affaire, et
+// il amortit le second rebuild du collage (cf. `useCanvasContentIngest`, qui
+// crée le node avec l'URL pour titre puis le patche une fois LinkPreview
+// résolu). Minimum imposé par l'API : 600.
+const LINK_EXTRACT_MAX_AGE_SECONDS = 86_400;
+
+type LinkValues = {
+  href?: unknown;
+  pageTitle?: unknown;
+  pageDescription?: unknown;
+  pageImage?: unknown;
+};
+
+/** Ce que l'extraction rapporte, et ce qu'on restocke pour le réutiliser. */
+type LinkPageSummary = {
+  summary: string;
+  pageTitle?: string;
+  publishDate?: string;
+  fetchedAt: number;
+};
+
+function readString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Parallel n'extrait que du web public : une `data:` ou une `blob:` n'a
+ * rien à donner.
+ */
+function isFetchableWebUrl(href: string): boolean {
+  try {
+    const { protocol } = new URL(href);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Lecture défensive de la réponse d'extraction : l'API est en beta et sa forme
+ * n'est garantie par rien à l'exécution — un cast menteur planterait loin de sa
+ * cause. Même parti pris que `ia/agents.ts` pour les réponses OpenRouter.
+ */
+function readExtractedPage(response: unknown): {
+  content: string;
+  title?: string;
+  publishDate?: string;
+} | null {
+  if (typeof response !== "object" || response === null) return null;
+  const results = (response as { results?: unknown }).results;
+  if (!Array.isArray(results) || results.length === 0) return null;
+
+  const first = results[0];
+  if (typeof first !== "object" || first === null) return null;
+  const record = first as Record<string, unknown>;
+
+  // `excerpts` est le format ciblé par l'objectif — c'est le résumé.
+  // `full_content` n'est qu'un repli si rien de pertinent n'a été extrait.
+  const excerpts = Array.isArray(record.excerpts)
+    ? record.excerpts
+        .map((excerpt) => readString(excerpt))
+        .filter((excerpt): excerpt is string => excerpt !== undefined)
+    : [];
+  const content =
+    excerpts.length > 0
+      ? excerpts.join("\n\n")
+      : readString(record.full_content);
+  if (!content) return null;
+
+  return {
+    content,
+    title: readString(record.title),
+    publishDate: readString(record.publish_date),
+  };
+}
+
+/**
+ * Un résumé déjà payé pour CETTE url, relu depuis les chunks du node.
+ *
+ * `upsertChunks` fait un delete-then-insert : sans cette relecture, chaque
+ * reconstruction repartirait de zéro et rappellerait Parallel. Or un node est
+ * réécrit plus souvent qu'il n'y paraît — le collage d'une URL écrit deux fois,
+ * et chaque restauration de version repasse par là.
+ */
+async function findCachedLinkSummary(
+  ctx: ActionCtx,
+  nodeDataId: Id<"nodeDatas">,
+  href: string,
+): Promise<LinkPageSummary | null> {
+  const existing = await ctx.runQuery(
+    internal.wrappers.searchableChunkWrappers.listByNodeDataId,
+    { nodeDataId },
+  );
+
+  for (const chunk of existing) {
+    const metadata = chunk.metadata;
+    if (!metadata || metadata.sourceUrl !== href) continue;
+    const summary = readString(metadata.summary);
+    if (!summary) continue;
+    return {
+      summary,
+      pageTitle: readString(metadata.pageTitle),
+      publishDate: readString(metadata.publishDate),
+      fetchedAt:
+        typeof metadata.fetchedAt === "number"
+          ? metadata.fetchedAt
+          : Date.now(),
+    };
+  }
+
+  return null;
+}
+
+async function fetchLinkSummary(href: string): Promise<LinkPageSummary | null> {
+  const apiKey = process.env.PARALLEL_API_KEY;
+  if (!apiKey) {
+    console.warn("[chunkBuilder] buildLinkChunks:no-parallel-key", { href });
+    return null;
+  }
+
+  // Client instancié ici et non au niveau module : son constructeur LÈVE quand
+  // la clé manque, et ce throw à l'import casserait la construction des chunks
+  // de TOUS les types de node, pas seulement des liens.
+  const client = new Parallel({ apiKey });
+
+  try {
+    const response = await client.beta.extract({
+      urls: [href],
+      // Avec un objectif, `excerpts` renvoie du markdown ciblé sur la question.
+      // Sans objectif il ferait doublon avec le contenu complet — que l'on ne
+      // demande donc pas.
+      objective: LINK_INDEXING_OBJECTIVE,
+      excerpts: { max_chars_per_result: LINK_SUMMARY_MAX_CHARS },
+      full_content: false,
+      fetch_policy: { max_age_seconds: LINK_EXTRACT_MAX_AGE_SECONDS },
+    });
+
+    const page = readExtractedPage(response);
+    if (!page) {
+      console.warn("[chunkBuilder] buildLinkChunks:extract-empty", { href });
+      return null;
+    }
+
+    // Assainir APRÈS la troncature, et pas seulement sur `text` : `.slice()`
+    // compte des unités UTF-16, donc couper au plafond peut trancher une paire
+    // de surrogates en deux. Convex refuse une chaîne Unicode invalide, et
+    // `rebuildChunksForNodeData` ne nettoie que `title` et `text` — le résumé
+    // repart aussi dans `metadata`, que personne ne nettoie derrière nous.
+    return {
+      summary: stripLoneSurrogates(
+        page.content.slice(0, LINK_SUMMARY_MAX_CHARS),
+      ),
+      pageTitle: page.title ? stripLoneSurrogates(page.title) : undefined,
+      publishDate: page.publishDate,
+      fetchedAt: Date.now(),
+    };
+  } catch (error) {
+    // Dégrader, jamais lever : un lien doit rester trouvable en keyword même
+    // quand Parallel est indisponible. Choix inverse de la branche PDF, qui
+    // lève sur une clé Mistral manquante — les liens sont bien plus nombreux,
+    // et casser leur indexation coûterait plus cher qu'un chunk pauvre.
+    console.warn("[chunkBuilder] buildLinkChunks:extract-failed", {
+      href,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+async function buildLinkChunks(
+  ctx: ActionCtx,
+  base: Omit<ChunkInput, "chunkType" | "order" | "text" | "metadata">,
+  nodeData: Doc<"nodeDatas">,
+): Promise<ChunkInput[]> {
+  const link = nodeData.values.link as LinkValues | undefined;
+  const href = readString(link?.href);
+  if (!href) return [];
+
+  const domain = safeDomain(href);
+  // Déjà rapportées par LinkPreview à la création du node, et jusqu'ici
+  // indexées nulle part : gratuites à ajouter.
+  const pageDescription = readString(link?.pageDescription);
+  const pageImage = readString(link?.pageImage);
+
+  const page = isFetchableWebUrl(href)
+    ? ((await findCachedLinkSummary(ctx, nodeData._id, href)) ??
+      (await fetchLinkSummary(href)))
+    : null;
+
+  console.log("[chunkBuilder] buildLinkChunks:done", {
+    nodeDataId: nodeData._id,
+    href,
+    summarized: page !== null,
+    summaryChars: page?.summary.length ?? 0,
+  });
+
+  // Le titre stocké vaut l'URL tant que les métadonnées ne sont pas résolues
+  // (collage), et pour tout lien créé par l'agent : celui de Parallel prend
+  // alors le relais. `base.title` n'est PAS touché — il reste le titre du node,
+  // celui qu'affichent le canvas et les résultats de recherche.
+  const storedTitle = readString(link?.pageTitle);
+  const pageTitle =
+    storedTitle && storedTitle !== href
+      ? storedTitle
+      : (page?.pageTitle ?? storedTitle ?? href);
+
+  const lines = [`TITLE: ${pageTitle}`, `URL: ${href}`];
+  if (domain) lines.push(`SITE: ${domain}`);
+  if (page?.publishDate) lines.push(`PUBLISHED: ${page.publishDate}`);
+  if (pageDescription) lines.push(`DESCRIPTION: ${pageDescription}`);
+  if (page) lines.push("SUMMARY:", page.summary);
+
+  const metadata: Record<string, unknown> = {};
+  if (page) {
+    // `sourceUrl` est la clé de réutilisation : tant que l'URL ne bouge pas,
+    // les reconstructions suivantes repartent de ce résumé sans rappeler
+    // Parallel. Changer l'URL invalide le cache, ce qui est le but.
+    metadata.sourceUrl = href;
+    metadata.summary = page.summary;
+    metadata.fetchedAt = page.fetchedAt;
+    if (page.pageTitle) metadata.pageTitle = page.pageTitle;
+    if (page.publishDate) metadata.publishDate = page.publishDate;
+  } else {
+    metadata.indexingFallback = true;
+  }
+  // Lu par `getImageUrlFromMetadata` : l'aperçu du lien s'affiche dans les
+  // résultats de recherche, comme le font déjà images et annotations PDF.
+  if (pageImage) metadata.imageUrl = pageImage;
+
+  return [
+    { ...base, chunkType: "node", order: 0, text: lines.join("\n"), metadata },
+  ];
 }
 
 // ── PDF branch ────────────────────────────────────────────────────────────────

@@ -287,7 +287,7 @@ Set with `npx convex env set NAME value`, or through the Convex dashboard.
 | `AUTH_GOOGLE_SECRET` | — | idem | idem |
 | `MISTRAL_API_KEY` | — | Voice dictation (Voxtral) and PDF OCR feeding the search index. Without it, both fail loudly when used. | [mistral.ai](https://mistral.ai) |
 | `VOYAGE_API_KEY` | — | Chunk embeddings (`voyage-4`) and semantic/hybrid search (`voyage-4-lite` for queries). Without it, chunks index keyword-only and semantic modes gracefully fall back to keyword. Backfill existing chunks with `npx convex run migrations:backfillEmbeddings '{}'`. | [voyage.ai](https://voyage.ai) |
-| `PARALLEL_API_KEY` | — | Nolë's web search and page-reading tools | [parallel.ai](https://parallel.ai) |
+| `PARALLEL_API_KEY` | — | Nolë's web search and page-reading tools, and the page summary indexed for every link node | [parallel.ai](https://parallel.ai) |
 | `LINK_PREVIEW_APIKEY` | — | Title, description and image of link nodes | [linkpreview.net](https://www.linkpreview.net) |
 | `VOICE_SERVER_URL` | — | Realtime voice. The voice server itself is a separate service, not in this repo. Unset means the feature is simply hidden. | your own deployment |
 | `VOICE_SERVER_TOKEN` | — | Shared token for that server. Its origin allowlist is the real security boundary — see the comment in `convex/voice.ts`. | idem |

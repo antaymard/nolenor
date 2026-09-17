@@ -38,9 +38,9 @@ const EMPTY_PAYLOAD: SearchPayload = { results: [], relaxed: false, terms: [] };
 function loadSearchMode(): SearchMode {
   try {
     const stored = localStorage.getItem(SEARCH_MODE_STORAGE_KEY);
-    return stored === "keyword" || stored === "semantic" ? stored : "auto";
+    return stored === "auto" || stored === "semantic" ? stored : "keyword";
   } catch {
-    return "auto";
+    return "keyword";
   }
 }
 

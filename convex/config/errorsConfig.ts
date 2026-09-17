@@ -25,6 +25,9 @@ const errors = {
   NODE_PARENT_MUST_BE_A_FRAME:
     "A node can only belong to a frame of the same canvas.",
   FRAME_CANNOT_BE_NESTED: "A frame cannot be placed inside another frame.",
+  NODE_ALREADY_IN_A_FRAME: "This node already belongs to a frame.",
+  FRAME_NEEDS_TWO_NODES:
+    "A frame groups at least two nodes: one node on its own is a border, not a group.",
   INSUFFICIENT_PERMISSIONS:
     "You do not have the required permission for this action.",
   THREAD_NOT_FOUND_OR_FORBIDDEN: "Thread not found or access denied.",

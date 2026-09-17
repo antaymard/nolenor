@@ -60,6 +60,7 @@ import type * as ia_systemPrompts_workerSystemPrompt from "../ia/systemPrompts/w
 import type * as ia_tools_blockNoteTools from "../ia/tools/blockNoteTools.js";
 import type * as ia_tools_createConnectionTool from "../ia/tools/createConnectionTool.js";
 import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
+import type * as ia_tools_groupNodesTool from "../ia/tools/groupNodesTool.js";
 import type * as ia_tools_index from "../ia/tools/index.js";
 import type * as ia_tools_listNodesTool from "../ia/tools/listNodesTool.js";
 import type * as ia_tools_listUserCanvasesTool from "../ia/tools/listUserCanvasesTool.js";
@@ -93,6 +94,7 @@ import type * as lib_jsonSchemaMinimap from "../lib/jsonSchemaMinimap.js";
 import type * as lib_llmId from "../lib/llmId.js";
 import type * as lib_memoryLimits from "../lib/memoryLimits.js";
 import type * as lib_nodeGeometry from "../lib/nodeGeometry.js";
+import type * as lib_nodeLayering from "../lib/nodeLayering.js";
 import type * as lib_parseModelPrice from "../lib/parseModelPrice.js";
 import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js";
 import type * as lib_r2 from "../lib/r2.js";
@@ -250,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/blockNoteTools": typeof ia_tools_blockNoteTools;
   "ia/tools/createConnectionTool": typeof ia_tools_createConnectionTool;
   "ia/tools/createNodeTool": typeof ia_tools_createNodeTool;
+  "ia/tools/groupNodesTool": typeof ia_tools_groupNodesTool;
   "ia/tools/index": typeof ia_tools_index;
   "ia/tools/listNodesTool": typeof ia_tools_listNodesTool;
   "ia/tools/listUserCanvasesTool": typeof ia_tools_listUserCanvasesTool;
@@ -283,6 +286,7 @@ declare const fullApi: ApiFromModules<{
   "lib/llmId": typeof lib_llmId;
   "lib/memoryLimits": typeof lib_memoryLimits;
   "lib/nodeGeometry": typeof lib_nodeGeometry;
+  "lib/nodeLayering": typeof lib_nodeLayering;
   "lib/parseModelPrice": typeof lib_parseModelPrice;
   "lib/parseSkillFrontmatter": typeof lib_parseSkillFrontmatter;
   "lib/r2": typeof lib_r2;

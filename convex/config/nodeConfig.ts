@@ -141,6 +141,18 @@ const DEFAULT_FRAME_TITLE_LEVEL = "h2" as const;
 /** Les tailles proposées pour le titre d'une frame, de la plus grande à la plus petite. */
 const FRAME_TITLE_LEVELS = ["h1", "h2", "h3"] as const;
 
+/**
+ * La marge entre le contenu d'une frame et son bord.
+ *
+ * Une seule valeur pour trois usages qui doivent s'accorder au pixel : la borne
+ * de rétrécissement au redimensionnement (côté client), la boîte que
+ * `group_nodes` trace autour des nodes qu'il groupe, et la zone dans laquelle
+ * `create_node({ frameId })` a le droit de poser. Si le client exigeait plus que
+ * ce que le serveur laisse, l'utilisateur hériterait d'une frame dont le
+ * plancher dépasse la taille — plus redimensionnable du tout.
+ */
+const FRAME_CONTENT_PADDING = 24;
+
 const nodeDataConfig: Array<NodeDataConfigItem> = [
   {
     type: "title",
@@ -1054,6 +1066,7 @@ export {
   nodeTypeZodValidator,
   DEFAULT_FRAME_TITLE_LEVEL,
   FRAME_TITLE_LEVELS,
+  FRAME_CONTENT_PADDING,
   getDefaultNodeDataValues,
   getNodeCapabilities,
   isNodeTypeReadableByAgent,

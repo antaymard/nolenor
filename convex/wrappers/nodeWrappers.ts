@@ -34,6 +34,28 @@ export const createWithNodeData = internalMutation({
   },
 });
 
+export const createFrameAround = internalMutation({
+  args: {
+    canvasId: v.id("canvases"),
+    nodeIds: v.array(v.string()),
+    values: v.record(v.string(), v.any()),
+    color: v.optional(v.string()),
+    actor: v.optional(nodeDataVersionActorValidator),
+  },
+  returns: v.object({
+    frameId: v.string(),
+    nodeDataId: v.id("nodeDatas"),
+    memberIds: v.array(v.string()),
+    position: v.object({ x: v.number(), y: v.number() }),
+    width: v.number(),
+    height: v.number(),
+    enclosedNonMembers: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    return NodeModels.createFrameAroundNodes(ctx, args);
+  },
+});
+
 export const patch = internalMutation({
   args: {
     updates: v.array(nodePatchUpdateValidator),

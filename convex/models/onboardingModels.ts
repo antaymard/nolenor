@@ -139,8 +139,13 @@ async function cloneCanvasForUser(
       parentId: oldParentId,
       ...nodeFields
     } = NodeModels.toCanvasNode(node);
+    // Une frame ne peut pas avoir de parent, et `createNode` le vérifie
+    // désormais : un gabarit dont une frame porterait un `parentId` — état que
+    // seule une insertion d'avant cette garde a pu produire — ferait échouer
+    // tout le clonage. On le normalise au passage plutôt que de refuser le
+    // canvas.
     const parentId =
-      oldParentId !== undefined
+      oldParentId !== undefined && node.type !== "frame"
         ? oldToNewNodeIds.get(oldParentId)
         : undefined;
 

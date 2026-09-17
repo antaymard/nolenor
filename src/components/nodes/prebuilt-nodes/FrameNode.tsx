@@ -28,18 +28,11 @@ import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_FRAME_TITLE_LEVEL,
+  FRAME_CONTENT_PADDING,
   FRAME_TITLE_LEVELS,
   type FrameTitleLevel,
 } from "@/../convex/config/nodeConfig";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
-
-/**
- * La marge laissée entre le contenu d'une frame et son bord quand on calcule
- * la taille minimale au redimensionnement. Assez pour que le dernier node ne
- * touche pas la bordure, pas assez pour qu'on la sente comme un blocage
- * prématuré.
- */
-const CONTENT_PADDING = 24;
 
 /** Plancher d'une frame vide : en dessous, la barre de titre ne tient plus. */
 const EMPTY_MIN_WIDTH = 160;
@@ -270,21 +263,21 @@ function FrameNode(xyNode: XyNodeProps) {
     );
     setMinSize({
       widthFromRight: boundedBy(
-        Math.max(EMPTY_MIN_WIDTH, right + CONTENT_PADDING),
+        Math.max(EMPTY_MIN_WIDTH, right + FRAME_CONTENT_PADDING),
         width,
       ),
       // Le bord droit ne bouge pas : ce qui reste entre lui et le bord gauche
       // du contenu, c'est `width - left`.
       widthFromLeft: boundedBy(
-        Math.max(EMPTY_MIN_WIDTH, width - left + CONTENT_PADDING),
+        Math.max(EMPTY_MIN_WIDTH, width - left + FRAME_CONTENT_PADDING),
         width,
       ),
       heightFromBottom: boundedBy(
-        Math.max(EMPTY_MIN_HEIGHT, bottom + CONTENT_PADDING),
+        Math.max(EMPTY_MIN_HEIGHT, bottom + FRAME_CONTENT_PADDING),
         height,
       ),
       heightFromTop: boundedBy(
-        Math.max(EMPTY_MIN_HEIGHT, height - top + CONTENT_PADDING),
+        Math.max(EMPTY_MIN_HEIGHT, height - top + FRAME_CONTENT_PADDING),
         height,
       ),
     });

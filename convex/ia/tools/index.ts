@@ -5,6 +5,7 @@ import createConnectionTool, {
   createConnectionToolConfig,
 } from "./createConnectionTool";
 import createNodeTool, { createNodeToolConfig } from "./createNodeTool";
+import groupNodesTool, { groupNodesToolConfig } from "./groupNodesTool";
 import patchAppNodeCodeTool, {
   patchAppNodeCodeToolConfig,
 } from "./patchAppNodeCodeTool";
@@ -184,6 +185,10 @@ const toolRegistry: ToolRegistration[] = [
   {
     config: createNodeToolConfig,
     factory: ({ threadCtx }) => createNodeTool({ threadCtx }),
+  },
+  {
+    config: groupNodesToolConfig,
+    factory: ({ threadCtx }) => groupNodesTool({ threadCtx }),
   },
   {
     config: createConnectionToolConfig,

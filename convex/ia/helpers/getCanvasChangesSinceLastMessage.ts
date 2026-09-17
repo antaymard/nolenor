@@ -38,6 +38,11 @@ export const getCanvasChangesSinceLastMessage = internalQuery({
           id: node.id,
           type: node.type,
           title: getNodeDataTitle(nodeData),
+          // La frame qui contient ce node, comme les autres surfaces de
+          // lecture la rendent. Dit OÙ vit un changement, pas qu'un node a
+          // rejoint une frame : ce filtre porte sur `nodeDatas.updatedAt`, et
+          // entrer dans une frame patche le doc `nodes`, qui n'a pas d'horloge.
+          frameId: node.parentId ?? null,
           embedUrl:
             typeof embed?.url === "string" && embed.url.length > 0
               ? embed.url
@@ -58,8 +63,8 @@ export const getCanvasChangesSinceLastMessage = internalQuery({
       node
         ? [
             node.type === "embed"
-              ? `<node id="${node.id}" type="embed" title="${node.title}"${node.embedUrl ? ` url="${node.embedUrl}"` : ""}${node.embedIframeUrl ? ` embedUrl="${node.embedIframeUrl}"` : ""}${node.embedType ? ` embedType="${node.embedType}"` : ""} />`
-              : `<node id="${node.id}" type="${node.type}" title="${node.title}"/>`,
+              ? `<node id="${node.id}" type="embed" title="${node.title}"${node.frameId ? ` frameId="${node.frameId}"` : ""}${node.embedUrl ? ` url="${node.embedUrl}"` : ""}${node.embedIframeUrl ? ` embedUrl="${node.embedIframeUrl}"` : ""}${node.embedType ? ` embedType="${node.embedType}"` : ""} />`
+              : `<node id="${node.id}" type="${node.type}" title="${node.title}"${node.frameId ? ` frameId="${node.frameId}"` : ""}/>`,
           ]
         : [],
     );

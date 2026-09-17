@@ -447,9 +447,11 @@ export async function makeNodeDataLLMFriendly(
     }
 
     case "frame": {
-      // Le corps d'une frame, c'est ce qu'elle groupe — et ça se lit avec
-      // `list_nodes(frameId)`, pas ici. Sans ce `case`, le `default` lâcherait
-      // le JSON de `values` dans le rendu.
+      // Le corps d'une frame, c'est ce qu'elle groupe — et ça ne se lit pas
+      // dans son `nodeData`, qui ne porte que son titre. `read_nodes` rend la
+      // liste de ses enfants lui-même (`buildFrameNodeBody`), là où il a la
+      // liste du canvas sous la main ; ce `case` reste le filet, sans lequel
+      // le `default` lâcherait le JSON de `values` dans le rendu.
       const title = String(values.title ?? "").trim();
       return title ? `Frame: ${title}` : "Frame (untitled)";
     }

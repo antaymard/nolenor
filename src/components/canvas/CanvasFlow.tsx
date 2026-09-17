@@ -32,7 +32,7 @@ import FrameDrawOverlay from "./FrameDrawOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
 import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
-import { isEditableTarget } from "@/lib/editableTarget";
+import { isEditableTarget, hasTextSelection } from "@/lib/editableTarget";
 import { withTouchDragGate } from "./touchDragGate";
 import { markCanvasMoved } from "@/lib/canvasPanGesture";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "@/lib/canvasViewportFraming";
@@ -192,12 +192,23 @@ export default function CanvasFlow({
         return;
       }
 
+      // Texte sélectionné (historique Nolë, message…) : on laisse le natif
+      // (marque-page navigateur) plutôt que de dupliquer des nodes derrière.
+      if (hasTextSelection()) {
+        return;
+      }
+
       const selectedNodes = getNodes().filter((node) => node.selected);
       if (selectedNodes.length === 0) {
         return;
       }
 
+      // Manuel : la lib applique `preventDefault`/`stopPropagation` AVANT le
+      // callback dès que la cible n'est pas un input — le natif serait déjà
+      // mort quand on arrive ici. On ne bloque que le cas qu'on traite
+      // vraiment (cf. Mod+C).
       event.preventDefault();
+      event.stopPropagation();
       void duplicateNodes(selectedNodes);
     },
     // `ignoreInputs` est obligatoire sur un combo Mod : la lib le met à `false`
@@ -205,7 +216,15 @@ export default function CanvasFlow({
     // `preventDefault`/`stopPropagation` AVANT d'appeler le callback. Le test
     // `isEditableTarget` ci-dessus arrive donc trop tard — sans cette option,
     // le raccourci natif est déjà cassé dans un champ de saisie.
-    { enabled: canDuplicateNodes && focus === "canvas", ignoreInputs: true },
+    // `preventDefault: false` + `stopPropagation: false` pour la même raison
+    // côté texte statique : `ignoreInputs` ne couvre que les inputs, pas une
+    // sélection dans l'historique Nolë — le natif doit survivre jusqu'ici.
+    {
+      enabled: canDuplicateNodes && focus === "canvas",
+      ignoreInputs: true,
+      preventDefault: false,
+      stopPropagation: false,
+    },
   );
 
   // Copier la sélection dans le presse-papiers interne ; le coller (Ctrl+V)
@@ -223,12 +242,26 @@ export default function CanvasFlow({
         return;
       }
 
+      // Le store de focus ne quitte jamais `canvas` quand on sélectionne du
+      // texte statique (historique Nolë, message…) : sans cette garde, un
+      // Ctrl+C sur ce texte copiait les nodes sélectionnés derrière ET vidait
+      // le clipboard système (`writeText("")`) — la copie native arrivait
+      // vide au coller. Le texte sélectionné gagne toujours sur les nodes.
+      if (hasTextSelection()) {
+        return;
+      }
+
       const allNodes = getNodes();
       const selectedNodes = allNodes.filter((node) => node.selected);
       // `allNodes` sert à résoudre la position monde d'un node copié depuis
       // une frame, même si la frame n'est pas dans la sélection.
       if (copyNodesToClipboard(selectedNodes, allNodes)) {
+        // Manuel, uniquement sur le chemin réellement traité : avec le défaut
+        // de la lib (`preventDefault: true`), la copie native d'un texte
+        // statique était annulée AVANT ce callback — `ignoreInputs` ne couvre
+        // que les inputs, pas l'historique Nolë.
         event.preventDefault();
+        event.stopPropagation();
         // Le `preventDefault` ne vide pas le clipboard système : sans ça, un
         // texte copié avant continuerait de prendre le pas sur les nodes au
         // prochain Ctrl+V (le handler `paste` privilégie le contenu externe).
@@ -244,8 +277,15 @@ export default function CanvasFlow({
     },
     // Cf. Mod+D : sans `ignoreInputs`, un Ctrl+C dans une cellule de table ou
     // le composer de Nolë — surfaces qui ne touchent pas au store de focus —
-    // voyait sa copie navigateur annulée.
-    { enabled: canDuplicateNodes && focus === "canvas", ignoreInputs: true },
+    // voyait sa copie navigateur annulée. `preventDefault: false` étend la
+    // même protection au texte statique (historique), qu'`ignoreInputs` ne
+    // couvre pas.
+    {
+      enabled: canDuplicateNodes && focus === "canvas",
+      ignoreInputs: true,
+      preventDefault: false,
+      stopPropagation: false,
+    },
   );
 
   // Création d'un node au curseur (T titre, B blocknote, I image, A table,
@@ -265,6 +305,9 @@ export default function CanvasFlow({
   const deleteSelection = useCallback(
     (event: KeyboardEvent) => {
       if (event.repeat || isEditableTarget(event.target)) return;
+      // Même logique que Mod+C : une sélection de texte (historique Nolë…)
+      // ne doit jamais coûter les nodes sélectionnés derrière.
+      if (hasTextSelection()) return;
 
       const nodes = getNodes().filter((node) => node.selected);
       const edges = getEdges().filter((edge) => edge.selected);

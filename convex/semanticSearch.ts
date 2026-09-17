@@ -38,6 +38,15 @@ const MAX_LIMIT = 50;
 const VECTOR_MAX_RESULTS = 256;
 const MAX_SNIPPETS_PER_NODE = 5;
 
+// Seuil cosinus Voyage (`_score` ∈ [-1, 1]) : en-dessous, le candidat est
+// écarté. Sans lui, le vector search renvoie toujours ses top-K voisins,
+// même tous hors-sujet. Calibré le 2026-09-17 sur logs `[semantic-score]` :
+// requête hors-sujet (crêpes) best=0.36, requête pertinente (mémoire
+// épisodique) best=0.45 → seuil à 0.40. À réajuster si la distribution dérive
+// (modèle, langue, corpus). Le fallback `relaxed` garantit qu'un seuil trop
+// haut dégrade en signalé, jamais en vide silencieux.
+const VECTOR_SCORE_THRESHOLD = 0.4;
+
 function clampLimit(limit: number | undefined): number {
   if (typeof limit !== "number" || Number.isNaN(limit)) {
     return DEFAULT_LIMIT;
@@ -63,6 +72,9 @@ function chunkKey(
 type SemanticBranchResult = {
   hits: FusedHit[];
   scanned: number;
+  // Tout a été filtré par le seuil mais des candidats existaient :
+  // best-effort signalé (miroir du `relaxed` keyword).
+  relaxed: boolean;
 };
 
 async function semanticCore(
@@ -112,9 +124,39 @@ async function semanticCore(
           (hit) => !containsExcludedTerm(hit.text, excludedTerms),
         )
       : hydrated;
+  const aboveThreshold = kept.filter(
+    (hit) => hit.score >= VECTOR_SCORE_THRESHOLD,
+  );
+  // TEMP calibration : distribution des scores pour fixer le seuil sur du
+  // réel (requête tronquée, scores best/worst, comptages). À retirer une fois
+  // VECTOR_SCORE_THRESHOLD calibré.
+  console.log(
+    "[semantic-score]",
+    JSON.stringify({
+      q: query.slice(0, 80),
+      scanned: results.length,
+      hydrated: hydrated.length,
+      aboveThreshold: aboveThreshold.length,
+      best: hydrated[0]?.score ?? null,
+      worst: hydrated[hydrated.length - 1]?.score ?? null,
+    }),
+  );
+  // Seuil trop strict mais candidats existants : on rend le best-effort en le
+  // signalant plutôt qu'un vide. Zéro candidat → `no_results` en aval.
+  if (aboveThreshold.length === 0 && kept.length > 0) {
+    return {
+      hits: kept.map((hit) => ({ ...hit, sources: ["semantic" as const] })),
+      scanned: results.length,
+      relaxed: true,
+    };
+  }
   return {
-    hits: kept.map((hit) => ({ ...hit, sources: ["semantic" as const] })),
+    hits: aboveThreshold.map((hit) => ({
+      ...hit,
+      sources: ["semantic" as const],
+    })),
     scanned: results.length,
+    relaxed: false,
   };
 }
 
@@ -169,7 +211,7 @@ export const runSemanticSearch = internalAction({
   // (cf. guidelines sur la circularité TS).
   handler: async (ctx, args): Promise<HybridResult> => {
     const effectiveLimit = clampLimit(args.limit);
-    const { hits, scanned } = await semanticCore(ctx, {
+    const { hits, scanned, relaxed } = await semanticCore(ctx, {
       canvasId: args.canvasId,
       query: args.query,
       nodeIds: args.nodeIds,
@@ -186,7 +228,7 @@ export const runSemanticSearch = internalAction({
       truncated:
         hits.length > effectiveLimit ||
         scanned >= vectorScanLimit(effectiveLimit),
-      relaxed: false,
+      relaxed,
       terms: [],
       degraded: false,
     };
@@ -331,7 +373,9 @@ export const runHybridSearch = internalAction({
       truncated:
         (keywordResult?.truncated ?? false) ||
         (semanticResult ? semanticResult.hits.length > effectiveLimit : false),
-      relaxed: keywordResult?.relaxed ?? false,
+      relaxed:
+        (keywordResult?.relaxed ?? false) ||
+        (semanticResult?.relaxed ?? false),
       terms: keywordResult?.terms ?? [],
       degraded: useSemantic && !semanticResult,
     };

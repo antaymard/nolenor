@@ -111,9 +111,12 @@ export function TextCellEditor({
           ref={textareaRef}
           value={draft}
           rows={1}
-          // `field-sizing: content` ferait doublon avec le calcul de hauteur
-          // ci-dessus, et n'est pas supporté partout.
-          className="[field-sizing:fixed] max-h-[40vh] min-h-9 resize-none border-0 py-2 text-sm shadow-none focus-visible:ring-0"
+          // `field-sizing: content` (classe de base du Textarea shadcn) ferait
+          // doublon avec le calcul de hauteur ci-dessus : on le neutralise
+          // avec l'utilitaire canonique, que tailwind-merge sait dédupliquer
+          // (la forme arbitraire `[field-sizing:fixed]` ne l'était pas et les
+          // deux classes coexistaient).
+          className="field-sizing-fixed max-h-[40vh] min-h-9 resize-none border-0 py-2 text-sm shadow-none focus-visible:ring-0"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Escape") {

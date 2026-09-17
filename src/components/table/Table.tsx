@@ -157,7 +157,6 @@ export function Table({
   onFilterConjunctionChange,
   className,
 }: TableProps) {
-  const tableRootRef = useRef<HTMLDivElement>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
@@ -270,7 +269,19 @@ export function Table({
         setOptionsDialogColumnId(colId);
         return;
       }
-      setEditingCell({ rowId, columnId: colId });
+      // Idempotent, via forme fonctionnelle : le contenu du Popover est portalé
+      // mais reste un descendant React de la cellule, donc chaque clic DANS un
+      // éditeur ouvert remonte jusqu'ici (et le span trigger + la cellule
+      // appellent tous deux ce handler pour un même clic). Sans garde, chaque
+      // clic recréait l'objet, invalidait le memo `columns` ci-dessous et
+      // reconstruisait toute la table TanStack — visible comme un blink, et
+      // fatal à une sélection de texte en cours. Retourner `prev` laisse React
+      // abandonner le rendu.
+      setEditingCell((prev) =>
+        prev && prev.rowId === rowId && prev.columnId === colId
+          ? prev
+          : { rowId, columnId: colId },
+      );
     },
     [columnsById, readOnly],
   );
@@ -292,6 +303,12 @@ export function Table({
     },
     [columnsById, onAddRow, filters, onFiltersChange],
   );
+
+  // Primitifs stables pour le memo `columns` : dépendre de l'objet
+  // `editingCell` reconstruisait toutes les définitions de colonnes à chaque
+  // `setEditingCell`, même vers la même cellule (nouvelle identité d'objet).
+  const editingRowId = editingCell?.rowId;
+  const editingColumnId = editingCell?.columnId;
 
   const columns = useMemo<ColumnDef<TableRowData>[]>(
     () => [
@@ -325,8 +342,8 @@ export function Table({
             ),
           cell: ({ row }) => {
             const isEditing =
-              editingCell?.rowId === row.original.id &&
-              editingCell?.columnId === col.id;
+              editingRowId === row.original.id &&
+              editingColumnId === col.id;
             const value = row.original.cells[col.id];
             return (
               <CellEditor
@@ -343,7 +360,6 @@ export function Table({
                 onChange={(val) => onCellChange?.(row.original.id, col.id, val)}
                 onBlur={() => {
                   setEditingCell(null);
-                  tableRootRef.current?.focus();
                 }}
               />
             );
@@ -378,7 +394,8 @@ export function Table({
     ],
     [
       tableColumns,
-      editingCell,
+      editingRowId,
+      editingColumnId,
       readOnly,
       rowHeight,
       openCell,
@@ -601,8 +618,6 @@ export function Table({
       sensors={sensors}
     >
       <div
-        ref={tableRootRef}
-        tabIndex={-1}
         className={cn("flex flex-col outline-none", className)}
       >
         <TableToolbar

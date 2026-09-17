@@ -22,6 +22,24 @@ export interface RichTextCellEditorProps {
 }
 
 /**
+ * Les menus flottants de BlockNote (toolbar de formatage, slash menu, …) sont
+ * portalés sur `document.body` (voir `PORTAL_ELEMENTS` dans
+ * `BlockNoteFieldEditor`), donc HORS du `PopoverContent` Radix. Sans garde,
+ * cliquer un bouton de la toolbar pendant une sélection fermait l'éditeur de
+ * cellule au milieu de l'édition. Seules les surfaces flottantes sont
+ * ignorées : cliquer le contenu d'un AUTRE éditeur BlockNote (une autre
+ * fenêtre) ferme toujours normalement.
+ */
+function isBlockNoteFloatingUi(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    target.closest(
+      ".bn-toolbar, .bn-suggestion-menu, .bn-grid-suggestion-menu, .bn-side-menu, .bn-table-handle-menu, .bn-menu-dropdown",
+    ) !== null
+  );
+}
+
+/**
  * Cellule rich text.
  *
  * Rien n'est réécrit ici : l'éditeur est `BlockNoteFieldEditor` (le même que
@@ -99,6 +117,16 @@ export function RichTextCellEditor({
         style={{
           minWidth: "max(var(--radix-popover-trigger-width), 420px)",
           maxWidth: "min(640px, 90vw)",
+        }}
+        // Empêcher le dismiss quand l'interaction vient d'un menu flottant
+        // BlockNote (voir `isBlockNoteFloatingUi`). `preventDefault` sur ces
+        // deux événements bloque la fermeture ; `onInteractOutside` seul ne
+        // suffirait pas, le dismiss part d'ici.
+        onPointerDownOutside={(e) => {
+          if (isBlockNoteFloatingUi(e.target)) e.preventDefault();
+        }}
+        onFocusOutside={(e) => {
+          if (isBlockNoteFloatingUi(e.target)) e.preventDefault();
         }}
       >
         <div className="max-h-[50vh] overflow-y-auto py-1">

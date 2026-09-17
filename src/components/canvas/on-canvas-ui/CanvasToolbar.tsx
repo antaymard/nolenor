@@ -10,10 +10,7 @@ import {
   TbSearch,
 } from "react-icons/tb";
 import { Kbd } from "@/components/shadcn/kbd";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/shadcn/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { Separator } from "@/components/shadcn/separator";
 import { useCommandCenterStore } from "@/stores/commandCenterStore";
 import {
@@ -41,7 +38,7 @@ export default function CanvasToolbar() {
 
   return (
     <div className="flex flex-col-reverse items-center gap-2 animate-appear-up">
-      <div className="canvas-ui-container px-1!">
+      <div className="canvas-ui-container px-0!">
         {/* Les deux façons durables de tenir le canvas, en tête de barre comme
             dans n'importe quel éditeur. `type="single"` sans valeur vide
             possible : on est toujours dans un mode — quand `frame` est actif,

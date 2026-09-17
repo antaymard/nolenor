@@ -9,14 +9,18 @@ import {
   MAX_MINIMIZED_WINDOWS,
 } from "@/stores/windowsStore";
 import toast from "react-hot-toast";
-import { X, Minus, Save, Maximize2, Check } from "lucide-react";
 import { Spinner } from "@/components/shadcn/spinner";
 import {
+  TbArrowsMaximize,
+  TbCheck,
+  TbDeviceFloppy,
   TbDotsVertical,
   TbHistory,
   TbLocation,
   TbMessageSearch,
+  TbMinus,
   TbRefresh,
+  TbX,
 } from "react-icons/tb";
 import { useReactFlow } from "@xyflow/react";
 import { useGoToNode } from "@/hooks/useGoToNode";
@@ -26,6 +30,7 @@ import { useNodeWindowIdentity } from "./useNodeWindowIdentity";
 import { useWindowFrameState } from "./useWindowFrameState";
 import { WindowFrameContext } from "./WindowFrameContext";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
+import { Kbd } from "@/components/shadcn/kbd";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
 import {
@@ -60,7 +65,6 @@ export default function WindowFrame({
   const {
     isDirty,
     isSaving,
-    saveState,
     saveHandler,
     refreshHandler,
     handleSave,
@@ -284,10 +288,10 @@ export default function WindowFrame({
         className={cn(
           "relative h-full w-full",
           isAttachedToConversation &&
-            "after:pointer-events-none after:absolute after:inset-0 after:rounded-[12px] after:border-2 after:border-dashed after:border-violet-500/90",
+            "after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:border-2 after:border-dashed after:border-violet-500/90",
         )}
       >
-          <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/40 bg-white/90 shadow-[0_6px_20px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+        <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/40 bg-white/90 shadow-[0_6px_20px_rgba(15,23,42,0.12)] backdrop-blur-xl">
           {/* ── Resize handles ───────────────────────────────────────── */}
 
           {/* Corners (12×12, priority z-20) */}
@@ -366,42 +370,59 @@ export default function WindowFrame({
             {refreshHandler && (
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
+                className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={refreshHandler}
                 title="Refresh window"
               >
-                <TbRefresh size={13} />
+                <TbRefresh size={15} />
               </button>
             )}
             {saveHandler && (
               <button
                 data-window-control="true"
                 className={cn(
-                  "flex h-full shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium transition-colors disabled:pointer-events-none",
-                  isDirty
-                    ? "bg-green-100 text-green-800 hover:bg-green-200"
-                    : "text-slate-400",
+                  "my-1 flex h-7 shrink-0 items-center justify-center gap-1 rounded-full px-1.5 transition-colors",
+                  isSaving
+                    ? "text-slate-500"
+                    : isDirty
+                      ? "text-green-600 hover:bg-green-500/15"
+                      : "text-slate-400/60 hover:bg-green-500/15 hover:text-green-600",
                 )}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => void handleSave()}
                 disabled={!isDirty || isSaving}
                 aria-busy={isSaving}
+                title={
+                  isSaving
+                    ? "Saving..."
+                    : isDirty
+                      ? "Save changes (Ctrl+S)"
+                      : "Saved"
+                }
               >
                 {isSaving ? (
-                  <Spinner className="size-3" />
-                ) : saveState === "saved" ? (
-                  <Check size={12} />
+                  <Spinner className="size-3.5" />
                 ) : (
-                  <Save size={12} />
+                  <span className="flex items-center gap-1">
+                    {isDirty && (
+                      <Kbd className="h-3.5 min-w-0 bg-transparent text-green-600 ">
+                        Ctrl + S
+                      </Kbd>
+                    )}
+                    {isDirty ? (
+                      <TbDeviceFloppy size={17} />
+                    ) : (
+                      <TbCheck size={15} />
+                    )}
+                  </span>
                 )}
-                {isSaving ? "Saving..." : saveState === "saved" ? "Saved" : "Save"}
               </button>
             )}
             {fullscreenEligible && (
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
+                className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   if (isDirty) void handleSave();
@@ -410,13 +431,13 @@ export default function WindowFrame({
                 aria-label="Expand to fullscreen"
                 title="Expand"
               >
-                <Maximize2 size={13} />
+                <TbArrowsMaximize size={15} />
               </button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="shrink-0 rounded p-0.5 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 h-full aspect-square flex items-center justify-center">
-                  <TbDotsVertical size={13} />
+                <button className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center">
+                  <TbDotsVertical size={15} />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -425,28 +446,28 @@ export default function WindowFrame({
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => goToNode(xyNodeId)}
                 >
-                  <TbLocation size={13} />
+                  <TbLocation size={15} />
                   Navigate to node
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex items-center text-sm"
                   onSelect={() => setHistoryOpen(true)}
                 >
-                  <TbHistory size={13} />
+                  <TbHistory size={15} />
                   History
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex items-center text-sm"
                   onSelect={() => setAssociatedThreadsOpen(true)}
                 >
-                  <TbMessageSearch size={13} />
+                  <TbMessageSearch size={15} />
                   Threads that modified this node
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <button
               data-window-control="true"
-              className="shrink-0 rounded p-0.5 opacity-50 hover:bg-black/10 hover:opacity-100 h-full aspect-square flex items-center justify-center"
+              className="shrink-0 rounded-full opacity-50 hover:bg-black/10 hover:opacity-100 size-7 my-1 flex items-center justify-center"
               onMouseDown={(e) => e.stopPropagation()}
               onClick={() => {
                 if (openedWindow.windowState !== "minimized") {
@@ -466,11 +487,18 @@ export default function WindowFrame({
               }}
               aria-label="Minimize"
             >
-              <Minus size={14} />
+              <TbMinus size={15} />
             </button>
             <ConfirmableButton
               title="Close without saving?"
               text="You have unsaved changes. Do you want to close this window?"
+              hint={
+                <>
+                  <span>Tip: press</span>
+                  <Kbd>Ctrl S</Kbd>
+                  <span>to save without closing</span>
+                </>
+              }
               onCancel={() => closeWindow(xyNodeId)}
               onConfirm={() => {
                 if (isDirty) void handleSave();
@@ -483,11 +511,11 @@ export default function WindowFrame({
             >
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-0.5 opacity-50 hover:bg-red-500/15 hover:text-red-600 hover:opacity-100 h-full aspect-square flex items-center justify-center"
+                className="shrink-0 rounded-full opacity-50 hover:bg-red-500/15 hover:text-red-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
                 onMouseDown={(e) => e.stopPropagation()}
                 aria-label="Close"
               >
-                <X size={14} />
+                <TbX size={15} />
               </button>
             </ConfirmableButton>
           </div>

@@ -6,6 +6,7 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import { useIsFrameHovered } from "@/stores/frameHoverStore";
+import { useIsNodeAttached } from "@/stores/noleStore";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
@@ -65,6 +66,7 @@ function FrameNode(xyNode: XyNodeProps) {
   // deux frames re-rendent quand le survol passe de l'une à l'autre, pas tout
   // le canvas à chaque frame du geste.
   const isDropTarget = useIsFrameHovered(xyNode.id);
+  const isAttachedToNole = useIsNodeAttached(xyNode.id);
 
   // Sélecteur booléen : seule la frame concernée re-rend, pas toutes celles du
   // canvas. Et surtout pas un initialiseur `useState`, que StrictMode invoque
@@ -185,7 +187,7 @@ function FrameNode(xyNode: XyNodeProps) {
 
       <div
         className={cn(
-          "h-full w-full rounded-[5px] border-2 transition-colors duration-100",
+          "relative h-full w-full rounded-[5px] border-2 transition-colors duration-100",
           nodeColor.nodeBorder,
           // `lightBg` et non `nodeBg` : c'est la teinte la plus claire de la
           // palette, celle qui tient sur une grande surface. Une frame en
@@ -197,6 +199,9 @@ function FrameNode(xyNode: XyNodeProps) {
           // Cible de dépôt : la bordure prime sur la couleur du node, c'est
           // une réponse au geste en cours et pas un état du document.
           isDropTarget && "border-blue-500 bg-blue-500/10",
+          // Même halo que `NodeFrame` : attach à Nolë (alt-clic).
+          isAttachedToNole &&
+            "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[8px] after:border-2 after:border-dashed after:border-violet-500/90",
         )}
       />
     </>

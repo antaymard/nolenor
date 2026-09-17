@@ -945,8 +945,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         // quand la frame portera de l'automation.
         writable: false,
       },
-      // Mentionner une frame ne mène à aucun contenu à lire.
-      mentionable: false,
+      // Mentionnable : la pill se résout en `[[node:id|frame|Titre]]` et
+      // l'agent suit avec `list_nodes(frameId)` pour lire le contenu groupé
+      // (même contrat que l'attach Nolë, cf. `llmDescription` ci-dessus).
+      // Défaut `true`, donc pas de ligne `mentionable` ici.
       // Un titre n'a pas d'historique à remonter (même raison que `viewport`).
       versioned: false,
       // Titre de conteneur seul : keyword suffit. Même raison que `viewport`

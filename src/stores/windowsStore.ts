@@ -29,9 +29,11 @@ type WindowSizePreset = WindowSize | ViewportWindowSize;
 const DEFAULT_WINDOW_SIZE: WindowSizePreset = { width: 800, height: 520 };
 
 // Gabarit « document » : la colonne étroite et pleine hauteur du blocknote.
-// Partagé par tous les types dont la window est une surface de lecture ou
-// d'édition en pleine page — blocknote, embed, app, custom, pdf — pour qu'ils
-// s'ouvrent tous à la même taille plutôt qu'à trois formats arbitraires.
+// Partagé par tous les types dont la window est une surface de lecture, de
+// regard ou d'édition — blocknote, embed, app, custom, pdf, image, video —
+// pour qu'ils s'ouvrent tous à la même taille plutôt qu'à des formats
+// arbitraires par type. Seuls `table` (large) et `viewport` (liste compacte)
+// gardent un gabarit à part.
 const DOCUMENT_WINDOW_SIZE: WindowSizePreset = {
   widthRatio: 1 / 2.3,
   heightRatio: 0.9,
@@ -39,16 +41,12 @@ const DOCUMENT_WINDOW_SIZE: WindowSizePreset = {
 
 const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
   blocknote: DOCUMENT_WINDOW_SIZE,
-  image: { width: 600, height: 600 },
+  image: DOCUMENT_WINDOW_SIZE,
   embed: DOCUMENT_WINDOW_SIZE,
   app: DOCUMENT_WINDOW_SIZE,
-  link: { width: 480, height: 360 },
   pdf: DOCUMENT_WINDOW_SIZE,
-  value: { width: 400, height: 300 },
-  title: { width: 480, height: 320 },
   table: { widthRatio: 1 / 1.8, heightRatio: 0.9 },
-  // 16/9 avec de la marge : la fenêtre est faite pour regarder, pas pour lire.
-  video: { width: 720, height: 480 },
+  video: DOCUMENT_WINDOW_SIZE,
   // Une liste de lignes compactes : étroite, et assez haute pour en montrer
   // une dizaine sans défiler.
   viewport: { width: 420, height: 480 },
@@ -62,17 +60,16 @@ function resolveWindowSize(preset: WindowSizePreset): WindowSize {
     MIN_WINDOW_WIDTH,
     window.innerWidth - VIEWPORT_SIZE_PADDING * 2,
   );
+  const maxHeight = Math.max(
+    MIN_WINDOW_HEIGHT,
+    window.innerHeight - VIEWPORT_SIZE_PADDING * 2,
+  );
   // Bump the minimum width on portrait tablets, but never beyond what fits.
   const minWidth = isTabletPortrait()
     ? Math.min(MIN_WINDOW_WIDTH_TABLET_PORTRAIT, maxWidth)
     : MIN_WINDOW_WIDTH;
 
   if ("widthRatio" in preset && "heightRatio" in preset) {
-    const maxHeight = Math.max(
-      MIN_WINDOW_HEIGHT,
-      window.innerHeight - VIEWPORT_SIZE_PADDING * 2,
-    );
-
     return {
       width: Math.min(
         maxWidth,
@@ -88,13 +85,16 @@ function resolveWindowSize(preset: WindowSizePreset): WindowSize {
     };
   }
 
-  // Fixed-size preset: keep desktop behaviour untouched, but still honour the
-  // portrait-tablet floor (clamped to the viewport) when applicable.
+  // Fixed-size preset (il ne reste que `viewport`) : on borne quand même la
+  // hauteur au viewport pour ne pas déborder sur les petits écrans.
   if (minWidth > preset.width) {
-    return { width: Math.min(maxWidth, minWidth), height: preset.height };
+    return {
+      width: Math.min(maxWidth, minWidth),
+      height: Math.min(maxHeight, preset.height),
+    };
   }
 
-  return preset;
+  return { width: preset.width, height: Math.min(maxHeight, preset.height) };
 }
 
 function getDefaultWindowSize(nodeType: NodeType): WindowSize {

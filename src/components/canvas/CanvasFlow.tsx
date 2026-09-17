@@ -152,10 +152,11 @@ export default function CanvasFlow({
         return;
       }
 
-      // Types non mentionnables (cf. `capabilities` dans nodeConfig) :
-      // l'alt+clic est l'autre porte d'entrée vers le chat, elle se ferme
-      // avec la mention.
-      if (node.type && !getNodeCapabilities(node.type).mentionable) {
+      // Seuls les types lisibles par l'agent s'attachent (`readable`) : le
+      // viewport reste exclu (`readable: false`). La frame est lisible
+      // (`Frame: titre` + `list_nodes(frameId)`), donc elle s'attache comme
+      // tout node — et elle est aussi mentionnable par `@`.
+      if (node.type && !getNodeCapabilities(node.type).agent.readable) {
         return;
       }
 

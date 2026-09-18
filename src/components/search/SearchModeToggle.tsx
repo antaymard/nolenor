@@ -57,7 +57,7 @@ export function SearchDegradedNotice({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "rounded-md border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200",
+        "rounded-lg border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200",
         className,
       )}
     >

@@ -22,14 +22,14 @@ export default function NoleCanvasPanel() {
           <ChatContainer onClose={() => setPanelLayout("minimized")} />
         </div>
       )}
-      <div className="canvas-ui-container px-1! animate-appear-up">
+      <div className="canvas-ui-container animate-appear-up px-0!">
         {/* `h-10` : aligné sur CanvasToolbar et le dock, même rangée visuelle. */}
         <Button
           variant="ghost"
           className="h-10 rounded-lg px-3 font-bold tracking-tight"
           onClick={() => togglePanelLayout()}
         >
-          <NoleIcon /> Nolë
+          <NoleIcon size={16} /> Nolë
           <Kbd>N</Kbd>
         </Button>
       </div>

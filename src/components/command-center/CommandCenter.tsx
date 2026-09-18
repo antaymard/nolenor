@@ -212,7 +212,7 @@ export default function CommandCenter() {
     >
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[70vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+        className="flex max-h-[70vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-xl"
       >
         <DialogTitle className="sr-only">Command center</DialogTitle>
         <DialogDescription className="sr-only">
@@ -220,16 +220,16 @@ export default function CommandCenter() {
           marker name to jump to it on the current canvas.
         </DialogDescription>
 
-        <div className="flex items-center gap-2 border-b px-3 py-2">
+        <div className="flex h-12 items-center gap-2 border-b px-4">
           {isGoMode ? (
-            <TbDirections className="shrink-0 text-muted-foreground" />
+            <TbDirections size={17} className="shrink-0 text-muted-foreground" />
           ) : (
-            <TbCommand className="shrink-0 text-muted-foreground" />
+            <TbCommand size={17} className="shrink-0 text-muted-foreground" />
           )}
           {/* La pastille remplace le préfixe tapé : le contexte de recherche
               se voit, sans encombrer la saisie. */}
           {isGoMode ? (
-            <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-xs font-medium">
+            <span className="shrink-0 rounded-lg bg-accent px-1.5 py-0.5 text-xs font-medium">
               Markers
             </span>
           ) : null}
@@ -246,7 +246,7 @@ export default function CommandCenter() {
             placeholder={
               isGoMode ? "Jump to a marker…" : "Go to a canvas…"
             }
-            className="min-w-0 flex-1 border-none bg-transparent outline-none placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 border-none bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
             value={query}
             onChange={(event) => handleQueryChange(event.target.value)}
             onKeyDown={handleKeyDown}
@@ -258,7 +258,7 @@ export default function CommandCenter() {
           role="listbox"
           id={listboxId}
           aria-label="Commands"
-          className="flex-1 overflow-auto p-1"
+          className="flex-1 overflow-auto p-2"
         >
           {isLoading ? (
             <div className="flex flex-col gap-1 p-2">
@@ -293,7 +293,7 @@ export default function CommandCenter() {
           ) : (
             sections.map((section) => (
               <Fragment key={section.group}>
-                <h4 className="px-2 pt-2 pb-1 text-xs tracking-wider text-muted-foreground uppercase">
+                <h4 className="px-3 pt-2 pb-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                   {section.group}
                 </h4>
                 {section.items.map((item, indexInSection) => {
@@ -314,7 +314,7 @@ export default function CommandCenter() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200/70 bg-slate-50/60 px-4 py-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <KbdGroup>
               <Kbd>↑</Kbd>
@@ -371,7 +371,7 @@ function CommandRow({
       onMouseMove={onSelect}
       onClick={onRun}
       className={cn(
-        "flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left transition-colors",
+        "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors",
         active ? "bg-accent" : "hover:bg-accent/50",
       )}
     >
@@ -388,7 +388,7 @@ function CommandRow({
         <TargetDeltaBadge delta={item.delta} noun="marker" />
       ) : null}
       {item.hint ? (
-        <span className="shrink-0 rounded bg-muted px-1.5 text-xs text-muted-foreground">
+        <span className="shrink-0 rounded-lg bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
           {item.hint}
         </span>
       ) : null}

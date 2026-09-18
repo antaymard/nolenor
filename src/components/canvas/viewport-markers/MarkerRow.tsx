@@ -348,7 +348,7 @@ function MarkerRow({
         opacity: isDragging ? 0.5 : 1,
       }}
       className={cn(
-        "group rounded-md border border-transparent p-1.5 transition hover:border-border hover:bg-muted/50",
+        "group rounded-lg border border-transparent p-1.5 transition hover:border-border hover:bg-muted/50",
         isCurrent && "border-border bg-muted/30",
         // Variante encart : carte un peu plus généreuse ; la navigation passe
         // par la ligne ou le bouton « Go », toujours visible.

@@ -77,7 +77,7 @@ export function CellDisplay({
       <span className={cn(SHELL, "overflow-hidden whitespace-nowrap")}>
         <span
           className={cn(
-            "inline-flex min-w-0 max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-medium",
+            "inline-flex min-w-0 max-w-full items-center gap-1 rounded-lg bg-muted px-1.5 py-0.5 font-medium",
             !nodeData && "opacity-50",
           )}
         >
@@ -136,7 +136,7 @@ export function CellDisplay({
             <span
               key={id}
               className={cn(
-                "inline-flex min-w-0 max-w-full items-center rounded-md px-1.5 py-0.5 font-medium",
+                "inline-flex min-w-0 max-w-full items-center rounded-lg px-1.5 py-0.5 font-medium",
                 c.bg,
                 c.text,
               )}

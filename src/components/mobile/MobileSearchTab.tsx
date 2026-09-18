@@ -145,7 +145,7 @@ export default function MobileSearchTab({
               )}
             >
               {relaxed ? (
-                <div className="rounded-md border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                <div className="rounded-lg border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                   No exact results — showing close matches.
                 </div>
               ) : null}
@@ -214,7 +214,7 @@ function MobileResultRow({
       disabled={!canOpen}
       onClick={onOpen}
       className={cn(
-        "flex flex-col gap-1 rounded-md p-2 text-left",
+        "flex flex-col gap-1 rounded-lg p-2 text-left",
         canOpen ? "hover:bg-accent/50" : "opacity-60",
       )}
     >
@@ -225,7 +225,7 @@ function MobileResultRow({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {title || result.type}
         </span>
-        <span className="shrink-0 rounded bg-muted px-1.5 text-xs text-muted-foreground">
+        <span className="shrink-0 rounded-lg bg-muted px-1.5 text-xs text-muted-foreground">
           {result.type}
         </span>
       </div>
@@ -265,7 +265,7 @@ function MobileRecentRow({
       disabled={!canOpen}
       onClick={() => onOpen({ nodeId, nodeDataId, nodeType })}
       className={cn(
-        "flex items-center gap-2 rounded-md px-2 py-3 text-left",
+        "flex items-center gap-2 rounded-lg px-2 py-3 text-left",
         canOpen ? "hover:bg-accent/50" : "opacity-50",
       )}
     >

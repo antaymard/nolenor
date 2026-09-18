@@ -76,7 +76,7 @@ export function TextCellEditor({
       <PopoverTrigger asChild>
         <span
           className={cn(
-            "block w-full min-h-[1.4em] rounded px-1 cursor-text hover:bg-muted/50",
+            "block w-full min-h-[1.4em] rounded-lg px-1 cursor-text hover:bg-muted/50",
             ROW_HEIGHT_CONFIG[rowHeight].clamp,
           )}
           onClick={onClick}
@@ -86,7 +86,7 @@ export function TextCellEditor({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-auto p-0 shadow-lg"
+        className="w-auto rounded-xl p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)]"
         style={{
           // Au moins aussi large que la colonne, jamais si étroit qu'on ne
           // puisse rien lire.

@@ -40,7 +40,7 @@ export default function ThreadSelector({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="w-64 max-h-80 overflow-y-auto"
+        className="w-64 max-h-80 overflow-y-auto rounded-xl"
       >
         {isLoading && (
           <div className="p-3 text-sm text-muted-foreground text-center">
@@ -74,7 +74,7 @@ export default function ThreadSelector({
             {thread.threadId !== currentThreadId && (
               <button
                 type="button"
-                className="p-1 rounded hover:text-red-500 shrink-0"
+                className="p-1 rounded-lg hover:text-red-500 shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   void deleteThread(thread.threadId);

@@ -98,7 +98,7 @@ export default function CanvasSidebar({
                 to="/canvas/$canvasId"
                 params={{ canvasId: c._id }}
                 className={cn(
-                  "text-base! font-medium px-2 py-1 flex-1 min-w-0 truncate  rounded-md",
+                  "text-base! font-medium px-2 py-1 flex-1 min-w-0 truncate  rounded-lg",
                   c._id === canvasId ? "bg-slate-200" : "hover:bg-slate-100",
                 )}
               >
@@ -159,7 +159,7 @@ export default function CanvasSidebar({
                     to="/canvas/$canvasId"
                     params={{ canvasId: c._id }}
                     className={cn(
-                      "text-base! font-medium px-2 py-1 flex-1 min-w-0 truncate rounded-md",
+                      "text-base! font-medium px-2 py-1 flex-1 min-w-0 truncate rounded-lg",
                       c._id === canvasId
                         ? "bg-slate-200"
                         : "hover:bg-slate-100",

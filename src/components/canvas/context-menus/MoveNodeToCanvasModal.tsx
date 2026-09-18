@@ -74,7 +74,7 @@ export default function MoveNodeToCanvasModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Move node to another canvas</DialogTitle>
           <DialogDescription>
@@ -91,7 +91,7 @@ export default function MoveNodeToCanvasModal({
             No other canvas available.
           </div>
         ) : (
-          <ScrollArea className="max-h-72 rounded-md border">
+          <ScrollArea className="max-h-72 rounded-xl border">
             <div className="p-1">
               {targetCanvases.map((canvas) => (
                 <button
@@ -99,7 +99,7 @@ export default function MoveNodeToCanvasModal({
                   type="button"
                   onClick={() => setSelectedCanvasId(canvas._id)}
                   className={cn(
-                    "w-full rounded-sm border px-3 py-2 text-left transition-colors",
+                    "w-full rounded-lg border px-3 py-2 text-left transition-colors",
                     selectedCanvasId === canvas._id
                       ? "border-slate-400 bg-slate-100"
                       : "border-transparent hover:bg-slate-50",

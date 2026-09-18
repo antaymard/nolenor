@@ -30,7 +30,7 @@ export function SummaryFooter({
   onSummaryChange,
 }: SummaryFooterProps) {
   return (
-    <TableFooter className="sticky bottom-0 z-10 border-t bg-background/95 backdrop-blur-sm">
+    <TableFooter className="sticky bottom-0 z-10 border-t bg-background/95">
       <TableRow className="group/summary hover:bg-transparent">
         {leafColumns.map((leaf) => {
           if (isUtilityColumn(leaf.id)) {
@@ -80,7 +80,9 @@ function SummaryCell({
   const label =
     kind && result ? (
       <>
-        <span className="mr-1 text-muted-foreground">{SUMMARY_LABELS[kind]}</span>
+        <span className="mr-1 text-muted-foreground">
+          {SUMMARY_LABELS[kind]}
+        </span>
         <span className="font-medium tabular-nums">{result}</span>
       </>
     ) : (

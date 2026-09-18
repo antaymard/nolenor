@@ -173,7 +173,7 @@ export default function SearchModale() {
     >
       <DialogContent
         showCloseButton={false}
-        className="flex h-[85vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:h-[75vh] sm:max-w-3xl md:max-w-4xl"
+        className="flex h-[85vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:h-[75vh] sm:max-w-3xl md:max-w-4xl"
       >
         <DialogTitle className="sr-only">Search</DialogTitle>
         <DialogDescription className="sr-only">
@@ -181,8 +181,8 @@ export default function SearchModale() {
         </DialogDescription>
 
         {/* Search field */}
-        <div className="flex items-center gap-2 border-b px-3 py-2">
-          <TbSearch className="shrink-0 text-muted-foreground" />
+        <div className="flex h-12 items-center gap-2 border-b px-4">
+          <TbSearch size={17} className="shrink-0 text-muted-foreground" />
           <input
             autoFocus
             type="text"
@@ -198,7 +198,7 @@ export default function SearchModale() {
                   ? "Semantic search — describe the idea in your own words"
                   : 'Search — "exact phrase", -exclude, a OR b'
             }
-            className="min-w-0 flex-1 border-none bg-transparent outline-none placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 border-none bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleInputKeyDown}
@@ -247,7 +247,7 @@ export default function SearchModale() {
         </div>
 
         {/* Type filters + search mode */}
-        <div className="flex items-center gap-3 border-b px-3 py-2">
+        <div className="flex items-center gap-3 border-b border-slate-200/70 bg-slate-50/60 px-4 py-2">
           <SearchTypeFilter
             selected={nodeTypes}
             onToggle={toggleNodeType}
@@ -273,7 +273,7 @@ export default function SearchModale() {
           id={listboxId}
           aria-label="Search results"
           className={cn(
-            "flex-1 overflow-auto p-1 transition-opacity",
+            "flex-1 overflow-auto p-2 transition-opacity",
             isStale && "opacity-60",
           )}
         >
@@ -291,14 +291,14 @@ export default function SearchModale() {
             ) : (
               <>
                 {relaxed ? (
-                  <div className="mx-2 mt-1 mb-2 rounded-md border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                  <div className="mx-1 mt-1 mb-2 rounded-lg border border-amber-500/40 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                     No exact results — showing close matches.
                   </div>
                 ) : null}
                 {degraded ? (
-                  <SearchDegradedNotice className="mx-2 mt-1 mb-2" />
+                  <SearchDegradedNotice className="mx-1 mt-1 mb-2" />
                 ) : null}
-                <div className="px-2 pt-1 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
+                <div className="px-3 pt-1 pb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                   {resultCount} result{resultCount > 1 ? "s" : ""}
                 </div>
                 {results.map((result, idx) => (
@@ -321,7 +321,7 @@ export default function SearchModale() {
             <SearchEmpty icon={<TbSearch />} title="No nodes yet" />
           ) : (
             <>
-              <h4 className="px-2 pt-1 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
+              <h4 className="px-3 pt-1 pb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 Recent
               </h4>
               {recents.map((entry, idx) => (
@@ -342,7 +342,7 @@ export default function SearchModale() {
         </div>
 
         {/* Shortcuts footer */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200/70 bg-slate-50/60 px-4 py-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <KbdGroup>
               <Kbd>↑</Kbd>
@@ -407,10 +407,10 @@ function ResultCard({
       aria-selected={active}
       data-active={active ? "true" : undefined}
       className={cn(
-        "relative flex cursor-pointer flex-col rounded p-3 transition-colors",
+        "relative flex cursor-pointer flex-col rounded-xl p-3 transition-colors",
         active ? "bg-accent" : "hover:bg-accent/50",
         isAttachedToNole &&
-          "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[8px] after:border-2 after:border-dashed after:border-violet-500/90",
+          "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
       )}
       onMouseEnter={onSelect}
       onClick={(event) => {
@@ -444,8 +444,8 @@ function ResultCard({
       </div>
 
       <div className="flex items-center justify-between gap-3 pr-16">
-        <p className="text-lg font-bold">{nodeTitle}</p>
-        <span className="rounded-sm bg-muted px-1 text-sm text-muted-foreground">
+        <p className="text-[15px] font-bold tracking-tight">{nodeTitle}</p>
+        <span className="rounded-lg bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
           {result.type}
         </span>
       </div>
@@ -510,7 +510,7 @@ function RecentRow({
         if (canOpen) onOpen({ nodeId, nodeDataId, nodeType });
       }}
       className={cn(
-        "flex items-center gap-2 rounded-md px-3 py-2 text-left transition-colors",
+        "flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors",
         active ? "bg-accent" : "hover:bg-accent/50",
         canOpen ? "cursor-pointer" : "cursor-default opacity-50",
       )}

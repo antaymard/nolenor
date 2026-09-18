@@ -182,10 +182,10 @@ export default function CanvasWelcomeModal() {
         // Colonne flex à hauteur bornée, et c'est le CONTENU qui défile, pas la
         // modale : le bouton est la seule sortie, il ne doit jamais partir sous
         // la ligne de flottaison.
-        className="flex max-h-[90vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+        className="flex max-h-[90vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md"
       >
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle className="text-xl">Welcome to Nolënor</DialogTitle>
+          <DialogTitle className="text-xl font-bold tracking-tight">Welcome to Nolënor</DialogTitle>
           <DialogDescription>
             Three gestures to get you moving. You'll pick up the rest as you go.
           </DialogDescription>
@@ -231,7 +231,7 @@ export default function CanvasWelcomeModal() {
           Step {stepIndex + 1} of {steps.length}
         </p>
 
-        <DialogFooter className="flex-row justify-between border-t px-6 py-4 sm:justify-between">
+        <DialogFooter className="flex-row justify-between border-t border-slate-200/70 px-6 py-4 sm:justify-between">
           <Button
             variant="ghost"
             onClick={() => setStepIndex((i) => Math.max(0, i - 1))}

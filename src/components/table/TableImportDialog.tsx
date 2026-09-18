@@ -260,7 +260,7 @@ export function TableImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-4">
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-4 rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TbFileSpreadsheet />
@@ -353,7 +353,7 @@ function FilePickerStep({
         }}
         onClick={() => inputRef.current?.click()}
         className={cn(
-          "flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed py-12 cursor-pointer transition-colors",
+          "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-12 cursor-pointer transition-colors",
           isDragging
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50",
@@ -397,7 +397,7 @@ function PreviewTable({
       <Label className="text-xs text-muted-foreground mb-1 block">
         Aperçu ({rows.length} premières lignes)
       </Label>
-      <div className="border rounded-md overflow-auto max-h-40">
+      <div className="border rounded-xl overflow-auto max-h-40">
         <table className="text-xs w-full">
           <thead className="bg-muted">
             <tr>
@@ -450,7 +450,7 @@ function MappingTable({
   return (
     <div className="flex flex-col gap-1">
       <Label className="text-xs text-muted-foreground">Column mapping</Label>
-      <div className="border rounded-md overflow-auto max-h-72">
+      <div className="border rounded-xl overflow-auto max-h-72">
         <table className="text-sm w-full">
           <thead className="bg-muted sticky top-0">
             <tr className="text-left">

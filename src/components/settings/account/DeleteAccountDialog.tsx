@@ -93,7 +93,7 @@ export default function DeleteAccountDialog({ email }: { email: string }) {
         </Button>
       </DialogTrigger>
 
-      <DialogContent showCloseButton={!isDeleting}>
+      <DialogContent showCloseButton={!isDeleting} className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TbAlertTriangle className="text-red-600" />

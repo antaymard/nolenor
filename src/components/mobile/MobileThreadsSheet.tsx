@@ -104,7 +104,7 @@ function ThreadRow({
         type="button"
         onClick={onSelect}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-3 text-left text-sm",
+          "flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-3 text-left text-sm",
           active ? "bg-slate-200 font-medium" : "hover:bg-slate-100",
         )}
       >

@@ -176,7 +176,7 @@ export function NodeCellEditor({
                 <button
                   key={nodeId}
                   className={cn(
-                    "flex items-center gap-2 rounded px-2 py-1 text-left hover:bg-muted w-full",
+                    "flex items-center gap-2 rounded-lg px-2 py-1 text-left hover:bg-muted w-full",
                     value?.nodeId === nodeId && "bg-muted font-medium",
                   )}
                   onClick={() => handleSelect(nodeId)}
@@ -224,7 +224,7 @@ function NodeChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-medium max-w-full",
+        "inline-flex items-center gap-1 rounded-lg bg-muted px-1.5 py-0.5 font-medium max-w-full",
         faded && "opacity-50",
         onClick && "cursor-pointer hover:bg-muted/70",
       )}

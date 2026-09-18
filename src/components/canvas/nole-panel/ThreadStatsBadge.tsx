@@ -62,7 +62,7 @@ export default function ThreadStatsBadge({
     <Tooltip delayDuration={200}>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex shrink-0 cursor-default items-center rounded-sm p-1 hover:bg-slate-100"
+          className="inline-flex shrink-0 cursor-default items-center rounded-md p-1 hover:bg-slate-100"
           aria-label={
             percentLabel
               ? `Contexte utilisé : ${percentLabel}`

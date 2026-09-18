@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import TaskNodePills from "./TaskNodePills";
 
 /** Rayon du bloc, partagé avec le halo pour que les deux arrondis coïncident. */
-const CARD_RADIUS_PX = 12;
+const CARD_RADIUS_PX = 15;
 
 /**
  * Une tâche Nolë, en un bloc, au dock d'activité.
@@ -64,7 +64,7 @@ export default function TaskCard({
       style={{ borderRadius: CARD_RADIUS_PX }}
       className={cn(
         "group flex w-[272px] cursor-pointer items-center gap-2 border px-2.5 py-1.5",
-        "min-h-[46px] bg-white text-left text-slate-700",
+        "min-h-[46px] bg-white text-left text-slate-700 ",
         // Le halo, quand il est là, rogne l'ombre d'un enfant : elle passe sur
         // son wrapper (cf. `ComposerShell`), pas ici.
         !isRunning && "shadow-sm",

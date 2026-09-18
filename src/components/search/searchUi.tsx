@@ -43,7 +43,7 @@ export function HighlightedText({
         index % 2 === 1 ? (
           <mark
             key={index}
-            className="rounded-sm bg-yellow-200 px-0.5 text-yellow-950 dark:bg-yellow-400/30 dark:text-yellow-100"
+            className="rounded-md bg-yellow-200 px-0.5 text-yellow-950 dark:bg-yellow-400/30 dark:text-yellow-100"
           >
             {part}
           </mark>
@@ -85,7 +85,7 @@ export function SearchSnippet({
         terms={terms}
         className="line-clamp-2 min-w-0 flex-1 overflow-hidden leading-snug text-muted-foreground"
       />
-      <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+      <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
         {pageLabel}
       </span>
     </div>
@@ -109,7 +109,7 @@ export function PreviewImages({
             src={image.imageUrl}
             alt="Preview"
             loading="lazy"
-            className={cn("rounded-md border object-cover", size)}
+            className={cn("rounded-lg border object-cover", size)}
           />
           {typeof image.page === "number" ? (
             <span className="absolute right-1 bottom-1 rounded-full bg-black/70 px-1.5 py-0.5 text-xs text-white">
@@ -136,7 +136,7 @@ export function SearchSkeleton({
         <div
           key={index}
           className={cn(
-            "flex flex-col gap-2 rounded",
+            "flex flex-col gap-2 rounded-xl",
             compact ? "p-2" : "p-3",
           )}
         >

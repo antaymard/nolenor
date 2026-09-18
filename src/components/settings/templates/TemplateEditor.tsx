@@ -552,7 +552,7 @@ export default function TemplateEditor({
           if (!open) setPendingWindowDisable(false);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
           <AlertDialogHeader>
             <AlertDialogTitle>Disable the window view?</AlertDialogTitle>
             <AlertDialogDescription>

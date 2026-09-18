@@ -120,7 +120,7 @@ export default function RichTextArea({
       }}
       onChange={(_, newValue) => onChange(newValue)}
       customSuggestionsContainer={(children) => (
-        <div className="min-w-56 overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+        <div className="min-w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
           {children}
         </div>
       )}
@@ -140,7 +140,7 @@ export default function RichTextArea({
           return (
             <div
               className={cn(
-                "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700",
+                "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700",
                 focused && "bg-slate-100",
               )}
             >

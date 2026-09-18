@@ -32,7 +32,7 @@ export default function MinimizedWindowPill({
       onClick={() => toggleMinimizeWindow(openedWindow.xyNodeId)}
       onMouseDown={handleMouseDown}
       title={title ?? undefined}
-      className="group pointer-events-auto relative flex h-9 max-w-[280px] items-center gap-2 rounded-xl border border-white/40 bg-white/80 pl-2.5 pr-12 text-left text-sm shadow-[0_2px_10px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-[transform,background-color,box-shadow] duration-150 ease-out animate-in fade-in slide-in-from-bottom-2 hover:bg-white active:scale-[0.97]"
+      className="group pointer-events-auto relative flex h-9 max-w-[280px] items-center gap-2 rounded-xl border border-white/40 bg-white pl-2.5 pr-12 text-left text-sm shadow-[0_2px_10px_rgba(15,23,42,0.08)] transition-[transform,background-color,box-shadow] duration-150 ease-out animate-in fade-in slide-in-from-bottom-2 hover:bg-white active:scale-[0.97]"
     >
       {NodeIcon ? (
         <NodeIcon className="size-4 shrink-0 text-slate-600" />

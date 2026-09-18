@@ -26,7 +26,7 @@ export default function MinimizedWindowsStack() {
       <button
         type="button"
         onClick={closeAllMinimizedWindows}
-        className="pointer-events-auto flex h-8 items-center gap-1.5 rounded-md border bg-white px-2.5 text-xs font-medium text-slate-600 shadow-md transition-colors hover:bg-red-500/10 hover:text-red-600"
+        className="pointer-events-auto flex h-8 items-center gap-1.5 rounded-lg border bg-white px-2.5 text-xs font-medium text-slate-600 shadow-md transition-colors hover:bg-red-500/10 hover:text-red-600"
         title="Close all minimized windows"
       >
         <Trash2 size={12} />

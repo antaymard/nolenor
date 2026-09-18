@@ -45,7 +45,7 @@ export default function TrashModal() {
           <TbTrash size={18} />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Trash</DialogTitle>
           <DialogDescription>
@@ -149,7 +149,7 @@ function TrashList({ canvasId }: { canvasId: Id<"canvases"> }) {
           return (
             <li
               key={node._id}
-              className="hover:bg-accent flex min-w-0 items-center gap-3 rounded-md px-2 py-2"
+              className="hover:bg-accent flex min-w-0 items-center gap-3 rounded-lg px-2 py-2"
             >
               <Icon className="text-muted-foreground shrink-0" size={18} />
               <div className="min-w-0 flex-1 overflow-hidden">

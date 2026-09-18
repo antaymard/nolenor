@@ -37,7 +37,7 @@ function Frame({
     <div
       style={canvasSurface}
       className={cn(
-        "relative h-[132px] w-full overflow-hidden rounded-lg border border-slate-200",
+        "relative h-[132px] w-full overflow-hidden rounded-xl border border-slate-200",
         className,
       )}
     >
@@ -194,7 +194,7 @@ export function OpenNodeIllustration({ touch }: { touch: boolean }) {
       {/* La window qui s'ouvre par-dessus, dans le vocabulaire de `node-appear`.
           Posée en recouvrement du node plutôt qu'à l'autre bout du cadre : la
           vignette garde une composition tenue pendant toute la boucle. */}
-      <div className="absolute top-[48px] left-[74px] w-[112px] animate-welcome-window overflow-hidden rounded-md border border-slate-300 bg-white shadow-lg">
+      <div className="absolute top-[48px] left-[74px] w-[112px] animate-welcome-window overflow-hidden rounded-lg border border-slate-300 bg-white shadow-lg">
         <div className="flex items-center gap-[3px] border-b border-slate-200 bg-slate-50 px-[6px] py-[4px]">
           <span className="size-[5px] rounded-full bg-slate-300" />
           <span className="size-[5px] rounded-full bg-slate-300" />
@@ -280,7 +280,7 @@ export function ContextMenuIllustration({ touch }: { touch: boolean }) {
         <Bar className="w-1/2" />
       </MiniNode>
 
-      <div className="absolute top-[34px] left-[62px] w-[86px] animate-welcome-menu rounded-md border border-slate-200 bg-white py-[4px] shadow-lg">
+      <div className="absolute top-[34px] left-[62px] w-[86px] animate-welcome-menu rounded-lg border border-slate-200 bg-white py-[4px] shadow-lg">
         <MenuRow width="w-[38px]" />
         <MenuRow width="w-[30px]" highlighted />
         <MenuRow width="w-[42px]" />

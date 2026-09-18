@@ -291,7 +291,7 @@ export default function WindowFrame({
             "after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:border-2 after:border-dashed after:border-violet-500/90",
         )}
       >
-        <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/40 bg-white/90 shadow-[0_6px_20px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+        <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/40 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
           {/* ── Resize handles ───────────────────────────────────────── */}
 
           {/* Corners (12×12, priority z-20) */}
@@ -356,7 +356,7 @@ export default function WindowFrame({
 
           {/* ── Header (draggable) ────────────────────────────────────── */}
           <div
-            className="flex h-10 cursor-grab select-none items-center gap-2 rounded-t-2xl border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1 backdrop-blur-xl hover:cursor-grab active:cursor-grabbing"
+            className="flex h-10 cursor-grab select-none items-center gap-2 rounded-t-2xl border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1 hover:cursor-grab active:cursor-grabbing"
             onMouseDown={handleHeaderMouseDown}
             onDoubleClick={handleHeaderDoubleClick}
             title={title}

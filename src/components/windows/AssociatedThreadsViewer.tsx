@@ -86,8 +86,8 @@ export default function AssociatedThreadsViewer({
               type="button"
               onClick={() => setSelectedId(thread._id)}
               className={cn(
-                "flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm",
-                isSelected ? "bg-slate-100" : "hover:bg-slate-50",
+                "flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm",
+                isSelected ? "bg-accent" : "hover:bg-accent/50",
               )}
             >
               <TbMessage className="size-4 shrink-0 text-slate-500" />
@@ -110,7 +110,7 @@ export default function AssociatedThreadsViewer({
       </div>
 
       {/* Infos du thread sélectionné */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto rounded border bg-white p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto rounded-xl border bg-white p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-col gap-1">
             <h3 className="truncate text-base font-medium text-slate-800">
@@ -135,7 +135,7 @@ export default function AssociatedThreadsViewer({
                 ? "Open this thread in the Nolë panel"
                 : "This thread belongs to another user"
             }
-            className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <TbExternalLink className="size-4" />
             Open in Nolë

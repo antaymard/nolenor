@@ -128,7 +128,7 @@ export default function TemplateEditorModal() {
             type="button"
             onClick={requestClose}
             aria-label="Close"
-            className="absolute top-4 right-4 z-10 rounded-sm p-1 opacity-60 transition-opacity hover:bg-black/5 hover:opacity-100"
+            className="absolute top-4 right-4 z-10 rounded-full p-1 opacity-60 transition-opacity hover:bg-black/5 hover:opacity-100"
           >
             <X className="size-4" />
           </button>
@@ -152,7 +152,7 @@ export default function TemplateEditorModal() {
           if (!open) keepEditing();
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
           <AlertDialogHeader>
             <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
             <AlertDialogDescription>

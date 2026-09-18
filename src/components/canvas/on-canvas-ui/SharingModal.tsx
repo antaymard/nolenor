@@ -40,15 +40,15 @@ export default function SharingModal() {
         <Button
           variant="ghost"
           size="sm"
-          className="hover:bg-accent flex items-center rounded-md"
+          className="hover:bg-accent flex items-center rounded-lg"
           title="Share canvas"
         >
           Share
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Share canvas</DialogTitle>
+          <DialogTitle className="font-bold tracking-tight">Share canvas</DialogTitle>
         </DialogHeader>
         <PublicLinkSection
           canvasId={canvas._id}

@@ -29,7 +29,7 @@ export default function NoleCanvasPanel() {
           className="h-10 rounded-lg px-3 font-bold tracking-tight"
           onClick={() => togglePanelLayout()}
         >
-          <NoleIcon /> Nolë
+          <NoleIcon size={16} /> Nolë
           <Kbd>N</Kbd>
         </Button>
       </div>

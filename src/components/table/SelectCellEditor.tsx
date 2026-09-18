@@ -44,7 +44,7 @@ export function SelectCellChip({ option }: { option: SelectOption }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center max-w-full rounded-md px-1.5 py-0.5 font-medium",
+        "inline-flex items-center max-w-full rounded-lg px-1.5 py-0.5 font-medium",
         c.bg,
         c.text,
       )}
@@ -117,7 +117,7 @@ export function SelectCellEditor({
           <span
             key={opt.id}
             className={cn(
-              "inline-flex items-center gap-0.5 max-w-full rounded-md px-1.5 py-0.5 font-medium",
+              "inline-flex items-center gap-0.5 max-w-full rounded-lg px-1.5 py-0.5 font-medium",
               SELECT_COLOR_CLASSES[opt.color].bg,
               SELECT_COLOR_CLASSES[opt.color].text,
             )}
@@ -200,7 +200,7 @@ export function SelectCellEditor({
                 type="button"
                 onClick={() => toggle(opt.id)}
                 className={cn(
-                  "flex items-center justify-between gap-2 w-full rounded-sm px-2 py-1 text-left hover:bg-muted",
+                  "flex items-center justify-between gap-2 w-full rounded-lg px-2 py-1 text-left hover:bg-muted",
                 )}
               >
                 <SelectCellChip option={opt} />

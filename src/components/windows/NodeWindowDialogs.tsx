@@ -40,7 +40,10 @@ export default function NodeWindowDialogs({
     <>
       <Dialog open={historyOpen} onOpenChange={onHistoryOpenChange}>
         <DialogContent
-          className={cn("flex h-[70vh] max-h-175 flex-col", contentClassName)}
+          className={cn(
+            "flex h-[70vh] max-h-175 flex-col rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]",
+            contentClassName,
+          )}
         >
           <DialogHeader>
             <DialogTitle>Version history</DialogTitle>
@@ -54,7 +57,10 @@ export default function NodeWindowDialogs({
       </Dialog>
       <Dialog open={threadsOpen} onOpenChange={onThreadsOpenChange}>
         <DialogContent
-          className={cn("flex h-[70vh] max-h-175 flex-col", contentClassName)}
+          className={cn(
+            "flex h-[70vh] max-h-175 flex-col rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]",
+            contentClassName,
+          )}
         >
           <DialogHeader>
             <DialogTitle>Threads that modified this node</DialogTitle>

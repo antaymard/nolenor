@@ -60,7 +60,7 @@ export default function MobileCanvasSwitcherSheet({
           <Link
             to="/"
             onClick={() => onOpenChange(false)}
-            className="flex items-center gap-2 rounded-md px-2 py-3 text-sm font-medium hover:bg-slate-100"
+            className="flex items-center gap-2 rounded-lg px-2 py-3 text-sm font-medium hover:bg-slate-100"
           >
             <TbHome size={16} className="text-muted-foreground" />
             All workspaces
@@ -139,7 +139,7 @@ function CanvasRow({
         type="button"
         onClick={onSelect}
         className={cn(
-          "flex-1 min-w-0 text-left text-sm font-medium px-2 py-3 rounded-md truncate",
+          "flex-1 min-w-0 text-left text-sm font-medium px-2 py-3 rounded-lg truncate",
           active ? "bg-slate-200" : "hover:bg-slate-100",
         )}
       >

@@ -98,7 +98,7 @@ export function ColumnMenu({
               <button
                 key={value}
                 type="button"
-                className="flex items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-accent"
                 onClick={() => {
                   if (value !== col.type) onTypeChange(value);
                   setTypePickerOpen(false);
@@ -149,7 +149,7 @@ export function ColumnMenu({
       {!readOnly && (
         <button
           type="button"
-          className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent"
           onClick={() => setTypePickerOpen(true)}
         >
           <CurrentIcon size={15} className="shrink-0 opacity-70" />
@@ -241,7 +241,7 @@ function MenuItem({
     <button
       type="button"
       className={cn(
-        "flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
+        "flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-accent",
         active && "font-medium",
       )}
       onClick={onClick}

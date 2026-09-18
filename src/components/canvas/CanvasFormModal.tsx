@@ -166,7 +166,7 @@ export default function CanvasFormModal({
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
   return (
-    <DialogContent className="max-h-[90vh] overflow-y-auto">
+    <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
       <form
         onSubmit={(e) => {
           e.preventDefault();

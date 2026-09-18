@@ -91,7 +91,7 @@ export default function CreateApiTokenDialog() {
           New token
         </Button>
       </DialogTrigger>
-      <DialogContent className={createdToken ? "sm:max-w-2xl" : undefined}>
+      <DialogContent className={createdToken ? "rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-2xl" : "rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]"}>
         {createdToken ? (
           <>
             <DialogHeader>
@@ -126,7 +126,7 @@ export default function CreateApiTokenDialog() {
                 <div className="flex flex-col gap-1.5">
                   <Label>Connect Claude Code</Label>
                   <div className="flex items-start gap-2">
-                    <pre className="min-w-0 flex-1 rounded-md border bg-muted p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+                    <pre className="min-w-0 flex-1 rounded-lg border bg-muted p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
                       {claudeCodeCommand}
                     </pre>
                     <Button

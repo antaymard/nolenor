@@ -72,7 +72,7 @@ export default function EditApiTokenDialog({
 
   return (
     <Dialog open={!!token} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
         <DialogHeader>
           <DialogTitle>Edit token</DialogTitle>
         </DialogHeader>

@@ -85,6 +85,7 @@ export default function ConfirmableButton({
     <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
       <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
       <AlertDialogContent
+        className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]"
         onOpenAutoFocus={(e) => {
           if (autoFocusConfirm) {
             e.preventDefault();

@@ -151,7 +151,7 @@ export default function WorkspaceGrid({
           if (!open) setCanvasToDelete(null);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
             <AlertDialogDescription>

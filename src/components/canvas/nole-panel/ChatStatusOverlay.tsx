@@ -53,7 +53,7 @@ function StatusPill({
     <div
       className={cn(
         "animate-appear-up flex items-center gap-1.5 rounded-full border py-1 pr-3 pl-2",
-        "text-xs shadow-sm backdrop-blur-sm",
+        "text-xs shadow-sm",
         className,
       )}
     >

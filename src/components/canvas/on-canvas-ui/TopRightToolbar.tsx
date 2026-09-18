@@ -32,7 +32,7 @@ function TopRightToolbar() {
               window.location.search +
               window.location.hash,
           }}
-          className="hover:bg-accent flex items-center rounded-md"
+          className="hover:bg-accent flex items-center rounded-lg"
           title="Settings"
         >
           <HiOutlineCog size={18} />

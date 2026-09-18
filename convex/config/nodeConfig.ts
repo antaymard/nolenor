@@ -127,6 +127,20 @@ const videoPlayerHeight = 255;
 const boardHeight = 330;
 const squareHeight = 352;
 
+/**
+ * La taille par défaut du titre d'une frame.
+ *
+ * Au milieu des trois niveaux : une frame est tracée autour de tout un groupe
+ * de nodes, son titre nomme une section et doit se lire de loin. Les frames
+ * déjà en base n'ont pas de `level` — c'est cette valeur qu'elles prennent, et
+ * c'est voulu : leur titre passe de la taille d'une mention à celle d'un
+ * intertitre, ce qui est exactement le but.
+ */
+const DEFAULT_FRAME_TITLE_LEVEL = "h2" as const;
+
+/** Les tailles proposées pour le titre d'une frame, de la plus grande à la plus petite. */
+const FRAME_TITLE_LEVELS = ["h1", "h2", "h3"] as const;
+
 const nodeDataConfig: Array<NodeDataConfigItem> = [
   {
     type: "title",
@@ -925,7 +939,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Container that groups nodes. Nodes inside a frame move with it and are addressable as a set.",
     llmDescription:
-      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `list_nodes` with `frameId` to list a frame's contents. Only the user draws frames — you cannot create one, nor rename one. \nIts only data value is 'title'.",
+      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `list_nodes` with `frameId` to list a frame's contents. Only the user draws frames — you cannot create one, nor rename one. \nIts data values are 'title' (the label shown above the frame) and 'level' (the size that label is drawn at, 'h1', 'h2' or 'h3').",
     // Grand gabarit : une frame est tracée autour de nodes existants, elle
     // part donc d'une taille qui en contient plusieurs. Ces dimensions ne
     // servent qu'aux frames créées sans tracé (aucune aujourd'hui) — l'outil
@@ -938,11 +952,12 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         exposed: true,
         creatable: false,
         readable: true,
-        // `set_node_data` remplace `values` en bloc, et la seule value d'une
-        // frame est son titre : lui ouvrir l'écriture, c'est lui permettre de
-        // renommer silencieusement la structure du canvas de l'utilisateur,
-        // sans contrepartie — il n'a aucun contenu à y produire. À rouvrir
-        // quand la frame portera de l'automation.
+        // `set_node_data` remplace `values` en bloc, et les values d'une frame
+        // ne sont que son titre et la taille de celui-ci : lui ouvrir
+        // l'écriture, c'est lui permettre de renommer silencieusement la
+        // structure du canvas de l'utilisateur, sans contrepartie — il n'a
+        // aucun contenu à y produire. À rouvrir quand la frame portera de
+        // l'automation.
         writable: false,
       },
       // Mentionnable : la pill se résout en `[[node:id|frame|Titre]]` et
@@ -959,8 +974,16 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     dataValuesSchema: z
       .object({
         title: z.string().default(""),
+        // Même échelle que le node `title` : le canvas n'a qu'une hiérarchie
+        // de titres, et une frame en est un niveau comme un autre. Sans le
+        // `p` de `title` en revanche — le titre d'une frame nomme une
+        // section, il n'a pas de raison de descendre au corps de texte.
+        level: z
+          .enum(FRAME_TITLE_LEVELS)
+          .describe("The size the frame's title is drawn at.")
+          .default(DEFAULT_FRAME_TITLE_LEVEL),
       })
-      .default({ title: "" }),
+      .default({ title: "", level: DEFAULT_FRAME_TITLE_LEVEL }),
   },
 ];
 
@@ -1031,6 +1054,8 @@ const agentCreatableNodeTypeZodValidator = z.enum(
 export {
   nodeDataConfig,
   nodeTypeZodValidator,
+  DEFAULT_FRAME_TITLE_LEVEL,
+  FRAME_TITLE_LEVELS,
   getDefaultNodeDataValues,
   getNodeCapabilities,
   isNodeTypeReadableByAgent,
@@ -1039,3 +1064,4 @@ export {
   DEFAULT_NODE_CAPABILITIES,
 };
 export type { NodeDataConfigItem, NodeVariant, NodeCapabilities };
+export type FrameTitleLevel = (typeof FRAME_TITLE_LEVELS)[number];

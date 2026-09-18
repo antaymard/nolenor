@@ -413,11 +413,7 @@
    contenu scrollé dessous. Poids léger pour chips/toolbars, jamais empilé
    sur un autre translucide. */
 .canvas-ui-container {
-  @apply flex items-center gap-1 rounded-xl border p-1 py-0 text-text shadow-[0_2px_10px_rgba(15,23,42,0.08)];
-  background: color-mix(in oklch, white 72%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-color: color-mix(in oklch, white 55%, var(--border));
+  @apply flex items-center gap-1 rounded-xl border p-1 py-0 text-text shadow-md bg-white;
 }
 .dark .canvas-ui-container {
   background: color-mix(in oklch, oklch(0.208 0.042 265.755) 72%, transparent);

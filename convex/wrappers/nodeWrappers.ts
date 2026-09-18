@@ -5,6 +5,7 @@ import {
 } from "../_generated/server";
 import * as NodeModels from "../models/nodeModels";
 import {
+  nodeCreateInputValidator,
   nodeCreateWithDataItemValidator,
   nodePatchUpdateValidator,
   nodesValidator,
@@ -53,6 +54,36 @@ export const createFrameAround = internalMutation({
   }),
   handler: async (ctx, args) => {
     return NodeModels.createFrameAroundNodes(ctx, args);
+  },
+});
+
+export const createInFrame = internalMutation({
+  args: {
+    canvasId: v.id("canvases"),
+    frameId: v.string(),
+    node: nodeCreateInputValidator,
+    nodeDataValues: v.record(v.string(), v.any()),
+    nodeDataTemplateId: v.optional(v.id("nodeTemplates")),
+    actor: v.optional(nodeDataVersionActorValidator),
+  },
+  returns: v.object({
+    nodeId: v.string(),
+    nodeDataId: v.id("nodeDatas"),
+    frame: v.object({
+      width: v.number(),
+      height: v.number(),
+      grown: v.boolean(),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    return NodeModels.createNodeInFrame(ctx, {
+      canvasId: args.canvasId,
+      frameId: args.frameId,
+      node: args.node,
+      values: args.nodeDataValues,
+      templateId: args.nodeDataTemplateId,
+      actor: args.actor,
+    });
   },
 });
 

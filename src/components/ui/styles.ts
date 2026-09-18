@@ -2,6 +2,8 @@ const colors = {
   blue: {
     label: "Blue",
     nodeBg: "bg-blue-200",
+    frameBg: "bg-blue-50",
+    frameBorder: "border-blue-400",
     lightBg: "bg-blue-100",
     nodeBorder: "border-blue-600",
     accentBg: "bg-blue-500",
@@ -12,6 +14,8 @@ const colors = {
   red: {
     label: "Red",
     nodeBg: "bg-red-200",
+    frameBg: "bg-red-50",
+    frameBorder: "border-red-400",
     lightBg: "bg-red-100",
     accentBg: "bg-red-500",
     nodeBorder: "border-red-600",
@@ -22,6 +26,8 @@ const colors = {
   yellow: {
     label: "Yellow",
     nodeBg: "bg-yellow-200",
+    frameBg: "bg-yellow-50",
+    frameBorder: "border-yellow-400",
     lightBg: "bg-yellow-100",
     accentBg: "bg-yellow-500",
     nodeBorder: "border-yellow-600",
@@ -32,6 +38,8 @@ const colors = {
   green: {
     label: "Green",
     nodeBg: "bg-green-200",
+    frameBg: "bg-green-50",
+    frameBorder: "border-green-400",
     lightBg: "bg-green-100",
     nodeBorder: "border-green-600",
     accentBg: "bg-green-500",
@@ -42,6 +50,8 @@ const colors = {
   pink: {
     label: "Pink",
     nodeBg: "bg-pink-200",
+    frameBg: "bg-pink-50",
+    frameBorder: "border-pink-400",
     lightBg: "bg-pink-100",
     nodeBorder: "border-pink-600",
     accentBg: "bg-pink-500",
@@ -52,6 +62,8 @@ const colors = {
   orange: {
     label: "Orange",
     nodeBg: "bg-orange-200",
+    frameBg: "bg-orange-50",
+    frameBorder: "border-orange-400",
     lightBg: "bg-orange-100",
     nodeBorder: "border-orange-600",
     accentBg: "bg-orange-500",
@@ -62,6 +74,8 @@ const colors = {
   purple: {
     label: "Purple",
     nodeBg: "bg-purple-200",
+    frameBg: "bg-purple-50",
+    frameBorder: "border-purple-400",
     lightBg: "bg-purple-100",
     nodeBorder: "border-purple-600",
     accentBg: "bg-purple-500",
@@ -72,6 +86,8 @@ const colors = {
   default: {
     label: "Default",
     nodeBg: "bg-white",
+    frameBg: "bg-slate-50",
+    frameBorder: "border-slate-400",
     lightBg: "bg-slate-50",
     nodeBorder: "border-slate-200",
     accentBg: "bg-slate-500",
@@ -82,6 +98,8 @@ const colors = {
   transparent: {
     label: "Transparent",
     nodeBg: "bg-transparent",
+    frameBg: "bg-transparent",
+    frameBorder: "border-transparent",
     lightBg: "bg-transparent",
     nodeBorder: "border-transparent",
     textColor: "text-slate-600",

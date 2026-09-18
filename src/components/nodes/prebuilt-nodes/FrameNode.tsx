@@ -188,13 +188,13 @@ function FrameNode(xyNode: XyNodeProps) {
       <div
         className={cn(
           "relative h-full w-full rounded-[5px] border-2 transition-colors duration-100",
-          nodeColor.nodeBorder,
+          nodeColor.frameBorder,
           // `lightBg` et non `nodeBg` : c'est la teinte la plus claire de la
           // palette, celle qui tient sur une grande surface. Une frame en
           // `nodeBg` écraserait les nodes blancs posés dessus. Le cas
           // `transparent` tombe juste tout seul — fond ET bordure y sont
           // transparents, la frame se réduit à son titre.
-          nodeColor.lightBg,
+          nodeColor.frameBg,
           xyNode.selected && "ring-2 ring-blue-500/70",
           // Cible de dépôt : la bordure prime sur la couleur du node, c'est
           // une réponse au geste en cours et pas un état du document.

@@ -115,6 +115,7 @@ type NodePatchUpdate = Infer<typeof nodePatchUpdateValidator>;
 
 export {
   nodePatchPropsValidator,
+  nodeCreateInputValidator,
   nodeCreateWithDataItemValidator,
   nodePatchUpdateValidator,
 };

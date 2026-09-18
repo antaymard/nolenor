@@ -951,7 +951,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Container that groups nodes. Nodes inside a frame move with it and are addressable as a set.",
     llmDescription:
-      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `list_nodes` with `frameId` to list a frame's contents. Only the user draws frames — you cannot create one, nor rename one. \nIts data values are 'title' (the label shown above the frame) and 'level' (the size that label is drawn at, 'h1', 'h2' or 'h3').",
+      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `list_nodes` with `frameId`, or `read_nodes` on the frame itself, to list its contents. \nYou create one with `group_nodes`, which draws a frame around nodes that already exist — `create_node` cannot make one, since an empty frame groups nothing. To put a NEW node into an existing frame, pass `frameId` to `create_node`. What enters a frame stays there: you cannot take a node out, move it to another frame, or rename a frame, and deleting a frame deletes everything in it. \nIts data values are 'title' (the label shown above the frame) and 'level' (the size that label is drawn at, 'h1', 'h2' or 'h3').",
     // Grand gabarit : une frame est tracée autour de nodes existants, elle
     // part donc d'une taille qui en contient plusieurs. Ces dimensions ne
     // servent qu'aux frames créées sans tracé (aucune aujourd'hui) — l'outil
@@ -959,8 +959,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     defaultDimensions: { width: 600, height: 400, resizable: true },
     capabilities: {
       agent: {
-        // Décrite mais pas créable : l'agent va croiser des frames dans
-        // `list_nodes` et dans la minimap, il lui faut savoir ce que c'est.
+        // Décrite, et pas créable PAR `create_node` : l'agent en trace bien,
+        // mais par `group_nodes`, autour de nodes qui existent déjà — une
+        // frame vide posée par l'auto-placement ne grouperait rien. Ce flag ne
+        // gate que l'enum de `create_node`, la `llmDescription` nomme la porte.
         exposed: true,
         creatable: false,
         readable: true,
@@ -968,8 +970,10 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         // ne sont que son titre et la taille de celui-ci : lui ouvrir
         // l'écriture, c'est lui permettre de renommer silencieusement la
         // structure du canvas de l'utilisateur, sans contrepartie — il n'a
-        // aucun contenu à y produire. À rouvrir quand la frame portera de
-        // l'automation.
+        // aucun contenu à y produire. Il nomme en revanche les frames qu'il
+        // trace, au moment de les tracer : `group_nodes` exige un titre. Nommer
+        // ce qu'on crée et renommer ce qu'un autre a créé ne sont pas le même
+        // geste. À rouvrir quand la frame portera de l'automation.
         writable: false,
       },
       // Mentionnable : la pill se résout en `[[node:id|frame|Titre]]` et

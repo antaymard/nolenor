@@ -28,6 +28,7 @@ import {
   type PlacementSide,
 } from "../helpers/nodePlacement";
 import { absolutePositionsById } from "../../lib/nodeGeometry";
+import { FRAME_CONTENT_PADDING } from "../../config/nodeConfig";
 
 // Tool compaction config
 export const createNodeToolConfig: ToolConfig = {
@@ -42,9 +43,18 @@ export const createNodeToolConfig: ToolConfig = {
 /** Retour du placement au modèle : ce qui a été demandé, ce qui a été appliqué. */
 type PlacementReport = {
   requested: PlacementRequest | "absolute";
-  applied: PlacementSide | "scan" | "origin" | "absolute";
+  applied: PlacementSide | "scan" | "origin" | "absolute" | "bounded";
   anchorNodeId?: string;
-  fallback?: "empty_canvas" | "anchor_not_found" | "no_anchor";
+  /** La frame dans laquelle le node a été posé, si `frameId` a été demandé. */
+  frameId?: string;
+  /** La frame a dû s'agrandir pour contenir le node : sa nouvelle taille. */
+  frameGrown?: { width: number; height: number };
+  fallback?:
+    | "empty_canvas"
+    | "anchor_not_found"
+    | "no_anchor"
+    | "empty_frame"
+    | "anchor_outside_frame";
 };
 
 const nodeColorValues = [
@@ -196,11 +206,17 @@ export default function createNodeTool({
           'Required when nodeType is "custom": the node template id (see <user_node_templates>). Ignored otherwise.',
         ),
       explanation: EXPLANATION_FIELD,
+      frameId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional frame node id: create the node INSIDE that frame, as one of its children. The frame must already exist — see the canvas structure map, list_nodes, or create one with group_nodes. Placement then happens inside the frame's box, and the frame grows if the node does not fit. What enters a frame stays there: you cannot take it out afterwards, and deleting the frame deletes it. Only use this when the node belongs to that group.",
+        ),
       anchorNodeId: z
         .string()
         .optional()
         .describe(
-          "Optional anchor node id for relative placement. Defaults to the last valid entry of sourceNodes, then to the edge of the existing content. Ignored when position is provided.",
+          "Optional anchor node id for relative placement. Defaults to the last valid entry of sourceNodes, then to the edge of the existing content. With frameId, the anchor must be a node of that frame, and the frame's existing content is used otherwise — sourceNodes does not anchor in that case, since a source usually sits outside. Ignored when position is provided.",
         ),
       placement: z
         .enum(["left", "right", "above", "below", "auto"])
@@ -320,8 +336,13 @@ export default function createNodeTool({
         let finalPosition: { x: number; y: number };
         let placementReport: PlacementReport;
         let nodeRectsById: Map<string, NodeRect> | null = null;
+        /** Le rectangle MONDE de la frame cible, quand `frameId` est demandé. */
+        let frameRect: NodeRect | null = null;
 
-        if (input.position) {
+        // Le fetch était sauté en placement absolu ; avec `frameId` le
+        // rectangle de la frame est nécessaire dans les deux cas — c'est lui
+        // qui donne le repère dans lequel écrire la position.
+        if (input.position && !input.frameId) {
           finalPosition = input.position;
           placementReport = { requested: "absolute", applied: "absolute" };
         } else {
@@ -344,9 +365,78 @@ export default function createNodeTool({
           }));
           nodeRectsById = new Map(nodeRects.map((rect) => [rect.id, rect]));
 
+          if (input.frameId) {
+            const frameNode = nodes.find((node) => node.id === input.frameId);
+            if (!frameNode) {
+              return toolError(
+                `Unknown frameId "${input.frameId}": no node with this id on this canvas.`,
+              );
+            }
+            if (frameNode.type !== "frame") {
+              return toolError(
+                `Node ${input.frameId} is a ${frameNode.type}, not a frame. Only a frame can contain nodes.`,
+              );
+            }
+            frameRect = nodeRectsById.get(frameNode.id) ?? null;
+          }
+
           const requestedPlacement = input.placement ?? "auto";
 
-          if (nodeRects.length === 0) {
+          // La zone utile de la frame : sa boîte moins la marge. C'est là que
+          // le node doit tomber, et le plancher à 0 évite une région négative
+          // sur une frame plus petite que deux marges.
+          const bounds: NodeRect | null = frameRect
+            ? {
+                id: frameRect.id,
+                position: {
+                  x: frameRect.position.x + FRAME_CONTENT_PADDING,
+                  y: frameRect.position.y + FRAME_CONTENT_PADDING,
+                },
+                width: Math.max(
+                  0,
+                  frameRect.width - 2 * FRAME_CONTENT_PADDING,
+                ),
+                height: Math.max(
+                  0,
+                  frameRect.height - 2 * FRAME_CONTENT_PADDING,
+                ),
+              }
+            : null;
+
+          // Les enfants de la frame cible : ce sont eux qu'il s'agit de ne pas
+          // recouvrir, et c'est leur boîte englobante qui sert d'ancre.
+          const frameChildren = frameRect
+            ? nodes
+                .filter((node) => node.parentId === frameRect!.id)
+                .flatMap((node) => {
+                  const rect = nodeRectsById!.get(node.id);
+                  return rect ? [rect] : [];
+                })
+            : [];
+
+          if (input.position && bounds && frameRect) {
+            // Position absolue DANS une frame : on la prend telle quelle, comme
+            // hors frame — « used exactly as given even if it overlaps ». Seule
+            // la conversion de repère plus bas s'applique.
+            finalPosition = input.position;
+            placementReport = {
+              requested: "absolute",
+              applied: "absolute",
+              frameId: frameRect.id,
+            };
+          } else if (bounds && frameRect && frameChildren.length === 0) {
+            // Frame vide : le coin intérieur, directement. Passer par les
+            // candidats latéraux d'une ancre de taille nulle les ferait tous
+            // sortir de la boîte, et le scan en anneaux finirait par poser le
+            // node décalé pour rien.
+            finalPosition = { ...bounds.position };
+            placementReport = {
+              requested: requestedPlacement,
+              applied: "origin",
+              frameId: frameRect.id,
+              fallback: "empty_frame",
+            };
+          } else if (nodeRects.length === 0) {
             finalPosition = { x: 0, y: 0 };
             placementReport = {
               requested: requestedPlacement,
@@ -358,12 +448,29 @@ export default function createNodeTool({
             let anchorFallback: PlacementReport["fallback"];
 
             if (input.anchorNodeId) {
-              anchor = nodeRectsById.get(input.anchorNodeId) ?? null;
-              if (!anchor) {
+              const requested = nodeRectsById.get(input.anchorNodeId) ?? null;
+              if (!requested) {
                 anchorFallback = "anchor_not_found";
+              } else if (frameRect) {
+                // Une ancre hors de la frame placerait le node hors de la
+                // boîte : on retombe sur le contenu de la frame.
+                const isChild = frameChildren.some(
+                  (child) => child.id === requested.id,
+                );
+                if (isChild) anchor = requested;
+                else anchorFallback = "anchor_outside_frame";
+              } else {
+                anchor = requested;
               }
             }
-            if (!anchor && input.sourceNodes && input.sourceNodes.length > 0) {
+            // `sourceNodes` n'ancre pas en mode frame : une source est en
+            // général dehors, et ancrer dessus viserait hors de la boîte.
+            if (
+              !anchor &&
+              !frameRect &&
+              input.sourceNodes &&
+              input.sourceNodes.length > 0
+            ) {
               for (const sourceNodeId of input.sourceNodes) {
                 const found = nodeRectsById.get(sourceNodeId);
                 if (found) {
@@ -372,17 +479,40 @@ export default function createNodeTool({
               }
             }
 
-            const anchorRect = anchor ?? contentAnchor(nodeRects)!;
+            // Hors frame : le bord du contenu du canvas. Dans une frame : le
+            // bord de SON contenu — la même sémantique, un cran plus bas.
+            const anchorRect =
+              anchor ??
+              (frameRect
+                ? (contentAnchor(frameChildren) ?? {
+                    id: frameRect.id,
+                    position: bounds!.position,
+                    width: 0,
+                    height: 0,
+                  })
+                : contentAnchor(nodeRects)!);
+
+            // La frame cible sort de ses propres obstacles : son rectangle
+            // recouvre par construction tout ce qu'on voudrait poser dedans, et
+            // aucun candidat ne pourrait satisfaire « dans la frame » ET « sans
+            // chevauchement ». Les autres frames restent des obstacles — on ne
+            // pose pas un node sur un autre groupe.
+            const obstacles = frameRect
+              ? nodeRects.filter((rect) => rect.id !== frameRect!.id)
+              : nodeRects;
+
             const { x, y, applied } = resolveRelativePlacement({
               anchor: anchorRect,
               size: defaultDimensions,
               placement: requestedPlacement,
-              obstacles: nodeRects,
+              obstacles,
+              ...(bounds && { bounds }),
             });
             finalPosition = { x, y };
             placementReport = {
               requested: requestedPlacement,
               applied,
+              ...(frameRect && { frameId: frameRect.id }),
               ...(anchor
                 ? { anchorNodeId: anchor.id }
                 : { fallback: anchorFallback ?? "no_anchor" }),
@@ -390,32 +520,67 @@ export default function createNodeTool({
           }
         }
 
-        const [created] = await ctx.runMutation(
-          internal.wrappers.nodeWrappers.createWithNodeData,
-          {
-            nodes: [
-              {
-                node: {
-                  canvasId,
-                  type: input.nodeType,
-                  position: finalPosition,
-                  width: defaultDimensions.width,
-                  height: defaultDimensions.height,
-                  ...(input.color && { color: input.color }),
-                  ...(template && { data: { templateId: template._id } }),
-                },
-                nodeDataValues: initialValues,
-                ...(template && { nodeDataTemplateId: template._id }),
-              },
-            ],
-            actor: {
-              type: "agent",
-              userId: threadCtx.authUserId,
-              threadId: ctx.threadId,
+        const actor = {
+          type: "agent" as const,
+          userId: threadCtx.authUserId,
+          threadId: ctx.threadId,
+        };
+        const nodeShape = {
+          type: input.nodeType,
+          width: defaultDimensions.width,
+          height: defaultDimensions.height,
+          ...(input.color && { color: input.color }),
+          ...(template && { data: { templateId: template._id } }),
+        };
+
+        let nodeId: string;
+        if (frameRect) {
+          // La seule conversion de repère du tool. `finalPosition` reste en
+          // MONDE partout au-dessus — la géométrie des `sourceNodes` en dépend —
+          // et ne devient relative qu'ici, au moment d'écrire. Une frame est
+          // toujours de premier niveau, donc sa position EST sa position monde :
+          // pas de récursion. Pendant serveur de `positionInFrame`.
+          const relativePosition = {
+            x: finalPosition.x - frameRect.position.x,
+            y: finalPosition.y - frameRect.position.y,
+          };
+          const created = await ctx.runMutation(
+            internal.wrappers.nodeWrappers.createInFrame,
+            {
+              canvasId,
+              frameId: frameRect.id,
+              node: { canvasId, position: relativePosition, ...nodeShape },
+              nodeDataValues: initialValues,
+              ...(template && { nodeDataTemplateId: template._id }),
+              actor,
             },
-          },
-        );
-        const nodeId = created.nodeId;
+          );
+          nodeId = created.nodeId;
+          if (created.frame.grown) {
+            placementReport = {
+              ...placementReport,
+              frameGrown: {
+                width: created.frame.width,
+                height: created.frame.height,
+              },
+            };
+          }
+        } else {
+          const [created] = await ctx.runMutation(
+            internal.wrappers.nodeWrappers.createWithNodeData,
+            {
+              nodes: [
+                {
+                  node: { canvasId, position: finalPosition, ...nodeShape },
+                  nodeDataValues: initialValues,
+                  ...(template && { nodeDataTemplateId: template._id }),
+                },
+              ],
+              actor,
+            },
+          );
+          nodeId = created.nodeId;
+        }
 
         // Connexions demandées depuis des sources existantes, isolées par
         // source : le node est déjà commité, une source invalide ne doit pas
@@ -439,12 +604,17 @@ export default function createNodeTool({
                 canvasId,
               },
             );
+            // Positions MONDE, comme dans la branche du placement relatif :
+            // une source qui vit dans une frame porte une position relative, et
+            // les poignées d'edge se calculeraient sur un rectangle fantôme
+            // posé près de l'origine.
+            const worldPositions = absolutePositionsById(nodes);
             nodeRectsById = new Map(
               nodes.map((node) => [
                 node.id,
                 {
                   id: node.id,
-                  position: node.position,
+                  position: worldPositions.get(node.id) ?? node.position,
                   width: node.width,
                   height: node.height,
                 },
@@ -529,7 +699,11 @@ export default function createNodeTool({
           nodeId,
           nodeType: input.nodeType,
           titleApplied,
+          // Position MONDE, comme `list_nodes` et `read_nodes` la rendent — y
+          // compris pour un node posé dans une frame, dont la position écrite
+          // en base est pourtant relative.
           position: finalPosition,
+          ...(frameRect && { frameId: frameRect.id }),
           placement: placementReport,
           color: input.color,
           dimensions: {

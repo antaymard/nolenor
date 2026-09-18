@@ -514,6 +514,73 @@ export async function createFrameAroundNodes(
 }
 
 /**
+ * Crée un node DANS une frame, et agrandit la frame s'il n'y tient pas.
+ *
+ * Une transaction pour les deux : une frame plus petite que son contenu est un
+ * état que le client tient déjà pour invalide — c'est son plancher de
+ * redimensionnement — donc elle ne doit jamais exister, pas même le temps d'un
+ * aller-retour.
+ *
+ * Elle grandit par le BAS et par la DROITE, coin haut gauche fixe. C'est ce qui
+ * rend l'opération sans effet de bord : les positions des enfants sont relatives
+ * à ce coin, donc aucune n'a à être recalculée, et le titre, posé au-dessus du
+ * bord haut, ne bouge pas.
+ *
+ * L'écriture passe par `db.patch` et pas par `patchNodes` : ce dernier vérifie
+ * que les nodes nommés partagent UN canvas, pas celui de l'appelant. Ici la
+ * frame a déjà été résolue sur `canvasId`, l'ambiguïté n'existe pas.
+ */
+export async function createNodeInFrame(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    frameId,
+    node,
+    values,
+    templateId,
+    padding = FRAME_CONTENT_PADDING,
+    actor,
+  }: {
+    canvasId: Id<"canvases">;
+    frameId: string;
+    /** `position` RELATIVE à la frame, comme tout enfant la porte. */
+    node: Omit<NodeCreateInput, "parentId">;
+    values: Record<string, unknown>;
+    templateId?: Id<"nodeTemplates">;
+    padding?: number;
+    actor?: NodeDataVersionActor;
+  },
+): Promise<{
+  nodeId: string;
+  nodeDataId: Id<"nodeDatas">;
+  frame: { width: number; height: number; grown: boolean };
+}> {
+  const frame = await getNodeOrThrow(ctx, { nodeId: frameId });
+  if (frame.type !== "frame" || frame.canvasId !== canvasId) {
+    throw new ConvexError(errors.NODE_PARENT_MUST_BE_A_FRAME);
+  }
+
+  const created = await createNodeWithData(ctx, {
+    node: { ...node, canvasId, parentId: frameId },
+    values,
+    templateId,
+    actor,
+    touchCanvas: false,
+  });
+
+  const width = Math.max(frame.width, node.position.x + node.width + padding);
+  const height = Math.max(frame.height, node.position.y + node.height + padding);
+  const grown = width !== frame.width || height !== frame.height;
+  if (grown) {
+    await ctx.db.patch(frame._id, { width, height });
+  }
+
+  await CanvasModels.touchCanvas(ctx, canvasId);
+
+  return { ...created, frame: { width, height, grown } };
+}
+
+/**
  * Un node peut-il être rattaché à ce parent ?
  *
  * Trois règles, vérifiées ici et pas seulement dans l'UI : `nodes.patch` est

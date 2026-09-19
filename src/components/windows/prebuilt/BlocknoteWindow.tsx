@@ -17,7 +17,11 @@ import {
   getCustomSlashMenuItems,
   groupSuggestionItems,
 } from "@/components/blocknote/registry";
-import { getNodeMentionSuggestionItems } from "@/components/blocknote/nodeMentionSuggestions";
+import {
+  getNodeMentionSuggestionItems,
+  type NodeMentionItem,
+} from "@/components/blocknote/nodeMentionSuggestions";
+import { NodeMentionMenu } from "@/components/blocknote/NodeMentionMenu";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
 import { useBlockNoteUpload } from "@/components/blocknote/useBlockNoteUpload";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
@@ -339,8 +343,19 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
               )
             }
           />
-          <SuggestionMenuController
+          {/* `suggestionMenuComponent` : le menu par défaut keye ses lignes
+              sur le titre, et deux nodes peuvent porter le même (cf.
+              `NodeMentionMenu`).
+
+              Le type d'item est passé explicitement : les props du contrôleur
+              sont un type conditionnel SUR ce générique, ce qui bloque son
+              inférence depuis `getItems` — sans ça TypeScript retombe sur le
+              défaut `DefaultReactSuggestionItem` et refuse notre menu. */}
+          <SuggestionMenuController<
+            (query: string) => Promise<NodeMentionItem[]>
+          >
             triggerCharacter="@"
+            suggestionMenuComponent={NodeMentionMenu}
             getItems={async (query) =>
               getNodeMentionSuggestionItems(editor, query)
             }

@@ -410,7 +410,7 @@ async function buildSingleImageChunk(
 
   try {
     const result = await generateText({
-      model: openrouter("~anthropic/claude-haiku-latest"),
+      model: openrouter("deepseek/deepseek-v4.1-flash"),
       messages: [
         {
           role: "user",

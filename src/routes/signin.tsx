@@ -525,29 +525,6 @@ function RouteComponent() {
           )}
         </p>
       </div>
-
-      {/* Footer */}
-      <footer
-        className="absolute bottom-8 flex flex-col items-center gap-2 animate-appear"
-        style={{ animationDelay: "320ms" }}
-      >
-        <div className="flex items-center gap-3 text-xs text-gray-400">
-          <a href="#" className="hover:text-gray-500 transition-colors">
-            Terms
-          </a>
-          <span>|</span>
-          <a href="#" className="hover:text-gray-500 transition-colors">
-            Privacy
-          </a>
-          <span>|</span>
-          <a href="#" className="hover:text-gray-500 transition-colors">
-            Feedback
-          </a>
-        </div>
-        <p className="text-xs text-gray-400">
-          © 2026 Nolënor. All rights reserved.
-        </p>
-      </footer>
     </div>
   );
 }

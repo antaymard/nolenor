@@ -48,7 +48,7 @@ export function useAudioRecorder(): AudioRecorderResult {
 
       if (typeof MediaRecorder === "undefined") {
         throw new Error(
-          "L'enregistrement audio n'est pas supporté par ce navigateur.",
+          "Audio recording is not supported by this browser.",
         );
       }
 

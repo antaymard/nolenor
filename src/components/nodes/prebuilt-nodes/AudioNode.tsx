@@ -422,7 +422,7 @@ function AudioNode(xyNode: XyNodeProps) {
                     onChange={(e) => setTitleDraft(e.target.value)}
                   />
                   <Button type="submit" size="sm">
-                    Enregistrer
+                    Save
                   </Button>
                 </>
               )}

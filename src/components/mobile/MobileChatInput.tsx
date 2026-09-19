@@ -56,7 +56,7 @@ export default function MobileChatInput() {
   const handleSend = useCallback(() => {
     if (hasDirtyWindows) {
       toast.error(
-        "Veuillez enregistrer ou fermer les fenêtres modifiées avant d'envoyer votre message.",
+        "Please save or close the modified windows before sending your message.",
         { position: "bottom-left", duration: 5000 },
       );
       return;
@@ -151,8 +151,8 @@ export default function MobileChatInput() {
                   </span>
                 </TooltipTrigger>
                 <TooltipContent className="text-sm">
-                  Veuillez enregistrer ou fermer les fenêtres modifiées avant
-                  d'envoyer votre message.
+                  Please save or close the modified windows before
+                  sending your message.
                 </TooltipContent>
               </Tooltip>
             )}

@@ -188,8 +188,8 @@ function DirtyWindowsBadge({ count }: { count: number }) {
         </span>
       </TooltipTrigger>
       <TooltipContent className="text-sm">
-        Veuillez enregistrer ou fermer les fenêtres modifiées avant d'envoyer
-        votre message.
+        Please save or close the modified windows before sending
+        your message.
       </TooltipContent>
     </Tooltip>
   );

@@ -101,7 +101,8 @@ async function rebuildChunksForNodeData(
 
   // Vectorisation Voyage-4 (title + text), sauf types exclus via
   // `nodeConfig` (`search.embed: false` : title, embed, audio, video,
-  // viewport) — leurs chunks restent keyword seuls. En cas d'échec (clé
+  // viewport, frame, app) — leurs chunks restent keyword seuls. En cas
+  // d'échec (clé
   // absente, réseau, quota), on dégrade : upsert sans embedding, la recherche
   // keyword reste opérationnelle et le backfill couvrira le chunk plus tard.
   if (chunks.length > 0 && !isNodeTypeEmbedded(nodeData.type)) {
@@ -334,6 +335,17 @@ async function buildChunks(
       // fait des nodes qu'elle groupe, qui s'indexent chacun pour soi. Elle
       // n'apporte que son titre. Sans ce `case`, le `default` rendrait une
       // liste vide et la frame serait introuvable — silencieusement.
+      const title = String(nodeData.values.title ?? "").trim();
+      if (!title) return [];
+      return [{ ...base, chunkType: "node", order: 0, text: title }];
+    }
+
+    case "app": {
+      // Même forme que `viewport`/`frame` : le titre est tout ce que l'app
+      // porte de cherchable. Indexer le code JSX serait du bruit (et un coût
+      // d'embedding) sans valeur de recherche pour l'utilisateur. Sans ce
+      // `case`, le `default` rendrait une liste vide et l'app serait
+      // introuvable — silencieusement (même raison que `frame`).
       const title = String(nodeData.values.title ?? "").trim();
       if (!title) return [];
       return [{ ...base, chunkType: "node", order: 0, text: title }];

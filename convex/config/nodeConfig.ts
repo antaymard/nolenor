@@ -599,6 +599,12 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         resizable: false,
       },
     },
+    capabilities: {
+      // Titre seul : le code JSX n'a rien que l'utilisateur cherche (la
+      // branche `app` de `chunkBuilder` n'indexe que le titre). Keyword
+      // suffit, même raison que `viewport`/`frame`.
+      search: { embed: false },
+    },
     dataValuesSchema: z
       .object({
         code: z.string().default(""),

@@ -10,8 +10,8 @@ import { buildEmbeddingText, embedDocuments } from "./lib/voyage";
 // transaction), embed via Voyage, patch, puis chaînage au scheduler.
 //
 // Les types exclus via `nodeConfig` (`search.embed: false` : title, embed,
-// audio, video, viewport) ne sont jamais vectorisés : leurs chunks restent
-// keyword seuls.
+// audio, video, viewport, frame, app) ne sont jamais vectorisés : leurs
+// chunks restent keyword seuls.
 //
 // Lancer avec : `npx convex run migrations:backfillEmbeddings '{}'`
 // (ou depuis le dashboard). Idempotent : relançable sans risque.
@@ -108,8 +108,8 @@ export const backfillEmbeddings = internalAction({
 });
 
 // ── Purge des embeddings des types exclus (`search.embed: false`) ───────────
-// Retire `embedding` / `embeddingModel` des chunks title, embed, audio, video
-// et viewport : retour au keyword seul. Balayage paginé (100 docs /
+// Retire `embedding` / `embeddingModel` des chunks title, embed, audio, video,
+// viewport, frame et app : retour au keyword seul. Balayage paginé (100 docs /
 // transaction), patch, puis chaînage au scheduler.
 //
 // Lancer avec : `npx convex run migrations:stripExcludedEmbeddings '{}'`

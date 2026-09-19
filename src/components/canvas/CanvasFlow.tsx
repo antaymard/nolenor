@@ -139,9 +139,10 @@ export default function CanvasFlow({
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const focus = useCanvasStore((state) => state.focus);
   // Outil main : le clic gauche pan au lieu de lasso, et plus rien ne se
-  // déplace. Tout le reste répond encore — sélection, edges, double-clic, clic
-  // droit — d'où un `isHandTool` qui ne touche que trois props de <ReactFlow>
-  // et jamais `elementsSelectable` ni `nodesConnectable`.
+  // déplace. Tout le reste répond encore — sélection, edges, double-clic
+  // (qui ouvre la window du node, sans zoomer), clic droit — d'où un
+  // `isHandTool` qui ne touche que quatre props de <ReactFlow> et jamais
+  // `elementsSelectable` ni `nodesConnectable`.
   const isHandTool = useCanvasStore((state) => state.tool) === "hand";
   const { duplicateNodes } = useDuplicateNode();
   const canDuplicateNodes = canEdit;
@@ -712,7 +713,10 @@ export default function CanvasFlow({
         // Tactile : draggable est accordé node par node via withTouchDragGate.
         nodesDraggable={!isTouch && !isFrameTool && !isHandTool}
         // Tactile : le double-tap sert à ouvrir un node, pas à zoomer.
-        zoomOnDoubleClick={!isTouch}
+        // Mode main : le double-clic ouvre la window du node, donc pas de
+        // zoom non plus (ni sur node, ni sur vide — le zoom reste à la
+        // molette et aux contrôles).
+        zoomOnDoubleClick={!isTouch && !isHandTool}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onPaneClick={onPaneClick}

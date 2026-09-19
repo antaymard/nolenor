@@ -24,3 +24,14 @@ export function showUpdateToast(onReload: () => void): void {
     { id: TOAST_ID, duration: Infinity, position: "top-center" },
   );
 }
+
+/**
+ * Referme le bandeau de mise à jour s'il est affiché.
+ *
+ * `appUpdate.ts` l'appelle quand un `vite:preloadError` survient sans SW en
+ * attente : c'est une erreur de chargement isolée (micro-coupure, ETP, 503),
+ * pas un déploiement, et un bandeau « new version » serait un faux positif.
+ */
+export function dismissUpdateToast(): void {
+  toast.dismiss(TOAST_ID);
+}

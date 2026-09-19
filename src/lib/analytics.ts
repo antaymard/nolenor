@@ -59,6 +59,33 @@ export function resetAnalyticsIdentity(): void {
 }
 
 /**
+ * Événement produit non-erreur (diagnostic PWA, parcours, …).
+ *
+ * Console en dev comme en prod (une ligne par mise à jour, pas de bruit), et
+ * capture PostHog quand l'analytics est active. Best-effort juste avant un
+ * reload : l'événement peut être perdu si la page se décharge aussitôt.
+ *
+ * Ne throw jamais : cf. `reportError()`.
+ */
+export function trackEvent(
+  event: string,
+  properties?: Record<string, unknown>,
+): void {
+  if (properties) {
+    console.info(`[analytics] ${event}`, properties);
+  } else {
+    console.info(`[analytics] ${event}`);
+  }
+
+  if (!isEnabled) return;
+  try {
+    posthog.capture(event, properties);
+  } catch {
+    // Volontairement muet : si la capture échoue, on a déjà la console.
+  }
+}
+
+/**
  * Seul chemin de remontée d'erreur de l'app. Toujours loggé en console (le
  * support et le dev en ont besoin), envoyé à PostHog quand il est actif.
  *

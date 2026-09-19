@@ -79,16 +79,16 @@ function PositionAttachment({
   onRemove: () => void;
 }) {
   return (
-    <div className="group relative flex max-w-55 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0.5 pr-2.5 pl-1.5 text-sm text-slate-600">
+    <div className="group relative flex max-w-55 items-center gap-1 rounded-full border border-violet-200 bg-violet-50 py-0.5 pr-2.5 pl-1.5 text-sm font-medium text-violet-700">
       <button
         type="button"
         onClick={onRemove}
         aria-label="Retirer la position jointe"
-        className="rounded-full text-slate-400 transition-colors hover:text-red-500"
+        className="rounded-full text-violet-400 transition-colors hover:text-red-500"
       >
         <HiMiniXMark size={14} />
       </button>
-      <LuMousePointerClick size={12} className="min-w-3 text-slate-400" />
+      <LuMousePointerClick size={12} className="min-w-3 text-violet-400" />
       <span className="truncate">
         Position ({Math.round(position.x)}, {Math.round(position.y)})
       </span>
@@ -120,17 +120,22 @@ function NodeAttachment({
   return (
     <div
       className={cn(
-        "group relative flex max-w-55 items-center gap-1 rounded-full border py-0.5 pr-2.5 pl-1.5 text-sm text-slate-600 transition-colors",
+        "group relative flex max-w-55 items-center gap-1 rounded-full border py-0.5 pr-2.5 pl-1.5 text-sm transition-colors",
         isAttached
-          ? "border-slate-200 bg-slate-50"
-          : "border-dashed border-slate-200 italic opacity-70 hover:opacity-100",
+          ? // Joint : violet Nolë (même sens que l'anneau pointillé du node
+            // attaché sur le canvas), plein et opaque — impossible à
+            // confondre avec la version pointillée grise ci-dessous.
+            "border-violet-300 bg-violet-50 font-medium text-violet-800"
+          : "border-dashed border-slate-200 text-slate-600 italic opacity-70 hover:opacity-100",
       )}
     >
       <button
         type="button"
         className={cn(
-          "rounded-full text-slate-400 transition-colors",
-          isAttached ? "hover:text-red-500" : "hover:text-emerald-600",
+          "rounded-full transition-colors",
+          isAttached
+            ? "text-violet-400 hover:text-red-500"
+            : "text-slate-400 hover:text-emerald-600",
         )}
         onClick={() => (isAttached ? onRemove(node.id) : onAttach(node))}
         aria-label={isAttached ? "Retirer la piece jointe" : "Attacher le node"}
@@ -138,7 +143,10 @@ function NodeAttachment({
         {isAttached ? <TbX size={14} /> : <TbPlus size={14} />}
       </button>
       {NodeIcon ? (
-        <NodeIcon size={12} className="min-w-3 text-slate-400" />
+        <NodeIcon
+          size={12}
+          className={cn("min-w-3", isAttached ? "text-violet-500" : "text-slate-400")}
+        />
       ) : null}
       <span className="truncate">{nodeTitle}</span>
     </div>

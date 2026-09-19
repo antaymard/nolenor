@@ -573,6 +573,17 @@ button,
   z-index: 1001 !important;
 }
 
+/* Survol d'une edge : `BaseEdge` pose le stroke en inline, donc un override
+   CSS du path ne prendrait jamais. `filter: drop-shadow` contourne ça — il
+   s'applique à l'élément, pas au stroke — et donne le même halo que la
+   sélection (`CustomEdge`), en plus léger. `:not(.selected)` : une edge déjà
+   sélectionnée garde son halo plein, pas les deux empilés. */
+@media (hover: hover) and (pointer: fine) {
+  .react-flow__edge.selectable:not(.selected):hover {
+    filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.9));
+  }
+}
+
 /* LinkNode preview: masquer la description quand le noeud est petit */
 .link-preview-container {
   container-type: size;

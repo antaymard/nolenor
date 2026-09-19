@@ -166,8 +166,27 @@ function CustomEdge({
 
   const label = edgeData.label;
 
+  // Halo bleu de sélection, même vocabulaire que `NodeFrame`
+  // (`ring-2 ring-blue-500/70`) : la couleur de l'edge est préservée, le halo
+  // se peint dessous en plein (même en pointillés) pour rester lisible.
+  // `BaseEdge` pose le stroke en inline, donc le CSS xyflow
+  // (`.selected .react-flow__edge-path`) est inopérant — d'où ce path explicite.
+  const selectionHaloWidth = svgWidth + 6;
+
   return (
     <>
+      {selected && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke="#3b82f6"
+          strokeOpacity={0.35}
+          strokeWidth={selectionHaloWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pointerEvents="none"
+        />
+      )}
       <BaseEdge
         id={id}
         path={edgePath}
@@ -207,6 +226,11 @@ function CustomEdge({
                 padding: "1px 8px",
                 borderRadius: 10,
                 border: `1px solid ${hex}`,
+                // Même vocabulaire que le halo du trait : le pill du label
+                // prend le ring bleu quand l'edge est sélectionnée.
+                ...(selected
+                  ? { boxShadow: "0 0 0 2px rgba(59, 130, 246, 0.7)" }
+                  : null),
                 maxWidth: 200,
                 overflow: "hidden",
                 textOverflow: "ellipsis",

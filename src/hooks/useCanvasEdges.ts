@@ -23,14 +23,27 @@ export function useCanvasEdges(canvasId: Id<"canvases">, canvasEdges?: Edge[]) {
     },
   );
 
-  // Sync convex -> reactflow edges
+  // Sync convex -> reactflow edges while preserving selection.
+  // Sans ça, le moindre push (`data` d'une autre edge, bypass optimiste)
+  // éteignait le halo de `CustomEdge` — y compris celui qu'on vient
+  // d'allumer au clic droit dans `useContextMenu`. Même patron que les nodes
+  // (`useCanvasNodes`), en plus simple : la sélection d'edges n'est que
+  // locale, jamais persistée.
   useEffect(() => {
     if (canvasEdges !== undefined) {
       if (canvasEdges.length === 0) {
         setEdges([]);
         return;
       }
-      setEdges(canvasEdges);
+      setEdges((current) => {
+        const selectedIds = new Set(
+          current.filter((edge) => edge.selected).map((edge) => edge.id),
+        );
+        if (selectedIds.size === 0) return canvasEdges;
+        return canvasEdges.map((edge) =>
+          selectedIds.has(edge.id) ? { ...edge, selected: true } : edge,
+        );
+      });
     }
   }, [canvasEdges, setEdges]);
   const handleEdgeChange = useCallback(

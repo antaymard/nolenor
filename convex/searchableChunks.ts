@@ -242,6 +242,37 @@ export const search = query({
   },
 });
 
+export const listByNodeDataId = query({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    canvasId: v.id("canvases"),
+  },
+  returns: v.array(
+    v.object({
+      order: v.number(),
+      title: v.optional(v.string()),
+      text: v.string(),
+      imageUrl: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const authUserId = await requireAuth(ctx);
+    await requireCanvasAccess(ctx, args.canvasId, authUserId);
+    const chunks = await SearchableChunkModels.listByNodeDataId(ctx, {
+      nodeDataId: args.nodeDataId,
+    });
+    return chunks
+      .filter((chunk) => chunk.chunkType === "node")
+      .sort((a, b) => a.order - b.order)
+      .map((chunk) => ({
+        order: chunk.order,
+        title: chunk.title,
+        text: chunk.text,
+        imageUrl: getImageUrlFromMetadata(chunk.metadata),
+      }));
+  },
+});
+
 export const listPdfPages = query({
   args: {
     nodeDataId: v.id("nodeDatas"),

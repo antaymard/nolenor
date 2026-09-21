@@ -12,6 +12,12 @@ import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
+import {
+  extractHeadings,
+  headingsSignature,
+  type Heading,
+} from "@/lib/blocknoteOutline";
+import { BlocknoteOutlinePanel } from "@/components/windows/side-panel/BlocknoteOutlinePanel";
 import type { AppBlockNoteEditor } from "@/components/blocknote/schema";
 import {
   getCustomSlashMenuItems,
@@ -74,6 +80,7 @@ function EditorLoading() {
 }
 
 function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const latestDocRef = useRef<Block[] | null>(null);
   const hydrationFrameRef = useRef<number | null>(null);
   const skipNextChangeRef = useRef(false);
@@ -83,7 +90,8 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   // content (see the creation useState below), so no hydration overlay is needed
   // on mount. The re-hydration effect toggles it around later remote updates.
   const [isEditorReady, setIsEditorReady] = useState(true);
-  const { setDirty, setSaveHandler } = useWindowFrameContext();
+  const { setDirty, setSaveHandler, setPlanTabContent } =
+    useWindowFrameContext();
   const nodeDataValues = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const setFocus = useCanvasStore((s) => s.setFocus);
@@ -134,6 +142,45 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   if (lastHydratedSignatureRef.current === null) {
     lastHydratedSignatureRef.current = docSignature(docSource);
   }
+
+  // ── Plan tab: outline + scroll-to-heading ───────────────────────────────
+  // Own outline, independent of `onDocChange` (the fullscreen wrapper's own
+  // outline column/popover) — computed here so this registers correctly
+  // whether the editor is mounted floating or inside a fullscreen window, and
+  // scoped to `containerRef` so `scrollIntoView` finds whichever ancestor is
+  // actually scrollable in either chrome.
+  const [headings, setHeadings] = useState<Heading[]>(() =>
+    extractHeadings(editor.document as unknown as Block[]),
+  );
+  const headingsSigRef = useRef<string | null>(null);
+  if (headingsSigRef.current === null) {
+    headingsSigRef.current = headingsSignature(headings);
+  }
+  const updateHeadings = useCallback((doc: Block[]) => {
+    const next = extractHeadings(doc);
+    const signature = headingsSignature(next);
+    if (signature === headingsSigRef.current) return;
+    headingsSigRef.current = signature;
+    setHeadings(next);
+  }, []);
+  const scrollToHeading = useCallback((heading: Heading) => {
+    const root = containerRef.current;
+    if (!root) return;
+    const target = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-id]"),
+    ).find((el) => el.getAttribute("data-id") === heading.id);
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  useEffect(() => {
+    setPlanTabContent(
+      <BlocknoteOutlinePanel
+        headings={headings}
+        onSelect={scrollToHeading}
+        className="h-full"
+      />,
+    );
+    return () => setPlanTabContent(null);
+  }, [headings, scrollToHeading, setPlanTabContent]);
 
   const handleSaveClick = useCallback(async (): Promise<boolean> => {
     const doc = latestDocRef.current ?? editor.document;
@@ -203,7 +250,8 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     const doc = editor.document as unknown as Block[];
     latestDocRef.current = doc;
     onDocChange?.(doc);
-  }, [editor, onDocChange]);
+    updateHeadings(doc);
+  }, [editor, onDocChange, updateHeadings]);
 
   // ── Re-hydration (Last-Write-Wins) ───────────────────────────────────────
   // When the server pushes a doc whose content differs from the last one we
@@ -255,10 +303,11 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
       const doc = editor.document as unknown as Block[];
       latestDocRef.current = doc;
       onDocChange?.(doc);
+      updateHeadings(doc);
 
       setIsEditorReady(true);
     });
-  }, [docSource, editor, nodeDataValues, onDocChange]);
+  }, [docSource, editor, nodeDataValues, onDocChange, updateHeadings]);
 
   const handleChange = useCallback(() => {
     // The custom schema only widens inline content (date pill); the stored
@@ -266,12 +315,13 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     const doc = editor.document as unknown as Block[];
     latestDocRef.current = doc;
     onDocChange?.(doc);
+    updateHeadings(doc);
     if (skipNextChangeRef.current) {
       skipNextChangeRef.current = false;
       return;
     }
     setIsDirty(true);
-  }, [onDocChange, editor]);
+  }, [onDocChange, editor, updateHeadings]);
 
   const handleFocus = useCallback(() => {
     setFocus("richtext-editor");
@@ -302,6 +352,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
 
   return (
     <div
+      ref={containerRef}
       className="relative h-full w-full"
       onFocus={handleFocus}
       onBlur={handleBlur}

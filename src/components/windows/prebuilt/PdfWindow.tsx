@@ -1,6 +1,11 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+import { useQuery } from "convex/react";
+import {
+  TransformComponent,
+  TransformWrapper,
+  type ReactZoomPanPinchContentRef,
+} from "react-zoom-pan-pinch";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -12,8 +17,18 @@ import {
   pdfPixelRatio,
   pdfRenderScale,
 } from "@/lib/pdfZoom";
+import { scrollToPdfPage } from "@/lib/pdfPageScroll";
+import {
+  buildFallbackOutline,
+  buildOutlineFromPages,
+  type OutlineEntry,
+} from "@/lib/pdfOutline";
+import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { FileFieldType } from "@/components/fields/file-fields/FileNameField";
+import { useCanvasStore } from "@/stores/canvasStore";
+import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
+import { PdfOutlinePanel } from "@/components/windows/side-panel/PdfOutlinePanel";
 import PdfPageControls from "../PdfPageControls";
 import PdfZoomControls from "../PdfZoomControls";
 
@@ -58,12 +73,46 @@ function PdfWindow({
     [],
   );
 
+  // ── Plan tab: outline + scroll-to-page ──────────────────────────────────
+  const canvasId = useCanvasStore((s) => s.canvas?._id);
+  const pdfPages = useQuery(
+    api.searchableChunks.listPdfPages,
+    canvasId ? { nodeDataId, canvasId } : "skip",
+  );
+  const outline = useMemo<OutlineEntry[]>(
+    () => buildOutlineFromPages(pdfPages),
+    [pdfPages],
+  );
+  const fallbackOutline = useMemo<OutlineEntry[]>(
+    () => buildFallbackOutline(numPages),
+    [numPages],
+  );
+  const displayedOutline = outline.length > 0 ? outline : fallbackOutline;
+
+  const transformRef = useRef<ReactZoomPanPinchContentRef>(null);
+  const scrollToPage = useCallback((pageIndex: number) => {
+    scrollToPdfPage(transformRef.current, pageIndex);
+  }, []);
+
+  const { setPlanTabContent } = useWindowFrameContext();
+  useEffect(() => {
+    setPlanTabContent(
+      <PdfOutlinePanel
+        entries={displayedOutline}
+        onSelect={scrollToPage}
+        className="h-full"
+      />,
+    );
+    return () => setPlanTabContent(null);
+  }, [displayedOutline, scrollToPage, setPlanTabContent]);
+
   if (!nodeDataValues || !xyNode) return null;
 
   return (
     <div ref={viewportRef} className="relative w-full h-full overflow-hidden">
       {pdfUrl ? (
         <TransformWrapper
+          ref={transformRef}
           minScale={PDF_MIN_ZOOM}
           maxScale={PDF_MAX_ZOOM}
           centerZoomedOut

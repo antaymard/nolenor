@@ -1,9 +1,13 @@
 import { memo, useState, useCallback, useEffect } from "react";
+import { useQuery } from "convex/react";
 import { TbExternalLink } from "react-icons/tb";
+import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { deriveEmbedUrl } from "@/../convex/lib/embedUrl";
 import type { LinkValueType } from "@/components/nodes/prebuilt-nodes/LinkNode";
+import { useCanvasStore } from "@/stores/canvasStore";
+import { TranscriptPanel } from "@/components/windows/side-panel/TranscriptPanel";
 import { useWindowFrameContext } from "../WindowFrameContext";
 
 interface LinkWindowProps {
@@ -23,7 +27,7 @@ interface LinkWindowProps {
 function LinkWindow({ nodeDataId }: LinkWindowProps) {
   const nodeDataValues = useNodeDataValues(nodeDataId);
   const [refreshKey, setRefreshKey] = useState(0);
-  const { setRefreshHandler } = useWindowFrameContext();
+  const { setRefreshHandler, setPlanTabContent } = useWindowFrameContext();
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -33,6 +37,17 @@ function LinkWindow({ nodeDataId }: LinkWindowProps) {
     setRefreshHandler(handleRefresh);
     return () => setRefreshHandler(null);
   }, [handleRefresh, setRefreshHandler]);
+
+  // ── Plan tab: read-only transcript, generated at index time ─────────────
+  const canvasId = useCanvasStore((s) => s.canvas?._id);
+  const chunks = useQuery(
+    api.searchableChunks.listByNodeDataId,
+    canvasId ? { nodeDataId, canvasId } : "skip",
+  );
+  useEffect(() => {
+    setPlanTabContent(<TranscriptPanel chunks={chunks} />);
+    return () => setPlanTabContent(null);
+  }, [chunks, setPlanTabContent]);
 
   if (!nodeDataValues) return null;
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useWindowsStore } from "@/stores/windowsStore";
 import type { SaveHandler } from "./WindowFrameContext";
 import { useRegisterWindowSaveHandler } from "./windowSaveRegistry";
@@ -20,6 +20,9 @@ export function useWindowFrameState(xyNodeId: string) {
   );
   const [isSaving, setIsSaving] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [planTabContent, setPlanTabContent] = useState<ReactNode | null>(
+    null,
+  );
 
   const addDirtyNode = useWindowsStore((s) => s.addDirtyNode);
   const removeDirtyNode = useWindowsStore((s) => s.removeDirtyNode);
@@ -68,6 +71,7 @@ export function useWindowFrameState(xyNodeId: string) {
       setSaveHandler: (fn: SaveHandler | null) => setSaveHandler(() => fn),
       setRefreshHandler: (fn: (() => void) | null) =>
         setRefreshHandler(() => fn),
+      setPlanTabContent: (node: ReactNode | null) => setPlanTabContent(node),
     }),
     [],
   );
@@ -78,6 +82,7 @@ export function useWindowFrameState(xyNodeId: string) {
     saveState,
     saveHandler,
     refreshHandler,
+    planTabContent,
     handleSave,
     contextValue,
   };

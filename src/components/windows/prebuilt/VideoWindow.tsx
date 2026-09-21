@@ -4,6 +4,8 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useAudioStore } from "@/stores/audioStore";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { VideoValue } from "@/components/nodes/prebuilt-nodes/VideoNode";
+import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
+import { PlanTabPlaceholder } from "@/components/windows/side-panel/PlanTabPlaceholder";
 
 /**
  * Où en était la lecture, le temps d'une bascule.
@@ -127,6 +129,14 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
   // from the document pauses it, per spec), but the slot it claimed is ours to
   // hand back.
   useEffect(() => () => notifyStopped(slotKey), [notifyStopped, slotKey]);
+
+  const { setPlanTabContent } = useWindowFrameContext();
+  useEffect(() => {
+    setPlanTabContent(
+      <PlanTabPlaceholder message="Transcript support is coming soon." />,
+    );
+    return () => setPlanTabContent(null);
+  }, [setPlanTabContent]);
 
   if (!values) return null;
 

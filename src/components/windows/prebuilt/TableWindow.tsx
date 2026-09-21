@@ -3,6 +3,7 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
+import { TableMetadataPanel } from "@/components/windows/side-panel/TableMetadataPanel";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { Button } from "@/components/shadcn/button";
 import { TbDownload, TbUpload } from "react-icons/tb";
@@ -29,7 +30,8 @@ import type {
 } from "@/components/table";
 
 function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
-  const { setDirty, setSaveHandler } = useWindowFrameContext();
+  const { setDirty, setSaveHandler, setPlanTabContent } =
+    useWindowFrameContext();
   const nodeDataValues = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const isLocked = false;
@@ -82,6 +84,16 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   useEffect(() => {
     setDirty(isDirty && !isLocked);
   }, [isDirty, isLocked, setDirty]);
+
+  useEffect(() => {
+    setPlanTabContent(
+      <TableMetadataPanel
+        columnCount={localColumns.length}
+        rowCount={localRows.length}
+      />,
+    );
+    return () => setPlanTabContent(null);
+  }, [localColumns.length, localRows.length, setPlanTabContent]);
 
   const handleSave = useCallback(async (): Promise<boolean> => {
     const columns = columnsRef.current;

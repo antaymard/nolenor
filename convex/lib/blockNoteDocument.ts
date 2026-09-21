@@ -777,6 +777,58 @@ export function collectMentionedNodeDataIds(blocks: readonly unknown[]): string[
   return [...ids];
 }
 
+/**
+ * Every `mention` pill pointing at `targetNodeDataId`, with a text snippet of
+ * the block (or table row) that holds it — the backlinks panel's raw material.
+ * Same walk as `collectMentionedNodeDataIds`, but filtered to one target and
+ * carrying the containing block's id + text instead of just the referenced id.
+ */
+export function findMentionsOfNode(
+  blocks: readonly unknown[],
+  targetNodeDataId: string,
+): Array<{ blockId: string; snippet: string }> {
+  const hits: Array<{ blockId: string; snippet: string }> = [];
+
+  const mentionsTarget = (content: unknown): boolean => {
+    if (Array.isArray(content)) {
+      return content.some((node) => {
+        if (!isPlainObj(node)) return false;
+        if (node.type === "mention") {
+          const id = (node.props as Record<string, unknown> | undefined)?.nodeDataId;
+          return id === targetNodeDataId;
+        }
+        return node.content !== undefined && mentionsTarget(node.content);
+      });
+    }
+    if (isPlainObj(content) && content.type === "tableContent") {
+      const rows = (content as unknown as BlockNoteTableContent).rows;
+      if (!Array.isArray(rows)) return false;
+      return rows.some((row) => {
+        if (!isPlainObj(row) || !Array.isArray(row.cells)) return false;
+        return row.cells.some((cell) =>
+          mentionsTarget(isTableCell(cell) ? cell.content : cell),
+        );
+      });
+    }
+    return false;
+  };
+
+  const walkBlocks = (bs: readonly unknown[]): void => {
+    for (const block of bs) {
+      if (!isPlainObj(block)) continue;
+      if (block.content !== undefined && mentionsTarget(block.content)) {
+        const blockId = typeof block.id === "string" ? block.id : "";
+        const snippet = extractInlineText(block.content).trim();
+        if (blockId) hits.push({ blockId, snippet });
+      }
+      if (Array.isArray(block.children)) walkBlocks(block.children);
+    }
+  };
+
+  walkBlocks(blocks);
+  return hits;
+}
+
 // Block types that are visible even with no text at all, so a document made
 // only of them must not be reported as empty.
 const NON_TEXTUAL_BLOCK_TYPES = new Set([

@@ -27,7 +27,6 @@ export const OPENABLE_PREBUILT_NODE_TYPES: ReadonlySet<string> = new Set([
   // barre de titre de `LinkWindow`.
   "link",
   "blocknote",
-  "embed",
   "pdf",
   "table",
   "app",

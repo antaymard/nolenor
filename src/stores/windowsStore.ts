@@ -30,7 +30,7 @@ const DEFAULT_WINDOW_SIZE: WindowSizePreset = { width: 800, height: 520 };
 
 // Gabarit « document » : la colonne étroite et pleine hauteur du blocknote.
 // Partagé par tous les types dont la window est une surface de lecture, de
-// regard ou d'édition — blocknote, link, embed, app, custom, pdf, image, video —
+// regard ou d'édition — blocknote, link, app, custom, pdf, image, video —
 // pour qu'ils s'ouvrent tous à la même taille plutôt qu'à des formats
 // arbitraires par type. Seuls `table` (large) et `viewport` (liste compacte)
 // gardent un gabarit à part.
@@ -42,7 +42,6 @@ const DOCUMENT_WINDOW_SIZE: WindowSizePreset = {
 const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
   blocknote: DOCUMENT_WINDOW_SIZE,
   image: DOCUMENT_WINDOW_SIZE,
-  embed: DOCUMENT_WINDOW_SIZE,
   link: DOCUMENT_WINDOW_SIZE,
   app: DOCUMENT_WINDOW_SIZE,
   pdf: DOCUMENT_WINDOW_SIZE,
@@ -240,7 +239,7 @@ type Openability =
  * son côté (et pouvait donc oublier).
  *
  * La contrainte réelle vient de `WindowFrame`/`WindowBody` : son switch ne
- * sait rendre que blocknote / embed / app / pdf / image / table / custom. Pour
+ * sait rendre que blocknote / link / app / pdf / image / table / custom. Pour
  * tout autre type il tombe sur un `default` qui n'affiche que le nom du type —
  * une fenêtre vide, jamais un crash, mais inutile. Les custom nodes ajoutent
  * une condition : sans `windowLayout`, leur template n'a rien à rendre.

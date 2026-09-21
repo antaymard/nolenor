@@ -163,17 +163,6 @@ async function renderBody(
       return lines.join("\n");
     }
 
-    case "embed": {
-      const embed = asRecord(values.embed);
-      if (!embed) return "_Aucun contenu embarqué_";
-      const url = asString(embed.url) || asString(embed.embedUrl);
-      const title = asString(embed.title);
-      const kind = asString(embed.type);
-      const lines = [link(title || url, url)];
-      if (kind) lines.push("", `Type : ${kind}`);
-      return lines.join("\n");
-    }
-
     case "value": {
       const value = asRecord(values.value);
       if (!value) return "_Aucune valeur_";

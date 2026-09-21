@@ -142,15 +142,13 @@ Chaque nœud vit sur le canvas React Flow avec drag & drop, redimensionnement, c
 
 2. **Image** — upload et affichage. Stockage vers Cloudflare R2. Min 100x100px.
 
-3. **Link** — URL avec extraction automatique de métadonnées (titre, description, image de preview) via LinkPreview API. À l'indexation, une seconde passe interroge Parallel (`beta.extract` avec un objectif de résumé) pour récupérer un résumé de la page : le chunk de recherche porte alors titre, URL, domaine, description OG et résumé, et son embedding avec. Le résumé est mis en cache dans `metadata.sourceUrl`/`metadata.summary` du chunk, donc une réécriture du node ne repaye pas l'appel tant que l'URL ne change pas. Taille fixe 220x40px. Deux variantes : default et preview.
+3. **Link** — URL avec extraction automatique de métadonnées (titre, description, image de preview) via LinkPreview API. À l'indexation, une seconde passe interroge Parallel (`beta.extract` avec un objectif de résumé) pour récupérer un résumé de la page : le chunk de recherche porte alors titre, URL, domaine, description OG et résumé, et son embedding avec. Le résumé est mis en cache dans `metadata.sourceUrl`/`metadata.summary` du chunk, donc une réécriture du node ne repaye pas l'appel tant que l'URL ne change pas. Taille fixe 220x40px. Trois variantes : `default` (bandeau une ligne), `preview` (carte avec image et description) et `embed` (le lien rendu dans une iframe — YouTube, Google Docs/Sheets/Slides, ou toute page embarquable). Les trois lisent le même `link.href` : l'URL embarquable s'en dérive au rendu (`convex/lib/embedUrl.ts`) et n'est jamais stockée, donc passer d'une variante à l'autre ne réécrit aucune value. Un snippet `<iframe>` collé est réduit à son `src` à la saisie, donc `href` ne contient jamais de HTML. Ouvrable en window, qui rend la page dans une iframe.
 
 4. **PDF** — upload et visualisation de PDF. Stockage vers Cloudflare R2 avec URLs présignées. Taille fixe 220x40px.
 
 5. **Value** — affichage de valeurs typées. Types : text, number, boolean. Avec label et unité optionnels.
 
-6. **Embed** — contenu externe embarqué. Support YouTube, Google Docs/Sheets/Slides, et embeds génériques.
-
-7. **Title** — labels simples positionnés sur le canvas. Niveaux : h1, h2, h3, p. Stocké comme nodeData de type title. Taille par défaut 220x33px, redimensionnable.
+6. **Title** — labels simples positionnés sur le canvas. Niveaux : h1, h2, h3, p. Stocké comme nodeData de type title. Taille par défaut 220x33px, redimensionnable.
 
 **Non disponible** : le nœud Fetch (requêtes HTTP) est dans le code mais pas encore implémenté.
 

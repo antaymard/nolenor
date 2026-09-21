@@ -713,17 +713,6 @@ export default function readNodesTool({
                 },
               );
 
-              const embed =
-                node.type === "embed" &&
-                typeof nodeData.values.embed === "object" &&
-                nodeData.values.embed !== null
-                  ? (nodeData.values.embed as {
-                      url?: unknown;
-                      embedUrl?: unknown;
-                      type?: unknown;
-                    })
-                  : null;
-
               if (node.type === "table") {
                 const tableValue = (nodeData.values.table ??
                   {}) as TableValueLite;
@@ -765,7 +754,6 @@ export default function readNodesTool({
                 nodeId,
                 node,
                 nodeData,
-                embed,
                 error: null as string | null,
               };
             } catch (error) {
@@ -773,7 +761,6 @@ export default function readNodesTool({
                 nodeId,
                 node: null,
                 nodeData: null,
-                embed: null,
                 error:
                   error instanceof Error
                     ? error.message
@@ -893,7 +880,7 @@ export default function readNodesTool({
 
         const nodes = await Promise.all(
           baseNodes.map(async (entry) => {
-            const { nodeId, node, nodeData, embed } = entry;
+            const { nodeId, node, nodeData } = entry;
             let error = entry.error;
 
             if (error || !node || !nodeData) {
@@ -913,9 +900,6 @@ export default function readNodesTool({
                 tableBody: null as string | null,
                 tableTotalRows: null as number | null,
                 tableDisplayedRows: null as number | null,
-                embedUrl: null as string | null,
-                embedIframeUrl: null as string | null,
-                embedType: null as string | null,
                 images: [] as Array<{ url: string; name: string | null }>,
                 storedImageCount: 0,
                 error: error ?? "Unknown node read error",
@@ -1070,18 +1054,6 @@ export default function readNodesTool({
               tableDisplayedRows,
               images,
               storedImageCount,
-              embedUrl:
-                typeof embed?.url === "string" && embed.url.length > 0
-                  ? embed.url
-                  : null,
-              embedIframeUrl:
-                typeof embed?.embedUrl === "string" && embed.embedUrl.length > 0
-                  ? embed.embedUrl
-                  : null,
-              embedType:
-                typeof embed?.type === "string" && embed.type.length > 0
-                  ? embed.type
-                  : null,
               error: null as string | null,
             };
           }),
@@ -1189,9 +1161,6 @@ export default function readNodesTool({
                   tableBody,
                   tableTotalRows,
                   tableDisplayedRows,
-                  embedUrl,
-                  embedIframeUrl,
-                  embedType,
                   error,
                 }) => {
                   const sourceNodes = sourceNodesByNodeId.get(nodeId) ?? [];
@@ -1209,10 +1178,6 @@ export default function readNodesTool({
                     return `<node id="${nodeId}" type="frame" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}">
 ${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${frameBody}
 </node>`;
-                  }
-
-                  if (nodeType === "embed") {
-                    return `<node id="${nodeId}" type="embed" title="${escapeXmlAttribute(title)}"${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""}${error ? ` readError="${escapeXmlAttribute(error)}"` : ""}${positionAttributes}${frameAttribute} />`;
                   }
 
                   if (nodeType === "pdf" && pdfBody !== null) {

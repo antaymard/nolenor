@@ -12,7 +12,6 @@ import LinkNode from "./LinkNode";
 import ValueNode from "./ValueNode";
 import FetchNode from "./FetchNode";
 import PdfNode from "./PdfNode";
-import EmbedNode from "./EmbedNode";
 import TableNode from "./TableNode";
 import AppNode from "./AppNode";
 import AudioNode from "./AudioNode";
@@ -69,12 +68,6 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeComponent: ValueNode,
     nodeIcon: NODE_TYPE_ICON_MAP.value,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("value"),
-    creatable: true,
-  },
-  embed: {
-    nodeComponent: EmbedNode,
-    nodeIcon: NODE_TYPE_ICON_MAP.embed,
-    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("embed"),
     creatable: true,
   },
   pdf: {

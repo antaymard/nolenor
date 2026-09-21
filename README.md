@@ -39,8 +39,9 @@ editing another — nothing blocks, nothing needs refreshing.
 ## Features
 
 - **Infinite canvas** — pan, zoom, drag, connect. Node types: rich-text document
-  (BlockNote), image, video, audio, PDF, link, table, embed, title, single value,
-  interactive app, and `custom` nodes whose shape you define yourself.
+  (BlockNote), image, video, audio, PDF, link (as a band, a preview card or an
+  embedded iframe), table, title, single value, interactive app, and `custom`
+  nodes whose shape you define yourself.
 - **Custom node templates** — build a node type from typed fields, with a compact
   layout for the canvas and an expanded one for the detail window. Reusable across
   all your canvases.

@@ -99,12 +99,11 @@ async function rebuildChunksForNodeData(
     text: stripLoneSurrogates(chunk.text),
   }));
 
-  // Vectorisation Voyage-4 (title + text), sauf types exclus via
-  // `nodeConfig` (`search.embed: false` : title, embed, audio, video,
-  // viewport, frame, app) — leurs chunks restent keyword seuls. En cas
-  // d'échec (clé
-  // absente, réseau, quota), on dégrade : upsert sans embedding, la recherche
-  // keyword reste opérationnelle et le backfill couvrira le chunk plus tard.
+  // Vectorisation Voyage-4 (title + text), sauf types exclus via `nodeConfig`
+  // (`search.embed: false` : title, audio, video, viewport, frame, app) —
+  // leurs chunks restent keyword seuls. En cas d'échec (clé absente, réseau,
+  // quota), on dégrade : upsert sans embedding, la recherche keyword reste
+  // opérationnelle et le backfill couvrira le chunk plus tard.
   if (chunks.length > 0 && !isNodeTypeEmbedded(nodeData.type)) {
     console.log("[chunkBuilder] rebuildChunks:skip-embed-by-config", {
       nodeDataId,
@@ -240,18 +239,6 @@ async function buildChunks(
       const parts = [String(val.value ?? ""), val.unit].filter(
         (p) => p !== undefined && p !== null && String(p).trim() !== "",
       );
-      return [
-        { ...base, chunkType: "node", order: 0, text: parts.join(" | ") },
-      ];
-    }
-
-    case "embed": {
-      const embed = nodeData.values.embed as
-        | { url?: string; title?: string; type?: string }
-        | undefined;
-      if (!embed?.url) return [];
-      const domain = safeDomain(embed.url);
-      const parts = [embed.type, embed.url, domain].filter(Boolean);
       return [
         { ...base, chunkType: "node", order: 0, text: parts.join(" | ") },
       ];

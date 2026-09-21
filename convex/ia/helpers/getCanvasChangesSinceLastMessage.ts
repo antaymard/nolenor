@@ -23,17 +23,6 @@ export const getCanvasChangesSinceLastMessage = internalQuery({
         if (!nodeData) return null;
         if (nodeData.updatedAt <= lastMessageAt) return null;
 
-        const embed =
-          node.type === "embed" &&
-          typeof nodeData.values.embed === "object" &&
-          nodeData.values.embed !== null
-            ? (nodeData.values.embed as {
-                url?: unknown;
-                embedUrl?: unknown;
-                type?: unknown;
-              })
-            : null;
-
         return {
           id: node.id,
           type: node.type,
@@ -43,18 +32,6 @@ export const getCanvasChangesSinceLastMessage = internalQuery({
           // rejoint une frame : ce filtre porte sur `nodeDatas.updatedAt`, et
           // entrer dans une frame patche le doc `nodes`, qui n'a pas d'horloge.
           frameId: node.parentId ?? null,
-          embedUrl:
-            typeof embed?.url === "string" && embed.url.length > 0
-              ? embed.url
-              : null,
-          embedIframeUrl:
-            typeof embed?.embedUrl === "string" && embed.embedUrl.length > 0
-              ? embed.embedUrl
-              : null,
-          embedType:
-            typeof embed?.type === "string" && embed.type.length > 0
-              ? embed.type
-              : null,
         };
       }),
     );
@@ -62,9 +39,7 @@ export const getCanvasChangesSinceLastMessage = internalQuery({
     const xmlNodes = changedNodes.flatMap((node) =>
       node
         ? [
-            node.type === "embed"
-              ? `<node id="${node.id}" type="embed" title="${node.title}"${node.frameId ? ` frameId="${node.frameId}"` : ""}${node.embedUrl ? ` url="${node.embedUrl}"` : ""}${node.embedIframeUrl ? ` embedUrl="${node.embedIframeUrl}"` : ""}${node.embedType ? ` embedType="${node.embedType}"` : ""} />`
-              : `<node id="${node.id}" type="${node.type}" title="${node.title}"${node.frameId ? ` frameId="${node.frameId}"` : ""}/>`,
+            `<node id="${node.id}" type="${node.type}" title="${node.title}"${node.frameId ? ` frameId="${node.frameId}"` : ""}/>`,
           ]
         : [],
     );

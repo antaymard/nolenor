@@ -14,6 +14,7 @@ import {
   type ColumnDef,
   type FilterFn,
   type SortingState,
+  type Updater,
 } from "@tanstack/react-table";
 import {
   DndContext,
@@ -68,6 +69,7 @@ import { ACTIONS_COLUMN_ID, GUTTER_COLUMN_ID, isUtilityColumn } from "./columnId
 import { countLossyCells } from "./coerce";
 import { cellText } from "./cellText";
 import { applyFilters, type FilterConjunction, type TableFilter } from "./filters";
+import { compareRowsByColumn, type TableSort } from "./sorting";
 import {
   DEFAULT_ROW_HEIGHT,
   type CellValue,
@@ -103,13 +105,15 @@ export interface TableProps {
   onColumnSummaryChange?: (colId: string, summary: SummaryKind | undefined) => void;
   onRowHeightChange?: (rowHeight: RowHeight) => void;
   /**
-   * Filtres persistés, contrôlés par le parent — comme `rowHeight`. Le tri et la
-   * recherche restent locaux : eux ne sont pas enregistrés avec la table.
+   * Vue persistée, contrôlée par le parent — comme `rowHeight`. Seule la
+   * recherche reste locale : elle n'est pas enregistrée avec la table.
    */
   filters?: TableFilter[];
   filterConjunction?: FilterConjunction;
   onFiltersChange?: (filters: TableFilter[]) => void;
   onFilterConjunctionChange?: (conjunction: FilterConjunction) => void;
+  sorting?: TableSort[];
+  onSortingChange?: (sorting: TableSort[]) => void;
   className?: string;
 }
 
@@ -130,8 +134,9 @@ const COLUMN_MODIFIERS = [restrictToHorizontalAxis];
 /** Ce qu'on déplace. Posé par le `data` des sortables, dans `sortableParts`. */
 type DragKind = "row" | "column";
 
-/** Défaut stable : `filters` entre dans des `useMemo`. */
+/** Défauts stables : ces tableaux entrent dans des `useMemo`. */
 const NO_FILTERS: TableFilter[] = [];
+const NO_SORTING: TableSort[] = [];
 
 export function Table({
   columns: tableColumns,
@@ -155,9 +160,10 @@ export function Table({
   filterConjunction = "all",
   onFiltersChange,
   onFilterConjunctionChange,
+  sorting = NO_SORTING,
+  onSortingChange,
   className,
 }: TableProps) {
-  const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [optionsDialogColumnId, setOptionsDialogColumnId] = useState<
@@ -182,6 +188,29 @@ export function Table({
   const columnsById = useMemo(
     () => new Map(tableColumns.map((c) => [c.id, c])),
     [tableColumns],
+  );
+
+  /*
+   * Le tri stocké, traduit pour tanstack, et retraduit au retour. La grille
+   * reste donc l'unique porte d'entrée du tri (l'en-tête et le menu de colonne
+   * passent tous deux par `tanstackCol`), mais l'état, lui, appartient au
+   * parent qui l'enregistre — même partage que `filters`.
+   */
+  const sortingState = useMemo<SortingState>(
+    () => sorting.map((s) => ({ id: s.columnId, desc: s.desc })),
+    [sorting],
+  );
+  const handleSortingChange = useCallback(
+    (updaterOrValue: Updater<SortingState>) => {
+      const next =
+        typeof updaterOrValue === "function"
+          ? updaterOrValue(sortingState)
+          : updaterOrValue;
+      onSortingChange?.(
+        next.map((entry) => ({ columnId: entry.id, desc: entry.desc })),
+      );
+    },
+    [sortingState, onSortingChange],
   );
 
   /**
@@ -292,16 +321,17 @@ export function Table({
       const newRowId = onAddRow?.();
       if (!newRowId) return;
       setGlobalFilter("");
-      setSorting([]);
-      // Une ligne vide ne passe aucun filtre : on remet la vue à plat pour que
-      // la ligne créée soit celle qu'on voit. `GhostRow` l'annonce avant le clic.
+      // Une ligne vide ne passe aucun filtre et se range n'importe où sous un
+      // tri : on remet la vue à plat pour que la ligne créée soit celle qu'on
+      // voit. `GhostRow` l'annonce avant le clic.
+      if (sorting.length > 0) onSortingChange?.([]);
       if (filters.length > 0) onFiltersChange?.([]);
       const col = columnsById.get(columnId);
       if (col && col.type !== "checkbox") {
         setEditingCell({ rowId: newRowId, columnId });
       }
     },
-    [columnsById, onAddRow, filters, onFiltersChange],
+    [columnsById, onAddRow, filters, onFiltersChange, sorting, onSortingChange],
   );
 
   // Primitifs stables pour le memo `columns` : dépendre de l'objet
@@ -330,16 +360,10 @@ export function Table({
           enableResizing: true,
           id: col.id,
           accessorFn: (row) => row.cells[col.id],
-          // Sans ça, trier une colonne rich text comparait le document
-          // sérialisé, dont les 30 premiers caractères sont un identifiant de
-          // bloc aléatoire : l'ordre obtenu n'avait aucun rapport avec le texte
-          // affiché.
-          sortingFn: (a, b) =>
-            cellText(a.original.cells[col.id] ?? null, col).localeCompare(
-              cellText(b.original.cells[col.id] ?? null, col),
-              undefined,
-              { numeric: true, sensitivity: "base" },
-            ),
+          // Le comparateur vit dans `sorting.ts`, avec celui qu'applique la
+          // vue node : le tri est enregistré, donc les deux surfaces doivent
+          // rendre le même ordre pour une même table.
+          sortingFn: (a, b) => compareRowsByColumn(a.original, b.original, col),
           cell: ({ row }) => {
             const isEditing =
               editingRowId === row.original.id &&
@@ -412,7 +436,7 @@ export function Table({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getRowId: (row) => row.id,
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onGlobalFilterChange: setGlobalFilter,
     columnResizeMode: "onChange",
     enableColumnResizing: !readOnly,
@@ -432,7 +456,7 @@ export function Table({
       });
     },
     globalFilterFn,
-    state: { sorting, globalFilter, columnOrder, columnSizing },
+    state: { sorting: sortingState, globalFilter, columnOrder, columnSizing },
   });
 
   const sensors = useSensors(
@@ -561,6 +585,15 @@ export function Table({
     const alive = filters.filter((f) => columnsById.has(f.columnId));
     if (alive.length !== filters.length) onFiltersChange?.(alive);
   }, [columnsById, filters, onFiltersChange]);
+
+  // Même ménage pour le tri, et pour une raison plus vive encore : un critère
+  // sur une colonne supprimée ne se voit nulle part (plus d'en-tête, donc plus
+  // de flèche, donc rien à « clear »), mais `canReorderRows` le compte toujours
+  // — le déplacement de lignes serait mort sans explication trouvable.
+  useEffect(() => {
+    const alive = sorting.filter((s) => columnsById.has(s.columnId));
+    if (alive.length !== sorting.length) onSortingChange?.(alive);
+  }, [columnsById, sorting, onSortingChange]);
 
   useEffect(() => {
     if (optionsDialogColumnId && !columnsById.has(optionsDialogColumnId)) {

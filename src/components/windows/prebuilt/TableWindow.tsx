@@ -27,6 +27,7 @@ import type {
   SelectOption,
   SummaryKind,
   TableFilter,
+  TableSort,
 } from "@/components/table";
 
 function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
@@ -43,6 +44,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const [localFilters, setLocalFilters] = useState<TableFilter[]>([]);
   const [localFilterConjunction, setLocalFilterConjunction] =
     useState<FilterConjunction>("all");
+  const [localSorting, setLocalSorting] = useState<TableSort[]>([]);
   const [localTitle, setLocalTitle] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
 
@@ -60,6 +62,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     setLocalFilterConjunction(
       table.filterConjunction === "any" ? "any" : "all",
     );
+    setLocalSorting(Array.isArray(table.sorting) ? table.sorting : []);
     setLocalTitle((nodeDataValues?.title as string | undefined) ?? "");
   }, [nodeDataValues, isDirty]);
 
@@ -74,12 +77,14 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const rowHeightRef = useRef(localRowHeight);
   const filtersRef = useRef(localFilters);
   const filterConjunctionRef = useRef(localFilterConjunction);
+  const sortingRef = useRef(localSorting);
   columnsRef.current = localColumns;
   rowsRef.current = localRows;
   titleRef.current = localTitle;
   rowHeightRef.current = localRowHeight;
   filtersRef.current = localFilters;
   filterConjunctionRef.current = localFilterConjunction;
+  sortingRef.current = localSorting;
 
   useEffect(() => {
     setDirty(isDirty && !isLocked);
@@ -102,11 +107,19 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     const rowHeight = rowHeightRef.current;
     const filters = filtersRef.current;
     const filterConjunction = filterConjunctionRef.current;
+    const sorting = sortingRef.current;
     const success = await updateNodeDataValues({
       nodeDataId,
       values: {
         title,
-        table: { columns, rows, rowHeight, filters, filterConjunction },
+        table: {
+          columns,
+          rows,
+          rowHeight,
+          filters,
+          filterConjunction,
+          sorting,
+        },
       },
     });
     const hasPendingEdits =
@@ -115,7 +128,8 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
       titleRef.current !== title ||
       rowHeightRef.current !== rowHeight ||
       filtersRef.current !== filters ||
-      filterConjunctionRef.current !== filterConjunction;
+      filterConjunctionRef.current !== filterConjunction ||
+      sortingRef.current !== sorting;
     if (success && !hasPendingEdits) {
       setIsDirty(false);
     }
@@ -362,6 +376,17 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     [markDirty],
   );
 
+  // Même statut que les filtres : un tri décrit la vue de la table, le poser
+  // la modifie. C'est ce qui le fait remonter jusqu'au node du canvas, qui
+  // affiche les lignes dans le même ordre.
+  const updateSorting = useCallback(
+    (sorting: TableSort[]) => {
+      setLocalSorting(sorting);
+      markDirty();
+    },
+    [markDirty],
+  );
+
   const updateColumnOptions = useCallback(
     (colId: string, options: SelectOption[], isMulti: boolean) => {
       const validIds = new Set(options.map((o) => o.id));
@@ -445,6 +470,8 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
           filterConjunction={localFilterConjunction}
           onFiltersChange={updateFilters}
           onFilterConjunctionChange={updateFilterConjunction}
+          sorting={localSorting}
+          onSortingChange={updateSorting}
           onCellChange={updateCell}
           onAddRow={addRow}
           onDeleteRow={deleteRow}

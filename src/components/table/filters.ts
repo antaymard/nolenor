@@ -18,8 +18,9 @@ import type {
  * Les conditions SONT persistées avec la table (`TableData.filters`), parce
  * qu'un filtre décrit une vue qu'on veut retrouver — et que le node du canvas
  * l'applique lui aussi. Elles remontent donc au parent, et les poser marque la
- * fenêtre comme modifiée, au même titre qu'une largeur de colonne. Le tri et la
- * recherche, eux, restent locaux à la grille et meurent avec elle.
+ * fenêtre comme modifiée, au même titre qu'une largeur de colonne. Le tri suit
+ * la même règle (cf. `sorting.ts`) ; seule la recherche reste locale à la
+ * grille et meurt avec elle.
  */
 
 export type FilterOperator =

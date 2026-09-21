@@ -54,6 +54,10 @@ export {
 
 export { coerceCellValue } from "./coerce";
 
-// La vue node applique les filtres persistés : elle a besoin de l'évaluateur.
+// La vue node applique les filtres ET le tri persistés : elle a besoin des deux
+// évaluateurs, et des mêmes, pour afficher exactement ce que montre la fenêtre.
 export { applyFilters } from "./filters";
 export type { FilterConjunction, FilterOperator, TableFilter } from "./filters";
+
+export { applySorting } from "./sorting";
+export type { TableSort } from "./sorting";

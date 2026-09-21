@@ -1,4 +1,5 @@
 import type { Node } from "@xyflow/react";
+import { frameZIndexBelow } from "@/../convex/lib/nodeLayering";
 
 /**
  * Gestion du plan (z-index) des nodes du canvas.
@@ -176,26 +177,13 @@ export function nextTopZIndex(nodes: Node[]): number {
 
 /**
  * Le `zIndex` d'une frame fraîchement tracée : sous tous les nodes, et sous
- * les frames déjà posées.
+ * les frames déjà posées. Le pendant exact de `nextTopZIndex`, dans l'autre
+ * sens et dans l'autre bande.
  *
- * Une frame naît autour de nodes existants ; la poser au-dessus les
- * masquerait tous à l'instant du tracé. Le pendant exact de `nextTopZIndex`,
- * dans l'autre sens et dans l'autre bande.
- *
- * La dernière tracée se retrouve la plus profonde. Sans conséquence tant que
- * deux frames ne se chevauchent pas — et si ça arrive, les commandes de plan
- * renumérotent la bande.
- *
- * React Flow garantit par ailleurs qu'un enfant est peint au-dessus de son
- * parent (`z: parentZ >= childZ ? parentZ + 1 : childZ`), quel que soit son
- * propre zIndex : le contenu d'une frame ne peut pas passer dessous.
+ * La règle vit dans `convex/lib/nodeLayering`, partagée avec le backend depuis
+ * que `group_nodes` crée des frames lui aussi. Ici, elle ne fait que
+ * s'appliquer à la forme `Node` de React Flow.
  */
 export function nextFrameZIndex(nodes: Node[]): number {
-  let min = 0;
-  for (const node of nodes) {
-    if (node.type !== "frame") continue;
-    const z = node.zIndex ?? 0;
-    if (z < min) min = z;
-  }
-  return min - 1;
+  return frameZIndexBelow(nodes);
 }

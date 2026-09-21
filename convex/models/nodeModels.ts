@@ -3,12 +3,13 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import errors from "../config/errorsConfig";
-import { nodeDataConfig } from "../config/nodeConfig";
+import { FRAME_CONTENT_PADDING, nodeDataConfig } from "../config/nodeConfig";
 import {
   TRASH_PURGE_BATCH_SIZE,
   TRASH_RETENTION_MS,
 } from "../config/trashConfig";
 import { generateLlmId } from "../lib/llmId";
+import { frameZIndexBelow } from "../lib/nodeLayering";
 import * as CanvasModels from "./canvasModels";
 import * as EdgeModels from "./edgeModels";
 import * as NodeDataModels from "./nodeDataModels";
@@ -20,6 +21,13 @@ import type { CanvasNode } from "../schemas/nodesSchema";
 import { threadNodeTouchKinds } from "../schemas/threadMetadataSchema";
 
 type NodeDoc = Doc<"nodes">;
+
+/**
+ * Plafond des non-membres englobés rapportés par `createFrameAroundNodes` :
+ * c'est un signalement, pas un inventaire, et un groupement autour de deux
+ * nodes au milieu d'un amas en trouverait des dizaines.
+ */
+const ENCLOSED_NON_MEMBERS_REPORTED = 10;
 
 export function toCanvasNode(doc: NodeDoc): CanvasNode {
   return {
@@ -120,6 +128,26 @@ export async function createNode(
   await getCanvasOrThrow(ctx, node.canvasId);
 
   const llmId = providedId ?? (await generateUniqueLlmId(ctx));
+
+  // L'appartenance à une frame se validait dans `patchNode` et pas ici : on
+  // pouvait donc CRÉER un node rattaché à n'importe quoi — `parentId` est dans
+  // `nodeCreateInputValidator`, et rien ne le regardait. Or l'appartenance
+  // porte la cascade de suppression : un `parentId` qui désigne n'importe quoi
+  // emporterait n'importe quoi avec lui. C'est le seul `insert("nodes")` du
+  // repo, une garde ici suffit.
+  //
+  // `llmId` et pas `providedId` : la création local-first fournit l'id, et le
+  // test « son propre parent » doit la couvrir aussi. Une levée annule toute la
+  // mutation, `nodeData` compris — les mutations Convex sont transactionnelles,
+  // rien ne peut rester orphelin.
+  if (node.parentId !== undefined) {
+    await assertCanBeChildOf(
+      ctx,
+      { id: llmId, type: node.type, canvasId: node.canvasId },
+      node.parentId,
+    );
+  }
+
   const withVariant = withDefaultVariant(node);
 
   await ctx.db.insert("nodes", {
@@ -313,6 +341,246 @@ export async function listChildren(
 }
 
 /**
+ * Trace une frame autour de nodes existants, et les y fait entrer.
+ *
+ * Une seule mutation, là où le client en fait deux : il crée la frame, attend
+ * la confirmation serveur, puis reparente (cf. `useFrameDrawTool`). C'est la
+ * frontière réseau qui l'y oblige — `parentId` désigne un llmId, et un patch
+ * qui pointe sur un node que le serveur ne connaît pas est rejeté. Ici, dans
+ * une seule transaction, `patchNodes` relit l'insert de trois lignes plus haut.
+ *
+ * Et surtout : l'agent n'a aucun tool pour réparer. Ni corbeille, ni
+ * déplacement, ni dégroupement — et ses écritures n'entrent dans aucune pile
+ * d'annulation. Un groupement à moitié fait resterait à moitié fait. D'où le
+ * tout-ou-rien : on valide l'ENSEMBLE des ids avant d'écrire quoi que ce soit,
+ * et on lève sur le premier qui ne va pas plutôt que de l'écarter en silence.
+ * Écarter donnerait une boîte qui ne correspond pas à ce qui a été demandé,
+ * sans que l'appelant puisse le voir.
+ *
+ * Les positions sont lues telles quelles, sans passer par `absolutePosition` :
+ * « déjà dans une frame » est un cas de rejet, donc tous les membres sont de
+ * premier niveau et leur `position` EST leur position monde.
+ */
+export async function createFrameAroundNodes(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    nodeIds,
+    values,
+    color,
+    padding = FRAME_CONTENT_PADDING,
+    actor,
+  }: {
+    canvasId: Id<"canvases">;
+    nodeIds: string[];
+    /** Le `nodeData` de la frame : son titre et le niveau de celui-ci. */
+    values: Record<string, unknown>;
+    color?: string;
+    padding?: number;
+    actor?: NodeDataVersionActor;
+  },
+): Promise<{
+  frameId: string;
+  nodeDataId: Id<"nodeDatas">;
+  memberIds: string[];
+  position: { x: number; y: number };
+  width: number;
+  height: number;
+  /**
+   * Les nodes libres que la boîte contient entièrement SANS être membres. Ils
+   * ont l'air groupés — la frame est derrière eux — et ne le sont pas. Rapporté
+   * à l'appelant, pas corrigé : la liste des membres est ce qui a été demandé.
+   */
+  enclosedNonMembers: string[];
+}> {
+  // Dédoublonnage silencieux, comme `trashNodes` : répéter un id n'est pas une
+  // erreur, c'est juste sans effet.
+  const uniqueIds = [...new Set(nodeIds)];
+  if (uniqueIds.length < 2) {
+    throw new ConvexError(errors.FRAME_NEEDS_TWO_NODES);
+  }
+
+  // UNE lecture pour tout : la résolution des ids, le contrôle de canvas (un id
+  // d'ailleurs est simplement introuvable ici), le filtre corbeille, la bande de
+  // peinture des frames et le balayage des non-membres englobés.
+  const canvasNodes = await listFromCanvas(ctx, { canvasId });
+  const byId = new Map(canvasNodes.map((node) => [node.id, node]));
+
+  const members: NodeDoc[] = [];
+  const unknown: string[] = [];
+  for (const nodeId of uniqueIds) {
+    const node = byId.get(nodeId);
+    if (!node) {
+      unknown.push(nodeId);
+      continue;
+    }
+    members.push(node);
+  }
+  if (unknown.length > 0) {
+    throw new ConvexError(
+      `${errors.NODE_NOT_FOUND} Unknown on this canvas: ${unknown.join(", ")}.`,
+    );
+  }
+
+  const nested = members.filter((node) => node.type === "frame");
+  if (nested.length > 0) {
+    throw new ConvexError(
+      `${errors.FRAME_CANNOT_BE_NESTED} Offending: ${nested
+        .map((node) => node.id)
+        .join(", ")}.`,
+    );
+  }
+
+  const taken = members.filter((node) => node.parentId !== undefined);
+  if (taken.length > 0) {
+    throw new ConvexError(
+      `${errors.NODE_ALREADY_IN_A_FRAME} Already grouped: ${taken
+        .map((node) => node.id)
+        .join(", ")}.`,
+    );
+  }
+
+  const left = Math.min(...members.map((node) => node.position.x)) - padding;
+  const top = Math.min(...members.map((node) => node.position.y)) - padding;
+  const right =
+    Math.max(...members.map((node) => node.position.x + node.width)) + padding;
+  const bottom =
+    Math.max(...members.map((node) => node.position.y + node.height)) + padding;
+  const position = { x: left, y: top };
+  const width = right - left;
+  const height = bottom - top;
+
+  const memberIds = new Set(members.map((node) => node.id));
+  const enclosedNonMembers = canvasNodes
+    .filter(
+      (node) =>
+        !memberIds.has(node.id) &&
+        node.type !== "frame" &&
+        node.parentId === undefined &&
+        node.position.x >= left &&
+        node.position.y >= top &&
+        node.position.x + node.width <= right &&
+        node.position.y + node.height <= bottom,
+    )
+    .map((node) => node.id)
+    .slice(0, ENCLOSED_NON_MEMBERS_REPORTED);
+
+  const { nodeId: frameId, nodeDataId } = await createNodeWithData(ctx, {
+    node: {
+      canvasId,
+      type: "frame",
+      position,
+      width,
+      height,
+      // Sous tous les nodes et sous les frames déjà posées : sans ça la frame
+      // naîtrait à 0, dans la bande ordinaire, et son fond recouvrirait les
+      // nodes qui ne sont pas à elle et qui traînent sous sa boîte.
+      zIndex: frameZIndexBelow(canvasNodes),
+      ...(color !== undefined && { color }),
+    },
+    values,
+    actor,
+    touchCanvas: false,
+  });
+
+  // `patchNodes` et pas un `db.patch` à la main : il rejoue `assertCanBeChildOf`
+  // pour chaque membre, donc l'invariant n'a qu'un seul point d'application.
+  await patchNodes(ctx, {
+    updates: members.map((node) => ({
+      nodeId: node.id,
+      props: {
+        parentId: frameId,
+        // Les positions d'un enfant sont relatives à sa frame.
+        position: {
+          x: node.position.x - position.x,
+          y: node.position.y - position.y,
+        },
+      },
+    })),
+    touchCanvas: false,
+  });
+
+  await CanvasModels.touchCanvas(ctx, canvasId);
+
+  return {
+    frameId,
+    nodeDataId,
+    memberIds: members.map((node) => node.id),
+    position,
+    width,
+    height,
+    enclosedNonMembers,
+  };
+}
+
+/**
+ * Crée un node DANS une frame, et agrandit la frame s'il n'y tient pas.
+ *
+ * Une transaction pour les deux : une frame plus petite que son contenu est un
+ * état que le client tient déjà pour invalide — c'est son plancher de
+ * redimensionnement — donc elle ne doit jamais exister, pas même le temps d'un
+ * aller-retour.
+ *
+ * Elle grandit par le BAS et par la DROITE, coin haut gauche fixe. C'est ce qui
+ * rend l'opération sans effet de bord : les positions des enfants sont relatives
+ * à ce coin, donc aucune n'a à être recalculée, et le titre, posé au-dessus du
+ * bord haut, ne bouge pas.
+ *
+ * L'écriture passe par `db.patch` et pas par `patchNodes` : ce dernier vérifie
+ * que les nodes nommés partagent UN canvas, pas celui de l'appelant. Ici la
+ * frame a déjà été résolue sur `canvasId`, l'ambiguïté n'existe pas.
+ */
+export async function createNodeInFrame(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    frameId,
+    node,
+    values,
+    templateId,
+    padding = FRAME_CONTENT_PADDING,
+    actor,
+  }: {
+    canvasId: Id<"canvases">;
+    frameId: string;
+    /** `position` RELATIVE à la frame, comme tout enfant la porte. */
+    node: Omit<NodeCreateInput, "parentId">;
+    values: Record<string, unknown>;
+    templateId?: Id<"nodeTemplates">;
+    padding?: number;
+    actor?: NodeDataVersionActor;
+  },
+): Promise<{
+  nodeId: string;
+  nodeDataId: Id<"nodeDatas">;
+  frame: { width: number; height: number; grown: boolean };
+}> {
+  const frame = await getNodeOrThrow(ctx, { nodeId: frameId });
+  if (frame.type !== "frame" || frame.canvasId !== canvasId) {
+    throw new ConvexError(errors.NODE_PARENT_MUST_BE_A_FRAME);
+  }
+
+  const created = await createNodeWithData(ctx, {
+    node: { ...node, canvasId, parentId: frameId },
+    values,
+    templateId,
+    actor,
+    touchCanvas: false,
+  });
+
+  const width = Math.max(frame.width, node.position.x + node.width + padding);
+  const height = Math.max(frame.height, node.position.y + node.height + padding);
+  const grown = width !== frame.width || height !== frame.height;
+  if (grown) {
+    await ctx.db.patch(frame._id, { width, height });
+  }
+
+  await CanvasModels.touchCanvas(ctx, canvasId);
+
+  return { ...created, frame: { width, height, grown } };
+}
+
+/**
  * Un node peut-il être rattaché à ce parent ?
  *
  * Trois règles, vérifiées ici et pas seulement dans l'UI : `nodes.patch` est
@@ -325,7 +593,10 @@ export async function listChildren(
  */
 async function assertCanBeChildOf(
   ctx: QueryCtx | MutationCtx,
-  node: NodeDoc,
+  // Un sous-ensemble structurel et pas un `NodeDoc` : la création doit valider
+  // AVANT l'insert, donc avant qu'il existe un doc. Les trois champs lus sont
+  // les trois seuls dont la règle dépend.
+  node: { id?: string; type: NodeDoc["type"]; canvasId: Id<"canvases"> },
   parentId: string,
 ): Promise<void> {
   if (node.type === "frame") {

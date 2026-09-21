@@ -127,6 +127,32 @@ const videoPlayerHeight = 255;
 const boardHeight = 330;
 const squareHeight = 352;
 
+/**
+ * La taille par défaut du titre d'une frame.
+ *
+ * Au milieu des trois niveaux : une frame est tracée autour de tout un groupe
+ * de nodes, son titre nomme une section et doit se lire de loin. Les frames
+ * déjà en base n'ont pas de `level` — c'est cette valeur qu'elles prennent, et
+ * c'est voulu : leur titre passe de la taille d'une mention à celle d'un
+ * intertitre, ce qui est exactement le but.
+ */
+const DEFAULT_FRAME_TITLE_LEVEL = "h2" as const;
+
+/** Les tailles proposées pour le titre d'une frame, de la plus grande à la plus petite. */
+const FRAME_TITLE_LEVELS = ["h1", "h2", "h3"] as const;
+
+/**
+ * La marge entre le contenu d'une frame et son bord.
+ *
+ * Une seule valeur pour trois usages qui doivent s'accorder au pixel : la borne
+ * de rétrécissement au redimensionnement (côté client), la boîte que
+ * `group_nodes` trace autour des nodes qu'il groupe, et la zone dans laquelle
+ * `create_node({ frameId })` a le droit de poser. Si le client exigeait plus que
+ * ce que le serveur laisse, l'utilisateur hériterait d'une frame dont le
+ * plancher dépasse la taille — plus redimensionnable du tout.
+ */
+const FRAME_CONTENT_PADDING = 24;
+
 const nodeDataConfig: Array<NodeDataConfigItem> = [
   {
     type: "title",
@@ -931,7 +957,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Container that groups nodes. Nodes inside a frame move with it and are addressable as a set.",
     llmDescription:
-      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `list_nodes` with `frameId` to list a frame's contents. Only the user draws frames — you cannot create one, nor rename one. \nIts only data value is 'title'.",
+      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `list_nodes` with `frameId`, or `read_nodes` on the frame itself, to list its contents. \nYou create one with `group_nodes`, which draws a frame around nodes that already exist — `create_node` cannot make one, since an empty frame groups nothing. To put a NEW node into an existing frame, pass `frameId` to `create_node`. What enters a frame stays there: you cannot take a node out, move it to another frame, or rename a frame, and deleting a frame deletes everything in it. \nIts data values are 'title' (the label shown above the frame) and 'level' (the size that label is drawn at, 'h1', 'h2' or 'h3').",
     // Grand gabarit : une frame est tracée autour de nodes existants, elle
     // part donc d'une taille qui en contient plusieurs. Ces dimensions ne
     // servent qu'aux frames créées sans tracé (aucune aujourd'hui) — l'outil
@@ -939,16 +965,21 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     defaultDimensions: { width: 600, height: 400, resizable: true },
     capabilities: {
       agent: {
-        // Décrite mais pas créable : l'agent va croiser des frames dans
-        // `list_nodes` et dans la minimap, il lui faut savoir ce que c'est.
+        // Décrite, et pas créable PAR `create_node` : l'agent en trace bien,
+        // mais par `group_nodes`, autour de nodes qui existent déjà — une
+        // frame vide posée par l'auto-placement ne grouperait rien. Ce flag ne
+        // gate que l'enum de `create_node`, la `llmDescription` nomme la porte.
         exposed: true,
         creatable: false,
         readable: true,
-        // `set_node_data` remplace `values` en bloc, et la seule value d'une
-        // frame est son titre : lui ouvrir l'écriture, c'est lui permettre de
-        // renommer silencieusement la structure du canvas de l'utilisateur,
-        // sans contrepartie — il n'a aucun contenu à y produire. À rouvrir
-        // quand la frame portera de l'automation.
+        // `set_node_data` remplace `values` en bloc, et les values d'une frame
+        // ne sont que son titre et la taille de celui-ci : lui ouvrir
+        // l'écriture, c'est lui permettre de renommer silencieusement la
+        // structure du canvas de l'utilisateur, sans contrepartie — il n'a
+        // aucun contenu à y produire. Il nomme en revanche les frames qu'il
+        // trace, au moment de les tracer : `group_nodes` exige un titre. Nommer
+        // ce qu'on crée et renommer ce qu'un autre a créé ne sont pas le même
+        // geste. À rouvrir quand la frame portera de l'automation.
         writable: false,
       },
       // Mentionnable : la pill se résout en `[[node:id|frame|Titre]]` et
@@ -965,8 +996,16 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     dataValuesSchema: z
       .object({
         title: z.string().default(""),
+        // Même échelle que le node `title` : le canvas n'a qu'une hiérarchie
+        // de titres, et une frame en est un niveau comme un autre. Sans le
+        // `p` de `title` en revanche — le titre d'une frame nomme une
+        // section, il n'a pas de raison de descendre au corps de texte.
+        level: z
+          .enum(FRAME_TITLE_LEVELS)
+          .describe("The size the frame's title is drawn at.")
+          .default(DEFAULT_FRAME_TITLE_LEVEL),
       })
-      .default({ title: "" }),
+      .default({ title: "", level: DEFAULT_FRAME_TITLE_LEVEL }),
   },
 ];
 
@@ -1037,6 +1076,9 @@ const agentCreatableNodeTypeZodValidator = z.enum(
 export {
   nodeDataConfig,
   nodeTypeZodValidator,
+  DEFAULT_FRAME_TITLE_LEVEL,
+  FRAME_TITLE_LEVELS,
+  FRAME_CONTENT_PADDING,
   getDefaultNodeDataValues,
   getNodeCapabilities,
   isNodeTypeReadableByAgent,
@@ -1045,3 +1087,4 @@ export {
   DEFAULT_NODE_CAPABILITIES,
 };
 export type { NodeDataConfigItem, NodeVariant, NodeCapabilities };
+export type FrameTitleLevel = (typeof FRAME_TITLE_LEVELS)[number];

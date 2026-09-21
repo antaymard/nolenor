@@ -694,8 +694,13 @@ function formatRank1Hub(hub: Hub): string {
   const textPart = title.text.trim() ? ` ${title.text.trim()}` : "";
   // 📦 pour une frame, 📍 pour un hub déduit d'un titre : ce n'est pas la même
   // certitude, et la légende du prompt le dit.
+  //
+  // La frame donne aussi sa taille : c'est un rectangle réel, et c'est dedans
+  // que l'agent doit viser quand il y crée un node. Un hub 📍 n'en a pas — il
+  // est déduit d'un titre et de ses voisins, sa « taille » ne voudrait rien
+  // dire.
   const header = hub.isFrame
-    ? `📦 ${title.id} [frame]${textPart} (${hub.totalChildren} nodes, x:${Math.round(title.position.x)}, y:${Math.round(title.position.y)})`
+    ? `📦 ${title.id} [frame]${textPart} (${hub.totalChildren} nodes, x:${Math.round(title.position.x)}, y:${Math.round(title.position.y)}, w:${Math.round(title.width)}, h:${Math.round(title.height)})`
     : `📍 ${title.id}${textPart} (x:${Math.round(title.position.x)}, y:${Math.round(title.position.y)})`;
 
   const lines: string[] = [header];

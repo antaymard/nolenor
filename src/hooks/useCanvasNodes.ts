@@ -58,6 +58,22 @@ function persistNodeChange(
     });
 }
 
+/**
+ * Une écriture de mise en page : où le node est, quelle taille il fait, et à
+ * quelle frame il appartient. La forme que `nodes.patch` attend pour tout ce
+ * que produisent un drag et un redimensionnement.
+ */
+type LayoutUpdate = {
+  nodeId: string;
+  props: {
+    position?: { x: number; y: number };
+    width?: number;
+    height?: number;
+    /** `null` = sortie de frame. Voyage avec `position` : cf. le flush. */
+    parentId?: string | null;
+  };
+};
+
 const DEBUG_TITLE_SIZING = false;
 
 function logTitleSizing(event: string, payload?: unknown) {
@@ -190,16 +206,7 @@ export function useCanvasNodes(
 
   const persistLayoutUpdates = useCallback(
     (
-      updates: Array<{
-        nodeId: string;
-        props: {
-          position?: { x: number; y: number };
-          width?: number;
-          height?: number;
-          /** `null` = sortie de frame. Voyage avec `position` : cf. le flush. */
-          parentId?: string | null;
-        };
-      }>,
+      updates: LayoutUpdate[],
       {
         touchCanvas,
         failureMessage,
@@ -345,6 +352,14 @@ export function useCanvasNodes(
         const newNodes = fromCanvasNodesToXyNodes(canvasNodes);
         const currentNodesMap = new Map(currentNodes.map((n) => [n.id, n]));
         const serverIds = new Set(newNodes.map((n) => n.id));
+        // Les frames en cours de redimensionnement. Pendant le geste, React
+        // Flow corrige la position relative de leurs enfants pour qu'ils ne
+        // suivent pas le bord déplacé ; cette correction n'est écrite qu'au
+        // relâcher, donc une synchro qui tomberait au milieu la remplacerait
+        // par la position d'avant et ferait sauter le contenu.
+        const resizingIds = new Set(
+          currentNodes.filter((n) => n.resizing).map((n) => n.id),
+        );
 
         const mapped = newNodes.map((newNode) => {
           const currentNode = currentNodesMap.get(newNode.id);
@@ -356,10 +371,13 @@ export function useCanvasNodes(
 
           // If the node is currently being dragged or resized, keep the full
           // current node object.
-          // Also preserve descendants being moved along with a dragged parent
+          // Also preserve descendants being moved along with a dragged parent,
+          // and the content of a frame being resized.
+          const parentId = currentNode?.parentId ?? newNode.parentId;
           if (
             currentNode?.dragging ||
             (currentNode as Node)?.resizing ||
+            (parentId !== undefined && resizingIds.has(parentId)) ||
             (draggedChildrenCache.current.draggedNodeId !== null &&
               draggedChildrenCache.current.descendantIds.includes(newNode.id))
           ) {
@@ -717,16 +735,41 @@ export function useCanvasNodes(
             };
           });
 
-          const resizeUpdates = mergedChanges.map((change) => ({
-            nodeId: change.id,
-            props: {
-              ...(change.position && { position: change.position }),
-              ...(change.dimensions && {
-                width: change.dimensions.width,
-                height: change.dimensions.height,
-              }),
-            },
-          }));
+          // Redimensionner une frame par son bord gauche ou haut la déplace :
+          // React Flow corrige alors la position RELATIVE de ses enfants pour
+          // qu'ils ne bougent pas en coordonnées monde (cf. `childChanges`
+          // dans `XYResizer`). Ces corrections arrivent ici comme des
+          // changements de position sur des nodes qui ne sont, eux, pas
+          // redimensionnés — et elles ne valaient jusqu'ici que pour l'écran :
+          // sans elles dans l'écriture, la synchro Convex → React Flow qui
+          // suit le relâcher rétablissait les positions d'avant et le contenu
+          // partait avec le bord déplacé.
+          //
+          // Elles voyagent avec les dimensions, dans la même écriture et la
+          // même entrée d'historique : un seul Ctrl+Z pour un seul coup de
+          // souris, frame ET contenu.
+          const resizedIds = new Set(
+            dimensionChanges.map((change) => change.id),
+          );
+          const contentUpdates = savedPositionChanges.flatMap((change) =>
+            change.position && !resizedIds.has(change.id)
+              ? [{ nodeId: change.id, props: { position: change.position } }]
+              : [],
+          );
+
+          const resizeUpdates: LayoutUpdate[] = [
+            ...mergedChanges.map((change) => ({
+              nodeId: change.id,
+              props: {
+                ...(change.position && { position: change.position }),
+                ...(change.dimensions && {
+                  width: change.dimensions.width,
+                  height: change.dimensions.height,
+                }),
+              },
+            })),
+            ...contentUpdates,
+          ];
 
           // Le redimensionnement et le déplacement qu'il entraîne (poignée
           // haut/gauche) sont déjà fusionnés dans `mergedChanges` : une seule

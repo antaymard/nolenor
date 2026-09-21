@@ -163,7 +163,7 @@ ${userTemplatesContext}
 
 <current_canvas name="${minimapResult.canvasName}" description="${minimapResult.canvasDescription}">
   <canvas_structure>
-  <hint>Structural map of the canvas. 📦 = a frame: a group the user drew themselves, so its membership is certain — list its contents with list_nodes(frameId). 📍 = a section inferred from a title node and the nodes around it, so treat it as a hint rather than a fact. ├─/└─ = children. Use this to navigate without reading every node.</hint>
+  <hint>Structural map of the canvas. 📦 = a frame: a group written into the canvas — by the user, or by you with group_nodes — so its membership is certain. It carries its box (x/y/w/h): list its contents with list_nodes(frameId) or read_nodes on the frame itself, and pass frameId to create_node to add to it. 📍 = a section inferred from a title node and the nodes around it, so treat it as a hint rather than a fact. ├─/└─ = children. Coordinates are always world coordinates, including for a node that lives inside a frame. Use this to navigate without reading every node.</hint>
   ${minimapResult.minimapText || "No structure detected."}
   </canvas_structure>
 </current_canvas>

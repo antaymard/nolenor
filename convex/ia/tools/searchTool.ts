@@ -403,6 +403,22 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           return titlesByNodeId;
         };
 
+        // L'appartenance à une frame, pour chaque node touché : c'est le seul
+        // groupement explicite du canvas, et un résultat de recherche qui ne le
+        // porte pas oblige à un `list_nodes` de plus pour savoir ce qui va avec
+        // quoi. Un seul aller-retour, et seulement s'il y a des résultats — la
+        // recherche ne lit pas le canvas autrement.
+        const frameIdByNodeId = new Map<string, string>();
+        if (groupedEntries.length > 0) {
+          const { nodes: canvasNodes } = await ctx.runQuery(
+            internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
+            { canvasId: canvasId as Id<"canvases"> },
+          );
+          for (const node of canvasNodes) {
+            if (node.parentId) frameIdByNodeId.set(node.id, node.parentId);
+          }
+        }
+
         // Débordement groupé : vue compacte (id/type/titre/hitCount, sans
         // snippets) au lieu de tronquer — ~5-10x moins chère par entrée.
         if (groupedEntries.length > limit) {
@@ -430,6 +446,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               title:
                 group.title ?? compactTitles.get(group.nodeId) ?? "Untitled",
               bestScore: roundScore(group.bestScore),
+              frameId: frameIdByNodeId.get(group.nodeId) ?? null,
               hitCount: group.hitCount,
             })),
           });
@@ -455,6 +472,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             title:
               group.title ?? titlesByNodeId.get(group.nodeId) ?? "Untitled",
             bestScore: roundScore(group.bestScore),
+            frameId: frameIdByNodeId.get(group.nodeId) ?? null,
             hitCount: group.hitCount,
             bestSnippet: best?.snippet,
             bestPage: best?.page,

@@ -1,4 +1,5 @@
 import type { Node, Viewport } from "@xyflow/react";
+import { centerOf } from "@/lib/frameMembership";
 
 /**
  * Le cadrage qu'un node `viewport` enregistre : un centre en coordonnées MONDE
@@ -22,6 +23,18 @@ export type ViewportFraming = {
 
 /** Tolérances de `getFramingMatch`. */
 const HERE_DISTANCE_PX = 4;
+
+/**
+ * La marge que la cible doit laisser aux bords du pane pour cesser d'être
+ * « ici » — en fraction de pane, appliquée de chaque côté. La zone « ici » est
+ * donc les 80 % centraux de la vue.
+ *
+ * Ne concerne que les cibles NODE. Un node parfaitement visible n'appelle
+ * aucune navigation : annoncer « 0,1 écran » sous prétexte qu'il n'est pas pile
+ * au centre ne dit rien d'utile. Les cadrages enregistrés gardent leurs propres
+ * seuils (`getFramingMatch`), où le zoom compte autant que la position.
+ */
+const HERE_VIEWPORT_INSET = 0.1;
 const HERE_ZOOM_RATIO_TOLERANCE = 0.015;
 const NEAR_ZOOM_RATIO_MIN = 0.5;
 const NEAR_ZOOM_RATIO_MAX = 2;
@@ -173,8 +186,9 @@ export function getFramingMatch(
 
 export type FramingDelta = {
   /**
-   * `here` quand la vue est sur la cible (mêmes seuils que `getFramingMatch`
-   * pour un cadrage ; centre à moins de 4 px pour un node, sans critère zoom).
+   * `here` quand la cible ne demande aucune navigation : mêmes seuils que
+   * `getFramingMatch` pour un cadrage (position ET zoom), présence dans les
+   * 80 % centraux du pane pour un node (cf. `HERE_VIEWPORT_INSET`).
    */
   match: FramingMatch;
   /** Distance entre les centres, en fractions d'écran (1 ≈ un écran). */
@@ -208,10 +222,22 @@ export type DeltaTarget =
  */
 export const CENTERED_SCREENS = 0.05;
 
+/** Passée à `centerOf` pour un node de premier niveau : rien à résoudre. */
+const NO_PARENTS: Map<string, Node> = new Map();
+
 /**
- * Le centre monde d'une cible : le cadrage lui-même, ou le centre du node
- * (`position` + taille mesurée, même convention que `node-types-converter`).
+ * Le centre MONDE d'une cible : le cadrage lui-même, ou le centre du node.
  * Node introuvable (supprimé) → `null`.
+ *
+ * `centerOf` et pas `position + taille / 2` : un node qui vit dans une frame
+ * porte une position RELATIVE à elle, et la lire telle quelle plaçait la cible
+ * près de l'origine du monde — flèche vers le néant, distance fausse. Le clic
+ * pour y aller, lui, n'avait pas le problème : `useGoToNode` passe par
+ * `fitView`, qui lit les positions absolues que React Flow maintient. D'où une
+ * flèche qui mentait sur une navigation qui marchait.
+ *
+ * La carte des parents ne se construit que pour un node en frame : le cas
+ * courant reste le seul `find` d'avant.
  */
 export function resolveDeltaPoint(
   target: DeltaTarget,
@@ -222,9 +248,10 @@ export function resolveDeltaPoint(
   }
   const node = nodes.find((n) => n.id === target.nodeId);
   if (!node) return null;
-  const width = node.measured?.width ?? node.width ?? 0;
-  const height = node.measured?.height ?? node.height ?? 0;
-  return { x: node.position.x + width / 2, y: node.position.y + height / 2 };
+  const byId = node.parentId
+    ? new Map(nodes.map((n) => [n.id, n]))
+    : NO_PARENTS;
+  return centerOf(node, byId);
 }
 
 /**
@@ -250,11 +277,21 @@ export function getPointDelta(
   const distancePx = Math.hypot(dxPx, dyPx);
   const screens = Math.hypot(dxPx / paneSize.width, dyPx / paneSize.height);
 
+  // Cible node : « ici » = visible sans avoir à naviguer, soit dans les 80 %
+  // centraux du pane. Test par axe et non par rayon — la vue est un rectangle,
+  // « dans l'écran moins 10 % » est un test de rectangle. Le `screens` rendu
+  // reste, lui, une distance de centre à centre : le premier chiffre affiché
+  // vaut donc ~0,4, et un « 0,4 » veut dire la même chose ici et sur les
+  // badges des repères de viewport.
+  const insetFromCenter = 0.5 - HERE_VIEWPORT_INSET;
+  const isNodeHere =
+    Math.abs(dxPx) <= paneSize.width * insetFromCenter &&
+    Math.abs(dyPx) <= paneSize.height * insetFromCenter;
+
   return {
-    // Sans zoom de référence, « dessus » = centre à moins de 4 px.
     match:
       targetZoom === null
-        ? distancePx < HERE_DISTANCE_PX
+        ? isNodeHere
           ? "here"
           : null
         : getFramingMatch(

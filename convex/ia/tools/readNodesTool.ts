@@ -23,9 +23,61 @@ import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
+import { absolutePositionsById } from "../../lib/nodeGeometry";
 import { readStoredImages } from "../../lib/storedImages";
 import { toModelImageUrl } from "../../lib/imageTransform";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+
+/**
+ * Le corps d'une frame : la liste des nodes qu'elle contient.
+ *
+ * Lire une frame renvoyait son titre et rien d'autre, avec un renvoi vers
+ * `list_nodes(frameId)` — donc un tool de plus pour la seule information qui
+ * compte. Une frame est le seul node dont le contenu est fait d'autres nodes :
+ * autant le rendre ici.
+ *
+ * Ordre de lecture (y puis x) et coordonnées MONDE, comme partout ailleurs
+ * dans cette sortie. Balise `<child>` et non `<node>` : imbriquer deux `<node>`
+ * rendrait la sortie ambiguë à parser.
+ */
+function buildFrameNodeBody({
+  children,
+  worldPositions,
+  titlesByNodeId,
+  withPosition,
+}: {
+  children: Array<{ id: string; type: string }>;
+  worldPositions: Map<string, { x: number; y: number }>;
+  titlesByNodeId: Map<string, { type: string; title: string }>;
+  withPosition: boolean;
+}): string {
+  if (children.length === 0) {
+    return '<contents count="0" />';
+  }
+
+  const sorted = [...children].sort((a, b) => {
+    const pa = worldPositions.get(a.id);
+    const pb = worldPositions.get(b.id);
+    if (!pa || !pb) return 0;
+    return pa.y - pb.y || pa.x - pb.x;
+  });
+
+  const lines = sorted.map((child) => {
+    const position = worldPositions.get(child.id);
+    const positionAttributes =
+      withPosition && position
+        ? ` x="${Math.trunc(position.x)}" y="${Math.trunc(position.y)}"`
+        : "";
+    const title = titlesByNodeId.get(child.id)?.title ?? "Untitled";
+    return `  <child id="${child.id}" type="${child.type}" title="${escapeXmlAttribute(title)}"${positionAttributes} />`;
+  });
+
+  return [
+    `<contents count="${children.length}">`,
+    ...lines,
+    "</contents>",
+  ].join("\n");
+}
 
 const PDF_HINTS = {
   toc: "Call read_nodes with pdfPages=[{nodeId, pages:[…]}] to read full markdown of specific pages.",
@@ -572,6 +624,28 @@ export default function readNodesTool({
         const canvasNodeTypeById = new Map(
           canvasNodes.map((node) => [node.id, node.type]),
         );
+        const canvasNodeById = new Map(
+          canvasNodes.map((node) => [node.id, node]),
+        );
+
+        // Positions MONDE : un node qui vit dans une frame porte une position
+        // relative à elle. `list_nodes` et le placement de `create_node`
+        // rendent déjà du monde — sortir d'ici du relatif donnerait au modèle
+        // deux repères contradictoires pour le même node selon le tool qu'il a
+        // appelé.
+        const worldPositions = absolutePositionsById(canvasNodes);
+
+        // Le contenu d'une frame, ce sont d'autres nodes : c'est le seul type
+        // dont le corps ne vient pas de son `nodeData`. Indexé ici, sur la
+        // liste du canvas déjà en main, plutôt que par une requête de plus.
+        const childrenByFrameId = new Map<string, typeof canvasNodes>();
+        for (const node of canvasNodes) {
+          if (!node.parentId) continue;
+          if (!isNodeTypeReadableByAgent(node.type)) continue;
+          const siblings = childrenByFrameId.get(node.parentId);
+          if (siblings) siblings.push(node);
+          else childrenByFrameId.set(node.parentId, [node]);
+        }
 
         // Types invisibles pour l'agent : un id qui en désigne un est traité
         // comme introuvable. Purement défensif — ni `list_nodes`, ni les
@@ -754,6 +828,16 @@ export default function readNodesTool({
           if (nodeId) referencedNodeIds.add(nodeId);
         }
 
+        // Les enfants d'une frame demandée : leurs titres passent par la même
+        // passe de résolution que les mentions, qui sait déjà aller chercher le
+        // template d'un custom node et retomber sur « Untitled ».
+        for (const entry of baseNodes) {
+          if (entry.node?.type !== "frame") continue;
+          for (const child of childrenByFrameId.get(entry.nodeId) ?? []) {
+            referencedNodeIds.add(child.id);
+          }
+        }
+
         const referencedNodeIdsToFetch = [...referencedNodeIds]
           .filter((id) => !nodeDataByNodeId.has(id))
           .filter((id) => canvasNodeTypeById.has(id));
@@ -820,6 +904,8 @@ export default function readNodesTool({
                 positionY: null as number | null,
                 width: null as number | null,
                 height: null as number | null,
+                frameId: null as string | null,
+                frameBody: null as string | null,
                 title: "Untitled",
                 content: "",
                 pdfBody: null as string | null,
@@ -948,16 +1034,32 @@ export default function readNodesTool({
               content = `<warning>${escapeXmlText(TABLE_HINTS.notATable)}</warning>\n${content}`;
             }
 
+            const worldPosition =
+              worldPositions.get(nodeId) ?? node.position;
+
             return {
               nodeId,
               nodeType: node.type,
-              positionX: Math.trunc(node.position.x),
-              positionY: Math.trunc(node.position.y),
+              positionX: Math.trunc(worldPosition.x),
+              positionY: Math.trunc(worldPosition.y),
               width:
                 typeof node.width === "number" ? Math.trunc(node.width) : null,
               height:
                 typeof node.height === "number"
                   ? Math.trunc(node.height)
+                  : null,
+              // La frame qui contient ce node, comme `list_nodes` la rend
+              // déjà : sans elle ici, une lecture faisait perdre
+              // l'appartenance qu'un listing venait de donner.
+              frameId: canvasNodeById.get(nodeId)?.parentId ?? null,
+              frameBody:
+                node.type === "frame"
+                  ? buildFrameNodeBody({
+                      children: childrenByFrameId.get(nodeId) ?? [],
+                      worldPositions,
+                      titlesByNodeId: nodeDataByNodeId,
+                      withPosition,
+                    })
                   : null,
               title: getNodeDataTitle(nodeData),
               content,
@@ -1078,6 +1180,8 @@ export default function readNodesTool({
                   positionY,
                   width,
                   height,
+                  frameId,
+                  frameBody,
                   title,
                   content,
                   pdfBody,
@@ -1097,9 +1201,18 @@ export default function readNodesTool({
                     withPosition && positionX !== null && positionY !== null
                       ? `${` x="${String(positionX)}" y="${String(positionY)}"`}${width !== null ? ` width="${String(width)}"` : ""}${height !== null ? ` height="${String(height)}"` : ""}`
                       : "";
+                  const frameAttribute = frameId
+                    ? ` frameId="${frameId}"`
+                    : "";
+
+                  if (nodeType === "frame" && frameBody !== null) {
+                    return `<node id="${nodeId}" type="frame" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}">
+${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${frameBody}
+</node>`;
+                  }
 
                   if (nodeType === "embed") {
-                    return `<node id="${nodeId}" type="embed" title="${escapeXmlAttribute(title)}"${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""}${error ? ` readError="${escapeXmlAttribute(error)}"` : ""}${positionAttributes} />`;
+                    return `<node id="${nodeId}" type="embed" title="${escapeXmlAttribute(title)}"${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""}${error ? ` readError="${escapeXmlAttribute(error)}"` : ""}${positionAttributes}${frameAttribute} />`;
                   }
 
                   if (nodeType === "pdf" && pdfBody !== null) {
@@ -1107,7 +1220,7 @@ export default function readNodesTool({
                       pdfTotalPages !== null
                         ? ` totalPages="${pdfTotalPages}"`
                         : "";
-                    return `<node id="${nodeId}" type="pdf" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}"${totalPagesAttr}>
+                    return `<node id="${nodeId}" type="pdf" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}"${totalPagesAttr}>
 ${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${pdfBody}
 </node>`;
                   }
@@ -1121,12 +1234,12 @@ ${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${pdfBody}
                       tableDisplayedRows !== null
                         ? ` displayedRows="${tableDisplayedRows}"`
                         : "";
-                    return `<node id="${nodeId}" type="table" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}"${totalRowsAttr}${displayedRowsAttr}>
+                    return `<node id="${nodeId}" type="table" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}"${totalRowsAttr}${displayedRowsAttr}>
 ${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${tableBody}
 </node>`;
                   }
 
-                  return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes} title="${escapeXmlAttribute(title)}">
+                  return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}">
     ${error ? `<readError>${escapeXmlText(error)}</readError>` : ""}
 ${content}
 </node>`;

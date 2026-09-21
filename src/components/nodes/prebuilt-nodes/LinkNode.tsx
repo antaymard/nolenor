@@ -1,8 +1,9 @@
-import { memo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import NodeEmptyState from "../NodeEmptyState";
+import IframeInteractionGate from "../IframeInteractionGate";
 import {
   Popover,
   PopoverContent,
@@ -16,9 +17,13 @@ import {
   TbPencil,
   TbCopy,
   TbCopyCheck,
+  TbMaximize,
+  TbRefresh,
 } from "react-icons/tb";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataValues } from "@/hooks/useNodeData";
+import { useWindowsStore } from "@/stores/windowsStore";
+import { deriveEmbedUrl, extractIframeSrc } from "@/../convex/lib/embedUrl";
 import { useAction } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import toast from "react-hot-toast";
@@ -41,12 +46,20 @@ function LinkNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const openWindow = useWindowsStore((s) => s.openWindow);
 
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const fetchLinkMetadata = useAction(api.links.fetchLinkMetadata);
+
+  const linkValue = (values?.link as LinkValueType | undefined) ?? defaultValue;
+  const isPreview = xyNode.data.variant === "preview";
+  const isEmbed = xyNode.data.variant === "embed";
 
   const handleCopyUrl = async () => {
     if (!linkValue.href) return;
@@ -59,15 +72,19 @@ function LinkNode(xyNode: XyNodeProps) {
       toast.error("Unable to copy link");
     }
   };
-  const fetchLinkMetadata = useAction(api.links.fetchLinkMetadata);
 
-  const linkValue = (values?.link as LinkValueType | undefined) ?? defaultValue;
-  const isPreview = xyNode.data.variant === "preview";
+  const handleOpenWindow = useCallback(() => {
+    if (!nodeDataId) return;
+    openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "link" });
+  }, [nodeDataId, openWindow, xyNode.id]);
 
   const handleSave = async () => {
     if (!nodeDataId) return;
 
-    let url = linkUrl.trim();
+    // Un snippet `<iframe>` collé est réduit à son `src` : `href` ne stocke
+    // jamais de HTML, et toute la chaîne en aval (LinkPreview, résumé Parallel,
+    // chunking) continue de ne voir que des URLs.
+    let url = extractIframeSrc(linkUrl) ?? linkUrl.trim();
 
     // Ajouter https:// si absent
     if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
@@ -128,6 +145,15 @@ function LinkNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
+        <Button
+          size="icon"
+          variant="outline"
+          disabled={!nodeDataId}
+          title="Open in a window"
+          onClick={handleOpenWindow}
+        >
+          <TbMaximize />
+        </Button>
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="icon" title="Edit link">
@@ -145,7 +171,7 @@ function LinkNode(xyNode: XyNodeProps) {
               <Input
                 onDoubleClick={(e) => e.stopPropagation()}
                 type="text"
-                placeholder="https://..."
+                placeholder="URL or <iframe> embed code..."
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
               />
@@ -173,8 +199,55 @@ function LinkNode(xyNode: XyNodeProps) {
           </Button>
         )}
       </CanvasNodeToolbar>
-      <NodeFrame xyNode={xyNode} resizable={isPreview}>
-        {isPreview ? (
+      <NodeFrame xyNode={xyNode} resizable={isPreview || isEmbed}>
+        {isEmbed ? (
+          linkValue.href ? (
+            <div className="w-full h-full flex flex-col overflow-hidden rounded-[4px]">
+              <div className="flex items-center gap-2 h-8 shrink-0 px-2 py-1.5 font-medium rounded-t-[4px]">
+                <TbLink size={18} className="shrink-0" />
+                <p
+                  className="truncate flex-1 min-w-0"
+                  title={linkValue.pageTitle || linkValue.href}
+                >
+                  {linkValue.pageTitle || linkValue.href}
+                </p>
+                <button
+                  className="shrink-0 text-slate-500 hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRefreshKey((k) => k + 1);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Refresh embed"
+                >
+                  <TbRefresh size={14} />
+                </button>
+              </div>
+              <IframeInteractionGate
+                className="flex-1 min-h-0"
+                isNodeSelected={!!xyNode.selected}
+                isNodeDragging={!!xyNode.dragging}
+                label="Click to interact"
+              >
+                <iframe
+                  key={refreshKey}
+                  src={deriveEmbedUrl(linkValue.href)}
+                  title={linkValue.pageTitle || "Embedded content"}
+                  className="w-full h-full border-0"
+                  allow="autoplay; fullscreen; clipboard-read; clipboard-write"
+                  allowFullScreen
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+                />
+              </IframeInteractionGate>
+            </div>
+          ) : (
+            <NodeEmptyState
+              icon={<TbLink size={22} />}
+              title="No link"
+              action="pencil"
+            />
+          )
+        ) : isPreview ? (
           linkValue.href ? (
             <div className="link-preview-container flex flex-col h-full overflow-hidden">
               <div className="relative w-full flex-1 min-h-0 overflow-hidden bg-muted">

@@ -48,7 +48,9 @@ function NodeFrame({
   // gate se reverrouille de lui-même sur `dragging`, mais pas sur le resize,
   // dont l'état ne vit qu'ici.
   const needsPointerShieldWhileMoving =
-    nodeType === "app" || nodeType === "embed";
+    nodeType === "app" ||
+    nodeType === "embed" ||
+    (nodeType === "link" && xyNode.data.variant === "embed");
 
   return (
     <>

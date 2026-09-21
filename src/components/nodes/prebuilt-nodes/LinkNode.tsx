@@ -23,7 +23,7 @@ import {
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useWindowsStore } from "@/stores/windowsStore";
-import { deriveEmbedUrl, extractIframeSrc } from "@/lib/embedUrl";
+import { deriveEmbedUrl, extractIframeSrc } from "@/../convex/lib/embedUrl";
 import { useAction } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import toast from "react-hot-toast";

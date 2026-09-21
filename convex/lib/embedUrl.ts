@@ -11,6 +11,12 @@
  * L'URL embarquable, elle, n'est jamais stockée : elle se dérive au rendu. Un
  * lien devient un embed par un simple changement de variante, sans réécriture
  * de ses values.
+ *
+ * Rangé dans `convex/lib` et non `src/lib` parce que le backend s'en sert
+ * aussi : la migration qui fusionne les anciens nodes `embed` dans `link` doit
+ * réduire les snippets qu'ils avaient stockés tels quels. Le front l'importe
+ * via `@/../convex/lib/embedUrl`, comme il le fait déjà de
+ * `convex/lib/blockNoteDocument`.
  */
 
 /**

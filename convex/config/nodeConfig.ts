@@ -172,7 +172,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       },
       // Le lien rendu dans une iframe, plutôt que décrit. Même value `href`
       // que les deux autres variantes : l'URL embarquable s'en dérive au rendu
-      // (`src/lib/embedUrl.ts`) et n'est jamais stockée, donc un lien devient
+      // (`convex/lib/embedUrl.ts`) et n'est jamais stockée, donc un lien devient
       // un embed par un simple changement de variante.
       embed: {
         label: "Embed",

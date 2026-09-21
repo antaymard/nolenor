@@ -2,7 +2,7 @@ import { memo, useState, useCallback, useEffect } from "react";
 import { TbExternalLink } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataValues } from "@/hooks/useNodeData";
-import { deriveEmbedUrl } from "@/lib/embedUrl";
+import { deriveEmbedUrl } from "@/../convex/lib/embedUrl";
 import type { LinkValueType } from "@/components/nodes/prebuilt-nodes/LinkNode";
 import { useWindowFrameContext } from "../WindowFrameContext";
 

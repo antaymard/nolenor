@@ -44,7 +44,11 @@ import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
 
 // Matches WindowSidePanel's `w-85`.
 const SIDE_PANEL_WIDTH = 340;
-const SIDE_PANEL_GROW_THRESHOLD = SIDE_PANEL_WIDTH * 2;
+// En dessous, docker le panel laisserait moins d'une fois et demie sa largeur
+// au contenu : la fenêtre grandit plutôt que de s'écraser. Le seuil est à 2.5x
+// et non 2x, où le contenu se retrouvait à la largeur exacte du panel — trop
+// étroit pour une table ou un document.
+const SIDE_PANEL_GROW_THRESHOLD = SIDE_PANEL_WIDTH * 2.5;
 type ResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 const RESIZE_CURSOR: Record<ResizeDirection, string> = {

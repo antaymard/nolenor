@@ -9,7 +9,6 @@ import {
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
-import { cn } from "@/lib/utils";
 import { type OpenedWindow } from "@/stores/windowsStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useNodeDataValues } from "@/hooks/useNodeData";
@@ -29,6 +28,13 @@ import {
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import { scrollToPdfPage } from "@/lib/pdfPageScroll";
+import {
+  buildFallbackOutline,
+  buildOutlineFromPages,
+  type OutlineEntry,
+} from "@/lib/pdfOutline";
+import { PdfOutlinePanel } from "./side-panel/PdfOutlinePanel";
+import { PlanTabContentRegistrar } from "./side-panel/PlanTabContentRegistrar";
 import FullscreenWindowFrame from "./FullscreenWindowFrame";
 import { NoleAside } from "./FullscreenNolePanel";
 import PdfPageControls from "./PdfPageControls";
@@ -42,14 +48,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 interface FullscreenPdfWindowProps {
   openedWindow: OpenedWindow;
 }
-
-type OutlineEntry = {
-  pageIndex: number;
-  level: number;
-  title: string;
-};
-
-const LEVEL_RE = /^h([1-6])$/;
 
 export default function FullscreenPdfWindow({
   openedWindow,
@@ -94,35 +92,15 @@ export default function FullscreenPdfWindow({
     [],
   );
 
-  const outline = useMemo<OutlineEntry[]>(() => {
-    if (!pdfPages) return [];
-    const entries: OutlineEntry[] = [];
-    for (const page of pdfPages) {
-      const pageIndex =
-        typeof page.page === "number" ? page.page - 1 : page.order;
-      for (const section of page.sections) {
-        const match = LEVEL_RE.exec(section.level);
-        if (!match) continue;
-        const title = section.title.trim();
-        if (!title) continue;
-        entries.push({
-          pageIndex,
-          level: parseInt(match[1], 10),
-          title,
-        });
-      }
-    }
-    return entries;
-  }, [pdfPages]);
+  const outline = useMemo<OutlineEntry[]>(
+    () => buildOutlineFromPages(pdfPages),
+    [pdfPages],
+  );
 
-  const fallbackOutline = useMemo<OutlineEntry[]>(() => {
-    if (numPages <= 0) return [];
-    return Array.from({ length: numPages }, (_, i) => ({
-      pageIndex: i,
-      level: 1,
-      title: `Page ${i + 1}`,
-    }));
-  }, [numPages]);
+  const fallbackOutline = useMemo<OutlineEntry[]>(
+    () => buildFallbackOutline(numPages),
+    [numPages],
+  );
 
   const displayedOutline = outline.length > 0 ? outline : fallbackOutline;
 
@@ -162,7 +140,7 @@ export default function FullscreenPdfWindow({
               </button>
             </PopoverTrigger>
             <PopoverContent align="start" className="z-[60] w-80 p-0">
-              <PdfOutline
+              <PdfOutlinePanel
                 entries={displayedOutline}
                 onSelect={handleOutlineSelect}
                 className="max-h-[70vh]"
@@ -172,6 +150,15 @@ export default function FullscreenPdfWindow({
         ) : undefined
       }
     >
+      <PlanTabContentRegistrar
+        content={
+          <PdfOutlinePanel
+            entries={displayedOutline}
+            onSelect={scrollToPage}
+            className="h-full"
+          />
+        }
+      />
       <div className="flex min-h-0 flex-1">
         {/* Left: Nolë chat */}
         {!isTabletPortrait && <NoleAside />}
@@ -246,7 +233,7 @@ export default function FullscreenPdfWindow({
         {/* Right: outline */}
         {!isTabletPortrait && (
           <aside className="flex w-95 shrink-0 flex-col border-l bg-white">
-            <PdfOutline
+            <PdfOutlinePanel
               entries={displayedOutline}
               onSelect={scrollToPage}
               className="h-full"
@@ -255,51 +242,5 @@ export default function FullscreenPdfWindow({
         )}
       </div>
     </FullscreenWindowFrame>
-  );
-}
-
-function PdfOutline({
-  entries,
-  onSelect,
-  className,
-}: {
-  entries: OutlineEntry[];
-  onSelect: (pageIndex: number) => void;
-  className?: string;
-}) {
-  return (
-    <div className={cn("flex flex-col overflow-hidden", className)}>
-      <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Outline
-      </div>
-      <div className="flex-1 overflow-auto p-2">
-        {entries.length === 0 ? (
-          <div className="px-2 py-4 text-sm text-slate-400">
-            Aucun sommaire disponible.
-          </div>
-        ) : (
-          <ul className="space-y-0.5">
-            {entries.map((entry, index) => (
-              <li key={`${entry.pageIndex}-${index}`}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(entry.pageIndex)}
-                  className={cn(
-                    "block w-full truncate rounded px-2 py-1 text-left text-sm text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900",
-                    entry.level === 1 && "font-semibold text-slate-700",
-                    entry.level === 2 && "pl-4",
-                    entry.level === 3 && "pl-6 text-slate-500",
-                    entry.level >= 4 && "pl-8 text-xs text-slate-500",
-                  )}
-                  title={entry.title}
-                >
-                  {entry.title}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
   );
 }

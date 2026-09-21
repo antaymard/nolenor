@@ -1,14 +1,16 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { List } from "lucide-react";
 import type { Block } from "@blocknote/core";
-import {
-  extractInlineText,
-  parseStoredBlockNoteDocument,
-} from "@/../convex/lib/blockNoteDocument";
-import { cn } from "@/lib/utils";
+import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
 import { type OpenedWindow } from "@/stores/windowsStore";
 import { useNodeDataValuesField } from "@/hooks/useNodeData";
 import { useIsTabletPortrait } from "@/hooks/useTabletMode";
+import {
+  extractHeadings,
+  headingsSignature,
+  type Heading,
+} from "@/lib/blocknoteOutline";
+import { BlocknoteOutlinePanel } from "./side-panel/BlocknoteOutlinePanel";
 import BlocknoteWindow from "./prebuilt/BlocknoteWindow";
 import {
   Popover,
@@ -20,57 +22,6 @@ import { NoleAside } from "./FullscreenNolePanel";
 
 interface FullscreenBlocknoteWindowProps {
   openedWindow: OpenedWindow;
-}
-
-type Heading = { id: string; depth: number; title: string };
-
-type HeadingCandidate = {
-  type?: string;
-  props?: { level?: unknown };
-  content?: unknown;
-  children?: unknown;
-  id?: string;
-};
-
-/**
- * Collect headings in document order, descending into `children` so titles
- * nested inside a toggle, a column or a list item are not silently dropped.
- * `path` only feeds the fallback id for blocks that somehow lack one, so it
- * just has to be unique per position.
- */
-function collectHeadings(
-  blocks: unknown,
-  headings: Heading[],
-  path: string,
-): void {
-  if (!Array.isArray(blocks)) return;
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i] as HeadingCandidate | null;
-    if (!block || typeof block !== "object") continue;
-    const here = path ? `${path}-${i}` : `${i}`;
-    if (block.type === "heading") {
-      const title = extractInlineText(block.content).trim();
-      if (title) {
-        headings.push({
-          id: block.id ?? `heading-${here}`,
-          depth: typeof block.props?.level === "number" ? block.props.level : 1,
-          title,
-        });
-      }
-    }
-    collectHeadings(block.children, headings, here);
-  }
-}
-
-function extractHeadings(doc: Block[] | undefined): Heading[] {
-  const headings: Heading[] = [];
-  collectHeadings(doc, headings, "");
-  return headings;
-}
-
-/** Identity of a heading list, used to skip state updates on every keystroke. */
-function headingsSignature(headings: Heading[]): string {
-  return JSON.stringify(headings.map((h) => [h.id, h.depth, h.title]));
 }
 
 export default function FullscreenBlocknoteWindow({
@@ -154,7 +105,7 @@ export default function FullscreenBlocknoteWindow({
               </button>
             </PopoverTrigger>
             <PopoverContent align="start" className="z-[60] w-80 p-0">
-              <BlocknoteOutline
+              <BlocknoteOutlinePanel
                 headings={headings}
                 onSelect={handleOutlineSelect}
                 className="max-h-[70vh]"
@@ -181,7 +132,7 @@ export default function FullscreenBlocknoteWindow({
         {/* Right: outline */}
         {!isTabletPortrait && (
           <aside className="flex w-95 shrink-0 flex-col border-l bg-white">
-            <BlocknoteOutline
+            <BlocknoteOutlinePanel
               headings={headings}
               onSelect={scrollToHeading}
               className="h-full"
@@ -190,52 +141,5 @@ export default function FullscreenBlocknoteWindow({
         )}
       </div>
     </FullscreenWindowFrame>
-  );
-}
-
-function BlocknoteOutline({
-  headings,
-  onSelect,
-  className,
-}: {
-  headings: Heading[];
-  onSelect: (heading: Heading) => void;
-  className?: string;
-}) {
-  return (
-    <div className={cn("flex flex-col overflow-hidden", className)}>
-      <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Outline
-      </div>
-      <div className="flex-1 overflow-auto p-2">
-        {headings.length === 0 ? (
-          <div className="px-2 py-4 text-sm text-slate-400">
-            Ajoutez des titres pour générer le sommaire.
-          </div>
-        ) : (
-          <ul className="space-y-0.5">
-            {headings.map((heading) => (
-              <li key={heading.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(heading)}
-                  className={cn(
-                    "block w-full truncate rounded px-2 py-1 text-left text-sm text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900",
-                    heading.depth === 1 && "font-semibold text-slate-700",
-                    heading.depth === 2 && "pl-4",
-                    heading.depth === 3 && "pl-6 text-slate-500",
-                    heading.depth >= 4 &&
-                      "pl-8 text-xs text-slate-500",
-                  )}
-                  title={heading.title}
-                >
-                  {heading.title}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
   );
 }

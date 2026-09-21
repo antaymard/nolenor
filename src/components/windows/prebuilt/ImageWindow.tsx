@@ -1,8 +1,13 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { useQuery } from "convex/react";
 import ImageField from "@/components/fields/ImageField";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { TbChevronLeft, TbChevronRight } from "react-icons/tb";
+import { api } from "@/../convex/_generated/api";
+import { useCanvasStore } from "@/stores/canvasStore";
+import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
+import { ImageTranscriptPanel } from "@/components/windows/side-panel/ImageTranscriptPanel";
 
 interface ImageWindowProps {
   nodeDataId: Id<"nodeDatas">;
@@ -61,6 +66,18 @@ function ImageWindow({ nodeDataId }: ImageWindowProps) {
       setCurrentIndex(value.length - 1);
     }
   }, [value.length, currentIndex]);
+
+  // ── Plan tab: read-only transcript, generated at index time ─────────────
+  const canvasId = useCanvasStore((s) => s.canvas?._id);
+  const chunks = useQuery(
+    api.searchableChunks.listByNodeDataId,
+    canvasId ? { nodeDataId, canvasId } : "skip",
+  );
+  const { setPlanTabContent } = useWindowFrameContext();
+  useEffect(() => {
+    setPlanTabContent(<ImageTranscriptPanel chunks={chunks} />);
+    return () => setPlanTabContent(null);
+  }, [chunks, setPlanTabContent]);
 
   if (!nodeDataValues) return null;
 

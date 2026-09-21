@@ -9,6 +9,7 @@ import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
 // partagent donc les mêmes chunks.
 const BlocknoteWindow = lazy(() => import("./prebuilt/BlocknoteWindow"));
 const EmbedWindow = lazy(() => import("./prebuilt/EmbedWindow"));
+const LinkWindow = lazy(() => import("./prebuilt/LinkWindow"));
 const ImageWindow = lazy(() => import("./prebuilt/ImageWindow"));
 const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
 const TableWindow = lazy(() => import("./prebuilt/TableWindow"));
@@ -52,6 +53,8 @@ function NodeWindowBody({
       return <BlocknoteWindow nodeDataId={nodeDataId} />;
     case "embed":
       return <EmbedWindow nodeDataId={nodeDataId} />;
+    case "link":
+      return <LinkWindow nodeDataId={nodeDataId} />;
     case "app":
       return <AppWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
     case "pdf":

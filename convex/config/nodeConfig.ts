@@ -156,7 +156,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     label: "Link",
     description: "Node for storing a link.",
     llmDescription:
-      "For storing/displaying a link. \nThe required data value is 'link', an object with 'href' (the URL of the link) and 'pageTitle' (the title of the linked page).",
+      "For storing/displaying a link, as a one-line band, a preview card, or embedded content rendered in an iframe (YouTube, Google Docs/Sheets/Slides, or any embeddable page) — those are display variants of the same node, chosen by the user, and they all read the same 'href'. \nThe required data value is 'link', an object with 'href' (the URL of the link) and 'pageTitle' (the title of the linked page).",
     defaultDimensions: { width: baseWidth, height: titleVariantHeight, resizable: false },
     variants: {
       default: {
@@ -169,6 +169,16 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         label: "Preview",
         defaultWidth: bigWidth,
         defaultHeight: shortBlockHeight,
+      },
+      // Le lien rendu dans une iframe, plutôt que décrit. Même value `href`
+      // que les deux autres variantes : l'URL embarquable s'en dérive au rendu
+      // (`src/lib/embedUrl.ts`) et n'est jamais stockée, donc un lien devient
+      // un embed par un simple changement de variante.
+      embed: {
+        label: "Embed",
+        defaultWidth: extendedWidth,
+        defaultHeight: squareHeight,
+        resizable: true,
       },
     },
 

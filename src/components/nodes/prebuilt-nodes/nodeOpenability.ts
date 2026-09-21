@@ -19,6 +19,13 @@
  */
 export const OPENABLE_PREBUILT_NODE_TYPES: ReadonlySet<string> = new Set([
   "image",
+  // Ouvrable quelle que soit sa variante : la window rend le lien dans une
+  // iframe, ce qui est le contenu de la variante `embed` en grand. Sur un
+  // bandeau ou une carte, le double-clic vaut donc « ouvrir la page ici ».
+  // Beaucoup de sites refuseront de s'embarquer, et un refus cross-origin est
+  // indétectable — d'où la sortie vers le navigateur toujours visible dans la
+  // barre de titre de `LinkWindow`.
+  "link",
   "blocknote",
   "embed",
   "pdf",

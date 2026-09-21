@@ -1,7 +1,7 @@
 import type { Id } from "@/types";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { api } from "@/../convex/_generated/api";
-import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
+import { BlockNoteReadOnlyView } from "@/components/blocknote/BlockNoteReadOnlyView";
 import { TablePreview, type TableData } from "@/components/table";
 import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
 import LayoutRenderer from "@/components/fields/layout/LayoutRenderer";
@@ -58,8 +58,16 @@ export function VersionContentPreview({
         );
       }
       return (
+        /*
+          Un vrai BlockNote en lecture seule, et non le rendu statique du
+          canvas : l'aperçu prend la place de l'éditeur dans le corps de la
+          fenêtre, donc comparer une version à l'actuelle revient à comparer
+          deux rendus — ils doivent être le même. Le rendu statique existe pour
+          le canvas, qui ne peut pas monter un éditeur par node ; ici il n'y en
+          a qu'un à l'écran.
+        */
         <div className="h-full min-h-0 overflow-auto">
-          <BlockNoteStatic blocks={parsed} className="text-sm" />
+          <BlockNoteReadOnlyView blocks={parsed} />
         </div>
       );
     }

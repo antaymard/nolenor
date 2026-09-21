@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeFrame from "../NodeFrame";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 
@@ -182,20 +183,19 @@ function ViewportNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
-        <Button
-          size="icon"
-          variant="outline"
+        <NodeToolbarButton
+          label="Open"
           disabled={!nodeDataId}
           onClick={handleOpenWindow}
           title="Open the markers list"
         >
           <TbMaximize />
-        </Button>
+        </NodeToolbarButton>
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" title="Edit marker title">
+            <NodeToolbarButton label="Edit" title="Edit marker title">
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </PopoverTrigger>
           <PopoverContent>
             <form

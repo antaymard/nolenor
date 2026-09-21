@@ -14,6 +14,7 @@ import {
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
 import MediaProgressBar from "./media/MediaProgressBar";
 import { Button } from "@/components/shadcn/button";
@@ -259,22 +260,21 @@ function VideoNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
-        <Button
-          size="icon"
-          variant="outline"
+        <NodeToolbarButton
+          label="Open"
           disabled={!nodeDataId}
           title="Open in window"
           onClick={handleOpenWindow}
         >
           <TbMaximize />
-        </Button>
+        </NodeToolbarButton>
         {video && (
           <>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" title="Playback speed">
+                <NodeToolbarButton label="Speed" title="Playback speed">
                   <TbGauge />
-                </Button>
+                </NodeToolbarButton>
               </PopoverTrigger>
               <PopoverContent className="w-56">
                 {/* Le volume vit dans la ligne de contrôles du lecteur, pas
@@ -298,25 +298,23 @@ function VideoNode(xyNode: XyNodeProps) {
                 </p>
               </PopoverContent>
             </Popover>
-            <Button
-              variant="outline"
-              size="icon"
+            <NodeToolbarButton
+              label="Download"
               title="Download"
               onClick={handleDownload}
             >
               <TbDownload />
-            </Button>
+            </NodeToolbarButton>
           </>
         )}
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
+            <NodeToolbarButton
+              label="Edit"
               title={video ? "Rename or replace" : "Add a file"}
             >
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </PopoverTrigger>
           <PopoverContent>
             <form

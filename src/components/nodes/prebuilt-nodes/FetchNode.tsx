@@ -1,13 +1,13 @@
 import NodeFrame from "@/components/nodes/NodeFrame";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import { TbPencil } from "react-icons/tb";
-import { Button } from "@/components/shadcn/button";
 import { memo, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import type { XyNodeProps } from "@/types/domain";
@@ -24,9 +24,9 @@ function FetchNode(xyNode: XyNodeProps) {
       <CanvasNodeToolbar xyNode={xyNode}>
         <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" title="Edit link">
+            <NodeToolbarButton label="Edit" title="Edit link">
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </PopoverTrigger>
           <PopoverContent>
             <div className="flex flex-col gap-2">omg</div>

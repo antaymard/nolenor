@@ -63,7 +63,8 @@ function ToolbarContent({
       onContextMenu={(e) => e.stopPropagation()}
       isVisible={isVisible}
       position={position}
-      className={`flex gap-2 ${className}`}
+      offset={12}
+      className={`canvas-ui-container gap-1! px-1.5! py-1! shadow-lg ${className}`}
       onDoubleClick={(e) => e.stopPropagation()}
     >
       {content}

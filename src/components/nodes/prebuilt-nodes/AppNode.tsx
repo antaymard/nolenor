@@ -8,6 +8,7 @@ import NodeFrame from "../NodeFrame";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { cn } from "@/lib/utils";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
 import { downloadBlob } from "@/lib/downloadFile";
 import {
@@ -83,29 +84,27 @@ function AppNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
-        <Button
-          size="icon"
-          variant="outline"
+        <NodeToolbarButton
+          label="Open"
           disabled={!nodeDataId}
           onClick={handleOpenWindow}
         >
           <TbMaximize />
-        </Button>
+        </NodeToolbarButton>
         {appCode.trim().length > 0 && (
-          <Button
-            size="icon"
-            variant="outline"
+          <NodeToolbarButton
+            label="Download"
             title="Download code"
             onClick={handleDownloadCode}
           >
             <TbDownload />
-          </Button>
+          </NodeToolbarButton>
         )}
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" title="Edit app title">
+            <NodeToolbarButton label="Edit" title="Edit app title">
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </PopoverTrigger>
           <PopoverContent>
             <form

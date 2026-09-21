@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
 import {
   Popover,
@@ -138,9 +139,9 @@ function ValueNode(xyNode: XyNodeProps) {
       <CanvasNodeToolbar xyNode={xyNode}>
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" title="Edit value">
+            <NodeToolbarButton label="Edit" title="Edit value">
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </PopoverTrigger>
           <PopoverContent>
             <form

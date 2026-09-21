@@ -17,6 +17,7 @@ import { LuHeading1, LuHeading2, LuHeading3 } from "react-icons/lu";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeHandles from "../NodeHandles";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarLabel } from "../toolbar/NodeToolbarLabel";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
@@ -294,10 +295,10 @@ function FrameNode(xyNode: XyNodeProps) {
       {/* Sous la frame et non au-dessus, à l'inverse des autres nodes : son
           bord haut porte déjà le titre. */}
       <CanvasNodeToolbar xyNode={xyNode} position={Position.Bottom}>
+        <NodeToolbarLabel>Title size</NodeToolbarLabel>
         <ToggleGroup
           type="single"
-          variant="outline"
-          className="bg-card"
+          variant="default"
           value={level}
           onValueChange={setLevel}
         >
@@ -306,6 +307,8 @@ function FrameNode(xyNode: XyNodeProps) {
               key={value}
               value={value}
               aria-label={`Title size ${value}`}
+              title={`Title size ${value}`}
+              className="h-8 min-w-8 [&_svg:not([class*='size-'])]:size-[18px]"
             >
               {TITLE_LEVEL_ICONS[value]}
             </ToggleGroupItem>

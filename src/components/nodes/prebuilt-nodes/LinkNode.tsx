@@ -2,6 +2,7 @@ import { memo, useCallback, useState } from "react";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
 import IframeInteractionGate from "../IframeInteractionGate";
 import {
@@ -145,20 +146,19 @@ function LinkNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
-        <Button
-          size="icon"
-          variant="outline"
+        <NodeToolbarButton
+          label="Open"
           disabled={!nodeDataId}
           title="Open in a window"
           onClick={handleOpenWindow}
         >
           <TbMaximize />
-        </Button>
+        </NodeToolbarButton>
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" title="Edit link">
+            <NodeToolbarButton label="Edit" title="Edit link">
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </PopoverTrigger>
           <PopoverContent>
             <form
@@ -189,14 +189,13 @@ function LinkNode(xyNode: XyNodeProps) {
           </PopoverContent>
         </Popover>
         {linkValue.href && (
-          <Button
-            variant="outline"
-            size="icon"
+          <NodeToolbarButton
+            label={isCopied ? "Copied" : "Copy link"}
             title="Copy link URL"
             onClick={handleCopyUrl}
           >
             {isCopied ? <TbCopyCheck /> : <TbCopy />}
-          </Button>
+          </NodeToolbarButton>
         )}
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode} resizable={isPreview || isEmbed}>

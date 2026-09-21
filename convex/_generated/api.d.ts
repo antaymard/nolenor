@@ -87,6 +87,7 @@ import type * as lib_authEmail from "../lib/authEmail.js";
 import type * as lib_blockNoteDocument from "../lib/blockNoteDocument.js";
 import type * as lib_chunkMetadata from "../lib/chunkMetadata.js";
 import type * as lib_datePill from "../lib/datePill.js";
+import type * as lib_embedUrl from "../lib/embedUrl.js";
 import type * as lib_embeddingQuery from "../lib/embeddingQuery.js";
 import type * as lib_getNodeDataTitle from "../lib/getNodeDataTitle.js";
 import type * as lib_imageTransform from "../lib/imageTransform.js";
@@ -279,6 +280,7 @@ declare const fullApi: ApiFromModules<{
   "lib/blockNoteDocument": typeof lib_blockNoteDocument;
   "lib/chunkMetadata": typeof lib_chunkMetadata;
   "lib/datePill": typeof lib_datePill;
+  "lib/embedUrl": typeof lib_embedUrl;
   "lib/embeddingQuery": typeof lib_embeddingQuery;
   "lib/getNodeDataTitle": typeof lib_getNodeDataTitle;
   "lib/imageTransform": typeof lib_imageTransform;

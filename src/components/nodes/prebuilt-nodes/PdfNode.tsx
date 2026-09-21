@@ -5,6 +5,7 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { RiAttachment2 } from "react-icons/ri";
 import { TbDownload, TbExternalLink, TbMaximize, TbPencil } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -111,32 +112,30 @@ function PdfNode(xyNode: XyNodeProps) {
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
         {isPdf && (
-          <Button
-            size="icon"
-            variant="outline"
+          <NodeToolbarButton
+            label="Open"
             onClick={() => {
               if (!nodeDataId) return;
               openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "pdf" });
             }}
           >
             <TbMaximize />
-          </Button>
+          </NodeToolbarButton>
         )}
         {file && (
-          <Button
-            variant="outline"
-            size="icon"
-            title="Télécharger"
+          <NodeToolbarButton
+            label="Download"
+            title="Download"
             onClick={handleDownload}
           >
             <TbDownload />
-          </Button>
+          </NodeToolbarButton>
         )}
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" title="Edit PDF">
+            <NodeToolbarButton label="Edit" title="Edit PDF">
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </PopoverTrigger>
           <PopoverContent>
             <form

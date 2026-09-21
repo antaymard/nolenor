@@ -15,14 +15,10 @@ import {
   TbTrash,
 } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
 import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/shadcn/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -650,29 +646,27 @@ function ImageNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
-        <Button
-          size="icon"
-          variant="outline"
+        <NodeToolbarButton
+          label="Open"
           disabled={!nodeDataId}
           onClick={handleOpenWindow}
         >
           <TbMaximize />
-        </Button>
+        </NodeToolbarButton>
         {currentValue.length > 0 && (
-          <Button
-            variant="outline"
-            size="icon"
+          <NodeToolbarButton
+            label="Download"
             title="Download"
             onClick={handleDownload}
           >
             <TbDownload />
-          </Button>
+          </NodeToolbarButton>
         )}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="icon" title="Manage images">
+            <NodeToolbarButton label="Edit" title="Manage images">
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -715,20 +709,15 @@ function ImageNode(xyNode: XyNodeProps) {
           </DialogContent>
         </Dialog>
         {hasPrompt && (
-          <Tooltip delayDuration={400}>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="outline"
-                aria-label="Launch image generation"
-                disabled={!nodeDataId || !defaultModel || isQuickBusy}
-                onClick={handleQuickGenerate}
-              >
-                {isQuickBusy ? <Spinner /> : <TbPlayerPlay />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Launch image generation</TooltipContent>
-          </Tooltip>
+          <NodeToolbarButton
+            label="Generate"
+            title="Launch image generation"
+            aria-label="Launch image generation"
+            disabled={!nodeDataId || !defaultModel || isQuickBusy}
+            onClick={handleQuickGenerate}
+          >
+            {isQuickBusy ? <Spinner /> : <TbPlayerPlay />}
+          </NodeToolbarButton>
         )}
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode}>

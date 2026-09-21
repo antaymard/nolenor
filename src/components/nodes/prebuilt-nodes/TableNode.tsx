@@ -3,8 +3,8 @@ import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeFrame from "../NodeFrame";
-import { Button } from "@/components/shadcn/button";
 import { TbMaximize, TbTable } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
@@ -60,14 +60,13 @@ function TableNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
-        <Button
-          size="icon"
-          variant="outline"
+        <NodeToolbarButton
+          label="Open"
           disabled={!nodeDataId}
           onClick={handleOpenWindow}
         >
           <TbMaximize />
-        </Button>
+        </NodeToolbarButton>
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode} resizable={!isTitleVariant}>
         {isTitleVariant ? (

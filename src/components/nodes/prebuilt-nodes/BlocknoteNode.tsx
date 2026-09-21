@@ -6,9 +6,9 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import { downloadBlob } from "@/lib/downloadFile";
 import NodeFrame from "../NodeFrame";
-import { Button } from "@/components/shadcn/button";
 import { TbDownload, TbMaximize, TbNotes } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import {
@@ -110,23 +110,21 @@ function BlocknoteNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
-        <Button
-          size="icon"
-          variant="outline"
+        <NodeToolbarButton
+          label="Open"
           disabled={!nodeDataId}
           onClick={handleOpenWindow}
         >
           <TbMaximize />
-        </Button>
+        </NodeToolbarButton>
         {!isEmpty && (
-          <Button
-            size="icon"
-            variant="outline"
-            title="Télécharger en Markdown"
+          <NodeToolbarButton
+            label="Download"
+            title="Download as Markdown"
             onClick={handleDownload}
           >
             <TbDownload />
-          </Button>
+          </NodeToolbarButton>
         )}
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode}>
@@ -147,10 +145,10 @@ function BlocknoteNode(xyNode: XyNodeProps) {
                   />
                 ) : (
                   <BlockNoteErrorBoundary resetKey={docString}>
-                      <BlockNoteStatic
-                        blocks={blocks}
-                        className="h-full min-h-0 overflow-y-auto overscroll-x-none p-4 select-none bn-readonly-container"
-                      />
+                    <BlockNoteStatic
+                      blocks={blocks}
+                      className="h-full min-h-0 overflow-y-auto overscroll-x-none p-4 select-none bn-readonly-container"
+                    />
                   </BlockNoteErrorBoundary>
                 )}
               </>

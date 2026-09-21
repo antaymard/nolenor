@@ -17,6 +17,7 @@ import {
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
 import MediaProgressBar from "./media/MediaProgressBar";
 import { Button } from "@/components/shadcn/button";
@@ -312,15 +313,15 @@ function AudioNode(xyNode: XyNodeProps) {
           <>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" title="Vitesse et volume">
+                <NodeToolbarButton label="Speed" title="Speed and volume">
                   <TbGauge />
-                </Button>
+                </NodeToolbarButton>
               </PopoverTrigger>
               <PopoverContent className="w-56">
                 <div className="flex flex-col gap-3">
                   <div>
                     <p className="mb-1.5 text-xs text-muted-foreground">
-                      Vitesse
+                      Speed
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {PLAYBACK_RATES.map((rate) => (
@@ -337,7 +338,7 @@ function AudioNode(xyNode: XyNodeProps) {
                       ))}
                     </div>
                     <p className="mt-1.5 text-[11px] text-muted-foreground">
-                      La hauteur est conservée.
+                      Pitch is preserved.
                     </p>
                   </div>
                   <div>
@@ -348,7 +349,7 @@ function AudioNode(xyNode: XyNodeProps) {
                       <button
                         type="button"
                         onClick={toggleMuted}
-                        title={muted ? "Réactiver le son" : "Couper le son"}
+                        title={muted ? "Unmute" : "Mute"}
                       >
                         {muted ? (
                           <TbVolumeOff size={16} />
@@ -371,34 +372,31 @@ function AudioNode(xyNode: XyNodeProps) {
               </PopoverContent>
             </Popover>
             {loopIsSet && (
-              <Button
-                variant="outline"
-                size="icon"
-                title="Effacer la boucle"
+              <NodeToolbarButton
+                label="Clear loop"
+                title="Clear loop"
                 onClick={handleClearLoop}
               >
                 <TbX />
-              </Button>
+              </NodeToolbarButton>
             )}
-            <Button
-              variant="outline"
-              size="icon"
-              title="Télécharger"
+            <NodeToolbarButton
+              label="Download"
+              title="Download"
               onClick={handleDownload}
             >
               <TbDownload />
-            </Button>
+            </NodeToolbarButton>
           </>
         )}
         <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
           <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              title={audio ? "Renommer ou remplacer" : "Ajouter un fichier"}
+            <NodeToolbarButton
+              label="Edit"
+              title={audio ? "Rename or replace" : "Add a file"}
             >
               <TbPencil />
-            </Button>
+            </NodeToolbarButton>
           </PopoverTrigger>
           <PopoverContent>
             <form
@@ -417,7 +415,7 @@ function AudioNode(xyNode: XyNodeProps) {
                   <Input
                     onDoubleClick={stopMouseDown}
                     type="text"
-                    placeholder="Nom du fichier"
+                    placeholder="File name"
                     value={titleDraft}
                     onChange={(e) => setTitleDraft(e.target.value)}
                   />

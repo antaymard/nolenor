@@ -16,6 +16,8 @@ import { LuHeading1, LuHeading2, LuHeading3 } from "react-icons/lu";
 import { BiParagraph } from "react-icons/bi";
 import { TbArrowAutofitWidth } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
+import { NodeToolbarLabel } from "../toolbar/NodeToolbarLabel";
+import { Separator } from "@/components/shadcn/separator";
 import { colors } from "@/components/ui/styles";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
@@ -316,11 +318,10 @@ function TitleNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
-        {/* Change heading */}
+        <NodeToolbarLabel>Style</NodeToolbarLabel>
         <ToggleGroup
           type="single"
-          variant="outline"
-          className="bg-card"
+          variant="default"
           value={level}
           onValueChange={(value) => {
             if (value && nodeDataId) {
@@ -332,20 +333,28 @@ function TitleNode(xyNode: XyNodeProps) {
           }}
         >
           {LEVELS.map((l) => (
-            <ToggleGroupItem key={l.value} value={l.value}>
+            <ToggleGroupItem
+              key={l.value}
+              value={l.value}
+              aria-label={`Heading ${l.value}`}
+              title={`Heading ${l.value}`}
+              className="h-8 min-w-8 [&_svg:not([class*='size-'])]:size-[18px]"
+            >
               {l.icon}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
 
         {/* Auto-fit width */}
+        <Separator orientation="vertical" className="mx-0.5 h-6!" />
+        <NodeToolbarLabel>Width</NodeToolbarLabel>
         <Toggle
-          variant="outline"
-          className="bg-card"
+          variant="default"
           pressed={sizingMode === "auto"}
           onPressedChange={handleToggleSizing}
           aria-label="Auto-fit width"
           title="Auto-fit width to text"
+          className="[&_svg:not([class*='size-'])]:size-[18px]"
         >
           <TbArrowAutofitWidth />
         </Toggle>

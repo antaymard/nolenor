@@ -419,24 +419,14 @@ export default function WindowFrame({
                 )}
               </button>
             )}
-            {fullscreenEligible && (
-              <button
-                data-window-control="true"
-                className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => {
-                  if (isDirty) void handleSave();
-                  toggleFullscreenWindow(xyNodeId);
-                }}
-                aria-label="Expand to fullscreen"
-                title="Expand"
-              >
-                <TbArrowsMaximize size={15} />
-              </button>
-            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center">
+                <button
+                  data-window-control="true"
+                  className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  aria-label="More options"
+                >
                   <TbDotsVertical size={15} />
                 </button>
               </DropdownMenuTrigger>
@@ -489,6 +479,21 @@ export default function WindowFrame({
             >
               <TbMinus size={15} />
             </button>
+            {fullscreenEligible && (
+              <button
+                data-window-control="true"
+                className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  if (isDirty) void handleSave();
+                  toggleFullscreenWindow(xyNodeId);
+                }}
+                aria-label="Expand to fullscreen"
+                title="Expand"
+              >
+                <TbArrowsMaximize size={15} />
+              </button>
+            )}
             <ConfirmableButton
               title="Close without saving?"
               text="You have unsaved changes. Do you want to close this window?"

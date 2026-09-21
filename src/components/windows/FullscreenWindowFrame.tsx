@@ -1,27 +1,31 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import { Check, Minimize2, Minus, Save, X } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import {
+  TbArrowsMinimize,
+  TbCheck,
+  TbDeviceFloppy,
   TbDotsVertical,
   TbHistory,
   TbLocation,
   TbMessageSearch,
+  TbMinus,
   TbRefresh,
+  TbX,
 } from "react-icons/tb";
 import { useGoToNode } from "@/hooks/useGoToNode";
-import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
+import {
+  MAX_MINIMIZED_WINDOWS,
+  useWindowsStore,
+  type OpenedWindow,
+} from "@/stores/windowsStore";
 import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
-import { WindowFrameContext, type SaveHandler } from "./WindowFrameContext";
-import { useRegisterWindowSaveHandler } from "./windowSaveRegistry";
+import { WindowFrameContext } from "./WindowFrameContext";
+import { useWindowFrameState } from "./useWindowFrameState";
 import { Spinner } from "@/components/shadcn/spinner";
+import { Kbd } from "@/components/shadcn/kbd";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import {
   DropdownMenu,
@@ -55,8 +59,6 @@ export default function FullscreenWindowFrame({
   const exitFullscreen = useWindowsStore((s) => s.exitFullscreen);
   const closeWindow = useWindowsStore((s) => s.closeWindow);
   const toggleMinimizeWindow = useWindowsStore((s) => s.toggleMinimizeWindow);
-  const addDirtyNode = useWindowsStore((s) => s.addDirtyNode);
-  const removeDirtyNode = useWindowsStore((s) => s.removeDirtyNode);
 
   const title = useNodeDataTitle(nodeDataId);
   const nodeData = useNodeData(nodeDataId);
@@ -64,138 +66,97 @@ export default function FullscreenWindowFrame({
 
   const goToNode = useGoToNode();
 
-  const [isDirty, setDirty] = useState(false);
-  const [saveHandler, setSaveHandler] = useState<SaveHandler | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
-    "idle",
-  );
-  const [refreshHandler, setRefreshHandler] = useState<(() => void) | null>(
-    null,
-  );
+  const {
+    isDirty,
+    isSaving,
+    saveHandler,
+    refreshHandler,
+    handleSave,
+    contextValue,
+  } = useWindowFrameState(xyNodeId);
+
   const [historyOpen, setHistoryOpen] = useState(false);
   const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
-
-  useEffect(() => {
-    if (saveState !== "saved") return;
-    const timeoutId = window.setTimeout(() => setSaveState("idle"), 1500);
-    return () => window.clearTimeout(timeoutId);
-  }, [saveState]);
-
-  const handleSave = useCallback(async () => {
-    if (!saveHandler || !isDirty || isSaving) return;
-
-    setIsSaving(true);
-    setSaveState("saving");
-    try {
-      const success = await saveHandler();
-      setSaveState(success === false ? "idle" : "saved");
-    } catch {
-      setSaveState("idle");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [isDirty, isSaving, saveHandler]);
-
-  useEffect(() => {
-    if (isDirty) {
-      addDirtyNode(xyNodeId);
-    } else {
-      removeDirtyNode(xyNodeId);
-    }
-    return () => removeDirtyNode(xyNodeId);
-  }, [isDirty, xyNodeId, addDirtyNode, removeDirtyNode]);
-
-  // Même enregistrement que `useWindowFrameState` (cet état local en est la
-  // copie) pour le hotkey global `Mod+S` de `WindowsContainer`.
-  useRegisterWindowSaveHandler(xyNodeId, handleSave);
-
-  const contextValue = useMemo(
-    () => ({
-      setDirty: (dirty: boolean) => {
-        setDirty(dirty);
-        if (dirty) setSaveState("idle");
-      },
-      setSaveHandler: (fn: SaveHandler | null) => setSaveHandler(() => fn),
-      setRefreshHandler: (fn: (() => void) | null) =>
-        setRefreshHandler(() => fn),
-    }),
-    [],
-  );
 
   return (
     <WindowFrameContext.Provider value={contextValue}>
       <div className="fixed inset-0 z-50 flex flex-col bg-white">
         {/* ── Header ────────────────────────────────────────────────── */}
         <div
-          className="flex select-none items-center gap-2 border-b bg-white py-2 pl-4 pr-2"
+          className="flex h-10 select-none items-center gap-2 border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1"
           onDoubleClick={(e) => {
             if ((e.target as HTMLElement).closest('[data-window-control="true"]'))
               return;
             if (isDirty) void handleSave();
             exitFullscreen();
           }}
+          title={title}
         >
           {headerLeftSlot}
           {NodeIcon ? (
             <NodeIcon className="size-4 shrink-0 text-slate-600" />
           ) : null}
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+          <span className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight">
             {title ?? "—"}
           </span>
           {refreshHandler && (
             <button
               data-window-control="true"
-              className="shrink-0 rounded p-1 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
+              className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
               onClick={refreshHandler}
-              title="Refresh"
+              title="Refresh window"
             >
-              <TbRefresh size={14} />
+              <TbRefresh size={15} />
             </button>
           )}
           {saveHandler && (
             <button
               data-window-control="true"
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium transition-colors disabled:pointer-events-none",
-                isDirty
-                  ? "bg-green-100 text-green-800 hover:bg-green-200"
-                  : "text-slate-400",
+                "my-1 flex h-7 shrink-0 items-center justify-center gap-1 rounded-full px-1.5 transition-colors",
+                isSaving
+                  ? "text-slate-500"
+                  : isDirty
+                    ? "text-green-600 hover:bg-green-500/15"
+                    : "text-slate-400/60 hover:bg-green-500/15 hover:text-green-600",
               )}
               onClick={() => void handleSave()}
               disabled={!isDirty || isSaving}
               aria-busy={isSaving}
+              title={
+                isSaving
+                  ? "Saving..."
+                  : isDirty
+                    ? "Save changes (Ctrl+S)"
+                    : "Saved"
+              }
             >
               {isSaving ? (
-                <Spinner className="size-3" />
-              ) : saveState === "saved" ? (
-                <Check size={12} />
+                <Spinner className="size-3.5" />
               ) : (
-                <Save size={12} />
+                <span className="flex items-center gap-1">
+                  {isDirty && (
+                    <Kbd className="h-3.5 min-w-0 bg-transparent text-green-600 ">
+                      Ctrl + S
+                    </Kbd>
+                  )}
+                  {isDirty ? (
+                    <TbDeviceFloppy size={17} />
+                  ) : (
+                    <TbCheck size={15} />
+                  )}
+                </span>
               )}
-              {isSaving ? "Saving..." : saveState === "saved" ? "Saved" : "Save"}
             </button>
           )}
-          <button
-            data-window-control="true"
-            className="shrink-0 rounded p-1 opacity-60 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
-            onClick={() => {
-              if (isDirty) void handleSave();
-              exitFullscreen();
-            }}
-            aria-label="Exit fullscreen"
-            title="Exit fullscreen"
-          >
-            <Minimize2 size={14} />
-          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 data-window-control="true"
-                className="shrink-0 rounded p-1 opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
+                className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
                 aria-label="More options"
               >
-                <TbDotsVertical size={14} />
+                <TbDotsVertical size={15} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -203,40 +164,71 @@ export default function FullscreenWindowFrame({
                 className="flex items-center text-sm"
                 onSelect={() => goToNode(xyNodeId)}
               >
-                <TbLocation size={13} />
+                <TbLocation size={15} />
                 Navigate to node
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="flex items-center text-sm"
                 onSelect={() => setHistoryOpen(true)}
               >
-                <TbHistory size={13} />
+                <TbHistory size={15} />
                 History
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="flex items-center text-sm"
                 onSelect={() => setAssociatedThreadsOpen(true)}
               >
-                <TbMessageSearch size={13} />
+                <TbMessageSearch size={15} />
                 Threads that modified this node
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <button
             data-window-control="true"
-            className="shrink-0 rounded p-1 opacity-50 hover:bg-black/10 hover:opacity-100"
+            className="shrink-0 rounded-full opacity-50 hover:bg-black/10 hover:opacity-100 size-7 my-1 flex items-center justify-center"
             onClick={() => {
+              if (openedWindow.windowState !== "minimized") {
+                const minimizedCount = useWindowsStore
+                  .getState()
+                  .openedWindows.filter(
+                    (w) => w.windowState === "minimized",
+                  ).length;
+                if (minimizedCount >= MAX_MINIMIZED_WINDOWS) {
+                  toast.error(
+                    `Maximum ${MAX_MINIMIZED_WINDOWS} minimized windows reached`,
+                  );
+                  return;
+                }
+              }
               exitFullscreen();
               toggleMinimizeWindow(xyNodeId);
             }}
             aria-label="Minimize"
-            title="Minimize"
           >
-            <Minus size={14} />
+            <TbMinus size={15} />
+          </button>
+          <button
+            data-window-control="true"
+            className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
+            onClick={() => {
+              if (isDirty) void handleSave();
+              exitFullscreen();
+            }}
+            aria-label="Exit fullscreen"
+            title="Exit fullscreen"
+          >
+            <TbArrowsMinimize size={15} />
           </button>
           <ConfirmableButton
             title="Close without saving?"
             text="You have unsaved changes. Do you want to close this window?"
+            hint={
+              <>
+                <span>Tip: press</span>
+                <Kbd>Ctrl S</Kbd>
+                <span>to save without closing</span>
+              </>
+            }
             onCancel={() => closeWindow(xyNodeId)}
             onConfirm={() => {
               if (isDirty) void handleSave();
@@ -249,11 +241,10 @@ export default function FullscreenWindowFrame({
           >
             <button
               data-window-control="true"
-              className="shrink-0 rounded p-1 opacity-50 hover:bg-red-500/15 hover:text-red-600 hover:opacity-100"
+              className="shrink-0 rounded-full opacity-50 hover:bg-red-500/15 hover:text-red-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
               aria-label="Close"
-              title="Close"
             >
-              <X size={14} />
+              <TbX size={15} />
             </button>
           </ConfirmableButton>
         </div>

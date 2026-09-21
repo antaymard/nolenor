@@ -15,7 +15,6 @@ import {
   TbArrowsMaximize,
   TbCheck,
   TbDeviceFloppy,
-  TbDotsVertical,
   TbLocation,
   TbMinus,
   TbRefresh,
@@ -42,16 +41,10 @@ import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { Kbd } from "@/components/shadcn/kbd";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../shadcn/dropdown-menu";
 
 // Matches WindowSidePanel's `w-85`.
 const SIDE_PANEL_WIDTH = 340;
-const SIDE_PANEL_GROW_THRESHOLD = SIDE_PANEL_WIDTH * 3;
+const SIDE_PANEL_GROW_THRESHOLD = SIDE_PANEL_WIDTH * 2;
 type ResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 const RESIZE_CURSOR: Record<ResizeDirection, string> = {
@@ -105,12 +98,13 @@ export default function WindowFrame({
   // Too narrow for the panel to dock without cramping the content (docking is
   // always a flex-sibling squeeze, never an overlay): opening grows the
   // window by the panel's width instead, closing shrinks it back by the same
-  // amount. `grewForPanelRef` remembers whether *this* open actually grew the
-  // window, so a manual resize in between doesn't get undone by a mismatched
-  // close.
+  // amount. Growing can push the right edge off-screen, so the window is also
+  // shifted left by however much overflow that would cause (never past the
+  // left edge) — `grownRef` remembers both amounts so closing undoes exactly
+  // what opening did, even if the window was moved in between.
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const canvasId = useCanvasStore((s) => s.canvas?._id);
-  const grewForPanelRef = useRef(false);
+  const grownRef = useRef<{ shiftedX: number } | null>(null);
   // Side effect kept OUT of the `setSidePanelOpen` updater on purpose: React
   // StrictMode double-invokes functional updaters to catch impurities like
   // this one, and `resizeWindow` was firing twice per click as a result.
@@ -118,17 +112,37 @@ export default function WindowFrame({
     const willOpen = !sidePanelOpen;
     if (willOpen) {
       if (openedWindow.width < SIDE_PANEL_GROW_THRESHOLD) {
-        resizeWindow(xyNodeId, { x: SIDE_PANEL_WIDTH, y: 0 });
-        grewForPanelRef.current = true;
+        const rightEdgeAfterGrow =
+          openedWindow.position.x + openedWindow.width + SIDE_PANEL_WIDTH;
+        const overflow = rightEdgeAfterGrow - window.innerWidth;
+        const shiftedX =
+          overflow > 0 ? Math.min(overflow, openedWindow.position.x) : 0;
+        resizeWindow(
+          xyNodeId,
+          { x: SIDE_PANEL_WIDTH, y: 0 },
+          shiftedX > 0 ? { x: -shiftedX, y: 0 } : undefined,
+        );
+        grownRef.current = { shiftedX };
       } else {
-        grewForPanelRef.current = false;
+        grownRef.current = null;
       }
-    } else if (grewForPanelRef.current) {
-      resizeWindow(xyNodeId, { x: -SIDE_PANEL_WIDTH, y: 0 });
-      grewForPanelRef.current = false;
+    } else if (grownRef.current) {
+      const { shiftedX } = grownRef.current;
+      resizeWindow(
+        xyNodeId,
+        { x: -SIDE_PANEL_WIDTH, y: 0 },
+        shiftedX > 0 ? { x: shiftedX, y: 0 } : undefined,
+      );
+      grownRef.current = null;
     }
     setSidePanelOpen(willOpen);
-  }, [sidePanelOpen, openedWindow.width, resizeWindow, xyNodeId]);
+  }, [
+    sidePanelOpen,
+    openedWindow.width,
+    openedWindow.position.x,
+    resizeWindow,
+    xyNodeId,
+  ]);
 
   // ── Version preview (in place, no dialog) ───────────────────────────────
   const [previewVersionId, setPreviewVersionId] =
@@ -504,28 +518,16 @@ export default function WindowFrame({
             {!previewVersionId && (
               <WindowEditControl openedWindow={openedWindow} />
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  data-window-control="true"
-                  className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  aria-label="More options"
-                >
-                  <TbDotsVertical size={15} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  className="flex items-center text-sm"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => goToNode(xyNodeId)}
-                >
-                  <TbLocation size={15} />
-                  Navigate to node
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              data-window-control="true"
+              className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => goToNode(xyNodeId)}
+              aria-label="Navigate to node"
+              title="Navigate to node"
+            >
+              <TbLocation size={15} />
+            </button>
             <WindowSidePanelTrigger
               open={sidePanelOpen}
               onClick={toggleSidePanel}
@@ -636,6 +638,7 @@ export default function WindowFrame({
               <WindowSidePanel
                 nodeDataId={nodeDataId}
                 xyNodeId={xyNodeId}
+                nodeType={openedWindow.nodeType}
                 canvasId={canvasId}
                 planTabContent={planTabContent}
                 previewVersionId={previewVersionId}

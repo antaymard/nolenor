@@ -3,6 +3,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { findBacklinks } from "@/lib/nodeBacklinks";
 import { NodeLinkRow } from "./NodeLinkRow";
+import { SectionLabel } from "./SectionLabel";
 
 /**
  * Nodes referencing this one — `@mention` pills and table node/richtext
@@ -24,9 +25,9 @@ export function BacklinksSection({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <SectionLabel hint="Nodes that mention this one, via @mentions or table references.">
         Backlinks
-      </div>
+      </SectionLabel>
       {backlinks.length === 0 ? (
         <div className="px-2 py-3 text-sm text-slate-400">
           No node mentions this one yet.

@@ -6,7 +6,6 @@ import {
   TbArrowsMinimize,
   TbCheck,
   TbDeviceFloppy,
-  TbDotsVertical,
   TbLocation,
   TbMinus,
   TbRefresh,
@@ -36,12 +35,6 @@ import { WindowSidePanelTrigger } from "./side-panel/WindowSidePanelTrigger";
 import { WindowSidePanel } from "./side-panel/WindowSidePanel";
 import { VersionPreviewBanner } from "./side-panel/VersionPreviewBanner";
 import { VersionContentPreview } from "./side-panel/VersionContentPreview";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../shadcn/dropdown-menu";
 
 interface FullscreenWindowFrameProps {
   openedWindow: OpenedWindow;
@@ -200,26 +193,15 @@ export default function FullscreenWindowFrame({
           {!previewVersionId && (
             <WindowEditControl openedWindow={openedWindow} />
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                data-window-control="true"
-                className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
-                aria-label="More options"
-              >
-                <TbDotsVertical size={15} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                className="flex items-center text-sm"
-                onSelect={() => goToNode(xyNodeId)}
-              >
-                <TbLocation size={15} />
-                Navigate to node
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            data-window-control="true"
+            className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
+            onClick={() => goToNode(xyNodeId)}
+            aria-label="Navigate to node"
+            title="Navigate to node"
+          >
+            <TbLocation size={15} />
+          </button>
           <WindowSidePanelTrigger
             open={sidePanelOpen}
             onClick={() => setSidePanelOpen((o) => !o)}
@@ -319,6 +301,7 @@ export default function FullscreenWindowFrame({
             <WindowSidePanel
               nodeDataId={nodeDataId}
               xyNodeId={xyNodeId}
+              nodeType={openedWindow.nodeType}
               canvasId={canvasId}
               planTabContent={planTabContent}
               previewVersionId={previewVersionId}

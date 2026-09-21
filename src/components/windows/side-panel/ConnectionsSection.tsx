@@ -4,6 +4,7 @@ import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataIdOf } from "@/lib/nodeIdentity";
 import { NodeLinkRow } from "./NodeLinkRow";
+import { SectionLabel } from "./SectionLabel";
 
 function ConnectionRow({
   otherXyNodeId,
@@ -43,9 +44,9 @@ export function ConnectionsSection({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <SectionLabel hint="This node's connections (canvas edges) to other nodes.">
         Connections
-      </div>
+      </SectionLabel>
       {isLoading ? (
         <div className="px-2 py-3 text-sm text-slate-400">Loading…</div>
       ) : isEmpty ? (

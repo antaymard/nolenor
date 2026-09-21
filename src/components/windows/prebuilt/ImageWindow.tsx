@@ -7,7 +7,7 @@ import { TbChevronLeft, TbChevronRight } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
-import { ImageTranscriptPanel } from "@/components/windows/side-panel/ImageTranscriptPanel";
+import { TranscriptPanel } from "@/components/windows/side-panel/TranscriptPanel";
 
 interface ImageWindowProps {
   nodeDataId: Id<"nodeDatas">;
@@ -75,7 +75,7 @@ function ImageWindow({ nodeDataId }: ImageWindowProps) {
   );
   const { setPlanTabContent } = useWindowFrameContext();
   useEffect(() => {
-    setPlanTabContent(<ImageTranscriptPanel chunks={chunks} />);
+    setPlanTabContent(<TranscriptPanel chunks={chunks} />);
     return () => setPlanTabContent(null);
   }, [chunks, setPlanTabContent]);
 

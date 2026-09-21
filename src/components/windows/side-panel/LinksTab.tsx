@@ -1,7 +1,7 @@
 import type { Id } from "@/../convex/_generated/dataModel";
-import AssociatedThreadsViewer from "@/components/windows/AssociatedThreadsViewer";
 import { BacklinksSection } from "./BacklinksSection";
 import { ConnectionsSection } from "./ConnectionsSection";
+import { ThreadsSection } from "./ThreadsSection";
 
 /**
  * Backlinks, canvas connections, and the Nolë threads that edited this node —
@@ -21,14 +21,7 @@ export function LinksTab({
     <div className="flex flex-col gap-4 p-2">
       <BacklinksSection nodeDataId={nodeDataId} xyNodeId={xyNodeId} />
       <ConnectionsSection xyNodeId={xyNodeId} canvasId={canvasId} />
-      <div className="flex flex-col gap-1">
-        <div className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Threads
-        </div>
-        <div className="flex min-h-48 flex-col px-2">
-          <AssociatedThreadsViewer nodeDataId={nodeDataId} />
-        </div>
-      </div>
+      <ThreadsSection nodeDataId={nodeDataId} />
     </div>
   );
 }

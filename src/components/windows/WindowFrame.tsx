@@ -26,6 +26,7 @@ import { useReactFlow } from "@xyflow/react";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import NodeWindowContent from "./NodeWindowContent";
 import NodeWindowDialogs from "./NodeWindowDialogs";
+import { WindowEditControl } from "./WindowEditControl";
 import { useNodeWindowIdentity } from "./useNodeWindowIdentity";
 import { useWindowFrameState } from "./useWindowFrameState";
 import { WindowFrameContext } from "./WindowFrameContext";
@@ -419,6 +420,7 @@ export default function WindowFrame({
                 )}
               </button>
             )}
+            <WindowEditControl openedWindow={openedWindow} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button

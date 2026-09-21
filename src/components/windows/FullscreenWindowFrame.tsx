@@ -27,6 +27,7 @@ import { useWindowFrameState } from "./useWindowFrameState";
 import { Spinner } from "@/components/shadcn/spinner";
 import { Kbd } from "@/components/shadcn/kbd";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
+import { WindowEditControl } from "./WindowEditControl";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -149,6 +150,7 @@ export default function FullscreenWindowFrame({
               )}
             </button>
           )}
+          <WindowEditControl openedWindow={openedWindow} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

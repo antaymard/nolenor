@@ -82,7 +82,17 @@ export function SelectCellEditor({
     return options.filter((o) => o.label.toLowerCase().includes(term));
   }, [options, search]);
 
-  function toggle(id: string) {
+  /**
+   * `e.stopPropagation()` : le contenu du Popover est portalé, mais il reste un
+   * descendant REACT de la cellule, dont le `<td>` porte un `onClick` qui ouvre
+   * l'éditeur (cf. `DraggableCell` / `openCell` dans `Table.tsx`). En mono-
+   * sélection, le `onBlur` ci-dessous refermait donc bien la liste — avant que
+   * le même clic, remonté jusqu'au `<td>`, ne la rouvre dans le même lot de
+   * rendu. En multi rien ne ferme, donc rien ne changeait : d'où un
+   * comportement qui n'avait l'air cassé que sur les colonnes mono-valeur.
+   */
+  function toggle(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
     if (isMulti) {
       if (selectedIds.includes(id)) {
         onChange(selectedIds.filter((x) => x !== id));
@@ -198,7 +208,7 @@ export function SelectCellEditor({
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => toggle(opt.id)}
+                onClick={(e) => toggle(opt.id, e)}
                 className={cn(
                   "flex items-center justify-between gap-2 w-full rounded-lg px-2 py-1 text-left hover:bg-muted",
                 )}

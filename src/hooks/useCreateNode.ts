@@ -18,7 +18,6 @@ import {
 import { addPendingNodeDatasToListQuery } from "@/lib/flowNodes";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
-import { useCaptureFraming } from "./useViewportFraming";
 import { recordUndo } from "@/stores/canvasHistoryStore";
 
 type CreateNodeOptions = {
@@ -29,7 +28,7 @@ type CreateNodeOptions = {
    * Poser le curseur dans le node dès son montage. Réservé aux créations
    * manuelles (menu « Add a block », raccourcis) : un node dupliqué ou ingéré
    * depuis un fichier ne doit pas voler le focus. Seuls les types qui savent
-   * s'éditer sur place le consomment — aujourd'hui `title` et `viewport`.
+   * s'éditer sur place le consomment — aujourd'hui `title`.
    */
   autoEdit?: boolean;
   /**
@@ -48,7 +47,6 @@ type CreateNodeResult = {
 
 export function useCreateNode() {
   const { getNodes, setNodes } = useReactFlow();
-  const captureFraming = useCaptureFraming();
   const createWithNodeData = useMutation(
     api.nodes.createWithNodeData,
   ).withOptimisticUpdate((localStore, { nodes }) => {
@@ -116,21 +114,8 @@ export function useCreateNode() {
       ? getDefaultValuesForTemplate(template)
       : (getDefaultNodeDataValues(node.type as NodeType) ?? {});
 
-    // Un repère de navigation naît sur la vue courante : le créer, c'est
-    // vouloir mémoriser ce qu'on regarde, pas poser un cadrage vide à
-    // renseigner ensuite. Uniquement sur une création vierge — un duplicata
-    // passe ses values par `initialValues` et garde le cadrage de sa source.
-    const capturedFraming =
-      node.type === "viewport" && Object.keys(initialValues).length === 0
-        ? captureFraming()
-        : null;
-
     const values =
-      Object.keys(initialValues).length > 0
-        ? initialValues
-        : capturedFraming
-          ? { ...defaults, view: capturedFraming }
-          : defaults;
+      Object.keys(initialValues).length > 0 ? initialValues : defaults;
 
     const {
       nodeDataId: _ignoredNodeDataId,
@@ -145,8 +130,7 @@ export function useCreateNode() {
     };
     // Une frame naît sous les nodes : elle est tracée autour de nodes
     // existants, la poser au-dessus les masquerait tous à l'instant du tracé.
-    // Décidé ici et pas par l'appelant : c'est une propriété du type, comme le
-    // cadrage capturé d'un `viewport` juste au-dessus.
+    // Décidé ici et pas par l'appelant : c'est une propriété du type.
     const zIndex =
       node.type === "frame"
         ? nextFrameZIndex(getNodes())

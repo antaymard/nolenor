@@ -36,7 +36,7 @@ export const useNodeClipboardStore = create<NodeClipboardStore>()((set) => ({
 /**
  * Photographie des nodes : snapshot des values au moment de l'appel, déjà
  * filtré (`valuesNotDuplicated`), `data` sans `nodeDataId` (nouveau doc
- * `nodeDatas` à la création) ni `order` (rang propre à l'original). Pur
+ * `nodeDatas` à la création). Pur
  * vis-à-vis du store : ne touche pas au presse-papiers — le duplicate
  * l'utilise directement pour ne pas écraser un Ctrl+C en attente.
  */
@@ -64,15 +64,10 @@ export function snapshotNodesToItems(
       }
     }
 
-    // `order` retiré comme `nodeDataId` : c'est le rang du node *original*
-    // dans la liste des repères de navigation. Le recopier collerait la
-    // copie sur son modèle ; sans lui, elle atterrit en fin de liste
-    // (cf. `sortMarkers`).
-    const {
-      nodeDataId: _omitted,
-      order: _orderOmitted,
-      ...data
-    } = (node.data ?? {}) as Record<string, unknown>;
+    const { nodeDataId: _omitted, ...data } = (node.data ?? {}) as Record<
+      string,
+      unknown
+    >;
 
     // L'appartenance à une frame ne se recopie pas : la copie serait rattachée
     // à la frame de l'ORIGINAL, y compris collée sur un autre canvas où cette

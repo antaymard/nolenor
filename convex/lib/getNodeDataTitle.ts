@@ -106,7 +106,7 @@ export function getNodeDataTitle(
     }
 
     // `trim().length > 0` et pas seulement `typeof === "string"`, comme
-    // `viewport` et `frame` juste en dessous : un titre vide rendait la chaîne
+    // `frame` juste en dessous : un titre vide rendait la chaîne
     // vide, donc une ligne invisible dans le menu `@` et un titre absent
     // partout ailleurs — chunks de recherche, sorties de l'agent, minimap.
     case "table": {
@@ -121,13 +121,6 @@ export function getNodeDataTitle(
       return typeof title === "string" && title.trim().length > 0
         ? title
         : "App";
-    }
-
-    case "viewport": {
-      const title = nodeData.values.title;
-      return typeof title === "string" && title.trim().length > 0
-        ? title
-        : "Viewport";
     }
 
     case "frame": {

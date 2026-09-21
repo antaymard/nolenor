@@ -2,7 +2,6 @@ import { Button } from "@/components/shadcn/button";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
   TbCommand,
-  TbDirections,
   TbFrame,
   TbHandStop,
   TbPlus,
@@ -21,7 +20,6 @@ import {
 import { useState } from "react";
 import { useFlowPosition } from "@/hooks/useCanvasPointerPosition";
 import AddBlockMenuContent from "../context-menus/AddBlockMenuContent";
-import MarkersPanel from "../viewport-markers/MarkersPanel";
 
 export default function CanvasToolbar() {
   const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
@@ -31,9 +29,6 @@ export default function CanvasToolbar() {
   const isCommandCenterOpen = useCommandCenterStore((state) => state.isOpen);
   const toggleCommandCenter = useCommandCenterStore((state) => state.toggle);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  // État local, comme le menu d'ajout : rien d'autre dans l'app n'a besoin
-  // de savoir si la liste des repères est ouverte.
-  const [isMarkersPanelOpen, setIsMarkersPanelOpen] = useState(false);
   const { getViewportCenter: getViewportCenterPosition } = useFlowPosition();
 
   return (
@@ -131,28 +126,12 @@ export default function CanvasToolbar() {
           className="h-10 rounded-lg px-3"
           onClick={() => toggleCommandCenter()}
           aria-label="Open the command center"
-          title="Command center: go to a canvas or a marker"
+          title="Command center: go to a canvas"
         >
           <TbCommand size={19} />
           <Kbd>Ctrl + P</Kbd>
         </Button>
-        <Button
-          variant={isMarkersPanelOpen ? "default" : "ghost"}
-          size="icon"
-          className="h-10 w-10 rounded-lg"
-          onClick={() => setIsMarkersPanelOpen((open) => !open)}
-          aria-label="Show the navigation markers"
-          aria-expanded={isMarkersPanelOpen}
-          title="Navigation markers"
-        >
-          <TbDirections size={19} />
-        </Button>
       </div>
-      {/* Rendu APRÈS le `canvas-ui-container` : le wrapper est en
-          `flex-col-reverse`, l'encart se pose donc au-dessus de la barre. */}
-      {isMarkersPanelOpen ? (
-        <MarkersPanel onClose={() => setIsMarkersPanelOpen(false)} />
-      ) : null}
     </div>
   );
 }

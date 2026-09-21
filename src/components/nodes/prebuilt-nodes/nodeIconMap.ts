@@ -12,7 +12,6 @@ import {
   TbTemplate,
   TbMusic,
   TbVideo,
-  TbDirections ,
   TbFrame,
 } from "react-icons/tb";
 
@@ -28,7 +27,6 @@ export const NODE_TYPE_ICON_MAP: Record<string, IconType> = {
   app: TbAppWindow,
   audio: TbMusic,
   video: TbVideo,
-  viewport: TbDirections ,
   frame: TbFrame,
   // Fallback générique pour les custom nodes ; les surfaces qui connaissent
   // le template affichent son icône propre (cf. getTemplateIcon).

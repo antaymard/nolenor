@@ -15,7 +15,6 @@ const TableWindow = lazy(() => import("./prebuilt/TableWindow"));
 const AppWindow = lazy(() => import("./prebuilt/AppWindow"));
 const VideoWindow = lazy(() => import("./prebuilt/VideoWindow"));
 const CustomWindow = lazy(() => import("./prebuilt/CustomWindow"));
-const ViewportWindow = lazy(() => import("./prebuilt/ViewportWindow"));
 
 type NodeWindowContentProps = Pick<
   OpenedWindow,
@@ -62,8 +61,6 @@ function NodeWindowBody({
       return <TableWindow nodeDataId={nodeDataId} />;
     case "video":
       return <VideoWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
-    case "viewport":
-      return <ViewportWindow nodeDataId={nodeDataId} />;
     case "custom":
       return <CustomWindow nodeDataId={nodeDataId} />;
     default:

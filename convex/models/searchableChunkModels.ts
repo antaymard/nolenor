@@ -466,8 +466,8 @@ export async function keywordSearch(
 
   // 3bis) Les types invisibles pour l'agent ne remontent jamais ici.
   // Volontairement dans `keywordSearch` et pas dans `searchChunks` : ce
-  // dernier sert aussi la recherche de l'utilisateur, où un viewport node se
-  // trouve par son titre comme n'importe quel autre node.
+  // dernier sert aussi la recherche de l'utilisateur, où une frame se trouve
+  // par son titre comme n'importe quel autre node.
   const visibleChunks = chunks.filter((chunk) =>
     isNodeTypeReadableByAgent(chunk.nodeType),
   );

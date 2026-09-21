@@ -31,7 +31,7 @@ export function MentionedNodeCard({
   // Objet stable : un littéral inline recréerait le sélecteur à chaque render.
   // Test : cap + distance live vers le node (rien quand la vue est dessus).
   const deltaTarget = useMemo<DeltaTarget | null>(
-    () => ({ kind: "node", nodeId }),
+    () => ({ nodeId }),
     [nodeId],
   );
 

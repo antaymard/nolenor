@@ -153,10 +153,9 @@ export default function CanvasFlow({
         return;
       }
 
-      // Seuls les types lisibles par l'agent s'attachent (`readable`) : le
-      // viewport reste exclu (`readable: false`). La frame est lisible
-      // (`Frame: titre` + `list_nodes(frameId)`), donc elle s'attache comme
-      // tout node — et elle est aussi mentionnable par `@`.
+      // Seuls les types lisibles par l'agent s'attachent (`readable`). La
+      // frame est lisible (`Frame: titre` + `list_nodes(frameId)`), donc elle
+      // s'attache comme tout node — et elle est aussi mentionnable par `@`.
       if (node.type && !getNodeCapabilities(node.type).agent.readable) {
         return;
       }

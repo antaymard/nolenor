@@ -552,7 +552,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     capabilities: {
       // Titre seul : le code JSX n'a rien que l'utilisateur cherche (la
       // branche `app` de `chunkBuilder` n'indexe que le titre). Keyword
-      // suffit, même raison que `viewport`/`frame`.
+      // suffit, même raison que `frame`.
       search: { embed: false },
     },
     dataValuesSchema: z
@@ -835,47 +835,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       .strict(),
   },
   {
-    type: "viewport",
-    label: "Viewport",
-    description:
-      "Node that brings the view to a specific area.",
-    // Jamais lu : `agent.exposed` est à false, ce type n'est pas présenté.
-    llmDescription: "",
-    // Gabarit compact une ligne par défaut, redimensionnable en 2D :
-    // quand la hauteur augmente, le node bascule sur un visuel étendu
-    // (texte multi-lignes + bouton de navigation en bas à droite).
-    defaultDimensions: { width: baseWidth, height: titleVariantHeight, resizable: true },
-    capabilities: {
-      agent: {
-        exposed: false,
-        creatable: false,
-        readable: false,
-        writable: false,
-      },
-      mentionable: false,
-      // Un cadrage n'a pas d'historique à remonter : le recapturer, c'est
-      // justement vouloir écraser l'ancien.
-      versioned: false,
-      // Titre de repère seul : keyword suffit.
-      search: { embed: false },
-    },
-    dataValuesSchema: z
-      .object({
-        title: z.string().default(""),
-        // Centre en coordonnées MONDE (et non l'offset écran `{x, y}` de React
-        // Flow) : le cadrage ne dépend donc pas de la taille de la fenêtre au
-        // moment de la capture. Cf. `src/lib/canvasViewportFraming.ts`.
-        view: z
-          .object({
-            cx: z.number().default(0),
-            cy: z.number().default(0),
-            zoom: z.number().default(1),
-          })
-          .default({ cx: 0, cy: 0, zoom: 1 }),
-      })
-      .default({ title: "", view: { cx: 0, cy: 0, zoom: 1 } }),
-  },
-  {
     type: "frame",
     label: "Frame",
     description:
@@ -910,11 +869,11 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       // l'agent suit avec `list_nodes(frameId)` pour lire le contenu groupé
       // (même contrat que l'attach Nolë, cf. `llmDescription` ci-dessus).
       // Défaut `true`, donc pas de ligne `mentionable` ici.
-      // Un titre n'a pas d'historique à remonter (même raison que `viewport`).
+      // Un titre de conteneur n'a pas d'historique à remonter.
       versioned: false,
-      // Titre de conteneur seul : keyword suffit. Même raison que `viewport`
-      // et `title` — le contenu d'une frame, ce sont les nodes qu'elle groupe,
-      // qui se vectorisent chacun pour soi.
+      // Titre seul : keyword suffit. Même raison que `title` — le contenu
+      // d'une frame, ce sont les nodes qu'elle groupe, qui se vectorisent
+      // chacun pour soi.
       search: { embed: false },
     },
     dataValuesSchema: z

@@ -100,10 +100,10 @@ async function rebuildChunksForNodeData(
   }));
 
   // Vectorisation Voyage-4 (title + text), sauf types exclus via `nodeConfig`
-  // (`search.embed: false` : title, audio, video, viewport, frame, app) —
-  // leurs chunks restent keyword seuls. En cas d'échec (clé absente, réseau,
-  // quota), on dégrade : upsert sans embedding, la recherche keyword reste
-  // opérationnelle et le backfill couvrira le chunk plus tard.
+  // (`search.embed: false` : title, audio, video, frame, app) — leurs chunks
+  // restent keyword seuls. En cas d'échec (clé absente, réseau, quota), on
+  // dégrade : upsert sans embedding, la recherche keyword reste opérationnelle
+  // et le backfill couvrira le chunk plus tard.
   if (chunks.length > 0 && !isNodeTypeEmbedded(nodeData.type)) {
     console.log("[chunkBuilder] rebuildChunks:skip-embed-by-config", {
       nodeDataId,
@@ -308,27 +308,20 @@ async function buildChunks(
       return await buildImageChunks(base, nodeData.values);
     }
 
-    case "viewport": {
-      // Le titre est tout ce que ce node porte de cherchable : la position ne
-      // se cherche pas. `base.title` le porte déjà pour l'index `search_title`,
-      // le chunk le répète pour l'index `search_text`.
-      const title = String(nodeData.values.title ?? "").trim();
-      if (!title) return [];
-      return [{ ...base, chunkType: "node", order: 0, text: title }];
-    }
-
     case "frame": {
-      // Même forme que `viewport`, même raison : le contenu d'une frame est
-      // fait des nodes qu'elle groupe, qui s'indexent chacun pour soi. Elle
-      // n'apporte que son titre. Sans ce `case`, le `default` rendrait une
-      // liste vide et la frame serait introuvable — silencieusement.
+      // Le titre est tout ce que ce node porte de cherchable : le contenu
+      // d'une frame est fait des nodes qu'elle groupe, qui s'indexent chacun
+      // pour soi. `base.title` le porte déjà pour l'index `search_title`, le
+      // chunk le répète pour l'index `search_text`. Sans ce `case`, le
+      // `default` rendrait une liste vide et la frame serait introuvable —
+      // silencieusement.
       const title = String(nodeData.values.title ?? "").trim();
       if (!title) return [];
       return [{ ...base, chunkType: "node", order: 0, text: title }];
     }
 
     case "app": {
-      // Même forme que `viewport`/`frame` : le titre est tout ce que l'app
+      // Même forme que `frame` : le titre est tout ce que l'app
       // porte de cherchable. Indexer le code JSX serait du bruit (et un coût
       // d'embedding) sans valeur de recherche pour l'utilisateur. Sans ce
       // `case`, le `default` rendrait une liste vide et l'app serait

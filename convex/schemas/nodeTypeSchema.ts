@@ -11,10 +11,6 @@ const nodeTypeValues = [
   "app",
   "audio",
   "video",
-  // Repère de navigation : porte un cadrage de canvas (centre monde + zoom)
-  // et n'existe que pour y ramener la vue. Invisible pour l'agent, cf. le bloc
-  // `capabilities` de son entrée dans nodeConfig.
-  "viewport",
   // Conteneur : regroupe des nodes, qui le déclarent en `parentId` et portent
   // dès lors une position RELATIVE à lui. Seul type à le faire — c'est ce qui
   // rend le groupement explicite, là où la minimap devait jusqu'ici le

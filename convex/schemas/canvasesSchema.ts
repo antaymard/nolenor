@@ -20,10 +20,9 @@ const canvasBackgroundValidator = v.object({
 
 // ── Main validator ──────────────────────────────────────────────────────
 
-// Les repères de navigation (anciennement `slideshows` et `hotspots`, deux
-// tableaux portés ici, nettoyés par migration en sept. 2026) sont désormais
-// des nodes de type `viewport` : ils vivent dans `nodes` comme les autres,
-// avec leur `nodeDatas`. Les nodes et edges eux-mêmes vivent dans leurs
+// Les repères de navigation (`slideshows` et `hotspots`, deux tableaux
+// portés ici, puis des nodes de type `viewport`) ont été retirés du produit —
+// cf. `migrations:purgeViewportNodes`. Les nodes et edges vivent dans leurs
 // tables dédiées depuis oct. 2026 (champs embarqués prunés).
 const canvasesValidator = v.object({
   creatorId: v.id("users"),

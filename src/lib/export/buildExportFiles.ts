@@ -39,10 +39,10 @@ function pad(index: number): string {
  * nodeDatas qu'aucun node du canvas ne référence (désynchronisation
  * historique) sont conservés en fin de liste plutôt que perdus.
  *
- * Les types dont le contenu n'est pas de la prose (`viewport` : une position de
- * caméra) sont écartés — `renderBody` n'a pas de branche pour eux et lâcherait
- * un bloc JSON dans le Markdown. Ils restent dans `canvas.json`, qui porte la
- * structure brute du canvas. Retirer le filtre les y ramènerait.
+ * Les types dont le contenu n'est pas de la prose sont écartés — `renderBody`
+ * n'a pas de branche pour eux et lâcherait un bloc JSON dans le Markdown. Ils
+ * restent dans `canvas.json`, qui porte la structure brute du canvas. Retirer
+ * le filtre les y ramènerait.
  */
 function orderNodeDatas(
   canvas: ExportCanvas,

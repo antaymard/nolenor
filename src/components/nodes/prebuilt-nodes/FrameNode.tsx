@@ -176,7 +176,7 @@ function FrameNode(xyNode: XyNodeProps) {
   // Sélecteur booléen : seule la frame concernée re-rend, pas toutes celles du
   // canvas. Et surtout pas un initialiseur `useState`, que StrictMode invoque
   // deux fois et qui perdrait le signal au second passage. Même patron que
-  // `ViewportNode` et `TitleNode`.
+  // `TitleNode`.
   const shouldAutoEdit = useNodeEditorStore(
     (state) => state.editingNodeId === xyNode.id,
   );

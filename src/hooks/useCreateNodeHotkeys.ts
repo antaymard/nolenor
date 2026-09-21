@@ -29,7 +29,6 @@ const TITLE = requireShortcutConfig("title");
 const BLOCKNOTE = requireShortcutConfig("blocknote");
 const IMAGE = requireShortcutConfig("image");
 const TABLE = requireShortcutConfig("table");
-const VIEWPORT = requireShortcutConfig("viewport");
 
 function useCreateNodeShortcut(
   config: ShortcutNodeConfig,
@@ -122,5 +121,4 @@ export function useCreateNodeHotkeys({
   useCreateNodeShortcut(BLOCKNOTE, createNodeAtPointer, enabled);
   useCreateNodeShortcut(IMAGE, createNodeAtPointer, enabled);
   useCreateNodeShortcut(TABLE, createNodeAtPointer, enabled);
-  useCreateNodeShortcut(VIEWPORT, createNodeAtPointer, enabled);
 }

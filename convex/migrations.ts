@@ -1,8 +1,10 @@
 import { v } from "convex/values";
-import { internalAction } from "./_generated/server";
+import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { isNodeTypeEmbedded } from "./config/nodeConfig";
 import { buildEmbeddingText, embedDocuments } from "./lib/voyage";
+import * as NodeDataModels from "./models/nodeDataModels";
 
 // ── Backfill des embeddings Voyage-4 ────────────────────────────────────────
 // Chunks créés avant l'indexation vectorielle (ou dont l'embed a échoué) :
@@ -302,3 +304,220 @@ export const stripExcludedEmbeddings = internalAction({
 //     };
 //   },
 // });
+
+// ── Purge des nodes `viewport` (repères de navigation) ─────────────────────
+// Le type `viewport` est retiré du produit. Rien à migrer : ces nodes ne
+// portaient qu'un cadrage de caméra (`{cx, cy, zoom}`), il n'existe aucun
+// autre type où le reverser. On les efface donc, partout où
+// `nodeTypeValidator` est stocké — `nodes`, `nodeDatas`, `nodeDataVersions`,
+// `searchableChunks`. Les quatre tables comptent : un `push` du schéma sans
+// le littéral `"viewport"` échoue tant qu'UN document le porte encore, et les
+// versions survivent volontairement à leur nodeData (corbeille de fait), donc
+// nettoyer les seuls `nodes` ne suffirait pas.
+//
+// ORDRE DE DÉPLOIEMENT — deux passes, dans cet ordre :
+//   1. déployer ce fichier avec `"viewport"` TOUJOURS dans l'enum, puis
+//      `npx convex run migrations:purgeViewportNodes '{}'` (attendre
+//      `done: true`, ou relancer tant qu'il est à false) ;
+//   2. déployer le retrait de l'enum et du reste du code.
+//
+// Idempotent : relançable sans risque, no-op une fois la base propre.
+
+// Comparaison via une constante typée `string` et non le littéral : une fois
+// `"viewport"` sorti de `nodeTypeValidator`, `node.type === "viewport"` ne
+// compile plus (TS refuse la comparaison avec une valeur hors union). Le type
+// a disparu du code mais pas encore de la base — c'est précisément ce que
+// cette migration vient corriger, elle doit donc survivre à l'étape 2.
+const LEGACY_VIEWPORT_TYPE: string = "viewport";
+
+// Plus petit que `PAGE_SIZE` : chaque `viewport` rencontré déclenche une
+// cascade (versions, chunks, mémoires, refs R2) dans la MÊME transaction.
+// 50 laisse de la marge sous les limites d'écriture même sur une page qui
+// n'aurait que des repères.
+const VIEWPORT_PURGE_PAGE_SIZE = 50;
+
+/**
+ * Les tables balayées, dans l'ordre où la migration les enchaîne.
+ *
+ * `nodes` d'abord : sa cascade emporte déjà le nodeData, ses versions et ses
+ * chunks. Les trois passes suivantes ne ramassent donc que les orphelins —
+ * un nodeData qu'aucun node ne référence, des versions ou des chunks laissés
+ * par une suppression antérieure à cette migration.
+ */
+const viewportPurgePhaseValidator = v.union(
+  v.literal("nodes"),
+  v.literal("nodeDatas"),
+  v.literal("nodeDataVersions"),
+  v.literal("searchableChunks"),
+);
+
+const VIEWPORT_PURGE_PHASES = [
+  "nodes",
+  "nodeDatas",
+  "nodeDataVersions",
+  "searchableChunks",
+] as const;
+
+type ViewportPurgePhase = (typeof VIEWPORT_PURGE_PHASES)[number];
+
+type ViewportPurgeResult = {
+  done: boolean;
+  phase: ViewportPurgePhase;
+  processed: number;
+  deleted: number;
+  continueCursor: string | undefined;
+};
+
+export const purgeViewportNodes = internalMutation({
+  args: {
+    phase: v.optional(viewportPurgePhaseValidator),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    done: v.boolean(),
+    phase: viewportPurgePhaseValidator,
+    processed: v.number(),
+    deleted: v.number(),
+    continueCursor: v.optional(v.string()),
+  }),
+  // Annotation explicite : la mutation se re-schedule elle-même via `internal`
+  // (même fichier), sans quoi l'inférence TS boucle (cf. guidelines).
+  handler: async (ctx, args): Promise<ViewportPurgeResult> => {
+    const phase = args.phase ?? "nodes";
+    const numItems = Math.min(
+      Math.max(args.limit ?? VIEWPORT_PURGE_PAGE_SIZE, 1),
+      VIEWPORT_PURGE_PAGE_SIZE,
+    );
+    const paginationOpts = { numItems, cursor: args.cursor ?? null };
+
+    let processed = 0;
+    let deleted = 0;
+    let isDone = true;
+    let continueCursor: string | undefined;
+
+    if (phase === "nodes") {
+      // Balayage de toute la table : `nodes` n'a pas d'index sur `type`, et en
+      // ajouter un pour une migration jouée une fois ne se justifie pas (même
+      // raisonnement que `backfillLinkSummaries`). Les nodes à la corbeille
+      // sont inclus — ils portent eux aussi `type: "viewport"`.
+      const slice = await ctx.db.query("nodes").paginate(paginationOpts);
+      processed = slice.page.length;
+      isDone = slice.isDone;
+      continueCursor = slice.isDone ? undefined : slice.continueCursor;
+
+      const victims = slice.page.filter(
+        (node) => (node.type as string) === LEGACY_VIEWPORT_TYPE,
+      );
+
+      // Les edges désignent les nodes par leur llmid, pas par leur `_id` : on
+      // les relit par canvas. Groupé pour ne scanner chaque canvas qu'une
+      // fois, même quand la page porte plusieurs repères du même.
+      const idsByCanvas = new Map<Id<"canvases">, Set<string>>();
+      for (const node of victims) {
+        const existing = idsByCanvas.get(node.canvasId);
+        if (existing) existing.add(node.id);
+        else idsByCanvas.set(node.canvasId, new Set([node.id]));
+      }
+
+      for (const [canvasId, nodeIds] of idsByCanvas) {
+        const edges = await ctx.db
+          .query("edges")
+          .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
+          .collect();
+        for (const edge of edges) {
+          if (nodeIds.has(edge.source) || nodeIds.has(edge.target)) {
+            await ctx.db.delete(edge._id);
+          }
+        }
+      }
+
+      for (const node of victims) {
+        // `purgeVersions: true` et non le défaut : le chemin normal prend un
+        // snapshot final (`trigger: "delete"`) qui RECRÉERAIT une ligne
+        // `nodeDataVersions` en `nodeType: "viewport"` — soit exactement le
+        // document que le schéma va refuser. Une fonctionnalité retirée n'a
+        // de toute façon pas de corbeille à alimenter.
+        await NodeDataModels.deleteNodeDataWithCascade(ctx, {
+          nodeDataId: node.nodeDataId,
+          purgeVersions: true,
+        });
+        await ctx.db.delete(node._id);
+        deleted += 1;
+      }
+    } else if (phase === "nodeDatas") {
+      const slice = await ctx.db.query("nodeDatas").paginate(paginationOpts);
+      processed = slice.page.length;
+      isDone = slice.isDone;
+      continueCursor = slice.isDone ? undefined : slice.continueCursor;
+
+      for (const nodeData of slice.page) {
+        if ((nodeData.type as string) !== LEGACY_VIEWPORT_TYPE) continue;
+        await NodeDataModels.deleteNodeDataWithCascade(ctx, {
+          nodeDataId: nodeData._id,
+          purgeVersions: true,
+        });
+        deleted += 1;
+      }
+    } else if (phase === "nodeDataVersions") {
+      const slice = await ctx.db
+        .query("nodeDataVersions")
+        .paginate(paginationOpts);
+      processed = slice.page.length;
+      isDone = slice.isDone;
+      continueCursor = slice.isDone ? undefined : slice.continueCursor;
+
+      for (const version of slice.page) {
+        if ((version.nodeType as string) !== LEGACY_VIEWPORT_TYPE) continue;
+        await ctx.db.delete(version._id);
+        deleted += 1;
+      }
+    } else {
+      const slice = await ctx.db
+        .query("searchableChunks")
+        .paginate(paginationOpts);
+      processed = slice.page.length;
+      isDone = slice.isDone;
+      continueCursor = slice.isDone ? undefined : slice.continueCursor;
+
+      for (const chunk of slice.page) {
+        if ((chunk.nodeType as string) !== LEGACY_VIEWPORT_TYPE) continue;
+        await ctx.db.delete(chunk._id);
+        deleted += 1;
+      }
+    }
+
+    console.log("[migrations] purgeViewportNodes:page", {
+      phase,
+      processed,
+      deleted,
+      isDone,
+    });
+
+    if (!isDone) {
+      await ctx.scheduler.runAfter(0, internal.migrations.purgeViewportNodes, {
+        phase,
+        cursor: continueCursor,
+        limit: numItems,
+      });
+      return { done: false, phase, processed, deleted, continueCursor };
+    }
+
+    // Phase terminée : on enchaîne sur la suivante, curseur remis à zéro. Le
+    // `done: true` final n'est rendu qu'après la dernière.
+    const nextPhase = VIEWPORT_PURGE_PHASES[
+      VIEWPORT_PURGE_PHASES.indexOf(phase) + 1
+    ] as ViewportPurgePhase | undefined;
+
+    if (nextPhase) {
+      await ctx.scheduler.runAfter(0, internal.migrations.purgeViewportNodes, {
+        phase: nextPhase,
+        limit: numItems,
+      });
+      return { done: false, phase, processed, deleted, continueCursor };
+    }
+
+    console.log("[migrations] purgeViewportNodes:complete");
+    return { done: true, phase, processed, deleted, continueCursor };
+  },
+});

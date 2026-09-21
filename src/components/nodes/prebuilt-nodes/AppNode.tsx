@@ -1,6 +1,4 @@
 import { memo, useCallback, useState } from "react";
-import { useMutation } from "convex/react";
-import { api } from "@/../convex/_generated/api";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useWindowsStore } from "@/stores/windowsStore";
@@ -11,14 +9,8 @@ import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
 import { downloadBlob } from "@/lib/downloadFile";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/shadcn/popover";
-import { Button } from "@/components/shadcn/button";
-import { Input } from "@/components/shadcn/input";
-import { TbDownload, TbPencil, TbMaximize, TbRefresh } from "react-icons/tb";
+import { AppTitleEditControl } from "../edit/AppTitleEditControl";
+import { TbDownload, TbMaximize, TbRefresh } from "react-icons/tb";
 import { colors } from "@/components/ui/styles";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { useAppNodeRunner } from "@/hooks/useAppNodeRunner";
@@ -31,10 +23,7 @@ function AppNode(xyNode: XyNodeProps) {
   const values = useNodeDataValues(nodeDataId);
   const openWindow = useWindowsStore((s) => s.openWindow);
 
-  const updateValuesMutation = useMutation(api.nodeDatas.updateValues);
   const appTitle = useNodeDataTitle(nodeDataId) ?? "App";
-  const [inputTitle, setInputTitle] = useState("");
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const isTitleVariant = xyNode.data.variant === "title";
@@ -61,26 +50,6 @@ function AppNode(xyNode: XyNodeProps) {
     );
   }, [appCode, appTitle]);
 
-  const handleSaveTitle = useCallback(() => {
-    if (!nodeDataId || !inputTitle.trim()) return;
-    updateValuesMutation({
-      _id: nodeDataId,
-      values: { title: inputTitle.trim() },
-    });
-    setIsPopoverOpen(false);
-    setInputTitle("");
-  }, [nodeDataId, inputTitle, updateValuesMutation]);
-
-  const handlePopoverOpenChange = useCallback(
-    (open: boolean) => {
-      setIsPopoverOpen(open);
-      if (open) {
-        setInputTitle((values?.title as string) ?? "");
-      }
-    },
-    [values?.title],
-  );
-
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
@@ -100,33 +69,7 @@ function AppNode(xyNode: XyNodeProps) {
             <TbDownload />
           </NodeToolbarButton>
         )}
-        <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
-          <PopoverTrigger asChild>
-            <NodeToolbarButton label="Edit" title="Edit app title">
-              <TbPencil />
-            </NodeToolbarButton>
-          </PopoverTrigger>
-          <PopoverContent>
-            <form
-              className="flex flex-col gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSaveTitle();
-              }}
-            >
-              <Input
-                onDoubleClick={(e) => e.stopPropagation()}
-                type="text"
-                placeholder="Title (optional)"
-                value={inputTitle}
-                onChange={(e) => setInputTitle(e.target.value)}
-              />
-              <Button type="submit" size="sm" disabled={!inputTitle.trim()}>
-                Save
-              </Button>
-            </form>
-          </PopoverContent>
-        </Popover>
+        <AppTitleEditControl nodeDataId={nodeDataId} />
       </CanvasNodeToolbar>
       <NodeFrame xyNode={xyNode} resizable={!isTitleVariant}>
         {isTitleVariant ? (

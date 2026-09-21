@@ -3,256 +3,32 @@ import { areNodePropsEqual } from "../areNodePropsEqual";
 import NodeFrame from "../NodeFrame";
 import { useNodeData, useNodeDataValues } from "@/hooks/useNodeData";
 import {
-  TbArrowFork,
   TbChevronLeft,
   TbChevronRight,
   TbDownload,
-  TbGripVertical,
   TbMaximize,
-  TbPencil,
   TbPhoto,
   TbPlayerPlay,
-  TbTrash,
 } from "react-icons/tb";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import NodeEmptyState from "../NodeEmptyState";
-import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/shadcn/dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/shadcn/tabs";
-import { UploadFile } from "@/components/fields/UploadFile";
-import ImageGenerateTab from "./image/ImageGenerateTab";
+import { ImageEditControl } from "../edit/ImageEditControl";
+import type { ImageEditItem } from "../edit/ImageEditControl";
 import { toastError } from "@/components/utils/errorUtils";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
-import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
-import { useSplitImageNode } from "@/hooks/useSplitImageNode";
 import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { useWindowsStore } from "@/stores/windowsStore";
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import type { XyNodeProps } from "@/types/domain";
 
-type ImageItem = {
-  url: string;
-  filename?: string;
-  mimeType?: string;
-  size?: number;
-  uploadedAt?: number;
-  key?: string;
-};
+type ImageItem = ImageEditItem;
 
 type Value = ImageItem[];
 
 const defaultValue: Value = [];
-
-function SortableImageItem({
-  image,
-  onDelete,
-  onExtract,
-  isWorking,
-}: {
-  image: ImageItem;
-  onDelete: (url: string) => void;
-  onExtract?: (url: string) => void;
-  isWorking?: boolean;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: image.url });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-2 p-1.5 rounded-md border bg-background"
-    >
-      <button
-        className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
-        {...attributes}
-        {...listeners}
-      >
-        <TbGripVertical size={16} />
-      </button>
-      <img
-        src={image.url}
-        alt={image.filename ?? "image"}
-        className="h-10 w-10 rounded object-cover flex-shrink-0"
-      />
-      <span className="flex-1 text-sm truncate text-muted-foreground min-w-0">
-        {image.filename ?? "image"}
-      </span>
-      {onExtract && (
-        <Button
-          variant="ghost"
-          size="icon"
-          title="Extract to a new node"
-          disabled={isWorking}
-          className="flex-shrink-0 h-7 w-7 text-muted-foreground hover:text-foreground"
-          onClick={() => onExtract(image.url)}
-        >
-          <TbArrowFork size={14} />
-        </Button>
-      )}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="flex-shrink-0 h-7 w-7 text-muted-foreground hover:text-destructive"
-        onClick={() => onDelete(image.url)}
-      >
-        <TbTrash size={14} />
-      </Button>
-    </div>
-  );
-}
-
-function ImageEditDialog({
-  currentValue,
-  onUploadComplete,
-  onUploadsComplete,
-  onDelete,
-  onReorder,
-  onExtract,
-  onSplitAll,
-  isWorking,
-}: {
-  currentValue: Value;
-  onUploadComplete: (fileData: {
-    url: string;
-    filename: string;
-    mimeType: string;
-    size: number;
-    uploadedAt: number;
-    key: string;
-  }) => void;
-  onUploadsComplete: (
-    filesData: Array<{
-      url: string;
-      filename: string;
-      mimeType: string;
-      size: number;
-      uploadedAt: number;
-      key: string;
-    }>,
-  ) => void;
-  onDelete: (url: string) => void;
-  onReorder: (newImages: Value) => void;
-  onExtract?: (url: string) => void;
-  onSplitAll?: () => void;
-  isWorking?: boolean;
-}) {
-  const [localImages, setLocalImages] = useState<Value>(currentValue);
-
-  useEffect(() => {
-    setLocalImages(currentValue);
-  }, [currentValue]);
-
-  const sensors = useSensors(useSensor(PointerSensor));
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = localImages.findIndex((img) => img.url === active.id);
-    const newIndex = localImages.findIndex((img) => img.url === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const newImages = arrayMove(localImages, oldIndex, newIndex);
-    setLocalImages(newImages);
-    onReorder(newImages);
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {localImages.length > 0 ? (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={localImages.map((img) => img.url)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto">
-              {localImages.map((image) => (
-                <SortableImageItem
-                  key={image.url}
-                  image={image}
-                  onDelete={onDelete}
-                  onExtract={onExtract}
-                  isWorking={isWorking}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      ) : (
-        <p className="text-sm text-muted-foreground text-center py-2">
-          No image
-        </p>
-      )}
-      <div className="border-t pt-3">
-        {onSplitAll && localImages.length >= 2 && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={isWorking}
-            className="w-full mb-2"
-            onClick={onSplitAll}
-          >
-            <TbArrowFork size={14} />
-            Split all ({localImages.length})
-          </Button>
-        )}
-        <p className="text-xs text-muted-foreground mb-2">Add images</p>
-        <UploadFile
-          accept="image/*"
-          multiple
-          onUploadComplete={onUploadComplete}
-          onUploadsComplete={onUploadsComplete}
-        />
-      </div>
-    </div>
-  );
-}
 
 /**
  * Découpe `weights` en `rowCount` lignes contiguës de poids aussi proches que
@@ -449,14 +225,11 @@ function ImageNode(xyNode: XyNodeProps) {
   // Le statut de génération est un champ top-level du document, pas une value :
   // il faut donc le nodeData complet, pas seulement ses values.
   const nodeData = useNodeData(nodeDataId);
-  const { updateNodeDataValues } = useUpdateNodeDataValues();
-  const { extractImage, splitAll, isSplitting } = useSplitImageNode();
   const { downloadStoredFile } = useDownloadFile();
   const openWindow = useWindowsStore((s) => s.openWindow);
 
   const currentValue = (values?.images as Value | undefined) ?? defaultValue;
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [isQuickGenerating, setIsQuickGenerating] = useState(false);
 
   // Catalogue des modèles : la première entrée est le modèle par défaut,
@@ -476,123 +249,13 @@ function ImageNode(xyNode: XyNodeProps) {
     openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "image" });
   }, [nodeDataId, openWindow, xyNode.id]);
 
-  const handleUploadComplete = useCallback(
-    (fileData: {
-      url: string;
-      filename: string;
-      mimeType: string;
-      size: number;
-      uploadedAt: number;
-      key: string;
-    }) => {
-      if (!nodeDataId) return;
-      updateNodeDataValues({
-        nodeDataId,
-        values: {
-          images: [
-            ...currentValue,
-            {
-              url: fileData.url,
-              filename: fileData.filename,
-              mimeType: fileData.mimeType,
-              size: fileData.size,
-              uploadedAt: fileData.uploadedAt,
-              key: fileData.key,
-            },
-          ],
-        },
-      });
-    },
-    [nodeDataId, currentValue, updateNodeDataValues],
-  );
-
-  // Un seul update pour tout le lot : N mutations `[...current, +1]` en
-  // parallèle s'écraseraient (le client remplace tout le tableau), et chaque
-  // mutation ouvre un snapshot de version.
-  const handleUploadsComplete = useCallback(
-    (
-      filesData: Array<{
-        url: string;
-        filename: string;
-        mimeType: string;
-        size: number;
-        uploadedAt: number;
-        key: string;
-      }>,
-    ) => {
-      if (!nodeDataId || filesData.length === 0) return;
-      updateNodeDataValues({
-        nodeDataId,
-        values: {
-          images: [
-            ...currentValue,
-            ...filesData.map((fileData) => ({
-              url: fileData.url,
-              filename: fileData.filename,
-              mimeType: fileData.mimeType,
-              size: fileData.size,
-              uploadedAt: fileData.uploadedAt,
-              key: fileData.key,
-            })),
-          ],
-        },
-      });
-    },
-    [nodeDataId, currentValue, updateNodeDataValues],
-  );
-
-  const handleDelete = useCallback(
-    (url: string) => {
-      if (!nodeDataId) return;
-      const newImages = currentValue.filter((img) => img.url !== url);
-      updateNodeDataValues({ nodeDataId, values: { images: newImages } });
-    },
-    [nodeDataId, currentValue, updateNodeDataValues],
-  );
-
-  const handleReorder = useCallback(
-    (newImages: Value) => {
-      if (!nodeDataId) return;
-      updateNodeDataValues({ nodeDataId, values: { images: newImages } });
-    },
-    [nodeDataId, updateNodeDataValues],
-  );
-
-  const handleExtract = useCallback(
-    (url: string) => {
-      if (!nodeDataId) return;
-      const image = currentValue.find((img) => img.url === url);
-      if (!image) return;
-      void extractImage({
-        xyNodeId: xyNode.id,
-        nodeDataId,
-        image,
-        remainingImages: currentValue.filter((img) => img.url !== url),
-      });
-    },
-    [nodeDataId, currentValue, extractImage, xyNode.id],
-  );
-
-  const handleSplitAll = useCallback(() => {
-    if (!nodeDataId) return;
-    void splitAll({ xyNodeId: xyNode.id, nodeDataId, images: currentValue });
-  }, [nodeDataId, currentValue, splitAll, xyNode.id]);
-
   const isGenerating = nodeData?.imageGeneration?.status === "running";
 
-  // Absent en base = `true` : l'inclusion des entrées est le défaut, seul
-  // `false` la bloque. Pas de `useMemo` : un booléen n'a pas d'identité à
-  // stabiliser pour l'effet de synchronisation de l'onglet Generate.
-  const storedIncludeReferences =
-    (values as Record<string, unknown> | undefined)?.imageIncludeReferences !==
-    false;
-
   const hasMultiple = currentValue.length > 1;
+  // `hasPrompt` pilote le bouton Generate express : un prompt existe en base.
+  // (`ImageEditControl` relit le sien de son côté pour le choix de l'onglet.)
   const storedPrompt =
     typeof values?.imagePrompt === "string" ? values.imagePrompt : "";
-  // Si un prompt existe, l'édition reprend sur l'onglet Generate plutôt que
-  // Library. `DialogContent` (Radix) démonte à la fermeture, donc ce
-  // `defaultValue` est réévalué à chaque ouverture.
   const hasPrompt = storedPrompt.trim().length > 0;
   const safeIndex =
     currentValue.length === 0
@@ -615,6 +278,8 @@ function ImageNode(xyNode: XyNodeProps) {
   // ouvrir la modale. Mêmes paramètres que le défaut de l'onglet Generate
   // (1 image, inclusion des entrées telle que stockée) ; la mutation revalide
   // tout côté serveur, l'échec remonte en toast.
+  // Absent en base = `true` : l'inclusion des entrées est le défaut, seul
+  // `false` la bloque.
   const handleQuickGenerate = useCallback(() => {
     if (!nodeDataId || storedPrompt.trim().length === 0 || !defaultModel) {
       return;
@@ -625,7 +290,9 @@ function ImageNode(xyNode: XyNodeProps) {
       prompt: storedPrompt,
       count: 1,
       model: defaultModel.value,
-      includeReferences: storedIncludeReferences,
+      includeReferences:
+        (values as Record<string, unknown> | undefined)
+          ?.imageIncludeReferences !== false,
     })
       .catch((error) => {
         toastError(error, "Could not start the generation");
@@ -633,13 +300,7 @@ function ImageNode(xyNode: XyNodeProps) {
       .finally(() => {
         setIsQuickGenerating(false);
       });
-  }, [
-    nodeDataId,
-    storedPrompt,
-    defaultModel,
-    storedIncludeReferences,
-    generateImages,
-  ]);
+  }, [nodeDataId, storedPrompt, defaultModel, values, generateImages]);
 
   const isQuickBusy = isGenerating || isQuickGenerating;
 
@@ -662,52 +323,10 @@ function ImageNode(xyNode: XyNodeProps) {
             <TbDownload />
           </NodeToolbarButton>
         )}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <NodeToolbarButton label="Edit" title="Manage images">
-              <TbPencil />
-            </NodeToolbarButton>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Manage images</DialogTitle>
-            </DialogHeader>
-            {nodeDataId && (
-              <Tabs defaultValue={hasPrompt ? "generate" : "library"}>
-                <TabsList className="w-full">
-                  <TabsTrigger value="library">Library</TabsTrigger>
-                  <TabsTrigger value="generate">Generate</TabsTrigger>
-                </TabsList>
-                <TabsContent value="library" className="pt-1">
-                  <ImageEditDialog
-                    currentValue={currentValue}
-                    onUploadComplete={handleUploadComplete}
-                    onUploadsComplete={handleUploadsComplete}
-                    onDelete={handleDelete}
-                    onReorder={handleReorder}
-                    onExtract={
-                      currentValue.length >= 2 ? handleExtract : undefined
-                    }
-                    onSplitAll={
-                      currentValue.length >= 2 ? handleSplitAll : undefined
-                    }
-                    isWorking={isSplitting}
-                  />
-                </TabsContent>
-                <TabsContent value="generate" className="pt-1">
-                  <ImageGenerateTab
-                    nodeDataId={nodeDataId}
-                    xyNodeId={xyNode.id}
-                    storedPrompt={storedPrompt}
-                    storedIncludeReferences={storedIncludeReferences}
-                    generation={nodeData?.imageGeneration}
-                    onGenerated={() => setDialogOpen(false)}
-                  />
-                </TabsContent>
-              </Tabs>
-            )}
-          </DialogContent>
-        </Dialog>
+        <ImageEditControl
+          nodeDataId={nodeDataId}
+          xyNodeId={xyNode.id}
+        />
         {hasPrompt && (
           <NodeToolbarButton
             label="Generate"

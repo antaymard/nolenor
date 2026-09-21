@@ -148,7 +148,15 @@ export default function CommandCenter() {
           Type a command — a canvas name to switch to it.
         </DialogDescription>
 
-        <div className="flex h-12 items-center gap-2 border-b px-4">
+        {/*
+          `shrink-0` sur l'en-tête ET sur le pied : la liste entre eux est en
+          `flex-1` (donc `flex-basis: 0`), ce qui lui donne un facteur de
+          rétrécissement pondéré nul. Dès que le contenu atteignait le
+          `max-h-[70vh]` du dialog, tout le dépassement était donc retranché à
+          ces deux-là — l'input du haut s'écrasait de 48px à la hauteur
+          minimale de son texte.
+        */}
+        <div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <TbCommand size={17} className="shrink-0 text-muted-foreground" />
           <input
             autoFocus
@@ -219,7 +227,7 @@ export default function CommandCenter() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200/70 bg-slate-50/60 px-4 py-2 text-xs text-muted-foreground">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200/70 bg-slate-50/60 px-4 py-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <KbdGroup>
               <Kbd>↑</Kbd>

@@ -44,9 +44,9 @@ const EMPTY_MIN_HEIGHT = 120;
  * un autre.
  */
 const TITLE_LEVEL_CLASSNAMES: Record<FrameTitleLevel, string> = {
-  h1: "text-3xl font-semibold",
-  h2: "text-2xl font-semibold",
-  h3: "text-lg font-semibold",
+  h1: "text-2xl font-semibold",
+  h2: "text-lg font-semibold",
+  h3: "text-md font-semibold",
 };
 
 const TITLE_LEVEL_ICONS: Record<FrameTitleLevel, ReactNode> = {
@@ -252,7 +252,8 @@ function FrameNode(xyNode: XyNodeProps) {
     const top = Math.min(...children.map((child) => child.position.y));
     const right = Math.max(
       ...children.map(
-        (child) => child.position.x + (child.measured?.width ?? child.width ?? 0),
+        (child) =>
+          child.position.x + (child.measured?.width ?? child.width ?? 0),
       ),
     );
     const bottom = Math.max(

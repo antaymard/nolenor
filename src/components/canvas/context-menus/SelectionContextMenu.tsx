@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -7,6 +8,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Kbd } from "@/components/shadcn/kbd";
 import { useReactFlow, type Node } from "@xyflow/react";
 import { useMutation } from "convex/react";
 
@@ -14,11 +16,16 @@ import { HiOutlineTrash } from "react-icons/hi";
 import {
   TbCopyPlus,
   TbPalette,
+  TbPaperclip,
   TbPhoto,
   TbSpaces,
   TbStack2,
+  TbUnlink,
 } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
+import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
+import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
+import { useNoleStore } from "@/stores/noleStore";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useNodeLayering } from "@/hooks/useNodeLayering";
@@ -48,6 +55,17 @@ export default function SelectionContextMenu({
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const patchNodes = useMutation(api.nodes.patch);
   const availableColors = Object.entries(colors);
+  const addNoleAttachments = useNoleStore((state) => state.addAttachments);
+  const removeNoleAttachments = useNoleStore(
+    (state) => state.removeAttachments,
+  );
+  const attachedNodeIds = useNoleStore((state) =>
+    state.attachedNodes.map((n) => n.id).join(","),
+  );
+  const attachedIds = useMemo(
+    () => new Set(attachedNodeIds ? attachedNodeIds.split(",") : []),
+    [attachedNodeIds],
+  );
 
   const imageNodes = Array.isArray(elements)
     ? elements.filter(
@@ -130,6 +148,32 @@ export default function SelectionContextMenu({
     });
 
     changes.forEach(({ nodeId }) => updateNode(nodeId, { resizing: false }));
+  }
+
+  // Sémantique « bold » : partiel → attache les manquants ; tout
+  // attaché → détache tout.
+  const attachTargets = elementsArray.filter(
+    (node) => node.type && getNodeCapabilities(node.type).agent.readable,
+  );
+  const allAttachTargetsAttached =
+    attachTargets.length > 0 &&
+    attachTargets.every((node) => attachedIds.has(node.id));
+
+  function handleAttachToNole() {
+    if (allAttachTargetsAttached) {
+      removeNoleAttachments([
+        { type: "node", ids: attachTargets.map((node) => node.id) },
+      ]);
+    } else {
+      addNoleAttachments(
+        {
+          nodes: fromXyNodesToCanvasNodes(
+            attachTargets.filter((node) => !attachedIds.has(node.id)),
+          ),
+        },
+        false,
+      );
+    }
   }
 
   async function mergeImageNodes() {
@@ -282,6 +326,23 @@ export default function SelectionContextMenu({
         </DropdownMenuItem>
       )}
 
+      {/* Attachement Nolë */}
+      {attachTargets.length > 0 && (
+        <DropdownMenuItem
+          className="whitespace-nowrap"
+          onClick={() => {
+            handleAttachToNole();
+            closeMenu();
+          }}
+        >
+          {allAttachTargetsAttached ? <TbUnlink /> : <TbPaperclip />}
+          {allAttachTargetsAttached ? "Detach from Nolë" : "Attach to Nolë"}
+          <DropdownMenuShortcut className="flex items-center gap-1">
+            <Kbd>Alt + clic</Kbd>
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+      )}
+
       {/* Duplication */}
       <DropdownMenuItem
         onClick={() => {
@@ -293,7 +354,9 @@ export default function SelectionContextMenu({
       >
         <TbCopyPlus />
         Duplicate
-        <DropdownMenuShortcut>Ctrl+D</DropdownMenuShortcut>
+        <DropdownMenuShortcut className="flex items-center gap-1">
+          <Kbd>Ctrl + D</Kbd>
+        </DropdownMenuShortcut>
       </DropdownMenuItem>
 
       {/* Suppression */}

@@ -10,10 +10,14 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Kbd } from "@/components/shadcn/kbd";
 import type { Node } from "@xyflow/react";
 import { useReactFlow } from "@xyflow/react";
 import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
+import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
+import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
+import { useNoleStore } from "@/stores/noleStore";
 import { colors } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
@@ -28,15 +32,17 @@ import {
   TbCopyPlus,
   TbLayoutBoardSplit,
   TbPalette,
+  TbPaperclip,
   TbSpaces,
   TbStack2,
+  TbUnlink,
 } from "react-icons/tb";
 import { useOwnsTemplate } from "@/stores/templatesStore";
 import { useTemplateEditor } from "@/hooks/useTemplateEditor";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useNodeLayering } from "@/hooks/useNodeLayering";
 import { LAYER_COMMANDS } from "@/lib/nodeLayering";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { IconType } from "react-icons";
 import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
 import { createPortal } from "react-dom";
@@ -52,7 +58,7 @@ type NodeOption = {
   hidden?: boolean;
   label: string;
   icon: IconType;
-  shortcut?: string;
+  shortcutHint?: React.ReactNode;
   subMenu?: NodeSubMenuItem[];
   customSubContent?: React.ReactNode;
   onClick?: () => void | Promise<void>;
@@ -74,6 +80,17 @@ export default function NodeContextMenu({
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
   const patchNodes = useMutation(api.nodes.patch);
+  const addNoleAttachments = useNoleStore((state) => state.addAttachments);
+  const removeNoleAttachments = useNoleStore(
+    (state) => state.removeAttachments,
+  );
+  const attachedNodeIds = useNoleStore((state) =>
+    state.attachedNodes.map((n) => n.id).join(","),
+  );
+  const attachedIds = useMemo(
+    () => new Set(attachedNodeIds ? attachedNodeIds.split(",") : []),
+    [attachedNodeIds],
+  );
 
   // Custom nodes : édition du template depuis le canvas, sans passer par les
   // settings. Masquée si le template n'est pas le mien — seul son
@@ -91,6 +108,36 @@ export default function NodeContextMenu({
 
   const availableColors = Object.entries(colors);
   const currentColor = (xyNode.data.color as colorsEnum) || "default";
+
+  // Clic droit sur un node d'un groupe sélectionné → tout le groupe
+  // (standard Figma/Miro, comme Duplicate) — avec la sémantique « bold » :
+  // partiel → attache les manquants ; tout attaché → détache tout.
+  const selectedNodes = getNodes().filter((node) => node.selected);
+  const attachTargets = (
+    xyNode.selected && selectedNodes.length > 1 ? selectedNodes : [xyNode]
+  ).filter(
+    (node) => node.type && getNodeCapabilities(node.type).agent.readable,
+  );
+  const allAttachTargetsAttached =
+    attachTargets.length > 0 &&
+    attachTargets.every((node) => attachedIds.has(node.id));
+
+  function handleAttachToNole() {
+    if (allAttachTargetsAttached) {
+      removeNoleAttachments([
+        { type: "node", ids: attachTargets.map((node) => node.id) },
+      ]);
+    } else {
+      addNoleAttachments(
+        {
+          nodes: fromXyNodesToCanvasNodes(
+            attachTargets.filter((node) => !attachedIds.has(node.id)),
+          ),
+        },
+        false,
+      );
+    }
+  }
 
   const nodeOptions: NodeOption[] = [
     {
@@ -194,10 +241,19 @@ export default function NodeContextMenu({
       },
     },
     {
+      hidden: attachTargets.length === 0,
+      label: allAttachTargetsAttached ? "Detach from Nolë" : "Attach to Nolë",
+      icon: allAttachTargetsAttached ? TbUnlink : TbPaperclip,
+      shortcutHint: <Kbd>Alt + clic</Kbd>,
+      onClick: () => {
+        handleAttachToNole();
+      },
+    },
+    {
       hidden: !canNodeTypeBeCreated(xyNode.type),
       label: "Duplicate",
       icon: TbCopyPlus,
-      shortcut: "Ctrl+D",
+      shortcutHint: <Kbd>Ctrl + D</Kbd>,
       onClick: () => {
         // Clic droit sur un node d'un groupe sélectionné → tout le groupe
         // (standard Figma/Miro) ; sinon le seul node cliqué.
@@ -286,8 +342,10 @@ export default function NodeContextMenu({
               }}
             >
               {option.icon({ size: 16 })} {option.label}
-              {option.shortcut && (
-                <DropdownMenuShortcut>{option.shortcut}</DropdownMenuShortcut>
+              {option.shortcutHint && (
+                <DropdownMenuShortcut className="flex items-center gap-1">
+                  {option.shortcutHint}
+                </DropdownMenuShortcut>
               )}
             </DropdownMenuItem>
           ),

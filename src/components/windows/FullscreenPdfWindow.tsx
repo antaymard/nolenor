@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
-import { List } from "lucide-react";
 import {
   TransformComponent,
   TransformWrapper,
@@ -22,11 +21,6 @@ import {
 import { useIsTabletPortrait } from "@/hooks/useTabletMode";
 import type { FileFieldType } from "@/components/fields/file-fields/FileNameField";
 import { api } from "@/../convex/_generated/api";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/shadcn/popover";
 import { scrollToPdfPage } from "@/lib/pdfPageScroll";
 import {
   buildFallbackOutline,
@@ -110,46 +104,12 @@ export default function FullscreenPdfWindow({
     scrollToPdfPage(transformRef.current, pageIndex);
   }, []);
 
-  // On portrait tablets, drop the chat + outline side columns for a focused,
-  // full-width reading mode. The outline moves into a header dropdown.
+  // On portrait tablets, drop the chat side column for a focused, full-width
+  // reading mode.
   const isTabletPortrait = useIsTabletPortrait();
-  const [outlineOpen, setOutlineOpen] = useState(false);
-
-  const handleOutlineSelect = useCallback(
-    (pageIndex: number) => {
-      scrollToPage(pageIndex);
-      setOutlineOpen(false);
-    },
-    [scrollToPage],
-  );
 
   return (
-    <FullscreenWindowFrame
-      openedWindow={openedWindow}
-      headerLeftSlot={
-        isTabletPortrait ? (
-          <Popover open={outlineOpen} onOpenChange={setOutlineOpen}>
-            <PopoverTrigger asChild>
-              <button
-                data-window-control="true"
-                className="shrink-0 rounded p-1 opacity-60 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100"
-                aria-label="Outline"
-                title="Outline"
-              >
-                <List size={16} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="z-[60] w-80 p-0">
-              <PdfOutlinePanel
-                entries={displayedOutline}
-                onSelect={handleOutlineSelect}
-                className="max-h-[70vh]"
-              />
-            </PopoverContent>
-          </Popover>
-        ) : undefined
-      }
-    >
+    <FullscreenWindowFrame openedWindow={openedWindow} defaultSidePanelOpen>
       <PlanTabContentRegistrar
         content={
           <PdfOutlinePanel
@@ -229,17 +189,6 @@ export default function FullscreenPdfWindow({
             </div>
           )}
         </main>
-
-        {/* Right: outline */}
-        {!isTabletPortrait && (
-          <aside className="flex w-95 shrink-0 flex-col border-l bg-white">
-            <PdfOutlinePanel
-              entries={displayedOutline}
-              onSelect={scrollToPage}
-              className="h-full"
-            />
-          </aside>
-        )}
       </div>
     </FullscreenWindowFrame>
   );

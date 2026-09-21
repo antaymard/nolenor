@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
+import { useMutation } from "convex/react";
 import { cn } from "@/lib/utils";
 import {
   useWindowsStore,
@@ -15,21 +16,28 @@ import {
   TbCheck,
   TbDeviceFloppy,
   TbDotsVertical,
-  TbHistory,
   TbLocation,
-  TbMessageSearch,
   TbMinus,
   TbRefresh,
   TbX,
 } from "react-icons/tb";
 import { useReactFlow } from "@xyflow/react";
 import { useGoToNode } from "@/hooks/useGoToNode";
+import { api } from "@/../convex/_generated/api";
+import type { Id } from "@/../convex/_generated/dataModel";
+import { useNodeData } from "@/hooks/useNodeData";
+import { useCanvasStore } from "@/stores/canvasStore";
+import useRichQuery from "@/components/utils/useRichQuery";
+import { toastError } from "@/components/utils/errorUtils";
 import NodeWindowContent from "./NodeWindowContent";
-import NodeWindowDialogs from "./NodeWindowDialogs";
 import { WindowEditControl } from "./WindowEditControl";
 import { useNodeWindowIdentity } from "./useNodeWindowIdentity";
 import { useWindowFrameState } from "./useWindowFrameState";
 import { WindowFrameContext } from "./WindowFrameContext";
+import { WindowSidePanelTrigger } from "./side-panel/WindowSidePanelTrigger";
+import { WindowSidePanel } from "./side-panel/WindowSidePanel";
+import { VersionPreviewBanner } from "./side-panel/VersionPreviewBanner";
+import { VersionContentPreview } from "./side-panel/VersionContentPreview";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { Kbd } from "@/components/shadcn/kbd";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
@@ -40,6 +48,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../shadcn/dropdown-menu";
+
+// Matches WindowSidePanel's `w-85`.
+const SIDE_PANEL_WIDTH = 340;
+const SIDE_PANEL_GROW_THRESHOLD = SIDE_PANEL_WIDTH * 3;
 type ResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 const RESIZE_CURSOR: Record<ResizeDirection, string> = {
@@ -68,6 +80,7 @@ export default function WindowFrame({
     isSaving,
     saveHandler,
     refreshHandler,
+    planTabContent,
     handleSave,
     contextValue,
   } = useWindowFrameState(xyNodeId);
@@ -87,8 +100,76 @@ export default function WindowFrame({
   const { title, NodeIcon } = useNodeWindowIdentity(nodeDataId);
 
   const [isDraggingOrResizing, setIsDraggingOrResizing] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
+
+  // ── Side panel ────────────────────────────────────────────────────────
+  // Too narrow for the panel to dock without cramping the content (docking is
+  // always a flex-sibling squeeze, never an overlay): opening grows the
+  // window by the panel's width instead, closing shrinks it back by the same
+  // amount. `grewForPanelRef` remembers whether *this* open actually grew the
+  // window, so a manual resize in between doesn't get undone by a mismatched
+  // close.
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  const canvasId = useCanvasStore((s) => s.canvas?._id);
+  const grewForPanelRef = useRef(false);
+  // Side effect kept OUT of the `setSidePanelOpen` updater on purpose: React
+  // StrictMode double-invokes functional updaters to catch impurities like
+  // this one, and `resizeWindow` was firing twice per click as a result.
+  const toggleSidePanel = useCallback(() => {
+    const willOpen = !sidePanelOpen;
+    if (willOpen) {
+      if (openedWindow.width < SIDE_PANEL_GROW_THRESHOLD) {
+        resizeWindow(xyNodeId, { x: SIDE_PANEL_WIDTH, y: 0 });
+        grewForPanelRef.current = true;
+      } else {
+        grewForPanelRef.current = false;
+      }
+    } else if (grewForPanelRef.current) {
+      resizeWindow(xyNodeId, { x: -SIDE_PANEL_WIDTH, y: 0 });
+      grewForPanelRef.current = false;
+    }
+    setSidePanelOpen(willOpen);
+  }, [sidePanelOpen, openedWindow.width, resizeWindow, xyNodeId]);
+
+  // ── Version preview (in place, no dialog) ───────────────────────────────
+  const [previewVersionId, setPreviewVersionId] =
+    useState<Id<"nodeDataVersions"> | null>(null);
+  const [isRestoringVersion, setIsRestoringVersion] = useState(false);
+  const restoreVersion = useMutation(api.nodeDataVersions.restore);
+  const isAppNode = useNodeData(nodeDataId)?.type === "app";
+  const { data: versions } = useRichQuery(
+    api.nodeDataVersions.listByNodeDataId,
+    { nodeDataId },
+  );
+  const previewedVersion = versions?.find((v) => v._id === previewVersionId);
+
+  const handleSelectVersion = useCallback(
+    (versionId: Id<"nodeDataVersions">) => {
+      if (isDirty) {
+        toast.error("Save your changes before previewing a version.");
+        return;
+      }
+      setPreviewVersionId(versionId);
+    },
+    [isDirty],
+  );
+
+  const handleCancelVersionPreview = useCallback(() => {
+    setPreviewVersionId(null);
+  }, []);
+
+  const handleRestoreVersion = useCallback(async () => {
+    if (!previewVersionId || isRestoringVersion) return;
+    setIsRestoringVersion(true);
+    try {
+      await restoreVersion({ versionId: previewVersionId });
+      toast.success("Version restored.");
+      setPreviewVersionId(null);
+    } catch (error) {
+      toastError(error, "Error restoring version");
+    } finally {
+      setIsRestoringVersion(false);
+    }
+  }, [previewVersionId, isRestoringVersion, restoreVersion]);
 
   // Le `Mod+S` est global (voir `WindowsContainer`) : il résout la fenêtre au
   // premier plan via le store et appelle son handler enregistré. Plus de
@@ -368,7 +449,7 @@ export default function WindowFrame({
             <span className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight">
               {title ?? "—"}
             </span>
-            {refreshHandler && (
+            {!previewVersionId && refreshHandler && (
               <button
                 data-window-control="true"
                 className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
@@ -379,7 +460,7 @@ export default function WindowFrame({
                 <TbRefresh size={15} />
               </button>
             )}
-            {saveHandler && (
+            {!previewVersionId && saveHandler && (
               <button
                 data-window-control="true"
                 className={cn(
@@ -420,7 +501,9 @@ export default function WindowFrame({
                 )}
               </button>
             )}
-            <WindowEditControl openedWindow={openedWindow} />
+            {!previewVersionId && (
+              <WindowEditControl openedWindow={openedWindow} />
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -441,22 +524,12 @@ export default function WindowFrame({
                   <TbLocation size={15} />
                   Navigate to node
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="flex items-center text-sm"
-                  onSelect={() => setHistoryOpen(true)}
-                >
-                  <TbHistory size={15} />
-                  History
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="flex items-center text-sm"
-                  onSelect={() => setAssociatedThreadsOpen(true)}
-                >
-                  <TbMessageSearch size={15} />
-                  Threads that modified this node
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <WindowSidePanelTrigger
+              open={sidePanelOpen}
+              onClick={toggleSidePanel}
+            />
             <button
               data-window-control="true"
               className="shrink-0 rounded-full opacity-50 hover:bg-black/10 hover:opacity-100 size-7 my-1 flex items-center justify-center"
@@ -527,27 +600,51 @@ export default function WindowFrame({
             </ConfirmableButton>
           </div>
 
-          {/* ── Body (non-draggable) ──────────────────────────────────── */}
-          <div className="relative min-h-0 flex-1 overflow-auto">
-            <NodeWindowContent
-              nodeType={openedWindow.nodeType}
-              xyNodeId={xyNodeId}
-              nodeDataId={nodeDataId}
-            />
-            {isDraggingOrResizing && <div className="absolute inset-0 z-10" />}
+          {/* ── Body row (non-draggable): content + side panel ──────────── */}
+          <div className="relative flex min-h-0 flex-1">
+            <div
+              className={cn(
+                "relative min-h-0 flex-1 overflow-auto",
+                previewVersionId && "bg-yellow-50",
+              )}
+            >
+              {previewVersionId && previewedVersion ? (
+                <div className="flex h-full flex-col">
+                  <VersionPreviewBanner
+                    version={previewedVersion}
+                    isApp={isAppNode}
+                    isRestoring={isRestoringVersion}
+                    onCancel={handleCancelVersionPreview}
+                    onRestore={() => void handleRestoreVersion()}
+                  />
+                  <div className="min-h-0 flex-1 overflow-auto">
+                    <VersionContentPreview versionId={previewVersionId} />
+                  </div>
+                </div>
+              ) : (
+                <NodeWindowContent
+                  nodeType={openedWindow.nodeType}
+                  xyNodeId={xyNodeId}
+                  nodeDataId={nodeDataId}
+                />
+              )}
+              {isDraggingOrResizing && (
+                <div className="absolute inset-0 z-10" />
+              )}
+            </div>
+            {sidePanelOpen && (
+              <WindowSidePanel
+                nodeDataId={nodeDataId}
+                xyNodeId={xyNodeId}
+                canvasId={canvasId}
+                planTabContent={planTabContent}
+                previewVersionId={previewVersionId}
+                onSelectVersion={handleSelectVersion}
+              />
+            )}
           </div>
         </div>
       </div>
-
-      <NodeWindowDialogs
-        nodeDataId={nodeDataId}
-        title={title}
-        historyOpen={historyOpen}
-        onHistoryOpenChange={setHistoryOpen}
-        threadsOpen={associatedThreadsOpen}
-        onThreadsOpenChange={setAssociatedThreadsOpen}
-        contentClassName="sm:max-w-3xl"
-      />
     </WindowFrameContext.Provider>
   );
 }

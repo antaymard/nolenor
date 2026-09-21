@@ -1,14 +1,13 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import toast from "react-hot-toast";
+import { useMutation } from "convex/react";
 import { cn } from "@/lib/utils";
 import {
   TbArrowsMinimize,
   TbCheck,
   TbDeviceFloppy,
   TbDotsVertical,
-  TbHistory,
   TbLocation,
-  TbMessageSearch,
   TbMinus,
   TbRefresh,
   TbX,
@@ -22,38 +21,44 @@ import {
 import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
+import { api } from "@/../convex/_generated/api";
+import type { Id } from "@/../convex/_generated/dataModel";
+import { useCanvasStore } from "@/stores/canvasStore";
+import useRichQuery from "@/components/utils/useRichQuery";
+import { toastError } from "@/components/utils/errorUtils";
 import { WindowFrameContext } from "./WindowFrameContext";
 import { useWindowFrameState } from "./useWindowFrameState";
 import { Spinner } from "@/components/shadcn/spinner";
 import { Kbd } from "@/components/shadcn/kbd";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { WindowEditControl } from "./WindowEditControl";
+import { WindowSidePanelTrigger } from "./side-panel/WindowSidePanelTrigger";
+import { WindowSidePanel } from "./side-panel/WindowSidePanel";
+import { VersionPreviewBanner } from "./side-panel/VersionPreviewBanner";
+import { VersionContentPreview } from "./side-panel/VersionContentPreview";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../shadcn/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "../shadcn/dialog";
-import VersionHistoryViewer from "./VersionHistoryViewer";
-import AssociatedThreadsViewer from "./AssociatedThreadsViewer";
 
 interface FullscreenWindowFrameProps {
   openedWindow: OpenedWindow;
   children: ReactNode;
   headerLeftSlot?: ReactNode;
+  /** Reading-type windows (blocknote, pdf) reserve a permanent NoleAside
+   * column and used to show their outline there — the side panel's Plan tab
+   * now owns that, so it opens by default for these instead of starting
+   * hidden behind a click. */
+  defaultSidePanelOpen?: boolean;
 }
 
 export default function FullscreenWindowFrame({
   openedWindow,
   children,
   headerLeftSlot,
+  defaultSidePanelOpen = false,
 }: FullscreenWindowFrameProps) {
   const { xyNodeId, nodeDataId } = openedWindow;
 
@@ -72,12 +77,54 @@ export default function FullscreenWindowFrame({
     isSaving,
     saveHandler,
     refreshHandler,
+    planTabContent,
     handleSave,
     contextValue,
   } = useWindowFrameState(xyNodeId);
 
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [associatedThreadsOpen, setAssociatedThreadsOpen] = useState(false);
+  const [sidePanelOpen, setSidePanelOpen] = useState(defaultSidePanelOpen);
+  const canvasId = useCanvasStore((s) => s.canvas?._id);
+
+  // ── Version preview (in place, no dialog) ───────────────────────────────
+  const [previewVersionId, setPreviewVersionId] =
+    useState<Id<"nodeDataVersions"> | null>(null);
+  const [isRestoringVersion, setIsRestoringVersion] = useState(false);
+  const restoreVersion = useMutation(api.nodeDataVersions.restore);
+  const isAppNode = nodeData?.type === "app";
+  const { data: versions } = useRichQuery(
+    api.nodeDataVersions.listByNodeDataId,
+    { nodeDataId },
+  );
+  const previewedVersion = versions?.find((v) => v._id === previewVersionId);
+
+  const handleSelectVersion = useCallback(
+    (versionId: Id<"nodeDataVersions">) => {
+      if (isDirty) {
+        toast.error("Save your changes before previewing a version.");
+        return;
+      }
+      setPreviewVersionId(versionId);
+    },
+    [isDirty],
+  );
+
+  const handleCancelVersionPreview = useCallback(() => {
+    setPreviewVersionId(null);
+  }, []);
+
+  const handleRestoreVersion = useCallback(async () => {
+    if (!previewVersionId || isRestoringVersion) return;
+    setIsRestoringVersion(true);
+    try {
+      await restoreVersion({ versionId: previewVersionId });
+      toast.success("Version restored.");
+      setPreviewVersionId(null);
+    } catch (error) {
+      toastError(error, "Error restoring version");
+    } finally {
+      setIsRestoringVersion(false);
+    }
+  }, [previewVersionId, isRestoringVersion, restoreVersion]);
 
   return (
     <WindowFrameContext.Provider value={contextValue}>
@@ -100,7 +147,7 @@ export default function FullscreenWindowFrame({
           <span className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight">
             {title ?? "—"}
           </span>
-          {refreshHandler && (
+          {!previewVersionId && refreshHandler && (
             <button
               data-window-control="true"
               className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
@@ -110,7 +157,7 @@ export default function FullscreenWindowFrame({
               <TbRefresh size={15} />
             </button>
           )}
-          {saveHandler && (
+          {!previewVersionId && saveHandler && (
             <button
               data-window-control="true"
               className={cn(
@@ -150,7 +197,9 @@ export default function FullscreenWindowFrame({
               )}
             </button>
           )}
-          <WindowEditControl openedWindow={openedWindow} />
+          {!previewVersionId && (
+            <WindowEditControl openedWindow={openedWindow} />
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -169,22 +218,12 @@ export default function FullscreenWindowFrame({
                 <TbLocation size={15} />
                 Navigate to node
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex items-center text-sm"
-                onSelect={() => setHistoryOpen(true)}
-              >
-                <TbHistory size={15} />
-                History
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex items-center text-sm"
-                onSelect={() => setAssociatedThreadsOpen(true)}
-              >
-                <TbMessageSearch size={15} />
-                Threads that modified this node
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <WindowSidePanelTrigger
+            open={sidePanelOpen}
+            onClick={() => setSidePanelOpen((o) => !o)}
+          />
           <button
             data-window-control="true"
             className="shrink-0 rounded-full opacity-50 hover:bg-black/10 hover:opacity-100 size-7 my-1 flex items-center justify-center"
@@ -251,37 +290,43 @@ export default function FullscreenWindowFrame({
           </ConfirmableButton>
         </div>
 
-        {/* ── Body ──────────────────────────────────────────────────── */}
-        {children}
+        {/* ── Body row: content + side panel ──────────────────────────── */}
+        <div className="relative flex min-h-0 flex-1">
+          <div
+            className={cn(
+              "relative flex min-h-0 flex-1 flex-col",
+              previewVersionId && "bg-yellow-50",
+            )}
+          >
+            {previewVersionId && previewedVersion ? (
+              <>
+                <VersionPreviewBanner
+                  version={previewedVersion}
+                  isApp={isAppNode}
+                  isRestoring={isRestoringVersion}
+                  onCancel={handleCancelVersionPreview}
+                  onRestore={() => void handleRestoreVersion()}
+                />
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <VersionContentPreview versionId={previewVersionId} />
+                </div>
+              </>
+            ) : (
+              children
+            )}
+          </div>
+          {sidePanelOpen && (
+            <WindowSidePanel
+              nodeDataId={nodeDataId}
+              xyNodeId={xyNodeId}
+              canvasId={canvasId}
+              planTabContent={planTabContent}
+              previewVersionId={previewVersionId}
+              onSelectVersion={handleSelectVersion}
+            />
+          )}
+        </div>
       </div>
-
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Version history</DialogTitle>
-            <DialogDescription>{title ?? "—"}</DialogDescription>
-          </DialogHeader>
-          <VersionHistoryViewer
-            nodeDataId={nodeDataId}
-            closeModale={() => setHistoryOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={associatedThreadsOpen}
-        onOpenChange={setAssociatedThreadsOpen}
-      >
-        <DialogContent className="flex h-[70vh] max-h-175 flex-col sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Threads that modified this node</DialogTitle>
-            <DialogDescription>{title ?? "—"}</DialogDescription>
-          </DialogHeader>
-          <AssociatedThreadsViewer
-            nodeDataId={nodeDataId}
-            closeModale={() => setAssociatedThreadsOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
     </WindowFrameContext.Provider>
   );
 }

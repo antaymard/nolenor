@@ -23,44 +23,17 @@ export const getCanvasChangesSinceLastMessage = internalQuery({
         if (!nodeData) return null;
         if (nodeData.updatedAt <= lastMessageAt) return null;
 
-        const embed =
-          node.type === "embed" &&
-          typeof nodeData.values.embed === "object" &&
-          nodeData.values.embed !== null
-            ? (nodeData.values.embed as {
-                url?: unknown;
-                embedUrl?: unknown;
-                type?: unknown;
-              })
-            : null;
-
         return {
           id: node.id,
           type: node.type,
           title: getNodeDataTitle(nodeData),
-          embedUrl:
-            typeof embed?.url === "string" && embed.url.length > 0
-              ? embed.url
-              : null,
-          embedIframeUrl:
-            typeof embed?.embedUrl === "string" && embed.embedUrl.length > 0
-              ? embed.embedUrl
-              : null,
-          embedType:
-            typeof embed?.type === "string" && embed.type.length > 0
-              ? embed.type
-              : null,
         };
       }),
     );
 
     const xmlNodes = changedNodes.flatMap((node) =>
       node
-        ? [
-            node.type === "embed"
-              ? `<node id="${node.id}" type="embed" title="${node.title}"${node.embedUrl ? ` url="${node.embedUrl}"` : ""}${node.embedIframeUrl ? ` embedUrl="${node.embedIframeUrl}"` : ""}${node.embedType ? ` embedType="${node.embedType}"` : ""} />`
-              : `<node id="${node.id}" type="${node.type}" title="${node.title}"/>`,
-          ]
+        ? [`<node id="${node.id}" type="${node.type}" title="${node.title}"/>`]
         : [],
     );
 

@@ -8,7 +8,6 @@ import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
 // Ce module est le *seul* point d'import de ces bodies : desktop et mobile
 // partagent donc les mêmes chunks.
 const BlocknoteWindow = lazy(() => import("./prebuilt/BlocknoteWindow"));
-const EmbedWindow = lazy(() => import("./prebuilt/EmbedWindow"));
 const LinkWindow = lazy(() => import("./prebuilt/LinkWindow"));
 const ImageWindow = lazy(() => import("./prebuilt/ImageWindow"));
 const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
@@ -51,8 +50,6 @@ function NodeWindowBody({
   switch (nodeType) {
     case "blocknote":
       return <BlocknoteWindow nodeDataId={nodeDataId} />;
-    case "embed":
-      return <EmbedWindow nodeDataId={nodeDataId} />;
     case "link":
       return <LinkWindow nodeDataId={nodeDataId} />;
     case "app":

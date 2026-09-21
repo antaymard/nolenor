@@ -175,9 +175,6 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         const nodeEntries = await Promise.all(
           filteredNodes.map(async (node) => {
             let title = "Untitled";
-            let embedUrl: string | null = null;
-            let embedIframeUrl: string | null = null;
-            let embedType: string | null = null;
             if (node.nodeDataId) {
               try {
                 const { nodeData } = await ctx.runQuery(
@@ -191,32 +188,6 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
                   ? await fetchTemplate(nodeData.templateId)
                   : null;
                 title = getNodeDataTitle(nodeData, template);
-
-                if (
-                  node.type === "embed" &&
-                  typeof nodeData.values.embed === "object" &&
-                  nodeData.values.embed !== null
-                ) {
-                  const embed = nodeData.values.embed as {
-                    url?: unknown;
-                    embedUrl?: unknown;
-                    type?: unknown;
-                  };
-
-                  embedUrl =
-                    typeof embed.url === "string" && embed.url.length > 0
-                      ? embed.url
-                      : null;
-                  embedIframeUrl =
-                    typeof embed.embedUrl === "string" &&
-                    embed.embedUrl.length > 0
-                      ? embed.embedUrl
-                      : null;
-                  embedType =
-                    typeof embed.type === "string" && embed.type.length > 0
-                      ? embed.type
-                      : null;
-                }
               } catch {
                 // keep "Untitled"
               }
@@ -232,9 +203,6 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               // seul groupement explicite du canvas, et le lire ici évite un
               // aller-retour pour savoir ce qui va avec quoi.
               frameId: node.parentId ?? null,
-              embedUrl,
-              embedIframeUrl,
-              embedType,
             };
           }),
         );
@@ -259,24 +227,10 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
         const xml = [
           `<nodes count="${displayedEntries.length}"${truncated ? ` truncated="true" total="${nodeEntries.length}"` : ""}>`,
-          ...displayedEntries.map(
-            ({
-              id,
-              type,
-              title,
-              x,
-              y,
-              frameId,
-              embedUrl,
-              embedIframeUrl,
-              embedType,
-            }) => {
-              const frameAttr = frameId ? ` frameId="${frameId}"` : "";
-              return type === "embed"
-                ? `  <node id="${id}" type="embed" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${frameAttr}${embedUrl ? ` url="${escapeXmlAttribute(embedUrl)}"` : ""}${embedIframeUrl ? ` embedUrl="${escapeXmlAttribute(embedIframeUrl)}"` : ""}${embedType ? ` embedType="${escapeXmlAttribute(embedType)}"` : ""} />`
-                : `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${frameAttr} />`;
-            },
-          ),
+          ...displayedEntries.map(({ id, type, title, x, y, frameId }) => {
+            const frameAttr = frameId ? ` frameId="${frameId}"` : "";
+            return `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${frameAttr} />`;
+          }),
           "</nodes>",
           "<nodeDataSchemas>",
           // Filtre les vides : un custom node dont le template n'est plus

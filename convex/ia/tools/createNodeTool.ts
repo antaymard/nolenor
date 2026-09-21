@@ -113,24 +113,6 @@ async function applyNodeDataTitle({
       };
     }
 
-    case "embed": {
-      const embed =
-        typeof defaultValues.embed === "object" && defaultValues.embed !== null
-          ? (defaultValues.embed as Record<string, unknown>)
-          : {};
-
-      return {
-        values: {
-          ...defaultValues,
-          embed: {
-            ...embed,
-            title,
-          },
-        },
-        titleApplied: true,
-      };
-    }
-
     case "value": {
       const value =
         typeof defaultValues.value === "object" && defaultValues.value !== null

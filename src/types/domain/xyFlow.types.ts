@@ -24,7 +24,7 @@ export interface DisplayPropsThatGoInXyData {
  * La charge `data` d'un node de canvas.
  *
  * La signature d'index porte les extras propres à certains types — `variant`
- * pour table/embed/app, le texte d'un title. Une union discriminée par `type`
+ * pour table/app, le texte d'un title. Une union discriminée par `type`
  * serait plus stricte, mais elle n'apporterait rien ici : le seul champ lu
  * partout est `nodeDataId`, et c'est lui qu'on veut typé.
  */

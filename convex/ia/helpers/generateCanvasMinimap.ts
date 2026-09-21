@@ -68,7 +68,6 @@ const TYPE_WEIGHT: Record<string, number> = {
   link: 60,
   image: 40,
   value: 30,
-  embed: 25,
   pdf: 20,
   audio: 20,
   video: 20,
@@ -638,10 +637,6 @@ function extractLeafTitle(
       if (val?.label) return val.label;
       if (val?.value !== undefined) return String(val.value) || null;
       return null;
-    }
-    case "embed": {
-      const embed = values.embed as { title?: string } | undefined;
-      return embed?.title ?? null;
     }
     default:
       return null;

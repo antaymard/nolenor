@@ -49,7 +49,6 @@ function NodeFrame({
   // dont l'état ne vit qu'ici.
   const needsPointerShieldWhileMoving =
     nodeType === "app" ||
-    nodeType === "embed" ||
     (nodeType === "link" && xyNode.data.variant === "embed");
 
   return (
@@ -107,7 +106,7 @@ function NodeFrame({
           className={cn(
             // `overflow-hidden` + rayon de la face interne de la bordure
             // (rounded-xl = 14px, moins 1px de border) : c'est lui qui garantit
-            // que le contenu (image, table, BlockNote, embed) est rogné aux
+            // que le contenu (image, table, BlockNote, iframe) est rogné aux
             // coins du frame. Sans ça, un enfant à coins carrés dépassait.
             // La dernière fois on l'a mis sur le frame et ça avait rogné
             // l'outline du node attaché — d'où ce placement.

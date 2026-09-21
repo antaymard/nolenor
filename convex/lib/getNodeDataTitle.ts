@@ -33,11 +33,6 @@ export function getNodeDataTitle(
       );
     }
 
-    case "embed": {
-      const embed = nodeData.values.embed as { title?: unknown } | undefined;
-      return typeof embed?.title === "string" ? embed.title : "Embed";
-    }
-
     case "value": {
       const val = nodeData.values.value as { label?: unknown } | undefined;
       return typeof val?.label === "string" ? val.label : "Value";

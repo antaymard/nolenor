@@ -59,7 +59,7 @@ export default function SelectionContextMenu({
   // Variants common to all selected nodes. We match on the user-facing
   // label, not the raw key: the same appearance ("Preview", "Title") can
   // live under different keys per type — e.g. it's the `default` key on
-  // document/table but the `preview` key on embed/app.
+  // document/table but the `preview` key on app.
   const elementsArray = Array.isArray(elements) ? elements : [];
   const labelToKeyPerNode = elementsArray.map(
     (node) =>

@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-Outil exposé au modèle pour lire un ou plusieurs nœuds du canvas courant et retourner leur contenu sous forme de XML LLM-friendly. Il gère aussi bien les nœuds "classiques" (document, embed, …) que les nœuds **PDF**, **table** et **image**, chacun avec un mode par défaut peu coûteux et un mode détaillé sur demande.
+Outil exposé au modèle pour lire un ou plusieurs nœuds du canvas courant et retourner leur contenu sous forme de XML LLM-friendly. Il gère aussi bien les nœuds "classiques" (document, lien, …) que les nœuds **PDF**, **table** et **image**, chacun avec un mode par défaut peu coûteux et un mode détaillé sur demande.
 
 **Agents autorisés** : `nole`, `worker`. Également exposé sur le endpoint MCP en accès `read`.
 
@@ -254,7 +254,6 @@ modèle reçoit N images sans étiquette) :
     <!-- contenu PDF selon le cas ci-dessus -->
   </node>
 
-  <node id="…" type="embed" title="…" url="…" embedUrl="…" embedType="…" />
 </nodes>
 
 <nodeDataSchemas>
@@ -268,14 +267,13 @@ modèle reçoit N images sans étiquette) :
 
 | Attribut                       | Présent si                                                                        |
 | ------------------------------ | --------------------------------------------------------------------------------- |
-| `id`                           | Toujours                                                                          |
-| `type`                         | Toujours                                                                          |
-| `title`                        | Toujours                                                                          |
-| `sourceNodes` / `targetNodes`  | Toujours (chaîne vide si aucune connexion) — format : `"id \| type \| title ; …"` |
-| `x`, `y`, `width`, `height`    | Si `withPosition=true` et données disponibles                                     |
-| `totalPages`                   | Nœud PDF seulement                                                                |
-| `url`, `embedUrl`, `embedType` | Nœud embed seulement                                                              |
-| `readError`                    | En cas d'erreur de lecture                                                        |
+| `id`                          | Toujours                                                                          |
+| `type`                        | Toujours                                                                          |
+| `title`                       | Toujours                                                                          |
+| `sourceNodes` / `targetNodes` | Toujours (chaîne vide si aucune connexion) — format : `"id \| type \| title ; …"` |
+| `x`, `y`, `width`, `height`   | Si `withPosition=true` et données disponibles                                     |
+| `totalPages`                  | Nœud PDF seulement                                                                |
+| `readError`                   | En cas d'erreur de lecture                                                        |
 
 ---
 

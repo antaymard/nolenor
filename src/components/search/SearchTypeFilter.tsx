@@ -10,7 +10,6 @@ const NODE_TYPE_LABELS: Record<NodeType, string> = {
   image: "Images",
   blocknote: "Notes",
   value: "Values",
-  embed: "Embeds",
   title: "Titles",
   pdf: "PDF",
   table: "Tables",

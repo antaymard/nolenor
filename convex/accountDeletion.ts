@@ -42,11 +42,26 @@ export const deleteMyAccount = mutation({
       throw new ConvexError(errors.ACCOUNT_DELETION_EMAIL_MISMATCH);
     }
 
+    // Lu avant le teardown, pendant que le document existe encore : l'action
+    // de suppression tourne après, quand il n'y aura plus rien à relire.
+    const wasSubscribed = user.newsletterSubscribedAt !== undefined;
+    const contactEmail = user.email;
+
     await AccountDeletionModels.teardownAuth(ctx, { userId });
 
     await ctx.scheduler.runAfter(0, internal.accountDeletion.purgeUserData, {
       userId,
     });
+
+    // Le contact Resend ne vit pas dans cette base : `purgeUserData` ne peut
+    // pas l'atteindre, il faut le supprimer explicitement.
+    if (wasSubscribed) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.newsletter.removeDeletedContact,
+        { email: contactEmail },
+      );
+    }
 
     return null;
   },

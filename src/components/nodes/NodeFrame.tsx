@@ -24,6 +24,7 @@ function NodeFrame({
 }) {
   // `||` et non `??` : une couleur vide vaut "default", comme avant le typage.
   const nodeColor = colors[xyNode.data.color || "default"];
+  const isTransparent = xyNode.data.color === "transparent";
   const [isResizing, setIsResizing] = useState(false);
   const canDrag = true;
   const openWindow = useWindowsStore((state) => state.openWindow);
@@ -88,13 +89,20 @@ function NodeFrame({
           "transition-[box-shadow,border-color,transform] duration-200 ease-out",
           nodeColor.nodeBg,
           nodeColor.nodeBorder,
-          "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
+          !isTransparent && "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
           isAttachedToNole &&
             "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
           !canDrag && "nodrag",
           xyNode.selected
-            ? "ring-2 ring-blue-500/70 shadow-[0_3px_12px_rgba(15,23,42,0.12)]"
-            : "hover:ring-1 hover:ring-blue-400/60 hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
+            ? cn(
+                "ring-2 ring-blue-500/70",
+                !isTransparent && "shadow-[0_3px_12px_rgba(15,23,42,0.12)]",
+              )
+            : cn(
+                "hover:ring-1 hover:ring-blue-400/60",
+                !isTransparent &&
+                  "hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
+              ),
         )}
         onDoubleClick={handleDoubleClick}
       >

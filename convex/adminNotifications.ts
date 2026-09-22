@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { Resend as ResendAPI } from "resend";
 import { internal } from "./_generated/api";
 import { internalAction, internalQuery } from "./_generated/server";
+import { isProdDeployment } from "./lib/deployment";
 
 /**
  * Destinataire des notifications d'inscription.
@@ -16,15 +17,6 @@ function adminNotificationEmail(): string | null {
 }
 
 /**
- * Origines considérées comme de la production pour l'envoi.
- *
- * Miroir d'`ALLOWED_REDIRECT_ORIGINS` dans `convex/auth.ts` : en dev, `SITE_URL`
- * pointe vers la boucle locale et les inscriptions de test ne doivent pas
- * spammer la boîte admin.
- */
-const PROD_ORIGINS = ["https://app.nolenor.com", "https://app.nolenor.fr"];
-
-/**
  * Adresse d'expédition, même règle que les emails d'auth
  * (`convex/lib/authEmail.ts`) : `AUTH_EMAIL_FROM` en prod (domaine vérifié
  * chez Resend), repli dev `onboarding@resend.dev`.
@@ -34,16 +26,6 @@ const PROD_ORIGINS = ["https://app.nolenor.com", "https://app.nolenor.fr"];
  */
 function notificationFromAddress(): string {
   return process.env.AUTH_EMAIL_FROM ?? "Nolenor <onboarding@resend.dev>";
-}
-
-function isProdDeployment(): boolean {
-  const siteUrl = process.env.SITE_URL;
-  if (!siteUrl) return false;
-  try {
-    return PROD_ORIGINS.includes(new URL(siteUrl).origin);
-  } catch {
-    return false;
-  }
 }
 
 function formatSignupDate(creationTime: number): string {

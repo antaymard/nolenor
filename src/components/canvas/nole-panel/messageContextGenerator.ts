@@ -1,6 +1,7 @@
 import type { CanvasNode } from "@/types";
 import { isNodeTypeReadableByAgent } from "@/../convex/config/nodeConfig";
 import { absolutePositionsById } from "@/../convex/lib/nodeGeometry";
+import { toIsoDateString } from "@/../convex/lib/datePill";
 
 type ViewportState = {
   x: number;
@@ -43,6 +44,8 @@ export type MessageContextNodeSummary = {
 
 export type MessageContextPayload = {
   generatedAt: string;
+  localDate: string;
+  timeZone: string;
   openNodes: MessageContextNodeSummary[];
   viewport: {
     bounds: ViewportBounds;
@@ -77,6 +80,19 @@ function nodeToMessageContextNodeSummary(
       height: Math.round(height),
     },
   };
+}
+
+/**
+ * Le fuseau IANA du navigateur ("Europe/Paris"), ou "" si le runtime refuse de
+ * le dire. Purement informatif pour l'agent : la date, elle, est déjà résolue
+ * en local par `toIsoDateString`.
+ */
+function resolveTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function formatTimeNaturalLanguage(time: Date): string {
@@ -190,6 +206,13 @@ export function generateMessageContext({
 
   return {
     generatedAt: formatTimeNaturalLanguage(time),
+    // La même instant que `generatedAt`, mais dans la forme que l'agent
+    // recopie sans la reformater : celle d'un token `[[date:YYYY-MM-DD]]`.
+    // Prise sur l'horloge du CLIENT — le serveur Convex tourne en UTC, et une
+    // pill de date est un jour calendaire local, pas un instant (cf.
+    // `convex/lib/datePill.ts`).
+    localDate: toIsoDateString(time),
+    timeZone: resolveTimeZone(),
     openNodes: openedNodes.map((node) =>
       nodeToMessageContextNodeSummary(node, getNodeTitle),
     ),

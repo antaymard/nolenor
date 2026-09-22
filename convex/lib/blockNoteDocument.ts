@@ -1058,6 +1058,66 @@ export function updateBlockProps(
 }
 
 // ── Native text patch ────────────────────────────────────────────────────────
+//
+// `new_string` is literal visible text, with one exception: a `[[date:…]]`
+// token becomes a real date pill, exactly as it does on the XML and Markdown
+// write paths. Without it, `patch_block_text` was the one blocknote tool that
+// could not author a pill — while `replace_block`'s own description sends the
+// model here for every text edit, so "add a due date to this block" produced
+// literal `[[date:…]]` debris.
+//
+// `[[node:…]]` is NOT expanded here: a mention pill stores a `nodeDataId`,
+// which only a canvas lookup can resolve, and this module is pure. It is
+// refused rather than written as text, and the error names the way out.
+
+/** The one accepted spelling, kept in lockstep with `tokenToPill`'s check. */
+const PATCH_DATE_TOKEN_RE = /\[\[date:(\d{4}-\d{2}-\d{2})\]\]/g;
+
+/** Any date token, well-formed or not — what the guard below reports on. */
+const ANY_DATE_TOKEN_RE = /\[\[date:[^\]]*\]\]/g;
+
+const NODE_TOKEN_RE = /\[\[node:[^\]]*\]\]/g;
+
+function matchAll(text: string, re: RegExp): string[] {
+  const out: string[] = [];
+  re.lastIndex = 0;
+  for (let match = re.exec(text); match; match = re.exec(text)) {
+    out.push(match[0]);
+  }
+  return out;
+}
+
+/**
+ * Refuse a replacement carrying a token this path cannot turn into a pill,
+ * rather than writing it as visible debris. There is no code-span escape hatch
+ * here: `new_string` is literal text, not Markdown — a block that must show the
+ * token verbatim goes through `replace_block`.
+ */
+function assertPatchTokensSupported(newString: string): void {
+  if (!newString.includes("[[")) return;
+
+  const mentions = matchAll(newString, NODE_TOKEN_RE);
+  if (mentions.length > 0) {
+    throw new BlockNotePatchError(
+      `patch_block_text cannot create a node mention (${mentions.join(", ")}): ` +
+        "resolving it needs a canvas lookup. Use replace_block to rewrite the " +
+        "whole block with the [[node:…]] token instead.",
+    );
+  }
+
+  const malformed = matchAll(newString, ANY_DATE_TOKEN_RE).filter(
+    (token) => !/^\[\[date:\d{4}-\d{2}-\d{2}\]\]$/.test(token),
+  );
+  if (malformed.length > 0) {
+    throw new BlockNotePatchError(
+      `Date token${malformed.length > 1 ? "s" : ""} ${malformed.join(", ")} ` +
+        `${malformed.length > 1 ? "are" : "is"} not a valid date pill and would ` +
+        "have been written as literal text. A date pill is spelled " +
+        "[[date:YYYY-MM-DD]] and nothing else: four-digit year, zero-padded " +
+        "month and day, no label, no relative wording.",
+    );
+  }
+}
 
 export function patchBlockText(
   blocks: BlockNoteBlock[],
@@ -1065,6 +1125,8 @@ export function patchBlockText(
   oldString: string,
   newString: string,
 ): BlockNoteBlock[] {
+  assertPatchTokensSupported(newString);
+
   const tree = clone(blocks);
   const slot = locateBlock(tree, blockId);
   if (!slot) {
@@ -1118,7 +1180,12 @@ function countBlockTextMatches(content: unknown, oldString: string): number {
 
 function applyInlinePatch(content: unknown, oldString: string, newString: string): unknown {
   if (typeof content === "string") {
-    return content.replace(oldString, newString);
+    const patched = content.replace(oldString, newString);
+    // Une pill ne tient pas dans une chaîne : dès qu'il y en a une, le contenu
+    // passe en tableau inline (la forme normale d'un contenu BlockNote).
+    return patched.includes("[[date:")
+      ? expandDateTokens(patched, { text: patched, isObject: false })
+      : patched;
   }
   if (Array.isArray(content)) {
     return patchFlow(content, oldString, newString);
@@ -1177,6 +1244,35 @@ function makeLeaf(text: string, template: TextLeaf): unknown {
     return leaf;
   }
   return text;
+}
+
+/**
+ * Split a replacement into text leaves and `date` inline nodes. The text around
+ * each token keeps `template`'s styles — the pill itself carries none, the
+ * frontend styles it from its own value.
+ */
+function expandDateTokens(text: string, template: TextLeaf): unknown[] {
+  if (!text.includes("[[date:")) {
+    const leaf = makeLeaf(text, template);
+    return leaf === null ? [] : [leaf];
+  }
+
+  const out: unknown[] = [];
+  let cursor = 0;
+  PATCH_DATE_TOKEN_RE.lastIndex = 0;
+  for (
+    let match = PATCH_DATE_TOKEN_RE.exec(text);
+    match;
+    match = PATCH_DATE_TOKEN_RE.exec(text)
+  ) {
+    const before = makeLeaf(text.slice(cursor, match.index), template);
+    if (before !== null) out.push(before);
+    out.push({ type: "date", props: { date: match[1] } });
+    cursor = match.index + match[0].length;
+  }
+  const rest = makeLeaf(text.slice(cursor), template);
+  if (rest !== null) out.push(rest);
+  return out;
 }
 
 function countFlowMatches(flow: unknown[], oldString: string): number {
@@ -1308,9 +1404,10 @@ function spliceRun(
     if (start < matchStart) {
       push(leaf.text.slice(0, Math.min(end, matchStart) - start), leaf);
     }
-    // The replacement lands once, in the leaf where the match begins.
+    // The replacement lands once, in the leaf where the match begins — as a
+    // run of nodes, since a `[[date:…]]` token in it becomes a real pill.
     if (!inserted && start <= matchStart && matchStart < end) {
-      push(newString, leaf);
+      out.push(...expandDateTokens(newString, leaf));
       inserted = true;
     }
     // Tail: the part of this leaf sitting after the match.

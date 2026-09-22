@@ -6,7 +6,9 @@ import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { getNodeCapabilities } from "../../config/nodeConfig";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import {
+  findMalformedDateTokens,
   findUnresolvedMentionTokens,
+  malformedDateTokensError,
   markdownToBlockNoteBlocks,
 } from "../helpers/blockNoteMarkdown";
 import {
@@ -175,6 +177,12 @@ export default function setNodeDataTool({
           const unresolved = findUnresolvedMentionTokens(blocks);
           if (unresolved.length > 0) {
             return toolError(unresolvedMentionTokensError(unresolved));
+          }
+          // Idem pour les dates : un `[[date:…]]` mal formé n'est pas une
+          // pill, et sans ce refus il finirait en texte brut dans le document.
+          const malformedDates = findMalformedDateTokens(blocks);
+          if (malformedDates.length > 0) {
+            return toolError(malformedDateTokensError(malformedDates));
           }
           await ctx.runMutation(
             internal.wrappers.nodeDataWrappers.editBlockNoteDocument,

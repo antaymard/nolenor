@@ -349,6 +349,13 @@ function sanitizeBlockForHeadless(
  */
 const PILL_TOKEN_RE = /\[\[(date|node):([^\]]*)\]\]/g;
 
+/**
+ * Same body as `PILL_TOKEN_RE`, date branch only: used on the way back, to name
+ * the tokens `tokenToPill` refused. Matching the whole token (not just its
+ * body) is what lets the error quote the model's own spelling.
+ */
+const MALFORMED_DATE_TOKEN_RE = /\[\[date:[^\]]*\]\]/g;
+
 /** True when a text leaf can possibly hold a token — the cheap pre-check. */
 function mayHoldPillToken(text: string): boolean {
   return text.includes("[[date:") || text.includes("[[node:");
@@ -448,9 +455,10 @@ function expandPillTokens(
  * This is what lets the write tools refuse an unknown id instead of persisting
  * a token as visible debris in the user's document.
  */
-export function findUnresolvedMentionTokens(blocks: readonly unknown[]): string[] {
-  const ids = new Set<string>();
-
+function forEachTextLeaf(
+  blocks: readonly unknown[],
+  visit: (text: string) => void,
+): void {
   const scanInline = (content: unknown): void => {
     if (Array.isArray(content)) {
       for (const node of content) {
@@ -466,7 +474,7 @@ export function findUnresolvedMentionTokens(blocks: readonly unknown[]): string[
         ) {
           continue;
         }
-        for (const id of collectNodeMentionTokenIds(node.text)) ids.add(id);
+        visit(node.text);
       }
       return;
     }
@@ -488,7 +496,58 @@ export function findUnresolvedMentionTokens(blocks: readonly unknown[]): string[
   };
 
   scanBlocks(blocks);
+}
+
+export function findUnresolvedMentionTokens(blocks: readonly unknown[]): string[] {
+  const ids = new Set<string>();
+  forEachTextLeaf(blocks, (text) => {
+    for (const id of collectNodeMentionTokenIds(text)) ids.add(id);
+  });
   return [...ids];
+}
+
+/**
+ * Date tokens still sitting in a PARSED tree as plain text. Asked after parsing
+ * for the same reason as the mention scan: what survived `expandPillTokens` is
+ * exactly what `tokenToPill` refused, and a token inside a code span — literal
+ * on purpose — is already out of the walk.
+ *
+ * Without this, a date the model spelled `[[date:2026-9-1]]` or
+ * `[[date:tomorrow]]` lands as visible debris in the user's document while the
+ * tool reports a success, so the model never learns to spell it right.
+ */
+export function findMalformedDateTokens(blocks: readonly unknown[]): string[] {
+  const tokens = new Set<string>();
+  forEachTextLeaf(blocks, (text) => {
+    if (!text.includes("[[date:")) return;
+    MALFORMED_DATE_TOKEN_RE.lastIndex = 0;
+    for (
+      let match = MALFORMED_DATE_TOKEN_RE.exec(text);
+      match;
+      match = MALFORMED_DATE_TOKEN_RE.exec(text)
+    ) {
+      tokens.add(match[0]);
+    }
+  });
+  return [...tokens];
+}
+
+/**
+ * The tool error for date tokens that reached the parsed document as text.
+ * Names them verbatim and gives the one accepted spelling, so the retry is a
+ * reformat rather than another guess.
+ */
+export function malformedDateTokensError(tokens: string[]): string {
+  const names = tokens.map((token) => `\`${token}\``).join(", ");
+  return (
+    `Date token${tokens.length > 1 ? "s" : ""} ${names} ` +
+    `${tokens.length > 1 ? "are" : "is"} not a valid date pill and would have been ` +
+    "written as literal text. A date pill is spelled [[date:YYYY-MM-DD]] and nothing " +
+    "else: four-digit year, zero-padded month and day, no label, no relative wording " +
+    "(resolve \"today\"/\"tomorrow\" to a real calendar date first). Write the date as " +
+    "plain text instead if you did not mean a pill (wrap it in a code span to show the " +
+    "literal syntax)."
+  );
 }
 
 /** Apply `expandPillTokens` to a whole parsed block tree (content + tables + children). */

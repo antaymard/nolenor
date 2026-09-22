@@ -14,6 +14,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 import NoleCanvasPanel from "@/components/canvas/NoleCanvasPanel";
 import ActivityDock from "@/components/canvas/on-canvas-ui/ActivityDock";
 import MinimizedWindowsStack from "@/components/windows/MinimizedWindowsStack";
+import BookmarksDock from "@/components/canvas/on-canvas-ui/BookmarksDock";
 import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
 import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
 import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanner";
@@ -146,25 +147,68 @@ function CanvasContent({
             <TopRightToolbar />
           </Panel>
         ) : null}
-        <Panel position="bottom-center">
-          <CanvasToolbar />
+        {/* Le panneau du bas n'est plus une île centrée mais la rangée
+            entière : c'est ce qui permet au dock des repères de se borner tout
+            seul entre la toolbar et les windows minimisées, sans mesurer quoi
+            que ce soit.
+
+            Les trois `!` défont la règle `.react-flow__panel.bottom.center`
+            (`left:50%` + `translateX`) du CSS d'@xyflow ; son `margin:15px`,
+            lui, est conservé et redonne exactement les marges d'avant. Pas de
+            `100vw` : le canvas vit dans un `SidebarInset`, il est plus étroit
+            que la fenêtre dès que la sidebar est ouverte.
+
+            `pointer-events-none` n'est PAS cosmétique. React Flow ne neutralise
+            les panneaux qu'en mode lasso (`.react-flow__pane.selection
+            .react-flow__panel`) : une rangée pleine largeur avalerait sinon
+            clics, pan et début de lasso sur toute la bande basse. */}
+        <Panel
+          position="bottom-center"
+          className="pointer-events-none left-0! right-0! transform-none!"
+        >
+          {/* `minmax(0,1fr)` et pas `1fr` : un `1fr` nu vaut `minmax(auto,1fr)`
+              et la colonne de droite refuserait de descendre sous son
+              min-content (une pastille fait 280px), ce qui décentrerait la
+              toolbar sur une fenêtre étroite. Avec `minmax(0,…)` les deux
+              gouttières sont égales par construction, donc la colonne `auto`
+              du milieu est centrée quoi qu'il arrive.
+
+              `items-end` : une card du dock qui grandit au survol pousse vers
+              le haut, la rangée de repos ne bouge pas. */}
+          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+            <div aria-hidden />
+            <div className="pointer-events-auto">
+              <CanvasToolbar />
+            </div>
+            {isAuthenticated ? (
+              // Le dock prend la place qui reste, les windows minimisées
+              // gardent la leur : c'est le `flex-1 min-w-0` contre le
+              // `shrink-0` qui fait reculer le dock quand il y en a, et lui
+              // rend le bord droit quand il n'y en a plus.
+              <div className="pointer-events-auto flex min-w-0 items-end gap-2">
+                <BookmarksDock />
+                <MinimizedWindowsStack />
+              </div>
+            ) : (
+              <div aria-hidden />
+            )}
+          </div>
         </Panel>
         {isAuthenticated ? (
-          <>
-            <Panel position="bottom-left">
-              {/* Le bouton Nolë reste à l'extrême gauche ; le dock le prolonge
-                  horizontalement. La conversation étendue est un `absolute`
-                  ancré dans `NoleCanvasPanel` : elle flotte au-dessus du bouton
-                  sans jamais descendre sur la rangée du dock. */}
-              <div className="flex items-center gap-2">
-                <NoleCanvasPanel />
-                <ActivityDock canvasId={canvasId} />
-              </div>
-            </Panel>
-            <Panel position="bottom-right">
-              <MinimizedWindowsStack />
-            </Panel>
-          </>
+          // Laissé dans son propre panneau et pas fondu dans la colonne de
+          // gauche : `ActivityDock` plafonne ses cards à 3 précisément pour ne
+          // pas percuter la toolbar, lui donner une colonne changerait ce
+          // contrat.
+          <Panel position="bottom-left">
+            {/* Le bouton Nolë reste à l'extrême gauche ; le dock le prolonge
+                horizontalement. La conversation étendue est un `absolute`
+                ancré dans `NoleCanvasPanel` : elle flotte au-dessus du bouton
+                sans jamais descendre sur la rangée du dock. */}
+            <div className="flex items-center gap-2">
+              <NoleCanvasPanel />
+              <ActivityDock canvasId={canvasId} />
+            </div>
+          </Panel>
         ) : (
           <Panel position="top-center">
             <AuthUpgradeBanner />

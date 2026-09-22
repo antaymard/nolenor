@@ -267,6 +267,12 @@
   .animate-welcome-row {
     animation: none !important;
   }
+  /* `!important` : la transition d'une card du dock est posée en style INLINE
+     (dnd-kit impose la sienne au même endroit, elles y sont composées), et
+     aucune règle normale ne bat un style inline. */
+  .bookmark-dock-card {
+    transition: none !important;
+  }
 }
 
 @layer base {

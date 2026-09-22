@@ -37,6 +37,14 @@ type Focus = "canvas" | "richtext-editor" | "modal";
  */
 type Tool = "select" | "hand" | "frame";
 
+/**
+ * Fenêtre de rétention de la query de la search modale : si on la rouvre
+ * dans ce délai après l'avoir fermée, on restaure la dernière recherche ;
+ * au-delà, on repart d'une query vide (comme le command center, qui vide
+ * systématiquement la sienne).
+ */
+const SEARCH_QUERY_RETENTION_MS = 3 * 60 * 1000;
+
 interface CanvasStore {
   canvas: CanvasInStore | null;
   status: Status;
@@ -44,6 +52,8 @@ interface CanvasStore {
   tool: Tool;
   isSearchModalOpen: boolean;
   searchQuery: string;
+  /** Instant (`Date.now()`) de la dernière fermeture de la search modale. */
+  searchQueryClosedAt: number | null;
 
   setCanvas: (canvas: CanvasInStore | null) => void;
   setStatus: (status: Status) => void;
@@ -91,6 +101,7 @@ export const useCanvasStore = create<CanvasStore>()(
       tool: "select",
       isSearchModalOpen: false,
       searchQuery: "",
+      searchQueryClosedAt: null,
 
       setTool: (tool) => {
         set({ tool });
@@ -127,22 +138,49 @@ export const useCanvasStore = create<CanvasStore>()(
         set({ pendingWrites: 0, status: "idle" });
       },
       openSearchModal: (query) => {
-        set((state) => ({
-          isSearchModalOpen: true,
-          searchQuery: query ?? state.searchQuery,
-        }));
+        set((state) => {
+          if (query !== undefined) {
+            return { isSearchModalOpen: true, searchQuery: query };
+          }
+          const withinRetention =
+            state.searchQueryClosedAt !== null &&
+            Date.now() - state.searchQueryClosedAt < SEARCH_QUERY_RETENTION_MS;
+          return {
+            isSearchModalOpen: true,
+            searchQuery: withinRetention ? state.searchQuery : "",
+          };
+        });
       },
       closeSearchModal: () => {
-        set({ isSearchModalOpen: false });
+        set({ isSearchModalOpen: false, searchQueryClosedAt: Date.now() });
       },
       toggleSearchModal: () => {
-        set((state) => ({ isSearchModalOpen: !state.isSearchModalOpen }));
+        set((state) => {
+          const nextOpen = !state.isSearchModalOpen;
+          if (!nextOpen) {
+            return {
+              isSearchModalOpen: false,
+              searchQueryClosedAt: Date.now(),
+            };
+          }
+          const withinRetention =
+            state.searchQueryClosedAt !== null &&
+            Date.now() - state.searchQueryClosedAt < SEARCH_QUERY_RETENTION_MS;
+          return {
+            isSearchModalOpen: true,
+            searchQuery: withinRetention ? state.searchQuery : "",
+          };
+        });
       },
       setSearchQuery: (query) => {
         set({ searchQuery: query });
       },
       resetSearchModal: () => {
-        set({ isSearchModalOpen: false, searchQuery: "" });
+        set({
+          isSearchModalOpen: false,
+          searchQuery: "",
+          searchQueryClosedAt: null,
+        });
       },
     }),
     { name: "canvas-store" },

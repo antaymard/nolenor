@@ -41,3 +41,23 @@ export const useBookmarkedNodesStore = create<BookmarkedNodesStore>()(
 export function useIsNodeBookmarked(nodeId: string): boolean {
   return useBookmarkedNodesStore((state) => state.nodeIds.has(nodeId));
 }
+
+/**
+ * Tous ces nodes sont-ils repérés ?
+ *
+ * La question que posent les menus contextuels pour choisir entre « repérer »
+ * et « dé-repérer » — sémantique « gras » : une sélection partiellement repérée
+ * répond `false`, donc le premier clic achève de tout repérer, et seul le
+ * suivant dé-repère. Un tableau vide répond `false` : il n'y a rien à
+ * dé-repérer.
+ *
+ * Rend un booléen et pas un sous-ensemble : le sélecteur est ré-exécuté à
+ * chaque changement du store, et comparer des primitives évite le re-render
+ * qu'un nouveau tableau provoquerait à chaque fois.
+ */
+export function useAreNodesBookmarked(nodeIds: Array<string>): boolean {
+  return useBookmarkedNodesStore(
+    (state) =>
+      nodeIds.length > 0 && nodeIds.every((nodeId) => state.nodeIds.has(nodeId)),
+  );
+}

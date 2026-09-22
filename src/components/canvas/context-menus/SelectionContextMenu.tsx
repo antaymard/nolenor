@@ -15,6 +15,7 @@ import { useMutation } from "convex/react";
 import { HiOutlineTrash } from "react-icons/hi";
 import {
   TbBookmark,
+  TbBookmarkOff,
   TbCopyPlus,
   TbPalette,
   TbPaperclip,
@@ -42,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { getNodeDataId } from "@/lib/nodeIdentity";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
+import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
 
@@ -57,7 +59,11 @@ export default function SelectionContextMenu({
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   // Écriture seule : ce menu se remonte à chaque clic droit, inutile d'ouvrir
   // une souscription à la liste juste pour y ajouter une ligne.
-  const { create: createBookmark, canBookmark } = useCanvasBookmarks({
+  const {
+    create: createBookmark,
+    removeForNodes: removeBookmarksForNodes,
+    canBookmark,
+  } = useCanvasBookmarks({
     canvasId,
     enabled: false,
   });
@@ -87,11 +93,25 @@ export default function SelectionContextMenu({
     : [];
   const canMergeImages = imageNodes.length >= 2;
 
+  const elementsArray = Array.isArray(elements) ? elements : [];
+
+  // Ce que le repère de sélection visera, borné au même plafond que le serveur
+  // (`normalizeTarget`) : le compte annoncé par le menu et le dialogue est
+  // celui qui sera réellement repéré, pas un compte que le serveur rognerait
+  // en silence. Le même tableau sert à la bascule, pour que « tout repéré »
+  // parle bien de ce sur quoi le clic agira.
+  const bookmarkNodeIds = elementsArray
+    .slice(0, MAX_SELECTION_NODE_IDS)
+    .map((node) => node.id);
+  // Sémantique « gras » : une sélection partiellement repérée achève de tout
+  // repérer au premier clic, et seul le clic suivant — sur un état devenu
+  // homogène — dé-repère tout.
+  const allNodesBookmarked = useAreNodesBookmarked(bookmarkNodeIds);
+
   // Variants common to all selected nodes. We match on the user-facing
   // label, not the raw key: the same appearance ("Preview", "Title") can
   // live under different keys per type — e.g. it's the `default` key on
   // document/table but the `preview` key on app.
-  const elementsArray = Array.isArray(elements) ? elements : [];
   const labelToKeyPerNode = elementsArray.map(
     (node) =>
       new Map(
@@ -360,25 +380,27 @@ export default function SelectionContextMenu({
           le repère suit alors le groupe quand on le déplace, là où une
           position serait restée sur le vide laissé derrière.
 
-          Borné au même plafond que le serveur (`normalizeTarget`) : le compte
-          annoncé par le menu et le dialogue est celui qui sera réellement
-          bookmarké, pas un compte que le serveur rognerait en silence. */}
-      {canBookmark && elementsArray.length > 0 && (
+          Bascule à la manière du gras sur une sélection de texte : tant que
+          tous les nodes ne sont pas repérés, le clic les repère tous (pas de
+          dialogue de nommage sur le retrait, il n'y a rien à nommer) ; une
+          fois l'état homogène, le clic suivant les dé-repère tous — y compris
+          ceux qui l'étaient par un autre repère, qu'il soit `node` ou
+          `selection` (cf. `removeForNodes`). */}
+      {canBookmark && bookmarkNodeIds.length > 0 && (
         <DropdownMenuItem
           className="whitespace-nowrap"
           onClick={() => {
-            startBookmark({
-              kind: "selection",
-              nodeIds: elementsArray
-                .slice(0, MAX_SELECTION_NODE_IDS)
-                .map((node) => node.id),
-            });
+            if (allNodesBookmarked) {
+              void removeBookmarksForNodes(bookmarkNodeIds);
+            } else {
+              startBookmark({ kind: "selection", nodeIds: bookmarkNodeIds });
+            }
             closeMenu();
           }}
         >
-          <TbBookmark />
-          Bookmark selection (
-          {Math.min(elementsArray.length, MAX_SELECTION_NODE_IDS)})
+          {allNodesBookmarked ? <TbBookmarkOff /> : <TbBookmark />}
+          {allNodesBookmarked ? "Remove bookmarks" : "Bookmark selection"} (
+          {bookmarkNodeIds.length})
         </DropdownMenuItem>
       )}
 

@@ -1,6 +1,7 @@
 import useRichQuery from "@/components/utils/useRichQuery";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/types";
+import { isPendingDocId } from "@/lib/pendingDocIds";
 import { VersionsList } from "./VersionsList";
 
 export function VersionsTab({
@@ -14,7 +15,9 @@ export function VersionsTab({
 }) {
   const { data, isSuccess, isPending } = useRichQuery(
     api.nodeDataVersions.listByNodeDataId,
-    { nodeDataId },
+    // Node pas encore confirmé côté serveur : pas d'id valide à interroger,
+    // et donc pas encore d'historique. Cf. `pendingDocIds`.
+    isPendingDocId(nodeDataId) ? "skip" : { nodeDataId },
   );
 
   if (isPending) {

@@ -31,6 +31,7 @@ import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { PdfOutlinePanel } from "@/components/windows/side-panel/PdfOutlinePanel";
 import PdfPageControls from "../PdfPageControls";
 import PdfZoomControls from "../PdfZoomControls";
+import WindowLoadingState from "@/components/windows/WindowLoadingState";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -106,7 +107,7 @@ function PdfWindow({
     return () => setPlanTabContent(null);
   }, [displayedOutline, scrollToPage, setPlanTabContent]);
 
-  if (!nodeDataValues || !xyNode) return null;
+  if (!nodeDataValues || !xyNode) return <WindowLoadingState />;
 
   return (
     <div ref={viewportRef} className="relative w-full h-full overflow-hidden">

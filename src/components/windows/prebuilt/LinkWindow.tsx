@@ -9,6 +9,7 @@ import type { LinkValueType } from "@/components/nodes/prebuilt-nodes/LinkNode";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { TranscriptPanel } from "@/components/windows/side-panel/TranscriptPanel";
 import { useWindowFrameContext } from "../WindowFrameContext";
+import WindowLoadingState from "@/components/windows/WindowLoadingState";
 
 interface LinkWindowProps {
   nodeDataId: Id<"nodeDatas">;
@@ -49,7 +50,7 @@ function LinkWindow({ nodeDataId }: LinkWindowProps) {
     return () => setPlanTabContent(null);
   }, [chunks, setPlanTabContent]);
 
-  if (!nodeDataValues) return null;
+  if (!nodeDataValues) return <WindowLoadingState />;
 
   const linkValue = nodeDataValues.link as LinkValueType | undefined;
   const href = linkValue?.href?.trim();

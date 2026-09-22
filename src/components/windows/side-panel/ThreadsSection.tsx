@@ -4,6 +4,7 @@ import useRichQuery from "@/components/utils/useRichQuery";
 import { api } from "@/../convex/_generated/api";
 import { formatDistanceToNow } from "@/lib/date-utils";
 import { useOpenNoleThread } from "@/hooks/useOpenNoleThread";
+import { isPendingDocId } from "@/lib/pendingDocIds";
 import { SectionLabel } from "./SectionLabel";
 
 /**
@@ -20,7 +21,8 @@ export function ThreadsSection({
   const openThread = useOpenNoleThread();
   const { data, isSuccess, isPending } = useRichQuery(
     api.nodeDataVersions.getThreadsThatCreatedVersions,
-    { nodeDataId },
+    // Cf. `VersionsTab` : rien à interroger tant que l'id est factice.
+    isPendingDocId(nodeDataId) ? "skip" : { nodeDataId },
   );
 
   return (

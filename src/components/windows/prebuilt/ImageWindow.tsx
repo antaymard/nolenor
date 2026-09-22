@@ -8,6 +8,7 @@ import { api } from "@/../convex/_generated/api";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { TranscriptPanel } from "@/components/windows/side-panel/TranscriptPanel";
+import WindowLoadingState from "@/components/windows/WindowLoadingState";
 
 interface ImageWindowProps {
   nodeDataId: Id<"nodeDatas">;
@@ -79,7 +80,7 @@ function ImageWindow({ nodeDataId }: ImageWindowProps) {
     return () => setPlanTabContent(null);
   }, [chunks, setPlanTabContent]);
 
-  if (!nodeDataValues) return null;
+  if (!nodeDataValues) return <WindowLoadingState />;
 
   const hasMultiple = value.length > 1;
 

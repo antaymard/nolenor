@@ -4,6 +4,7 @@ import type { Doc, Id } from "@/../convex/_generated/dataModel";
 import { generateLlmId } from "@/../convex/lib/llmId";
 import { useParams } from "@tanstack/react-router";
 import { addPendingEdgesToListQuery } from "@/lib/flowNodes";
+import { pendingDocId } from "@/lib/pendingDocIds";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
 import { recordUndo } from "@/stores/canvasHistoryStore";
@@ -44,7 +45,7 @@ export function useCreateEdge() {
           if (item.id === undefined) return [];
           return [
             {
-              _id: `pending_${item.id}` as Id<"edges">,
+              _id: pendingDocId<"edges">(item.id),
               _creationTime: Date.now(),
               id: item.id,
               canvasId: item.canvasId,

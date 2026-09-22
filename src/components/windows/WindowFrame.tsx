@@ -29,6 +29,7 @@ import { useCanvasStore } from "@/stores/canvasStore";
 import useRichQuery from "@/components/utils/useRichQuery";
 import { toastError } from "@/components/utils/errorUtils";
 import NodeWindowContent from "./NodeWindowContent";
+import { isPendingDocId } from "@/lib/pendingDocIds";
 import { WindowEditControl } from "./WindowEditControl";
 import { useNodeWindowIdentity } from "./useNodeWindowIdentity";
 import { useWindowFrameState } from "./useWindowFrameState";
@@ -154,9 +155,14 @@ export default function WindowFrame({
   const [isRestoringVersion, setIsRestoringVersion] = useState(false);
   const restoreVersion = useMutation(api.nodeDataVersions.restore);
   const isAppNode = useNodeData(nodeDataId)?.type === "app";
+  // `"skip"` tant que la création n'est pas confirmée : `pending_<llmId>`
+  // n'est pas un `Id<"nodeDatas">` valide, et le validateur serveur ferait
+  // remonter une erreur de query pendant ces quelques centaines de
+  // millisecondes. L'historique arrive avec le vrai id (cf.
+  // `useSyncWindowNodeDataIds`).
   const { data: versions } = useRichQuery(
     api.nodeDataVersions.listByNodeDataId,
-    { nodeDataId },
+    isPendingDocId(nodeDataId) ? "skip" : { nodeDataId },
   );
   const previewedVersion = versions?.find((v) => v._id === previewVersionId);
 

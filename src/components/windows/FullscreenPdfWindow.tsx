@@ -10,6 +10,7 @@ import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import { type OpenedWindow } from "@/stores/windowsStore";
 import { useCanvasStore } from "@/stores/canvasStore";
+import { isPendingDocId } from "@/lib/pendingDocIds";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { usePdfViewport } from "@/hooks/usePdfViewport";
 import {
@@ -55,7 +56,12 @@ export default function FullscreenPdfWindow({
 
   const pdfPages = useQuery(
     api.searchableChunks.listPdfPages,
-    canvasId ? { nodeDataId, canvasId } : "skip",
+    // `isPendingDocId` : ce composant tient ses hooks AU-DESSUS de
+    // `FullscreenWindowFrame`, donc la garde d'attente de la frame ne les
+    // couvre pas. Un `pending_<llmId>` n'est pas un Id valide côté serveur.
+    canvasId && !isPendingDocId(nodeDataId)
+      ? { nodeDataId, canvasId }
+      : "skip",
   );
 
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null);

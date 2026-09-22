@@ -16,6 +16,7 @@ import {
   markNodesAsPendingCreation,
 } from "@/lib/pendingCreatedNodes";
 import { addPendingNodeDatasToListQuery } from "@/lib/flowNodes";
+import { pendingDocId } from "@/lib/pendingDocIds";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
 import { recordUndo } from "@/stores/canvasHistoryStore";
@@ -61,7 +62,7 @@ export function useCreateNode() {
         if (item.id === undefined) return [];
         return [
           {
-            _id: `pending_${item.id}` as Id<"nodeDatas">,
+            _id: pendingDocId<"nodeDatas">(item.id),
             _creationTime: Date.now(),
             canvasId: item.node.canvasId,
             type: item.node.type,
@@ -142,7 +143,7 @@ export function useCreateNode() {
     // optimiste fournit un nodeData factice `_id` `pending_<llmId>`), et le
     // serveur préserve l'id — idempotent sur retry, refus cross-canvas.
     const nodeId = generateLlmId();
-    const fakeNodeDataId = `pending_${nodeId}` as Id<"nodeDatas">;
+    const fakeNodeDataId = pendingDocId<"nodeDatas">(nodeId);
 
     // Le registre pending garde ce node à travers les syncs intermédiaires
     // (listes serveur partielles) et force sa sélection à sa première

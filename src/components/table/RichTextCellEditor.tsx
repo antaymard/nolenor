@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useRef, type KeyboardEvent } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Block } from "@blocknote/core";
 import BlockNoteFieldEditor from "@/components/blocknote/BlockNoteFieldEditor";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
-import { Kbd } from "@/components/shadcn/kbd";
 import {
   Popover,
   PopoverContent,

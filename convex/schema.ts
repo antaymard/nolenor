@@ -41,11 +41,30 @@ const schema = defineSchema({
   // sienne, nous la nôtre, et la lecture retombe de l'une sur l'autre
   // (`resolveUserDisplayName`).
   //
+  // Les deux champs `newsletter*` pilotent l'abonnement Resend décidé dans
+  // `scheduleNewsletterSubscription` (convex/auth.ts) ; ce sont des verrous,
+  // pas des données d'affichage.
+  //
+  // `newsletterEligible` est posé à l'inscription et n'est plus jamais touché.
+  // Il sépare les comptes créés depuis la mise en place de la newsletter de
+  // ceux d'avant, qu'on n'abonne pas rétroactivement — sans lui, tout compte
+  // Google antérieur se retrouverait dans la liste à sa prochaine connexion,
+  // puisque le callback d'auth se déclenche à chaque login.
+  //
+  // `newsletterSubscribedAt` date l'envoi vers Resend et garantit qu'il n'a
+  // lieu qu'une fois. Nécessaire parce que le même callback est rappelé à
+  // chaque vérification d'adresse, réinitialisation de mot de passe comprise :
+  // sans lui, qui s'est désabonné puis oublie son mot de passe serait réabonné
+  // d'office. Posé avant l'appel à Resend et jamais effacé — il dit « on a
+  // déjà décidé pour ce compte », pas « l'appel a réussi ».
+  //
   // Les index doivent être redéclarés : la surcharge remplace la définition
   // d'authTables, elle ne s'y ajoute pas.
   users: defineTable({
     ...authTables.users.validator.fields,
     displayName: v.optional(v.string()),
+    newsletterEligible: v.optional(v.boolean()),
+    newsletterSubscribedAt: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"]),

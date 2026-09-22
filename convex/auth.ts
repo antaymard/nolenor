@@ -1,7 +1,9 @@
 import Google from "@auth/core/providers/google";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
+import type { AnyDataModel, GenericMutationCtx } from "convex/server";
 import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { ResendOTP } from "./ResendOTP";
 import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
@@ -50,6 +52,60 @@ function isAllowedOrigin(origin: string): boolean {
   if (origin === deploymentOrigin) return true;
   if (ALLOWED_REDIRECT_ORIGINS.includes(origin)) return true;
   return LOOPBACK_ORIGIN.test(deploymentOrigin) && LOOPBACK_ORIGIN.test(origin);
+}
+
+// ============================================================================
+// ABONNEMENT À LA NEWSLETTER
+// ============================================================================
+/**
+ * Planifie l'abonnement Resend d'un compte, si c'est le moment et une seule
+ * fois dans sa vie.
+ *
+ * Appelée depuis `afterUserCreatedOrUpdated`, que la lib déclenche plus souvent
+ * qu'on ne le croit : à l'inscription, mais aussi à chaque vérification
+ * d'adresse — donc à la saisie du code OTP, et encore à chaque
+ * réinitialisation de mot de passe (`verifyCodeAndSignIn` repasse par
+ * `createOrUpdateUser` avec `type: "verification"`). Les trois arrivent ici, et
+ * les trois conditions ci-dessous font le tri.
+ *
+ * `newsletterEligible` d'abord, posé à l'inscription (cf. le callback) : il
+ * limite l'abonnement aux comptes créés depuis la mise en place de la
+ * newsletter. Sans lui, tout compte Google existant tomberait dans la liste à
+ * sa prochaine connexion — abonner d'un coup des gens inscrits il y a des mois
+ * n'est pas ce qu'on veut de ce code.
+ *
+ * `emailVerificationTime` ensuite : c'est ce qui décale l'abonnement après la
+ * vérification. Google le pose dès l'inscription (la claim `email_verified`
+ * vient de l'ID token), donc l'abonnement y reste immédiat ; une inscription
+ * par mot de passe ne l'a pas encore au moment du `signUp` et n'obtient le
+ * sien qu'une fois le code saisi. Une adresse jamais confirmée n'entre donc
+ * pas dans la liste de contacts, où elle abîmerait la réputation d'expéditeur.
+ *
+ * `newsletterSubscribedAt` enfin, posé ici même dans la transaction : sans
+ * lui, la vérification qui accompagne une réinitialisation de mot de passe
+ * réabonnerait d'office quelqu'un qui s'était désabonné entre-temps. Marquer
+ * avant l'appel plutôt qu'après son succès est délibéré — un échec Resend
+ * reste dans les logs et n'est pas retenté, parce qu'une nouvelle tentative
+ * plus tard serait incapable de distinguer « jamais abonné » de « désabonné
+ * depuis ».
+ */
+async function scheduleNewsletterSubscription(
+  ctx: GenericMutationCtx<AnyDataModel>,
+  userId: Id<"users">,
+): Promise<void> {
+  const user: Doc<"users"> | null = await ctx.db.get(userId);
+  if (!user) return;
+  if (user.newsletterEligible !== true) return;
+  if (user.emailVerificationTime === undefined) return;
+  if (user.newsletterSubscribedAt !== undefined) return;
+
+  await ctx.db.patch(userId, { newsletterSubscribedAt: Date.now() });
+
+  await ctx.scheduler.runAfter(
+    0,
+    internal.newsletter.subscribeVerifiedUser,
+    { userId },
+  );
 }
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
@@ -123,30 +179,36 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
      * moitié construit. Une transaction séparée échoue proprement : au pire
      * le canvas manque et la home affiche son écran de bienvenue.
      *
-     * La notification email admin et l'abonnement à la newsletter produit
-     * suivent la même logique (transaction séparée, jamais bloquante) : cf.
-     * `convex/adminNotifications.ts` et `convex/newsletter.ts`.
+     * La notification email admin suit la même logique (transaction séparée,
+     * jamais bloquante) : cf. `convex/adminNotifications.ts`.
+     *
+     * L'abonnement à la newsletter, lui, ne se décide pas ici mais dans
+     * `scheduleNewsletterSubscription` : il ne dépend pas de « est-ce une
+     * inscription » mais de « l'adresse est-elle vérifiée », et ces deux
+     * questions n'ont pas la même réponse selon le provider.
      */
     async afterUserCreatedOrUpdated(ctx, { userId, existingUserId }) {
-      if (existingUserId !== null) return;
+      if (existingUserId === null) {
+        // Marque le compte comme éligible à la newsletter. C'est le seul
+        // endroit du flux où « c'est une inscription » est encore une
+        // information : au moment où l'adresse sera vérifiée, quelques minutes
+        // plus tard, plus rien ne distinguera ce compte d'un ancien.
+        await ctx.db.patch(userId, { newsletterEligible: true });
 
-      await ctx.scheduler.runAfter(
-        0,
-        internal.onboarding.provisionForNewUser,
-        { userId },
-      );
+        await ctx.scheduler.runAfter(
+          0,
+          internal.onboarding.provisionForNewUser,
+          { userId },
+        );
 
-      await ctx.scheduler.runAfter(
-        0,
-        internal.adminNotifications.notifyNewSignup,
-        { userId },
-      );
+        await ctx.scheduler.runAfter(
+          0,
+          internal.adminNotifications.notifyNewSignup,
+          { userId },
+        );
+      }
 
-      await ctx.scheduler.runAfter(
-        0,
-        internal.newsletter.subscribeNewSignup,
-        { userId },
-      );
+      await scheduleNewsletterSubscription(ctx, userId);
     },
 
     /**

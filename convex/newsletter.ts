@@ -46,24 +46,25 @@ function splitName(name: string | undefined): {
 }
 
 /**
- * Abonne un nouvel inscrit à la newsletter produit.
+ * Abonne un compte à la newsletter produit, une fois son adresse vérifiée.
  *
- * Interne : planifiée par `afterUserCreatedOrUpdated` (convex/auth.ts) à
- * l'inscription uniquement. Action et non mutation, pour la même raison que
+ * Interne : planifiée par `scheduleNewsletterSubscription` (convex/auth.ts),
+ * qui décide du quand et garantit l'unicité — voir son commentaire, toute la
+ * subtilité est là. Action et non mutation, pour la même raison que
  * `notifyNewSignup` : c'est un appel HTTP sortant, et son échec ne doit ni
- * rouler la création du compte en arrière ni la bloquer.
+ * rouler la transaction d'auth en arrière ni la bloquer.
  *
  * Opt-in automatique assumé, avec le lien de désabonnement que Resend pose dans
  * les emails du topic. Ne lève jamais : un `throw` ferait retenter le scheduler,
  * donc réécrirait le contact en boucle. Les échecs partent en `console.error`.
  */
-export const subscribeNewSignup = internalAction({
+export const subscribeVerifiedUser = internalAction({
   args: { userId: v.id("users") },
   returns: v.null(),
   handler: async (ctx, { userId }) => {
     if (!isProdDeployment()) {
       console.log(
-        `subscribeNewSignup: abonnement ignoré hors prod (SITE_URL=${process.env.SITE_URL ?? "<absent>"}, userId=${userId}).`,
+        `subscribeVerifiedUser: abonnement ignoré hors prod (SITE_URL=${process.env.SITE_URL ?? "<absent>"}, userId=${userId}).`,
       );
       return null;
     }
@@ -71,7 +72,7 @@ export const subscribeNewSignup = internalAction({
     const apiKey = process.env.AUTH_RESEND_KEY;
     if (!apiKey) {
       console.error(
-        "subscribeNewSignup: AUTH_RESEND_KEY absente, contact non créé.",
+        "subscribeVerifiedUser: AUTH_RESEND_KEY absente, contact non créé.",
       );
       return null;
     }
@@ -79,7 +80,7 @@ export const subscribeNewSignup = internalAction({
     const targets = newsletterTargets();
     if (!targets) {
       console.error(
-        "subscribeNewSignup: NEWSLETTER_SEGMENT_ID et/ou NEWSLETTER_TOPIC_ID " +
+        "subscribeVerifiedUser: NEWSLETTER_SEGMENT_ID et/ou NEWSLETTER_TOPIC_ID " +
           "absentes sur ce déploiement, contact non créé. " +
           "`npx convex env set NEWSLETTER_SEGMENT_ID <id>`.",
       );
@@ -101,13 +102,13 @@ export const subscribeNewSignup = internalAction({
     );
     if (!info) {
       console.error(
-        `subscribeNewSignup: utilisateur ${userId} introuvable, contact non créé.`,
+        `subscribeVerifiedUser: utilisateur ${userId} introuvable, contact non créé.`,
       );
       return null;
     }
     if (!info.email) {
       console.error(
-        `subscribeNewSignup: utilisateur ${userId} sans email, contact non créé.`,
+        `subscribeVerifiedUser: utilisateur ${userId} sans email, contact non créé.`,
       );
       return null;
     }
@@ -129,7 +130,7 @@ export const subscribeNewSignup = internalAction({
     });
 
     if (!error) {
-      console.log(`subscribeNewSignup: contact créé et abonné pour ${email}.`);
+      console.log(`subscribeVerifiedUser: contact créé et abonné pour ${email}.`);
       return null;
     }
 
@@ -138,7 +139,7 @@ export const subscribeNewSignup = internalAction({
     // l'abonnement reste à faire : segment et topic acceptent l'email comme
     // identifiant, sans avoir à retrouver l'id du contact.
     console.log(
-      `subscribeNewSignup: création refusée pour ${email} (${error.message}), ` +
+      `subscribeVerifiedUser: création refusée pour ${email} (${error.message}), ` +
         "tentative de rattachement du contact existant.",
     );
 
@@ -148,17 +149,67 @@ export const subscribeNewSignup = internalAction({
     });
     if (segmentResult.error) {
       console.error(
-        `subscribeNewSignup: échec d'ajout au segment pour ${email} : ${segmentResult.error.message}`,
+        `subscribeVerifiedUser: échec d'ajout au segment pour ${email} : ${segmentResult.error.message}`,
       );
     }
 
     const topicResult = await resend.contacts.topics.update({ email, topics });
     if (topicResult.error) {
       console.error(
-        `subscribeNewSignup: échec d'abonnement au topic pour ${email} : ${topicResult.error.message}`,
+        `subscribeVerifiedUser: échec d'abonnement au topic pour ${email} : ${topicResult.error.message}`,
       );
     }
 
+    return null;
+  },
+});
+
+/**
+ * Supprime le contact Resend d'un compte qui vient d'être supprimé.
+ *
+ * Interne : planifiée par `deleteMyAccount` (convex/accountDeletion.ts), et
+ * seulement pour un compte qu'on avait effectivement abonné — un contact arrivé
+ * dans la liste par un autre chemin (import, formulaire du site) n'appartient
+ * pas à ce compte et n'a pas à disparaître avec lui.
+ *
+ * L'email est passé en argument plutôt que le `userId` : quand cette action
+ * s'exécute, le compte n'existe plus, il n'y a plus rien à relire. C'est
+ * d'ailleurs pour ça qu'elle est planifiée depuis la mutation, qui tient encore
+ * le document en main.
+ *
+ * Suppression et non simple désabonnement : la suppression de compte est
+ * définitive côté Convex (`purgeUserData`), elle doit l'être côté Resend aussi.
+ */
+export const removeDeletedContact = internalAction({
+  args: { email: v.string() },
+  returns: v.null(),
+  handler: async (_ctx, { email }) => {
+    if (!isProdDeployment()) {
+      console.log(
+        `removeDeletedContact: suppression ignorée hors prod (${email}).`,
+      );
+      return null;
+    }
+
+    const apiKey = process.env.AUTH_RESEND_KEY;
+    if (!apiKey) {
+      console.error(
+        "removeDeletedContact: AUTH_RESEND_KEY absente, contact non supprimé.",
+      );
+      return null;
+    }
+
+    const resend = new ResendAPI(apiKey);
+    const { error } = await resend.contacts.remove({ email });
+
+    if (error) {
+      console.error(
+        `removeDeletedContact: échec de suppression pour ${email} : ${error.message}`,
+      );
+      return null;
+    }
+
+    console.log(`removeDeletedContact: contact supprimé pour ${email}.`);
     return null;
   },
 });

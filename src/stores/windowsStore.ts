@@ -279,6 +279,23 @@ interface WindowsStore {
   // Les appelants qui ont un repli — naviguer vers le node sur le canvas —
   // testent ce retour ; les autres appellent et ignorent.
   openWindow: (payload: OpenedWindowPayload) => boolean;
+  /**
+   * Repointe les windows ouvertes sur le `nodeDataId` courant de leur node.
+   *
+   * Une window fige le `nodeDataId` qu'elle avait à l'ouverture. Ouvrir un
+   * node fraîchement créé (avant la réponse de `nodes.createWithNodeData`)
+   * fige donc l'id factice `pending_<llmId>` — que le serveur remplace
+   * ensuite par le vrai. Sans ce recalage, la window reste braquée sur un id
+   * que plus aucun store ne connaît : contenu vide, sauvegarde impossible,
+   * et il fallait fermer/rouvrir pour retrouver un éditeur.
+   *
+   * Appelée par `useSyncWindowNodeDataIds` à chaque fois que la
+   * correspondance change côté React Flow (source d'autorité du lien
+   * node → nodeData).
+   */
+  syncWindowNodeDataIds: (
+    nodeDataIdByXyNodeId: ReadonlyMap<string, Id<"nodeDatas">>,
+  ) => void;
   bringWindowToFront: (xyNodeId: string) => void;
   closeWindow: (xyNodeId: string) => void;
   closeWindowsForNodeIds: (xyNodeIds: string[]) => void;
@@ -387,6 +404,22 @@ export const useWindowsStore = create<WindowsStore>()(
         });
 
         return true;
+      },
+      syncWindowNodeDataIds: (nodeDataIdByXyNodeId) => {
+        set((store) => {
+          let changed = false;
+          const openedWindows = store.openedWindows.map((window) => {
+            const liveNodeDataId = nodeDataIdByXyNodeId.get(window.xyNodeId);
+            // Absent de la Map = node pas (ou plus) sur le canvas : on ne
+            // touche à rien, `WindowsContainer` filtre déjà ces windows-là.
+            if (!liveNodeDataId || liveNodeDataId === window.nodeDataId) {
+              return window;
+            }
+            changed = true;
+            return { ...window, nodeDataId: liveNodeDataId };
+          });
+          return changed ? { openedWindows } : store;
+        });
       },
       bringWindowToFront: (xyNodeId: string) => {
         set((store) => {

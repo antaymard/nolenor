@@ -131,3 +131,30 @@ export function useNodeIdsByDataId(): Map<Id<"nodeDatas">, string> {
     haveSameEntries,
   );
 }
+
+/**
+ * La correspondance inverse : id React Flow → `nodeDataId`, pour tout le
+ * canvas.
+ *
+ * Mêmes précautions que `useNodeIdsByDataId` — Map plutôt que sérialisation,
+ * et `haveSameEntries` en comparateur, parce que le sélecteur tourne à chaque
+ * tick du store (donc à chaque frame de pan et de drag) alors que la
+ * correspondance, elle, ne bouge presque jamais.
+ *
+ * Utile à qui a mémorisé un `nodeDataId` et doit le garder à jour : une
+ * création local-first pose d'abord un id factice `pending_<llmId>`, puis le
+ * remplace par celui du serveur (cf. `useSyncWindowNodeDataIds`).
+ */
+export function useNodeDataIdsByNodeId(): Map<string, Id<"nodeDatas">> {
+  return useStore(
+    useCallback((state) => {
+      const byNodeId = new Map<string, Id<"nodeDatas">>();
+      for (const node of state.nodes) {
+        const dataId = getNodeDataId(node as NodeIdentityLike);
+        if (dataId) byNodeId.set(node.id, dataId);
+      }
+      return byNodeId;
+    }, []),
+    haveSameEntries,
+  );
+}

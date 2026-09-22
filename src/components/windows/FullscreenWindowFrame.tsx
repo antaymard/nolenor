@@ -31,6 +31,8 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { Kbd } from "@/components/shadcn/kbd";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { WindowEditControl } from "./WindowEditControl";
+import WindowLoadingState from "./WindowLoadingState";
+import { isPendingDocId } from "@/lib/pendingDocIds";
 import { WindowSidePanelTrigger } from "./side-panel/WindowSidePanelTrigger";
 import { WindowSidePanel } from "./side-panel/WindowSidePanel";
 import { VersionPreviewBanner } from "./side-panel/VersionPreviewBanner";
@@ -84,9 +86,14 @@ export default function FullscreenWindowFrame({
   const [isRestoringVersion, setIsRestoringVersion] = useState(false);
   const restoreVersion = useMutation(api.nodeDataVersions.restore);
   const isAppNode = nodeData?.type === "app";
+  // `"skip"` tant que la création n'est pas confirmée : `pending_<llmId>`
+  // n'est pas un `Id<"nodeDatas">` valide, et le validateur serveur ferait
+  // remonter une erreur de query pendant ces quelques centaines de
+  // millisecondes. L'historique arrive avec le vrai id (cf.
+  // `useSyncWindowNodeDataIds`).
   const { data: versions } = useRichQuery(
     api.nodeDataVersions.listByNodeDataId,
-    { nodeDataId },
+    isPendingDocId(nodeDataId) ? "skip" : { nodeDataId },
   );
   const previewedVersion = versions?.find((v) => v._id === previewVersionId);
 
@@ -293,6 +300,13 @@ export default function FullscreenWindowFrame({
                   <VersionContentPreview versionId={previewVersionId} />
                 </div>
               </>
+            ) : isPendingDocId(nodeDataId) ? (
+              // Même garde que `NodeWindowContent` : passer en plein écran
+              // pendant que la création est encore en vol laisserait le body
+              // lire (et écrire) un `nodeDataId` que le serveur ne connaît
+              // pas. `useSyncWindowNodeDataIds` repointe la window dès la
+              // confirmation, et le contenu apparaît sans rien fermer.
+              <WindowLoadingState label="Creating" />
             ) : (
               children
             )}

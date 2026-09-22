@@ -3,6 +3,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useAppNodeRunner } from "@/hooks/useAppNodeRunner";
 import { useWindowFrameContext } from "../WindowFrameContext";
+import WindowLoadingState from "@/components/windows/WindowLoadingState";
 
 interface AppWindowProps {
   xyNodeId: string;
@@ -25,7 +26,7 @@ function AppWindow({ xyNodeId, nodeDataId }: AppWindowProps) {
 
   const { iframeRef, srcdoc } = useAppNodeRunner(xyNodeId, nodeDataId, values, refreshKey);
 
-  if (!values) return null;
+  if (!values) return <WindowLoadingState />;
 
   return (
     <iframe

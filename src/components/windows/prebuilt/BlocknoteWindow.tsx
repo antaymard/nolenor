@@ -36,6 +36,7 @@ import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBou
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
+import WindowLoadingState from "@/components/windows/WindowLoadingState";
 
 interface BlocknoteWindowProps {
   nodeDataId: Id<"nodeDatas">;
@@ -340,14 +341,10 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     [releaseFocus],
   );
 
-  if (!nodeDataValues) return null;
+  if (!nodeDataValues) return <WindowLoadingState />;
 
   if (!shouldMountEditor) {
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <EditorLoading />
-      </div>
-    );
+    return <WindowLoadingState label="Loading editor" />;
   }
 
   return (

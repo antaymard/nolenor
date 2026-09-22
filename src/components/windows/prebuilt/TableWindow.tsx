@@ -29,6 +29,7 @@ import type {
   TableFilter,
   TableSort,
 } from "@/components/table";
+import WindowLoadingState from "@/components/windows/WindowLoadingState";
 
 function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const { setDirty, setSaveHandler, setPlanTabContent } =
@@ -416,7 +417,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     [markDirty],
   );
 
-  if (!nodeDataValues) return null;
+  if (!nodeDataValues) return <WindowLoadingState />;
 
   return (
     <div className="flex flex-col h-full">

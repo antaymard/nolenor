@@ -2,6 +2,8 @@ import { lazy, Suspense } from "react";
 import { Spinner } from "@/components/shadcn/spinner";
 import type { OpenedWindow } from "@/stores/windowsStore";
 import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
+import WindowLoadingState from "./WindowLoadingState";
+import { isPendingDocId } from "@/lib/pendingDocIds";
 
 // Window bodies are lazy-loaded: they pull heavy dependencies (BlockNote
 // editor, pdfjs, tanstack-table…) that shouldn't weigh down the canvas chunk.
@@ -46,6 +48,15 @@ function NodeWindowBody({
   xyNodeId,
   nodeDataId,
 }: NodeWindowContentProps) {
+  // Window ouverte dans la foulée d'une création : le `nodeDataId` est encore
+  // l'id factice de l'optimistic, que le serveur n'a jamais vu. Monter le
+  // body ici lui ferait lire un doc voué à disparaître et écrire sur un id
+  // invalide. On attend la confirmation — `useSyncWindowNodeDataIds` repointe
+  // la window sur le vrai id, et ce composant se remonte tout seul.
+  if (isPendingDocId(nodeDataId)) {
+    return <WindowLoadingState label="Creating" />;
+  }
+
   switch (nodeType) {
     case "blocknote":
       return <BlocknoteWindow nodeDataId={nodeDataId} />;

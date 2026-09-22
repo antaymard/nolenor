@@ -6,6 +6,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import type { VideoValue } from "@/components/nodes/prebuilt-nodes/VideoNode";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { PlanTabPlaceholder } from "@/components/windows/side-panel/PlanTabPlaceholder";
+import WindowLoadingState from "@/components/windows/WindowLoadingState";
 
 /**
  * Où en était la lecture, le temps d'une bascule.
@@ -138,7 +139,7 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
     return () => setPlanTabContent(null);
   }, [setPlanTabContent]);
 
-  if (!values) return null;
+  if (!values) return <WindowLoadingState />;
 
   if (!video) {
     return (

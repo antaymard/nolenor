@@ -3,6 +3,7 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import { cn } from "@/lib/utils";
 import { useWindowsStore, type SnapSide } from "@/stores/windowsStore";
 import { useExistingNodeIds } from "@/lib/nodeIdentity";
+import { useSyncWindowNodeDataIds } from "@/hooks/useSyncWindowNodeDataIds";
 import WindowFrame from "./WindowFrame";
 import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
 import {
@@ -31,6 +32,12 @@ export default function WindowsContainer() {
   const bringWindowToFront = useWindowsStore((s) => s.bringWindowToFront);
   const existingNodeIds = useExistingNodeIds();
   const [snapPreview, setSnapPreview] = useState<SnapSide | null>(null);
+
+  // Les windows figent le `nodeDataId` qu'elles avaient à l'ouverture ; ce
+  // hook les recale quand le node change d'id (création local-first confirmée
+  // par le serveur). Monté ici parce que c'est le seul point où l'on est à la
+  // fois sous le provider React Flow et au-dessus de toutes les windows.
+  useSyncWindowNodeDataIds();
 
   const fullscreenWindow = fullscreenNodeId
     ? openedWindows.find((w) => w.xyNodeId === fullscreenNodeId)

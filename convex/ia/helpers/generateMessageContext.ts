@@ -152,8 +152,11 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const NOW_HINT =
   "The user's current date, taken from their own clock. Resolve every relative " +
   'date they give ("today", "tomorrow", "next friday", "in two weeks") against ' +
-  "it, and write the result as-is in a [[date:YYYY-MM-DD]] pill token. Never " +
-  "guess a date: nothing else in this conversation tells you what day it is.";
+  "it instead of guessing: nothing else in this conversation tells you what day " +
+  "it is. This is a fact, not a format — in what you say to the user, write " +
+  "dates the way anyone would (\"le 25 septembre\", \"vendredi\"). Date pill " +
+  "tokens belong inside a blocknote document only, and the tools that write one " +
+  "document their own syntax.";
 
 const UTC_FALLBACK_HINT =
   "The user's local date was not provided for this message: the date above is " +

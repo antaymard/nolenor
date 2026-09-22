@@ -20,7 +20,9 @@ import { toolAgentNames, type ThreadCtx, type ToolAgentName } from "../agentConf
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import {
+  findMalformedDateTokens,
   findUnresolvedMentionTokens,
+  malformedDateTokensError,
   parseBlockNoteXml,
 } from "../helpers/blockNoteMarkdown";
 import {
@@ -53,7 +55,7 @@ const BLOCK_ID_FIELD = (what: string) =>
  * differs between insert and replace.
  */
 const XML_PAYLOAD_HINT = (shape: string) =>
-  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from read_nodes output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Pills round-trip as tokens inside that Markdown: [[date:YYYY-MM-DD]], and [[node:<nodeId>]] for a live reference to another node of this canvas (read back as [[node:<nodeId>|type|title]] — keep tokens intact when rewriting a block). Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Name | Role |\n| --- | --- |\n| Alice | Dev |</block>`;
+  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from read_nodes output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Pills round-trip as tokens inside that Markdown: [[date:YYYY-MM-DD]] (exactly that spelling — any other shape is refused, not kept as text), and [[node:<nodeId>]] for a live reference to another node of this canvas (read back as [[node:<nodeId>|type|title]] — keep tokens intact when rewriting a block). Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Name | Role |\n| --- | --- |\n| Alice | Dev |</block>`;
 
 // ── Shared execution path ───────────────────────────────────────────────────
 //
@@ -151,6 +153,13 @@ async function parseXmlBlocks(
   const unresolved = findUnresolvedMentionTokens(blocks);
   if (unresolved.length > 0) {
     throw new Error(unresolvedMentionTokensError(unresolved));
+  }
+  // Même contrat que les mentions : un token que le codec a refusé serait écrit
+  // en texte brut dans le document de l'utilisateur, et le tool rendrait un
+  // succès. Le refuser est la seule façon dont le modèle apprend à l'orthographier.
+  const malformedDates = findMalformedDateTokens(blocks);
+  if (malformedDates.length > 0) {
+    throw new Error(malformedDateTokensError(malformedDates));
   }
   if (exactlyOne && blocks.length > 1) {
     throw new Error(
@@ -352,7 +361,7 @@ export const blocknotePatchBlockTextToolConfig: ToolConfig = {
 function blocknotePatchBlockTextTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
-      "Surgically replace an exact literal substring inside a single block's visible text (by block id). The match is scoped to that one block only, so a substring that appears many times in the document is safe as long as it is unique within the chosen block. Operates on the native inline content: styles, links and props outside the match are preserved. The match must not cross a link boundary or a non-text inline node — use replace_block for those. Prefer replace_block for edits that change block type/structure.",
+      "Surgically replace an exact literal substring inside a single block's visible text (by block id). The match is scoped to that one block only, so a substring that appears many times in the document is safe as long as it is unique within the chosen block. Operates on the native inline content: styles, links and props outside the match are preserved. The match must not cross a link boundary or a non-text inline node (a date pill and a node mention are both non-text nodes) — use replace_block for those. `new_string` is literal text with ONE exception: a [[date:YYYY-MM-DD]] token in it becomes a real date pill, so this is the cheapest way to add a date to an existing block. [[node:…]] mentions are NOT expanded here and are refused — use replace_block for those. Prefer replace_block for edits that change block type/structure.",
     inputSchema: z.object({
       nodeId: NODE_ID_FIELD,
       blockId: BLOCK_ID_FIELD("whose text to patch"),
@@ -364,7 +373,9 @@ function blocknotePatchBlockTextTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         ),
       new_string: z
         .string()
-        .describe("The replacement substring (literal text, may be empty to delete)."),
+        .describe(
+          "The replacement substring (literal text, may be empty to delete). A [[date:YYYY-MM-DD]] token in it becomes a date pill; no other markup is interpreted.",
+        ),
       explanation: EXPLANATION_FIELD,
     }),
     execute: (ctx, input): Promise<string> =>

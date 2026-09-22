@@ -29,7 +29,7 @@ const BLOCKNOTE_XML_CARD = `blocknote-xml-v1 — one <block type="TYPE" props='{
     | --- | --- |
     | Alice | Dev |</block>
   nesting: <block type="bulletListItem">parent<children><block type="bulletListItem">child</block></children></block>
-  date pill: [[date:YYYY-MM-DD]]
+  date pill: [[date:YYYY-MM-DD]] — exactly that spelling (4-digit year, zero-padded month/day, no label, no relative wording). Resolve "today"/"tomorrow"/"next friday" to a real calendar date BEFORE writing one; a token in any other shape is refused, never silently kept as text. Also honoured by patch_block_text's new_string, which is the cheapest way to add a date to an existing block.
   node mention: [[node:NODE_ID]] — a live reference to another node of this canvas. Read back as [[node:NODE_ID|type|title]]; only the id is read when writing, so keep tokens intact when rewriting a block. NODE_ID is a nodeId from read_nodes/list_nodes.`;
 
 const DEDICATED_TOOLS_SCHEMA_BY_TYPE: Record<string, string> = {

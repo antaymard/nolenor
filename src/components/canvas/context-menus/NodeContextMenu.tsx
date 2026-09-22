@@ -29,6 +29,7 @@ import { HiOutlineTrash } from "react-icons/hi";
 import {
   TbArrowLeftFromArc,
   TbBookmark,
+  TbBookmarkOff,
   TbCheck,
   TbCopyPlus,
   TbLayoutBoardSplit,
@@ -49,6 +50,7 @@ import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
 import { createPortal } from "react-dom";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
+import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 
 type NodeSubMenuItem = {
@@ -83,10 +85,18 @@ export default function NodeContextMenu({
   // `enabled: false` : poser un repère n'a pas besoin de lire la liste, et ce
   // menu se monte à chaque clic droit — on ne veut pas ouvrir une
   // souscription de plus à chaque fois.
-  const { create: createBookmark, canBookmark } = useCanvasBookmarks({
+  const {
+    create: createBookmark,
+    removeForNodes: removeBookmarksForNodes,
+    canBookmark,
+  } = useCanvasBookmarks({
     canvasId,
     enabled: false,
   });
+  // L'état repéré vient du store et non de la query : il est déjà tenu à jour
+  // pour la pastille du node (`useSyncBookmarkedNodes`, monté par
+  // `CanvasFlow`), donc le menu le lit sans ouvrir de souscription de plus.
+  const isBookmarked = useIsNodeBookmarked(xyNode.id);
   const { duplicateNode, duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
@@ -265,11 +275,21 @@ export default function NodeContextMenu({
       // seule condition est d'avoir un compte à qui le rattacher.
       // Pas de shortcutHint : un bookmark se pose rarement, et les raccourcis
       // du canvas sont déjà denses.
+      //
+      // Bascule, et sur l'état que montre la pastille : un node déjà repéré
+      // propose de ne plus l'être, pas de l'être deux fois. Le dé-repérage passe
+      // par les llmid et pas par un `bookmarkId` parce que le node peut être
+      // repéré par un repère `selection` qui en vise d'autres — il en sort
+      // alors sans emporter ses voisins (cf. `removeForNodes` côté serveur).
       hidden: !canBookmark,
-      label: "Bookmark",
-      icon: TbBookmark,
+      label: isBookmarked ? "Remove bookmark" : "Bookmark",
+      icon: isBookmarked ? TbBookmarkOff : TbBookmark,
       onClick: () => {
-        void createBookmark({ kind: "node", nodeId: xyNode.id });
+        if (isBookmarked) {
+          void removeBookmarksForNodes([xyNode.id]);
+        } else {
+          void createBookmark({ kind: "node", nodeId: xyNode.id });
+        }
       },
     },
     {

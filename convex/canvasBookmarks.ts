@@ -142,6 +142,40 @@ export const reorder = mutation({
   },
 });
 
+/**
+ * Dé-repère un lot de nodes, quel que soit le repère qui les portait.
+ *
+ * Pendant de `create` pour les menus contextuels, qui raisonnent en nodes et
+ * non en repères : le menu sait que CE node est repéré (via la pastille), pas
+ * par quel document il l'est. Passer par le `canvasId` plutôt que par des
+ * `bookmarkId` évite au client d'avoir à s'abonner à la liste juste pour
+ * traduire des llmid en ids — c'est le serveur qui fait la résolution, sur les
+ * seuls repères de l'appelant.
+ */
+export const removeForNodes = mutation({
+  args: {
+    canvasId: v.id("canvases"),
+    nodeIds: v.array(v.string()),
+  },
+  returns: v.number(),
+  handler: async (ctx, { canvasId, nodeIds }) => {
+    const authUserId = await requireAuth(ctx);
+    await requireCanvasAccess(
+      ctx,
+      canvasId,
+      authUserId,
+      BOOKMARK_CANVAS_ACCESS.minPermission,
+      BOOKMARK_CANVAS_ACCESS.options,
+    );
+
+    return await CanvasBookmarkModels.removeForNodes(ctx, {
+      userId: authUserId,
+      canvasId,
+      nodeIds,
+    });
+  },
+});
+
 export const remove = mutation({
   args: { bookmarkId: v.id("canvasBookmarks") },
   returns: v.null(),

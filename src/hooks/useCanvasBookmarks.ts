@@ -74,6 +74,9 @@ export function useCanvasBookmarks({
   const renameBookmark = useMutation(api.canvasBookmarks.rename);
   const reorderBookmarks = useMutation(api.canvasBookmarks.reorder);
   const removeBookmark = useMutation(api.canvasBookmarks.remove);
+  const removeBookmarksForNodes = useMutation(
+    api.canvasBookmarks.removeForNodes,
+  );
 
   // La résolution d'un llmid : llmid → nodeDataId → doc, avec le `type` du doc
   // `nodes` en repli quand le nodeData n'est pas (encore) en store — l'icône
@@ -183,6 +186,20 @@ export function useCanvasBookmarks({
     [canvasId, isAuthenticated, createBookmark],
   );
 
+  /**
+   * Dé-repère des nodes sans savoir quel repère les portait — c'est ce dont
+   * ont besoin les menus contextuels, qui lisent l'état repéré depuis
+   * `useBookmarkedNodesStore` (des llmid) et n'ont donc aucun `bookmarkId`
+   * sous la main. La résolution se fait côté serveur.
+   */
+  const removeForNodes = useCallback(
+    (nodeIds: Array<string>) => {
+      if (!canvasId || !isAuthenticated || nodeIds.length === 0) return;
+      return removeBookmarksForNodes({ canvasId, nodeIds });
+    },
+    [canvasId, isAuthenticated, removeBookmarksForNodes],
+  );
+
   return {
     bookmarks: resolved,
     isLoading: shouldQuery && resolved === undefined,
@@ -191,6 +208,7 @@ export function useCanvasBookmarks({
     rename: renameBookmark,
     reorder: reorderBookmarks,
     remove: removeBookmark,
+    removeForNodes,
   };
 }
 

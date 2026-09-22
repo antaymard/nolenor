@@ -58,6 +58,26 @@ function normalizeTarget(target: BookmarkTarget): BookmarkTarget {
   return { kind: "selection", nodeIds };
 }
 
+/**
+ * Deux cibles visent-elles exactement la même chose ?
+ *
+ * Sert à rendre `create` idempotent sur ce qui a une identité : un node, ou un
+ * groupe de nodes. Un `framing`, lui, n'en a pas — deux repères posés sur la
+ * même vue sont deux notes distinctes de l'utilisateur, pas un doublon.
+ *
+ * Les `selection` sont comparées comme des ENSEMBLES : l'ordre des llmid dans
+ * le tableau vient de l'ordre de sélection, qui n'a aucun sens métier.
+ */
+function isSameTarget(a: BookmarkTarget, b: BookmarkTarget): boolean {
+  if (a.kind === "node" && b.kind === "node") return a.nodeId === b.nodeId;
+  if (a.kind === "selection" && b.kind === "selection") {
+    if (a.nodeIds.length !== b.nodeIds.length) return false;
+    const ids = new Set(a.nodeIds);
+    return b.nodeIds.every((nodeId) => ids.has(nodeId));
+  }
+  return false;
+}
+
 export async function listForUserCanvas(
   ctx: QueryCtx,
   { userId, canvasId }: { userId: Id<"users">; canvasId: Id<"canvases"> },
@@ -91,6 +111,17 @@ export async function create(
 ): Promise<Id<"canvasBookmarks">> {
   // La liste est déjà triée : le dernier porte le `sortOrder` le plus haut.
   const existing = await listForUserCanvas(ctx, { userId, canvasId });
+
+  // Re-poser un repère sur une cible déjà repérée ne crée rien : on rend
+  // celui qui existe. Sans ça, un double-clic sur « Bookmark » (ou deux
+  // appels concurrents depuis deux onglets) empilait deux lignes identiques
+  // dans le panneau, impossibles à distinguer l'une de l'autre.
+  const normalizedTarget = normalizeTarget(target);
+  const duplicate = existing.find((bookmark) =>
+    isSameTarget(bookmark.target, normalizedTarget),
+  );
+  if (duplicate) return duplicate._id;
+
   const lastSortOrder =
     existing.length > 0 ? existing[existing.length - 1].sortOrder : 0;
   const normalizedLabel = normalizeLabel(label);
@@ -99,7 +130,7 @@ export async function create(
     userId,
     canvasId,
     ...(normalizedLabel !== undefined ? { label: normalizedLabel } : {}),
-    target: normalizeTarget(target),
+    target: normalizedTarget,
     sortOrder: lastSortOrder + SORT_ORDER_STEP,
     updatedAt: Date.now(),
   });
@@ -154,6 +185,70 @@ export async function remove(
   await getBookmarkOrThrow(ctx, bookmarkId);
   await ctx.db.delete("canvasBookmarks", bookmarkId);
   return null;
+}
+
+/**
+ * Dé-repère des nodes : retire toute trace d'eux dans les repères de
+ * l'utilisateur sur ce canvas.
+ *
+ * L'unité n'est pas le repère mais le NODE — c'est la sémantique « gras »
+ * demandée côté menus : un node est repéré ou il ne l'est pas, peu importe
+ * lequel de ses repères le porte, exactement comme un caractère est en gras
+ * sans qu'on ait à savoir quel span le met en gras. D'où les deux cas :
+ *
+ * - un repère `node` visé part en entier ;
+ * - un repère `selection` est rogné des nodes visés, et ne part que s'il n'en
+ *   reste aucun — sinon on détruirait le repère des nodes voisins qu'on n'a
+ *   pas demandé à dé-repérer.
+ *
+ * Les `framing` ne visent aucun node : ils ne bougent pas.
+ */
+export async function removeForNodes(
+  ctx: MutationCtx,
+  {
+    userId,
+    canvasId,
+    nodeIds,
+  }: {
+    userId: Id<"users">;
+    canvasId: Id<"canvases">;
+    nodeIds: Array<string>;
+  },
+): Promise<number> {
+  const targeted = new Set(nodeIds);
+  if (targeted.size === 0) return 0;
+
+  const bookmarks = await listForUserCanvas(ctx, { userId, canvasId });
+  const now = Date.now();
+  let touched = 0;
+
+  for (const bookmark of bookmarks) {
+    const { target } = bookmark;
+
+    if (target.kind === "node") {
+      if (!targeted.has(target.nodeId)) continue;
+      await ctx.db.delete("canvasBookmarks", bookmark._id);
+      touched += 1;
+      continue;
+    }
+
+    if (target.kind !== "selection") continue;
+
+    const remaining = target.nodeIds.filter((nodeId) => !targeted.has(nodeId));
+    if (remaining.length === target.nodeIds.length) continue;
+
+    if (remaining.length === 0) {
+      await ctx.db.delete("canvasBookmarks", bookmark._id);
+    } else {
+      await ctx.db.patch("canvasBookmarks", bookmark._id, {
+        target: { kind: "selection", nodeIds: remaining },
+        updatedAt: now,
+      });
+    }
+    touched += 1;
+  }
+
+  return touched;
 }
 
 /**

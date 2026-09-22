@@ -57,9 +57,7 @@ export function FilterPopover({
   };
 
   const patch = (id: string, next: Partial<TableFilter>) => {
-    onFiltersChange(
-      filters.map((f) => (f.id === id ? { ...f, ...next } : f)),
-    );
+    onFiltersChange(filters.map((f) => (f.id === id ? { ...f, ...next } : f)));
   };
 
   return (
@@ -68,13 +66,17 @@ export function FilterPopover({
         <Button
           size="sm"
           variant="ghost"
-          className={cn("h-7 px-2", filters.length > 0 && "text-primary")}
+          className={cn(
+            "h-7 px-2",
+            filters.length > 0 &&
+              "bg-violet-100 text-violet-500 hover:bg-violet-200 hover:text-violet-600",
+          )}
           disabled={columns.length === 0}
         >
           <TbFilter size={14} />
           Filter
           {filters.length > 0 && (
-            <span className="rounded-full bg-primary/10 px-1.5 text-xs">
+            <span className="rounded-full bg-violet-500/10 px-1.5 text-xs">
               {filters.length}
             </span>
           )}
@@ -171,7 +173,9 @@ export function FilterPopover({
                     (column.type === "select" ? (
                       <Select
                         value={
-                          Array.isArray(filter.value) ? filter.value[0] : undefined
+                          Array.isArray(filter.value)
+                            ? filter.value[0]
+                            : undefined
                         }
                         onValueChange={(v) => patch(filter.id, { value: [v] })}
                       >
@@ -188,7 +192,9 @@ export function FilterPopover({
                       </Select>
                     ) : (
                       <Input
-                        value={typeof filter.value === "string" ? filter.value : ""}
+                        value={
+                          typeof filter.value === "string" ? filter.value : ""
+                        }
                         type={column.type === "date" ? "date" : "text"}
                         placeholder="Value"
                         className="h-7 w-28 shrink-0 text-sm"
@@ -216,7 +222,12 @@ export function FilterPopover({
         )}
 
         <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
-          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={addFilter}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2"
+            onClick={addFilter}
+          >
             <TbPlus size={14} />
             Add filter
           </Button>

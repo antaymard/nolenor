@@ -72,7 +72,10 @@ export function RichTextCellEditor({
     try {
       pendingRef.current = stringifyBlockNoteDocumentForStorage(blocks);
     } catch (error) {
-      console.error("[RichTextCellEditor] invalid document, not published:", error);
+      console.error(
+        "[RichTextCellEditor] invalid document, not published:",
+        error,
+      );
     }
   }, []);
 
@@ -91,25 +94,6 @@ export function RichTextCellEditor({
     }
     onBlur();
   }, [onChange, onBlur]);
-
-  /**
-   * `Entrée` seul insère un paragraphe — c'est un éditeur rich text, pas un
-   * champ texte —, donc la validation au clavier passe par `Ctrl/Cmd + Entrée`.
-   *
-   * `defaultPrevented` laisse la main à BlockNote quand il s'est déjà servi de
-   * la combinaison : dans un bloc de code, `Mod + Entrée` est le raccourci
-   * ProseMirror qui en sort, et le lui voler enfermerait le curseur dedans.
-   */
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "Enter") return;
-      if (!event.ctrlKey && !event.metaKey) return;
-      if (event.defaultPrevented) return;
-      event.preventDefault();
-      commit();
-    },
-    [commit],
-  );
 
   const preview = (
     <div
@@ -157,7 +141,6 @@ export function RichTextCellEditor({
         onFocusOutside={(e) => {
           if (isBlockNoteFloatingUi(e.target)) e.preventDefault();
         }}
-        onKeyDown={handleKeyDown}
       >
         <div className="max-h-[50vh] overflow-y-auto py-1">
           <BlockNoteFieldEditor
@@ -166,13 +149,6 @@ export function RichTextCellEditor({
             onDirtyChange={noopDirty}
             className="min-h-24 text-sm"
           />
-        </div>
-        {/* Un raccourci que rien n'annonce n'existe pas : la cellule se ferme
-            aussi au clic dehors, donc seul ce rappel fait connaître celui-ci. */}
-        <div className="flex items-center justify-end gap-1.5 border-t px-2 py-1 text-xs text-muted-foreground">
-          <Kbd>Ctrl</Kbd>
-          <Kbd>↵</Kbd>
-          validate
         </div>
       </PopoverContent>
     </Popover>

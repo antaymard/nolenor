@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -11,7 +11,6 @@ import {
 import { Kbd } from "@/components/shadcn/kbd";
 import { useReactFlow, type Node } from "@xyflow/react";
 import { useMutation } from "convex/react";
-import { createPortal } from "react-dom";
 
 import { HiOutlineTrash } from "react-icons/hi";
 import {
@@ -26,6 +25,7 @@ import {
 } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
+import { MAX_SELECTION_NODE_IDS } from "@/../convex/schemas/canvasBookmarksSchema";
 import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
 import { useNoleStore } from "@/stores/noleStore";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
@@ -43,7 +43,7 @@ import { getNodeDataId } from "@/lib/nodeIdentity";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useCanvasStore } from "@/stores/canvasStore";
-import BookmarkNameDialog from "./BookmarkNameDialog";
+import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -61,10 +61,8 @@ export default function SelectionContextMenu({
     canvasId,
     enabled: false,
   });
-  // Ids figés au clic : la sélection React Flow peut changer pendant que le
-  // dialogue de nommage est ouvert, le repère doit viser ce qu'on visait.
-  const [pendingNodeIds, setPendingNodeIds] = useState<Array<string> | null>(
-    null,
+  const { startBookmark, dialog: bookmarkNameDialog } = useBookmarkNameDialog(
+    createBookmark,
   );
   const { duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
@@ -360,17 +358,27 @@ export default function SelectionContextMenu({
 
       {/* Repère de navigation. Sur des nodes et pas sur le cadrage courant :
           le repère suit alors le groupe quand on le déplace, là où une
-          position serait restée sur le vide laissé derrière. */}
+          position serait restée sur le vide laissé derrière.
+
+          Borné au même plafond que le serveur (`normalizeTarget`) : le compte
+          annoncé par le menu et le dialogue est celui qui sera réellement
+          bookmarké, pas un compte que le serveur rognerait en silence. */}
       {canBookmark && elementsArray.length > 0 && (
         <DropdownMenuItem
           className="whitespace-nowrap"
           onClick={() => {
-            setPendingNodeIds(elementsArray.map((node) => node.id));
+            startBookmark({
+              kind: "selection",
+              nodeIds: elementsArray
+                .slice(0, MAX_SELECTION_NODE_IDS)
+                .map((node) => node.id),
+            });
             closeMenu();
           }}
         >
           <TbBookmark />
-          Bookmark selection ({elementsArray.length})
+          Bookmark selection (
+          {Math.min(elementsArray.length, MAX_SELECTION_NODE_IDS)})
         </DropdownMenuItem>
       )}
 
@@ -404,27 +412,7 @@ export default function SelectionContextMenu({
         Delete
       </DropdownMenuItem>
 
-      {createPortal(
-        <BookmarkNameDialog
-          open={pendingNodeIds !== null}
-          onOpenChange={(open) => {
-            if (!open) setPendingNodeIds(null);
-          }}
-          title="Bookmark this selection"
-          description="Give this group a name, or leave it empty to keep the default."
-          placeholder={`${pendingNodeIds?.length ?? 0} nodes`}
-          onSubmit={(label) => {
-            if (pendingNodeIds) {
-              void createBookmark(
-                { kind: "selection", nodeIds: pendingNodeIds },
-                label,
-              );
-            }
-            setPendingNodeIds(null);
-          }}
-        />,
-        document.body,
-      )}
+      {bookmarkNameDialog}
     </>
   );
 }

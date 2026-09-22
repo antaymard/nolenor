@@ -46,28 +46,20 @@ import { cn } from "@/lib/utils";
  *
  * `useMemo` et pas d'objet inline : `useTargetDelta` compare sa cible par
  * `Object.is` dans le sélecteur, un littéral frais re-rendrait à chaque frame.
+ * Dépend du `target` du doc plutôt que du repère entier : Convex garde
+ * l'identité de ses champs tant que le doc ne change pas, et un renommage ne
+ * doit donc pas réveiller l'indicateur.
  */
 function useBookmarkDeltaTarget(
   bookmark: ResolvedBookmark,
 ): DeltaTarget | null {
-  const kind = bookmark.target.kind;
-  const nodeId =
-    bookmark.target.kind === "node" ? bookmark.target.nodeId : undefined;
-  const nodeIds =
-    bookmark.target.kind === "selection" ? bookmark.target.nodeIds : undefined;
-  const framing =
-    bookmark.target.kind === "framing" ? bookmark.target.framing : undefined;
+  const { target, isDangling } = bookmark;
   return useMemo<DeltaTarget | null>(() => {
-    if (kind === "node") {
-      if (bookmark.isDangling) return null;
-      return { nodeId: nodeId as string };
-    }
-    if (kind === "selection") {
-      if (bookmark.isDangling) return null;
-      return { nodeIds: nodeIds as readonly string[] };
-    }
-    return { point: { x: (framing as { cx: number }).cx, y: (framing as { cy: number }).cy } };
-  }, [kind, nodeId, nodeIds, framing, bookmark.isDangling]);
+    if (isDangling) return null;
+    if (target.kind === "node") return { nodeId: target.nodeId };
+    if (target.kind === "selection") return { nodeIds: target.nodeIds };
+    return { point: { x: target.framing.cx, y: target.framing.cy } };
+  }, [target, isDangling]);
 }
 
 /** Dit d'un coup d'œil ce que vise le repère, et donc s'il suivra ou non. */

@@ -25,7 +25,7 @@ import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import { useIsFrameHovered } from "@/stores/frameHoverStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
-import { TbBookmarkFilled } from "react-icons/tb";
+import BookmarkedBadge from "@/components/nodes/BookmarkedBadge";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
@@ -395,16 +395,8 @@ function FrameNode(xyNode: XyNodeProps) {
             "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[8px] after:border-2 after:border-dashed after:border-violet-500/90",
         )}
       >
-        {/* Même pastille que `NodeFrame` : elle informe, elle ne se clique
-            pas. `pointer-events-none` — sinon elle avalerait le début d'un
-            drag qui part du bord de la frame. */}
-        {isBookmarked && (
-          <TbBookmarkFilled
-            size={14}
-            aria-hidden
-            className="pointer-events-none absolute -top-0.75 right-2 z-10 text-amber-500"
-          />
-        )}
+        {/* Même pastille que `NodeFrame` (cf. `BookmarkedBadge`). */}
+        {isBookmarked && <BookmarkedBadge />}
       </div>
     </>
   );

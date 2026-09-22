@@ -9,6 +9,10 @@ type CreateBookmark = (target: BookmarkTarget, label?: string) => unknown;
 /**
  * La copie du dialogue selon la cible : c'est ici, et pas dans chaque menu,
  * que vivent les libellés du flux de nommage.
+ *
+ * Totale sur les trois kinds — le cas `node` ne s'atteint pas aujourd'hui (le
+ * menu du node crée sans dialogue, son titre vivant sert de nom), mais la
+ * fonction n'a pas à mentir sur son domaine pour autant.
  */
 function dialogCopy(target: BookmarkTarget): {
   title: string;
@@ -21,6 +25,14 @@ function dialogCopy(target: BookmarkTarget): {
       description:
         "Give this position a name, or leave it empty to keep the default.",
       placeholder: "Position",
+    };
+  }
+  if (target.kind === "node") {
+    return {
+      title: "Bookmark this node",
+      description:
+        "Give this bookmark a name, or leave it empty to keep the node's title.",
+      placeholder: "Node",
     };
   }
   return {

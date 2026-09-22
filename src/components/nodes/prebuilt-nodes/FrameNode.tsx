@@ -24,6 +24,8 @@ import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import { useIsFrameHovered } from "@/stores/frameHoverStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
+import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
+import BookmarkedBadge from "@/components/nodes/BookmarkedBadge";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
@@ -172,6 +174,7 @@ function FrameNode(xyNode: XyNodeProps) {
   // le canvas à chaque frame du geste.
   const isDropTarget = useIsFrameHovered(xyNode.id);
   const isAttachedToNole = useIsNodeAttached(xyNode.id);
+  const isBookmarked = useIsNodeBookmarked(xyNode.id);
 
   // Sélecteur booléen : seule la frame concernée re-rend, pas toutes celles du
   // canvas. Et surtout pas un initialiseur `useState`, que StrictMode invoque
@@ -401,7 +404,10 @@ function FrameNode(xyNode: XyNodeProps) {
           isAttachedToNole &&
             "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[8px] after:border-2 after:border-dashed after:border-violet-500/90",
         )}
-      />
+      >
+        {/* Même pastille que `NodeFrame` (cf. `BookmarkedBadge`). */}
+        {isBookmarked && <BookmarkedBadge />}
+      </div>
     </>
   );
 }

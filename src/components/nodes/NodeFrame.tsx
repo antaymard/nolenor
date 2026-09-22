@@ -6,6 +6,8 @@ import type { XyNodeProps } from "@/types/domain";
 import NodeHandles from "./NodeHandles";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
+import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
+import BookmarkedBadge from "./BookmarkedBadge";
 
 function NodeFrame({
   xyNode,
@@ -26,6 +28,7 @@ function NodeFrame({
   const canDrag = true;
   const openWindow = useWindowsStore((state) => state.openWindow);
   const isAttachedToNole = useIsNodeAttached(xyNode.id);
+  const isBookmarked = useIsNodeBookmarked(xyNode.id);
   const nodeType = xyNode.type;
 
   // `openWindow` tranche lui-même si ce node a une window (type prébuilt
@@ -95,6 +98,11 @@ function NodeFrame({
         )}
         onDoubleClick={handleDoubleClick}
       >
+        {/* Pastille de repère. Sur la racine et pas dans le conteneur interne,
+            qui porte `overflow-hidden` : elle déborde volontairement du coin
+            (cf. `BookmarkedBadge`). */}
+        {isBookmarked && <BookmarkedBadge />}
+
         {/* `content-visibility: auto` : le navigateur saute le layout et le
             paint du contenu tant que le node est hors écran, ce qui borne le
             coût d'un pan au seul contenu visible. Sur le conteneur interne et

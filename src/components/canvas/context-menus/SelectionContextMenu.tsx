@@ -14,6 +14,7 @@ import { useMutation } from "convex/react";
 
 import { HiOutlineTrash } from "react-icons/hi";
 import {
+  TbBookmark,
   TbCopyPlus,
   TbPalette,
   TbPaperclip,
@@ -24,6 +25,7 @@ import {
 } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
+import { MAX_SELECTION_NODE_IDS } from "@/../convex/schemas/canvasBookmarksSchema";
 import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
 import { useNoleStore } from "@/stores/noleStore";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
@@ -39,6 +41,9 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { getNodeDataId } from "@/lib/nodeIdentity";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
+import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
+import { useCanvasStore } from "@/stores/canvasStore";
+import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -49,6 +54,16 @@ export default function SelectionContextMenu({
 }) {
   const { updateNode } = useReactFlow();
   const { deleteCanvasElements } = useDeleteCanvasElements();
+  const canvasId = useCanvasStore((state) => state.canvas?._id);
+  // Écriture seule : ce menu se remonte à chaque clic droit, inutile d'ouvrir
+  // une souscription à la liste juste pour y ajouter une ligne.
+  const { create: createBookmark, canBookmark } = useCanvasBookmarks({
+    canvasId,
+    enabled: false,
+  });
+  const { startBookmark, dialog: bookmarkNameDialog } = useBookmarkNameDialog(
+    createBookmark,
+  );
   const { duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
@@ -68,9 +83,7 @@ export default function SelectionContextMenu({
   );
 
   const imageNodes = Array.isArray(elements)
-    ? elements.filter(
-        (n) => n.type === "image" && n.data?.nodeDataId,
-      )
+    ? elements.filter((n) => n.type === "image" && n.data?.nodeDataId)
     : [];
   const canMergeImages = imageNodes.length >= 2;
 
@@ -195,9 +208,9 @@ export default function SelectionContextMenu({
       const nodeDataId = getNodeDataId(node);
       if (!nodeDataId) continue;
       const data = getNodeData(nodeDataId);
-      const images = (data?.values?.images as
-        | Array<Record<string, unknown>>
-        | undefined) ?? [];
+      const images =
+        (data?.values?.images as Array<Record<string, unknown>> | undefined) ??
+        [];
       for (const img of images) {
         const url = typeof img?.url === "string" ? img.url : undefined;
         if (!url || seen.has(url)) continue;
@@ -338,8 +351,34 @@ export default function SelectionContextMenu({
           {allAttachTargetsAttached ? <TbUnlink /> : <TbPaperclip />}
           {allAttachTargetsAttached ? "Detach from Nolë" : "Attach to Nolë"}
           <DropdownMenuShortcut className="flex items-center gap-1">
-            <Kbd>Alt + clic</Kbd>
+            <Kbd>Alt + click</Kbd>
           </DropdownMenuShortcut>
+        </DropdownMenuItem>
+      )}
+
+      {/* Repère de navigation. Sur des nodes et pas sur le cadrage courant :
+          le repère suit alors le groupe quand on le déplace, là où une
+          position serait restée sur le vide laissé derrière.
+
+          Borné au même plafond que le serveur (`normalizeTarget`) : le compte
+          annoncé par le menu et le dialogue est celui qui sera réellement
+          bookmarké, pas un compte que le serveur rognerait en silence. */}
+      {canBookmark && elementsArray.length > 0 && (
+        <DropdownMenuItem
+          className="whitespace-nowrap"
+          onClick={() => {
+            startBookmark({
+              kind: "selection",
+              nodeIds: elementsArray
+                .slice(0, MAX_SELECTION_NODE_IDS)
+                .map((node) => node.id),
+            });
+            closeMenu();
+          }}
+        >
+          <TbBookmark />
+          Bookmark selection (
+          {Math.min(elementsArray.length, MAX_SELECTION_NODE_IDS)})
         </DropdownMenuItem>
       )}
 
@@ -372,6 +411,8 @@ export default function SelectionContextMenu({
         <HiOutlineTrash />
         Delete
       </DropdownMenuItem>
+
+      {bookmarkNameDialog}
     </>
   );
 }

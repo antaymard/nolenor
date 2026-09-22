@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useReactFlow, useStore, type ReactFlowState } from "@xyflow/react";
 import {
+  applyFraming,
   captureFraming,
   CENTERED_SCREENS,
   framingFromViewport,
@@ -12,8 +13,8 @@ import {
 } from "@/lib/canvasViewportFraming";
 
 /**
- * Le côté React de `canvasViewportFraming` : capture du cadrage courant, et
- * cap + distance vers une cible.
+ * Le côté React de `canvasViewportFraming` : capture du cadrage courant, retour
+ * à un cadrage enregistré, et cap + distance vers une cible.
  *
  * À appeler à l'intérieur d'un `ReactFlowProvider`.
  */
@@ -22,6 +23,23 @@ import {
 export function useCaptureFraming(): () => ViewportFraming | null {
   const { getViewport } = useReactFlow();
   return useCallback(() => captureFraming(getViewport), [getViewport]);
+}
+
+/**
+ * Ramène la vue sur un cadrage enregistré — la symétrique de
+ * `useCaptureFraming`, pour les repères de navigation et tout ce qui rejoue une
+ * vue capturée ailleurs.
+ */
+export function useApplyFraming(): (
+  framing: ViewportFraming,
+  duration?: number,
+) => void {
+  const { setViewport } = useReactFlow();
+  return useCallback(
+    (framing: ViewportFraming, duration?: number) =>
+      applyFraming(framing, setViewport, duration),
+    [setViewport],
+  );
 }
 
 /**
@@ -53,15 +71,15 @@ function sameDelta(a: FramingDelta | null, b: FramingDelta | null): boolean {
 }
 
 /**
- * Cap + distance continus vers un node du canvas, pour l'indicateur de
- * navigation.
+ * Cap + distance continus vers une cible du canvas (node, sélection, ou point
+ * monde), pour l'indicateur de navigation.
  *
  * Passe par un sélecteur du store React Flow plutôt que par `useViewport()` :
  * ce dernier re-rendrait le composant à *chaque frame* de pan (le piège
  * documenté dans `useCanvasPointerPosition`). `sameDelta` borne en plus les
  * re-renders aux crans visibles (0,1 écran, 10°), sinon chaque frame de pan
- * re-rendrait chaque indicateur. La résolution du centre du node lit
- * `state.nodes` : un drag du node cible déplace l'indicateur en direct,
+ * re-rendrait chaque indicateur. La résolution du centre de la cible lit
+ * `state.nodes` : un drag du node visé déplace l'indicateur en direct,
  * toujours borné aux crans.
  */
 export function useTargetDelta(

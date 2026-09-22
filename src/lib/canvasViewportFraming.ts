@@ -131,8 +131,11 @@ export type FramingDelta = {
   angleDeg: number;
 };
 
-/** La cible de l'indicateur de cap : un node du canvas. */
-export type DeltaTarget = { nodeId: string };
+/** La cible de l'indicateur de cap : un node, une sélection, ou un point monde. */
+export type DeltaTarget =
+  | { nodeId: string }
+  | { nodeIds: readonly string[] }
+  | { point: { x: number; y: number } };
 
 /**
  * Seuil « centré » partagé : snap de l'angle à 0 et égalité du hook.
@@ -141,6 +144,27 @@ export const CENTERED_SCREENS = 0.05;
 
 /** Passée à `centerOf` pour un node de premier niveau : rien à résoudre. */
 const NO_PARENTS: Map<string, Node> = new Map();
+
+/**
+ * La carte `id → node` d'un tableau de nodes, mémoïsée par son identité.
+ *
+ * `resolveDeltaPoint` vit dans un sélecteur qui s'exécute à chaque frame de
+ * pan : or un pan ne change que le `transform`, le tableau `state.nodes` garde
+ * son identité — toutes les frames au-delà de la première lisent donc la
+ * carte au lieu de la reconstruire. Quand les nodes changent (un drag remplace
+ * le tableau), elle se reconstruit une fois par identité, et cette construction
+ * est partagée par tous les indicateurs qui lisent le même tableau.
+ */
+const nodesByIdCache = new WeakMap<ReadonlyArray<Node>, Map<string, Node>>();
+
+function byIdOf(nodes: ReadonlyArray<Node>): Map<string, Node> {
+  let byId = nodesByIdCache.get(nodes);
+  if (byId === undefined) {
+    byId = new Map(nodes.map((node) => [node.id, node]));
+    nodesByIdCache.set(nodes, byId);
+  }
+  return byId;
+}
 
 /**
  * Le centre MONDE de la cible. Node introuvable (supprimé) → `null`.
@@ -152,18 +176,43 @@ const NO_PARENTS: Map<string, Node> = new Map();
  * `fitView`, qui lit les positions absolues que React Flow maintient. D'où une
  * flèche qui mentait sur une navigation qui marchait.
  *
- * La carte des parents ne se construit que pour un node en frame : le cas
- * courant reste le seul `find` d'avant.
+ * La carte des parents ne se paie que pour un node en frame, et via `byIdOf`
+ * : le cas courant reste le seul `find` d'avant.
+ *
+ * Une sélection se résout au centre de la boîte qui englobe ses nodes encore
+ * vivants — `null` quand il n'en reste aucun. C'est le point que `fitView`
+ * visera au centre de la vue : cap et distance annoncent donc la navigation
+ * réelle, là où un centroïde fausserait la flèche dès qu'un node est loin du
+ * groupe.
  */
 export function resolveDeltaPoint(
   target: DeltaTarget,
   nodes: ReadonlyArray<Node>,
 ): { x: number; y: number } | null {
+  if ("point" in target) return target.point;
+  if ("nodeIds" in target) {
+    const wanted = new Set(target.nodeIds);
+    const byId = byIdOf(nodes);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let found = false;
+    for (const node of nodes) {
+      if (!wanted.has(node.id)) continue;
+      const point = centerOf(node, byId);
+      if (point.x < minX) minX = point.x;
+      if (point.y < minY) minY = point.y;
+      if (point.x > maxX) maxX = point.x;
+      if (point.y > maxY) maxY = point.y;
+      found = true;
+    }
+    if (!found) return null;
+    return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  }
   const node = nodes.find((n) => n.id === target.nodeId);
   if (!node) return null;
-  const byId = node.parentId
-    ? new Map(nodes.map((n) => [n.id, n]))
-    : NO_PARENTS;
+  const byId = node.parentId ? byIdOf(nodes) : NO_PARENTS;
   return centerOf(node, byId);
 }
 

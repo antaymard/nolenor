@@ -51,6 +51,11 @@ const errors = {
     "This model does not accept reference images. Pick another model, or remove the references.",
   IMAGE_GENERATION_TOO_MANY_REFERENCES:
     "Too many reference images for this model.",
+  BOOKMARK_NOT_FOUND: "This bookmark does not exist.",
+  BOOKMARK_EMPTY_SELECTION: "A bookmark needs at least one node to point at.",
+  BOOKMARK_LABEL_TOO_LONG: "This bookmark name is too long.",
+  BOOKMARKS_MUST_SHARE_CANVAS:
+    "These bookmarks must belong to the same canvas.",
 };
 
 export default errors;

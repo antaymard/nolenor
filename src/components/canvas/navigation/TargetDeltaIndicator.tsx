@@ -4,8 +4,8 @@ import type { DeltaTarget } from "@/lib/canvasViewportFraming";
 import TargetDeltaBadge from "./TargetDeltaBadge";
 
 /**
- * Cap + distance vers un node du canvas, en direct pendant le pan :
- * `TargetDeltaBadge` abonné via `useTargetDelta`.
+ * Cap + distance vers une cible du canvas (node, sélection, ou point monde),
+ * en direct pendant le pan : `TargetDeltaBadge` abonné via `useTargetDelta`.
  *
  * Les re-renders sont bornés aux crans visibles par l'égalité quantifiée du
  * hook. Doit vivre dans un `ReactFlowProvider`.

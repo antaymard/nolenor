@@ -20,6 +20,7 @@ import { aiUsageDailyValidator } from "./schemas/aiUsageDailySchema";
 import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
 import { nodesValidator } from "./schemas/nodesSchema";
 import { edgesValidator } from "./schemas/edgesSchema";
+import { canvasBookmarksValidator } from "./schemas/canvasBookmarksSchema";
 
 const schema = defineSchema({
   ...authTables,
@@ -103,6 +104,15 @@ const schema = defineSchema({
     "by_nodeDataId",
     ["nodeDataId"],
   ),
+
+  // Repères de navigation personnels. `by_userId_and_canvasId` sert la lecture
+  // du panneau, et par préfixe (`eq(userId)` seul) la purge de compte — qui doit
+  // ramasser les repères posés sur les canvases des AUTRES, ceux que la cascade
+  // de suppression de canvas ne verra jamais. `by_canvasId` sert l'inverse : à
+  // la suppression d'un canvas, les repères de tous ses membres.
+  canvasBookmarks: defineTable(canvasBookmarksValidator)
+    .index("by_userId_and_canvasId", ["userId", "canvasId"])
+    .index("by_canvasId", ["canvasId"]),
 
   // ============================================================================
   // SHARES

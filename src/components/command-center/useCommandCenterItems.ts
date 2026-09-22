@@ -1,12 +1,18 @@
 import { useMemo } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useConvexAuth } from "convex/react";
-import { TbLayoutBoard, TbUsers } from "react-icons/tb";
+import { TbBookmark, TbLayoutBoard, TbUsers } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
+import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
+import { useCommandCenterStore } from "@/stores/commandCenterStore";
 import type { CommandItem } from "./commandCenterTypes";
 
+// L'ordre des clés fixe l'ordre des sections. Les repères passent devant les
+// canvases : sur un canvas ouvert, aller quelque part *dedans* est le geste le
+// plus fréquent, et en changer l'exception.
 export const COMMAND_GROUPS = {
+  bookmarks: "Bookmarks",
   canvases: "Canvases",
   sharedCanvases: "Shared with me",
 } as const;
@@ -36,6 +42,17 @@ export function useCommandCenterItems({ enabled }: { enabled: boolean }): {
     enabled: enabled && isAuthenticated,
   });
 
+  // Le pont posé par `CanvasFlow`. `null` = aucun canvas ouvert, donc aucun
+  // repère à proposer — et rien pour y aller, ce composant vivant hors du
+  // `ReactFlowProvider` (cf. `useRegisterCanvasNavigator`).
+  const canvasNavigator = useCommandCenterStore(
+    (state) => state.canvasNavigator,
+  );
+  const { bookmarks } = useCanvasBookmarks({
+    canvasId,
+    enabled: enabled && isAuthenticated && canvasNavigator !== null,
+  });
+
   const items = useMemo<CommandItem[]>(() => {
     const toCommand = (
       canvas: { _id: Id<"canvases">; name: string; description?: string },
@@ -56,7 +73,26 @@ export function useCommandCenterItems({ enabled }: { enabled: boolean }): {
       },
     });
 
+    // Un repère mort (node supprimé) n'est pas proposé : le palette exécute,
+    // il ne montre pas d'état. Le panneau de la toolbar, lui, les garde
+    // visibles pour qu'on puisse les nettoyer.
+    const bookmarkCommands: CommandItem[] =
+      canvasNavigator === null
+        ? []
+        : (bookmarks ?? [])
+            .filter((bookmark) => !bookmark.isDangling)
+            .map((bookmark) => ({
+              id: `bookmark:${bookmark._id}`,
+              label: bookmark.displayLabel,
+              group: COMMAND_GROUPS.bookmarks,
+              icon: TbBookmark,
+              run: () => {
+                canvasNavigator(bookmark.target);
+              },
+            }));
+
     return [
+      ...bookmarkCommands,
       ...ownCanvases.map((canvas) =>
         toCommand(canvas, COMMAND_GROUPS.canvases, TbLayoutBoard),
       ),
@@ -64,7 +100,14 @@ export function useCommandCenterItems({ enabled }: { enabled: boolean }): {
         toCommand(canvas, COMMAND_GROUPS.sharedCanvases, TbUsers),
       ),
     ];
-  }, [ownCanvases, sharedCanvases, canvasId, navigate]);
+  }, [
+    bookmarks,
+    canvasNavigator,
+    ownCanvases,
+    sharedCanvases,
+    canvasId,
+    navigate,
+  ]);
 
   return { items, isLoading };
 }

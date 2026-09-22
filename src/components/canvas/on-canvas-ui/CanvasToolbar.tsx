@@ -1,6 +1,7 @@
 import { Button } from "@/components/shadcn/button";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
+  TbBookmark,
   TbCommand,
   TbFrame,
   TbHandStop,
@@ -18,8 +19,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { useState } from "react";
+import { useConvexAuth } from "convex/react";
 import { useFlowPosition } from "@/hooks/useCanvasPointerPosition";
 import AddBlockMenuContent from "../context-menus/AddBlockMenuContent";
+import BookmarksPanel from "./BookmarksPanel";
 
 export default function CanvasToolbar() {
   const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
@@ -29,6 +32,11 @@ export default function CanvasToolbar() {
   const isCommandCenterOpen = useCommandCenterStore((state) => state.isOpen);
   const toggleCommandCenter = useCommandCenterStore((state) => state.toggle);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isBookmarksOpen, setIsBookmarksOpen] = useState(false);
+  // Les repères pendent à un compte : sans session, le bouton n'ouvrirait
+  // qu'une liste vide qu'on ne pourrait jamais remplir. La toolbar, elle,
+  // est rendue pour tout le monde (un canvas public se visite sans compte).
+  const { isAuthenticated } = useConvexAuth();
   const { getViewportCenter: getViewportCenterPosition } = useFlowPosition();
 
   return (
@@ -108,6 +116,37 @@ export default function CanvasToolbar() {
             />
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Repères de navigation. Le panneau n'est monté que quand il est
+            ouvert : c'est lui qui souscrit à la liste, et un canvas ouvert
+            n'a pas à la lire tant que personne ne la regarde. */}
+        {isAuthenticated && (
+          <DropdownMenu
+            open={isBookmarksOpen}
+            onOpenChange={setIsBookmarksOpen}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant={isBookmarksOpen ? "default" : "ghost"}
+                size="icon"
+                className="h-10 w-10 rounded-lg"
+                aria-label="Open bookmarks"
+                title="Bookmarks: jump to a saved spot"
+              >
+                <TbBookmark size={19} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="top"
+              align="center"
+              sideOffset={12}
+              className="rounded-xl p-0 shadow-xl"
+            >
+              {isBookmarksOpen && (
+                <BookmarksPanel onNavigate={() => setIsBookmarksOpen(false)} />
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {/* <Button variant="ghost" size="icon" className="h-11 w-11">
           <TbUpload size={20} />
         </Button> */}

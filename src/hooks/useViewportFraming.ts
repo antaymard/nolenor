@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useReactFlow, useStore, type ReactFlowState } from "@xyflow/react";
 import {
+  applyFraming,
   captureFraming,
   CENTERED_SCREENS,
   framingFromViewport,
@@ -12,8 +13,8 @@ import {
 } from "@/lib/canvasViewportFraming";
 
 /**
- * Le côté React de `canvasViewportFraming` : capture du cadrage courant, et
- * cap + distance vers une cible.
+ * Le côté React de `canvasViewportFraming` : capture du cadrage courant, retour
+ * à un cadrage enregistré, et cap + distance vers une cible.
  *
  * À appeler à l'intérieur d'un `ReactFlowProvider`.
  */
@@ -22,6 +23,23 @@ import {
 export function useCaptureFraming(): () => ViewportFraming | null {
   const { getViewport } = useReactFlow();
   return useCallback(() => captureFraming(getViewport), [getViewport]);
+}
+
+/**
+ * Ramène la vue sur un cadrage enregistré — la symétrique de
+ * `useCaptureFraming`, pour les repères de navigation et tout ce qui rejoue une
+ * vue capturée ailleurs.
+ */
+export function useApplyFraming(): (
+  framing: ViewportFraming,
+  duration?: number,
+) => void {
+  const { setViewport } = useReactFlow();
+  return useCallback(
+    (framing: ViewportFraming, duration?: number) =>
+      applyFraming(framing, setViewport, duration),
+    [setViewport],
+  );
 }
 
 /**

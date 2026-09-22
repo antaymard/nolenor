@@ -2,6 +2,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { components, internal } from "../_generated/api";
 import { rateLimiter, USER_KEYED_RATE_LIMITS } from "../lib/rateLimits";
+import * as CanvasBookmarkModels from "./canvasBookmarkModels";
 import * as CanvasModels from "./canvasModels";
 import * as SkillModels from "./skillModels";
 
@@ -134,6 +135,17 @@ export async function purgeUserDataStep(
     }
     return true;
   }
+
+  // ── Repères de navigation ───────────────────────────────────────────────
+  // Après les canvases, et c'est l'ordre qui compte : ceux posés sur ses
+  // propres canvases sont déjà partis avec eux (`deleteCanvasAndShares`).
+  // Restent ceux posés sur les canvases d'AUTRUI, que rien d'autre ne
+  // ramasserait — le canvas, lui, survit à la suppression de ce compte.
+  const purgedBookmarks = await CanvasBookmarkModels.deleteForUserBatch(ctx, {
+    userId,
+    limit: PURGE_BATCH_SIZE,
+  });
+  if (purgedBookmarks > 0) return true;
 
   // ── Templates de custom nodes ───────────────────────────────────────────
   const templates = await ctx.db

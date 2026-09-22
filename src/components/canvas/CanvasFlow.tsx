@@ -37,6 +37,8 @@ import { withTouchDragGate } from "./touchDragGate";
 import { markCanvasMoved } from "@/lib/canvasPanGesture";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "@/lib/canvasViewportFraming";
 import { useInitialViewportFromUrl } from "@/hooks/useInitialViewportFromUrl";
+import { useRegisterCanvasNavigator } from "@/hooks/useGoToBookmark";
+import { useSyncBookmarkedNodes } from "@/hooks/useCanvasBookmarks";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
@@ -105,6 +107,14 @@ export default function CanvasFlow({
   // On touch-first devices (phones, tablets like the Boox), dragging on the
   // pane should pan the canvas instead of drawing a selection rectangle.
   const panWithFinger = isTouch || isMobile || isTouchFirst;
+
+  // Publie la navigation du canvas au command palette, qui vit hors du
+  // `ReactFlowProvider` et ne peut donc pas l'obtenir lui-même.
+  useRegisterCanvasNavigator();
+
+  // Alimente la pastille de repère des nodes. Seule souscription aux
+  // bookmarks qui reste ouverte en permanence — cf. `useSyncBookmarkedNodes`.
+  useSyncBookmarkedNodes(canvasId);
 
   // Handle paste events (images, URLs, nodes copiés via Ctrl+C)
   useCanvasPasteHandler({ canEdit });
@@ -397,10 +407,8 @@ export default function CanvasFlow({
   );
 
   // Canvas nodes management
-  const { nodes, handleNodeChange, onNodeDrag, onNodeDragStop } = useCanvasNodes(
-    canvasId,
-    canvasNodes,
-  );
+  const { nodes, handleNodeChange, onNodeDrag, onNodeDragStop } =
+    useCanvasNodes(canvasId, canvasNodes);
 
   // Canvas edges management
   const { edges, setEdges, handleEdgeChange } = useCanvasEdges(
@@ -569,9 +577,7 @@ export default function CanvasFlow({
         id: sourceNode.id,
         position: { ...sourceNode.position },
         width:
-          sourceNode.measured?.width ??
-          sourceNode.width ??
-          FALLBACK_NODE_WIDTH,
+          sourceNode.measured?.width ?? sourceNode.width ?? FALLBACK_NODE_WIDTH,
         height:
           sourceNode.measured?.height ??
           sourceNode.height ??
@@ -628,19 +634,16 @@ export default function CanvasFlow({
       // Persistance différée : le node doit exister côté serveur avant l'edge.
       // Échec du node (toast + rollback déjà gérés par son hook) : on retire
       // l'edge orpheline, sans second toast.
-      void info.nodeSettled.then(
-        () => {
-          const { settled } = createEdge({
-            edgeId,
-            source: sourceRect.id,
-            target: nodeId,
-            sourceHandle,
-            targetHandle,
-          });
-          void settled.catch(removeLocalEdge);
-        },
-        removeLocalEdge,
-      );
+      void info.nodeSettled.then(() => {
+        const { settled } = createEdge({
+          edgeId,
+          source: sourceRect.id,
+          target: nodeId,
+          sourceHandle,
+          targetHandle,
+        });
+        void settled.catch(removeLocalEdge);
+      }, removeLocalEdge);
     },
     [createEdge, getNodes, handleEdgeChange, setEdges],
   );
@@ -682,13 +685,7 @@ export default function CanvasFlow({
         // Le temps d'un tracé de frame, plus rien ne pan : le clic molette
         // déplacerait le monde sous le rectangle en cours.
         panOnDrag={
-          isFrameTool
-            ? false
-            : panWithFinger
-              ? true
-              : isHandTool
-                ? [0, 1]
-                : [1]
+          isFrameTool ? false : panWithFinger ? true : isHandTool ? [0, 1] : [1]
         }
         // Le cas sans `?v=` : tout canvas s'ouvre à l'origine du monde.
         defaultViewport={{
@@ -746,9 +743,7 @@ export default function CanvasFlow({
         onConnect={onConnect}
         // Desktop uniquement : au doigt, le drag sur le pane pan toujours et
         // les viewers (`!canEdit`) ne créent rien.
-        onConnectEnd={
-          !canEdit || panWithFinger ? undefined : handleConnectEnd
-        }
+        onConnectEnd={!canEdit || panWithFinger ? undefined : handleConnectEnd}
         isValidConnection={isValidConnection}
       >
         {backgroundVariant ? (

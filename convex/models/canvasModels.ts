@@ -4,6 +4,7 @@ import type { MutationCtx, QueryCtx } from "../_generated/server";
 import errors from "../config/errorsConfig";
 import { internal } from "../_generated/api";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
+import * as CanvasBookmarkModels from "./canvasBookmarkModels";
 
 type UserCanvasListItem = {
   _id: Id<"canvases">;
@@ -254,6 +255,12 @@ export async function deleteCanvasAndShares(
   for (const edge of edges) {
     await ctx.db.delete(edge._id);
   }
+
+  // Les repères de navigation de TOUS les membres, pas seulement du
+  // propriétaire : un canvas partagé porte les bookmarks de chacun, et eux
+  // n'ont aucun autre chemin de suppression — la purge de compte ne ramasse
+  // que ceux de l'utilisateur qu'elle efface.
+  await CanvasBookmarkModels.deleteForCanvas(ctx, { canvasId });
 
   // const tasks = await ctx.db
   //   .query("tasks")

@@ -15,6 +15,7 @@ import type * as adminNotifications from "../adminNotifications.js";
 import type * as aiUsage from "../aiUsage.js";
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
+import type * as canvasBookmarks from "../canvasBookmarks.js";
 import type * as canvasOps from "../canvasOps.js";
 import type * as canvases from "../canvases.js";
 import type * as config_errorsConfig from "../config/errorsConfig.js";
@@ -124,6 +125,7 @@ import type * as messageMetadata from "../messageMetadata.js";
 import type * as migrations from "../migrations.js";
 import type * as models_accountDeletionModels from "../models/accountDeletionModels.js";
 import type * as models_aiUsageModels from "../models/aiUsageModels.js";
+import type * as models_canvasBookmarkModels from "../models/canvasBookmarkModels.js";
 import type * as models_canvasModels from "../models/canvasModels.js";
 import type * as models_canvasNodeModels from "../models/canvasNodeModels.js";
 import type * as models_edgeModels from "../models/edgeModels.js";
@@ -149,6 +151,7 @@ import type * as schemas_aiUsageEventsSchema from "../schemas/aiUsageEventsSchem
 import type * as schemas_aiUsageSourceSchema from "../schemas/aiUsageSourceSchema.js";
 import type * as schemas_aiUsageTokensSchema from "../schemas/aiUsageTokensSchema.js";
 import type * as schemas_apiTokensSchema from "../schemas/apiTokensSchema.js";
+import type * as schemas_canvasBookmarksSchema from "../schemas/canvasBookmarksSchema.js";
 import type * as schemas_canvasOpsSchema from "../schemas/canvasOpsSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_edgesSchema from "../schemas/edgesSchema.js";
@@ -208,6 +211,7 @@ declare const fullApi: ApiFromModules<{
   aiUsage: typeof aiUsage;
   apiTokens: typeof apiTokens;
   auth: typeof auth;
+  canvasBookmarks: typeof canvasBookmarks;
   canvasOps: typeof canvasOps;
   canvases: typeof canvases;
   "config/errorsConfig": typeof config_errorsConfig;
@@ -317,6 +321,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   "models/accountDeletionModels": typeof models_accountDeletionModels;
   "models/aiUsageModels": typeof models_aiUsageModels;
+  "models/canvasBookmarkModels": typeof models_canvasBookmarkModels;
   "models/canvasModels": typeof models_canvasModels;
   "models/canvasNodeModels": typeof models_canvasNodeModels;
   "models/edgeModels": typeof models_edgeModels;
@@ -342,6 +347,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/aiUsageSourceSchema": typeof schemas_aiUsageSourceSchema;
   "schemas/aiUsageTokensSchema": typeof schemas_aiUsageTokensSchema;
   "schemas/apiTokensSchema": typeof schemas_apiTokensSchema;
+  "schemas/canvasBookmarksSchema": typeof schemas_canvasBookmarksSchema;
   "schemas/canvasOpsSchema": typeof schemas_canvasOpsSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/edgesSchema": typeof schemas_edgesSchema;

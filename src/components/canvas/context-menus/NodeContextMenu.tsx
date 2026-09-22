@@ -28,6 +28,7 @@ import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 import { HiOutlineTrash } from "react-icons/hi";
 import {
   TbArrowLeftFromArc,
+  TbBookmark,
   TbCheck,
   TbCopyPlus,
   TbLayoutBoardSplit,
@@ -47,6 +48,8 @@ import type { IconType } from "react-icons";
 import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
 import { createPortal } from "react-dom";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
+import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
+import { useCanvasStore } from "@/stores/canvasStore";
 
 type NodeSubMenuItem = {
   label: string;
@@ -76,6 +79,14 @@ export default function NodeContextMenu({
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const { updateNode, getNodes } = useReactFlow();
   const { deleteCanvasElements } = useDeleteCanvasElements();
+  const canvasId = useCanvasStore((state) => state.canvas?._id);
+  // `enabled: false` : poser un repère n'a pas besoin de lire la liste, et ce
+  // menu se monte à chaque clic droit — on ne veut pas ouvrir une
+  // souscription de plus à chaque fois.
+  const { create: createBookmark, canBookmark } = useCanvasBookmarks({
+    canvasId,
+    enabled: false,
+  });
   const { duplicateNode, duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
@@ -247,6 +258,18 @@ export default function NodeContextMenu({
       shortcutHint: <Kbd>Alt + clic</Kbd>,
       onClick: () => {
         handleAttachToNole();
+      },
+    },
+    {
+      // Le repère suit le node, frame comprise : rien à masquer par type — la
+      // seule condition est d'avoir un compte à qui le rattacher.
+      // Pas de shortcutHint : un bookmark se pose rarement, et les raccourcis
+      // du canvas sont déjà denses.
+      hidden: !canBookmark,
+      label: "Bookmark",
+      icon: TbBookmark,
+      onClick: () => {
+        void createBookmark({ kind: "node", nodeId: xyNode.id });
       },
     },
     {

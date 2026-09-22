@@ -106,7 +106,7 @@ function NodeFrame({
           <TbBookmarkFilled
             size={14}
             aria-hidden
-            className="pointer-events-none absolute -top-1 -right-1 z-10 text-amber-500 drop-shadow-[0_1px_1px_rgba(15,23,42,0.35)]"
+            className="pointer-events-none absolute -top-0.75 right-2 z-10 text-amber-500 "
           />
         )}
 

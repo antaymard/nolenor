@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useReactFlow } from "@xyflow/react";
 import {
   DndContext,
   PointerSensor,
@@ -7,6 +8,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   SortableContext,
   arrayMove,
@@ -36,13 +38,24 @@ import { useGoToBookmark } from "@/hooks/useGoToBookmark";
 import type { DeltaTarget } from "@/lib/canvasViewportFraming";
 import TargetDeltaIndicator from "@/components/canvas/navigation/TargetDeltaIndicator";
 import { useCanvasStore } from "@/stores/canvasStore";
-import { cn } from "@/lib/utils";
+import { useWindowsStore } from "@/stores/windowsStore";
+import type { NodeType } from "@/types/domain/nodeTypes";
+import DockList from "./DockList";
+import { rowEnterProps } from "./dockRowEnter";
+import DockRow from "./DockRow";
+
+/**
+ * Verrou d'axe du drag, en constante de module : un littéral passé à
+ * `modifiers` est un tableau neuf à chaque rendu, que dnd-kit relit à chaque
+ * frame de déplacement (même raison que `COLUMN_MODIFIERS` dans `Table.tsx`).
+ */
+const LIST_MODIFIERS = [restrictToVerticalAxis];
 
 /**
  * La cible de l'indicateur de cap pour un repère : `node` et `selection`
  * suivent leurs nodes (positions absolues, frame comprise), `framing` est un
- * point figé. `null` quand le repère est mort (node supprimé) : le bouton
- * go-to est désactivé de toute façon.
+ * point figé. `null` quand le repère est mort (node supprimé) : la ligne ne
+ * navigue plus de toute façon.
  *
  * `useMemo` et pas d'objet inline : `useTargetDelta` compare sa cible par
  * `Object.is` dans le sélecteur, un littéral frais re-rendrait à chaque frame.
@@ -78,11 +91,13 @@ function targetIcon(bookmark: ResolvedBookmark): IconType {
 
 function SortableBookmarkRow({
   bookmark,
+  onOpen,
   onGoTo,
   onRename,
   onRemove,
 }: {
   bookmark: ResolvedBookmark;
+  onOpen: (bookmark: ResolvedBookmark) => void;
   onGoTo: (bookmark: ResolvedBookmark) => void;
   onRename: (bookmarkId: Id<"canvasBookmarks">, label: string) => void;
   onRemove: (bookmarkId: Id<"canvasBookmarks">) => void;
@@ -97,9 +112,7 @@ function SortableBookmarkRow({
   } = useSortable({ id: bookmark._id });
   const [draft, setDraft] = useState<string | null>(null);
 
-  const Icon = targetIcon(bookmark);
   const deltaTarget = useBookmarkDeltaTarget(bookmark);
-  const isEditing = draft !== null;
 
   function commitRename() {
     if (draft === null) return;
@@ -112,10 +125,6 @@ function SortableBookmarkRow({
     setDraft(null);
   }
 
-  function startRename() {
-    if (draft === null) setDraft(bookmark.displayLabel);
-  }
-
   return (
     <div
       ref={setNodeRef}
@@ -124,123 +133,93 @@ function SortableBookmarkRow({
         transition,
         opacity: isDragging ? 0.5 : 1,
       }}
-      className="flex items-center gap-1.5 rounded-md px-1.5 py-1.5 hover:bg-accent"
     >
-      <button
-        type="button"
-        className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
-        aria-label="Reorder bookmark"
-        {...attributes}
-        {...listeners}
-      >
-        <TbGripVertical size={14} />
-      </button>
-
-      <Icon
-        size={15}
-        className={cn(
-          "shrink-0 text-muted-foreground",
-          bookmark.isDangling && "opacity-50",
-        )}
-      />
-
-      {isEditing ? (
-        <input
-          autoFocus
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commitRename}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") commitRename();
-            if (event.key === "Escape") setDraft(null);
-          }}
-          onFocus={(event) => event.target.select()}
-          maxLength={MAX_BOOKMARK_LABEL_LENGTH}
-          className="min-w-0 flex-1 rounded bg-background px-1 text-sm outline-none ring-1 ring-primary"
-        />
-      ) : (
-        <button
-          type="button"
-          // Le libellé entier est la cible du « go to » : viser la flèche seule
-          // ferait d'une liste de raccourcis une liste de boutons minuscules.
-          // Un repère mort reste affiché pour être renommé/supprimé via le
-          // crayon et la corbeille, mais ne navigue plus — d'où le `disabled`
-          // sur le libellé et la flèche, sans bloquer le rename.
-          disabled={bookmark.isDangling}
-          onClick={() => onGoTo(bookmark)}
-          onDoubleClick={startRename}
-          className={cn(
-            "min-w-0 flex-1 truncate text-left text-sm",
-            bookmark.isDangling &&
-              "cursor-default italic text-muted-foreground",
-          )}
-          title={
-            bookmark.isDangling
-              ? "This target is no longer on the canvas"
-              : bookmark.displayLabel
-          }
-        >
-          {bookmark.displayLabel}
-        </button>
-      )}
-
-      <TargetDeltaIndicator target={deltaTarget} />
-      <button
-        type="button"
+      <DockRow
+        icon={targetIcon(bookmark)}
+        label={bookmark.displayLabel}
+        title={
+          bookmark.isDangling
+            ? "This target is no longer on the canvas"
+            : bookmark.displayLabel
+        }
+        muted={bookmark.isDangling}
         disabled={bookmark.isDangling}
-        onClick={() => onGoTo(bookmark)}
-        aria-label="Go to bookmark"
-        title="Go to"
-        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-      >
-        <TbLocation size={15} />
-      </button>
-      {/* Le crayon plutôt que le seul double-clic : le rename existe depuis
-          toujours, mais rien ne le disait. Il reste actif sur un repère mort :
-          renommer est la seule chose utile qu'on puisse encore lui faire avec
-          le supprimer. */}
-      <button
-        type="button"
-        onClick={startRename}
-        aria-label="Rename bookmark"
-        title="Rename"
-        className="text-muted-foreground hover:text-foreground"
-      >
-        <TbPencil size={15} />
-      </button>
-      <button
-        type="button"
-        onClick={() => onRemove(bookmark._id)}
-        aria-label="Delete bookmark"
-        title="Delete"
-        className="text-muted-foreground hover:text-destructive"
-      >
-        <HiOutlineTrash size={15} />
-      </button>
+        dragHandle={
+          <button
+            type="button"
+            className="flex h-9 w-5 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground hover:text-foreground"
+            aria-label="Reorder bookmark"
+            {...attributes}
+            {...listeners}
+          >
+            <TbGripVertical size={14} />
+          </button>
+        }
+        trailing={<TargetDeltaIndicator target={deltaTarget} />}
+        onClick={() => onOpen(bookmark)}
+        editor={
+          draft === null ? undefined : (
+            <input
+              autoFocus
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") commitRename();
+                if (event.key === "Escape") setDraft(null);
+              }}
+              onFocus={(event) => event.target.select()}
+              maxLength={MAX_BOOKMARK_LABEL_LENGTH}
+              className="h-9 min-w-0 flex-1 rounded-md bg-background px-2 text-sm outline-none ring-1 ring-primary"
+            />
+          )
+        }
+        actions={[
+          {
+            icon: TbLocation,
+            label: "Go to",
+            disabled: bookmark.isDangling,
+            onClick: () => onGoTo(bookmark),
+          },
+          {
+            // Reste actif sur un repère mort : renommer est, avec supprimer,
+            // la seule chose utile qu'on puisse encore lui faire.
+            icon: TbPencil,
+            label: "Rename",
+            onClick: () => setDraft(bookmark.displayLabel),
+          },
+          {
+            icon: HiOutlineTrash,
+            label: "Delete",
+            destructive: true,
+            onClick: () => onRemove(bookmark._id),
+          },
+        ]}
+      />
     </div>
   );
 }
 
 /**
- * La liste des repères du canvas courant, rendue dans le dropdown de la
- * `CanvasToolbar`.
+ * La liste des repères du canvas, telle que la déplie le dock.
  *
- * Monté seulement quand le panneau est ouvert (cf. `CanvasToolbar`) : c'est ce
- * qui tient la promesse du `enabled` de `useCanvasBookmarks` — aucune
- * souscription tant que personne ne regarde.
+ * Seule des deux listes du dock à être réordonnable : son ordre est enregistré
+ * côté serveur (`api.canvasBookmarks.reorder`), d'où la poignée de drag — et
+ * d'où son absence en face, où l'ordre ne survit pas au rechargement.
  */
-export default function BookmarksPanel({
-  onNavigate,
-}: {
-  /** Referme le dropdown une fois la navigation lancée. */
-  onNavigate: () => void;
-}) {
+export default function DockBookmarksList() {
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   const { bookmarks, isLoading, rename, reorder, remove } = useCanvasBookmarks({
     canvasId,
   });
   const goToBookmark = useGoToBookmark();
-  const sensors = useSensors(useSensor(PointerSensor));
+  const openWindow = useWindowsStore((state) => state.openWindow);
+  const { getNode } = useReactFlow();
+  // Seuil d'activation : le corps de la ligne est cliquable, sans lui dnd-kit
+  // avalerait le clic « ouvrir ».
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
 
   // Ordre local pendant le drag : la mutation part en même temps, mais la
   // liste doit se réordonner sous le doigt sans attendre l'aller-retour.
@@ -287,49 +266,70 @@ export default function BookmarksPanel({
     void reorder({ orderedIds });
   }
 
-  if (isLoading) {
-    return (
-      <p className="px-2 py-3 text-center text-sm text-muted-foreground">
-        Loading…
-      </p>
-    );
-  }
-
-  if (order.length === 0) {
-    return (
-      <p className="max-w-64 px-2 py-3 text-center text-sm text-muted-foreground">
-        No bookmarks. Right-click a node, a selection, or the canvas to add
-        one.
-      </p>
-    );
+  /**
+   * Le clic sur une ligne ouvre le node en window, et retombe sur la
+   * navigation canvas quand il n'y a pas de window à ouvrir : `openWindow`
+   * tranche lui-même (il rend `false` pour un type sans window) et les repères
+   * `framing`/`selection` ne visent de toute façon aucun node unique.
+   *
+   * Même repli que les pastilles de mention et les liens du side panel.
+   */
+  function handleOpen(bookmark: ResolvedBookmark) {
+    const { target } = bookmark;
+    if (target.kind === "node") {
+      const node = getNode(target.nodeId);
+      const nodeDataId = node?.data?.nodeDataId as Id<"nodeDatas"> | undefined;
+      if (node?.type && nodeDataId) {
+        const opened = openWindow({
+          xyNodeId: node.id,
+          nodeDataId,
+          nodeType: node.type as NodeType,
+        });
+        if (opened) return;
+      }
+    }
+    goToBookmark(target);
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
+    <DockList
+      title="Bookmarks"
+      count={order.length > 0 ? order.length : undefined}
+      isEmpty={!isLoading && order.length === 0}
+      emptyLabel={
+        isLoading
+          ? "Loading…"
+          : "No bookmarks yet. Right-click a node, a selection or the canvas to add one."
+      }
     >
-      <SortableContext
-        items={order.map((item) => item._id)}
-        strategy={verticalListSortingStrategy}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={LIST_MODIFIERS}
+        onDragEnd={handleDragEnd}
       >
-        <div className="flex max-h-80 w-80 flex-col gap-0.5 overflow-y-auto p-1">
-          {order.map((bookmark) => (
-            <SortableBookmarkRow
-              key={bookmark._id}
-              bookmark={bookmark}
-              onGoTo={(item) => {
-                if (goToBookmark(item.target)) onNavigate();
-              }}
-              onRename={(bookmarkId, label) =>
-                void rename({ bookmarkId, label: label === "" ? null : label })
-              }
-              onRemove={(bookmarkId) => void remove({ bookmarkId })}
-            />
+        <SortableContext
+          items={order.map((item) => item._id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {order.map((bookmark, index) => (
+            <div key={bookmark._id} {...rowEnterProps(index)}>
+              <SortableBookmarkRow
+                bookmark={bookmark}
+                onOpen={handleOpen}
+                onGoTo={(item) => void goToBookmark(item.target)}
+                onRename={(bookmarkId, label) =>
+                  void rename({
+                    bookmarkId,
+                    label: label === "" ? null : label,
+                  })
+                }
+                onRemove={(bookmarkId) => void remove({ bookmarkId })}
+              />
+            </div>
           ))}
-        </div>
-      </SortableContext>
-    </DndContext>
+        </SortableContext>
+      </DndContext>
+    </DockList>
   );
 }

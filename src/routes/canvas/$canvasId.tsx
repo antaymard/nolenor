@@ -13,7 +13,7 @@ import { useCanvasBootstrap } from "@/hooks/useCanvasBootstrap";
 import { Spinner } from "@/components/shadcn/spinner";
 import NoleCanvasPanel from "@/components/canvas/NoleCanvasPanel";
 import ActivityDock from "@/components/canvas/on-canvas-ui/ActivityDock";
-import MinimizedWindowsStack from "@/components/windows/MinimizedWindowsStack";
+import CanvasDock from "@/components/canvas/on-canvas-ui/canvas-dock/CanvasDock";
 import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
 import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
 import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanner";
@@ -161,8 +161,10 @@ function CanvasContent({
                 <ActivityDock canvasId={canvasId} />
               </div>
             </Panel>
+            {/* Repères et windows minimisées partagent le coin : deux boutons,
+                une seule liste dépliée à la fois (cf. `CanvasDock`). */}
             <Panel position="bottom-right">
-              <MinimizedWindowsStack />
+              <CanvasDock />
             </Panel>
           </>
         ) : (

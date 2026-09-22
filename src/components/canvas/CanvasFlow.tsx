@@ -696,10 +696,28 @@ export default function CanvasFlow({
         minZoom={CANVAS_MIN_ZOOM}
         maxZoom={CANVAS_MAX_ZOOM}
         selectNodesOnDrag={false}
-        // Sans ça React Flow ajoute +1000 au z d'un node sélectionné : le
-        // "send to back" ne se verrait pas tant que le node reste sélectionné.
-        // La sélection reste signalée par le ring de NodeFrame, qui ne dépend
-        // pas du z. Cf. l'override de .react-flow__node-toolbar dans index.css.
+        // Le plan du canvas est décidé ici et nulle part ailleurs : un node ou
+        // une edge est peint au `zIndex` qu'on lui donne, point.
+        //
+        // Le défaut (`basic`) ne touche pas au z des nodes, mais il hisse une
+        // edge au z du plus haut de ses deux extrémités dès que l'une d'elles a
+        // un parent — donc dès qu'elle touche le contenu d'une frame
+        // (`getElevatedEdgeZIndex`, @xyflow/system). Une edge entre deux nodes
+        // d'une frame passait ainsi au-dessus de zéro, et de là devant tout ce
+        // qui n'a pas de z-index : au premier chef le calque des labels
+        // (`EdgeLabelRenderer` rend dans `.react-flow__edgelabel-renderer`, un
+        // div sans z-index), d'où l'edge peinte devant son propre label. Elle
+        // passait aussi devant les nodes du canvas, alors qu'une edge est censée
+        // rester dessous. `manual` rend son `zIndex` tel quel — absent, donc 0,
+        // exactement ce que recevait déjà une edge entre deux nodes racine.
+        //
+        // Même mode qui reprend ce que faisait `elevateNodesOnSelect={false}`,
+        // gardé ci-dessous pour rester explicite : pas de +1000 au z d'un node
+        // sélectionné, sinon le "send to back" ne se verrait pas tant que le
+        // node reste sélectionné. La sélection reste signalée par le ring de
+        // NodeFrame, qui ne dépend pas du z. Cf. l'override de
+        // .react-flow__node-toolbar dans index.css.
+        zIndexMode="manual"
         elevateNodesOnSelect={false}
         selectionMode={SelectionMode.Partial}
         // Pendant un tracé de frame comme en mode main, le lasso et le drag des

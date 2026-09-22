@@ -12,6 +12,11 @@ import { frameZIndexBelow } from "@/../convex/lib/nodeLayering";
  * renumérotés `0..n-1`. C'est borné (pas de dérive d'entiers au fil des
  * "premier plan" successifs), auto-réparateur, et ça n'émet jamais de valeur
  * négative — un node à z négatif passerait sous les edges, qui sont à 0.
+ *
+ * Les edges sont à 0 parce qu'elles n'ont pas de `zIndex` et que `<ReactFlow>`
+ * tourne en `zIndexMode="manual"` (cf. `CanvasFlow`) : sans ce mode, React Flow
+ * hisse toute edge qui touche le contenu d'une frame au z de ses extrémités, et
+ * la bande ci-dessous ne veut plus rien dire dès qu'une frame entre en jeu.
  */
 
 export type LayerCommand = "front" | "forward" | "backward" | "back";

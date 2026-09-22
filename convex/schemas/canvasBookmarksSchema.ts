@@ -42,6 +42,21 @@ const bookmarkTargetValidator = v.union(
 
 // ── Main validator ──────────────────────────────────────────────────────
 
+// Un libellé affiché en `truncate` sur une ligne : un pavé n'y aurait aucun
+// sens, et le même plafond est appliqué côté serveur (cf. `canvasBookmarks`).
+const MAX_BOOKMARK_LABEL_LENGTH = 80;
+
+/**
+ * Plafond de nodes visés par un repère `selection`.
+ *
+ * Un lasso ramasse vite quelques centaines de nodes, et un repère qui vise tout
+ * le canvas ne repère plus rien. La borne protège aussi le document : c'est le
+ * seul champ de la table dont la taille dépend de ce que fait l'utilisateur.
+ * Vit ici — et non dans le models — pour rester importable côté client, qui en
+ * a besoin pour rogner la sélection AVANT de l'annoncer (cf. `useBookmarkNameDialog`).
+ */
+const MAX_SELECTION_NODE_IDS = 100;
+
 const canvasBookmarksValidator = v.object({
   userId: v.id("users"),
   canvasId: v.id("canvases"),
@@ -69,6 +84,8 @@ type BookmarkTarget = Infer<typeof bookmarkTargetValidator>;
 type BookmarkFraming = Infer<typeof bookmarkFramingValidator>;
 
 export {
+  MAX_BOOKMARK_LABEL_LENGTH,
+  MAX_SELECTION_NODE_IDS,
   bookmarkFramingValidator,
   bookmarkTargetValidator,
   canvasBookmarksValidator,

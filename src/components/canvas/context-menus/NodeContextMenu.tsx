@@ -255,7 +255,7 @@ export default function NodeContextMenu({
       hidden: attachTargets.length === 0,
       label: allAttachTargetsAttached ? "Detach from Nolë" : "Attach to Nolë",
       icon: allAttachTargetsAttached ? TbUnlink : TbPaperclip,
-      shortcutHint: <Kbd>Alt + clic</Kbd>,
+      shortcutHint: <Kbd>Alt + click</Kbd>,
       onClick: () => {
         handleAttachToNole();
       },

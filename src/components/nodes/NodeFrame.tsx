@@ -7,7 +7,7 @@ import NodeHandles from "./NodeHandles";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
-import { TbBookmarkFilled } from "react-icons/tb";
+import BookmarkedBadge from "./BookmarkedBadge";
 
 function NodeFrame({
   xyNode,
@@ -99,16 +99,9 @@ function NodeFrame({
         onDoubleClick={handleDoubleClick}
       >
         {/* Pastille de repère. Sur la racine et pas dans le conteneur interne,
-            qui porte `overflow-hidden` : elle déborde volontairement du coin.
-            `pointer-events-none` — elle informe, elle ne se clique pas ; le
-            repère se gère depuis le panneau de la toolbar. */}
-        {isBookmarked && (
-          <TbBookmarkFilled
-            size={14}
-            aria-hidden
-            className="pointer-events-none absolute -top-0.75 right-2 z-10 text-amber-500 "
-          />
-        )}
+            qui porte `overflow-hidden` : elle déborde volontairement du coin
+            (cf. `BookmarkedBadge`). */}
+        {isBookmarked && <BookmarkedBadge />}
 
         {/* `content-visibility: auto` : le navigateur saute le layout et le
             paint du contenu tant que le node est hors écran, ce qui borne le

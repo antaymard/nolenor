@@ -147,6 +147,7 @@ export default function CanvasToolbar() {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+        <Separator orientation="vertical" className="mx-1 h-6!" />
         {/* <Button variant="ghost" size="icon" className="h-11 w-11">
           <TbUpload size={20} />
         </Button> */}

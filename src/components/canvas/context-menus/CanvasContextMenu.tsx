@@ -6,6 +6,8 @@ import {
   DropdownMenuSeparator,
 } from "@/components/shadcn/dropdown-menu";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
+import { useCaptureFraming } from "@/hooks/useViewportFraming";
+import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
   isPendingCanvasConnectionElement,
@@ -26,11 +28,15 @@ export default function ContextMenu({
   onConnectionNodeCreated?: (info: ConnectedNodeCreatedInfo) => void;
 }) {
   const { x: canvasX, y: canvasY, zoom: canvasZoom } = useViewport();
+  const captureFraming = useCaptureFraming();
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   const { create: createBookmark, canBookmark } = useCanvasBookmarks({
     canvasId,
     enabled: false,
   });
+  const { startBookmark, dialog: bookmarkNameDialog } = useBookmarkNameDialog(
+    createBookmark,
+  );
 
   const pendingConnection =
     element && isPendingCanvasConnectionElement(element) ? element : null;
@@ -51,12 +57,12 @@ export default function ContextMenu({
         onConnectionNodeCreated={onConnectionNodeCreated}
       />
 
-      {/* Repère de position. Masqué quand le menu naît d'un drag d'edge lâché
+      {/* Repère de cadrage. Masqué quand le menu naît d'un drag d'edge lâché
           dans le vide : ce geste-là demande un node à relier, pas un signet.
 
-          Le point cliqué sert de centre, et non le centre de la vue : c'est
-          l'endroit que l'utilisateur a désigné. Le zoom, lui, est celui du
-          moment — un repère enregistre un cadrage, pas seulement un point.
+          Il capture le cadrage courant — centre de la vue et zoom du moment —
+          et non le point cliqué : c'est la vue telle qu'on la voit qui est
+          rejouée à la navigation (cf. `captureFraming` / `applyFraming`).
 
           Contrairement aux deux autres menus, ce repère est FIGÉ dans le
           monde : il ne suit rien, puisqu'il ne vise rien. */}
@@ -66,22 +72,20 @@ export default function ContextMenu({
           <DropdownMenuItem
             className="whitespace-nowrap"
             onClick={() => {
-              void createBookmark({
-                kind: "framing",
-                framing: {
-                  cx: newNodePosition.x,
-                  cy: newNodePosition.y,
-                  zoom: canvasZoom,
-                },
-              });
+              const framing = captureFraming();
               closeMenu();
+              if (framing) {
+                startBookmark({ kind: "framing", framing });
+              }
             }}
           >
             <TbBookmark />
-            Bookmark this position
+            Bookmark here
           </DropdownMenuItem>
         </>
       )}
+
+      {bookmarkNameDialog}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -16,28 +16,72 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { HiOutlineTrash } from "react-icons/hi";
 import {
-  TbArrowRight,
   TbFocusCentered,
   TbGripVertical,
+  TbLocation,
+  TbPencil,
   TbSquare,
   TbSquares,
 } from "react-icons/tb";
 import type { IconType } from "react-icons";
 import type { Id } from "@/../convex/_generated/dataModel";
-import type { BookmarkTarget } from "@/../convex/schemas/canvasBookmarksSchema";
+import { MAX_BOOKMARK_LABEL_LENGTH } from "@/../convex/schemas/canvasBookmarksSchema";
+import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
+import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import {
   useCanvasBookmarks,
   type ResolvedBookmark,
 } from "@/hooks/useCanvasBookmarks";
 import { useGoToBookmark } from "@/hooks/useGoToBookmark";
+import type { DeltaTarget } from "@/lib/canvasViewportFraming";
+import TargetDeltaIndicator from "@/components/canvas/navigation/TargetDeltaIndicator";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
 
+/**
+ * La cible de l'indicateur de cap pour un repère : `node` et `selection`
+ * suivent leurs nodes (positions absolues, frame comprise), `framing` est un
+ * point figé. `null` quand le repère est mort (node supprimé) : le bouton
+ * go-to est désactivé de toute façon.
+ *
+ * `useMemo` et pas d'objet inline : `useTargetDelta` compare sa cible par
+ * `Object.is` dans le sélecteur, un littéral frais re-rendrait à chaque frame.
+ */
+function useBookmarkDeltaTarget(
+  bookmark: ResolvedBookmark,
+): DeltaTarget | null {
+  const kind = bookmark.target.kind;
+  const nodeId =
+    bookmark.target.kind === "node" ? bookmark.target.nodeId : undefined;
+  const nodeIds =
+    bookmark.target.kind === "selection" ? bookmark.target.nodeIds : undefined;
+  const framing =
+    bookmark.target.kind === "framing" ? bookmark.target.framing : undefined;
+  return useMemo<DeltaTarget | null>(() => {
+    if (kind === "node") {
+      if (bookmark.isDangling) return null;
+      return { nodeId: nodeId as string };
+    }
+    if (kind === "selection") {
+      if (bookmark.isDangling) return null;
+      return { nodeIds: nodeIds as readonly string[] };
+    }
+    return { point: { x: (framing as { cx: number }).cx, y: (framing as { cy: number }).cy } };
+  }, [kind, nodeId, nodeIds, framing, bookmark.isDangling]);
+}
+
 /** Dit d'un coup d'œil ce que vise le repère, et donc s'il suivra ou non. */
-function targetIcon(target: BookmarkTarget): IconType {
-  if (target.kind === "node") return TbSquare;
-  if (target.kind === "selection") return TbSquares;
-  return TbFocusCentered;
+function targetIcon(bookmark: ResolvedBookmark): IconType {
+  if (bookmark.target.kind === "selection") return TbSquares;
+  if (bookmark.target.kind === "framing") return TbFocusCentered;
+  // kind === "node" : l'icône du node bookmarké, custom nodes compris.
+  // Repli sur le carré historique quand le node a disparu.
+  if (bookmark.nodeType === "custom")
+    return getTemplateIcon(bookmark.templateIconName);
+  return (
+    (bookmark.nodeType ? NODE_TYPE_ICON_MAP[bookmark.nodeType] : undefined) ??
+    TbSquare
+  );
 }
 
 function SortableBookmarkRow({
@@ -61,7 +105,8 @@ function SortableBookmarkRow({
   } = useSortable({ id: bookmark._id });
   const [draft, setDraft] = useState<string | null>(null);
 
-  const Icon = targetIcon(bookmark.target);
+  const Icon = targetIcon(bookmark);
+  const deltaTarget = useBookmarkDeltaTarget(bookmark);
   const isEditing = draft !== null;
 
   function commitRename() {
@@ -75,6 +120,10 @@ function SortableBookmarkRow({
     setDraft(null);
   }
 
+  function startRename() {
+    if (draft === null) setDraft(bookmark.displayLabel);
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -83,7 +132,7 @@ function SortableBookmarkRow({
         transition,
         opacity: isDragging ? 0.5 : 1,
       }}
-      className="flex items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-accent"
+      className="flex items-center gap-1.5 rounded-md px-1.5 py-1.5 hover:bg-accent"
     >
       <button
         type="button"
@@ -113,6 +162,8 @@ function SortableBookmarkRow({
             if (event.key === "Enter") commitRename();
             if (event.key === "Escape") setDraft(null);
           }}
+          onFocus={(event) => event.target.select()}
+          maxLength={MAX_BOOKMARK_LABEL_LENGTH}
           className="min-w-0 flex-1 rounded bg-background px-1 text-sm outline-none ring-1 ring-primary"
         />
       ) : (
@@ -120,11 +171,12 @@ function SortableBookmarkRow({
           type="button"
           // Le libellé entier est la cible du « go to » : viser la flèche seule
           // ferait d'une liste de raccourcis une liste de boutons minuscules.
-          // Un repère mort reste cliquable pour être renommé/supprimé, mais ne
-          // navigue plus — d'où le `disabled` sur la seule navigation.
+          // Un repère mort reste affiché pour être renommé/supprimé via le
+          // crayon et la corbeille, mais ne navigue plus — d'où le `disabled`
+          // sur le libellé et la flèche, sans bloquer le rename.
           disabled={bookmark.isDangling}
           onClick={() => onGoTo(bookmark)}
-          onDoubleClick={() => setDraft(bookmark.displayLabel)}
+          onDoubleClick={startRename}
           className={cn(
             "min-w-0 flex-1 truncate text-left text-sm",
             bookmark.isDangling &&
@@ -132,7 +184,7 @@ function SortableBookmarkRow({
           )}
           title={
             bookmark.isDangling
-              ? "Cette cible n'est plus sur le canvas"
+              ? "This target is no longer on the canvas"
               : bookmark.displayLabel
           }
         >
@@ -140,6 +192,7 @@ function SortableBookmarkRow({
         </button>
       )}
 
+      <TargetDeltaIndicator target={deltaTarget} />
       <button
         type="button"
         disabled={bookmark.isDangling}
@@ -148,7 +201,20 @@ function SortableBookmarkRow({
         title="Go to"
         className="text-muted-foreground hover:text-foreground disabled:opacity-30"
       >
-        <TbArrowRight size={15} />
+        <TbLocation size={15} />
+      </button>
+      {/* Le crayon plutôt que le seul double-clic : le rename existe depuis
+          toujours, mais rien ne le disait. Il reste actif sur un repère mort :
+          renommer est la seule chose utile qu'on puisse encore lui faire avec
+          le supprimer. */}
+      <button
+        type="button"
+        onClick={startRename}
+        aria-label="Rename bookmark"
+        title="Rename"
+        className="text-muted-foreground hover:text-foreground"
+      >
+        <TbPencil size={15} />
       </button>
       <button
         type="button"
@@ -232,7 +298,7 @@ export default function BookmarksPanel({
   if (isLoading) {
     return (
       <p className="px-2 py-3 text-center text-sm text-muted-foreground">
-        Chargement…
+        Loading…
       </p>
     );
   }
@@ -240,8 +306,8 @@ export default function BookmarksPanel({
   if (order.length === 0) {
     return (
       <p className="max-w-64 px-2 py-3 text-center text-sm text-muted-foreground">
-        Aucun repère. Clic droit sur un node, une sélection ou le canvas pour en
-        poser un.
+        No bookmarks. Right-click a node, a selection, or the canvas to add
+        one.
       </p>
     );
   }
@@ -256,7 +322,7 @@ export default function BookmarksPanel({
         items={order.map((item) => item._id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="flex max-h-80 w-72 flex-col gap-0.5 overflow-y-auto p-1">
+        <div className="flex max-h-80 w-80 flex-col gap-0.5 overflow-y-auto p-1">
           {order.map((bookmark) => (
             <SortableBookmarkRow
               key={bookmark._id}

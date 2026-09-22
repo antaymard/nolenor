@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -11,6 +11,7 @@ import {
 import { Kbd } from "@/components/shadcn/kbd";
 import { useReactFlow, type Node } from "@xyflow/react";
 import { useMutation } from "convex/react";
+import { createPortal } from "react-dom";
 
 import { HiOutlineTrash } from "react-icons/hi";
 import {
@@ -42,6 +43,7 @@ import { getNodeDataId } from "@/lib/nodeIdentity";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useCanvasStore } from "@/stores/canvasStore";
+import BookmarkNameDialog from "./BookmarkNameDialog";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -59,6 +61,11 @@ export default function SelectionContextMenu({
     canvasId,
     enabled: false,
   });
+  // Ids figés au clic : la sélection React Flow peut changer pendant que le
+  // dialogue de nommage est ouvert, le repère doit viser ce qu'on visait.
+  const [pendingNodeIds, setPendingNodeIds] = useState<Array<string> | null>(
+    null,
+  );
   const { duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
@@ -346,7 +353,7 @@ export default function SelectionContextMenu({
           {allAttachTargetsAttached ? <TbUnlink /> : <TbPaperclip />}
           {allAttachTargetsAttached ? "Detach from Nolë" : "Attach to Nolë"}
           <DropdownMenuShortcut className="flex items-center gap-1">
-            <Kbd>Alt + clic</Kbd>
+            <Kbd>Alt + click</Kbd>
           </DropdownMenuShortcut>
         </DropdownMenuItem>
       )}
@@ -358,10 +365,7 @@ export default function SelectionContextMenu({
         <DropdownMenuItem
           className="whitespace-nowrap"
           onClick={() => {
-            void createBookmark({
-              kind: "selection",
-              nodeIds: elementsArray.map((node) => node.id),
-            });
+            setPendingNodeIds(elementsArray.map((node) => node.id));
             closeMenu();
           }}
         >
@@ -399,6 +403,28 @@ export default function SelectionContextMenu({
         <HiOutlineTrash />
         Delete
       </DropdownMenuItem>
+
+      {createPortal(
+        <BookmarkNameDialog
+          open={pendingNodeIds !== null}
+          onOpenChange={(open) => {
+            if (!open) setPendingNodeIds(null);
+          }}
+          title="Bookmark this selection"
+          description="Give this group a name, or leave it empty to keep the default."
+          placeholder={`${pendingNodeIds?.length ?? 0} nodes`}
+          onSubmit={(label) => {
+            if (pendingNodeIds) {
+              void createBookmark(
+                { kind: "selection", nodeIds: pendingNodeIds },
+                label,
+              );
+            }
+            setPendingNodeIds(null);
+          }}
+        />,
+        document.body,
+      )}
     </>
   );
 }

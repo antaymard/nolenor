@@ -71,15 +71,15 @@ function sameDelta(a: FramingDelta | null, b: FramingDelta | null): boolean {
 }
 
 /**
- * Cap + distance continus vers un node du canvas, pour l'indicateur de
- * navigation.
+ * Cap + distance continus vers une cible du canvas (node, sélection, ou point
+ * monde), pour l'indicateur de navigation.
  *
  * Passe par un sélecteur du store React Flow plutôt que par `useViewport()` :
  * ce dernier re-rendrait le composant à *chaque frame* de pan (le piège
  * documenté dans `useCanvasPointerPosition`). `sameDelta` borne en plus les
  * re-renders aux crans visibles (0,1 écran, 10°), sinon chaque frame de pan
- * re-rendrait chaque indicateur. La résolution du centre du node lit
- * `state.nodes` : un drag du node cible déplace l'indicateur en direct,
+ * re-rendrait chaque indicateur. La résolution du centre de la cible lit
+ * `state.nodes` : un drag du node visé déplace l'indicateur en direct,
  * toujours borné aux crans.
  */
 export function useTargetDelta(

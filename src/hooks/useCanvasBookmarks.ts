@@ -21,10 +21,17 @@ export type ResolvedBookmark = CanvasBookmark & {
   isDangling: boolean;
   /** Pour une `selection`, le nombre de nodes encore vivants. */
   liveNodeCount: number;
+  /**
+   * Type du node visé (kind === "node" uniquement), pour brancher son icône
+   * dans le panneau. Absent si le node a disparu.
+   */
+  nodeType?: string;
+  /** Nom d'icône du template (custom nodes uniquement). */
+  templateIconName?: string | null;
 };
 
 const FRAMING_FALLBACK_LABEL = "Position";
-const MISSING_NODE_LABEL = "Node supprimé";
+const MISSING_NODE_LABEL = "Deleted node";
 
 /**
  * Les repères de l'utilisateur sur ce canvas, résolus pour l'affichage.
@@ -68,31 +75,52 @@ export function useCanvasBookmarks({
   const reorderBookmarks = useMutation(api.canvasBookmarks.reorder);
   const removeBookmark = useMutation(api.canvasBookmarks.remove);
 
-  // Les deux maps servent à résoudre un llmid en titre : llmid → nodeDataId,
-  // puis nodeDataId → doc. Les stores sont lus en entier parce que le titre
-  // d'un node bookmarké doit suivre ses éditions en direct — c'est tout
-  // l'intérêt de ne pas figer le libellé (cf. `label` dans le schéma).
+  // La résolution d'un llmid : llmid → nodeDataId → doc, avec le `type` du doc
+  // `nodes` en repli quand le nodeData n'est pas (encore) en store — l'icône
+  // reste branchée même pendant le chargement des contenus. Les stores sont
+  // lus en entier parce que le titre d'un node bookmarké doit suivre ses
+  // éditions en direct — c'est tout l'intérêt de ne pas figer le libellé
+  // (cf. `label` dans le schéma).
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
   const templates = useTemplatesStore((state) => state.templates);
 
-  const nodeDataIdByNodeId = useMemo(() => {
-    const map = new Map<string, Id<"nodeDatas">>();
-    for (const node of nodes ?? []) map.set(node.id, node.nodeDataId);
+  const nodeMetaByNodeId = useMemo(() => {
+    const map = new Map<string, { nodeDataId: Id<"nodeDatas">; type: string }>();
+    for (const node of nodes ?? []) {
+      map.set(node.id, { nodeDataId: node.nodeDataId, type: node.type });
+    }
     return map;
   }, [nodes]);
 
-  const titleForNodeId = useCallback(
-    (nodeId: string): string | undefined => {
-      const nodeDataId = nodeDataIdByNodeId.get(nodeId);
-      if (!nodeDataId) return undefined;
-      const nodeData = nodeDatas.get(nodeDataId);
-      if (!nodeData) return undefined;
-      const template = nodeData.templateId
+  /**
+   * Tout ce qu'un repère `node` veut savoir de sa cible, en une seule chaîne
+   * de lookups : le titre vivant (dont l'absence dit que la cible est morte),
+   * le type pour l'icône, et l'icône de template pour les custom nodes.
+   */
+  const resolveNodeMeta = useCallback(
+    (
+      nodeId: string,
+    ): {
+      title: string | undefined;
+      nodeType: string | undefined;
+      templateIconName: string | null | undefined;
+    } => {
+      const meta = nodeMetaByNodeId.get(nodeId);
+      const nodeData = meta ? nodeDatas.get(meta.nodeDataId) : undefined;
+      const nodeType = nodeData?.type ?? meta?.type;
+      const template = nodeData?.templateId
         ? templates.get(nodeData.templateId)
         : undefined;
-      return getNodeDataTitle(nodeData, template ?? null);
+      return {
+        title: nodeData
+          ? getNodeDataTitle(nodeData, template ?? null)
+          : undefined,
+        nodeType,
+        templateIconName:
+          nodeType === "custom" ? (template?.icon ?? null) : undefined,
+      };
     },
-    [nodeDataIdByNodeId, nodeDatas, templates],
+    [nodeMetaByNodeId, nodeDatas, templates],
   );
 
   const resolved = useMemo<Array<ResolvedBookmark> | undefined>(() => {
@@ -115,17 +143,21 @@ export function useCanvasBookmarks({
       }
 
       if (target.kind === "node") {
-        const title = titleForNodeId(target.nodeId);
+        const { title, nodeType, templateIconName } = resolveNodeMeta(
+          target.nodeId,
+        );
         return {
           ...bookmark,
           displayLabel: bookmark.label ?? title ?? MISSING_NODE_LABEL,
           isDangling: title === undefined,
           liveNodeCount: title === undefined ? 0 : 1,
+          nodeType,
+          templateIconName,
         };
       }
 
       const liveNodeCount = target.nodeIds.filter((nodeId) =>
-        nodeDataIdByNodeId.has(nodeId),
+        nodeMetaByNodeId.has(nodeId),
       ).length;
       return {
         ...bookmark,
@@ -136,7 +168,7 @@ export function useCanvasBookmarks({
         liveNodeCount,
       };
     });
-  }, [bookmarks, nodes, nodeDataIdByNodeId, titleForNodeId]);
+  }, [bookmarks, nodes, nodeMetaByNodeId, resolveNodeMeta]);
 
   // Même garde côté écriture, et exposée aux appelants : les menus contextuels
   // s'ouvrent aussi pour un visiteur anonyme, qui ne doit pas se voir proposer

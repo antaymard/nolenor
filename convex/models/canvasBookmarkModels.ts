@@ -2,21 +2,33 @@ import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import errors from "../config/errorsConfig";
-import type { BookmarkTarget } from "../schemas/canvasBookmarksSchema";
+import {
+  MAX_BOOKMARK_LABEL_LENGTH,
+  MAX_SELECTION_NODE_IDS,
+  type BookmarkTarget,
+} from "../schemas/canvasBookmarksSchema";
 
 type CanvasBookmark = Doc<"canvasBookmarks">;
 
-/**
- * Plafond de nodes visés par un repère `selection`.
- *
- * Un lasso ramasse vite quelques centaines de nodes, et un repère qui vise tout
- * le canvas ne repère plus rien. La borne protège aussi le document : c'est le
- * seul champ de la table dont la taille dépend de ce que fait l'utilisateur.
- */
-export const MAX_SELECTION_NODE_IDS = 100;
-
 /** L'écart entre deux `sortOrder` consécutifs à la création. */
 const SORT_ORDER_STEP = 1;
+
+/**
+ * Normalise un libellé avant écriture : rogné des espaces, `undefined` quand
+ * il est vide (le repère retombe alors sur son libellé par défaut), refusé
+ * quand il dépasse le plafond affiché en `truncate` sur une ligne.
+ */
+function normalizeLabel(label: string | null | undefined): string | undefined {
+  if (label === null || label === undefined) return undefined;
+  const trimmed = label.trim();
+  if (trimmed.length === 0) return undefined;
+  if (trimmed.length > MAX_BOOKMARK_LABEL_LENGTH) {
+    throw new ConvexError(
+      `${errors.BOOKMARK_LABEL_TOO_LONG} (${MAX_BOOKMARK_LABEL_LENGTH} characters max).`,
+    );
+  }
+  return trimmed;
+}
 
 async function getBookmarkOrThrow(
   ctx: QueryCtx | MutationCtx,
@@ -81,11 +93,12 @@ export async function create(
   const existing = await listForUserCanvas(ctx, { userId, canvasId });
   const lastSortOrder =
     existing.length > 0 ? existing[existing.length - 1].sortOrder : 0;
+  const normalizedLabel = normalizeLabel(label);
 
   return await ctx.db.insert("canvasBookmarks", {
     userId,
     canvasId,
-    ...(label !== undefined ? { label } : {}),
+    ...(normalizedLabel !== undefined ? { label: normalizedLabel } : {}),
     target: normalizeTarget(target),
     sortOrder: lastSortOrder + SORT_ORDER_STEP,
     updatedAt: Date.now(),
@@ -93,9 +106,9 @@ export async function create(
 }
 
 /**
- * Renomme un repère. `label: null` efface le nom choisi et rend le repère à son
- * titre vivant — seul un bookmark `node` a de quoi y retomber, c'est à
- * l'appelant de ne pas le proposer ailleurs.
+ * Renomme un repère. `label: null` (ou une chaîne vide) efface le nom choisi
+ * et rend le repère à son titre vivant — seul un bookmark `node` a de quoi y
+ * retomber, c'est à l'appelant de ne pas le proposer ailleurs.
  */
 export async function rename(
   ctx: MutationCtx,
@@ -106,7 +119,7 @@ export async function rename(
 ): Promise<null> {
   await getBookmarkOrThrow(ctx, bookmarkId);
   await ctx.db.patch("canvasBookmarks", bookmarkId, {
-    label: label ?? undefined,
+    label: normalizeLabel(label),
     updatedAt: Date.now(),
   });
   return null;

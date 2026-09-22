@@ -375,7 +375,10 @@ function FrameNode(xyNode: XyNodeProps) {
 
       <div
         className={cn(
-          "relative h-full w-full rounded-[5px] border-2 transition-colors duration-100",
+          // `transition-colors` ne couvrait pas le ring de survol, qui est une
+          // `box-shadow` : sans elle listée, il apparaissait d'un coup.
+          "relative h-full w-full rounded-[5px] border-2",
+          "transition-[background-color,border-color,box-shadow] duration-100",
           nodeColor.frameBorder,
           // `lightBg` et non `nodeBg` : c'est la teinte la plus claire de la
           // palette, celle qui tient sur une grande surface. Une frame en
@@ -384,6 +387,13 @@ function FrameNode(xyNode: XyNodeProps) {
           // transparents, la frame se réduit à son titre.
           nodeColor.frameBg,
           xyNode.selected && "ring-2 ring-blue-500/70",
+          // Survol : même signal que les nodes (cf. `NodeFrame`), en plus
+          // discret parce qu'une frame est une grande surface. Il dit que le
+          // corps est saisissable — toute la frame se déplace et se
+          // sélectionne, pas seulement sa barre de titre. Effacé dès qu'un
+          // état du geste ou du document prend le dessus, pour ne pas cumuler
+          // deux rings.
+          !xyNode.selected && !isDropTarget && "hover:ring-1 hover:ring-blue-400/50",
           // Cible de dépôt : la bordure prime sur la couleur du node, c'est
           // une réponse au geste en cours et pas un état du document.
           isDropTarget && "border-blue-500 bg-blue-500/10",

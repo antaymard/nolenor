@@ -8,7 +8,7 @@ import NodeFrame from "../NodeFrame";
 import { TbMaximize, TbTable } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
-import { applyFilters, TablePreview } from "@/components/table";
+import { applyFilters, applySorting, TablePreview } from "@/components/table";
 import NodeEmptyState from "../NodeEmptyState";
 import type { TableData } from "@/components/table";
 import type { XyNodeProps } from "@/types/domain";
@@ -32,23 +32,33 @@ function TableNode(xyNode: XyNodeProps) {
     rows: [],
   };
   /*
-   * Un filtre décrit une VUE de la table, pas une lecture jetable : le node
-   * montre donc les mêmes lignes que la fenêtre d'édition. `applyFilters`
-   * ignore de lui-même les conditions dont la colonne n'a pas survécu.
+   * Filtre et tri décrivent une VUE de la table, pas une lecture jetable : le
+   * node montre donc les mêmes lignes, dans le même ordre, que la fenêtre
+   * d'édition. Les deux évaluateurs ignorent d'eux-mêmes les conditions dont la
+   * colonne n'a pas survécu.
+   *
+   * Dans cet ordre, comme dans la grille : `applyFilters` tourne en amont de
+   * `useReactTable`, qui trie ensuite ce qu'il en reste. Trier d'abord
+   * coûterait le tri des lignes qu'on s'apprête à jeter.
    */
   const visibleRows = useMemo(
     () =>
-      applyFilters(
-        tableData.rows,
+      applySorting(
+        applyFilters(
+          tableData.rows,
+          tableData.columns,
+          tableData.filters ?? [],
+          tableData.filterConjunction ?? "all",
+        ),
         tableData.columns,
-        tableData.filters ?? [],
-        tableData.filterConjunction ?? "all",
+        tableData.sorting ?? [],
       ),
     [
       tableData.rows,
       tableData.columns,
       tableData.filters,
       tableData.filterConjunction,
+      tableData.sorting,
     ],
   );
   const hiddenRowCount = tableData.rows.length - visibleRows.length;

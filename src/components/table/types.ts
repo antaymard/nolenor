@@ -3,6 +3,7 @@ import type { TableColumnType } from "@/../convex/lib/tableColumnTypes";
 // Import de TYPE seulement : `filters.ts` importe ce fichier en retour, et un
 // cycle de types est effacé à la compilation.
 import type { FilterConjunction, TableFilter } from "./filters";
+import type { TableSort } from "./sorting";
 import {
   TbAbc,
   TbAlignLeft,
@@ -118,11 +119,13 @@ export interface TableData {
   rowHeight?: RowHeight;
   /**
    * Filtres de colonne, persistés avec la table : ils décrivent une VUE de la
-   * table, pas une lecture jetable, et le node du canvas les applique aussi. Le
-   * tri et la recherche restent volontairement éphémères — cf. `filters.ts`.
+   * table, pas une lecture jetable, et le node du canvas les applique aussi.
+   * Seule la recherche reste volontairement éphémère — cf. `filters.ts`.
    */
   filters?: TableFilter[];
   filterConjunction?: FilterConjunction;
+  /** Tri des colonnes, persisté pour les mêmes raisons — cf. `sorting.ts`. */
+  sorting?: TableSort[];
 }
 
 export const COLUMN_TYPE_CONFIG: Record<

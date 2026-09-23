@@ -1,30 +1,22 @@
 import type { ReactNode } from "react";
 
 /**
- * La coquille d'une liste du dock — la même pour les repères et pour les
- * windows minimisées.
+ * La coquille de la liste des repères, telle que la déplie le dock.
  *
  * Elle porte le matériau de panneau de la maison (celui de `ChatContainer`,
  * qui est aussi celui de `dialog` et `popover`), l'en-tête qui nomme la liste
- * — indispensable ici, puisqu'on bascule de l'une à l'autre au même endroit —
- * et le scroll. Ce qu'elle ne fait pas : parler de repères ou de windows. Les
- * deux appelants lui passent des lignes déjà construites.
+ * et le scroll. Elle ne parle pas de repères : l'appelant lui passe des lignes
+ * déjà construites.
  */
 export default function DockList({
   title,
   count,
-  headerAction,
-  footer,
   isEmpty,
   emptyLabel,
   children,
 }: {
   title: string;
   count?: number;
-  /** Une action au bout de l'en-tête (« Close all » n'en est pas une : cf. `footer`). */
-  headerAction?: ReactNode;
-  /** Une ligne d'action en pied, séparée du corps. */
-  footer?: ReactNode;
   isEmpty: boolean;
   emptyLabel: string;
   children: ReactNode;
@@ -40,7 +32,6 @@ export default function DockList({
             </span>
           )}
         </p>
-        {headerAction}
       </div>
 
       {isEmpty ? (
@@ -52,8 +43,6 @@ export default function DockList({
           {children}
         </div>
       )}
-
-      {footer}
     </div>
   );
 }

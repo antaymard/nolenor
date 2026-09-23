@@ -16,8 +16,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { HiOutlineTrash } from "react-icons/hi";
 import {
+  TbBookmarkOff,
   TbFocusCentered,
   TbGripVertical,
   TbLocation,
@@ -182,15 +182,18 @@ function SortableBookmarkRow({
             onClick: () => onGoTo(bookmark),
           },
           {
-            // Reste actif sur un repère mort : renommer est, avec supprimer,
-            // la seule chose utile qu'on puisse encore lui faire.
+            // Reste actif sur un repère mort : renommer est, avec retirer le
+            // repère, la seule chose utile qu'on puisse encore lui faire.
             icon: TbPencil,
             label: "Rename",
             onClick: () => setDraft(bookmark.displayLabel),
           },
           {
-            icon: HiOutlineTrash,
-            label: "Delete",
+            // La même icône et le même libellé que la bascule du menu
+            // contextuel du node : c'est le même geste, vu d'ailleurs. Une
+            // corbeille laissait croire qu'on supprimait le node lui-même.
+            icon: TbBookmarkOff,
+            label: "Remove bookmark",
             destructive: true,
             onClick: () => onRemove(bookmark._id),
           },
@@ -203,9 +206,10 @@ function SortableBookmarkRow({
 /**
  * La liste des repères du canvas, telle que la déplie le dock.
  *
- * Seule des deux listes du dock à être réordonnable : son ordre est enregistré
- * côté serveur (`api.canvasBookmarks.reorder`), d'où la poignée de drag — et
- * d'où son absence en face, où l'ordre ne survit pas au rechargement.
+ * Réordonnable : son ordre est enregistré côté serveur
+ * (`api.canvasBookmarks.reorder`), d'où la poignée de drag — et d'où son
+ * absence sur les windows minimisées, dont l'ordre ne survit pas au
+ * rechargement.
  */
 export default function DockBookmarksList() {
   const canvasId = useCanvasStore((state) => state.canvas?._id);

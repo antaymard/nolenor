@@ -77,7 +77,7 @@ function haveSameMembers<T>(a: Set<T>, b: Set<T>): boolean {
  * une collection neuve à chaque tick du store et l'appelant se re-rendrait à
  * **chaque frame de pan et de drag** : c'était le cas de `WindowsContainer`
  * (qui re-rendait alors toutes les fenêtres ouvertes) et de
- * `MinimizedWindowsStack`, tous deux sur un `state.nodes.map((n) => n.id)` nu.
+ * `MinimizedDock`, tous deux sur un `state.nodes.map((n) => n.id)` nu.
  */
 export function useExistingNodeIds(): ReadonlySet<string> {
   return useStore(
@@ -108,7 +108,7 @@ export function haveSameEntries<K, V>(a: Map<K, V>, b: Map<K, V>): boolean {
  *
  * Les absents ne sont pas dans la Map : un node supprimé depuis que le thread
  * l'a touché n'est plus navigable, et c'est à l'appelant d'en tirer les
- * conséquences — comme `MinimizedWindowsStack` le fait avec
+ * conséquences — comme `MinimizedDock` le fait avec
  * `useExistingNodeIds`.
  *
  * Le sélecteur s'exécute à chaque tick du store React Flow — donc à chaque

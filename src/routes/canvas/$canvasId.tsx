@@ -14,6 +14,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 import NoleCanvasPanel from "@/components/canvas/NoleCanvasPanel";
 import ActivityDock from "@/components/canvas/on-canvas-ui/ActivityDock";
 import CanvasDock from "@/components/canvas/on-canvas-ui/canvas-dock/CanvasDock";
+import MinimizedDock from "@/components/canvas/on-canvas-ui/canvas-dock/MinimizedDock";
 import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
 import TopRightToolbar from "@/components/canvas/on-canvas-ui/TopRightToolbar";
 import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanner";
@@ -161,10 +162,14 @@ function CanvasContent({
                 <ActivityDock canvasId={canvasId} />
               </div>
             </Panel>
-            {/* Repères et windows minimisées partagent le coin : deux boutons,
-                une seule liste dépliée à la fois (cf. `CanvasDock`). */}
+            {/* Le miroir du coin gauche : le bouton des repères reste à
+                l'extrême droite, les windows minimisées le prolongent vers le
+                centre. */}
             <Panel position="bottom-right">
-              <CanvasDock />
+              <div className="flex items-center gap-2">
+                <MinimizedDock />
+                <CanvasDock />
+              </div>
             </Panel>
           </>
         ) : (

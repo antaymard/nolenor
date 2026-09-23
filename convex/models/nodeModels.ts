@@ -10,6 +10,7 @@ import {
 } from "../config/trashConfig";
 import { generateLlmId } from "../lib/llmId";
 import { frameZIndexBelow } from "../lib/nodeLayering";
+import * as CanvasBookmarkModels from "./canvasBookmarkModels";
 import * as CanvasModels from "./canvasModels";
 import * as EdgeModels from "./edgeModels";
 import * as NodeDataModels from "./nodeDataModels";
@@ -1016,9 +1017,10 @@ export async function listTrashedFromCanvas(
 
 /**
  * Purge un lot de nodes à la corbeille depuis plus de `TRASH_RETENTION_MS` :
- * la ligne `nodes` part, et son nodeData avec (chunks, mémoires, blobs R2) via
- * `deleteWithCascade`. Retourne `true` si le lot était plein — l'appelant doit
- * alors se re-scheduler. Même forme que `NodeDataVersionModels.pruneExpiredBatch`.
+ * la ligne `nodes` part, son nodeData avec (chunks, mémoires, blobs R2) via
+ * `deleteWithCascade`, et les repères qui la visaient sont nettoyés. Retourne
+ * `true` si le lot était plein — l'appelant doit alors se re-scheduler. Même
+ * forme que `NodeDataVersionModels.pruneExpiredBatch`.
  */
 export async function purgeTrashedBatch(ctx: MutationCtx): Promise<boolean> {
   const cutoff = Date.now() - TRASH_RETENTION_MS;
@@ -1028,6 +1030,10 @@ export async function purgeTrashedBatch(ctx: MutationCtx): Promise<boolean> {
       q.eq("status", "trashed").lt("trashedAt", cutoff),
     )
     .take(TRASH_PURGE_BATCH_SIZE);
+
+  // Les llmid purgés, par canvas : les repères se nettoient en une passe par
+  // canvas plutôt qu'une par node.
+  const purgedByCanvas = new Map<Id<"canvases">, Array<string>>();
 
   for (const node of expired) {
     // Backfill paresseux. Une ligne jetée avant l'existence du champ n'a pas
@@ -1046,6 +1052,14 @@ export async function purgeTrashedBatch(ctx: MutationCtx): Promise<boolean> {
       { nodeDataId: node.nodeDataId },
     );
     await ctx.db.delete(node._id);
+
+    const purged = purgedByCanvas.get(node.canvasId) ?? [];
+    purged.push(node.id);
+    purgedByCanvas.set(node.canvasId, purged);
+  }
+
+  for (const [canvasId, nodeIds] of purgedByCanvas) {
+    await CanvasBookmarkModels.removeForPurgedNodes(ctx, { canvasId, nodeIds });
   }
 
   return expired.length === TRASH_PURGE_BATCH_SIZE;

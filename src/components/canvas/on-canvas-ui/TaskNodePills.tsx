@@ -66,7 +66,7 @@ export default function TaskNodePills({
  * Non cliquable dans deux cas, affichée quand même dans les deux : le node a
  * été supprimé par la tâche — « Nolë a supprimé ça » mérite d'être lu, pas
  * escamoté —, ou il a disparu du canvas depuis. La résolution vers un id React
- * Flow sert de filtre, comme `MinimizedWindowsStack` avec ses `existingNodeIds`.
+ * Flow sert de filtre, comme `MinimizedDock` avec ses `existingNodeIds`.
  *
  * Le `stopPropagation` est ce qui sépare les deux gestes du bloc : la pastille
  * emmène au node, le reste du bloc ouvre la conversation.

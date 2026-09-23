@@ -33,7 +33,8 @@ export default function CanvasToolbar() {
 
   return (
     <div className="flex flex-col-reverse items-center gap-2 animate-appear-up">
-      <div className="canvas-ui-container px-0!">
+      {/* La borne des docks latéraux (cf. `useDockCapacity`). */}
+      <div className="canvas-ui-container px-0!" data-canvas-toolbar="">
         {/* Les deux façons durables de tenir le canvas, en tête de barre comme
             dans n'importe quel éditeur. `type="single"` sans valeur vide
             possible : on est toujours dans un mode — quand `frame` est actif,

@@ -211,7 +211,12 @@ function SortableBookmarkRow({
  * absence sur les windows minimisées, dont l'ordre ne survit pas au
  * rechargement.
  */
-export default function DockBookmarksList() {
+export default function DockBookmarksList({
+  onClose,
+}: {
+  /** Ferme la liste : branché sur le Toggle du dock dans `CanvasDock`. */
+  onClose?: () => void;
+}) {
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   const { bookmarks, isLoading, rename, reorder, remove } = useCanvasBookmarks({
     canvasId,
@@ -300,6 +305,7 @@ export default function DockBookmarksList() {
       title="Bookmarks"
       count={order.length > 0 ? order.length : undefined}
       isEmpty={!isLoading && order.length === 0}
+      onClose={onClose}
       emptyLabel={
         isLoading
           ? "Loading…"

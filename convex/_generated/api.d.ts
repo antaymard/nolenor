@@ -85,6 +85,7 @@ import type * as ia_worker from "../ia/worker.js";
 import type * as lib_apiTokenCrypto from "../lib/apiTokenCrypto.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_authEmail from "../lib/authEmail.js";
+import type * as lib_authOtp from "../lib/authOtp.js";
 import type * as lib_blockNoteDocument from "../lib/blockNoteDocument.js";
 import type * as lib_chunkMetadata from "../lib/chunkMetadata.js";
 import type * as lib_datePill from "../lib/datePill.js";
@@ -283,6 +284,7 @@ declare const fullApi: ApiFromModules<{
   "lib/apiTokenCrypto": typeof lib_apiTokenCrypto;
   "lib/auth": typeof lib_auth;
   "lib/authEmail": typeof lib_authEmail;
+  "lib/authOtp": typeof lib_authOtp;
   "lib/blockNoteDocument": typeof lib_blockNoteDocument;
   "lib/chunkMetadata": typeof lib_chunkMetadata;
   "lib/datePill": typeof lib_datePill;

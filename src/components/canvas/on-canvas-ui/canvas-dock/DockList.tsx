@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { TbX } from "react-icons/tb";
 
 /**
  * La coquille de la liste des repères, telle que la déplie le dock.
@@ -13,12 +14,15 @@ export default function DockList({
   count,
   isEmpty,
   emptyLabel,
+  onClose,
   children,
 }: {
   title: string;
   count?: number;
   isEmpty: boolean;
   emptyLabel: string;
+  /** Présent seulement quand la liste se replie via son en-tête (le dock). */
+  onClose?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -32,6 +36,17 @@ export default function DockList({
             </span>
           )}
         </p>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={`Close ${title}`}
+            title={`Close ${title}`}
+            className="-mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-slate-100 hover:text-slate-700"
+          >
+            <TbX size={14} />
+          </button>
+        )}
       </div>
 
       {isEmpty ? (

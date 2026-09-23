@@ -34,7 +34,7 @@ export default function CanvasDock() {
         // dégagent la rangée. `right-0` + origine au coin bas-droit : la liste
         // grandit DEPUIS le bouton.
         <div className="absolute bottom-12.5 right-0 w-72 origin-bottom-right animate-appear-zoom">
-          <DockBookmarksList />
+          <DockBookmarksList onClose={() => handleToggle(false)} />
         </div>
       )}
 

@@ -1,9 +1,12 @@
 import type { XyNodeProps } from "@/types/domain";
 
+const EMPTY: Record<string, unknown> = {};
+
 /**
  * Shallow-compare two data objects by their own enumerable keys.
- * Returns true when every value is reference-equal and both sides
- * have the same set of keys.
+ * Returns true when every value is reference-equal (`displayOptions`
+ * excepted, compared one level deeper) and both sides have the same set of
+ * keys.
  */
 function shallowEqualData(
   a: Record<string, unknown>,
@@ -16,7 +19,20 @@ function shallowEqualData(
   if (keysA.length !== keysB.length) return false;
 
   for (const key of keysA) {
-    if (a[key] !== b[key]) return false;
+    if (a[key] === b[key]) continue;
+    // Seul objet imbriqué de `data` : Convex le recrée à chaque sync, comme
+    // `data` lui-même. Comparé par référence, il re-rendrait à chaque sync
+    // tous les nodes qui portent une option d'affichage.
+    if (
+      key === "displayOptions" &&
+      shallowEqualData(
+        (a[key] ?? EMPTY) as Record<string, unknown>,
+        (b[key] ?? EMPTY) as Record<string, unknown>,
+      )
+    ) {
+      continue;
+    }
+    return false;
   }
   return true;
 }

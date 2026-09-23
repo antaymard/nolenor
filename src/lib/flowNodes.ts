@@ -17,6 +17,9 @@ export function toCanvasNode(doc: Doc<"nodes">): CanvasNode {
     ...(doc.zIndex !== undefined && { zIndex: doc.zIndex }),
     ...(doc.color !== undefined && { color: doc.color }),
     ...(doc.variant !== undefined && { variant: doc.variant }),
+    ...(doc.displayOptions !== undefined && {
+      displayOptions: doc.displayOptions,
+    }),
     ...(doc.parentId !== undefined && { parentId: doc.parentId }),
     ...(doc.extent !== undefined && { extent: doc.extent }),
     ...(doc.extendParent !== undefined && { extendParent: doc.extendParent }),
@@ -69,6 +72,13 @@ export function applyNodePatchesToListQuery(
         ...(props.zIndex !== undefined && { zIndex: props.zIndex }),
         ...(props.color !== undefined && { color: props.color }),
         ...(props.variant !== undefined && { variant: props.variant }),
+        // Fusion clé par clé, parité serveur `patchNode`.
+        ...(props.displayOptions !== undefined && {
+          displayOptions: {
+            ...(node.displayOptions ?? {}),
+            ...props.displayOptions,
+          },
+        }),
         // `null` = sortie de frame : la clé doit devenir absente, comme le
         // `db.patch` serveur le fera. La reposer à `null` laisserait le node
         // enfant d'une frame inexistante jusqu'au prochain aller-retour.

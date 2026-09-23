@@ -93,6 +93,25 @@ async function rebuildChunksForNodeData(
     : null;
 
   const rawChunks = await buildChunks(ctx, nodeData, updatedKeys, template);
+
+  // Contenu coûteux inchangé : les chunks existants restent valides, on ne
+  // les remplace surtout pas par une liste vide — `upsertChunks` fait un
+  // delete-then-insert, et c'est ainsi qu'éditer le prompt d'une image
+  // effaçait tout son index. Seul le titre a pu changer (renommer une
+  // image) : on le recale sur place, sans relancer vision ni OCR.
+  // L'embedding garde l'ancien titre jusqu'à la prochaine reconstruction
+  // complète ; `search_title` est, lui, à jour tout de suite.
+  if (rawChunks === null) {
+    await ctx.runMutation(
+      internal.wrappers.searchableChunkWrappers.patchChunkTitles,
+      {
+        nodeDataId,
+        title: stripLoneSurrogates(getNodeDataTitle(nodeData, template)),
+      },
+    );
+    return;
+  }
+
   const chunks = rawChunks.map((chunk) => ({
     ...chunk,
     title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
@@ -192,7 +211,9 @@ async function buildChunks(
   nodeData: Doc<"nodeDatas">,
   updatedKeys?: string[],
   template?: Doc<"nodeTemplates"> | null,
-): Promise<ChunkInput[]> {
+  // `null` = contenu coûteux inchangé, reconstruction sautée : à distinguer
+  // de `[]` (« ce node n'a rien à indexer »), qui efface ses chunks.
+): Promise<ChunkInput[] | null> {
   console.log("[chunkBuilder] buildChunks:start", {
     nodeDataId: nodeData._id,
     nodeType: nodeData.type,
@@ -209,7 +230,7 @@ async function buildChunks(
         requiredField: expensiveField,
         updatedKeys,
       });
-      return [];
+      return null;
     }
   }
   const base = {

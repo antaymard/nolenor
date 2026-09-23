@@ -24,6 +24,18 @@ export const upsertChunks = internalMutation({
   },
 });
 
+export const patchChunkTitles = internalMutation({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    title: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await SearchableChunkModels.patchTitlesByNodeDataId(ctx, args);
+    return null;
+  },
+});
+
 export const deleteByNodeDataId = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),

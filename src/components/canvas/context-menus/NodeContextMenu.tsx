@@ -23,6 +23,9 @@ import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
+import { getCommonDisplayOptions } from "@/lib/nodeDisplayOptions";
+import type { NodeVariant } from "@/../convex/config/nodeConfig";
+import DisplayOptionsMenuItems from "./DisplayOptionsMenuItems";
 
 // Icons
 import { HiOutlineTrash } from "react-icons/hi";
@@ -126,6 +129,42 @@ export default function NodeContextMenu({
   const variants = prebuiltNodesConfig.find(
     (config) => config.node.type === xyNode.type,
   )?.variants;
+  const variantEntries = Object.entries(variants ?? {});
+  const displayOptionEntries = getCommonDisplayOptions([xyNode]);
+
+  async function applyVariant(variantKey: string, variantConfig: NodeVariant) {
+    updateCanvasNode({
+      nodeId: xyNode.id,
+      props: { variant: variantKey },
+    });
+
+    const dimensions = {
+      width: variantConfig.defaultWidth,
+      height: variantConfig.defaultHeight,
+    };
+
+    // Marquer resizing: true pour protéger du sync Convex → ReactFlow
+    updateNode(xyNode.id, {
+      width: dimensions.width,
+      height: dimensions.height,
+      resizing: true,
+    });
+
+    // Envoyer la mutation, puis libérer le flag resizing
+    await patchNodes({
+      updates: [
+        {
+          nodeId: xyNode.id,
+          props: {
+            width: dimensions.width,
+            height: dimensions.height,
+          },
+        },
+      ],
+    });
+
+    updateNode(xyNode.id, { resizing: false });
+  }
 
   const availableColors = Object.entries(colors);
   const currentColor = (xyNode.data.color as colorsEnum) || "default";
@@ -162,46 +201,34 @@ export default function NodeContextMenu({
 
   const nodeOptions: NodeOption[] = [
     {
-      hidden: !variants || Object.keys(variants).length === 0,
+      // Variants (un choix exclusif) puis options d'affichage (cumulables,
+      // indépendantes de la variante).
+      hidden: variantEntries.length === 0 && displayOptionEntries.length === 0,
       label: "Appearance",
       icon: TbSpaces,
-      subMenu: Object.entries(variants || {}).map(
-        ([variantKey, variantConfig]) => ({
-          label: variantConfig.label,
-          onClick: async () => {
-            updateCanvasNode({
-              nodeId: xyNode.id,
-              props: { variant: variantKey },
-            });
-
-            const dimensions = {
-              width: variantConfig.defaultWidth,
-              height: variantConfig.defaultHeight,
-            };
-
-            // Marquer resizing: true pour protéger du sync Convex → ReactFlow
-            updateNode(xyNode.id, {
-              width: dimensions.width,
-              height: dimensions.height,
-              resizing: true,
-            });
-
-            // Envoyer la mutation, puis libérer le flag resizing
-            await patchNodes({
-              updates: [
-                {
-                  nodeId: xyNode.id,
-                  props: {
-                    width: dimensions.width,
-                    height: dimensions.height,
-                  },
-                },
-              ],
-            });
-
-            updateNode(xyNode.id, { resizing: false });
-          },
-        }),
+      customSubContent: (
+        <>
+          {variantEntries.map(([variantKey, variantConfig]) => (
+            <DropdownMenuItem
+              className="whitespace-nowrap"
+              key={variantKey}
+              onClick={() => {
+                void applyVariant(variantKey, variantConfig);
+                closeMenu();
+              }}
+            >
+              {variantConfig.label}
+            </DropdownMenuItem>
+          ))}
+          {variantEntries.length > 0 && displayOptionEntries.length > 0 && (
+            <DropdownMenuSeparator />
+          )}
+          <DisplayOptionsMenuItems
+            nodes={[xyNode]}
+            entries={displayOptionEntries}
+            onApplied={closeMenu}
+          />
+        </>
       ),
     },
     {

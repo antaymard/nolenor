@@ -139,7 +139,10 @@ export function extractToolNodeIds(
     pushIfValid(input.targetNodeId);
     pushIfValid(input.anchorNodeId);
     if (Array.isArray(input.sourceNodes)) {
-      input.sourceNodes.forEach(pushIfValid);
+      // `create_node` accepte un id nu ou `{ nodeId, label }`.
+      input.sourceNodes.forEach((entry) =>
+        pushIfValid(isRecord(entry) ? entry.nodeId : entry),
+      );
     }
   }
 

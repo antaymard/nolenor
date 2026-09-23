@@ -26,7 +26,12 @@ import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
 import { absolutePositionsById } from "../../lib/nodeGeometry";
 import { readStoredImages } from "../../lib/storedImages";
 import { toModelImageUrl } from "../../lib/imageTransform";
-import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import {
+  EXPLANATION_FIELD,
+  getEdgeLabel,
+  type ToolConfig,
+  toolError,
+} from "./toolHelpers";
 
 /**
  * Le corps d'une frame : la liste des nodes qu'elle contient.
@@ -527,6 +532,7 @@ export default function readNodesTool({
   return createTool({
     description:
       "A tool to read multiple nodes from the current canvas and return their nodeData as LLM-friendly XML. " +
+      "Each node lists its connections in sourceNodes/targetNodes as 'id | type | title', followed by '| label: \"…\"' when the edge carries a label. " +
       "For image nodes, returns indexed textual image descriptions by default when available. " +
       (isMultimodal
         ? "Pass `viewImages=[nodeId]` to also attach the actual images so you can look at them yourself — " +
@@ -1109,26 +1115,34 @@ export default function readNodesTool({
           }),
         );
 
-        const formatConnection = (nodeId: string) => {
+        // Le label de l'edge en 4ᵉ segment, seulement quand il existe : c'est
+        // lui qui dit la relation. `;` et `|` sont les séparateurs de
+        // l'attribut — on les neutralise pour ne pas casser le découpage.
+        const formatConnection = (nodeId: string, label: string | null) => {
           const connectedNode = nodeInfoById.get(nodeId);
           const nodeType = connectedNode?.type ?? "unknown";
           const nodeTitle = connectedNode?.title ?? "Untitled";
-          return `${nodeId} | ${nodeType} | ${nodeTitle}`;
+          const labelSegment = label
+            ? ` | label: "${label.replace(/[;|]/g, ",")}"`
+            : "";
+          return `${nodeId} | ${nodeType} | ${nodeTitle}${labelSegment}`;
         };
 
         const sourceNodesByNodeId = new Map<string, Array<string>>();
         const targetNodesByNodeId = new Map<string, Array<string>>();
 
         for (const edge of canvasEdges) {
+          const label = getEdgeLabel(edge);
+
           if (requestedNodeIdSet.has(edge.target)) {
             const values = sourceNodesByNodeId.get(edge.target) ?? [];
-            values.push(formatConnection(edge.source));
+            values.push(formatConnection(edge.source, label));
             sourceNodesByNodeId.set(edge.target, values);
           }
 
           if (requestedNodeIdSet.has(edge.source)) {
             const values = targetNodesByNodeId.get(edge.source) ?? [];
-            values.push(formatConnection(edge.target));
+            values.push(formatConnection(edge.target, label));
             targetNodesByNodeId.set(edge.source, values);
           }
         }

@@ -8,7 +8,12 @@ import { absolutePositionsById } from "../../lib/nodeGeometry";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { escapeXmlAttribute } from "../../lib/xml";
-import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
+import {
+  EXPLANATION_FIELD,
+  getEdgeLabel,
+  toolError,
+  type ToolConfig,
+} from "./toolHelpers";
 
 export const listNodesToolConfig: ToolConfig = {
   name: "list_nodes",
@@ -44,7 +49,9 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             ),
         })
         .optional()
-        .describe("Filter nodes connected via an edge to the specified node"),
+        .describe(
+          "Filter nodes connected via an edge to the specified node. Each listed node then carries the label of that edge (edgeLabel) when it has one.",
+        ),
       area: z
         .object({
           x1: z.number(),
@@ -88,18 +95,30 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         const nodePosById = absolutePositionsById(canvasNodes);
 
         // Resolve connected node IDs if targetNode filter is set
+        // Les labels des edges retenues, par node connecté : c'est la
+        // relation que le filtre vient de suivre.
         let connectedNodeIds: Set<string> | null = null;
+        const edgeLabelsByNodeId = new Map<string, string[]>();
         if (input.targetNode) {
           const { nodeId, direction } = input.targetNode;
-          connectedNodeIds = new Set<string>();
+          const connectedIds = new Set<string>();
+          const addConnection = (connectedId: string, label: string | null) => {
+            connectedIds.add(connectedId);
+            if (!label) return;
+            const labels = edgeLabelsByNodeId.get(connectedId) ?? [];
+            labels.push(label);
+            edgeLabelsByNodeId.set(connectedId, labels);
+          };
           for (const edge of canvasEdges) {
+            const label = getEdgeLabel(edge);
             if (direction === "output" || direction === "both") {
-              if (edge.source === nodeId) connectedNodeIds.add(edge.target);
+              if (edge.source === nodeId) addConnection(edge.target, label);
             }
             if (direction === "input" || direction === "both") {
-              if (edge.target === nodeId) connectedNodeIds.add(edge.source);
+              if (edge.target === nodeId) addConnection(edge.source, label);
             }
           }
+          connectedNodeIds = connectedIds;
         }
 
         // Resolve near center position if set
@@ -229,7 +248,11 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           `<nodes count="${displayedEntries.length}"${truncated ? ` truncated="true" total="${nodeEntries.length}"` : ""}>`,
           ...displayedEntries.map(({ id, type, title, x, y, frameId }) => {
             const frameAttr = frameId ? ` frameId="${frameId}"` : "";
-            return `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${frameAttr} />`;
+            const edgeLabels = edgeLabelsByNodeId.get(id);
+            const edgeLabelAttr = edgeLabels
+              ? ` edgeLabel="${escapeXmlAttribute(edgeLabels.join(" ; "))}"`
+              : "";
+            return `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${x}" y="${y}"${frameAttr}${edgeLabelAttr} />`;
           }),
           "</nodes>",
           "<nodeDataSchemas>",

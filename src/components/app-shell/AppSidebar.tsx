@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
@@ -43,15 +44,28 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * La colonne de gauche des pages hors canvas : créer, chercher, naviguer, et le
- * compte.
+ * La colonne de gauche de l'app : créer, chercher, naviguer, et le compte. La
+ * même sur la home et sur un canvas, pour qu'on s'y retrouve partout.
  *
  * `onNavigate` referme la sheet qui l'accueille sur mobile, dès qu'on a choisi
- * où aller.
+ * où aller. `children` s'insère entre la navigation et le pied, dans une zone
+ * qui scrolle — le canvas y met la liste des canvas.
+ *
+ * `live: false` coupe les queries du badge Inbox et de l'usage IA : sur un
+ * canvas la sidebar est repliée la plupart du temps mais reste montée, et la
+ * query des tâches se réévalue à chaque step d'un tour en cours.
  */
-export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export default function AppSidebar({
+  onNavigate,
+  children,
+  live = true,
+}: {
+  onNavigate?: () => void;
+  children?: ReactNode;
+  live?: boolean;
+}) {
   const openCommandCenter = useCommandCenterStore((state) => state.open);
-  const { tasks } = useHomePendingTasks();
+  const { tasks } = useHomePendingTasks({ enabled: live });
   const taskCanvases = useTaskCanvases();
   // Même filtre que la liste : une tâche d'un canvas qu'on ne voit plus n'est
   // pas comptée, sans quoi le badge annoncerait des tâches introuvables.
@@ -115,10 +129,16 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
         ))}
       </nav>
 
-      <div className="flex-1" />
+      {children ? (
+        <div className="-mx-3 min-h-0 flex-1 overflow-y-auto px-3">
+          {children}
+        </div>
+      ) : (
+        <div className="flex-1" />
+      )}
 
       <div className="flex flex-col gap-1 border-t border-slate-200 pt-3">
-        <AiUsageLink onNavigate={onNavigate} />
+        <AiUsageLink onNavigate={onNavigate} live={live} />
         <AccountMenu />
       </div>
     </div>
@@ -129,8 +149,14 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
  * Ce que Nolë a coûté sur trente jours, en une valeur. Pas de jauge : il n'y a
  * pas de plafond à mesurer. Mène au détail, dans les settings.
  */
-function AiUsageLink({ onNavigate }: { onNavigate?: () => void }) {
-  const usage = useAiUsage("30d");
+function AiUsageLink({
+  onNavigate,
+  live,
+}: {
+  onNavigate?: () => void;
+  live: boolean;
+}) {
+  const usage = useAiUsage("30d", { enabled: live });
   const location = useLocation();
 
   return (

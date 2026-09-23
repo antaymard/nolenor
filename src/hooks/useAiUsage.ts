@@ -97,7 +97,11 @@ function toBuckets(
   return Array.from(buckets.values());
 }
 
-export function useAiUsage(period: UsagePeriodValue): AiUsage {
+/** `enabled: false` coupe la query, pour une surface montée mais cachée. */
+export function useAiUsage(
+  period: UsagePeriodValue,
+  { enabled = true }: { enabled?: boolean } = {},
+): AiUsage {
   // « Aujourd'hui » est capturé une fois au montage : le recalculer à chaque
   // rendu changerait les arguments de la query et churnerait l'abonnement
   // Convex pour rien.
@@ -116,7 +120,7 @@ export function useAiUsage(period: UsagePeriodValue): AiUsage {
     [config, today],
   );
 
-  const data = useQuery(api.aiUsage.getDailyUsage, range);
+  const data = useQuery(api.aiUsage.getDailyUsage, enabled ? range : "skip");
 
   return useMemo(() => {
     // La query ne renvoie que les journées ayant consommé ; le graphe a besoin

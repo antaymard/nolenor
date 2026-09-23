@@ -12,11 +12,18 @@ import ChatStatusOverlay from "./ChatStatusOverlay";
 type ChatInterfaceProps = {
   threadId: string;
   onRetry?: (userMessage: string) => void;
+  /**
+   * Le tour est en cours selon le serveur (`runStatus`, péremption comprise).
+   * Seul signal fiable entre deux étapes : le message n'y est plus
+   * `streaming` mais `pending`, alors que l'agent travaille toujours.
+   */
+  isRunActive?: boolean;
 };
 
 const ChatInterface = memo(function ChatInterface({
   threadId,
   onRetry,
+  isRunActive = false,
 }: ChatInterfaceProps) {
   const {
     results: messages,
@@ -61,10 +68,13 @@ const ChatInterface = memo(function ChatInterface({
                 Load more messages
               </button>
             )}
-            {messages.map((m) => (
+            {messages.map((m, index) => (
               <Message
                 key={m.key}
                 message={m}
+                // Seul le dernier message peut être celui du tour en cours :
+                // les autres reçoivent un `false` stable et ne re-rendent pas.
+                isRunActive={isRunActive && index === messages.length - 1}
                 metadata={getMetadata(m)}
                 modelOptions={modelOptions}
               />

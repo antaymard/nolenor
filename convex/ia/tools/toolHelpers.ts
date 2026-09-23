@@ -32,8 +32,14 @@ export function readToolCtx(toolThis: unknown): ToolCtx | undefined {
 
 /**
  * L'étiquette lisible d'un tool call. Portée par l'entrée de tous les tools,
- * affichée telle quelle à trois endroits : la conversation (`ToolPart`), le dock
- * d'activité et les marqueurs du canvas.
+ * affichée telle quelle à trois endroits : la conversation (bloc d'activité du
+ * panneau Nolë), le dock d'activité et les marqueurs du canvas.
+ *
+ * Toujours la PREMIÈRE clé de l'`inputSchema`. Le modèle écrit les arguments
+ * dans l'ordre du schéma, et la conversation affiche l'étiquette dès qu'elle
+ * arrive dans le flux : placée après un gros contenu (XML de blocs, lignes de
+ * table, code), elle n'apparaîtrait qu'à la fin, et l'utilisateur regarderait
+ * un libellé générique pendant tout l'appel.
  *
  * Un groupe nominal, et non une phrase à la première personne : l'étiquette est
  * rédigée AVANT l'exécution mais reste affichée APRÈS, comme résumé de ce que la

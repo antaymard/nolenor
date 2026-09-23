@@ -113,6 +113,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
             key={threadId}
             threadId={threadId}
             onRetry={handleRetry}
+            isRunActive={chat.runStatus === "running"}
           />
         ) : (
           <EmptyThreadState />

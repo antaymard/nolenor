@@ -60,6 +60,7 @@ export default function tableInsertRowsTool({
   return createTool({
     description: "Insert one or multiple rows in a table node.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),
       anchorRowId: z
         .string()
@@ -73,7 +74,6 @@ export default function tableInsertRowsTool({
         .describe(
           'Rows to insert as objects keyed by columnId. Example: `[{"description":"Embedded content"},{"type":"Document","color":"Navy"}]`.',
         ),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

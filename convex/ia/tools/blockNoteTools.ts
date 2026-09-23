@@ -179,6 +179,7 @@ export const blocknoteInsertBlocksToolConfig: ToolConfig = {
 
 const insertBlocksSchema = z
   .object({
+    explanation: EXPLANATION_FIELD,
     nodeId: NODE_ID_FIELD,
     position: z
       .enum(["start", "end", "before", "after"])
@@ -192,7 +193,6 @@ const insertBlocksSchema = z
         'Required when position is "before"/"after" (the id of the reference block). Ignored for "start"/"end".',
       ),
     blocks: z.string().describe(XML_PAYLOAD_HINT("one or more <block> elements")),
-    explanation: EXPLANATION_FIELD,
   })
   .refine(
     (input) =>
@@ -246,6 +246,7 @@ function blocknoteReplaceBlockTool({ threadCtx }: { threadCtx: ThreadCtx }) {
     description:
       "Replace a single block (by id) with new content. `block` is exactly one BlockNote XML v1 <block> element — the <blocknote> wrapper is optional. The target block id is preserved whether or not you write it. Keep the id attribute on descendants you want to preserve; omit it on new ones, which get fresh ids. For props-only edits prefer update_block_props; for surgical text edits prefer patch_block_text.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: NODE_ID_FIELD,
       blockId: BLOCK_ID_FIELD("to replace"),
       block: z
@@ -253,7 +254,6 @@ function blocknoteReplaceBlockTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         .describe(
           XML_PAYLOAD_HINT("exactly one top-level <block> element (the replacement)"),
         ),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: (ctx, input): Promise<string> =>
       runBlockNoteEdit({
@@ -289,12 +289,12 @@ function blocknoteDeleteBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
     description:
       "Delete one or more blocks (by id) from a blocknote node. Provide the block ids as seen in read_nodes output. Deleting a parent block deletes its subtree. If any id is missing, no deletion is performed.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: NODE_ID_FIELD,
       blockIds: z
         .array(z.string())
         .min(1)
         .describe("The ids of the blocks to delete."),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: (ctx, input): Promise<string> =>
       runBlockNoteEdit({
@@ -323,6 +323,7 @@ function blocknoteUpdateBlockPropsTool({ threadCtx }: { threadCtx: ThreadCtx }) 
     description:
       "Patch the props of a single block (by id) without touching its content or children. Merges the provided props onto the existing ones (only provided keys overwrite). Use this to change a heading level, text color, background color, alignment, etc.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: NODE_ID_FIELD,
       blockId: BLOCK_ID_FIELD("whose props to update"),
       propsPatch: z
@@ -330,7 +331,6 @@ function blocknoteUpdateBlockPropsTool({ threadCtx }: { threadCtx: ThreadCtx }) 
         .describe(
           'Partial props to merge, e.g. {"level":2}, {"textColor":"blue"}, {"textAlignment":"center"}. Only provided keys overwrite; others are preserved.',
         ),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: (ctx, input): Promise<string> =>
       runBlockNoteEdit({
@@ -363,6 +363,7 @@ function blocknotePatchBlockTextTool({ threadCtx }: { threadCtx: ThreadCtx }) {
     description:
       "Surgically replace an exact literal substring inside a single block's visible text (by block id). The match is scoped to that one block only, so a substring that appears many times in the document is safe as long as it is unique within the chosen block. Operates on the native inline content: styles, links and props outside the match are preserved. The match must not cross a link boundary or a non-text inline node (a date pill and a node mention are both non-text nodes) — use replace_block for those. `new_string` is literal text with ONE exception: a [[date:YYYY-MM-DD]] token in it becomes a real date pill, so this is the cheapest way to add a date to an existing block. [[node:…]] mentions are NOT expanded here and are refused — use replace_block for those. Prefer replace_block for edits that change block type/structure.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: NODE_ID_FIELD,
       blockId: BLOCK_ID_FIELD("whose text to patch"),
       old_string: z
@@ -376,7 +377,6 @@ function blocknotePatchBlockTextTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         .describe(
           "The replacement substring (literal text, may be empty to delete). A [[date:YYYY-MM-DD]] token in it becomes a date pill; no other markup is interpreted.",
         ),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: (ctx, input): Promise<string> =>
       runBlockNoteEdit({

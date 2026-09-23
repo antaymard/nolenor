@@ -18,12 +18,20 @@ export function AssistantMessage({
   message,
   metadata,
   modelOptions,
+  isRunActive = false,
 }: {
   message: UIMessage;
+  /** Dernier message d'un tour que le serveur dit encore en cours. */
+  isRunActive?: boolean;
   metadata?: Doc<"messageMetadata">;
   modelOptions?: readonly ChatModelOption[];
 }) {
-  const isProcessing = message.status === "streaming";
+  // `streaming` ne couvre que les tokens en vol. Pendant qu'un tool s'exécute,
+  // ou entre deux étapes, le message est `pending` : sans le statut serveur, le
+  // bloc d'activité passerait en résumé, et le tool en cours en « stopped ».
+  const isProcessing =
+    message.status === "streaming" ||
+    (isRunActive && message.status !== "failed");
   const isFailed = message.status === "failed";
   const messageError = getMessageErrorText(message);
 

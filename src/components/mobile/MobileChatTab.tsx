@@ -73,6 +73,7 @@ export default function MobileChatTab({
             key={threadId}
             threadId={threadId}
             onRetry={handleRetry}
+            isRunActive={runStatus === "running"}
           />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">

@@ -177,6 +177,7 @@ export default function createNodeTool({
     description:
       "Create an empty node you can then populate with data or manipulate using other tools. Default dimensions of the node type (or template) are applied automatically. By default the node is placed relative to an anchor (anchorNodeId/placement) without overlapping existing nodes; pass position only for exact absolute placement.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       // Enum restreint aux types exposés : `frame` et consorts ne sont ni
       // listés dans le schema, ni acceptés en entrée.
       nodeType:
@@ -187,7 +188,6 @@ export default function createNodeTool({
         .describe(
           'Required when nodeType is "custom": the node template id (see <user_node_templates>). Ignored otherwise.',
         ),
-      explanation: EXPLANATION_FIELD,
       frameId: z
         .string()
         .optional()

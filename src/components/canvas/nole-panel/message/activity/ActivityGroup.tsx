@@ -42,6 +42,11 @@ export const ActivityGroup = memo(function ActivityGroup({
 
   const currentStep = findLast(steps, (s) => s.status === "running");
   const isLive = isTail || !!currentStep;
+  // En direct, on montre l'étiquette de l'agent dès qu'on l'a : celle de
+  // l'étape en cours, sinon — entre deux étapes, le modèle prépare la
+  // suivante — celle de la dernière action. Le résumé chiffré attend la fin.
+  const liveStep =
+    currentStep ?? findLast(steps, (s) => s.kind === "tool");
 
   return (
     <div className="px-1 text-[13px] whitespace-normal">
@@ -52,7 +57,7 @@ export const ActivityGroup = memo(function ActivityGroup({
         className="group/activity -mx-1.5 flex w-[calc(100%+0.75rem)] min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
       >
         {isLive ? (
-          <LiveHeader step={currentStep} toolCount={summary.toolCount} />
+          <LiveHeader step={liveStep} toolCount={summary.toolCount} />
         ) : (
           <SummaryHeader summary={summary} steps={steps} />
         )}
@@ -89,9 +94,8 @@ function LiveHeader({
   step: ActivityStep | undefined;
   toolCount: number;
 }) {
-  // Entre deux étapes (un tool vient de rendre, le suivant n'est pas encore
-  // annoncé), le modèle réfléchit à la suite : on le dit plutôt que de
-  // laisser l'étiquette d'une action déjà finie.
+  // « Thinking… » seulement quand il n'y a pas d'étiquette à montrer :
+  // raisonnement en cours, ou aucun tool encore annoncé.
   const label =
     !step || step.kind === "reasoning" ? "Thinking…" : step.label;
 

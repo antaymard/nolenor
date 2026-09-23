@@ -242,6 +242,7 @@ export default function patchAppNodeCodeTool({
       "Use this tool to make small, targeted edits to an existing app node code without rewriting the whole code (token-efficient). For wholesale rewrites or initial code, use `set_node_data` with `{ code }` instead.",
     ].join("\n"),
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),
       patch: z
         .string()
@@ -249,7 +250,6 @@ export default function patchAppNodeCodeTool({
         .describe(
           "The patch payload, wrapped in `*** Begin Patch` / `*** End Patch`, with one or more `@@` hunks. See tool description for the exact format.",
         ),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

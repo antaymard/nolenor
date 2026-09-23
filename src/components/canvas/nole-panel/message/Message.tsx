@@ -10,8 +10,10 @@ export const Message = memo(function Message({
   message,
   metadata,
   modelOptions,
+  isRunActive = false,
 }: {
   message: UIMessage;
+  isRunActive?: boolean;
   metadata?: Doc<"messageMetadata">;
   modelOptions?: readonly ChatModelOption[];
 }) {
@@ -23,6 +25,7 @@ export const Message = memo(function Message({
       message={message}
       metadata={metadata}
       modelOptions={modelOptions}
+      isRunActive={isRunActive}
     />
   );
 });

@@ -63,11 +63,11 @@ export default function tableUpdateRowsTool({
       "For select columns, value can be an option id, label, or array of those (when isMulti=true). " +
       'For node columns, value can be a nodeId string or { "nodeId": "..." } object.',
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),
       values: valuesByRowIdSchema.describe(
         'Row updates in this format: `{"rowId":{"columnId":value}}`. Example: `{"588P493x":{"description":"Embedded content"},"412Z233E":{"type":"Document","color":"Navy"}}`.',
       ),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(`🧮 Table rows update requested on node ${input.nodeId}`);

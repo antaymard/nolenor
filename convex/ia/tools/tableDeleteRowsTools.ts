@@ -47,6 +47,7 @@ export default function tableDeleteRowsTool({
     description:
       "Delete one or multiple rows from a table node in the current canvas.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),
       rowIds: z
         .array(z.string().min(1))
@@ -54,7 +55,6 @@ export default function tableDeleteRowsTool({
         .describe(
           'List of table row IDs to delete (from _rowId in read_nodes). Example: `["row_001","row_003"]`.',
         ),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

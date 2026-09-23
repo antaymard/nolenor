@@ -327,6 +327,7 @@ export default function tableUpdateSchemaTool({
       "select takes options + isMulti; node references a canvas node; richtext takes plain text (line breaks become paragraphs). " +
       "Operations: set (only when schema is empty), add_column, update_column (rename / change select options or isMulti), delete_column.",
     inputSchema: z.object({
+      explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),
       operation: operationSchema.describe(
         "Operation to apply: set (only when schema is empty), add_column, update_column, or delete_column.",
@@ -357,7 +358,6 @@ export default function tableUpdateSchemaTool({
             .describe("For delete_column: column id(s) or name(s) to delete."),
         })
         .describe("Operation payload."),
-      explanation: EXPLANATION_FIELD,
     }),
     execute: async (ctx, input): Promise<string> => {
       console.log(

@@ -2,11 +2,7 @@ import type { Root } from "mdast";
 import type { Plugin } from "unified";
 import { findAndReplace } from "mdast-util-find-and-replace";
 import type { Components } from "react-markdown";
-import {
-  buildLlmIdTextRegex,
-  matchesCurrentLlmIdFormat,
-  matchesLlmIdFormat,
-} from "@/../convex/lib/llmId";
+import { buildLlmIdTextRegex, matchesLlmIdFormat } from "@/../convex/lib/llmId";
 import { nodeMentionTokenSource } from "@/../convex/lib/nodeMentionToken";
 import { MentionedNodeCard } from "@/components/canvas/nole-panel/MentionedNodeCard";
 
@@ -19,14 +15,6 @@ const CODE_OR_NODE_TOKEN_RE = new RegExp(
   String.raw`(\`+)[\s\S]*?\1|~~~[\s\S]*?~~~|` + nodeMentionTokenSource(),
   "g",
 );
-
-/**
- * Markdown link title marking a node link as a certain reference — a
- * `[[node:…]]` token, or a bare id in the current strict format — so a node
- * that is gone is shown as such. A bare id in a legacy format may be a false
- * positive and falls back to plain text.
- */
-const NODE_REFERENCE_LINK_TITLE = "node-ref";
 
 /** Ids safe to drop into a `#node-<id>` URL as is. */
 const LINKABLE_NODE_ID_RE = /^[\w-]+$/;
@@ -43,9 +31,9 @@ function escapeLinkText(text: string): string {
 /**
  * Rewrites the agent's `[[node:ID]]` / `[[node:ID|type|title]]` mention tokens
  * as `[title](#node-ID)` links, which `markdownComponents` renders as node
- * pills — the whole token becomes the pill, label included. The title (or the
- * id without one) is only the fallback shown if the node is no longer on the
- * canvas; the pill itself reads the live title.
+ * pills — the whole token becomes the pill, label included. The title is only
+ * the fallback shown if the node is no longer on the canvas; the pill itself
+ * reads the live title.
  *
  * Done on the raw string, before Markdown parsing, because the label is free
  * text: a `_` or `*` in a title would otherwise be parsed as emphasis and split
@@ -72,7 +60,7 @@ export function nodeMentionTokensToLinks(
       const title = (parts.length > 1 ? parts.slice(1).join("|") : parts[0])
         .replace(/\s+/g, " ")
         .trim();
-      return `[${escapeLinkText(title || nodeId)}](#node-${nodeId} "${NODE_REFERENCE_LINK_TITLE}")`;
+      return `[${escapeLinkText(title || nodeId)}](#node-${nodeId})`;
     },
   );
 }
@@ -105,9 +93,6 @@ export const remarkNodeMentions: Plugin<[], Root> = () => (tree) => {
           return {
             type: "link",
             url: `#node-${match}`,
-            title: matchesCurrentLlmIdFormat(match)
-              ? NODE_REFERENCE_LINK_TITLE
-              : null,
             children: [{ type: "text", value: match }],
           };
         },
@@ -130,19 +115,16 @@ function textOf(children: React.ReactNode): string | undefined {
  * inline node cards; everything else renders as a normal external link.
  */
 export const markdownComponents: Components = {
-  a: ({ href, title, children }) => {
+  a: ({ href, children }) => {
     if (href?.startsWith("#node-")) {
       const nodeId = href.replace("#node-", "");
-      // Link text: a token's title, or the id itself.
+      // Link text: a token's title, or the id itself (no title to fall back on).
       const text = textOf(children);
-      // `children` is the original text, used as fallback if no node matches.
       return (
         <MentionedNodeCard
           nodeId={nodeId}
           inline
-          fallback={children}
-          showMissing={title === NODE_REFERENCE_LINK_TITLE}
-          missingLabel={text && text !== nodeId ? text : undefined}
+          fallbackTitle={text && text !== nodeId ? text : undefined}
         />
       );
     }

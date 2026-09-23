@@ -58,15 +58,6 @@ export function matchesLlmIdFormat(
   return legacyRegex1.test(value) || legacyRegex2.test(value);
 }
 
-// Format courant strict uniquement, sans les formats legacy : assez spécifique
-// pour qu'un texte qui y correspond soit à coup sûr un id, pas un faux positif.
-export function matchesCurrentLlmIdFormat(
-  value: string,
-  chunkCount: number = DEFAULT_CHUNK_COUNT,
-): boolean {
-  return new RegExp(`^${buildLlmIdPattern(chunkCount)}$`).test(value);
-}
-
 // Regex capturant les LLM IDs dans un texte arbitraire. Exporté pour que
 // les composants de rendu utilisent exactement le même filtre que le matcher.
 // Minimum 2 répétitions par alternative pour éviter de matcher "100k", "abc1", etc.

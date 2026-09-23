@@ -13,23 +13,17 @@ import TargetDeltaIndicator from "../navigation/TargetDeltaIndicator";
 interface MentionedNodeCardProps {
   nodeId: string;
   inline?: boolean;
-  fallback?: React.ReactNode;
   /**
-   * Node absent du canvas (supprimé, ou id inventé) : une pastille grisée
-   * « Node introuvable » plutôt que `fallback`. À réserver aux références
-   * certaines — le texte d'un faux positif ne doit pas devenir une pastille.
+   * Titre connu quand le node a été cité, affiché dans la pastille grisée si
+   * le node n'est plus sur le canvas.
    */
-  showMissing?: boolean;
-  /** Titre connu quand le node a été cité, affiché dans la pastille grisée. */
-  missingLabel?: string;
+  fallbackTitle?: string;
 }
 
 export function MentionedNodeCard({
   nodeId,
   inline,
-  fallback,
-  showMissing,
-  missingLabel,
+  fallbackTitle,
 }: MentionedNodeCardProps) {
   const nodeDataId = useNodeDataIdOf(nodeId);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
@@ -45,9 +39,10 @@ export function MentionedNodeCard({
     [nodeId],
   );
 
-  if (!nodeData && showMissing) {
-    // Même libellé que la pastille de mention blocknote dans ce cas
-    // (mention-inline-content.tsx).
+  if (!nodeData) {
+    // Node absent du canvas (supprimé, ou id inventé) : on le dit, plutôt que
+    // de réafficher l'id brut. Même libellé que la pastille de mention
+    // blocknote (mention-inline-content.tsx).
     return (
       <span
         className={cn(
@@ -56,19 +51,13 @@ export function MentionedNodeCard({
             ? "inline-flex align-middle mx-1 -translate-y-0.5"
             : "flex w-fit max-w-50",
         )}
-        title={`Node introuvable (${nodeId}) : supprimé ou absent de ce canvas`}
+        title={`Node not found (${nodeId}): deleted or not on this canvas`}
       >
         <span className="truncate max-w-37.5">
-          {missingLabel ? `${missingLabel} · introuvable` : "Node introuvable"}
+          {fallbackTitle ? `${fallbackTitle} · not found` : "Node not found"}
         </span>
       </span>
     );
-  }
-
-  if (!nodeData) {
-    // Pas de node correspondant : on tombe en fallback sur le texte d'origine
-    // pour ne pas faire disparaître un faux positif du parseur de node IDs.
-    return fallback !== undefined ? <>{fallback}</> : null;
   }
 
   const title = getNodeDataTitle(nodeData);

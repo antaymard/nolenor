@@ -1,6 +1,7 @@
 import { generateRandomString, type RandomReader } from "@oslojs/crypto/random";
 import type { RunMutationCtx } from "@convex-dev/rate-limiter";
 import { Resend as ResendAPI } from "resend";
+import { AUTH_OTP_LENGTH } from "./authOtp";
 import { enforceRateLimit } from "./rateLimits";
 
 /**
@@ -34,7 +35,7 @@ export async function generateAuthOtp(): Promise<string> {
     },
   };
 
-  return generateRandomString(random, "0123456789", 8);
+  return generateRandomString(random, "0123456789", AUTH_OTP_LENGTH);
 }
 
 /**

@@ -9,12 +9,12 @@ export default function AuthUpgradeBanner() {
           Viewing a public canvas
         </span>
         <p className="text-sm text-stone-600">
-          Sign in or create an account to duplicate, edit, and keep your own
+          Log in or create an account to duplicate, edit, and keep your own
           workspaces.
         </p>
       </div>
       <Button asChild size="sm" className="shrink-0">
-        <Link to="/signin">Sign in / Create account</Link>
+        <Link to="/signin">Log in / Create account</Link>
       </Button>
     </div>
   );

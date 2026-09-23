@@ -28,10 +28,10 @@ export default function CanvasErrorScreen({
     return (
       <ErrorDisplay
         title="This canvas is private or unavailable"
-        message="Sign in to check whether you have access, or ask the owner to share it with you."
+        message="Log in to check whether you have access, or ask the owner to share it with you."
         cta={
           <Button asChild>
-            <Link to="/signin">Sign in / Create account</Link>
+            <Link to="/signin">Log in / Create account</Link>
           </Button>
         }
       />

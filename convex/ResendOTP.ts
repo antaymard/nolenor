@@ -35,7 +35,7 @@ export const ResendOTP = Resend({
         text: [
           `Your verification code is ${token}`,
           "",
-          "It expires shortly. If you didn't try to sign in to Nolenor, you can ignore this email.",
+          "It expires shortly. If you didn't try to create an account or log in to Nolenor, you can ignore this email.",
         ].join("\n"),
       });
     },

@@ -1,23 +1,19 @@
 import type { UIMessage } from "@convex-dev/agent/react";
+import { useMemo } from "react";
 import { ThinkingOrb } from "thinking-orbs";
 import { cn } from "@/lib/utils";
 import type { Doc } from "@/../convex/_generated/dataModel";
 import type { ChatModelOption } from "@/types/convex";
-import type { TextPart as TextPartType } from "@/types/domain/message.types";
 import { TextPart } from "./parts/TextPart";
-import { ReasoningPart } from "./parts/ReasoningPart";
-import { ToolPart } from "./parts/ToolPart";
+import { ActivityGroup } from "./activity/ActivityGroup";
+import { groupMessageParts } from "./activity/activityModel";
 import { ErrorInline } from "./ErrorInline";
 import { AssistantMessageFooter } from "./AssistantMessageFooter";
-import {
-  getMessageErrorText,
-  getToolPartErrorText,
-  isRecord,
-  type ToolPartState,
-} from "./messageParsing";
+import { getMessageErrorText } from "./messageParsing";
 
-/** An assistant message: a sequence of reasoning / text / tool parts, plus a
- * processing spinner, error banner and hover footer. */
+/** An assistant message: text parts interleaved with collapsed activity blocks
+ * (tool calls + reasoning), plus a processing spinner, error banner and hover
+ * footer. */
 export function AssistantMessage({
   message,
   metadata,
@@ -31,6 +27,14 @@ export function AssistantMessage({
   const isFailed = message.status === "failed";
   const messageError = getMessageErrorText(message);
 
+  const blocks = useMemo(
+    () => groupMessageParts(message.parts ?? [], isProcessing),
+    [message.parts, isProcessing],
+  );
+  // Le bloc d'activité en queue affiche déjà l'étape en cours : l'orbe en plus
+  // ferait deux indicateurs pour une seule attente.
+  const tailIsActivity = blocks.at(-1)?.kind === "activity";
+
   return (
     <div className="flex justify-start group">
       <div
@@ -39,11 +43,19 @@ export function AssistantMessage({
           isFailed && "bg-red-100",
         )}
       >
-        {(message.parts ?? []).map((part, index) => (
-          <MessagePart key={index} part={part} />
-        ))}
+        {blocks.map((block, index) =>
+          block.kind === "text" ? (
+            <TextPart key={block.key} part={block.part} />
+          ) : (
+            <ActivityGroup
+              key={block.key}
+              steps={block.steps}
+              isTail={isProcessing && index === blocks.length - 1}
+            />
+          ),
+        )}
 
-        {isProcessing && (
+        {isProcessing && !tailIsActivity && (
           <div className="flex items-center px-1 py-1">
             <ThinkingOrb state="solving" size={20} aria-label="Nolë rédige" />
           </div>
@@ -64,35 +76,4 @@ export function AssistantMessage({
       </div>
     </div>
   );
-}
-
-type Part = NonNullable<UIMessage["parts"]>[number];
-
-function MessagePart({ part }: { part: Part }) {
-  if (part.type === "step-start") return null;
-
-  if (part.type === "reasoning") {
-    return <ReasoningPart part={part} />;
-  }
-
-  if (part.type === "text") {
-    return <TextPart part={part as TextPartType} />;
-  }
-
-  if (part.type.startsWith("tool-")) {
-    const state = (
-      "state" in part ? part.state : "input-streaming"
-    ) as ToolPartState;
-    return (
-      <ToolPart
-        state={state}
-        name={part.type.replace("tool-", "")}
-        error={getToolPartErrorText(part, state)}
-        input={isRecord(part) && "input" in part ? part.input : undefined}
-        output={isRecord(part) && "output" in part ? part.output : undefined}
-      />
-    );
-  }
-
-  return null;
 }

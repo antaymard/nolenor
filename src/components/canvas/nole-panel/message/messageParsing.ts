@@ -1,11 +1,15 @@
 import type { UIMessage } from "@convex-dev/agent/react";
 import { matchesLlmIdFormat } from "@/../convex/lib/llmId";
 
-/** Lifecycle state of a `tool-*` message part. */
+/** Lifecycle state of a `tool-*` message part (AI SDK v6). */
 export type ToolPartState =
   | "input-streaming"
+  | "input-available"
+  | "approval-requested"
+  | "approval-responded"
   | "output-available"
-  | "output-error";
+  | "output-error"
+  | "output-denied";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -60,29 +64,45 @@ export function getToolExplanation(input: unknown): string | undefined {
   return input.explanation.trim() || undefined;
 }
 
-export function getToolFallbackLabel(
-  state: ToolPartState,
-  name: string,
-): string {
-  if (state === "input-streaming") return `Using tool: ${name}`;
-  if (state === "output-error") return `Error using tool: ${name}`;
-  return `Tool execute: ${name}`;
-}
-
 export function getToolPartErrorText(
   part: unknown,
   state: ToolPartState,
 ): string | undefined {
   if (!isRecord(part)) return undefined;
 
-  const directError = readErrorLike(part.error);
+  const directError = readErrorLike(part.errorText) ?? readErrorLike(part.error);
   if (directError) return directError;
 
   if (state === "output-error") return readErrorLike(part.output);
   return undefined;
 }
 
+/**
+ * Les tools signalent la plupart de leurs échecs *dans* leur sortie
+ * (`toolError` → `{"success":false,"message":…}` sérialisé) plutôt qu'en
+ * throwant : le SDK les voit donc en `output-available`. Sans cette lecture,
+ * un appel raté s'afficherait comme réussi.
+ */
+export function readSoftToolError(output: unknown): string | undefined {
+  const value = parseJsonLike(output);
+  if (!isRecord(value) || value.success !== false) return undefined;
+  return readErrorLike(value) ?? "The tool reported a failure.";
+}
+
+/** Parse une chaîne JSON (objet ou tableau) ; rend la valeur telle quelle sinon. */
+export function parseJsonLike(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
 export function stringifyForDebug(value: unknown): string {
+  value = parseJsonLike(value);
   if (typeof value === "string") return value;
   try {
     return JSON.stringify(value, null, 2);

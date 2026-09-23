@@ -43,6 +43,9 @@ export function toCanvasNode(doc: NodeDoc): CanvasNode {
     ...(doc.zIndex !== undefined && { zIndex: doc.zIndex }),
     ...(doc.color !== undefined && { color: doc.color }),
     ...(doc.variant !== undefined && { variant: doc.variant }),
+    ...(doc.displayOptions !== undefined && {
+      displayOptions: doc.displayOptions,
+    }),
     ...(doc.parentId !== undefined && { parentId: doc.parentId }),
     ...(doc.extent !== undefined && { extent: doc.extent }),
     ...(doc.extendParent !== undefined && { extendParent: doc.extendParent }),
@@ -618,7 +621,7 @@ async function assertCanBeChildOf(
 /**
  * Patch des props visuelles/positionnelles d'un node (couleur, position,
  * dimensions, verrouillage, …). Seuls les champs fournis sont écrits ;
- * `data` est fusionné en shallow, le reste est remplacé. Props vide = no-op (retourne l'id sans toucher
+ * `data` et `displayOptions` sont fusionnés en shallow, le reste est remplacé. Props vide = no-op (retourne l'id sans toucher
  * `canvases.updatedAt`). Retourne le llmId.
  */
 export async function patchNode(
@@ -648,6 +651,14 @@ export async function patchNode(
   if (props.zIndex !== undefined) patch.zIndex = props.zIndex;
   if (props.color !== undefined) patch.color = props.color;
   if (props.variant !== undefined) patch.variant = props.variant;
+  // Fusion clé par clé, comme `data` : basculer une option ne doit pas
+  // réinitialiser les autres.
+  if (props.displayOptions !== undefined) {
+    patch.displayOptions = {
+      ...(node.displayOptions ?? {}),
+      ...props.displayOptions,
+    };
+  }
   // `null` (sortir de la frame) devient `undefined`, que `db.patch` traduit
   // par « retirer le champ ». `undefined` en entrée ne passe pas ce test : ne
   // rien dire sur `parentId` laisse l'appartenance intacte.

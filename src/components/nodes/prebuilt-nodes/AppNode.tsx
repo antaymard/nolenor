@@ -15,6 +15,7 @@ import { colors } from "@/components/ui/styles";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { useAppNodeRunner } from "@/hooks/useAppNodeRunner";
 import IframeInteractionGate from "../IframeInteractionGate";
+import { NodeHeader } from "../NodeHeader";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 import { filenameSlug } from "@/lib/filenameSlug";
 
@@ -93,27 +94,23 @@ function AppNode(xyNode: XyNodeProps) {
           />
         ) : (
           <div className="w-full h-full flex flex-col overflow-hidden rounded-[4px]">
-            <div
-              className={cn(
-                "flex items-center gap-2 h-8 shrink-0 px-2 py-1.5 font-medium rounded-t-[4px]",
-              )}
-            >
-              <Icon size={18} className="shrink-0" />
-              <p className="truncate flex-1 min-w-0" title={appTitle}>
-                {appTitle}
-              </p>
-              <button
-                className="shrink-0 text-slate-500 hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setRefreshKey((k) => k + 1);
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                title="Refresh app"
-              >
-                <TbRefresh size={14} />
-              </button>
-            </div>
+            <NodeHeader
+              icon={Icon}
+              title={appTitle}
+              actions={
+                <button
+                  className="shrink-0 text-slate-500 hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRefreshKey((k) => k + 1);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Refresh app"
+                >
+                  <TbRefresh size={14} />
+                </button>
+              }
+            />
             <IframeInteractionGate
               className="flex-1 min-h-0"
               isNodeSelected={!!xyNode.selected}

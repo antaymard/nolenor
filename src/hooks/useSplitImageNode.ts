@@ -5,6 +5,7 @@ import { useUpdateNodeDataValues } from "./useUpdateNodeDataValues";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { toastError } from "@/components/utils/errorUtils";
+import type { NodeDisplayOptions } from "@/../convex/schemas/nodesSchema";
 
 export type SplitImageItem = {
   url: string;
@@ -85,6 +86,11 @@ export function useSplitImageNode(): UseSplitImageNodeReturn {
                 imageNodeConfig.node.data.color,
               variant:
                 (source?.data?.variant as string | undefined) ?? "default",
+              // Même présentation que la source, titre compris.
+              ...(source?.data?.displayOptions !== undefined && {
+                displayOptions: source.data
+                  .displayOptions as NodeDisplayOptions,
+              }),
             },
           },
           position,

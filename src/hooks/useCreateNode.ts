@@ -20,6 +20,7 @@ import { pendingDocId } from "@/lib/pendingDocIds";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
 import { recordUndo } from "@/stores/canvasHistoryStore";
+import type { NodeDisplayOptions } from "@/../convex/schemas/nodesSchema";
 
 type CreateNodeOptions = {
   node: Node;
@@ -122,11 +123,13 @@ export function useCreateNode() {
       nodeDataId: _ignoredNodeDataId,
       color,
       variant,
+      displayOptions,
       ...restData
     } = (node.data ?? {}) as {
       nodeDataId?: Id<"nodeDatas">;
       color?: colorsEnum;
       variant?: string;
+      displayOptions?: NodeDisplayOptions;
       [key: string]: unknown;
     };
     // Une frame naît sous les nodes : elle est tracée autour de nodes
@@ -209,6 +212,7 @@ export function useCreateNode() {
               zIndex,
               ...(color && { color }),
               variant: variant ?? "default",
+              ...(displayOptions && { displayOptions }),
               ...(node.parentId && { parentId: node.parentId }),
               ...(node.extent && {
                 extent: node.extent as

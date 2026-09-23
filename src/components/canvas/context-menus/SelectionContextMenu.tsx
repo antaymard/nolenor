@@ -46,6 +46,8 @@ import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
+import { getCommonDisplayOptions } from "@/lib/nodeDisplayOptions";
+import DisplayOptionsMenuItems from "./DisplayOptionsMenuItems";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -127,6 +129,8 @@ export default function SelectionContextMenu({
       : [...labelToKeyPerNode[0].keys()].filter((label) =>
           labelToKeyPerNode.every((m) => m.has(label)),
         );
+
+  const commonDisplayOptions = getCommonDisplayOptions(elementsArray);
 
   async function applyVariantToSelection(label: string) {
     if (!Array.isArray(elements) || elements.length === 0) return;
@@ -266,8 +270,8 @@ export default function SelectionContextMenu({
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
 
-      {/* Variant */}
-      {commonVariantLabels.length > 0 && (
+      {/* Variants communs, puis options d'affichage communes */}
+      {(commonVariantLabels.length > 0 || commonDisplayOptions.length > 0) && (
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="whitespace-nowrap">
             <TbSpaces size={16} /> Appearance
@@ -285,6 +289,13 @@ export default function SelectionContextMenu({
                 {label}
               </DropdownMenuItem>
             ))}
+            {commonVariantLabels.length > 0 &&
+              commonDisplayOptions.length > 0 && <DropdownMenuSeparator />}
+            <DisplayOptionsMenuItems
+              nodes={elementsArray}
+              entries={commonDisplayOptions}
+              onApplied={closeMenu}
+            />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
       )}

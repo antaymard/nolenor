@@ -2,6 +2,7 @@ import type { Node, NodeProps } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { NodeType } from "./nodeTypes";
 import type { colorsEnum } from "./style.types";
+import type { NodeDisplayOptions } from "@/../convex/schemas/nodesSchema";
 
 /**
  * Types for XyFlow (React Flow) adapter
@@ -18,6 +19,11 @@ export interface DisplayPropsThatGoInXyData {
   locked?: boolean;
   hidden?: boolean;
   zIndex?: number;
+  /**
+   * Les options d'affichage telles que stockées. À ne pas lire directement :
+   * `resolveNodeDisplayOptions` y applique les défauts du type.
+   */
+  displayOptions?: NodeDisplayOptions;
 }
 
 /**

@@ -92,6 +92,13 @@ export function getNodeDataTitle(
     }
 
     case "image": {
+      // Le nom donné par l'utilisateur d'abord : le filename de la première
+      // image n'est qu'un repli (« generated-1.png » ne nomme rien), et il
+      // change dès qu'on réordonne la galerie.
+      const title = nodeData.values.title;
+      if (typeof title === "string" && title.trim().length > 0) {
+        return title.trim();
+      }
       const images = nodeData.values.images as
         | Array<{ filename?: unknown }>
         | undefined;

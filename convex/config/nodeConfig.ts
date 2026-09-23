@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { nodeTypeValues } from "../schemas/nodeTypeSchema";
+import type {
+  NodeDisplayOptionKey,
+  NodeDisplayOptions,
+} from "../schemas/nodesSchema";
 import {
   TABLE_COLUMN_TYPES,
   listColumnTypesForPrompt,
@@ -78,6 +82,30 @@ const DEFAULT_NODE_CAPABILITIES: NodeCapabilities = {
   search: { embed: true },
 };
 
+/**
+ * Le catalogue des options d'affichage : ce que chaque option SIGNIFIE, une
+ * fois pour tous les types. Un type ne fait que la proposer et choisir son
+ * défaut (`NodeDataConfigItem.displayOptions`).
+ *
+ * `Record` exhaustif : une clé ajoutée à `nodeDisplayOptionsValidator` sans
+ * entrée ici casse la compilation.
+ */
+const NODE_DISPLAY_OPTIONS: Record<NodeDisplayOptionKey, { label: string }> = {
+  showTitle: { label: "Show title" },
+};
+
+/** L'ordre du catalogue, qui est aussi celui du menu Appearance. */
+const NODE_DISPLAY_OPTION_KEYS = Object.keys(
+  NODE_DISPLAY_OPTIONS,
+) as NodeDisplayOptionKey[];
+
+type NodeDisplayOptionConfig = {
+  /** La valeur d'un node qui n'a rien stocké pour cette option. */
+  default: boolean;
+};
+
+type ResolvedNodeDisplayOptions = Record<NodeDisplayOptionKey, boolean>;
+
 type NodeDataConfigItem = {
   type: z.infer<typeof nodeTypeZodValidator>;
   label: string;
@@ -89,6 +117,18 @@ type NodeDataConfigItem = {
     resizable?: boolean;
   };
   variants?: Record<string, NodeVariant>;
+  /**
+   * Les options d'affichage que ce type propose, et leur défaut. Cumulables et
+   * indépendantes de la variante (cf. `nodeDisplayOptionsValidator`). Une
+   * option absente ici n'existe pas pour ce type : elle n'apparaît pas au menu
+   * et se résout à `false`.
+   *
+   * Le défaut est lu à chaque rendu, pas figé à la création : le changer
+   * change aussi l'affichage des nodes qui n'ont jamais touché à l'option.
+   */
+  displayOptions?: Partial<
+    Record<NodeDisplayOptionKey, NodeDisplayOptionConfig>
+  >;
   defaultColor?: string;
   capabilities?: NodeCapabilitiesInput;
   dataValuesSchema: z.ZodTypeAny;
@@ -254,7 +294,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     label: "Image",
     description: "Node for storing an image.",
     llmDescription:
-      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageIncludeReferences' controls whether the images of image nodes connected as inputs of this node are silently attached as references to the next generation (default true). Set it to false to block them. Reference images have no placeholder syntax in the prompt: when references are included, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.",
+      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageIncludeReferences' controls whether the images of image nodes connected as inputs of this node are silently attached as references to the next generation (default true). Set it to false to block them. Reference images have no placeholder syntax in the prompt: when references are included, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.\nThe data value 'title' is the name the user gave to the node; when it is empty, the node is titled by the filename of its first image.",
     defaultDimensions: { width: bigWidth, height: squareHeight, resizable: true },
     variants: {
       // Clé `default` et non `carousel` : les nodes image déjà en base portent
@@ -273,8 +313,18 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         resizable: true,
       },
     },
+    displayOptions: {
+      showTitle: { default: false },
+    },
     dataValuesSchema: z
       .object({
+        // Nom donné par l'utilisateur. Absent ou vide : le titre retombe sur
+        // le filename de la première image, puis sur « Image »
+        // (cf. `getNodeDataTitle`).
+        title: z
+          .string()
+          .optional()
+          .describe("The title of the node, set by the user."),
         images: z
           .array(
             z.object({
@@ -903,6 +953,42 @@ function getDefaultNodeDataValues(
 }
 
 /**
+ * Les options d'affichage que ce type propose, dans l'ordre du catalogue.
+ * Vide pour un type inconnu de `nodeDataConfig` (`custom`, `fetch`).
+ */
+function getSupportedDisplayOptions(nodeType: string): NodeDisplayOptionKey[] {
+  const declared = nodeDataConfig.find(
+    (item) => item.type === nodeType,
+  )?.displayOptions;
+  if (!declared) return [];
+  return NODE_DISPLAY_OPTION_KEYS.filter((key) => declared[key] !== undefined);
+}
+
+/**
+ * Les options d'affichage effectives d'un node : la valeur stockée, sinon le
+ * défaut du type. Une option que le type ne propose pas vaut `false`, même si
+ * une valeur traîne en base — retirer une option d'un type ne demande donc
+ * aucune migration.
+ *
+ * Seul point de lecture : le front ne teste jamais `displayOptions.x`
+ * directement, il passe par ici pour que le défaut s'applique.
+ */
+function resolveNodeDisplayOptions(
+  nodeType: string | undefined,
+  stored: NodeDisplayOptions | undefined,
+): ResolvedNodeDisplayOptions {
+  const declared = nodeType
+    ? nodeDataConfig.find((item) => item.type === nodeType)?.displayOptions
+    : undefined;
+  return Object.fromEntries(
+    NODE_DISPLAY_OPTION_KEYS.map((key) => {
+      const config = declared?.[key];
+      return [key, config ? (stored?.[key] ?? config.default) : false];
+    }),
+  ) as ResolvedNodeDisplayOptions;
+}
+
+/**
  * Les capabilities effectives d'un type, défauts appliqués.
  *
  * Tolère un type inconnu de `nodeDataConfig` — `custom` n'y a pas d'entrée, sa
@@ -968,6 +1054,14 @@ export {
   isNodeTypeEmbedded,
   agentCreatableNodeTypeZodValidator,
   DEFAULT_NODE_CAPABILITIES,
+  NODE_DISPLAY_OPTIONS,
+  getSupportedDisplayOptions,
+  resolveNodeDisplayOptions,
 };
-export type { NodeDataConfigItem, NodeVariant, NodeCapabilities };
+export type {
+  NodeDataConfigItem,
+  NodeVariant,
+  NodeCapabilities,
+  ResolvedNodeDisplayOptions,
+};
 export type FrameTitleLevel = (typeof FRAME_TITLE_LEVELS)[number];

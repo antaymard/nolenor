@@ -2,14 +2,19 @@ import type { CanvasNode } from "@/types/convex";
 import type { colorsEnum } from "@/types/domain";
 import type { CoordinateExtent, Node } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
+import type { NodeDisplayOptions } from "@/../convex/schemas/nodesSchema";
 
 export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
-  const { nodeDataId, color, variant, ...restData } = (xyNode.data ?? {}) as {
-    nodeDataId?: Id<"nodeDatas">;
-    color?: colorsEnum;
-    variant?: string;
-    [key: string]: unknown;
-  };
+  // `displayOptions` est extrait comme `color` et `variant` : laissé dans
+  // `restData`, il repartirait dans le sac `data` au lieu de son champ.
+  const { nodeDataId, color, variant, displayOptions, ...restData } =
+    (xyNode.data ?? {}) as {
+      nodeDataId?: Id<"nodeDatas">;
+      color?: colorsEnum;
+      variant?: string;
+      displayOptions?: NodeDisplayOptions;
+      [key: string]: unknown;
+    };
 
   return {
     id: xyNode.id,
@@ -23,6 +28,7 @@ export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
     ...(xyNode.zIndex != null && { zIndex: xyNode.zIndex }),
     ...(color && { color }),
     ...(variant && { variant }),
+    ...(displayOptions && { displayOptions }),
     ...(Object.keys(restData).length > 0 && { data: restData }),
     ...(xyNode.parentId && { parentId: xyNode.parentId }),
     ...(xyNode.extent && { extent: xyNode.extent as CanvasNode["extent"] }),
@@ -62,6 +68,9 @@ export function fromCanvasNodeToXyNode(canvasNode: CanvasNode): Node {
       }),
       ...(canvasNode.color && { color: canvasNode.color }),
       ...(canvasNode.variant && { variant: canvasNode.variant }),
+      ...(canvasNode.displayOptions && {
+        displayOptions: canvasNode.displayOptions,
+      }),
       ...restData,
     },
     ...(canvasNode.parentId && { parentId: canvasNode.parentId }),

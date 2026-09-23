@@ -225,6 +225,14 @@ const RUN_STATUS_URGENCY: Record<ResolvedRunStatus, number> = {
 };
 
 /**
+ * Le rang d'urgence d'un statut, pour trier une liste de tâches — la home met
+ * en tête ce qui a besoin de l'utilisateur.
+ */
+export function runStatusUrgency(status: ResolvedRunStatus): number {
+  return RUN_STATUS_URGENCY[status];
+}
+
+/**
  * Le statut qui parle pour tout un lot de tâches : le plus urgent d'entre eux.
  *
  * `idle` quand le lot est vide — l'appelant n'affiche alors rien, et n'a pas à

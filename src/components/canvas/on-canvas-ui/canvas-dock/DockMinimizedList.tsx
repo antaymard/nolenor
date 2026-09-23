@@ -1,11 +1,10 @@
-import { Trash2 } from "lucide-react";
 import { TbLocation, TbX } from "react-icons/tb";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { useNodeData } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
-import DockList from "./DockList";
+import DockSection from "./DockSection";
 import { rowEnterProps } from "./dockRowEnter";
 import DockRow from "./DockRow";
 
@@ -54,7 +53,7 @@ function MinimizedRow({ window: openedWindow }: { window: OpenedWindow }) {
 }
 
 /**
- * Les windows minimisées, telles que les déplie le dock.
+ * La section des windows minimisées, dans le panneau du dock.
  *
  * Pas de poignée de drag ici, contrairement aux repères : leur ordre n'est
  * stocké nulle part et repartirait à l'ordre de minimisation au rechargement.
@@ -74,23 +73,22 @@ export default function DockMinimizedList({
   );
 
   return (
-    <DockList
+    <DockSection
       title="Minimized"
       count={windows.length > 0 ? windows.length : undefined}
       isEmpty={windows.length === 0}
       emptyLabel="No minimized windows."
-      footer={
+      headerAction={
         windows.length > 0 ? (
-          // En pied et pas dans le dock : « Close all » appartient à cette
-          // liste et à rien d'autre. Dans la rangée de boutons il se lirait
-          // comme une action globale du canvas.
+          // Dans l'en-tête de la section et pas en pied de panneau : maintenant
+          // que les repères suivent dans le même panneau, un « Close all » en
+          // bas se lirait comme une action sur eux.
           <button
             type="button"
             onClick={closeAllMinimizedWindows}
-            className="flex h-9 shrink-0 items-center justify-center gap-1.5 border-t border-slate-200 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            className="rounded px-1 text-[11px] font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           >
-            <Trash2 size={14} />
-            Close all ({windows.length})
+            Close all
           </button>
         ) : undefined
       }
@@ -100,6 +98,6 @@ export default function DockMinimizedList({
           <MinimizedRow window={openedWindow} />
         </div>
       ))}
-    </DockList>
+    </DockSection>
   );
 }

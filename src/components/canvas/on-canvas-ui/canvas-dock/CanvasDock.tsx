@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TbBookmark, TbLayoutBottombarCollapse } from "react-icons/tb";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/shadcn/toggle-group";
+import { TbBookmark } from "react-icons/tb";
+import { Toggle } from "@/components/shadcn/toggle";
 import { useExistingNodeIds } from "@/lib/nodeIdentity";
 import {
   isBookmarksDockOpen,
@@ -13,26 +10,25 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import DockBookmarksList from "./DockBookmarksList";
 import DockMinimizedList from "./DockMinimizedList";
 
-type DockTab = "bookmarks" | "minimized";
-
 /**
- * Le dock du coin bas-droite : deux boutons, une seule liste dépliée à la fois.
+ * Le dock du coin bas-droite : un bouton, un panneau.
  *
- * Repères et windows minimisées partagent le coin sans mélanger leurs listes —
- * elles n'ont ni la même durée de vie (les uns sont durables et ordonnés à la
- * main, les autres sont de l'état de session) ni les mêmes actions. Deux
- * onglets, donc, et un accordéon : ouvrir l'un referme l'autre, recliquer
- * l'actif referme tout.
+ * Windows minimisées et repères partagent le même panneau, en deux sections
+ * séparées par un trait et titrées : les minimisées en haut (de l'état de
+ * session, courte, et ce qu'on vient chercher quand le panneau s'ouvre tout
+ * seul), les repères dessous. Un seul scroll pour les deux.
  *
- * La liste pop au-dessus des boutons, alignée à droite, avec l'origine au coin
- * du bouton qui l'a ouverte — le geste d'un dossier du Dock macOS. Même
- * montage que `NoleCanvasPanel` en bas à gauche : un wrapper `relative`, la
- * liste en `absolute`, l'îlot de boutons en flux dessous.
+ * Le panneau pop au-dessus du bouton, aligné à droite, avec l'origine au coin
+ * du bouton — le geste d'un dossier du Dock macOS. Même montage que
+ * `NoleCanvasPanel` en bas à gauche : un wrapper `relative`, le panneau en
+ * `absolute`, l'îlot du bouton en flux dessous.
  */
 export default function CanvasDock() {
-  const [openTab, setOpenTab] = useState<DockTab | null>(() =>
-    isBookmarksDockOpen() ? "bookmarks" : null,
-  );
+  const [isOpen, setIsOpen] = useState(isBookmarksDockOpen);
+  // Le panneau a-t-il été ouvert par une minimisation, et pas par un clic ?
+  // Seul ce cas-là se referme tout seul quand la dernière window minimisée
+  // s'en va : un panneau ouvert à la main reste ouvert sur les repères.
+  const openedByMinimizeRef = useRef(false);
 
   const openedWindows = useWindowsStore((s) => s.openedWindows);
   const existingNodeIds = useExistingNodeIds();
@@ -52,93 +48,72 @@ export default function CanvasDock() {
   useEffect(() => {
     const grew = minimizedCount > previousCountRef.current;
     previousCountRef.current = minimizedCount;
-    // Minimiser une window déplie sa liste — c'est ce qui dit où la window
-    // est partie. Mais pas si une liste est déjà ouverte : voler la liste que
-    // l'utilisateur est en train de lire coûte plus que ça ne rapporte, et la
-    // window part visiblement vers le dock pendant que le compteur monte.
-    setOpenTab((current) => (grew && current === null ? "minimized" : current));
-  }, [minimizedCount]);
-
-  useEffect(() => {
-    // La dernière window minimisée vient d'être fermée : son bouton disparaît,
-    // le panneau ne peut pas rester ouvert sur une liste qui n'existe plus.
-    if (minimizedCount === 0) {
-      setOpenTab((current) => (current === "minimized" ? null : current));
+    // Minimiser une window déplie le panneau — c'est ce qui dit où la window
+    // est partie. S'il est déjà ouvert, la section apparaît ou grandit sous
+    // les yeux, rien à faire de plus.
+    if (grew) {
+      setIsOpen((current) => {
+        if (!current) openedByMinimizeRef.current = true;
+        return true;
+      });
+    }
+    if (minimizedCount === 0 && openedByMinimizeRef.current) {
+      openedByMinimizeRef.current = false;
+      setIsOpen(false);
     }
   }, [minimizedCount]);
 
-  function handleTabChange(next: string) {
-    // Radix rend `""` quand on reclique l'onglet actif. `CanvasToolbar` avale
-    // ce cas (le canvas doit toujours être dans un mode) ; ici on veut
-    // exactement l'inverse — il referme le panneau, gratuitement.
-    const tab = next === "bookmarks" || next === "minimized" ? next : null;
-    setOpenTab(tab);
-    // Seul l'état des repères est retenu d'une session à l'autre : rouvrir
-    // l'onglet des minimisées au chargement, quand aucune window ne l'est,
-    // n'aurait aucun sens.
-    setBookmarksDockOpen(tab === "bookmarks");
+  function handleToggle(next: boolean) {
+    openedByMinimizeRef.current = false;
+    setIsOpen(next);
+    // Retenu d'une session à l'autre : « je veux voir mes repères ». Une
+    // ouverture automatique par minimisation ne passe pas par ici, et n'est
+    // donc pas retenue.
+    setBookmarksDockOpen(next);
   }
 
   return (
     <div className="relative">
-      {openTab !== null && (
+      {isOpen && (
         // `bottom-12.5` : la valeur de `NoleCanvasPanel`, pour la même raison —
-        // les boutons font h-10 et `canvas-ui-container` ajoute son p-1, 50px
-        // dégagent la rangée. `right-0` + origine au coin bas-droit : la liste
-        // grandit DEPUIS le bouton qui l'a ouverte.
-        //
-        // `key` : changer d'onglet remonte le panneau, donc l'animation se
-        // rejoue — un dossier du Dock qui se referme, l'autre qui s'ouvre.
-        <div
-          key={openTab}
-          className="absolute bottom-12.5 right-0 w-72 origin-bottom-right animate-appear-zoom"
-        >
-          {openTab === "bookmarks" ? (
-            <DockBookmarksList />
-          ) : (
-            <DockMinimizedList windows={minimizedWindows} />
-          )}
+        // le bouton fait h-10 et `canvas-ui-container` ajoute son p-1, 50px
+        // dégagent la rangée. `right-0` + origine au coin bas-droit : le
+        // panneau grandit DEPUIS le bouton.
+        <div className="absolute bottom-12.5 right-0 w-72 origin-bottom-right animate-appear-zoom">
+          <div className="flex max-h-96 w-full flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white pt-1 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
+            {minimizedCount > 0 && (
+              <DockMinimizedList windows={minimizedWindows} />
+            )}
+            <DockBookmarksList withDivider={minimizedCount > 0} />
+          </div>
         </div>
       )}
 
-      <div className="canvas-ui-container animate-appear-up px-0!">
-        <ToggleGroup
-          type="single"
-          value={openTab ?? ""}
-          onValueChange={handleTabChange}
-          aria-label="Canvas dock"
+      <div className="canvas-ui-container animate-appear-up">
+        <Toggle
+          pressed={isOpen}
+          onPressedChange={handleToggle}
+          className="relative h-10 w-10 rounded-lg p-0"
+          aria-label={
+            minimizedCount > 0
+              ? `Bookmarks and minimized windows (${minimizedCount} minimized)`
+              : "Bookmarks"
+          }
+          title="Bookmarks and minimized windows"
         >
-          <ToggleGroupItem
-            value="bookmarks"
-            className="h-10 w-10 rounded-lg p-0"
-            aria-label="Bookmarks"
-            title="Bookmarks: jump to a saved spot"
-          >
-            <TbBookmark size={19} />
-          </ToggleGroupItem>
+          <TbBookmark size={19} />
           {minimizedCount > 0 && (
-            // N'existe que s'il y a quelque chose dedans — comme la pile
-            // qu'il remplace, qui ne se rendait pas à vide. À zéro window, le
-            // dock est un bouton, pas un bouton et un fantôme désactivé.
-            <ToggleGroupItem
-              value="minimized"
-              className="relative h-10 w-10 rounded-lg p-0"
-              aria-label={`Minimized windows (${minimizedCount})`}
-              title="Minimized windows"
+            // `key` : la pastille rejoue son apparition à chaque incrément,
+            // ce qui la fait pulser quand une window est minimisée alors que
+            // le panneau est déjà ouvert.
+            <span
+              key={minimizedCount}
+              className="animate-node-appear absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium tabular-nums text-primary-foreground"
             >
-              <TbLayoutBottombarCollapse size={19} />
-              {/* `key` : la pastille rejoue son apparition à chaque
-                  incrément, ce qui la fait pulser quand une window est
-                  minimisée sans que la liste s'ouvre. */}
-              <span
-                key={minimizedCount}
-                className="animate-node-appear absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium tabular-nums text-primary-foreground"
-              >
-                {minimizedCount}
-              </span>
-            </ToggleGroupItem>
+              {minimizedCount}
+            </span>
           )}
-        </ToggleGroup>
+        </Toggle>
       </div>
     </div>
   );

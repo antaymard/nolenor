@@ -1,9 +1,9 @@
 /**
- * L'onglet « Bookmarks » du dock était-il déplié ?
+ * Le panneau du dock (repères et windows minimisées) était-il déplié ?
  *
- * Seul cet onglet-là est retenu : celui des windows minimisées est de l'état
- * de session, le rouvrir au chargement alors qu'aucune window ne l'est n'aurait
- * aucun sens.
+ * Seule l'ouverture à la main est retenue : celle que déclenche une
+ * minimisation est de l'état de session, la rejouer au chargement alors
+ * qu'aucune window n'est minimisée n'aurait aucun sens.
  *
  * Une clé unique pour TOUS les canvas, et pas une par canvas : c'est une
  * préférence d'espace de travail (« je veux voir mes repères »), pas une

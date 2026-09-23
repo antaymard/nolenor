@@ -16,8 +16,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { HiOutlineTrash } from "react-icons/hi";
 import {
+  TbBookmarkOff,
   TbFocusCentered,
   TbGripVertical,
   TbLocation,
@@ -40,7 +40,7 @@ import TargetDeltaIndicator from "@/components/canvas/navigation/TargetDeltaIndi
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import type { NodeType } from "@/types/domain/nodeTypes";
-import DockList from "./DockList";
+import DockSection from "./DockSection";
 import { rowEnterProps } from "./dockRowEnter";
 import DockRow from "./DockRow";
 
@@ -182,15 +182,18 @@ function SortableBookmarkRow({
             onClick: () => onGoTo(bookmark),
           },
           {
-            // Reste actif sur un repère mort : renommer est, avec supprimer,
-            // la seule chose utile qu'on puisse encore lui faire.
+            // Reste actif sur un repère mort : renommer est, avec retirer le
+            // repère, la seule chose utile qu'on puisse encore lui faire.
             icon: TbPencil,
             label: "Rename",
             onClick: () => setDraft(bookmark.displayLabel),
           },
           {
-            icon: HiOutlineTrash,
-            label: "Delete",
+            // La même icône et le même libellé que la bascule du menu
+            // contextuel du node : c'est le même geste, vu d'ailleurs. Une
+            // corbeille laissait croire qu'on supprimait le node lui-même.
+            icon: TbBookmarkOff,
+            label: "Remove bookmark",
             destructive: true,
             onClick: () => onRemove(bookmark._id),
           },
@@ -201,13 +204,17 @@ function SortableBookmarkRow({
 }
 
 /**
- * La liste des repères du canvas, telle que la déplie le dock.
+ * La section des repères du canvas, dans le panneau du dock.
  *
- * Seule des deux listes du dock à être réordonnable : son ordre est enregistré
+ * Seule des deux sections du dock à être réordonnable : son ordre est enregistré
  * côté serveur (`api.canvasBookmarks.reorder`), d'où la poignée de drag — et
  * d'où son absence en face, où l'ordre ne survit pas au rechargement.
  */
-export default function DockBookmarksList() {
+export default function DockBookmarksList({
+  withDivider,
+}: {
+  withDivider?: boolean;
+}) {
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   const { bookmarks, isLoading, rename, reorder, remove } = useCanvasBookmarks({
     canvasId,
@@ -292,8 +299,9 @@ export default function DockBookmarksList() {
   }
 
   return (
-    <DockList
+    <DockSection
       title="Bookmarks"
+      withDivider={withDivider}
       count={order.length > 0 ? order.length : undefined}
       isEmpty={!isLoading && order.length === 0}
       emptyLabel={
@@ -330,6 +338,6 @@ export default function DockBookmarksList() {
           ))}
         </SortableContext>
       </DndContext>
-    </DockList>
+    </DockSection>
   );
 }

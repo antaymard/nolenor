@@ -21,6 +21,7 @@ import AuthUpgradeBanner from "@/components/canvas/on-canvas-ui/AuthUpgradeBanne
 import { useConvexAuth } from "convex/react";
 import SearchModale from "@/components/canvas/search-modale/SearchModale";
 import CanvasWelcomeModal from "@/components/canvas/welcome/CanvasWelcomeModal";
+import { useOpenThreadFromUrl } from "@/hooks/useOpenThreadFromUrl";
 // Mobile-only surface: don't ship it to desktop sessions.
 const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
 
@@ -32,8 +33,13 @@ const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
 // `.catch(undefined)` comme les autres params qui viennent de l'extérieur
 // (cf. `signin.tsx`) : une URL abîmée ne doit pas casser la route. Le triple
 // n'est pas décodé ici — le parse tolérant vit dans `canvasViewportFraming`.
+//
+// `?thread=<threadId>` : la conversation Nolë à ouvrir en arrivant, posée par le
+// bouton « Open » d'une tâche sur la home (cf. `useOpenThreadFromUrl`, qui la
+// retire de l'URL une fois consommée).
 const canvasSearchSchema = z.object({
   v: z.string().optional().catch(undefined),
+  thread: z.string().optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/canvas/$canvasId")({
@@ -99,6 +105,10 @@ function CanvasContent({
     isNodeDatasError,
     nodeDatasError,
   } = useCanvasBootstrap(canvasId, { isAuthenticated });
+
+  // Après `useCanvasBootstrap`, dont le nettoyage remet la conversation active
+  // à zéro : ses effets passent avant ceux de ce hook.
+  useOpenThreadFromUrl({ ready: Boolean(canvas) && isAuthenticated });
 
   if (isCanvasError && canvasError) {
     return (

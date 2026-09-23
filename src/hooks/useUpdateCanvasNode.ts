@@ -9,7 +9,12 @@ import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
 import { applyNodePatchesToListQuery } from "@/lib/flowNodes";
 import { recordUndo } from "@/stores/canvasHistoryStore";
-import type { NodePatchProps } from "@/../convex/schemas/nodesSchema";
+import type {
+  NodeDisplayOptionKey,
+  NodeDisplayOptions,
+  NodePatchProps,
+} from "@/../convex/schemas/nodesSchema";
+import { resolveNodeDisplayOptions } from "@/../convex/config/nodeConfig";
 
 interface ConvexNodeProps {
   locked?: boolean;
@@ -17,6 +22,8 @@ interface ConvexNodeProps {
   zIndex?: number;
   color?: colorsEnum;
   variant?: string;
+  /** Fusionné clé par clé : ne fournir que les options touchées. */
+  displayOptions?: NodeDisplayOptions;
   /**
    * L'appartenance à une frame. `null` = en sortir, absent = ne pas y
    * toucher — la seule prop du lot à distinguer les deux, parce que c'est la
@@ -69,6 +76,20 @@ function inverseProps(
   }
   if (props?.variant !== undefined) {
     inverse.variant = (snapshotData.variant as string | undefined) ?? "default";
+  }
+  // La valeur RÉSOLUE d'avant, pas la brute : une option jamais touchée n'a
+  // pas de clé, et une fusion shallow ne sait pas en retirer une. Réécrire
+  // le défaut explicitement revient au même.
+  if (props?.displayOptions !== undefined) {
+    const before = resolveNodeDisplayOptions(
+      snapshot.type,
+      snapshotData.displayOptions as NodeDisplayOptions | undefined,
+    );
+    inverse.displayOptions = Object.fromEntries(
+      (Object.keys(props.displayOptions) as NodeDisplayOptionKey[]).map(
+        (key) => [key, before[key]],
+      ),
+    );
   }
   // `?? null` et pas « clé absente » : le node d'avant pouvait n'avoir aucune
   // frame, et c'est un état qu'il faut savoir réécrire pour que l'annulation
@@ -169,10 +190,17 @@ export function useUpdateCanvasNode(): UseUpdateCanvasNodeReturn {
               structuralUpdates.position = props.position;
           }
 
-          // Data (color, variant + custom data)
+          // Data (color, variant, displayOptions + custom data)
           const dataUpdate: Record<string, unknown> = {};
           if (props?.color !== undefined) dataUpdate.color = props.color;
           if (props?.variant !== undefined) dataUpdate.variant = props.variant;
+          if (props?.displayOptions !== undefined) {
+            dataUpdate.displayOptions = {
+              ...((node.data?.displayOptions as NodeDisplayOptions | undefined) ??
+                {}),
+              ...props.displayOptions,
+            };
+          }
           if (data) Object.assign(dataUpdate, data);
 
           const hasDataUpdate = Object.keys(dataUpdate).length > 0;

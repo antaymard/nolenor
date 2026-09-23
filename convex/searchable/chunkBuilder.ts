@@ -107,7 +107,20 @@ async function rebuildChunksForNodeData(
   // `null` = rien de ce qui est indexé n'a changé : on NE touche PAS aux
   // chunks. (Ce skip renvoyait autrefois `[]`, que l'upsert prenait pour
   // « plus aucun chunk » : modifier une autre clé d'un PDF effaçait son OCR.)
-  if (rawChunks === null) return;
+  // Seul le titre du node a pu bouger (renommer une image) : on le recale sur
+  // place, sans relancer vision ni OCR. L'embedding garde l'ancien titre
+  // jusqu'à la prochaine reconstruction complète ; `search_title` est à jour
+  // tout de suite.
+  if (rawChunks === null) {
+    await ctx.runMutation(
+      internal.wrappers.searchableChunkWrappers.patchChunkTitles,
+      {
+        nodeDataId,
+        title: stripLoneSurrogates(getNodeDataTitle(nodeData, template)),
+      },
+    );
+    return;
+  }
 
   const chunks = rawChunks.map((chunk) => ({
     ...chunk,

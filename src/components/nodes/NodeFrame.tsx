@@ -8,6 +8,8 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import BookmarkedBadge from "./BookmarkedBadge";
+import { NodeTitleHeader } from "./NodeHeader";
+import { resolveNodeDisplayOptions } from "@/../convex/config/nodeConfig";
 
 function NodeFrame({
   xyNode,
@@ -46,6 +48,15 @@ function NodeFrame({
 
     openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType });
   }, [nodeDataId, xyNode.id, nodeType, openWindow]);
+
+  // L'en-tête titre est posé ici, pour tous les types, et non par chaque
+  // node : proposer `showTitle` à un nouveau type tient alors en une ligne de
+  // `nodeDataConfig`. Le contenu du node passe dans un corps `flex-1`, où son
+  // `h-full` vaut la hauteur restante.
+  const { showTitle } = resolveNodeDisplayOptions(
+    nodeType,
+    xyNode.data.displayOptions,
+  );
 
   // Une iframe déverrouillée (cf. IframeInteractionGate) avale les pointermove :
   // drag et resize perdraient leurs frames dès que le curseur la survole. Le
@@ -127,6 +138,7 @@ function NodeFrame({
             // La dernière fois on l'a mis sur le frame et ça avait rogné
             // l'outline du node attaché — d'où ce placement.
             "h-full relative overflow-hidden rounded-[13px] [content-visibility:auto]",
+            showTitle && "flex flex-col",
             xyNode.data.color === "transparent"
               ? "bg-transparent"
               : "bg-white/80",
@@ -135,7 +147,14 @@ function NodeFrame({
           {needsPointerShieldWhileMoving && (isResizing || xyNode.dragging) && (
             <div className="absolute inset-0 z-10" />
           )}
-          {children}
+          {showTitle ? (
+            <>
+              <NodeTitleHeader nodeDataId={nodeDataId} nodeType={nodeType} />
+              <div className="relative flex-1 min-h-0">{children}</div>
+            </>
+          ) : (
+            children
+          )}
         </div>
       </div>
     </>

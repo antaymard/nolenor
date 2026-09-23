@@ -133,6 +133,22 @@ export const getCurrentTranscript = internalQuery({
   },
 });
 
+/**
+ * Recale le titre des chunks d'un node quand son contenu indexé n'a pas
+ * bougé (cf. `rebuildChunksForNodeData`).
+ */
+export const patchChunkTitles = internalMutation({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    title: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await SearchableChunkModels.patchTitlesByNodeDataId(ctx, args);
+    return null;
+  },
+});
+
 export const deleteByNodeDataId = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),

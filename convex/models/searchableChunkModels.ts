@@ -341,6 +341,28 @@ export async function listTranscriptChunks(
     .sort((a, b) => a.order - b.order);
 }
 
+/**
+ * Recale le titre des chunks d'un node sans toucher à leur contenu : la voie
+ * d'un renommage quand le contenu indexé, lui, n'a pas bougé (cf.
+ * `rebuildChunksForNodeData`). Seuls les chunks dont le titre diffère sont
+ * réécrits.
+ */
+export async function patchTitlesByNodeDataId(
+  ctx: MutationCtx,
+  { nodeDataId, title }: { nodeDataId: Id<"nodeDatas">; title: string },
+): Promise<void> {
+  const chunks = await ctx.db
+    .query("searchableChunks")
+    .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+    .collect();
+
+  for (const chunk of chunks) {
+    if (chunk.title !== title) {
+      await ctx.db.patch("searchableChunks", chunk._id, { title });
+    }
+  }
+}
+
 export async function deleteByNodeDataId(
   ctx: MutationCtx,
   { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },

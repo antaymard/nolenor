@@ -23,6 +23,8 @@ import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { cn } from "@/lib/utils";
 import type { XyNodeProps } from "@/types/domain";
+import { resolveNodeDisplayOptions } from "@/../convex/config/nodeConfig";
+import { NODE_HEADER_HEIGHT } from "../NodeHeader";
 
 type ImageItem = ImageEditItem;
 
@@ -216,11 +218,18 @@ function ImageGrid({
 function ImageNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
   const isGrid = xyNode.data.variant === "grid";
-  // Ratio du node, relu à chaque redimensionnement : React Flow republie
-  // width/height pendant le drag des poignées, donc la mosaïque se recompose
-  // en direct.
+  // Ratio de la zone d'images, relu à chaque redimensionnement : React Flow
+  // republie width/height pendant le drag des poignées, donc la mosaïque se
+  // recompose en direct. L'en-tête titre (posé par `NodeFrame`) est retranché :
+  // la mosaïque se range dans ce qui reste, pas dans tout le node.
+  const { showTitle } = resolveNodeDisplayOptions(
+    xyNode.type,
+    xyNode.data.displayOptions,
+  );
+  const contentHeight =
+    (xyNode.height ?? 0) - (showTitle ? NODE_HEADER_HEIGHT : 0);
   const aspect =
-    xyNode.width && xyNode.height ? xyNode.width / xyNode.height : 1;
+    xyNode.width && contentHeight > 0 ? xyNode.width / contentHeight : 1;
   const values = useNodeDataValues(nodeDataId);
   // Le statut de génération est un champ top-level du document, pas une value :
   // il faut donc le nodeData complet, pas seulement ses values.

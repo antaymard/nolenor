@@ -188,37 +188,20 @@ export async function remove(
 }
 
 /**
- * Dé-repère des nodes : retire toute trace d'eux dans les repères de
- * l'utilisateur sur ce canvas.
- *
- * L'unité n'est pas le repère mais le NODE — c'est la sémantique « gras »
- * demandée côté menus : un node est repéré ou il ne l'est pas, peu importe
- * lequel de ses repères le porte, exactement comme un caractère est en gras
- * sans qu'on ait à savoir quel span le met en gras. D'où les deux cas :
+ * Retire les nodes visés d'une liste de repères, et rend le nombre de repères
+ * touchés :
  *
  * - un repère `node` visé part en entier ;
  * - un repère `selection` est rogné des nodes visés, et ne part que s'il n'en
- *   reste aucun — sinon on détruirait le repère des nodes voisins qu'on n'a
- *   pas demandé à dé-repérer.
+ *   reste aucun — sinon on détruirait le repère des nodes voisins.
  *
  * Les `framing` ne visent aucun node : ils ne bougent pas.
  */
-export async function removeForNodes(
+async function pruneNodesFromBookmarks(
   ctx: MutationCtx,
-  {
-    userId,
-    canvasId,
-    nodeIds,
-  }: {
-    userId: Id<"users">;
-    canvasId: Id<"canvases">;
-    nodeIds: Array<string>;
-  },
+  bookmarks: Array<CanvasBookmark>,
+  targeted: Set<string>,
 ): Promise<number> {
-  const targeted = new Set(nodeIds);
-  if (targeted.size === 0) return 0;
-
-  const bookmarks = await listForUserCanvas(ctx, { userId, canvasId });
   const now = Date.now();
   let touched = 0;
 
@@ -249,6 +232,62 @@ export async function removeForNodes(
   }
 
   return touched;
+}
+
+/**
+ * Dé-repère des nodes : retire toute trace d'eux dans les repères de
+ * l'utilisateur sur ce canvas.
+ *
+ * L'unité n'est pas le repère mais le NODE — c'est la sémantique « gras »
+ * demandée côté menus : un node est repéré ou il ne l'est pas, peu importe
+ * lequel de ses repères le porte, exactement comme un caractère est en gras
+ * sans qu'on ait à savoir quel span le met en gras. D'où le rognage des
+ * `selection` plutôt que leur suppression (cf. `pruneNodesFromBookmarks`).
+ */
+export async function removeForNodes(
+  ctx: MutationCtx,
+  {
+    userId,
+    canvasId,
+    nodeIds,
+  }: {
+    userId: Id<"users">;
+    canvasId: Id<"canvases">;
+    nodeIds: Array<string>;
+  },
+): Promise<number> {
+  const targeted = new Set(nodeIds);
+  if (targeted.size === 0) return 0;
+
+  const bookmarks = await listForUserCanvas(ctx, { userId, canvasId });
+  return pruneNodesFromBookmarks(ctx, bookmarks, targeted);
+}
+
+/**
+ * Nettoie les repères de TOUS les membres d'un canvas qui visaient des nodes
+ * définitivement détruits. Appelé par la purge de la corbeille
+ * (`NodeModels.purgeTrashedBatch`).
+ *
+ * Tant qu'un node dort à la corbeille, ses repères restent : affichés grisés,
+ * ils reprennent vie si on le restaure. Une fois le node purgé, ils ne
+ * mèneraient plus jamais nulle part — un repère `node` part, une `selection`
+ * perd ces ids et part si elle n'en garde aucun.
+ *
+ * `collect` sur le canvas, comme `deleteForCanvas` : le volume est borné par
+ * ce que ses membres ont repéré à la main, pas par la taille du canvas.
+ */
+export async function removeForPurgedNodes(
+  ctx: MutationCtx,
+  { canvasId, nodeIds }: { canvasId: Id<"canvases">; nodeIds: Array<string> },
+): Promise<number> {
+  const targeted = new Set(nodeIds);
+  if (targeted.size === 0) return 0;
+
+  const bookmarks = await ctx.db
+    .query("canvasBookmarks")
+    .withIndex("by_canvasId", (q) => q.eq("canvasId", canvasId))
+    .collect();
+  return pruneNodesFromBookmarks(ctx, bookmarks, targeted);
 }
 
 /**

@@ -158,7 +158,7 @@ function RouteComponent() {
       <div className="mt-6">
         <ConfirmableButton
           title="Sign out?"
-          text="You will need to sign in again to get back to your canvases."
+          text="You will need to log in again to get back to your canvases."
           confirmLabel="Sign out"
           destructive
           onConfirm={() => void handleLogout()}

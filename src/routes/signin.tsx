@@ -1,13 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { z } from "zod";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/shadcn/input-otp";
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 import toast from "react-hot-toast";
 import { useConvexAuth } from "convex/react";
 import { ConvexError } from "convex/values";
+import { AUTH_OTP_LENGTH } from "@/../convex/lib/authOtp";
 
 // Le site vitrine pointe ici pour l'inscription (`/signin?mode=signup`) :
 // sans ce param, son CTA « Créer un compte » déposerait l'utilisateur sur
@@ -25,6 +32,9 @@ export const Route = createFileRoute("/signin")({
 
 const INPUT_CLASSNAME =
   "bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 h-11 focus-visible:ring-0 focus-visible:border-gray-300";
+
+const OTP_SLOT_CLASSNAME =
+  "h-12 w-12 bg-white border-gray-200 text-2xl font-semibold text-gray-900 shadow-none data-[active=true]:border-gray-400 data-[active=true]:ring-0";
 
 const SPINNER_CLASSNAME =
   "h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin";
@@ -56,6 +66,9 @@ function RouteComponent() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
+  const [code, setCode] = useState("");
+  const verifyFormRef = useRef<HTMLFormElement>(null);
+  const newPasswordRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   // Le formulaire entier est gelé pendant qu'une des deux méthodes travaille :
@@ -105,13 +118,14 @@ function RouteComponent() {
         // l'inscription, soit à la première connexion d'un compte créé avant
         // que la vérification n'existe.
         if (!result.signingIn) {
+          setCode("");
           setStep({ email, kind: "verify" });
           toast.success("We sent a verification code to your email.");
           return;
         }
         toast.success(
           credentialsFlow === "signIn"
-            ? "Successfully signed in!"
+            ? "Successfully logged in!"
             : "Account created successfully!",
         );
       })
@@ -127,7 +141,7 @@ function RouteComponent() {
         const errorMessage = e?.message || String(e);
         if (errorMessage.includes("already exists")) {
           toast.error(
-            "This account already exists. Sign in or use a different email.",
+            "This account already exists. Log in or use a different email.",
           );
         } else if (
           errorMessage.includes("Invalid password") ||
@@ -146,7 +160,7 @@ function RouteComponent() {
         } else if (errorMessage.includes("Invalid email")) {
           toast.error("Invalid email.");
         } else {
-          toast.error("Unable to sign in. Please try again.");
+          toast.error("Unable to log in. Please try again.");
         }
       })
       .finally(() => {
@@ -166,6 +180,10 @@ function RouteComponent() {
         // Traiter `signingIn: false` comme un succès laisserait l'utilisateur
         // sur un écran figé sans explication.
         if (!result.signingIn) {
+          // Vider les cases plutôt que laisser le code faux : la soumission
+          // est automatique, l'utilisateur retape directement le bon sans
+          // devoir d'abord effacer.
+          setCode("");
           toast.error("Invalid or expired code.");
           return;
         }
@@ -173,6 +191,7 @@ function RouteComponent() {
       })
       .catch((e) => {
         console.error(e);
+        setCode("");
         toast.error("Invalid or expired code.");
       })
       .finally(() => {
@@ -188,6 +207,7 @@ function RouteComponent() {
 
     signIn("password", formData)
       .then(() => {
+        setCode("");
         setStep({ email, kind: "reset" });
         toast.success("We sent a reset code to your email.");
       })
@@ -293,9 +313,9 @@ function RouteComponent() {
             ) : step === "forgot" ? (
               "We'll email you a code to choose a new password"
             ) : credentialsFlow === "signIn" ? (
-              "Sign in to your account to continue"
+              "Log in to your account to continue"
             ) : (
-              "Sign up to get started for free"
+              "Get started for free"
             )}
           </p>
         </div>
@@ -306,18 +326,16 @@ function RouteComponent() {
             style={{ animationDelay: "160ms" }}
             onSubmit={handleResetVerification}
           >
-            <Input
-              name="code"
-              placeholder="8-digit code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              required
-              disabled={isSubmitting}
-              className={INPUT_CLASSNAME}
+            {/* Pas de soumission automatique ici : il manque encore le mot de
+                passe. Le code complet passe la main au champ suivant. */}
+            <CodeInput
+              value={code}
+              onChange={setCode}
+              isSubmitting={isSubmitting}
+              onComplete={() => newPasswordRef.current?.focus()}
             />
             <Input
+              ref={newPasswordRef}
               name="newPassword"
               placeholder="New password"
               type="password"
@@ -344,20 +362,22 @@ function RouteComponent() {
           </form>
         ) : codeStep ? (
           <form
+            ref={verifyFormRef}
             className="w-full flex flex-col gap-3 animate-appear-up"
             style={{ animationDelay: "160ms" }}
             onSubmit={handleVerification}
           >
-            <Input
-              name="code"
-              placeholder="8-digit code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              required
-              disabled={isSubmitting}
-              className={INPUT_CLASSNAME}
+            <CodeInput
+              value={code}
+              onChange={setCode}
+              isSubmitting={isSubmitting}
+              // `requestSubmit` plutôt que d'appeler le handler : il passe par
+              // l'événement `submit`, donc par la validation du formulaire et
+              // le même `FormData` qu'un clic sur le bouton. La garde évite un
+              // second envoi si la dernière case est retapée pendant l'appel.
+              onComplete={() => {
+                if (!isSubmitting) verifyFormRef.current?.requestSubmit();
+              }}
             />
             <input name="email" type="hidden" value={codeStep.email} />
             <input name="flow" type="hidden" value="email-verification" />
@@ -475,9 +495,9 @@ function RouteComponent() {
                 {isSubmitting ? (
                   <div className={SPINNER_CLASSNAME} />
                 ) : credentialsFlow === "signIn" ? (
-                  "Sign In"
+                  "Log in"
                 ) : (
-                  "Sign Up"
+                  "Create account"
                 )}
               </Button>
             </form>
@@ -496,7 +516,7 @@ function RouteComponent() {
               onClick={() => setStep("signIn")}
               disabled={isSubmitting}
             >
-              Back to sign in
+              Back to log in
             </button>
           ) : credentialsFlow === "signIn" ? (
             <>
@@ -507,7 +527,7 @@ function RouteComponent() {
                 onClick={() => setStep("signUp")}
                 disabled={isBusy}
               >
-                Sign Up
+                Create account
               </button>
             </>
           ) : (
@@ -519,12 +539,61 @@ function RouteComponent() {
                 onClick={() => setStep("signIn")}
                 disabled={isBusy}
               >
-                Sign In
+                Log in
               </button>
             </>
           )}
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Saisie du code reçu par email : une case par chiffre, focus automatique,
+ * collage et autofill (`autocomplete="one-time-code"`, posé par `input-otp`)
+ * gérés par la lib.
+ *
+ * `readOnly` plutôt que `disabled` pendant l'envoi : un champ désactivé perd
+ * le focus, et après un code refusé l'utilisateur devrait recliquer dans les
+ * cases avant de retaper.
+ */
+function CodeInput({
+  value,
+  onChange,
+  onComplete,
+  isSubmitting,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onComplete: () => void;
+  isSubmitting: boolean;
+}) {
+  return (
+    <InputOTP
+      name="code"
+      maxLength={AUTH_OTP_LENGTH}
+      pattern={REGEXP_ONLY_DIGITS}
+      // Un code copié depuis l'email peut traîner des espaces ou un retour à
+      // la ligne, que `pattern` ferait rejeter en bloc.
+      pasteTransformer={(pasted) => pasted.replace(/\D/g, "")}
+      value={value}
+      onChange={onChange}
+      onComplete={onComplete}
+      autoFocus
+      required
+      readOnly={isSubmitting}
+      containerClassName="justify-center"
+    >
+      <InputOTPGroup>
+        {Array.from({ length: AUTH_OTP_LENGTH }, (_, index) => (
+          <InputOTPSlot
+            key={index}
+            index={index}
+            className={OTP_SLOT_CLASSNAME}
+          />
+        ))}
+      </InputOTPGroup>
+    </InputOTP>
   );
 }

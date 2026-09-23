@@ -407,8 +407,14 @@ export default function CanvasFlow({
   );
 
   // Canvas nodes management
-  const { nodes, handleNodeChange, onNodeDrag, onNodeDragStop } =
-    useCanvasNodes(canvasId, canvasNodes);
+  const {
+    nodes,
+    handleNodeChange,
+    onNodeDrag,
+    onNodeDragStop,
+    onSelectionStart,
+    onSelectionEnd,
+  } = useCanvasNodes(canvasId, canvasNodes);
 
   // Canvas edges management
   const { edges, setEdges, handleEdgeChange } = useCanvasEdges(
@@ -758,6 +764,10 @@ export default function CanvasFlow({
         // flush) AVANT `onNodeDragStop`. Cf. `useCanvasNodes`.
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        // Bornent le lasso, pour que Ctrl + lasso écarte les frames (cf.
+        // `useCanvasNodes`).
+        onSelectionStart={onSelectionStart}
+        onSelectionEnd={onSelectionEnd}
         onConnect={onConnect}
         // Desktop uniquement : au doigt, le drag sur le pane pan toujours et
         // les viewers (`!canEdit`) ne créent rien.

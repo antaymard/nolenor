@@ -13,13 +13,17 @@ import TargetDeltaIndicator from "../navigation/TargetDeltaIndicator";
 interface MentionedNodeCardProps {
   nodeId: string;
   inline?: boolean;
-  fallback?: React.ReactNode;
+  /**
+   * Titre connu quand le node a été cité, affiché dans la pastille grisée si
+   * le node n'est plus sur le canvas.
+   */
+  fallbackTitle?: string;
 }
 
 export function MentionedNodeCard({
   nodeId,
   inline,
-  fallback,
+  fallbackTitle,
 }: MentionedNodeCardProps) {
   const nodeDataId = useNodeDataIdOf(nodeId);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
@@ -36,9 +40,24 @@ export function MentionedNodeCard({
   );
 
   if (!nodeData) {
-    // Pas de node correspondant : on tombe en fallback sur le texte d'origine
-    // pour ne pas faire disparaître un faux positif du parseur de node IDs.
-    return fallback !== undefined ? <>{fallback}</> : null;
+    // Node absent du canvas (supprimé, ou id inventé) : on le dit, plutôt que
+    // de réafficher l'id brut. Même libellé que la pastille de mention
+    // blocknote (mention-inline-content.tsx).
+    return (
+      <span
+        className={cn(
+          "items-center gap-1.5 rounded border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 italic",
+          inline
+            ? "inline-flex align-middle mx-1 -translate-y-0.5"
+            : "flex w-fit max-w-50",
+        )}
+        title={`Node not found (${nodeId}): deleted or not on this canvas`}
+      >
+        <span className="truncate max-w-37.5">
+          {fallbackTitle ? `${fallbackTitle} · not found` : "Node not found"}
+        </span>
+      </span>
+    );
   }
 
   const title = getNodeDataTitle(nodeData);

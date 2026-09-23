@@ -1,8 +1,12 @@
 import { useSmoothText } from "@convex-dev/agent/react";
-import { memo, useDeferredValue } from "react";
+import { memo, useDeferredValue, useMemo } from "react";
 import { MarkdownText } from "@/components/ai/MarkdownText";
 import type { TextPart as TextPartType } from "@/types/domain/message.types";
-import { markdownComponents, remarkNodeMentions } from "../nodeLinks";
+import {
+  markdownComponents,
+  nodeMentionTokensToLinks,
+  remarkNodeMentions,
+} from "../nodeLinks";
 
 /** Renders an assistant `text` part as streaming markdown with node pills. */
 export const TextPart = memo(function TextPart({
@@ -10,10 +14,19 @@ export const TextPart = memo(function TextPart({
 }: {
   part: TextPartType;
 }) {
-  const [visibleText] = useSmoothText(part.text ?? "", {
+  const fullText = part.text ?? "";
+  const [visibleText] = useSmoothText(fullText, {
     startStreaming: part.state === "streaming",
   });
   const deferredText = useDeferredValue(visibleText);
+  // Le lissage peut encore être en retard sur un texte déjà complet : tant
+  // qu'on n'en affiche qu'un préfixe, un token peut y être coupé.
+  const isPartial =
+    part.state === "streaming" || deferredText.length < fullText.length;
+  const markdown = useMemo(
+    () => nodeMentionTokensToLinks(deferredText, { streaming: isPartial }),
+    [deferredText, isPartial],
+  );
 
   if (!visibleText) return null;
 
@@ -28,7 +41,7 @@ export const TextPart = memo(function TextPart({
         components={markdownComponents}
         remarkPlugins={[remarkNodeMentions]}
       >
-        {deferredText}
+        {markdown}
       </MarkdownText>
     </div>
   );

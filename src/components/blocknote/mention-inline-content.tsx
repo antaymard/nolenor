@@ -66,7 +66,7 @@ export function MentionPillView({
   if (!nodeData) {
     return (
       <span className={cn(pillClassName, "italic opacity-60")}>
-        {fallbackTitle || "Node introuvable"}
+        {fallbackTitle || "Node not found"}
       </span>
     );
   }
@@ -123,9 +123,9 @@ function InteractiveMentionPill({
     return (
       <span
         className={cn(pillClassName, "italic opacity-60")}
-        title="Node introuvable"
+        title="Node not found"
       >
-        {fallbackTitle || "Node introuvable"}
+        {fallbackTitle || "Node not found"}
       </span>
     );
   }

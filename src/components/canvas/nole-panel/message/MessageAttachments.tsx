@@ -18,7 +18,7 @@ export function MessageAttachments({
   return (
     <div className="flex flex-wrap gap-1 max-w-4/5 justify-end">
       {nodes.map((n) => (
-        <MentionedNodeCard key={n.id} nodeId={n.id} fallback={n.title} />
+        <MentionedNodeCard key={n.id} nodeId={n.id} fallbackTitle={n.title} />
       ))}
       {position ? (
         <span className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600">

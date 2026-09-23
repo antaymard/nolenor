@@ -31,12 +31,16 @@ export const ResendOTP = Resend({
       await sendAuthEmail({
         ctx,
         to: email,
-        subject: "Your Nolenor verification code",
-        text: [
-          `Your verification code is ${token}`,
-          "",
-          "It expires shortly. If you didn't try to create an account or log in to Nolenor, you can ignore this email.",
-        ].join("\n"),
+        // Le code en tête du sujet : il se lit dans la notification sans
+        // ouvrir le mail, et iOS/macOS le proposent alors en autofill.
+        subject: `${token} is your Nolenor verification code`,
+        content: {
+          heading: "Verify your email",
+          intro: "Enter this code in Nolenor to confirm your email address.",
+          code: token,
+          footer:
+            "It expires shortly. If you didn't try to create an account or log in to Nolenor, you can ignore this email.",
+        },
       });
     },
   ),

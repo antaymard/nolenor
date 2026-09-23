@@ -37,12 +37,16 @@ export const ResendOTPPasswordReset = Resend({
       await sendAuthEmail({
         ctx,
         to: email,
-        subject: "Reset your Nolenor password",
-        text: [
-          `Your password reset code is ${token}`,
-          "",
-          "It expires shortly. If you didn't ask to reset your Nolenor password, you can ignore this email — your password stays unchanged.",
-        ].join("\n"),
+        // Même logique que `ResendOTP` : le code lisible dès la notification.
+        subject: `${token} is your Nolenor password reset code`,
+        content: {
+          heading: "Reset your password",
+          intro:
+            "Enter this code in Nolenor, then choose your new password.",
+          code: token,
+          footer:
+            "It expires shortly. If you didn't ask to reset your Nolenor password, you can ignore this email — your password stays unchanged.",
+        },
       });
     },
   ),

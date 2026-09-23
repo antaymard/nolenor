@@ -81,7 +81,7 @@ export default function AppSidebar({
         className="flex items-center gap-2.5 px-2 py-0.5"
       >
         <img src="/favicon.svg" alt="" className="size-7" />
-        <span className="text-[17px] font-extrabold tracking-tight text-slate-900">
+        <span className="text-[17px] font-bold tracking-tight text-slate-900">
           Nolënor
         </span>
       </Link>

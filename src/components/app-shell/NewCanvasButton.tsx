@@ -23,7 +23,7 @@ export default function NewCanvasButton({
       <DialogTrigger asChild>
         <Button
           className={cn(
-            "h-11 gap-2 border-0 bg-(--brand) px-4 font-semibold text-white shadow-sm hover:bg-(--brand) hover:opacity-90",
+            "h-11 gap-2 px-4 font-semibold shadow-sm",
             className,
           )}
         >

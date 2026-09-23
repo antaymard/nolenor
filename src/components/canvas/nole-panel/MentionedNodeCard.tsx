@@ -14,12 +14,22 @@ interface MentionedNodeCardProps {
   nodeId: string;
   inline?: boolean;
   fallback?: React.ReactNode;
+  /**
+   * Node absent du canvas (supprimé, ou id inventé) : une pastille grisée
+   * « Node introuvable » plutôt que `fallback`. À réserver aux références
+   * certaines — le texte d'un faux positif ne doit pas devenir une pastille.
+   */
+  showMissing?: boolean;
+  /** Titre connu quand le node a été cité, affiché dans la pastille grisée. */
+  missingLabel?: string;
 }
 
 export function MentionedNodeCard({
   nodeId,
   inline,
   fallback,
+  showMissing,
+  missingLabel,
 }: MentionedNodeCardProps) {
   const nodeDataId = useNodeDataIdOf(nodeId);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
@@ -34,6 +44,26 @@ export function MentionedNodeCard({
     () => ({ nodeId }),
     [nodeId],
   );
+
+  if (!nodeData && showMissing) {
+    // Même libellé que la pastille de mention blocknote dans ce cas
+    // (mention-inline-content.tsx).
+    return (
+      <span
+        className={cn(
+          "items-center gap-1.5 rounded border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-400 italic",
+          inline
+            ? "inline-flex align-middle mx-1 -translate-y-0.5"
+            : "flex w-fit max-w-50",
+        )}
+        title={`Node introuvable (${nodeId}) : supprimé ou absent de ce canvas`}
+      >
+        <span className="truncate max-w-37.5">
+          {missingLabel ? `${missingLabel} · introuvable` : "Node introuvable"}
+        </span>
+      </span>
+    );
+  }
 
   if (!nodeData) {
     // Pas de node correspondant : on tombe en fallback sur le texte d'origine

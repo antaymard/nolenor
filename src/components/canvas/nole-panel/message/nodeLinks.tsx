@@ -2,7 +2,11 @@ import type { Root } from "mdast";
 import type { Plugin } from "unified";
 import { findAndReplace } from "mdast-util-find-and-replace";
 import type { Components } from "react-markdown";
-import { buildLlmIdTextRegex, matchesLlmIdFormat } from "@/../convex/lib/llmId";
+import {
+  buildLlmIdTextRegex,
+  matchesCurrentLlmIdFormat,
+  matchesLlmIdFormat,
+} from "@/../convex/lib/llmId";
 import { nodeMentionTokenSource } from "@/../convex/lib/nodeMentionToken";
 import { MentionedNodeCard } from "@/components/canvas/nole-panel/MentionedNodeCard";
 
@@ -15,6 +19,14 @@ const CODE_OR_NODE_TOKEN_RE = new RegExp(
   String.raw`(\`+)[\s\S]*?\1|~~~[\s\S]*?~~~|` + nodeMentionTokenSource(),
   "g",
 );
+
+/**
+ * Markdown link title marking a node link as a certain reference — a
+ * `[[node:…]]` token, or a bare id in the current strict format — so a node
+ * that is gone is shown as such. A bare id in a legacy format may be a false
+ * positive and falls back to plain text.
+ */
+const NODE_REFERENCE_LINK_TITLE = "node-ref";
 
 /** Ids safe to drop into a `#node-<id>` URL as is. */
 const LINKABLE_NODE_ID_RE = /^[\w-]+$/;
@@ -60,7 +72,7 @@ export function nodeMentionTokensToLinks(
       const title = (parts.length > 1 ? parts.slice(1).join("|") : parts[0])
         .replace(/\s+/g, " ")
         .trim();
-      return `[${escapeLinkText(title || nodeId)}](#node-${nodeId})`;
+      return `[${escapeLinkText(title || nodeId)}](#node-${nodeId} "${NODE_REFERENCE_LINK_TITLE}")`;
     },
   );
 }
@@ -93,6 +105,9 @@ export const remarkNodeMentions: Plugin<[], Root> = () => (tree) => {
           return {
             type: "link",
             url: `#node-${match}`,
+            title: matchesCurrentLlmIdFormat(match)
+              ? NODE_REFERENCE_LINK_TITLE
+              : null,
             children: [{ type: "text", value: match }],
           };
         },
@@ -102,16 +117,34 @@ export const remarkNodeMentions: Plugin<[], Root> = () => (tree) => {
   );
 };
 
+/** Plain text of a link's children, or undefined if they aren't all text. */
+function textOf(children: React.ReactNode): string | undefined {
+  const parts = Array.isArray(children) ? children : [children];
+  return parts.every((part) => typeof part === "string")
+    ? parts.join("")
+    : undefined;
+}
+
 /**
  * Markdown component overrides for assistant text: `#node-<id>` links render as
  * inline node cards; everything else renders as a normal external link.
  */
 export const markdownComponents: Components = {
-  a: ({ href, children }) => {
+  a: ({ href, title, children }) => {
     if (href?.startsWith("#node-")) {
       const nodeId = href.replace("#node-", "");
+      // Link text: a token's title, or the id itself.
+      const text = textOf(children);
       // `children` is the original text, used as fallback if no node matches.
-      return <MentionedNodeCard nodeId={nodeId} inline fallback={children} />;
+      return (
+        <MentionedNodeCard
+          nodeId={nodeId}
+          inline
+          fallback={children}
+          showMissing={title === NODE_REFERENCE_LINK_TITLE}
+          missingLabel={text && text !== nodeId ? text : undefined}
+        />
+      );
     }
     return (
       <a

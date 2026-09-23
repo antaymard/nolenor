@@ -60,6 +60,32 @@ export const EXPLANATION_FIELD = z
       "Bad: \"I will insert a new paragraph after the introduction.\"",
   );
 
+// ── Labels d'edge ───────────────────────────────────────────────────────────
+//
+// Le label vit dans `edge.data.label`, comme l'écrit l'éditeur inline du
+// canvas (`CustomEdge`). Effacé côté UI, il est patché à `null` — la fusion
+// shallow de `patchEdge` le laisse en base : on le lit donc comme « absent ».
+
+/** Même limite que l'éditeur inline du canvas (`EdgeLabelEditor`). */
+export const EDGE_LABEL_MAX_LENGTH = 80;
+
+export const EDGE_LABEL_FIELD = z
+  .string()
+  .max(EDGE_LABEL_MAX_LENGTH)
+  .describe(
+    `Short text displayed on the edge, naming the relation from source to target (1–5 words, max ${EDGE_LABEL_MAX_LENGTH} chars, in the user's language). E.g. "depends on", "contradicts", "step 2".`,
+  );
+
+/** Le label d'une edge, `null` s'il est absent, effacé ou vide. */
+export function getEdgeLabel(edge: {
+  data?: Record<string, unknown>;
+}): string | null {
+  const label = edge.data?.label;
+  if (typeof label !== "string") return null;
+  const trimmed = label.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export type NodeRect = {
   id: string;
   position: { x: number; y: number };

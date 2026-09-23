@@ -15,6 +15,7 @@ import {
   nodeTypeZodValidator,
 } from "../../config/nodeConfig";
 import {
+  EDGE_LABEL_FIELD,
   EXPLANATION_FIELD,
   getClosestHandlesForDirectedEdge,
   type NodeRect,
@@ -223,14 +224,30 @@ export default function createNodeTool({
           "Optional node data title. Applied to title-like fields depending on node type.",
         ),
       sourceNodes: z
-        .array(z.string())
+        .array(
+          z.union([
+            z.string(),
+            z.object({
+              nodeId: z.string().describe("Existing source node ID."),
+              label: EDGE_LABEL_FIELD.optional(),
+            }),
+          ]),
+        )
         .optional()
         .describe(
-          "Optional list of existing nodeIds to connect FROM each source node TO the newly created node. Unknown or invalid ids are skipped and reported in skippedSources. Its last valid entry is the default anchor for relative placement.",
+          "Optional list of existing nodes to connect FROM each source node TO the newly created node. Each entry is either a nodeId, or { nodeId, label } to label that connection. Unknown or invalid ids are skipped and reported in skippedSources. Its last valid entry is the default anchor for relative placement.",
         ),
     }),
     execute: async (ctx, input) => {
       try {
+        // `sourceNodes` accepte un id nu ou `{ nodeId, label }` : normalisé
+        // une fois ici, tout ce qui suit ne voit que la forme objet.
+        const sources = (input.sourceNodes ?? []).map((entry) =>
+          typeof entry === "string"
+            ? { nodeId: entry, label: null }
+            : { nodeId: entry.nodeId, label: entry.label?.trim() || null },
+        );
+
         // ── Custom nodes : défauts, dimensions et titre viennent du
         // template (values keyées par fieldId), pas de nodeConfig — le
         // lookup nodeDataConfig reste donc dans la branche non-custom.
@@ -447,13 +464,8 @@ export default function createNodeTool({
             }
             // `sourceNodes` n'ancre pas en mode frame : une source est en
             // général dehors, et ancrer dessus viserait hors de la boîte.
-            if (
-              !anchor &&
-              !frameRect &&
-              input.sourceNodes &&
-              input.sourceNodes.length > 0
-            ) {
-              for (const sourceNodeId of input.sourceNodes) {
+            if (!anchor && !frameRect && sources.length > 0) {
+              for (const { nodeId: sourceNodeId } of sources) {
                 const found = nodeRectsById.get(sourceNodeId);
                 if (found) {
                   anchor = found;
@@ -572,11 +584,12 @@ export default function createNodeTool({
         const connectedSources: Array<{
           sourceNodeId: string;
           edgeId: string;
+          label?: string;
         }> = [];
         const skippedSources: Array<{ sourceNodeId: string; reason: string }> =
           [];
 
-        if (input.sourceNodes && input.sourceNodes.length > 0) {
+        if (sources.length > 0) {
           // Fetch partagé avec le placement relatif : en placement absolu,
           // le batch n'a pas encore été lu.
           if (!nodeRectsById) {
@@ -611,7 +624,7 @@ export default function createNodeTool({
             height: defaultDimensions.height,
           };
 
-          for (const sourceNodeId of input.sourceNodes) {
+          for (const { nodeId: sourceNodeId, label } of sources) {
             if (sourceNodeId === nodeId) {
               skippedSources.push({
                 sourceNodeId,
@@ -650,12 +663,17 @@ export default function createNodeTool({
                       target: nodeId,
                       sourceHandle,
                       targetHandle,
+                      ...(label && { data: { label } }),
                     },
                   ],
                 },
               );
 
-              connectedSources.push({ sourceNodeId, edgeId });
+              connectedSources.push({
+                sourceNodeId,
+                edgeId,
+                ...(label && { label }),
+              });
             } catch (error) {
               skippedSources.push({
                 sourceNodeId,
@@ -695,8 +713,7 @@ export default function createNodeTool({
           currentNodeData: initialValues,
           // Connexions depuis les sources demandées : les réussies avec
           // leur edgeId, les skippées avec leur raison.
-          ...(input.sourceNodes &&
-            input.sourceNodes.length > 0 && {
+          ...(sources.length > 0 && {
               connectedSources,
               ...(skippedSources.length > 0 && { skippedSources }),
             }),

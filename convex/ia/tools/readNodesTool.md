@@ -32,7 +32,7 @@ Outil exposé au modèle pour lire un ou plusieurs nœuds du canvas courant et r
    - Si `type === "table"` → branche table.
    - Si `pdfPages` / `tableRows` / `viewImages` désigne ce nodeId mais que le nœud n'est pas du bon type → `<warning>` et l'argument est ignoré.
    - Sinon → contenu LLM-friendly standard via `makeNodeDataLLMFriendly`.
-4. **Résolution des connexions** : pour chaque arête liée à un nœud demandé, les nœuds connectés (source/target) sont résolus pour exposer leur titre/type dans les attributs `sourceNodes` / `targetNodes`.
+4. **Résolution des connexions** : pour chaque arête liée à un nœud demandé, les nœuds connectés (source/target) sont résolus pour exposer leur titre/type dans les attributs `sourceNodes` / `targetNodes`, avec le label de l'arête quand il existe (`data.label`).
 5. **Schemas** : pour chaque type de nœud unique présent dans la réponse, un bloc `<schema>` est ajouté avec les outils d'édition et/ou le JSON Schema du nodeData.
 6. **Images jointes** : les URLs collectées sont plafonnées, passées par `toModelImageUrl`, et un manifeste `<attachedImages>` est ajouté au XML.
 7. Retourne `{ text, images }`.
@@ -270,7 +270,7 @@ modèle reçoit N images sans étiquette) :
 | `id`                          | Toujours                                                                          |
 | `type`                        | Toujours                                                                          |
 | `title`                       | Toujours                                                                          |
-| `sourceNodes` / `targetNodes` | Toujours (chaîne vide si aucune connexion) — format : `"id \| type \| title ; …"` |
+| `sourceNodes` / `targetNodes` | Toujours (chaîne vide si aucune connexion) — format : `"id \| type \| title ; …"`, suivi de `\| label: "…"` quand l'arête porte un label |
 | `x`, `y`, `width`, `height`   | Si `withPosition=true` et données disponibles                                     |
 | `totalPages`                  | Nœud PDF seulement                                                                |
 | `readError`                   | En cas d'erreur de lecture                                                        |

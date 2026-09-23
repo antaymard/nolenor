@@ -13,13 +13,11 @@ import {
 } from "@/hooks/useOpenNoleThread";
 import { isPendingReview } from "@/lib/threadRunStatus";
 import TaskCard from "./TaskCard";
+import { useDockCapacity } from "./useDockCapacity";
 
-/**
- * Au-delà, le dock percuterait `CanvasToolbar`, en `bottom-center`. Le reste
- * passe derrière un « +N ». Trois et non quatre depuis que les blocs portent
- * deux lignes : ils sont plus larges qu'une pastille.
- */
-const MAX_VISIBLE_CARDS = 3;
+/** Largeur d'un `TaskCard` (`w-[272px]`) et gouttière de la rangée (`gap-2`). */
+const CARD_WIDTH_PX = 272;
+const CARD_GAP_PX = 8;
 
 /**
  * Le dock d'activité : ce que Nolë est en train de faire sur ce canvas, et ce
@@ -58,18 +56,27 @@ export default function ActivityDock({
     isPendingReview(thread, Date.now()),
   );
 
+  // Autant de blocs que la place jusqu'à `CanvasToolbar` en laisse, le reste
+  // derrière un « +N ».
+  const { ref, visibleCount } = useDockCapacity<HTMLDivElement>({
+    side: "start",
+    total: pending.length,
+    itemWidth: CARD_WIDTH_PX,
+    gap: CARD_GAP_PX,
+  });
+
   // Rien à signaler : le bouton Nolë reste seul, comme `MinimizedDock`
   // quand aucune fenêtre n'est réduite.
   if (pending.length === 0) return null;
 
-  const visible = pending.slice(0, MAX_VISIBLE_CARDS);
-  const overflow = pending.slice(MAX_VISIBLE_CARDS);
+  const visible = pending.slice(0, visibleCount);
+  const overflow = pending.slice(visibleCount);
 
   return (
     // Pas de coque commune : chaque tâche est son propre bloc, avec sa bordure
     // et son halo. Les enfermer dans un conteneur unique les faisait lire comme
     // une barre d'outils plutôt que comme des choses en cours, distinctes.
-    <div className="flex items-center gap-2">
+    <div ref={ref} className="flex items-center gap-2">
       {visible.map((thread) => (
         <TaskCard
           key={thread.threadId}

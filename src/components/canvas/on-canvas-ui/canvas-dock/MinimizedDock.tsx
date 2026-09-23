@@ -13,13 +13,12 @@ import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import type { DeltaTarget } from "@/lib/canvasViewportFraming";
 import { useExistingNodeIds } from "@/lib/nodeIdentity";
 import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
+import { useDockCapacity } from "../useDockCapacity";
 import { DockHoverActions } from "./DockRow";
 
-/**
- * Au-delà, la rangée filerait vers `CanvasToolbar`, en `bottom-center`. Le
- * reste passe derrière un « +N », comme dans `ActivityDock`.
- */
-const MAX_VISIBLE_PILLS = 3;
+/** Largeur max d'une pastille (`max-w-48`) et gouttière de la rangée (`gap-2`). */
+const PILL_MAX_WIDTH_PX = 192;
+const PILL_GAP_PX = 8;
 
 /**
  * Une window minimisée : titre, et cap + distance vers son node — remplacés
@@ -93,8 +92,9 @@ function MinimizedPill({ window: openedWindow }: { window: OpenedWindow }) {
  *
  * Le pendant de `ActivityDock` en bas à gauche : là-bas les tâches partent du
  * bouton Nolë vers la droite, ici les windows partent du bord droit vers le
- * centre (`flex-row-reverse` : la première est collée au bouton). Trois au
- * plus, le reste derrière un « +N ». Pas de réordonnancement : leur ordre
+ * centre (`flex-row-reverse` : la première est collée au bouton). Autant que
+ * la place en laisse (`useDockCapacity`), le reste derrière un « +N ». Pas de
+ * réordonnancement : leur ordre
  * n'est stocké nulle part.
  *
  * Ne se rend pas à vide. Une pastille qui apparaît dit à elle seule où la
@@ -117,13 +117,22 @@ export default function MinimizedDock() {
     [openedWindows, existingNodeIds],
   );
 
+  // Autant de pastilles que la place jusqu'à `CanvasToolbar` en laisse, le
+  // reste derrière un « +N », comme dans `ActivityDock`.
+  const { ref, visibleCount } = useDockCapacity<HTMLDivElement>({
+    side: "end",
+    total: minimized.length,
+    itemWidth: PILL_MAX_WIDTH_PX,
+    gap: PILL_GAP_PX,
+  });
+
   if (minimized.length === 0) return null;
 
-  const visible = minimized.slice(0, MAX_VISIBLE_PILLS);
-  const overflow = minimized.slice(MAX_VISIBLE_PILLS);
+  const visible = minimized.slice(0, visibleCount);
+  const overflow = minimized.slice(visibleCount);
 
   return (
-    <div className="flex flex-row-reverse items-center gap-2">
+    <div ref={ref} className="flex flex-row-reverse items-center gap-2">
       {visible.map((openedWindow) => (
         <MinimizedPill key={openedWindow.xyNodeId} window={openedWindow} />
       ))}

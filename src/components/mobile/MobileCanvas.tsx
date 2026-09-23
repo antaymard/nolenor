@@ -16,6 +16,7 @@ import MobileCanvasTab from "./MobileCanvasTab";
 import MobileCanvasSwitcherSheet from "./MobileCanvasSwitcherSheet";
 import MobileNodeOverlay from "./MobileNodeOverlay";
 import CanvasWelcomeModal from "@/components/canvas/welcome/CanvasWelcomeModal";
+import { useOpenThreadFromUrl } from "@/hooks/useOpenThreadFromUrl";
 
 export default function MobileCanvas({
   canvasId,
@@ -55,6 +56,11 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
     () => ({ activeTab, setActiveTab }),
     [activeTab, setActiveTab],
   );
+
+  // Une tâche ouverte depuis la home : sur mobile la conversation vit dans son
+  // onglet, il faut y basculer en plus de la désigner.
+  const showChat = useCallback(() => setActiveTab("chat"), [setActiveTab]);
+  useOpenThreadFromUrl({ ready: Boolean(canvas), onOpened: showChat });
 
   if (isCanvasError && canvasError) {
     return (

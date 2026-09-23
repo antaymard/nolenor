@@ -323,6 +323,25 @@ export async function markReviewed(
 }
 
 /**
+ * Défait `markReviewed` : la tâche revient dans le dock et sur la home.
+ *
+ * N'existe que pour le « Undo » qui suit un clear depuis la home — un clic
+ * malheureux ne doit pas faire perdre la trace d'un travail qu'on n'a pas lu.
+ * No-op si la tâche n'avait pas été accusée.
+ */
+export async function unmarkReviewed(
+  ctx: MutationCtx,
+  { threadId }: { threadId: string },
+): Promise<void> {
+  const threadRow = await findByThreadId(ctx, { threadId });
+  if (!threadRow || threadRow.reviewedAt === undefined) return;
+
+  await ctx.db.patch("threadMetadata", threadRow._id, {
+    reviewedAt: undefined,
+  });
+}
+
+/**
  * Enregistre ce que l'agent est en train de faire, tel qu'il l'a formulé.
  *
  * Appelé une fois par tool call depuis l'enveloppe de `getToolsForAgent`, donc

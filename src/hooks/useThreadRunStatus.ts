@@ -4,7 +4,7 @@ import {
   formatRunDuration,
   resolveRunStatus,
   type ResolvedRunStatus,
-  type PendingThread,
+  type ThreadDockFields,
   type ThreadRunFields,
 } from "@/lib/threadRunStatus";
 
@@ -77,7 +77,7 @@ const DURATION_TICK_MS = 1000;
  * rien à réveiller.
  */
 export function useRunDuration(
-  thread: PendingThread,
+  thread: Pick<ThreadDockFields, "runStartedAt" | "runEndedAt">,
   isRunning: boolean,
 ): string | null {
   const [now, setNow] = useState(() => Date.now());

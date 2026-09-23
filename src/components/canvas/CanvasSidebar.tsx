@@ -2,16 +2,13 @@ import {
   SidebarProvider,
   SidebarTrigger,
   Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
   SidebarInset,
-  SidebarMenu,
+  useSidebar,
 } from "@/components/shadcn/sidebar";
 import { Button } from "@/components/shadcn/button";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Dialog, DialogTrigger } from "@/components/shadcn/dialog";
+import { Dialog } from "@/components/shadcn/dialog";
 import CanvasFormModal from "./CanvasFormModal";
 import {
   DropdownMenu,
@@ -31,11 +28,18 @@ import {
 } from "@/components/shadcn/alert-dialog";
 import { buttonVariants } from "@/components/shadcn/button";
 import { HiDotsVertical } from "react-icons/hi";
-import { TbHome, TbPlus } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
 import CanvasHistoryControls from "@/components/canvas/on-canvas-ui/CanvasHistoryControls";
+import AppSidebar from "@/components/app-shell/AppSidebar";
+import { canvasCover, canvasInitial } from "@/lib/canvasCover";
+
+type SidebarCanvas = {
+  _id: Id<"canvases">;
+  name: string;
+  description?: string;
+};
 
 export default function CanvasSidebar({
   children,
@@ -78,132 +82,26 @@ export default function CanvasSidebar({
     }
   };
 
-  function renderUserCanvases() {
-    if (!userCanvases) return <div className="p-4">Loading...</div>;
-    if (userCanvases.length === 0)
-      return (
-        <div className="p-4 text-sm text-muted-foreground">No workspaces</div>
-      );
-
-    return (
-      <SidebarMenu>
-        {ownCanvases.map((c, index) => (
-          <div
-            key={c._id}
-            className="animate-appear-up"
-            style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
-          >
-            <div className="flex items-center justify-between w-full group px-2">
-              <Link
-                to="/canvas/$canvasId"
-                params={{ canvasId: c._id }}
-                className={cn(
-                  "text-base! font-medium px-2 py-1 flex-1 min-w-0 truncate  rounded-lg",
-                  c._id === canvasId ? "bg-slate-200" : "hover:bg-slate-100",
-                )}
-              >
-                {c.name}
-              </Link>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="opacity-0 group-hover:opacity-100 h-6 w-6"
-                  >
-                    <HiDotsVertical size={12} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setCanvasToEdit({
-                        id: c._id,
-                        name: c.name,
-                        description: c.description ?? "",
-                      })
-                    }
-                  >
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setCanvasToDelete({ id: c._id, name: c.name })
-                    }
-                    className="text-destructive"
-                  >
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        ))}
-
-        {sharedCanvases.length > 0 && (
-          <>
-            <h4 className="px-4 pt-4 text-xs text-muted-foreground uppercase tracking-wider">
-              Shared with you
-            </h4>
-            {sharedCanvases.map((c, index) => (
-              <div
-                key={c._id}
-                className="animate-appear-up"
-                style={{
-                  animationDelay: `${Math.min(ownCanvases.length + index, 10) * 30}ms`,
-                }}
-              >
-                <div className="flex items-center justify-between w-full group px-2">
-                  <Link
-                    to="/canvas/$canvasId"
-                    params={{ canvasId: c._id }}
-                    className={cn(
-                      "text-base! font-medium px-2 py-1 flex-1 min-w-0 truncate rounded-lg",
-                      c._id === canvasId
-                        ? "bg-slate-200"
-                        : "hover:bg-slate-100",
-                    )}
-                  >
-                    {c.name}
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-      </SidebarMenu>
-    );
-  }
+  const editCanvas = (c: SidebarCanvas) =>
+    setCanvasToEdit({
+      id: c._id,
+      name: c.name,
+      description: c.description ?? "",
+    });
+  const askDeleteCanvas = (c: SidebarCanvas) =>
+    setCanvasToDelete({ id: c._id, name: c.name });
 
   return (
     <SidebarProvider defaultOpen={false}>
       <Sidebar variant="sidebar">
-        <SidebarHeader className="flex flex-row items-center justify-between p-4">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-              <Link to="/" title="All workspaces" aria-label="All workspaces">
-                <TbHome size={16} />
-              </Link>
-            </Button>
-            <span className="font-semibold text-lg truncate">
-              {currentCanvas?.name ?? "..."}
-            </span>
-          </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
-                <TbPlus size={16} />
-              </Button>
-            </DialogTrigger>
-            <CanvasFormModal mode="create" />
-          </Dialog>
-        </SidebarHeader>
-        <SidebarContent className="py-4">
-          <h3 className="px-4">Workspaces</h3>
-          {renderUserCanvases()}
-        </SidebarContent>
-        <SidebarFooter></SidebarFooter>
+        <CanvasSidebarPanel
+          canvasId={canvasId}
+          userCanvases={userCanvases}
+          ownCanvases={ownCanvases}
+          sharedCanvases={sharedCanvases}
+          onEdit={editCanvas}
+          onDelete={askDeleteCanvas}
+        />
       </Sidebar>
 
       <SidebarInset className="flex-1">
@@ -219,7 +117,7 @@ export default function CanvasSidebar({
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 shrink-0"
-                  aria-label="Workspace options"
+                  aria-label="Canvas options"
                 >
                   <HiDotsVertical size={12} />
                 </Button>
@@ -285,10 +183,10 @@ export default function CanvasSidebar({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+            <AlertDialogTitle>Delete canvas?</AlertDialogTitle>
             <AlertDialogDescription>
               {canvasToDelete
-                ? `“${canvasToDelete.name}” will be permanently deleted. This action cannot be undone.`
+                ? `“${canvasToDelete.name}” will be permanently deleted. Its blocks and conversations go with it. This action cannot be undone.`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -304,5 +202,174 @@ export default function CanvasSidebar({
         </AlertDialogContent>
       </AlertDialog>
     </SidebarProvider>
+  );
+}
+
+/**
+ * Le contenu de la sidebar du canvas : la même que celle de la home
+ * (`AppSidebar`), avec la liste des canvas au milieu.
+ *
+ * Composant à part pour lire l'état du `SidebarProvider` : repliée, la sidebar
+ * reste montée, et on coupe alors les queries du badge Inbox et de l'usage IA
+ * (cf. `AppSidebar`, `live`).
+ */
+function CanvasSidebarPanel({
+  canvasId,
+  userCanvases,
+  ownCanvases,
+  sharedCanvases,
+  onEdit,
+  onDelete,
+}: {
+  canvasId: Id<"canvases">;
+  userCanvases: SidebarCanvas[] | undefined;
+  ownCanvases: SidebarCanvas[];
+  sharedCanvases: SidebarCanvas[];
+  onEdit: (canvas: SidebarCanvas) => void;
+  onDelete: (canvas: SidebarCanvas) => void;
+}) {
+  const { open } = useSidebar();
+
+  return (
+    <AppSidebar live={open}>
+      {!userCanvases ? (
+        <p className="px-2 text-sm text-slate-500">Loading…</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <CanvasListSection title="Canvases">
+            {ownCanvases.length === 0 ? (
+              <p className="px-2 text-sm text-slate-500">No canvas yet</p>
+            ) : (
+              ownCanvases.map((c, index) => (
+                <CanvasListItem
+                  key={c._id}
+                  canvas={c}
+                  active={c._id === canvasId}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  index={index}
+                />
+              ))
+            )}
+          </CanvasListSection>
+
+          {sharedCanvases.length > 0 && (
+            <CanvasListSection title="Shared with you">
+              {sharedCanvases.map((c, index) => (
+                <CanvasListItem
+                  key={c._id}
+                  canvas={c}
+                  active={c._id === canvasId}
+                  index={ownCanvases.length + index}
+                />
+              ))}
+            </CanvasListSection>
+          )}
+        </div>
+      )}
+    </AppSidebar>
+  );
+}
+
+function CanvasListSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-0.5">
+      <h3 className="px-2 pb-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Un canvas de la liste : sa tuile de couleur (la même que sa carte sur la
+ * home, cf. `canvasCover`), son nom, et le menu Edit / Delete pour les siens.
+ */
+function CanvasListItem({
+  canvas,
+  active,
+  onEdit,
+  onDelete,
+  index,
+}: {
+  canvas: SidebarCanvas;
+  active: boolean;
+  /** Absents sur les canvas partagés : on n'y a pas ces droits. */
+  onEdit?: (canvas: SidebarCanvas) => void;
+  onDelete?: (canvas: SidebarCanvas) => void;
+  index: number;
+}) {
+  const cover = canvasCover(canvas._id);
+
+  return (
+    <div
+      className={cn(
+        "group animate-appear-up flex items-center gap-1 rounded-lg pr-1 transition-colors",
+        active ? "bg-white shadow-sm" : "hover:bg-slate-200/60",
+      )}
+      style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
+    >
+      <Link
+        to="/canvas/$canvasId"
+        params={{ canvasId: canvas._id }}
+        aria-current={active ? "page" : undefined}
+        className="flex h-9 min-w-0 flex-1 items-center gap-2.5 pl-2 text-sm"
+      >
+        <span
+          className={cn(
+            "flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white",
+            cover.tile,
+          )}
+          aria-hidden
+        >
+          {canvasInitial(canvas.name)}
+        </span>
+        <span
+          className={cn(
+            "truncate",
+            active ? "font-bold text-slate-900" : "font-medium text-slate-700",
+          )}
+        >
+          {canvas.name}
+        </span>
+      </Link>
+
+      {(onEdit || onDelete) && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Actions for ${canvas.name}`}
+              className="size-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+            >
+              <HiDotsVertical size={12} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {onEdit && (
+              <DropdownMenuItem onClick={() => onEdit(canvas)}>
+                Edit
+              </DropdownMenuItem>
+            )}
+            {onDelete && (
+              <DropdownMenuItem
+                onClick={() => onDelete(canvas)}
+                className="text-destructive"
+              >
+                Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
   );
 }

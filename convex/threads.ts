@@ -23,6 +23,7 @@ import {
   listNoleThreadsByUserAndCanvas,
   markReviewed,
   markRunEnded,
+  unmarkReviewed,
 } from "./models/threadMetadataModels";
 import {
   threadLastActivityValidator,
@@ -332,6 +333,9 @@ export const listPendingThreadsForUser = query({
       reviewedAt: v.union(v.number(), v.null()),
       touchedNodesCount: v.number(),
       lastActivity: v.union(threadLastActivityValidator, v.null()),
+      // Le message d'un tour en échec : la home l'affiche à la place de la
+      // dernière action, qui ne dit pas pourquoi la tâche s'est arrêtée.
+      lastRunError: v.union(v.string(), v.null()),
     }),
   ),
   handler: async (ctx) => {
@@ -356,6 +360,7 @@ export const listPendingThreadsForUser = query({
         reviewedAt: metadata.reviewedAt ?? null,
         touchedNodesCount: metadata.touchedNodes?.length ?? 0,
         lastActivity: metadata.lastActivity ?? null,
+        lastRunError: metadata.lastRunError ?? null,
       }),
     });
   },
@@ -527,6 +532,35 @@ export const markThreadReviewed = mutation({
     }
 
     await markReviewed(ctx, { threadId });
+    return null;
+  },
+});
+
+/**
+ * L'inverse de `markThreadReviewed`, pour le « Undo » du clear de la home.
+ *
+ * Mêmes contrôles d'accès : seul le propriétaire du thread peut le remettre en
+ * attente.
+ */
+export const unmarkThreadReviewed = mutation({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { threadId }) => {
+    const authUserId = await requireAuth(ctx);
+    if (!authUserId) {
+      throw new Error(errors.UNAUTHORIZED_USER);
+    }
+
+    const thread = await getThreadMetadata(ctx, components.agent, {
+      threadId,
+    });
+    if (!thread || thread.userId !== authUserId) {
+      throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
+    }
+
+    await unmarkReviewed(ctx, { threadId });
     return null;
   },
 });

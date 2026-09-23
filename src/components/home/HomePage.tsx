@@ -1,25 +1,38 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
+import NewCanvasButton from "@/components/app-shell/NewCanvasButton";
+import PageHeader from "@/components/app-shell/PageHeader";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import {
-  pendingTasksOf,
-  useHomePendingTasks,
-} from "@/hooks/useHomePendingTasks";
+import { useHomePendingTasks } from "@/hooks/useHomePendingTasks";
+import { useTaskCanvases } from "@/hooks/useTaskCanvases";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
-import HomeHeader from "./HomeHeader";
-import ResumeCard from "./ResumeCard";
+import TaskList from "./TaskList";
 import WelcomeBlock from "./WelcomeBlock";
 import WorkspaceGrid from "./WorkspaceGrid";
 
+/** Au-delà, la home renvoie vers l'Inbox plutôt que de devenir une liste. */
+const HOME_TASKS_LIMIT = 5;
+
+function greeting(hour: number): string {
+  if (hour < 5) return "Good evening";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function HomePage() {
+  const me = useQuery(api.users.me);
   const { ownCanvases, sharedCanvases, isLoading, deleteCanvas } =
     useUserCanvases();
-  // Ce que Nolë a laissé en plan, tous workspaces confondus. Chargé à part des
+  // Ce que Nolë a laissé en plan, tous canvas confondus. Chargé à part des
   // canvases, et non greffé sur leur listing : la ligne `threadMetadata` d'un
   // thread est réécrite une fois par step LLM, et une query qui les mêlerait
   // rejouerait le listing complet des canvases à chaque battement d'un tour en
   // cours.
-  const pendingTasks = useHomePendingTasks();
+  const pending = useHomePendingTasks();
+  const taskCanvases = useTaskCanvases();
 
   const handleDelete = useCallback(
     (canvasId: Id<"canvases">) => {
@@ -30,70 +43,76 @@ export default function HomePage() {
     [deleteCanvas],
   );
 
-  // La liste arrive triée par récence : le premier canvas perso est le dernier
-  // touché, c'est-à-dire celui vers lequel `/` redirigeait autrefois. Les
-  // partagés sont exclus — un canvas modifié par son propriétaire n'est pas
-  // « là où on en était ».
-  const lastCanvas = ownCanvases[0];
-  const isEmpty = !isLoading && ownCanvases.length === 0;
+  const visibleTaskCount = useMemo(
+    () => pending.tasks.filter((task) => taskCanvases.has(task.canvasId)).length,
+    [pending.tasks, taskCanvases],
+  );
+
+  const name = me?.displayName;
+  const title = `${greeting(new Date().getHours())}${name ? `, ${name}` : ""}`;
+  const hasNoOwnCanvas = !isLoading && ownCanvases.length === 0;
+  // « Tout est fait » n'a pas de sens pour un compte qui n'a encore rien fait.
+  const subtitle =
+    visibleTaskCount > 0
+      ? `${visibleTaskCount} ${visibleTaskCount === 1 ? "task needs" : "tasks need"} your attention.`
+      : hasNoOwnCanvas
+        ? "Let's set up your first canvas."
+        : "You're all caught up.";
 
   return (
-    // `h-full` (et non `min-h-dvh`) : le shell root est en `overflow-hidden` à
-    // hauteur fixe, donc un enfant en hauteur auto grandirait avec son contenu
-    // et déborderait du parent sans jamais scroller lui-même — le scroll
-    // restait coincé, visible surtout en mobile où la grille passe à 1 colonne
-    // et dépasse du viewport. Contraint à `h-full`, l'overflow a lieu dans ce
-    // conteneur et `overflow-y-auto` s'enclenche. `touch-pan-y` garantit le pan
-    // tactile vertical, `overscroll-y-contain` évite le chaînage au body.
-    <div className="h-full w-full touch-pan-y overflow-y-auto overscroll-y-contain bg-[#f7f7f8]">
-      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
-        <HomeHeader canJump={ownCanvases.length + sharedCanvases.length > 0} />
+    <div className="mx-auto flex max-w-6xl flex-col gap-9 px-4 py-8 md:px-10 md:py-10">
+      <PageHeader
+        title={title}
+        subtitle={isLoading ? undefined : subtitle}
+        // La sidebar porte déjà le bouton sur desktop ; sur mobile elle est
+        // repliée, c'est donc ici qu'on le trouve.
+        action={<NewCanvasButton className="md:hidden" />}
+      />
 
-        {isLoading ? (
-          <HomeSkeleton />
-        ) : isEmpty ? (
-          <>
-            <WelcomeBlock />
-            {/* Un compte sans canvas à lui peut en avoir reçu en partage : ne
-                pas les afficher le laisserait devant une page « vide » alors
-                qu'il a du travail qui l'attend. */}
-            {sharedCanvases.length > 0 && (
-              <WorkspaceGrid
-                ownCanvases={[]}
-                sharedCanvases={sharedCanvases}
-                pendingTasks={pendingTasks}
-                onDelete={handleDelete}
-              />
-            )}
-          </>
-        ) : (
-          <>
-            {lastCanvas && (
-              <ResumeCard
-                canvas={lastCanvas}
-                pendingTasks={pendingTasksOf(pendingTasks, lastCanvas._id)}
-              />
-            )}
-            <WorkspaceGrid
-              ownCanvases={ownCanvases}
-              sharedCanvases={sharedCanvases}
-              pendingTasks={pendingTasks}
-              onDelete={handleDelete}
+      {isLoading ? (
+        <HomeSkeleton />
+      ) : (
+        <>
+          {/* Un compte sans canvas à lui peut en avoir reçu en partage : on
+              l'accueille, et on lui montre quand même ce qui l'attend. */}
+          {hasNoOwnCanvas && <WelcomeBlock />}
+
+          {/* Section masquée quand il n'y a rien : la sidebar compte déjà les
+              tâches, et un « tout est fait » permanent en tête de page
+              repousserait les canvas pour ne rien dire. L'Inbox, elle,
+              l'affiche. */}
+          {visibleTaskCount > 0 && (
+            <TaskList
+              tasks={pending.tasks}
+              canvases={taskCanvases}
+              limit={HOME_TASKS_LIMIT}
             />
-          </>
-        )}
-      </div>
+          )}
+
+          <WorkspaceGrid
+            ownCanvases={ownCanvases}
+            sharedCanvases={sharedCanvases}
+            pendingTasks={pending.byCanvas}
+            onDelete={handleDelete}
+          />
+        </>
+      )}
     </div>
   );
 }
 
 function HomeSkeleton() {
   return (
-    <div className="flex flex-col gap-8">
-      <Skeleton className="h-24 rounded-xl" />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }, (_, index) => (
-          <Skeleton key={index} className="h-36 rounded-xl" />
+    <div className="flex flex-col gap-9">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-6 w-48 rounded-md" />
+        {Array.from({ length: 3 }, (_, index) => (
+          <Skeleton key={index} className="h-16 rounded-xl" />
+        ))}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }, (_, index) => (
+          <Skeleton key={index} className="h-44 rounded-2xl" />
         ))}
       </div>
     </div>

@@ -105,21 +105,25 @@ function buildChildrenMap(
 
 /**
  * Collect all descendants of a node recursively, avoiding cycles.
+ * `canVisit` borne le parcours : un node refusé n'est ni collecté ni traversé.
  */
 function collectDescendants(
   nodeId: string,
   childrenMap: Map<string, string[]>,
   visited: Set<string> = new Set(),
+  canVisit: (id: string) => boolean = () => true,
 ): string[] {
   const result: string[] = [];
   const children = childrenMap.get(nodeId);
   if (!children) return result;
 
   for (const childId of children) {
-    if (visited.has(childId)) continue;
+    if (visited.has(childId) || !canVisit(childId)) continue;
     visited.add(childId);
     result.push(childId);
-    result.push(...collectDescendants(childId, childrenMap, visited));
+    result.push(
+      ...collectDescendants(childId, childrenMap, visited, canVisit),
+    );
   }
   return result;
 }
@@ -175,6 +179,11 @@ export function useCanvasNodes(
       { parentId: string | null; previousParentId: string | null }
     >
   >(new Map());
+
+  // Un lasso est en cours (entre `onSelectionStart` et `onSelectionEnd`).
+  // Un ref plutôt que `userSelectionActive` du store React Flow : l'ordre
+  // entre sa mise à jour et les changes `select` émis n'est pas garanti.
+  const isLassoActiveRef = useRef(false);
 
   const draggedChildrenCache = useRef<{
     draggedNodeId: string | null;
@@ -429,7 +438,37 @@ export function useCanvasNodes(
   }, [canvasNodes, setNodes]);
 
   const handleNodeChange = useCallback(
-    (changes: NodeChange[]) => {
+    (incomingChanges: NodeChange[]) => {
+      // Ctrl + lasso : on ramasse des nodes, jamais les frames — en mode
+      // `Partial`, le moindre rectangle tracé dans une frame l'attrapait.
+      // Seules les sélections sont touchées : un deselect passe, et un
+      // Ctrl+clic sur une frame (qui n'est pas un lasso) la sélectionne
+      // toujours.
+      //
+      // Retournée en `selected: false` plutôt qu'écartée : React Flow a déjà
+      // passé `selected` à `true` sur son node interne AVANT d'émettre le
+      // change (`getSelectionChanges(…, mutateItem)`), et c'est ce node
+      // interne que le rendu lit. Écarté, le change laisserait la frame
+      // affichée sélectionnée ; appliqué à `false`, il produit un nouvel
+      // objet node, que React Flow réadopte avec la bonne valeur.
+      let changes = incomingChanges;
+      if (isLassoActiveRef.current && isCtrlHeld) {
+        const frameIds = new Set(
+          getNodes()
+            .filter((node) => node.type === "frame")
+            .map((node) => node.id),
+        );
+        if (frameIds.size > 0) {
+          changes = changes.map((change) =>
+            change.type === "select" &&
+            change.selected &&
+            frameIds.has(change.id)
+              ? { ...change, selected: false }
+              : change,
+          );
+        }
+      }
+
       const positionChanges = changes.filter(
         (change: NodeChange) => change.type === "position",
       ) as NodePositionChange[];
@@ -453,7 +492,7 @@ export function useCanvasNodes(
         }
       }
 
-      // Move children along with dragged parent (unless Ctrl is held)
+      // Move children along with dragged parent (when Ctrl is held)
       // Compute delta BEFORE onNodesChange applies the parent's new position
       const isDragging = positionChanges.some((change) => change.dragging);
       let parentNewPosition: { x: number; y: number } | null = null;
@@ -472,13 +511,25 @@ export function useCanvasNodes(
           if (draggedChildrenCache.current.draggedNodeId !== cacheKey) {
             const edges = getEdges();
             const currentNodes = getNodes();
+            const nodesMap = new Map(currentNodes.map((n) => [n.id, n]));
             const childrenMap = buildChildrenMap(edges);
             const allDescendants = new Set<string>();
+            // L'entraînement reste dans le repère du node attrapé : même frame
+            // que lui, ou la racine s'il est à la racine. L'offset appliqué
+            // plus bas est un delta, valable tel quel dans le repère relatif
+            // d'une frame — à condition que le descendant ne change pas de
+            // repère. Un node d'une autre frame (ou hors frame) reste où il
+            // est, et le parcours ne passe pas à travers lui : on ne sort pas
+            // un node de son groupe en déplaçant un voisin auquel il est
+            // connecté. Les enfants d'une frame traînée tombent aussi hors
+            // du repère : ils suivent déjà leur frame.
             for (const draggedId of draggedIds) {
+              const scope = nodesMap.get(draggedId)?.parentId ?? null;
               for (const desc of collectDescendants(
                 draggedId,
                 childrenMap,
                 new Set(draggedIds),
+                (id) => (nodesMap.get(id)?.parentId ?? null) === scope,
               )) {
                 allDescendants.add(desc);
               }
@@ -487,23 +538,10 @@ export function useCanvasNodes(
               allDescendants.delete(id);
             }
 
-            // Un descendant qui vit dans une frame porte une position
-            // RELATIVE à elle, alors que l'entraînement calcule des offsets en
-            // coordonnées monde : le déplacer ici le projetterait à côté. Il
-            // reste où il est, dans sa frame — ce qui est aussi le
-            // comportement le moins surprenant : on ne sort pas un node de son
-            // groupe en déplaçant un voisin auquel il est connecté.
-            for (const node of currentNodes) {
-              if (node.parentId) allDescendants.delete(node.id);
-            }
-
             // Store initial offsets: descendant position - parent position at drag start
-            const firstDraggedNode = currentNodes.find(
-              (n) => n.id === draggedChanges[0].id,
-            );
+            const firstDraggedNode = nodesMap.get(draggedChanges[0].id);
             const initialOffsets = new Map<string, { x: number; y: number }>();
             if (firstDraggedNode) {
-              const nodesMap = new Map(currentNodes.map((n) => [n.id, n]));
               for (const descId of allDescendants) {
                 const descNode = nodesMap.get(descId);
                 if (descNode) {
@@ -921,11 +959,21 @@ export function useCanvasNodes(
     useFrameHoverStore.getState().setHoveredFrameId(null);
   }, []);
 
+  const onSelectionStart = useCallback(() => {
+    isLassoActiveRef.current = true;
+  }, []);
+
+  const onSelectionEnd = useCallback(() => {
+    isLassoActiveRef.current = false;
+  }, []);
+
   return {
     nodes,
     setNodes,
     handleNodeChange,
     onNodeDrag,
     onNodeDragStop,
+    onSelectionStart,
+    onSelectionEnd,
   };
 }

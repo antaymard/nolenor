@@ -5,6 +5,7 @@ import {
   sendAuthEmail,
   withAuthEmailCtx,
 } from "./lib/authEmail";
+import { AUTH_OTP_MAX_AGE_MINUTES, AUTH_OTP_MAX_AGE_S } from "./lib/authOtp";
 
 /**
  * Code à usage unique envoyé par email pour vérifier une adresse à
@@ -24,6 +25,8 @@ export const ResendOTP = Resend({
   apiKey: process.env.AUTH_RESEND_KEY,
   from: AUTH_EMAIL_FROM_ADDRESS,
 
+  // Sans ce champ, le provider garde les 24 h par défaut d'Auth.js.
+  maxAge: AUTH_OTP_MAX_AGE_S,
   generateVerificationToken: generateAuthOtp,
 
   sendVerificationRequest: withAuthEmailCtx(
@@ -39,7 +42,7 @@ export const ResendOTP = Resend({
           intro: "Enter this code in Nolenor to confirm your email address.",
           code: token,
           footer:
-            "It expires shortly. If you didn't try to create an account or log in to Nolenor, you can ignore this email.",
+            `It expires in ${AUTH_OTP_MAX_AGE_MINUTES} minutes. If you didn't try to create an account or log in to Nolenor, you can ignore this email.`,
         },
       });
     },

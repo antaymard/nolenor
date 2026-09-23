@@ -5,6 +5,7 @@ import {
   sendAuthEmail,
   withAuthEmailCtx,
 } from "./lib/authEmail";
+import { AUTH_OTP_MAX_AGE_MINUTES, AUTH_OTP_MAX_AGE_S } from "./lib/authOtp";
 
 /**
  * Code à usage unique envoyé pour réinitialiser un mot de passe oublié.
@@ -30,6 +31,8 @@ export const ResendOTPPasswordReset = Resend({
   apiKey: process.env.AUTH_RESEND_KEY,
   from: AUTH_EMAIL_FROM_ADDRESS,
 
+  // Sans ce champ, le provider garde les 24 h par défaut d'Auth.js.
+  maxAge: AUTH_OTP_MAX_AGE_S,
   generateVerificationToken: generateAuthOtp,
 
   sendVerificationRequest: withAuthEmailCtx(
@@ -45,7 +48,7 @@ export const ResendOTPPasswordReset = Resend({
             "Enter this code in Nolenor, then choose your new password.",
           code: token,
           footer:
-            "It expires shortly. If you didn't ask to reset your Nolenor password, you can ignore this email — your password stays unchanged.",
+            `It expires in ${AUTH_OTP_MAX_AGE_MINUTES} minutes. If you didn't ask to reset your Nolenor password, you can ignore this email — your password stays unchanged.`,
         },
       });
     },

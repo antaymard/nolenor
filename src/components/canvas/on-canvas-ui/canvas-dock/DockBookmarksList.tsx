@@ -40,7 +40,7 @@ import TargetDeltaIndicator from "@/components/canvas/navigation/TargetDeltaIndi
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import type { NodeType } from "@/types/domain/nodeTypes";
-import DockSection from "./DockSection";
+import DockList from "./DockList";
 import { rowEnterProps } from "./dockRowEnter";
 import DockRow from "./DockRow";
 
@@ -204,17 +204,14 @@ function SortableBookmarkRow({
 }
 
 /**
- * La section des repères du canvas, dans le panneau du dock.
+ * La liste des repères du canvas, telle que la déplie le dock.
  *
- * Seule des deux sections du dock à être réordonnable : son ordre est enregistré
- * côté serveur (`api.canvasBookmarks.reorder`), d'où la poignée de drag — et
- * d'où son absence en face, où l'ordre ne survit pas au rechargement.
+ * Réordonnable : son ordre est enregistré côté serveur
+ * (`api.canvasBookmarks.reorder`), d'où la poignée de drag — et d'où son
+ * absence sur les windows minimisées, dont l'ordre ne survit pas au
+ * rechargement.
  */
-export default function DockBookmarksList({
-  withDivider,
-}: {
-  withDivider?: boolean;
-}) {
+export default function DockBookmarksList() {
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   const { bookmarks, isLoading, rename, reorder, remove } = useCanvasBookmarks({
     canvasId,
@@ -299,9 +296,8 @@ export default function DockBookmarksList({
   }
 
   return (
-    <DockSection
+    <DockList
       title="Bookmarks"
-      withDivider={withDivider}
       count={order.length > 0 ? order.length : undefined}
       isEmpty={!isLoading && order.length === 0}
       emptyLabel={
@@ -338,6 +334,6 @@ export default function DockBookmarksList({
           ))}
         </SortableContext>
       </DndContext>
-    </DockSection>
+    </DockList>
   );
 }

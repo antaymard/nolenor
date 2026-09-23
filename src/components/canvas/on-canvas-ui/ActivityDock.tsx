@@ -58,7 +58,7 @@ export default function ActivityDock({
     isPendingReview(thread, Date.now()),
   );
 
-  // Rien à signaler : le bouton Nolë reste seul, comme `MinimizedWindowsStack`
+  // Rien à signaler : le bouton Nolë reste seul, comme `MinimizedDock`
   // quand aucune fenêtre n'est réduite.
   if (pending.length === 0) return null;
 

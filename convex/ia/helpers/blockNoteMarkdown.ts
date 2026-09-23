@@ -32,6 +32,7 @@ import {
   BLOCK_NOTE_DEFAULT_CELL_PROPS,
 } from "../../lib/blockNoteDocument";
 import { normalizeDatePillValue } from "../../lib/datePill";
+import { buildNodeMentionTokenRegex } from "../../lib/nodeMentionToken";
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import {
   withHeadlessEditor,
@@ -118,12 +119,6 @@ export function formatDateToken(isoDate: string): string {
 // ignored when parsing, which is what makes the round-trip lossless: the agent
 // can hand a block straight back exactly as it read it.
 
-/**
- * The id is delimited by `|` or `]`, so a title containing either cannot swallow
- * it. Matched with the same `text.includes` pre-check as date tokens.
- */
-const NODE_MENTION_TOKEN_RE = /\[\[node:([^\]|\s]+)(?:\|[^\]]*)?\]\]/g;
-
 /** Longest label worth spending context on; the id is what the agent acts on. */
 const MENTION_LABEL_MAX = 80;
 
@@ -156,12 +151,8 @@ export function formatNodeMentionToken(info: MentionInfo): string {
 export function collectNodeMentionTokenIds(text: string): string[] {
   if (!text.includes("[[node:")) return [];
   const ids = new Set<string>();
-  NODE_MENTION_TOKEN_RE.lastIndex = 0;
-  for (
-    let match = NODE_MENTION_TOKEN_RE.exec(text);
-    match;
-    match = NODE_MENTION_TOKEN_RE.exec(text)
-  ) {
+  // Shared with the chat renderer (convex/lib/nodeMentionToken.ts).
+  for (const match of text.matchAll(buildNodeMentionTokenRegex())) {
     ids.add(match[1]);
   }
   return [...ids];

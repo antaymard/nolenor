@@ -1,7 +1,11 @@
 import { useSmoothText } from "@convex-dev/agent/react";
-import { memo, useDeferredValue } from "react";
+import { memo, useDeferredValue, useMemo } from "react";
 import { MarkdownText } from "@/components/ai/MarkdownText";
-import { markdownComponents, remarkNodeMentions } from "../nodeLinks";
+import {
+  markdownComponents,
+  nodeMentionTokensToLinks,
+  remarkNodeMentions,
+} from "../nodeLinks";
 
 /**
  * Le texte d'une étape de raisonnement, monté à l'ouverture seulement : replié
@@ -23,6 +27,11 @@ export const ReasoningBody = memo(function ReasoningBody({
 }) {
   const [visibleText] = useSmoothText(text, { startStreaming: false });
   const deferredText = useDeferredValue(visibleText);
+  const isPartial = isStreaming || deferredText.length < text.length;
+  const markdown = useMemo(
+    () => nodeMentionTokensToLinks(deferredText, { streaming: isPartial }),
+    [deferredText, isPartial],
+  );
 
   // Même raison qu'en `TextPart` : `clip` plutôt que `auto` pour ne pas
   // transformer ce panneau en conteneur de scroll vertical.
@@ -32,7 +41,7 @@ export const ReasoningBody = memo(function ReasoningBody({
         components={markdownComponents}
         remarkPlugins={[remarkNodeMentions]}
       >
-        {deferredText || (isStreaming ? "..." : "")}
+        {markdown || (isStreaming ? "..." : "")}
       </MarkdownText>
     </div>
   );

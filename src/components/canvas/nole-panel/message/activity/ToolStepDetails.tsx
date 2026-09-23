@@ -11,7 +11,7 @@ const MAX_PREVIEW_CHARS = 20_000;
 type Tab = "input" | "output";
 
 /**
- * Tiroir de debug d'un tool call : nom technique, état SDK, id d'appel, erreur,
+ * Tiroir de debug d'un tool call : nom technique, état SDK, erreur,
  * nodes cités, et la charge brute (args / résultat) copiable.
  *
  * Monté seulement une fois déplié : sérialiser la sortie d'un `read_nodes`
@@ -38,14 +38,6 @@ export const ToolStepDetails = memo(function ToolStepDetails({
       <div className="flex min-w-0 items-center gap-2 border-b border-slate-200 px-2 py-1 text-slate-500">
         <code className="font-mono font-medium text-slate-700">{step.name}</code>
         <span className="rounded bg-slate-200/70 px-1 font-mono">{step.state}</span>
-        {step.toolCallId && (
-          <span
-            className="ml-auto min-w-0 truncate font-mono text-slate-400"
-            title={step.toolCallId}
-          >
-            {step.toolCallId}
-          </span>
-        )}
       </div>
 
       {step.error && (

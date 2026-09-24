@@ -24,7 +24,7 @@ export default function WorkspaceRow({
   className,
   style,
 }: WorkspaceItemProps) {
-  const cover = canvasCover(canvas._id, canvas.color);
+  const cover = canvasCover(canvas.color);
 
   return (
     <li

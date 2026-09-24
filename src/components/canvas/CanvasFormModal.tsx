@@ -30,11 +30,7 @@ import {
   type CanvasIdentityDraft,
 } from "@/components/settings/canvas/canvasAppearanceDraft";
 import type { CanvasColor } from "@/../convex/schemas/canvasesSchema";
-import {
-  CANVAS_COVERS,
-  NEUTRAL_CANVAS_COVER,
-  canvasCover,
-} from "@/lib/canvasCover";
+import { canvasCover } from "@/lib/canvasCover";
 import {
   DEFAULT_CANVAS_BACKGROUND,
   resolveCanvasBackground,
@@ -220,11 +216,7 @@ export default function CanvasFormModal({
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
   const draftName = useStore(form.store, (s) => s.values.name);
   // Fond de l'aperçu de couverture : la teinte que la carte aura sur la home.
-  const coverTint = identityDraft.color
-    ? CANVAS_COVERS[identityDraft.color].tint
-    : canvasId
-      ? canvasCover(canvasId).tint
-      : NEUTRAL_CANVAS_COVER.tint;
+  const coverTint = canvasCover(identityDraft.color).tint;
 
   return (
     <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
@@ -258,7 +250,6 @@ export default function CanvasFormModal({
             }}
           />
           <CanvasIdentityField
-            canvasId={canvasId}
             name={draftName}
             value={identityDraft}
             onChange={setIdentityDraft}

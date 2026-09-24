@@ -15,11 +15,7 @@ import { Label } from "@/components/shadcn/label";
 import { Spinner } from "@/components/shadcn/spinner";
 import { toastError } from "@/components/utils/errorUtils";
 import toast from "react-hot-toast";
-import {
-  CANVAS_COVERS,
-  NEUTRAL_CANVAS_COVER,
-  canvasCover,
-} from "@/lib/canvasCover";
+import { canvasCover } from "@/lib/canvasCover";
 import CanvasBackgroundField from "./CanvasBackgroundField";
 import { CanvasCoverField, CanvasIdentityField } from "./CanvasAppearanceField";
 import CollapsibleSection from "./CollapsibleSection";
@@ -149,11 +145,7 @@ export default function CanvasBackgroundPanel({
   const selectedCanvas = ownedCanvases.find(
     (owned) => owned._id === selectedCanvasId,
   );
-  const coverTint = identityDraft.color
-    ? CANVAS_COVERS[identityDraft.color].tint
-    : selectedCanvasId
-      ? canvasCover(selectedCanvasId).tint
-      : NEUTRAL_CANVAS_COVER.tint;
+  const coverTint = canvasCover(identityDraft.color).tint;
 
   const handleSave = async () => {
     if (!selectedCanvasId || !isDirty) return;
@@ -224,7 +216,6 @@ export default function CanvasBackgroundPanel({
         <div className="space-y-3">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <CanvasIdentityField
-              canvasId={selectedCanvasId ?? undefined}
               name={selectedCanvas?.name ?? ""}
               value={identityDraft}
               onChange={setIdentityDraft}

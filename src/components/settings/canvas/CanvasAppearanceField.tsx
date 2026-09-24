@@ -16,7 +16,6 @@ import {
 import {
   CANVAS_COVERS,
   CANVAS_COVER_DOTS_STYLE,
-  NEUTRAL_CANVAS_COVER,
   EMOJI_FONT_STYLE,
   canvasCover,
   canvasGlyph,
@@ -73,14 +72,11 @@ const CANVAS_ICONS = [
  * choix d'icône ; les pastilles à côté choisissent la couleur.
  */
 export function CanvasIdentityField({
-  canvasId,
   name,
   value,
   onChange,
   disabled = false,
 }: {
-  /** Absent en création : la teinte par défaut ne se tire qu'une fois l'id connu. */
-  canvasId?: string;
   name: string;
   value: CanvasIdentityDraft;
   onChange: (next: CanvasIdentityDraft) => void;
@@ -88,11 +84,7 @@ export function CanvasIdentityField({
 }) {
   const [open, setOpen] = useState(false);
   const [customIcon, setCustomIcon] = useState("");
-  const cover = value.color
-    ? CANVAS_COVERS[value.color]
-    : canvasId
-      ? canvasCover(canvasId)
-      : NEUTRAL_CANVAS_COVER;
+  const cover = canvasCover(value.color);
 
   const pickIcon = (icon: string | undefined) => {
     onChange({ ...value, icon });
@@ -190,8 +182,8 @@ export function CanvasIdentityField({
             type="button"
             role="radio"
             aria-checked={value.color === undefined}
-            title="Automatic"
-            aria-label="Automatic color"
+            title="No color"
+            aria-label="No color"
             disabled={disabled}
             onClick={() => onChange({ ...value, color: undefined })}
             className={cn(

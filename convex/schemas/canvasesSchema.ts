@@ -23,7 +23,7 @@ const canvasBackgroundValidator = v.object({
 // couverture sur la home) : une clé de la palette des nodes (cf.
 // `config/colorsConfig.ts`), pas une couleur libre — le front écrit ses
 // classes Tailwind en entier, et une teinte hors palette n'aurait pas de classe
-// à lui répondre. Absente => teinte tirée de l'id.
+// à lui répondre. Absente => gris neutre.
 const canvasColorValidator = v.union(
   ...CANVAS_COLORS.map((color) => v.literal(color)),
 );
@@ -63,7 +63,7 @@ const canvasesValidator = v.object({
   // Identité visuelle, éditable par le propriétaire seul (comme le nom, la
   // description et le fond) : icône (un emoji) sur la home, la sidebar et le
   // coin du canvas ; couleur sur la home et la sidebar ; couverture sur la
-  // home. Tous optionnels, absents => initiale du nom et teinte tirée de l'id.
+  // home. Tous optionnels, absents => initiale du nom sur un gris neutre.
   icon: v.optional(v.string()),
   color: v.optional(canvasColorValidator),
   coverImage: v.optional(canvasCoverImageValidator),

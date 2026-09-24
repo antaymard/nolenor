@@ -5,13 +5,9 @@ import {
 import { colors } from "@/components/ui/styles";
 
 /**
- * La couverture d'un canvas sur la home : la teinte choisie par son
- * propriétaire (`canvases.color`), ou à défaut une teinte stable tirée de son id.
- *
- * Pas de miniature réelle (il faudrait rendre le canvas), mais assez pour que
- * chaque canvas ait une identité visuelle et que la grille ne soit plus un mur
- * de cartes grises. Tirée de l'id plutôt que du nom : renommer un canvas ne doit
- * pas lui changer de couleur.
+ * La couverture d'un canvas sur la home, sa tuile dans la sidebar : la teinte
+ * choisie par son propriétaire (`canvases.color`), et sinon un gris sobre. Pas
+ * de couleur par défaut : la couleur est un choix, pas un tirage.
  *
  * Les teintes viennent de la palette des nodes (`src/components/ui/styles.ts`) :
  * fond pâle `lightBg`, tuile `solidBg`, assez sombre pour une initiale blanche.
@@ -41,9 +37,9 @@ export const CANVAS_COVERS: Readonly<
   ]),
 ) as Record<CanvasColor, CanvasCover & { label: string }>;
 
-/** Couverture neutre, tant qu'un canvas n'a ni teinte choisie ni id (création). */
+/** Couverture d'un canvas sans teinte choisie. */
 export const NEUTRAL_CANVAS_COVER: CanvasCover = {
-  tint: "bg-slate-200",
+  tint: "bg-slate-100",
   tile: "bg-slate-600",
 };
 
@@ -61,16 +57,8 @@ export type CanvasAppearance = {
   coverImage?: { url: string; key: string };
 };
 
-export function canvasCover(
-  canvasId: string,
-  color?: CanvasColor,
-): CanvasCover {
-  if (color) return CANVAS_COVERS[color];
-  let hash = 0;
-  for (let i = 0; i < canvasId.length; i++) {
-    hash = (hash * 31 + canvasId.charCodeAt(i)) | 0;
-  }
-  return CANVAS_COVERS[CANVAS_COLORS[Math.abs(hash) % CANVAS_COLORS.length]];
+export function canvasCover(color?: CanvasColor): CanvasCover {
+  return color ? CANVAS_COVERS[color] : NEUTRAL_CANVAS_COVER;
 }
 
 /** Ce que porte la tuile d'un canvas : son icône si elle en a une, sinon

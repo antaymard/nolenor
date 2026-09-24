@@ -28,7 +28,7 @@ export function useTaskCanvases({
           canvas._id,
           {
             name: canvas.name,
-            cover: canvasCover(canvas._id, canvas.color),
+            cover: canvasCover(canvas.color),
           },
         ]),
       ),

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { NodeColor } from "@/../convex/config/colorsConfig";
 
 /**
@@ -187,4 +188,19 @@ const colors = {
   }
 >;
 
-export { colors };
+/**
+ * Style d'une pastille de couleur dans les sélecteurs. `transparent` y prend
+ * un damier — la convention des éditeurs d'image — sans quoi sa pastille,
+ * transparente sur le fond blanc du menu, ressemble trait pour trait à celle
+ * de `default` (fond blanc).
+ */
+function colorSwatchStyle(color: string): CSSProperties | undefined {
+  if (color !== "transparent") return undefined;
+  return {
+    backgroundImage:
+      "conic-gradient(#e2e8f0 25%, #ffffff 0 50%, #e2e8f0 0 75%, #ffffff 0)",
+    backgroundSize: "10px 10px",
+  };
+}
+
+export { colors, colorSwatchStyle };

@@ -30,7 +30,7 @@ import {
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { useUpdateCanvasEdge } from "@/hooks/useUpdateCanvasEdge";
-import { colors } from "@/components/ui/styles";
+import { colors, colorSwatchStyle } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
 import { MAX_BEND_POINTS } from "@/components/edges/edgeStyleUtils";
 import { generateLlmId } from "@/../convex/lib/llmId";
@@ -127,6 +127,7 @@ export default function EdgeContextMenu({
                     : "border-border hover:border-primary/50",
                 )}
                 title={value.label}
+                style={colorSwatchStyle(key)}
               >
                 {currentColor === key && (
                   <div className="absolute inset-0 flex items-center justify-center">

@@ -36,7 +36,7 @@ import { LAYER_COMMANDS } from "@/lib/nodeLayering";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { colors } from "@/components/ui/styles";
+import { colors, colorSwatchStyle } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -312,6 +312,7 @@ export default function SelectionContextMenu({
                   "border-border hover:border-primary/50",
                 )}
                 title={value.label}
+                style={colorSwatchStyle(key)}
               />
             ))}
           </div>

@@ -54,6 +54,14 @@ const SIDE_PANEL_WIDTH = 340;
 // étroit pour une table ou un document.
 const SIDE_PANEL_GROW_THRESHOLD = SIDE_PANEL_WIDTH * 2.5;
 
+// Distance (px) qu'il faut tirer le header d'une window plein écran avant
+// qu'elle ne redevienne flottante : en dessous, c'est un clic ou le début
+// d'un double-clic, pas un drag.
+const FULLSCREEN_DRAG_RESTORE_THRESHOLD = 8;
+// Moitié de la hauteur du header (`h-10`) : après restauration, le curseur
+// tombe au milieu du header.
+const HEADER_GRAB_OFFSET_Y = 20;
+
 // Fenêtres « de lecture » : en plein écran, Nolë y a sa colonne à gauche (le
 // texte reste centré) et le panel latéral s'ouvre d'emblée sur le Plan. Les
 // autres types gardent Nolë en surimpression et le panel fermé.
@@ -104,6 +112,7 @@ export default function WindowFrame({
   );
   const exitFullscreen = useWindowsStore((s) => s.exitFullscreen);
   const snapWindow = useWindowsStore((s) => s.snapWindow);
+  const restoreFromFullscreen = useWindowsStore((s) => s.restoreFromFullscreen);
   const addAttachments = useNoleStore((s) => s.addAttachments);
   const isAttachedToConversation = useIsNodeAttached(xyNodeId);
   const { getNode } = useReactFlow();
@@ -232,6 +241,10 @@ export default function WindowFrame({
 
   // Stored as refs to avoid stale closures in the event listeners
   const dragRef = useRef<{ startX: number; startY: number } | null>(null);
+  // Header saisi en plein écran, pas encore assez tiré pour restaurer.
+  const pendingRestoreRef = useRef<{ startX: number; startY: number } | null>(
+    null,
+  );
   const resizeRef = useRef<{
     startX: number;
     startY: number;
@@ -254,9 +267,13 @@ export default function WindowFrame({
         }
         return;
       }
-      // Plein écran : rien à déplacer.
-      if (isFullscreen) return;
       e.preventDefault();
+      // Plein écran : on n'arme que la restauration (geste inverse du snap
+      // top), déclenchée par `handleMouseMove` une fois le seuil franchi.
+      if (isFullscreen) {
+        pendingRestoreRef.current = { startX: e.clientX, startY: e.clientY };
+        return;
+      }
       dragRef.current = { startX: e.clientX, startY: e.clientY };
       setIsDraggingOrResizing(true);
       document.body.style.cursor = "grabbing";
@@ -309,6 +326,39 @@ export default function WindowFrame({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
+      const pending = pendingRestoreRef.current;
+      if (pending) {
+        const distance = Math.hypot(
+          e.clientX - pending.startX,
+          e.clientY - pending.startY,
+        );
+        if (distance < FULLSCREEN_DRAG_RESTORE_THRESHOLD) return;
+        pendingRestoreRef.current = null;
+
+        // Comme sous Windows : le curseur garde la même proportion
+        // horizontale sur le header restauré que sur le header plein écran.
+        // La window n'est pas remontée : le drag continue dans ce composant.
+        const current = useWindowsStore
+          .getState()
+          .openedWindows.find((w) => w.xyNodeId === xyNodeId);
+        if (!current) return;
+        const width = current.preSnapSize?.width ?? current.width;
+        const ratio = e.clientX / window.innerWidth;
+        const x = Math.min(
+          Math.max(0, Math.round(e.clientX - ratio * width)),
+          Math.max(0, window.innerWidth - width),
+        );
+        const y = Math.max(0, e.clientY - HEADER_GRAB_OFFSET_Y);
+        restoreFromFullscreen(xyNodeId, { x, y });
+
+        dragRef.current = { startX: e.clientX, startY: e.clientY };
+        setIsDraggingOrResizing(true);
+        document.body.style.cursor = "grabbing";
+        document.body.style.userSelect = "none";
+        updateSnapPreview(e.clientX, e.clientY);
+        return;
+      }
+
       if (dragRef.current) {
         const delta = {
           x: e.clientX - dragRef.current.startX,
@@ -383,6 +433,7 @@ export default function WindowFrame({
         }
       }
 
+      pendingRestoreRef.current = null;
       dragRef.current = null;
       resizeRef.current = null;
       setIsDraggingOrResizing(false);
@@ -402,6 +453,7 @@ export default function WindowFrame({
     moveWindow,
     resizeWindow,
     snapWindow,
+    restoreFromFullscreen,
     updateSnapPreview,
     setIsDraggingOrResizing,
   ]);
@@ -491,12 +543,13 @@ export default function WindowFrame({
             </>
           )}
 
-          {/* ── Header (draggable en fenêtré) ─────────────────────────── */}
+          {/* ── Header (draggable ; en plein écran, le tirer restaure) ── */}
           <div
             className={cn(
-              "flex h-10 select-none items-center gap-2 border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1",
-              !isFullscreen &&
-                "cursor-grab rounded-t-2xl hover:cursor-grab active:cursor-grabbing",
+              // `cursor-grab` aussi en plein écran : tirer le header vers le
+              // bas remet la window en flottant.
+              "flex h-10 cursor-grab select-none items-center gap-2 border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1 hover:cursor-grab active:cursor-grabbing",
+              !isFullscreen && "rounded-t-2xl",
             )}
             onMouseDown={handleHeaderMouseDown}
             onDoubleClick={handleHeaderDoubleClick}

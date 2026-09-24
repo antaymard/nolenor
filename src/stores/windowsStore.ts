@@ -295,6 +295,16 @@ interface WindowsStore {
   snapWindow: (xyNodeId: string, side: SnapSide) => void;
   toggleFullscreenWindow: (xyNodeId: string) => void;
   exitFullscreen: () => void;
+  /**
+   * Geste inverse du snap top : sortir du plein écran en tirant le header.
+   * La window reprend sa taille flottante à `position` (calculée par
+   * l'appelant pour rester sous le curseur), en une seule écriture. Sans
+   * effet si cette window n'est pas celle en plein écran.
+   */
+  restoreFromFullscreen: (
+    xyNodeId: string,
+    position: { x: number; y: number },
+  ) => void;
 }
 
 export const useWindowsStore = create<WindowsStore>()(
@@ -650,6 +660,28 @@ export const useWindowsStore = create<WindowsStore>()(
         set((store) =>
           store.fullscreenNodeId === null ? store : { fullscreenNodeId: null },
         );
+      },
+      restoreFromFullscreen: (xyNodeId, position) => {
+        set((store) => {
+          if (store.fullscreenNodeId !== xyNodeId) return store;
+          return {
+            fullscreenNodeId: null,
+            openedWindows: store.openedWindows.map((w) => {
+              if (w.xyNodeId !== xyNodeId) return w;
+              // Snappée left/right avant le plein écran : on reprend tout de
+              // suite sa taille d'origine, sinon `moveWindow` le ferait au
+              // premier delta et la window sauterait sous le curseur.
+              const size = w.preSnapSize ?? { width: w.width, height: w.height };
+              return {
+                ...w,
+                ...size,
+                position,
+                preSnapSize: undefined,
+                windowState: "normal",
+              };
+            }),
+          };
+        });
       },
       snapWindow: (xyNodeId: string, side: SnapSide) => {
         set((store) => {

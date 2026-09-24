@@ -89,7 +89,7 @@ export default function MemoryEditorCard({
   };
 
   return (
-    <div className="space-y-3 rounded-md border border-gray-200 bg-white p-4">
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-bold">{title}</h2>
         <span
@@ -99,13 +99,13 @@ export default function MemoryEditorCard({
               ? "font-semibold text-red-600"
               : isNearLimit
                 ? "font-medium text-amber-600"
-                : "text-gray-500",
+                : "text-slate-500",
           )}
         >
           {percentage}% — {serializedLen}/{maxChars} chars
         </span>
       </div>
-      <p className="text-sm text-gray-500">{description}</p>
+      <p className="text-sm text-slate-500">{description}</p>
 
       <Textarea
         value={text}
@@ -121,7 +121,7 @@ export default function MemoryEditorCard({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-slate-500">
           One line = one memory. Empty lines are ignored. Nolë can also update
           these memories.
         </p>

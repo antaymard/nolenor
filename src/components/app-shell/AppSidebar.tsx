@@ -30,6 +30,7 @@ import { formatCostCompact } from "@/lib/formatUsage";
 import { cn } from "@/lib/utils";
 import { useCommandCenterStore } from "@/stores/commandCenterStore";
 import NewCanvasButton from "./NewCanvasButton";
+import { NAV_ITEM_ACTIVE_CLASS, NAV_ITEM_CLASS } from "./navItemStyles";
 
 type NavItem = {
   label: string;
@@ -112,11 +113,8 @@ export default function AppSidebar({
             to={item.to}
             onClick={onNavigate}
             activeOptions={{ exact: true }}
-            className="flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200/60"
-            activeProps={{
-              className:
-                "bg-white font-bold text-brand shadow-sm hover:bg-white",
-            }}
+            className={NAV_ITEM_CLASS}
+            activeProps={{ className: NAV_ITEM_ACTIVE_CLASS }}
           >
             <item.icon className="size-[18px] shrink-0" />
             <span className="flex-1">{item.label}</span>

@@ -23,13 +23,13 @@ function TemplateRow({
       type="button"
       onClick={onSelect}
       className={cn(
-        "w-full text-left p-3 hover:bg-gray-100 transition-colors flex items-center gap-2.5",
+        "w-full text-left p-3 hover:bg-slate-100 transition-colors flex items-center gap-2.5",
       )}
     >
-      <Icon size={16} className="shrink-0 text-gray-500" />
+      <Icon size={16} className="shrink-0 text-slate-500" />
       <span className="flex flex-col min-w-0">
         <span className="font-medium truncate">{template.name}</span>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-slate-500">
           {template.fields.length} field{template.fields.length > 1 ? "s" : ""}
           {template.archivedAt !== undefined && " · archived"}
         </span>
@@ -47,14 +47,14 @@ export default function TemplatesList({
 
   if (templates.length === 0) {
     return (
-      <p className="text-sm text-gray-500 italic px-2">No templates yet.</p>
+      <p className="text-sm text-slate-500 italic px-2">No templates yet.</p>
     );
   }
 
   return (
     <div className="space-y-3">
       {active.length > 0 && (
-        <div className="divide-y divide-gray-200 border border-gray-200 bg-white rounded-md overflow-hidden">
+        <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white overflow-hidden">
           {active.map((template) => (
             <TemplateRow
               key={template._id}
@@ -66,10 +66,10 @@ export default function TemplatesList({
       )}
       {archived.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1 px-1">
+          <h4 className="text-xs font-semibold text-slate-400 uppercase mb-1 px-1">
             Archived
           </h4>
-          <div className="divide-y divide-gray-200 border border-gray-200 bg-white rounded-md overflow-hidden opacity-70">
+          <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white overflow-hidden opacity-70">
             {archived.map((template) => (
               <TemplateRow
                 key={template._id}

@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import toast from "react-hot-toast";
 import { TbLogout } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
+import PageHeader from "@/components/app-shell/PageHeader";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
@@ -23,7 +24,7 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-gray-200 px-3 py-2.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4">
+    <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:gap-4">
       <span className="shrink-0 text-sm text-muted-foreground sm:w-40">
         {label}
       </span>
@@ -119,20 +120,16 @@ function RouteComponent() {
 
   return (
     <div className="max-w-2xl">
-      <div className="space-y-1">
-        <h1 className="text-xl font-bold">Account</h1>
-        <i className="text-sm text-muted-foreground not-italic">
-          Your name is what Nolë calls you — it is handed to the assistant with
-          every conversation. The rest comes from the provider you signed in
-          with.
-        </i>
-      </div>
+      <PageHeader
+        title="Account"
+        subtitle="Your name is what Nolë calls you — it is handed to the assistant with every conversation. The rest comes from the provider you signed in with."
+      />
 
-      <div className="mt-4 rounded-md border border-gray-200 bg-white">
+      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
         {me === undefined ? (
-          <p className="px-3 py-2.5 text-sm text-gray-500 italic">Loading…</p>
+          <p className="px-4 py-3 text-sm text-slate-500 italic">Loading…</p>
         ) : me === null ? (
-          <p className="px-3 py-2.5 text-sm text-gray-500">
+          <p className="px-4 py-3 text-sm text-slate-500">
             You are not signed in.
           </p>
         ) : (
@@ -180,7 +177,7 @@ function RouteComponent() {
           fait retaper, et le serveur refuse tout ce qui ne lui correspond
           pas. */}
       {me?.email && (
-        <div className="mt-10 rounded-md border border-red-200 bg-red-50/50 p-3">
+        <div className="mt-10 rounded-2xl border border-red-200 bg-red-50/50 p-4">
           <h2 className="text-sm font-semibold text-red-700">Danger zone</h2>
           <p className="mt-1 mb-3 text-sm text-muted-foreground">
             Deleting your account erases your canvases, your conversations and

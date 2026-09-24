@@ -93,7 +93,7 @@ export default function SkillAttachments({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-sm font-semibold text-slate-700">
           Attachments ({attachments.length})
         </h3>
         {!showForm && (
@@ -109,9 +109,9 @@ export default function SkillAttachments({
       </div>
 
       {attachments.length === 0 ? (
-        <p className="text-sm text-gray-500 italic">No attachments.</p>
+        <p className="text-sm text-slate-500 italic">No attachments.</p>
       ) : (
-        <ul className="divide-y divide-gray-200 border border-gray-200 rounded-md bg-white">
+        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
           {attachments.map((attachment) => (
             <li
               key={attachment._id}
@@ -121,7 +121,7 @@ export default function SkillAttachments({
                 <span className="font-medium text-sm truncate">
                   {attachment.name}
                 </span>
-                <span className="text-xs text-gray-500">{attachment.type}</span>
+                <span className="text-xs text-slate-500">{attachment.type}</span>
               </div>
               <ConfirmableButton
                 title={`Remove attachment "${attachment.name}"?`}
@@ -147,7 +147,7 @@ export default function SkillAttachments({
       )}
 
       {showForm && (
-        <div className="border border-gray-200 rounded-md p-3 bg-gray-50 flex flex-col gap-3">
+        <div className="rounded-xl border border-slate-200 p-3 bg-slate-50 flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="attachment-name">Name</Label>
             <Input

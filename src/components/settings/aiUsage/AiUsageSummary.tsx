@@ -13,7 +13,7 @@ function StatTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3 sm:p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
       <div className="text-xs text-[#52514e]">{label}</div>
       {/* Chiffres proportionnels : `tabular-nums` fait paraître une grande
           valeur isolée trop lâche. Il est réservé aux colonnes du tableau. */}
@@ -50,7 +50,7 @@ export default function AiUsageSummary({ usage }: { usage: AiUsage }) {
           silence de l'API serait indiscernable d'un modèle gratuit. Icône +
           libellé, jamais la couleur seule. */}
       {usage.eventsMissingCostCount > 0 ? (
-        <div className="flex items-start gap-2 rounded-md border border-[#fab219] bg-[#fab219]/10 p-3 text-sm text-[#0b0b0b]">
+        <div className="flex items-start gap-2 rounded-xl border border-[#fab219] bg-[#fab219]/10 p-3 text-sm text-[#0b0b0b]">
           <TbAlertTriangle
             size={16}
             className="mt-0.5 shrink-0 text-[#0b0b0b]"
@@ -68,7 +68,7 @@ export default function AiUsageSummary({ usage }: { usage: AiUsage }) {
       ) : null}
 
       {usage.truncated ? (
-        <div className="flex items-start gap-2 rounded-md border border-slate-300 bg-slate-50 p-3 text-sm text-[#52514e]">
+        <div className="flex items-start gap-2 rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm text-[#52514e]">
           <TbAlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           <p>
             This period has more usage rows than a single read returns. The

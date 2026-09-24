@@ -70,7 +70,7 @@ export default function SkillEditor({
 
   if (isExisting && skill === undefined) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center h-full text-slate-500">
         Loading…
       </div>
     );
@@ -78,7 +78,7 @@ export default function SkillEditor({
 
   if (isExisting && skill === null) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center h-full text-slate-500">
         Skill not found.
       </div>
     );
@@ -86,7 +86,7 @@ export default function SkillEditor({
 
   if (!isDraft && !isExisting) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+      <div className="flex items-center justify-center h-full text-slate-500 text-sm">
         Select a skill on the left, or create a new one.
       </div>
     );
@@ -148,12 +148,12 @@ export default function SkillEditor({
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto md:pr-2">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-gray-200">
+      <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-slate-200">
         <div className="flex min-w-0 flex-col">
           <h2 className="text-xl font-bold break-words">
             {currentSkill?.name || "New skill"}
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-slate-500">
             {currentSkill?.description || "No description yet"}
           </p>
           {isDraft && (
@@ -188,7 +188,7 @@ export default function SkillEditor({
 
       {/* Name Field */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="skill-name" className="font-semibold text-gray-700">
+        <label htmlFor="skill-name" className="font-semibold text-slate-700">
           Name
         </label>
         <Input
@@ -205,7 +205,7 @@ export default function SkillEditor({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor="skill-description"
-          className="font-semibold text-gray-700"
+          className="font-semibold text-slate-700"
         >
           Description
         </label>
@@ -220,8 +220,8 @@ export default function SkillEditor({
 
       {/* Content Field */}
       <div className="flex flex-col gap-1.5 flex-1 min-h-0">
-        <label className="font-semibold text-gray-700">Content</label>
-        <div className="flex-1 min-h-[300px] overflow-y-auto rounded-md border bg-white py-2">
+        <label className="font-semibold text-slate-700">Content</label>
+        <div className="flex-1 min-h-[300px] overflow-y-auto rounded-xl border bg-white py-2">
           {/* Remonté à chaque changement de skill : l'éditeur n'est pas
               contrôlé, il ne lit son contenu initial qu'au montage. On attend
               que `hydratedFor` ait rattrapé la skill courante pour ne pas
@@ -233,10 +233,10 @@ export default function SkillEditor({
               onChange={setDraftContent}
             />
           ) : (
-            <p className="px-4 text-sm text-gray-500 italic">Loading…</p>
+            <p className="px-4 text-sm text-slate-500 italic">Loading…</p>
           )}
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-slate-500">
           The body is the full prompt loaded by Nolë. Stored as Markdown.
         </p>
       </div>

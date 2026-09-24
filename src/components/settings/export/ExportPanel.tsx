@@ -112,7 +112,7 @@ export default function ExportPanel() {
             <span className="font-medium">A single canvas</span>
             {scope.kind === "canvas" && (
               <select
-                className="mt-2 block w-full max-w-md rounded-md border border-gray-300 bg-white p-2 text-sm"
+                className="mt-2 block w-full max-w-md rounded-lg border border-slate-300 bg-white p-2 text-sm"
                 value={scope.canvasId}
                 onChange={(event) =>
                   setScope({

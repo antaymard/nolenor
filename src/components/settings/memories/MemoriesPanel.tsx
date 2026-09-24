@@ -68,7 +68,7 @@ export default function MemoriesPanel() {
           <h2 className="text-base font-bold">Canvas memory</h2>
           {!isListingCanvases && canvases.length > 0 && (
             <select
-              className="block w-full max-w-md rounded-md border border-gray-300 bg-white p-2 text-sm"
+              className="block w-full max-w-md rounded-lg border border-slate-300 bg-white p-2 text-sm"
               value={selectedCanvasId ?? ""}
               onChange={(event) =>
                 setSelectedCanvasId(event.target.value as Id<"canvases">)
@@ -86,11 +86,11 @@ export default function MemoriesPanel() {
         </div>
 
         {isListingCanvases ? (
-          <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white p-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm text-muted-foreground">
             <Spinner /> Loading your canvases…
           </div>
         ) : canvases.length === 0 ? (
-          <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
             <TbExclamationCircle /> You have no canvas yet — canvas memories
             will appear here once you create one.
           </div>

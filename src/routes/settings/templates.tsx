@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
+import PageHeader from "@/components/app-shell/PageHeader";
 import { Button } from "@/components/shadcn/button";
 import TemplatesList from "@/components/settings/templates/TemplatesList";
 import { useTemplateEditor } from "@/hooks/useTemplateEditor";
@@ -23,21 +24,20 @@ function TemplatesSettingsPage() {
   const { openTemplateEditor, openTemplateCreator } = useTemplateEditor();
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">Custom nodes</h1>
-        <Button type="button" size="icon-sm" onClick={openTemplateCreator}>
-          <TbPlus />
-        </Button>
-      </div>
-      <p className="max-w-2xl text-sm text-gray-500">
-        Design your own node types from a library of fields, with a layout for
-        the canvas and another for the window. Nolë can read and write them
-        like any other node.
-      </p>
+    <div className="flex h-full flex-col gap-6">
+      <PageHeader
+        title="Custom nodes"
+        subtitle="Design your own node types from a library of fields, with a layout for the canvas and another for the window. Nolë can read and write them like any other node."
+        action={
+          <Button type="button" onClick={openTemplateCreator}>
+            <TbPlus />
+            New custom node
+          </Button>
+        }
+      />
       <div className="min-h-0 max-w-2xl flex-1 overflow-y-auto pr-1">
         {templates === undefined ? (
-          <p className="px-2 text-sm text-gray-500 italic">Loading…</p>
+          <p className="px-2 text-sm text-slate-500 italic">Loading…</p>
         ) : (
           <TemplatesList templates={templates} onSelect={openTemplateEditor} />
         )}

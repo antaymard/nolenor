@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import PageHeader from "@/components/app-shell/PageHeader";
 import MemoriesPanel from "@/components/settings/memories/MemoriesPanel";
 
 export const Route = createFileRoute("/settings/memories")({
@@ -8,15 +9,12 @@ export const Route = createFileRoute("/settings/memories")({
 function RouteComponent() {
   return (
     <div>
-      <div className="space-y-1">
-        <h1 className="text-xl font-bold">Agent Memory</h1>
-        <i className="text-sm text-muted-foreground not-italic">
-          What Nolë remembers about you and your canvases. One line is one
-          memory — empty lines are ignored.
-        </i>
-      </div>
+      <PageHeader
+        title="Agent Memory"
+        subtitle="What Nolë remembers about you and your canvases. One line is one memory — empty lines are ignored."
+      />
 
-      <div className="mt-4 bg-slate-50 rounded p-2">
+      <div className="mt-6 rounded-2xl bg-slate-50 p-3">
         <MemoriesPanel />
       </div>
     </div>

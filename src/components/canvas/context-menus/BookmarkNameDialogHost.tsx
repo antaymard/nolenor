@@ -1,10 +1,9 @@
-import { useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useEffect } from "react";
+import type { Id } from "@/../convex/_generated/dataModel";
 import type { BookmarkTarget } from "@/../convex/schemas/canvasBookmarksSchema";
+import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
+import { useBookmarkNameDialogStore } from "@/stores/bookmarkNameDialogStore";
 import BookmarkNameDialog from "./BookmarkNameDialog";
-
-/** Créer un repère, tel que le rend `useCanvasBookmarks`. */
-type CreateBookmark = (target: BookmarkTarget, label?: string) => unknown;
 
 /**
  * La copie du dialogue selon la cible : c'est ici, et pas dans chaque menu,
@@ -44,52 +43,45 @@ function dialogCopy(target: BookmarkTarget): {
 }
 
 /**
- * Le flux « poser un repère, puis le nommer » : le clic du menu ne crée rien,
- * il fige la cible et ouvre le dialogue — qui survit au menu, fermé dès le
- * clic, d'où le portal.
- *
- * La cible est figée au clic et pas relue au submit : la sélection React Flow
- * peut changer pendant que le dialogue est ouvert, le repère doit viser ce
- * qu'on visait.
- *
- * `startBookmark` se branche sur l'item du menu, `dialog` se rend en fin de
- * menu.
+ * Le flux « poser un repère, puis le nommer » : l'item du menu ne crée rien,
+ * il annonce la cible au store (`startBookmark`) et se ferme ; ce composant,
+ * monté par `CanvasFlow` HORS du menu contextuel, rend le dialogue et crée le
+ * repère au submit. Rendu depuis le menu, il était démonté avec lui dès le
+ * clic (cf. `useBookmarkNameDialogStore`).
  */
-export function useBookmarkNameDialog(create: CreateBookmark): {
-  startBookmark: (target: BookmarkTarget) => void;
-  dialog: ReactNode;
-} {
-  const [pendingTarget, setPendingTarget] = useState<BookmarkTarget | null>(
-    null,
+export default function BookmarkNameDialogHost({
+  canvasId,
+}: {
+  canvasId: Id<"canvases">;
+}) {
+  // Écriture seule : la liste des repères n'a rien à faire ici.
+  const { create } = useCanvasBookmarks({ canvasId, enabled: false });
+  const pendingTarget = useBookmarkNameDialogStore(
+    (state) => state.pendingTarget,
   );
-  // `open` est séparé de `pendingTarget` : la cible survit à la fermeture le
-  // temps de l'animation de sortie, sinon le dialogue flasherait sur la copie
-  // du repère précédent pendant qu'il se referme.
-  const [open, setOpen] = useState(false);
+  const open = useBookmarkNameDialogStore((state) => state.open);
+  const close = useBookmarkNameDialogStore((state) => state.close);
 
-  function startBookmark(target: BookmarkTarget) {
-    setPendingTarget(target);
-    setOpen(true);
-  }
+  // Le canvas change sous un dialogue ouvert : la cible (des llmid, un point du
+  // monde) ne vaut que pour le canvas qui l'a vue naître. On referme plutôt
+  // que de la poser ailleurs.
+  useEffect(() => close, [canvasId, close]);
 
   const copy = pendingTarget !== null ? dialogCopy(pendingTarget) : null;
 
-  const dialog = createPortal(
+  return (
     <BookmarkNameDialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) setOpen(false);
+        if (!nextOpen) close();
       }}
       title={copy?.title ?? ""}
       description={copy?.description ?? ""}
       placeholder={copy?.placeholder ?? ""}
       onSubmit={(label) => {
-        setOpen(false);
+        close();
         if (pendingTarget !== null) void create(pendingTarget, label);
       }}
-    />,
-    document.body,
+    />
   );
-
-  return { startBookmark, dialog };
 }

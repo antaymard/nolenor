@@ -44,8 +44,8 @@ import { getNodeDataId } from "@/lib/nodeIdentity";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
+import { useBookmarkNameDialogStore } from "@/stores/bookmarkNameDialogStore";
 import { useCanvasStore } from "@/stores/canvasStore";
-import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -59,16 +59,15 @@ export default function SelectionContextMenu({
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   // Écriture seule : ce menu se remonte à chaque clic droit, inutile d'ouvrir
   // une souscription à la liste juste pour y ajouter une ligne.
-  const {
-    create: createBookmark,
-    removeForNodes: removeBookmarksForNodes,
-    canBookmark,
-  } = useCanvasBookmarks({
-    canvasId,
-    enabled: false,
-  });
-  const { startBookmark, dialog: bookmarkNameDialog } = useBookmarkNameDialog(
-    createBookmark,
+  const { removeForNodes: removeBookmarksForNodes, canBookmark } =
+    useCanvasBookmarks({
+      canvasId,
+      enabled: false,
+    });
+  // Le dialogue de nommage vit hors du menu, qui est démonté dès le clic
+  // (cf. `BookmarkNameDialogHost`).
+  const startBookmark = useBookmarkNameDialogStore(
+    (state) => state.startBookmark,
   );
   const { duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
@@ -433,8 +432,6 @@ export default function SelectionContextMenu({
         <HiOutlineTrash />
         Delete
       </DropdownMenuItem>
-
-      {bookmarkNameDialog}
     </>
   );
 }

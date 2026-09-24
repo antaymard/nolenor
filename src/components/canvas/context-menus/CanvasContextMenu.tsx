@@ -7,7 +7,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useCaptureFraming } from "@/hooks/useViewportFraming";
-import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
+import { useBookmarkNameDialogStore } from "@/stores/bookmarkNameDialogStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
   isPendingCanvasConnectionElement,
@@ -30,12 +30,12 @@ export default function ContextMenu({
   const { x: canvasX, y: canvasY, zoom: canvasZoom } = useViewport();
   const captureFraming = useCaptureFraming();
   const canvasId = useCanvasStore((state) => state.canvas?._id);
-  const { create: createBookmark, canBookmark } = useCanvasBookmarks({
+  const { canBookmark } = useCanvasBookmarks({
     canvasId,
     enabled: false,
   });
-  const { startBookmark, dialog: bookmarkNameDialog } = useBookmarkNameDialog(
-    createBookmark,
+  const startBookmark = useBookmarkNameDialogStore(
+    (state) => state.startBookmark,
   );
 
   const pendingConnection =
@@ -84,8 +84,6 @@ export default function ContextMenu({
           </DropdownMenuItem>
         </>
       )}
-
-      {bookmarkNameDialog}
     </>
   );
 }

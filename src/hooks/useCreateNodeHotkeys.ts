@@ -6,6 +6,7 @@ import { useCanvasPointerPosition } from "./useCanvasPointerPosition";
 import { shortcutCreatableNodes } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import type { PrebuiltNodeConfig } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import type { NodeType } from "@/types/domain";
+import { NODE_CREATION_SHORTCUTS_ENABLED } from "@/lib/featureFlags";
 
 type ShortcutNodeConfig = PrebuiltNodeConfig & { creationShortcut: LetterKey };
 
@@ -69,6 +70,8 @@ function useCreateNodeShortcut(
  * `creationShortcut` dans `prebuiltNodesConfig` sans ajouter sa ligne ici
  * donne un raccourci affiché dans le menu mais inerte.
  *
+ * Inactif tant que `NODE_CREATION_SHORTCUTS_ENABLED` est faux.
+ *
  * Doit être appelé à l'intérieur de la route canvas et d'un `ReactFlowProvider`
  * (contrainte de `useCreateNode`).
  */
@@ -87,7 +90,9 @@ export function useCreateNodeHotkeys({
   // point.
   const isCreatingRef = useRef(false);
 
-  const enabled = useCanvasHotkeysEnabled({ canEdit, isTouch });
+  const hotkeysEnabled = useCanvasHotkeysEnabled({ canEdit, isTouch });
+  // Coupés globalement pour l'instant (cf. `NODE_CREATION_SHORTCUTS_ENABLED`).
+  const enabled = NODE_CREATION_SHORTCUTS_ENABLED && hotkeysEnabled;
 
   const createNodeAtPointer = useCallback(
     (config: ShortcutNodeConfig) => {

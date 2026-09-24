@@ -16,6 +16,14 @@ import { redirect } from "@tanstack/react-router";
 export const SHOW_DEV_ONLY_SETTINGS = import.meta.env.DEV;
 
 /**
+ * Raccourcis lettre qui créent un node au pointeur (T, B, I, A — cf.
+ * `useCreateNodeHotkeys`). Coupés pour l'instant : taper dans le composer de
+ * Nolë sans en avoir le focus posait des nodes sur le canvas. La logique reste
+ * branchée ; ce drapeau deviendra un réglage utilisateur.
+ */
+export const NODE_CREATION_SHORTCUTS_ENABLED = false;
+
+/**
  * Garde `beforeLoad` pour les routes concernées : en production, l'URL saisie
  * à la main renvoie sur Account plutôt que d'afficher une page qui n'a plus
  * d'entrée dans la sidebar.

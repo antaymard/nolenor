@@ -6,13 +6,13 @@ import {
   type OpenedWindow,
   type SnapSide,
   SNAP_EDGE_THRESHOLD,
-  isFullscreenEligible,
   MAX_MINIMIZED_WINDOWS,
 } from "@/stores/windowsStore";
 import toast from "react-hot-toast";
 import { Spinner } from "@/components/shadcn/spinner";
 import {
   TbArrowsMaximize,
+  TbArrowsMinimize,
   TbCheck,
   TbDeviceFloppy,
   TbLocation,
@@ -42,6 +42,9 @@ import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { Kbd } from "@/components/shadcn/kbd";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
+import { useIsTabletPortrait } from "@/hooks/useTabletMode";
+import type { NodeType } from "@/types/domain/nodeTypes";
+import { NoleAside, NoleOverlay } from "./WindowNolePanel";
 
 // Matches WindowSidePanel's `w-85`.
 const SIDE_PANEL_WIDTH = 340;
@@ -50,6 +53,12 @@ const SIDE_PANEL_WIDTH = 340;
 // et non 2x, où le contenu se retrouvait à la largeur exacte du panel — trop
 // étroit pour une table ou un document.
 const SIDE_PANEL_GROW_THRESHOLD = SIDE_PANEL_WIDTH * 2.5;
+
+// Fenêtres « de lecture » : en plein écran, Nolë y a sa colonne à gauche (le
+// texte reste centré) et le panel latéral s'ouvre d'emblée sur le Plan. Les
+// autres types gardent Nolë en surimpression et le panel fermé.
+const READING_NODE_TYPES: ReadonlySet<NodeType> = new Set(["blocknote", "pdf"]);
+
 type ResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 const RESIZE_CURSOR: Record<ResizeDirection, string> = {
@@ -65,11 +74,15 @@ const RESIZE_CURSOR: Record<ResizeDirection, string> = {
 
 interface WindowFrameProps {
   openedWindow: OpenedWindow;
+  /** Même fenêtre, même arbre : seul le chrome change (ni drag ni resize,
+   * Nolë affichée). Le body n'est jamais remonté à la bascule. */
+  isFullscreen?: boolean;
   onSnapPreviewChange?: (side: SnapSide | null) => void;
 }
 
 export default function WindowFrame({
   openedWindow,
+  isFullscreen = false,
   onSnapPreviewChange,
 }: WindowFrameProps) {
   const { xyNodeId, nodeDataId } = openedWindow;
@@ -89,6 +102,7 @@ export default function WindowFrame({
   const toggleFullscreenWindow = useWindowsStore(
     (s) => s.toggleFullscreenWindow,
   );
+  const exitFullscreen = useWindowsStore((s) => s.exitFullscreen);
   const snapWindow = useWindowsStore((s) => s.snapWindow);
   const addAttachments = useNoleStore((s) => s.addAttachments);
   const isAttachedToConversation = useIsNodeAttached(xyNodeId);
@@ -98,6 +112,8 @@ export default function WindowFrame({
   const { title, NodeIcon } = useNodeWindowIdentity(nodeDataId);
 
   const [isDraggingOrResizing, setIsDraggingOrResizing] = useState(false);
+  const isReadingType = READING_NODE_TYPES.has(openedWindow.nodeType);
+  const isTabletPortrait = useIsTabletPortrait();
 
   // ── Side panel ────────────────────────────────────────────────────────
   // Too narrow for the panel to dock without cramping the content (docking is
@@ -107,14 +123,27 @@ export default function WindowFrame({
   // shifted left by however much overflow that would cause (never past the
   // left edge) — `grownRef` remembers both amounts so closing undoes exactly
   // what opening did, even if the window was moved in between.
-  const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  //
+  // Un état par mode : le plein écran a la place de docker le panel sans rien
+  // redimensionner, et l'y ouvrir ne doit pas laisser la fenêtre flottante
+  // écrasée au retour (elle n'a pas grandi pour le loger).
+  const [windowedSidePanelOpen, setWindowedSidePanelOpen] = useState(false);
+  const [fullscreenSidePanelOpen, setFullscreenSidePanelOpen] =
+    useState(isReadingType);
+  const sidePanelOpen = isFullscreen
+    ? fullscreenSidePanelOpen
+    : windowedSidePanelOpen;
   const canvasId = useCanvasStore((s) => s.canvas?._id);
   const grownRef = useRef<{ shiftedX: number } | null>(null);
   // Side effect kept OUT of the `setSidePanelOpen` updater on purpose: React
   // StrictMode double-invokes functional updaters to catch impurities like
   // this one, and `resizeWindow` was firing twice per click as a result.
   const toggleSidePanel = useCallback(() => {
-    const willOpen = !sidePanelOpen;
+    if (isFullscreen) {
+      setFullscreenSidePanelOpen((open) => !open);
+      return;
+    }
+    const willOpen = !windowedSidePanelOpen;
     if (willOpen) {
       if (openedWindow.width < SIDE_PANEL_GROW_THRESHOLD) {
         const rightEdgeAfterGrow =
@@ -140,9 +169,10 @@ export default function WindowFrame({
       );
       grownRef.current = null;
     }
-    setSidePanelOpen(willOpen);
+    setWindowedSidePanelOpen(willOpen);
   }, [
-    sidePanelOpen,
+    isFullscreen,
+    windowedSidePanelOpen,
     openedWindow.width,
     openedWindow.position.x,
     resizeWindow,
@@ -224,30 +254,24 @@ export default function WindowFrame({
         }
         return;
       }
+      // Plein écran : rien à déplacer.
+      if (isFullscreen) return;
       e.preventDefault();
       dragRef.current = { startX: e.clientX, startY: e.clientY };
       setIsDraggingOrResizing(true);
       document.body.style.cursor = "grabbing";
       document.body.style.userSelect = "none";
     },
-    [xyNodeId, addAttachments, getNode],
+    [xyNodeId, isFullscreen, addAttachments, getNode],
   );
 
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if ((e.target as HTMLElement).closest('[data-window-control="true"]'))
         return;
-      if (!isFullscreenEligible(openedWindow.nodeType)) return;
-      if (isDirty) void handleSave();
       toggleFullscreenWindow(xyNodeId);
     },
-    [
-      openedWindow.nodeType,
-      xyNodeId,
-      isDirty,
-      handleSave,
-      toggleFullscreenWindow,
-    ],
+    [xyNodeId, toggleFullscreenWindow],
   );
 
   const handleResizeMouseDown = useCallback(
@@ -271,23 +295,17 @@ export default function WindowFrame({
   const onSnapPreviewChangeRef = useRef(onSnapPreviewChange);
   onSnapPreviewChangeRef.current = onSnapPreviewChange;
 
-  const fullscreenEligible = isFullscreenEligible(openedWindow.nodeType);
+  const updateSnapPreview = useCallback((clientX: number, clientY: number) => {
+    let side: SnapSide | null = null;
+    if (clientY <= SNAP_EDGE_THRESHOLD) side = "top";
+    else if (clientX <= SNAP_EDGE_THRESHOLD) side = "left";
+    else if (clientX >= window.innerWidth - SNAP_EDGE_THRESHOLD) side = "right";
 
-  const updateSnapPreview = useCallback(
-    (clientX: number, clientY: number) => {
-      let side: SnapSide | null = null;
-      if (fullscreenEligible && clientY <= SNAP_EDGE_THRESHOLD) side = "top";
-      else if (clientX <= SNAP_EDGE_THRESHOLD) side = "left";
-      else if (clientX >= window.innerWidth - SNAP_EDGE_THRESHOLD)
-        side = "right";
-
-      if (side !== snapPreviewRef.current) {
-        snapPreviewRef.current = side;
-        onSnapPreviewChangeRef.current?.(side);
-      }
-    },
-    [fullscreenEligible],
-  );
+    if (side !== snapPreviewRef.current) {
+      snapPreviewRef.current = side;
+      onSnapPreviewChangeRef.current?.(side);
+    }
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -388,81 +406,98 @@ export default function WindowFrame({
     setIsDraggingOrResizing,
   ]);
 
+  const headerButtonClass =
+    "shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center";
+
   return (
     <WindowFrameContext.Provider value={contextValue}>
       <div
         className={cn(
           "relative h-full w-full",
           isAttachedToConversation &&
-            "after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:border-2 after:border-dashed after:border-violet-500/90",
+            "after:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-dashed after:border-violet-500/90",
+          isAttachedToConversation && !isFullscreen && "after:rounded-2xl",
         )}
       >
-        <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/40 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
-          {/* ── Resize handles ───────────────────────────────────────── */}
+        <div
+          className={cn(
+            "relative flex h-full w-full flex-col overflow-hidden bg-white",
+            !isFullscreen &&
+              "rounded-2xl border border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]",
+          )}
+        >
+          {/* ── Resize handles (fenêtré seulement) ───────────────────── */}
+          {!isFullscreen && (
+            <>
+              {/* Corners (12×12, priority z-20) */}
+              <div
+                className={cn(
+                  "absolute -left-1 -top-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
+                  RESIZE_CURSOR.nw,
+                )}
+                onMouseDown={(e) => handleResizeMouseDown(e, "nw")}
+              />
+              <div
+                className={cn(
+                  "absolute -right-1 -top-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
+                  RESIZE_CURSOR.ne,
+                )}
+                onMouseDown={(e) => handleResizeMouseDown(e, "ne")}
+              />
+              <div
+                className={cn(
+                  "absolute -bottom-1 -left-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
+                  RESIZE_CURSOR.sw,
+                )}
+                onMouseDown={(e) => handleResizeMouseDown(e, "sw")}
+              />
+              <div
+                className={cn(
+                  "absolute -bottom-1 -right-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
+                  RESIZE_CURSOR.se,
+                )}
+                onMouseDown={(e) => handleResizeMouseDown(e, "se")}
+              />
 
-          {/* Corners (12×12, priority z-20) */}
-          <div
-            className={cn(
-              "absolute -left-1 -top-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
-              RESIZE_CURSOR.nw,
-            )}
-            onMouseDown={(e) => handleResizeMouseDown(e, "nw")}
-          />
-          <div
-            className={cn(
-              "absolute -right-1 -top-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
-              RESIZE_CURSOR.ne,
-            )}
-            onMouseDown={(e) => handleResizeMouseDown(e, "ne")}
-          />
-          <div
-            className={cn(
-              "absolute -bottom-1 -left-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
-              RESIZE_CURSOR.sw,
-            )}
-            onMouseDown={(e) => handleResizeMouseDown(e, "sw")}
-          />
-          <div
-            className={cn(
-              "absolute -bottom-1 -right-1 z-20 h-3 w-3 rounded-sm transition-colors hover:bg-blue-400/50",
-              RESIZE_CURSOR.se,
-            )}
-            onMouseDown={(e) => handleResizeMouseDown(e, "se")}
-          />
+              {/* Edges (z-10, inset slightly so corners win) */}
+              <div
+                className={cn(
+                  "absolute -top-1 left-2 right-2 z-10 h-2 transition-colors hover:bg-blue-400/30",
+                  RESIZE_CURSOR.n,
+                )}
+                onMouseDown={(e) => handleResizeMouseDown(e, "n")}
+              />
+              <div
+                className={cn(
+                  "absolute -bottom-1 left-2 right-2 z-10 h-2 transition-colors hover:bg-blue-400/30",
+                  RESIZE_CURSOR.s,
+                )}
+                onMouseDown={(e) => handleResizeMouseDown(e, "s")}
+              />
+              <div
+                className={cn(
+                  "absolute -left-1 bottom-2 top-2 z-10 w-2 transition-colors hover:bg-blue-400/30",
+                  RESIZE_CURSOR.w,
+                )}
+                onMouseDown={(e) => handleResizeMouseDown(e, "w")}
+              />
+              <div
+                className={cn(
+                  "absolute -right-1 bottom-2 top-2 z-10 w-2 transition-colors hover:bg-blue-400/30",
+                  RESIZE_CURSOR.e,
+                )}
+                onMouseDown={(e) => handleResizeMouseDown(e, "e")}
+              />
+            </>
+          )}
 
-          {/* Edges (z-10, inset slightly so corners win) */}
+          {/* ── Header (draggable en fenêtré) ─────────────────────────── */}
           <div
             className={cn(
-              "absolute -top-1 left-2 right-2 z-10 h-2 transition-colors hover:bg-blue-400/30",
-              RESIZE_CURSOR.n,
+              "flex h-10 select-none items-center gap-2 border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1",
+              !isFullscreen &&
+                "cursor-grab rounded-t-2xl hover:cursor-grab active:cursor-grabbing",
             )}
-            onMouseDown={(e) => handleResizeMouseDown(e, "n")}
-          />
-          <div
-            className={cn(
-              "absolute -bottom-1 left-2 right-2 z-10 h-2 transition-colors hover:bg-blue-400/30",
-              RESIZE_CURSOR.s,
-            )}
-            onMouseDown={(e) => handleResizeMouseDown(e, "s")}
-          />
-          <div
-            className={cn(
-              "absolute -left-1 bottom-2 top-2 z-10 w-2 transition-colors hover:bg-blue-400/30",
-              RESIZE_CURSOR.w,
-            )}
-            onMouseDown={(e) => handleResizeMouseDown(e, "w")}
-          />
-          <div
-            className={cn(
-              "absolute -right-1 bottom-2 top-2 z-10 w-2 transition-colors hover:bg-blue-400/30",
-              RESIZE_CURSOR.e,
-            )}
-            onMouseDown={(e) => handleResizeMouseDown(e, "e")}
-          />
-
-          {/* ── Header (draggable) ────────────────────────────────────── */}
-          <div
-            className="flex h-10 cursor-grab select-none items-center gap-2 rounded-t-2xl border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1 hover:cursor-grab active:cursor-grabbing"
             onMouseDown={handleHeaderMouseDown}
             onDoubleClick={handleHeaderDoubleClick}
             title={title}
@@ -476,7 +511,7 @@ export default function WindowFrame({
             {!previewVersionId && refreshHandler && (
               <button
                 data-window-control="true"
-                className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
+                className={headerButtonClass}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={refreshHandler}
                 title="Refresh window"
@@ -530,7 +565,7 @@ export default function WindowFrame({
             )}
             <button
               data-window-control="true"
-              className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
+              className={headerButtonClass}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={() => goToNode(xyNodeId)}
               aria-label="Navigate to node"
@@ -560,27 +595,31 @@ export default function WindowFrame({
                     return;
                   }
                 }
+                if (isFullscreen) exitFullscreen();
                 toggleMinimizeWindow(xyNodeId);
               }}
               aria-label="Minimize"
             >
               <TbMinus size={15} />
             </button>
-            {fullscreenEligible && (
-              <button
-                data-window-control="true"
-                className="shrink-0 rounded-full opacity-50 hover:bg-blue-500/15 hover:text-blue-600 hover:opacity-100 size-7 my-1 flex items-center justify-center"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => {
-                  if (isDirty) void handleSave();
-                  toggleFullscreenWindow(xyNodeId);
-                }}
-                aria-label="Expand to fullscreen"
-                title="Expand"
-              >
+            {/* Pas de save avant la bascule : la fenêtre n'est pas remontée,
+                le brouillon reste là, dirty compris. */}
+            <button
+              data-window-control="true"
+              className={headerButtonClass}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => toggleFullscreenWindow(xyNodeId)}
+              aria-label={
+                isFullscreen ? "Exit fullscreen" : "Expand to fullscreen"
+              }
+              title={isFullscreen ? "Exit fullscreen" : "Expand"}
+            >
+              {isFullscreen ? (
+                <TbArrowsMinimize size={15} />
+              ) : (
                 <TbArrowsMaximize size={15} />
-              </button>
-            )}
+              )}
+            </button>
             <ConfirmableButton
               title="Close without saving?"
               text="You have unsaved changes. Do you want to close this window?"
@@ -612,11 +651,17 @@ export default function WindowFrame({
             </ConfirmableButton>
           </div>
 
-          {/* ── Body row (non-draggable): content + side panel ──────────── */}
+          {/* ── Body row (non-draggable): [Nolë] content + side panel ───── */}
+          {/* Nolë est un voisin conditionnel du contenu, jamais une
+              enveloppe : `NodeWindowContent` garde la même place dans l'arbre
+              dans les deux modes, sans quoi React le remonterait. */}
           <div className="relative flex min-h-0 flex-1">
+            {isFullscreen && isReadingType && !isTabletPortrait && (
+              <NoleAside />
+            )}
             <div
               className={cn(
-                "relative min-h-0 flex-1 overflow-auto",
+                "relative min-h-0 min-w-0 flex-1 overflow-auto",
                 previewVersionId && "bg-yellow-50",
               )}
             >
@@ -644,6 +689,7 @@ export default function WindowFrame({
                 <div className="absolute inset-0 z-10" />
               )}
             </div>
+            {isFullscreen && !isReadingType && <NoleOverlay />}
             {sidePanelOpen && (
               <WindowSidePanel
                 nodeDataId={nodeDataId}

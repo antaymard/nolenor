@@ -2,9 +2,8 @@ import { cn } from "@/lib/utils";
 import type { Heading } from "@/lib/blocknoteOutline";
 
 /**
- * Renders a blocknote heading outline. Shared by the fullscreen tablet-portrait
- * popover (`FullscreenBlocknoteWindow`) and the window side panel's Plan tab —
- * one implementation instead of two drifting copies.
+ * Renders a blocknote heading outline, registered by `BlocknoteWindow` as the
+ * window side panel's Plan tab content.
  */
 export function BlocknoteOutlinePanel({
   headings,

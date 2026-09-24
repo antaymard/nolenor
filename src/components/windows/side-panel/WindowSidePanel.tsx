@@ -36,9 +36,8 @@ function defaultPlanTabContent(nodeType: NodeType): ReactNode {
  * Radix Tabs' default unmount-when-inactive — no manual "activated" tracking
  * needed.
  *
- * Purely presentational for layout: the caller (`WindowFrame` /
- * `FullscreenWindowFrame`) decides column-vs-overlay positioning via
- * `className`.
+ * Purely presentational for layout: the caller (`WindowFrame`) decides
+ * column-vs-overlay positioning via `className`.
  */
 export function WindowSidePanel({
   nodeDataId,

@@ -7,7 +7,7 @@ const ANIMATION_MS = 250;
 /**
  * Amène le haut de la page `pageIndex` en haut de la vue.
  *
- * Les deux vues PDF vivent sous `react-zoom-pan-pinch` : il n'y a aucun
+ * La vue PDF vit sous `react-zoom-pan-pinch` : il n'y a aucun
  * conteneur scrollable, donc ni `scrollIntoView` ni `scrollTop` n'ont prise —
  * seule la translation du contenu bouge. On mesure donc à l'écran l'écart entre
  * le haut de la page et le haut de la vue, et on décale `positionY` d'autant.

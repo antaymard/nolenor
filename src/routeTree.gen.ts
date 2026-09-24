@@ -9,30 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SigninRouteImport } from './routes/signin'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
-import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as SigninRouteImport } from './routes/signin'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as SettingsTemplatesRouteImport } from './routes/settings/templates'
-import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
-import { Route as SettingsMemoriesRouteImport } from './routes/settings/memories'
-import { Route as SettingsExportRouteImport } from './routes/settings/export'
-import { Route as SettingsCanvasRouteImport } from './routes/settings/canvas'
-import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
-import { Route as SettingsAiUsageRouteImport } from './routes/settings/ai-usage'
-import { Route as SettingsAccountRouteImport } from './routes/settings/account'
-import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
-import { Route as AppTutorialsRouteImport } from './routes/_app/tutorials'
 import { Route as AppInboxRouteImport } from './routes/_app/inbox'
+import { Route as AppTutorialsRouteImport } from './routes/_app/tutorials'
+import { Route as CanvasCanvasIdRouteImport } from './routes/canvas/$canvasId'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as SettingsAccountRouteImport } from './routes/settings/account'
+import { Route as SettingsAiUsageRouteImport } from './routes/settings/ai-usage'
+import { Route as SettingsApiTokensRouteImport } from './routes/settings/api-tokens'
+import { Route as SettingsCanvasRouteImport } from './routes/settings/canvas'
+import { Route as SettingsExportRouteImport } from './routes/settings/export'
+import { Route as SettingsMemoriesRouteImport } from './routes/settings/memories'
+import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
+import { Route as SettingsTemplatesRouteImport } from './routes/settings/templates'
 import { Route as SettingsRecipesIndexRouteImport } from './routes/settings/recipes/index'
 import { Route as SettingsRecipesEditRecipeIdRouteImport } from './routes/settings/recipes/edit.$recipeId'
 
-const SigninRoute = SigninRouteImport.update({
-  id: '/signin',
-  path: '/signin',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
@@ -42,49 +37,34 @@ const SettingsRouteRoute = SettingsRouteRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsIndexRoute = SettingsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => SettingsRouteRoute,
+const SigninRoute = SigninRouteImport.update({
+  id: '/signin',
+  path: '/signin',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const SettingsTemplatesRoute = SettingsTemplatesRouteImport.update({
-  id: '/templates',
-  path: '/templates',
-  getParentRoute: () => SettingsRouteRoute,
+const AppInboxRoute = AppInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AppRoute,
 } as any)
-const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
-  id: '/skills',
-  path: '/skills',
-  getParentRoute: () => SettingsRouteRoute,
+const AppTutorialsRoute = AppTutorialsRouteImport.update({
+  id: '/tutorials',
+  path: '/tutorials',
+  getParentRoute: () => AppRoute,
 } as any)
-const SettingsMemoriesRoute = SettingsMemoriesRouteImport.update({
-  id: '/memories',
-  path: '/memories',
-  getParentRoute: () => SettingsRouteRoute,
+const CanvasCanvasIdRoute = CanvasCanvasIdRouteImport.update({
+  id: '/canvas/$canvasId',
+  path: '/canvas/$canvasId',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsExportRoute = SettingsExportRouteImport.update({
-  id: '/export',
-  path: '/export',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const SettingsCanvasRoute = SettingsCanvasRouteImport.update({
-  id: '/canvas',
-  path: '/canvas',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
-  id: '/api-tokens',
-  path: '/api-tokens',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const SettingsAiUsageRoute = SettingsAiUsageRouteImport.update({
-  id: '/ai-usage',
-  path: '/ai-usage',
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsAccountRoute = SettingsAccountRouteImport.update({
@@ -92,20 +72,40 @@ const SettingsAccountRoute = SettingsAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
-const CanvasCanvasIdRoute = CanvasCanvasIdRouteImport.update({
-  id: '/canvas/$canvasId',
-  path: '/canvas/$canvasId',
-  getParentRoute: () => rootRouteImport,
+const SettingsAiUsageRoute = SettingsAiUsageRouteImport.update({
+  id: '/ai-usage',
+  path: '/ai-usage',
+  getParentRoute: () => SettingsRouteRoute,
 } as any)
-const AppTutorialsRoute = AppTutorialsRouteImport.update({
-  id: '/tutorials',
-  path: '/tutorials',
-  getParentRoute: () => AppRoute,
+const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
+  id: '/api-tokens',
+  path: '/api-tokens',
+  getParentRoute: () => SettingsRouteRoute,
 } as any)
-const AppInboxRoute = AppInboxRouteImport.update({
-  id: '/inbox',
-  path: '/inbox',
-  getParentRoute: () => AppRoute,
+const SettingsCanvasRoute = SettingsCanvasRouteImport.update({
+  id: '/canvas',
+  path: '/canvas',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsExportRoute = SettingsExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsMemoriesRoute = SettingsMemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsTemplatesRoute = SettingsTemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsRecipesIndexRoute = SettingsRecipesIndexRouteImport.update({
   id: '/recipes/',
@@ -121,6 +121,7 @@ const SettingsRecipesEditRecipeIdRoute =
 
 export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteRouteWithChildren
+  '/': typeof AppIndexRoute
   '/signin': typeof SigninRoute
   '/inbox': typeof AppInboxRoute
   '/tutorials': typeof AppTutorialsRoute
@@ -133,9 +134,8 @@ export interface FileRoutesByFullPath {
   '/settings/memories': typeof SettingsMemoriesRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/templates': typeof SettingsTemplatesRoute
-  '/': typeof AppIndexRoute
   '/settings/': typeof SettingsIndexRoute
-  '/settings/recipes': typeof SettingsRecipesIndexRoute
+  '/settings/recipes/': typeof SettingsRecipesIndexRoute
   '/settings/recipes/edit/$recipeId': typeof SettingsRecipesEditRecipeIdRoute
 }
 export interface FileRoutesByTo {
@@ -181,6 +181,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/settings'
+    | '/'
     | '/signin'
     | '/inbox'
     | '/tutorials'
@@ -193,9 +194,8 @@ export interface FileRouteTypes {
     | '/settings/memories'
     | '/settings/skills'
     | '/settings/templates'
-    | '/'
     | '/settings/'
-    | '/settings/recipes'
+    | '/settings/recipes/'
     | '/settings/recipes/edit/$recipeId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -246,17 +246,10 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signin': {
-      id: '/signin'
-      path: '/signin'
-      fullPath: '/signin'
-      preLoaderRoute: typeof SigninRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_app': {
       id: '/_app'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -267,88 +260,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/': {
-      id: '/settings/'
-      path: '/'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof SettingsIndexRouteImport
-      parentRoute: typeof SettingsRouteRoute
+    '/signin': {
+      id: '/signin'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/': {
       id: '/_app/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/settings/templates': {
-      id: '/settings/templates'
-      path: '/templates'
-      fullPath: '/settings/templates'
-      preLoaderRoute: typeof SettingsTemplatesRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/skills': {
-      id: '/settings/skills'
-      path: '/skills'
-      fullPath: '/settings/skills'
-      preLoaderRoute: typeof SettingsSkillsRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/memories': {
-      id: '/settings/memories'
-      path: '/memories'
-      fullPath: '/settings/memories'
-      preLoaderRoute: typeof SettingsMemoriesRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/export': {
-      id: '/settings/export'
-      path: '/export'
-      fullPath: '/settings/export'
-      preLoaderRoute: typeof SettingsExportRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/canvas': {
-      id: '/settings/canvas'
-      path: '/canvas'
-      fullPath: '/settings/canvas'
-      preLoaderRoute: typeof SettingsCanvasRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/api-tokens': {
-      id: '/settings/api-tokens'
-      path: '/api-tokens'
-      fullPath: '/settings/api-tokens'
-      preLoaderRoute: typeof SettingsApiTokensRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/ai-usage': {
-      id: '/settings/ai-usage'
-      path: '/ai-usage'
-      fullPath: '/settings/ai-usage'
-      preLoaderRoute: typeof SettingsAiUsageRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/account': {
-      id: '/settings/account'
-      path: '/account'
-      fullPath: '/settings/account'
-      preLoaderRoute: typeof SettingsAccountRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/canvas/$canvasId': {
-      id: '/canvas/$canvasId'
-      path: '/canvas/$canvasId'
-      fullPath: '/canvas/$canvasId'
-      preLoaderRoute: typeof CanvasCanvasIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_app/tutorials': {
-      id: '/_app/tutorials'
-      path: '/tutorials'
-      fullPath: '/tutorials'
-      preLoaderRoute: typeof AppTutorialsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/inbox': {
@@ -358,10 +281,87 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppInboxRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/tutorials': {
+      id: '/_app/tutorials'
+      path: '/tutorials'
+      fullPath: '/tutorials'
+      preLoaderRoute: typeof AppTutorialsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/canvas/$canvasId': {
+      id: '/canvas/$canvasId'
+      path: '/canvas/$canvasId'
+      fullPath: '/canvas/$canvasId'
+      preLoaderRoute: typeof CanvasCanvasIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/account': {
+      id: '/settings/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof SettingsAccountRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/ai-usage': {
+      id: '/settings/ai-usage'
+      path: '/ai-usage'
+      fullPath: '/settings/ai-usage'
+      preLoaderRoute: typeof SettingsAiUsageRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/api-tokens': {
+      id: '/settings/api-tokens'
+      path: '/api-tokens'
+      fullPath: '/settings/api-tokens'
+      preLoaderRoute: typeof SettingsApiTokensRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/canvas': {
+      id: '/settings/canvas'
+      path: '/canvas'
+      fullPath: '/settings/canvas'
+      preLoaderRoute: typeof SettingsCanvasRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/export': {
+      id: '/settings/export'
+      path: '/export'
+      fullPath: '/settings/export'
+      preLoaderRoute: typeof SettingsExportRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/memories': {
+      id: '/settings/memories'
+      path: '/memories'
+      fullPath: '/settings/memories'
+      preLoaderRoute: typeof SettingsMemoriesRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/skills': {
+      id: '/settings/skills'
+      path: '/skills'
+      fullPath: '/settings/skills'
+      preLoaderRoute: typeof SettingsSkillsRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/templates': {
+      id: '/settings/templates'
+      path: '/templates'
+      fullPath: '/settings/templates'
+      preLoaderRoute: typeof SettingsTemplatesRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/recipes/': {
       id: '/settings/recipes/'
       path: '/recipes'
-      fullPath: '/settings/recipes'
+      fullPath: '/settings/recipes/'
       preLoaderRoute: typeof SettingsRecipesIndexRouteImport
       parentRoute: typeof SettingsRouteRoute
     }

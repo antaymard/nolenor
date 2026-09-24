@@ -10,8 +10,8 @@ interface WindowEditTriggerProps extends ComponentProps<"button"> {
 }
 
 /**
- * Crayon au format des boutons du header de window (`WindowFrame` flottant et
- * `FullscreenWindowFrame`) : même taille, même survol que refresh/minimize.
+ * Crayon au format des boutons du header de window (`WindowFrame`, flottante
+ * ou plein écran) : même taille, même survol que refresh/minimize.
  *
  * `data-window-control` + `stopPropagation` au mousedown : sans ça, le header
  * flottant prendrait le clic pour le début d'un drag (cf. `WindowFrame`) et

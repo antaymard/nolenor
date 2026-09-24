@@ -64,9 +64,9 @@ export function useHasWindowSaveHandler(): boolean {
 }
 
 /**
- * À appeler dans le propriétaire du `handleSave` (`useWindowFrameState` et
- * `FullscreenWindowFrame`, qui duplique cet état). Ré-enregistre à chaque
- * changement d'identité pour ne jamais garder un closure stale.
+ * À appeler dans le propriétaire du `handleSave` (`useWindowFrameState`).
+ * Ré-enregistre à chaque changement d'identité pour ne jamais garder un
+ * closure stale.
  */
 export function useRegisterWindowSaveHandler(
   xyNodeId: string,

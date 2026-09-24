@@ -187,23 +187,6 @@ type Delta = { x: number; y: number };
 
 export type SnapSide = "left" | "right" | "top";
 
-const FULLSCREEN_ELIGIBLE_NODE_TYPES: ReadonlySet<NodeType> = new Set([
-  "blocknote",
-  "table",
-  "pdf",
-  "app",
-  // Ajouter un type ici ne suffit pas : WindowsContainer retire la fenêtre
-  // normale de la liste dès qu'elle passe en plein écran, et sa chaîne de
-  // dispatch doit donc savoir quoi rendre à la place. Sans les deux, la
-  // fenêtre disparaît au lieu de s'agrandir.
-  "video",
-  "image",
-]);
-
-export function isFullscreenEligible(nodeType: NodeType): boolean {
-  return FULLSCREEN_ELIGIBLE_NODE_TYPES.has(nodeType);
-}
-
 export interface OpenedWindow {
   position: { x: number; y: number };
   width: number;
@@ -678,7 +661,6 @@ export const useWindowsStore = create<WindowsStore>()(
           const current = store.openedWindows[index];
 
           if (side === "top") {
-            if (!isFullscreenEligible(current.nodeType)) return store;
             return { fullscreenNodeId: xyNodeId };
           }
 

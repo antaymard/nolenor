@@ -55,8 +55,12 @@ function PdfWindow({
   // Échelle arrondie à un palier : le zoom lui-même est un transform CSS, on ne
   // re-rend les canvas que quand le gain de netteté en vaut la peine.
   const [renderScale, setRenderScale] = useState(1);
+  // Largeur plafonnée : en plein écran (ou dans une window très large) les
+  // pages s'arrêtent à une largeur de lecture confortable au lieu de
+  // s'étaler sur tout l'écran. Sans effet dans une window de taille courante.
   const { viewportRef, baseWidth, visiblePages, activePage } = usePdfViewport({
     numPages,
+    maxBaseWidth: 960,
   });
 
   const onDocumentLoadSuccess = useCallback(

@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils";
 import type { OutlineEntry } from "@/lib/pdfOutline";
 
 /**
- * Renders a PDF page/section outline. Shared by the fullscreen tablet-portrait
- * popover (`FullscreenPdfWindow`) and the window side panel's Plan tab.
+ * Renders a PDF page/section outline, registered by `PdfWindow` as the window
+ * side panel's Plan tab content.
  */
 export function PdfOutlinePanel({
   entries,

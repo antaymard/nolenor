@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, type Ref } from "react";
 import type { PartialBlock } from "@blocknote/core";
 
 import {
@@ -402,9 +402,15 @@ function renderBlocks(blocks: BlockNoteBlock[]): React.ReactNode {
 interface BlockNoteStaticProps {
   blocks: BlockNoteBlock[];
   className?: string;
+  /** La racine, pour qui la fait défiler (cf. `BlocknoteNode`). */
+  ref?: Ref<HTMLDivElement>;
 }
 
-function BlockNoteStaticImpl({ blocks, className }: BlockNoteStaticProps) {
+function BlockNoteStaticImpl({
+  blocks,
+  className,
+  ref,
+}: BlockNoteStaticProps) {
   const rendered = useMemo(() => renderBlocks(blocks), [blocks]);
   // `bn-root` only declares BlockNote's design tokens — in particular the
   // `--bn-colors-highlights-*` palette that its global `[data-text-color]` /
@@ -412,7 +418,11 @@ function BlockNoteStaticImpl({ blocks, className }: BlockNoteStaticProps) {
   // attributes (emitted on table cells) resolve to an undefined variable and
   // the colour is silently dropped. The font-family it also sets is already
   // overridden for `.bn-root` in blocknote-overrides.css.
-  return <div className={cn("bn-root", className)}>{rendered}</div>;
+  return (
+    <div ref={ref} className={cn("bn-root", className)}>
+      {rendered}
+    </div>
+  );
 }
 
 export const BlockNoteStatic = memo(BlockNoteStaticImpl);

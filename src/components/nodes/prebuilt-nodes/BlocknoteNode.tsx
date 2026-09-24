@@ -5,6 +5,7 @@ import { areNodePropsEqual } from "../areNodePropsEqual";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
+import { useCanvasScrollArea } from "@/hooks/useCanvasScrollArea";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import { downloadBlob } from "@/lib/downloadFile";
@@ -95,6 +96,11 @@ function BlocknoteNode(xyNode: XyNodeProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useNoWheelUnlessZoom(scrollRef);
 
+  // La zone qui défile vraiment : la racine de BlockNoteStatic, qui ne défile
+  // qu'au survol du node (cf. `useCanvasScrollArea`).
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  useCanvasScrollArea(scrollAreaRef);
+
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
@@ -132,8 +138,9 @@ function BlocknoteNode(xyNode: XyNodeProps) {
             ) : (
               <BlockNoteErrorBoundary resetKey={docString}>
                 <BlockNoteStatic
+                  ref={scrollAreaRef}
                   blocks={blocks}
-                  className="h-full min-h-0 overflow-y-auto overscroll-x-none p-4 select-none bn-readonly-container"
+                  className="canvas-scroll-area h-full min-h-0 overflow-y-auto overscroll-x-none p-4 select-none bn-readonly-container"
                 />
               </BlockNoteErrorBoundary>
             )}

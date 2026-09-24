@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link } from "@tanstack/react-router";
-import { TbChevronDown, TbExclamationCircle } from "react-icons/tb";
+import { TbExclamationCircle } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import {
@@ -20,9 +20,9 @@ import {
   NEUTRAL_CANVAS_COVER,
   canvasCover,
 } from "@/lib/canvasCover";
-import { cn } from "@/lib/utils";
 import CanvasBackgroundField from "./CanvasBackgroundField";
 import { CanvasCoverField, CanvasIdentityField } from "./CanvasAppearanceField";
+import CollapsibleSection from "./CollapsibleSection";
 import {
   coverDraftFrom,
   isCoverDraftDirty,
@@ -104,7 +104,9 @@ export default function CanvasBackgroundPanel({
   const [coverDraft, setCoverDraft] = useState<CanvasCoverDraft>({
     kind: "none",
   });
+  // Couverture et fond repliés à l'ouverture, chacun de son côté.
   const [coverOpen, setCoverOpen] = useState(false);
+  const [backgroundOpen, setBackgroundOpen] = useState(false);
 
   // Même resync que le fond : au changement de canvas comme à chaque réponse
   // du serveur — deux canvas sans icône ne doivent pas se passer le brouillon.
@@ -230,47 +232,36 @@ export default function CanvasBackgroundPanel({
             />
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white">
-            <button
-              type="button"
-              aria-expanded={coverOpen}
-              onClick={() => setCoverOpen((prev) => !prev)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left"
-            >
-              <span className="text-sm font-medium">
-                Cover image
-                <span className="ml-2 font-normal text-muted-foreground">
-                  {coverDraft.kind === "none" ? "None" : "Set"}
-                </span>
-              </span>
-              <TbChevronDown
-                size={16}
-                className={cn(
-                  "shrink-0 text-slate-500 transition-transform",
-                  coverOpen && "rotate-180",
-                )}
-              />
-            </button>
-            {coverOpen && (
-              <div className="space-y-2 border-t border-slate-200 p-4">
-                <p className="text-xs text-muted-foreground">
-                  Shown on the canvas card on the home page.
-                </p>
-                <CanvasCoverField
-                  value={coverDraft}
-                  onChange={setCoverDraft}
-                  tintClassName={coverTint}
-                  disabled={isSaving}
-                />
-              </div>
-            )}
-          </div>
+          <CollapsibleSection
+            title="Cover image"
+            summary={coverDraft.kind === "none" ? "None" : "Set"}
+            className="rounded-xl border-slate-200 bg-white"
+            open={coverOpen}
+            onToggle={() => setCoverOpen((prev) => !prev)}
+          >
+            <p className="text-xs text-muted-foreground">
+              Shown on the canvas card on the home page.
+            </p>
+            <CanvasCoverField
+              value={coverDraft}
+              onChange={setCoverDraft}
+              tintClassName={coverTint}
+              disabled={isSaving}
+            />
+          </CollapsibleSection>
 
-          <CanvasBackgroundField
-            value={draft}
-            onChange={setDraft}
-            disabled={isSaving}
-          />
+          <CollapsibleSection
+            title="Background"
+            className="rounded-xl border-slate-200 bg-white"
+            open={backgroundOpen}
+            onToggle={() => setBackgroundOpen((prev) => !prev)}
+          >
+            <CanvasBackgroundField
+              value={draft}
+              onChange={setDraft}
+              disabled={isSaving}
+            />
+          </CollapsibleSection>
 
           <div className="flex flex-wrap gap-2 pt-1">
             <Button

@@ -21,7 +21,7 @@ export default function AiUsageByModel({ usage }: { usage: AiUsage }) {
   }
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3 sm:p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
       <h2 className="mb-3 text-sm font-semibold text-[#0b0b0b]">By model</h2>
       {/* Cinq colonnes chiffrées ne tiennent pas sur un téléphone : le tableau
           défile plutôt que d'écraser ses colonnes. */}

@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useMutation } from "convex/react";
-import toast from "react-hot-toast";
 import { api } from "@/../convex/_generated/api";
+import { showActionToast } from "@/components/ui/ActionToast";
 import { toastError } from "@/components/utils/errorUtils";
 
 /** Le temps de se raviser : assez pour lire le toast, pas assez pour l'oublier. */
@@ -52,26 +52,16 @@ export function useClearHomeTasks(): (
           ? `“${tasks[0].title || "Nolë"}” cleared`
           : `${tasks.length} tasks cleared`;
 
-      toast(
-        (t) => (
-          <span className="flex items-center gap-3 text-sm">
-            <span className="min-w-0 truncate">{label}</span>
-            <button
-              type="button"
-              onClick={() => {
-                toast.dismiss(t.id);
-                void Promise.all(
-                  ids.map((threadId) => unmarkReviewed({ threadId })),
-                ).catch((error) => toastError(error, "Could not undo."));
-              }}
-              className="shrink-0 rounded-md px-2 py-1 text-sm font-semibold text-brand hover:bg-brand/10"
-            >
-              Undo
-            </button>
-          </span>
-        ),
-        { duration: UNDO_WINDOW_MS },
-      );
+      showActionToast({
+        message: label,
+        actionLabel: "Undo",
+        onAction: () => {
+          void Promise.all(
+            ids.map((threadId) => unmarkReviewed({ threadId })),
+          ).catch((error) => toastError(error, "Could not undo."));
+        },
+        duration: UNDO_WINDOW_MS,
+      });
     },
     [markReviewed, unmarkReviewed],
   );

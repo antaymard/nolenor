@@ -57,8 +57,8 @@ export default function CanvasBackgroundField({
       <div
         className={
           compact
-            ? "space-y-3 rounded-md border border-gray-200 bg-white p-3"
-            : "space-y-4 rounded-md border border-gray-200 bg-white p-4"
+            ? "space-y-3 rounded-xl border border-slate-200 bg-white p-3"
+            : "space-y-4 rounded-xl border border-slate-200 bg-white p-4"
         }
       >
         <div className="space-y-2">
@@ -73,9 +73,9 @@ export default function CanvasBackgroundField({
                 disabled={disabled}
                 onClick={() => set({ bgColor: preset })}
                 className={cn(
-                  "h-7 w-7 rounded-full border border-gray-300 disabled:opacity-50",
+                  "h-7 w-7 rounded-full border border-slate-300 disabled:opacity-50",
                   value.bgColor.toLowerCase() === preset.toLowerCase() &&
-                    "ring-2 ring-gray-900 ring-offset-2",
+                    "ring-2 ring-slate-900 ring-offset-2",
                 )}
                 style={{ backgroundColor: preset }}
               />
@@ -86,7 +86,7 @@ export default function CanvasBackgroundField({
               disabled={disabled}
               onChange={(event) => set({ bgColor: event.target.value })}
               aria-label="Custom background color"
-              className="h-7 w-10 cursor-pointer rounded border border-gray-300 bg-white p-0.5 disabled:opacity-50"
+              className="h-7 w-10 cursor-pointer rounded border border-slate-300 bg-white p-0.5 disabled:opacity-50"
             />
           </div>
         </div>
@@ -133,9 +133,9 @@ export default function CanvasBackgroundField({
                     set({ patternColor: event.target.value })
                   }
                   aria-label="Custom pattern color"
-                  className="h-7 w-10 cursor-pointer rounded border border-gray-300 bg-white p-0.5 disabled:opacity-50"
+                  className="h-7 w-10 cursor-pointer rounded border border-slate-300 bg-white p-0.5 disabled:opacity-50"
                 />
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-slate-500">
                   {value.patternColor}
                 </span>
               </div>
@@ -191,14 +191,14 @@ export default function CanvasBackgroundField({
         <div
           className={
             compact
-              ? "h-24 rounded-md border border-gray-200"
-              : "h-44 rounded-md border border-gray-200"
+              ? "h-24 rounded-xl border border-slate-200"
+              : "h-44 rounded-xl border border-slate-200"
           }
           style={previewStyle(value)}
           aria-label="Background preview"
         />
         {!hideHint && (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-slate-500">
             Shared with everyone who can see this canvas.
           </p>
         )}

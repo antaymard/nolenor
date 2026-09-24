@@ -80,7 +80,7 @@ export default function CanvasBackgroundPanel({
 
   if (canvases === undefined) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white p-4 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm text-muted-foreground">
         <Spinner /> Loading your canvases…
       </div>
     );
@@ -88,7 +88,7 @@ export default function CanvasBackgroundPanel({
 
   if (ownedCanvases.length === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500">
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
         <TbExclamationCircle /> You have no canvas yet — create one first, then
         come back to style its background.
       </div>
@@ -126,7 +126,7 @@ export default function CanvasBackgroundPanel({
         <Label htmlFor="canvas-background-select">Canvas</Label>
         <select
           id="canvas-background-select"
-          className="block w-full max-w-md rounded-md border border-gray-300 bg-white p-2 text-sm"
+          className="block w-full max-w-md rounded-lg border border-slate-300 bg-white p-2 text-sm"
           value={selectedCanvasId ?? ""}
           onChange={(event) =>
             setSelectedCanvasId(event.target.value as Id<"canvases">)
@@ -153,7 +153,7 @@ export default function CanvasBackgroundPanel({
       </div>
 
       {canvas === undefined ? (
-        <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white p-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm text-muted-foreground">
           <Spinner /> Loading background…
         </div>
       ) : (

@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import { TbExclamationCircle, TbEye, TbEyeOff } from "react-icons/tb";
+import PageHeader from "@/components/app-shell/PageHeader";
 import { Button } from "@/components/shadcn/button";
 import CreateApiTokenDialog from "@/components/settings/apiTokens/CreateApiTokenDialog";
 import ApiTokensList from "@/components/settings/apiTokens/ApiTokensList";
@@ -32,34 +33,31 @@ function RouteComponent() {
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-xl font-bold">MCP & API tokens</h1>
-          <i className="text-sm text-muted-foreground not-italic">
-            Create tokens to let third-party tools and agents (e.g. MCP servers)
-            access the nolënor API on your behalf.
-          </i>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {revokedCount > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowRevoked((v) => !v)}
-              aria-pressed={showRevoked}
-            >
-              {showRevoked ? <TbEyeOff /> : <TbEye />}
-              {showRevoked
-                ? `Hide revoked (${revokedCount})`
-                : `Show revoked (${revokedCount})`}
-            </Button>
-          )}
-          <CreateApiTokenDialog />
-        </div>
-      </div>
+      <PageHeader
+        title="MCP & API tokens"
+        subtitle="Create tokens to let third-party tools and agents (e.g. MCP servers) access the nolënor API on your behalf."
+        action={
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {revokedCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowRevoked((v) => !v)}
+                aria-pressed={showRevoked}
+              >
+                {showRevoked ? <TbEyeOff /> : <TbEye />}
+                {showRevoked
+                  ? `Hide revoked (${revokedCount})`
+                  : `Show revoked (${revokedCount})`}
+              </Button>
+            )}
+            <CreateApiTokenDialog />
+          </div>
+        }
+      />
 
-      <div className="mt-4 rounded bg-slate-50 p-2">
+      <div className="mt-6 rounded-2xl bg-slate-50 p-3">
         {visibleTokens && visibleTokens.length > 0 && (
           <ApiTokensList tokens={visibleTokens} />
         )}

@@ -293,7 +293,7 @@ export default function AiUsageChart({ usage }: { usage: AiUsage }) {
   const [view, setView] = useState<"chart" | "table">("chart");
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3 sm:p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-[#0b0b0b]">
           Cost per {usage.granularity === "month" ? "month" : "day"}
@@ -301,7 +301,7 @@ export default function AiUsageChart({ usage }: { usage: AiUsage }) {
         <button
           type="button"
           onClick={() => setView(view === "chart" ? "table" : "chart")}
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2 py-1 text-xs text-[#52514e] hover:bg-slate-100"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2 py-1 text-xs text-[#52514e] hover:bg-slate-100"
         >
           {view === "chart" ? (
             <>

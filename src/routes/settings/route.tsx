@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import type { IconType } from "react-icons";
 import {
+  TbArrowLeft,
   TbBrain,
   TbCategory,
   TbChartBar,
@@ -14,6 +15,10 @@ import {
   TbUser,
   TbX,
 } from "react-icons/tb";
+import {
+  NAV_ITEM_ACTIVE_CLASS,
+  NAV_ITEM_CLASS,
+} from "@/components/app-shell/navItemStyles";
 import {
   Sheet,
   SheetContent,
@@ -105,91 +110,105 @@ function RouteComponent() {
     }))
     .filter((section) => section.buttons.length > 0);
 
-  const renderSettingsSidebar = (onNavigate?: () => void) =>
-    visibleSections.map((section) => (
-      <div key={section.label} className="space-y-1">
-        <h3 className="pl-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {section.label}
-        </h3>
-        <div className="flex flex-col gap-0.5">
-          {section.buttons.map((button) => {
-            const Icon = button.icon;
-            return (
-              <Link
-                key={button.route}
-                to={button.route}
-                onClick={onNavigate}
-                className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-200 md:py-1.5"
-                activeProps={{
-                  className: "bg-gray-200 font-medium text-gray-900",
-                }}
-              >
-                <Icon size={16} className="shrink-0 text-gray-500" />
-                {button.label}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    ));
-
-  return (
-    <div className="flex h-dvh w-full flex-col bg-white md:grid md:grid-cols-[260px_auto]">
-      {/* Barre du haut, mobile seulement : le menu et la sortie des settings. */}
-      <div
-        className="flex shrink-0 items-center gap-2 border-b border-gray-300 px-3 py-2 md:hidden"
-        style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
-      >
-        <button
-          type="button"
-          onClick={() => setNavOpen(true)}
-          className="rounded-md bg-gray-100 p-2 hover:bg-gray-200"
-          aria-label="Open settings menu"
-        >
-          <TbMenu2 size={16} />
-        </button>
-        <h1 className="min-w-0 flex-1 truncate text-lg font-bold">Settings</h1>
+  const renderSettingsSidebar = (onNavigate?: () => void) => (
+    <div className="flex h-full flex-col gap-5 px-3 pt-4 pb-3">
+      <div className="flex items-center gap-2 px-1">
         <button
           type="button"
           onClick={closeSettings}
-          className="rounded-md bg-gray-100 p-2 hover:bg-gray-200"
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-700"
           aria-label="Close settings"
         >
-          <TbX size={16} />
+          <TbArrowLeft className="size-[18px]" />
         </button>
+        <span className="text-[17px] font-bold tracking-tight text-slate-900">
+          Settings
+        </span>
       </div>
 
-      <Sheet open={navOpen} onOpenChange={setNavOpen}>
-        <SheetContent side="left" className="w-72 gap-0 p-0">
-          <SheetHeader className="border-b border-gray-200">
-            <SheetTitle>Settings</SheetTitle>
-          </SheetHeader>
-          <div className="flex-1 space-y-5 overflow-y-auto p-4">
-            {renderSettingsSidebar(() => setNavOpen(false))}
+      <nav
+        aria-label="Settings"
+        className="-mx-3 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3"
+      >
+        {visibleSections.map((section) => (
+          <div key={section.label} className="flex flex-col gap-0.5">
+            <h2 className="px-3 pb-1 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+              {section.label}
+            </h2>
+            {section.buttons.map((button) => {
+              const Icon = button.icon;
+              return (
+                <Link
+                  key={button.route}
+                  to={button.route}
+                  onClick={onNavigate}
+                  className={NAV_ITEM_CLASS}
+                  activeProps={{ className: NAV_ITEM_ACTIVE_CLASS }}
+                >
+                  <Icon className="size-[18px] shrink-0" />
+                  <span className="flex-1">{button.label}</span>
+                </Link>
+              );
+            })}
           </div>
-        </SheetContent>
-      </Sheet>
+        ))}
+      </nav>
+    </div>
+  );
 
-      {/* Sidebar */}
-      <div className="hidden flex-col gap-5 overflow-y-auto border-r border-gray-300 p-5 md:flex">
-        <span className="flex items-center gap-2">
+  // Le même shell que la home (cf. routes/_app.tsx) : sidebar grise à gauche,
+  // page blanche à droite, barre du haut sur mobile.
+  return (
+    <div className="flex h-dvh w-full bg-white">
+      <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-slate-50 md:block">
+        {renderSettingsSidebar()}
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Barre du haut, mobile seulement : le menu et la sortie des settings. */}
+        <div
+          className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-3 py-2 md:hidden"
+          style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
+        >
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            className="rounded-md p-2 text-slate-600 hover:bg-slate-100"
+            aria-label="Open settings menu"
+          >
+            <TbMenu2 size={18} />
+          </button>
+          <span className="min-w-0 flex-1 truncate font-extrabold tracking-tight text-slate-900">
+            Settings
+          </span>
           <button
             type="button"
             onClick={closeSettings}
-            className="rounded-md bg-gray-100 p-2 hover:bg-gray-200"
+            className="rounded-md p-2 text-slate-600 hover:bg-slate-100"
             aria-label="Close settings"
           >
-            <TbX size={16} />
+            <TbX size={18} />
           </button>
-          <h1 className="text-lg font-bold">Settings</h1>
-        </span>
-        <div className="space-y-5">{renderSettingsSidebar()}</div>
+        </div>
+
+        {/* La page scrolle ici, à l'intérieur du shell à hauteur fixe. Les
+            pages en deux colonnes (Skills) prennent `h-full` pour faire
+            défiler leurs listes elles-mêmes. */}
+        <main className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain px-4 py-8 md:px-10 md:py-10">
+          <div className="mx-auto h-full max-w-5xl">
+            <Outlet />
+          </div>
+        </main>
       </div>
 
-      {/* Core */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
-        <Outlet />
-      </div>
+      <Sheet open={navOpen} onOpenChange={setNavOpen}>
+        <SheetContent side="left" className="w-72 gap-0 bg-slate-50 p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Settings</SheetTitle>
+          </SheetHeader>
+          {renderSettingsSidebar(() => setNavOpen(false))}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

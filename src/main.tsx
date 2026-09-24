@@ -11,6 +11,7 @@ import { routeTree } from "./routeTree.gen";
 import type { RouterContext } from "./routes/__root";
 import { Toaster } from "react-hot-toast";
 import { TooltipProvider } from "./components/shadcn/tooltip";
+import { TOAST_STYLE } from "./components/ui/ActionToast";
 import { AppErrorBoundary } from "./components/ui/AppErrorBoundary";
 import { initAnalytics } from "./lib/analytics";
 import { installGlobalErrorHandlers } from "./lib/globalErrorHandlers";
@@ -58,7 +59,7 @@ if (!rootElement.innerHTML) {
     <StrictMode>
       <AppErrorBoundary>
         <TooltipProvider delayDuration={500}>
-          <Toaster />
+          <Toaster toastOptions={{ style: TOAST_STYLE }} />
           <ConvexAuthProvider client={convex}>
             <RouterProvider router={router} />
           </ConvexAuthProvider>

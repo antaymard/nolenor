@@ -219,14 +219,18 @@ export default function CanvasFormModal({
   const coverTint = canvasCover(identityDraft.color).tint;
 
   return (
-    <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
+    // Colonne à hauteur bornée : en-tête et pied fixes, seul le corps défile —
+    // le bouton de validation reste visible quelle que soit la longueur du
+    // formulaire (sections dépliées comprises).
+    <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-2xl sm:max-w-xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
       <form
+        className="flex min-h-0 flex-1 flex-col"
         onSubmit={(e) => {
           e.preventDefault();
           form.handleSubmit();
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>
             {isEdit ? "Edit workspace" : "Create a workspace"}
           </DialogTitle>
@@ -236,7 +240,7 @@ export default function CanvasFormModal({
               : "Give this new workspace a name."}
           </DialogDescription>
         </DialogHeader>
-        <div className="my-3 space-y-3">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-2">
           <TextInput
             form={form}
             name="name"
@@ -315,7 +319,7 @@ export default function CanvasFormModal({
             )}
           </CollapsibleSection>
         </div>
-        <DialogFooter>
+        <DialogFooter className="border-t border-gray-200 px-6 py-4">
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting
               ? (isEdit ? "Saving..." : "Creating...")

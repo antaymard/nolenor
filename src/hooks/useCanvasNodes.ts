@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   useNodesState,
   useReactFlow,
@@ -199,15 +199,27 @@ export function useCanvasNodes(
   });
 
   // CONVEX MUTATIONS
-  const patchNodesInConvex = useMutation(api.nodes.patch).withOptimisticUpdate(
-    (localStore, { updates }) => {
-      applyNodePatchesToListQuery(localStore, canvasId, updates);
-    },
+  // Mémoïsées : `useMutation` est stable, mais `withOptimisticUpdate` rend une
+  // fonction NEUVE à chaque appel. Sans ça, `handleNodeChange` changeait
+  // d'identité à chaque rendu — donc à chaque frame de drag — et `<ReactFlow>`
+  // repoussait `onNodesChange` dans son store : une notification de plus par
+  // frame, soit un tour complet de tous les sélecteurs (handles, edges,
+  // cellules de table…) pour rien.
+  const patchNodes = useMutation(api.nodes.patch);
+  const patchNodesInConvex = useMemo(
+    () =>
+      patchNodes.withOptimisticUpdate((localStore, { updates }) => {
+        applyNodePatchesToListQuery(localStore, canvasId, updates);
+      }),
+    [patchNodes, canvasId],
   );
-  const trashNodesInConvex = useMutation(api.nodes.trash).withOptimisticUpdate(
-    (localStore, { nodeIds }) => {
-      removeNodesFromListQuery(localStore, canvasId, nodeIds);
-    },
+  const trashNodes = useMutation(api.nodes.trash);
+  const trashNodesInConvex = useMemo(
+    () =>
+      trashNodes.withOptimisticUpdate((localStore, { nodeIds }) => {
+        removeNodesFromListQuery(localStore, canvasId, nodeIds);
+      }),
+    [trashNodes, canvasId],
   );
 
   const persistLayoutUpdates = useCallback(

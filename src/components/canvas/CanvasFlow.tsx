@@ -74,6 +74,15 @@ import type {
  */
 export type CanvasFlowVariant = "desktop" | "touch";
 
+// Au niveau du module, et non en littéraux dans le JSX : ce composant re-rend à
+// chaque frame d'un drag de node (mode contrôlé), et un objet ou un tableau neuf
+// à chaque rendu re-rendait `GraphView` → `ZoomPane` chez React Flow, qui
+// relançait alors `panZoom.update()` (re-câblage de d3-zoom) à chaque frame.
+// Le cas sans `?v=` : tout canvas s'ouvre à l'origine du monde.
+const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 0.75 };
+const PAN_ON_DRAG_HAND_TOOL = [0, 1];
+const PAN_ON_DRAG_MIDDLE_BUTTON = [1];
+
 interface CanvasFlowProps {
   canvasId: Id<"canvases">;
   canvasNodes: CanvasNode[] | undefined;
@@ -691,14 +700,15 @@ export default function CanvasFlow({
         // Le temps d'un tracé de frame, plus rien ne pan : le clic molette
         // déplacerait le monde sous le rectangle en cours.
         panOnDrag={
-          isFrameTool ? false : panWithFinger ? true : isHandTool ? [0, 1] : [1]
+          isFrameTool
+            ? false
+            : panWithFinger
+              ? true
+              : isHandTool
+                ? PAN_ON_DRAG_HAND_TOOL
+                : PAN_ON_DRAG_MIDDLE_BUTTON
         }
-        // Le cas sans `?v=` : tout canvas s'ouvre à l'origine du monde.
-        defaultViewport={{
-          x: 0,
-          y: 0,
-          zoom: 0.75,
-        }}
+        defaultViewport={DEFAULT_VIEWPORT}
         minZoom={CANVAS_MIN_ZOOM}
         maxZoom={CANVAS_MAX_ZOOM}
         selectNodesOnDrag={false}

@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Doc, Id } from "@/../convex/_generated/dataModel";
@@ -35,82 +36,93 @@ type CreateEdgeInput = {
  * serveur d'un edge jamais créé).
  */
 export function useCreateEdge() {
-  const createEdges = useMutation(api.edges.create).withOptimisticUpdate(
-    (localStore, { edges }) => {
-      if (edges.length === 0) return;
-      addPendingEdgesToListQuery(
-        localStore,
-        edges[0].canvasId,
-        edges.flatMap((item): Doc<"edges">[] => {
-          if (item.id === undefined) return [];
-          return [
-            {
-              _id: pendingDocId<"edges">(item.id),
-              _creationTime: Date.now(),
-              id: item.id,
-              canvasId: item.canvasId,
-              source: item.source,
-              target: item.target,
-              ...(item.sourceHandle !== undefined && {
-                sourceHandle: item.sourceHandle,
-              }),
-              ...(item.targetHandle !== undefined && {
-                targetHandle: item.targetHandle,
-              }),
-              // Parité `DEFAULT_MARKER_END` serveur : l'edge en attente
-              // rend exactement comme le doc confirmé le remplacera.
-              markerEnd: {
-                type: "arrow",
-                width: 30,
-                height: 30,
-                strokeWidth: 1,
+  // Mémoïsés, la mutation comme `createEdge` : `withOptimisticUpdate` rend une
+  // fonction neuve à chaque appel, et `createEdge` finit dans `onConnect`, que
+  // `<ReactFlow>` repousse dans son store à chaque changement d'identité — une
+  // notification de plus par frame de drag, donc un tour de tous les
+  // sélecteurs du canvas.
+  const createEdgesMutation = useMutation(api.edges.create);
+  const createEdges = useMemo(
+    () =>
+      createEdgesMutation.withOptimisticUpdate((localStore, { edges }) => {
+        if (edges.length === 0) return;
+        addPendingEdgesToListQuery(
+          localStore,
+          edges[0].canvasId,
+          edges.flatMap((item): Doc<"edges">[] => {
+            if (item.id === undefined) return [];
+            return [
+              {
+                _id: pendingDocId<"edges">(item.id),
+                _creationTime: Date.now(),
+                id: item.id,
+                canvasId: item.canvasId,
+                source: item.source,
+                target: item.target,
+                ...(item.sourceHandle !== undefined && {
+                  sourceHandle: item.sourceHandle,
+                }),
+                ...(item.targetHandle !== undefined && {
+                  targetHandle: item.targetHandle,
+                }),
+                // Parité `DEFAULT_MARKER_END` serveur : l'edge en attente
+                // rend exactement comme le doc confirmé le remplacera.
+                markerEnd: {
+                  type: "arrow",
+                  width: 30,
+                  height: 30,
+                  strokeWidth: 1,
+                },
               },
-            },
-          ];
-        }),
-      );
-    },
+            ];
+          }),
+        );
+      }),
+    [createEdgesMutation],
   );
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
   });
 
-  const createEdge = ({
-    edgeId = generateLlmId(),
-    source,
-    target,
-    sourceHandle,
-    targetHandle,
-  }: CreateEdgeInput) => {
-    const settled = trackCanvasSync(() =>
-      createEdges({
-        edges: [
-          {
-            id: edgeId,
-            canvasId,
-            source,
-            target,
-            ...(sourceHandle !== undefined && { sourceHandle }),
-            ...(targetHandle !== undefined && { targetHandle }),
-          },
-        ],
-      }),
-    )
-      .then((result) => {
-        // À la confirmation seulement : une edge jamais créée n'a rien à
-        // annuler, et l'appelant retire déjà la locale en cas d'échec.
-        recordUndo(
-          { kind: "trashEdges", edgeIds: [edgeId] },
-          { kind: "untrashEdges", edgeIds: [edgeId] },
-        );
-        return result;
-      })
-      .catch((error: unknown) => {
-        toastError(error, "Could not add the connection");
-        throw error;
-      });
-    return { edgeId, settled };
-  };
+  const createEdge = useCallback(
+    ({
+      edgeId = generateLlmId(),
+      source,
+      target,
+      sourceHandle,
+      targetHandle,
+    }: CreateEdgeInput) => {
+      const settled = trackCanvasSync(() =>
+        createEdges({
+          edges: [
+            {
+              id: edgeId,
+              canvasId,
+              source,
+              target,
+              ...(sourceHandle !== undefined && { sourceHandle }),
+              ...(targetHandle !== undefined && { targetHandle }),
+            },
+          ],
+        }),
+      )
+        .then((result) => {
+          // À la confirmation seulement : une edge jamais créée n'a rien à
+          // annuler, et l'appelant retire déjà la locale en cas d'échec.
+          recordUndo(
+            { kind: "trashEdges", edgeIds: [edgeId] },
+            { kind: "untrashEdges", edgeIds: [edgeId] },
+          );
+          return result;
+        })
+        .catch((error: unknown) => {
+          toastError(error, "Could not add the connection");
+          throw error;
+        });
+      return { edgeId, settled };
+    },
+    [createEdges, canvasId],
+  );
 
   return { createEdge };
 }

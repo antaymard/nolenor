@@ -573,6 +573,27 @@ button,
   z-index: 1001 !important;
 }
 
+/* Les handles de `NodeHandles` (9×9, cf. le composant) se centrent sur le bord
+   du node par des marges négatives au lieu du `transform: translate(±50%)` de
+   React Flow. Même boîte, même position, même zone cliquable — mais plus de
+   transform : 8 handles par node, c'étaient 8 nœuds de transform de plus dans
+   l'arbre de propriétés du compositeur, par node. Sur un canvas de 250 nodes,
+   2 000 transforms que Chrome devait re-« layeriser » à chaque frame de pan et
+   de drag — un des principaux postes du coût de rendu mesuré (Layerize). */
+.react-flow__handle.canvas-handle {
+  transform: none;
+}
+.react-flow__handle.canvas-handle.react-flow__handle-top,
+.react-flow__handle.canvas-handle.react-flow__handle-left {
+  margin: -4.5px 0 0 -4.5px;
+}
+.react-flow__handle.canvas-handle.react-flow__handle-right {
+  margin: -4.5px -4.5px 0 0;
+}
+.react-flow__handle.canvas-handle.react-flow__handle-bottom {
+  margin: 0 0 -4.5px -4.5px;
+}
+
 /* Survol d'une edge : `BaseEdge` pose le stroke en inline, donc un override
    CSS du path ne prendrait jamais. `filter: drop-shadow` contourne ça — il
    s'applique à l'élément, pas au stroke — et donne le même halo que la

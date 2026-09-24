@@ -89,7 +89,12 @@ function NodeHandles({
           type={handle.type}
           id={handle.id}
           position={handle.position}
-          className={cn(handle.visible ? "opacity-100 z-10" : "opacity-0")}
+          // `canvas-handle` : centrage par marges plutôt que par transform
+          // (cf. index.css), calé sur ces 9 px — les deux vont ensemble.
+          className={cn(
+            "canvas-handle",
+            handle.visible ? "opacity-100 z-10" : "opacity-0",
+          )}
           style={{
             height: 9,
             width: 9,

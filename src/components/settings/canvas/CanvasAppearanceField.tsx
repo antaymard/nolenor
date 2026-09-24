@@ -16,6 +16,7 @@ import {
 import {
   CANVAS_COVERS,
   CANVAS_COVER_DOTS_STYLE,
+  NEUTRAL_CANVAS_COVER,
   EMOJI_FONT_STYLE,
   canvasCover,
   canvasGlyph,
@@ -91,7 +92,7 @@ export function CanvasIdentityField({
     ? CANVAS_COVERS[value.color]
     : canvasId
       ? canvasCover(canvasId)
-      : CANVAS_COVERS.slate;
+      : NEUTRAL_CANVAS_COVER;
 
   const pickIcon = (icon: string | undefined) => {
     onChange({ ...value, icon });

@@ -30,6 +30,7 @@ import {
 } from "../helpers/nodePlacement";
 import { absolutePositionsById } from "../../lib/nodeGeometry";
 import { FRAME_CONTENT_PADDING } from "../../config/nodeConfig";
+import { NODE_COLORS } from "../../config/colorsConfig";
 
 // Tool compaction config
 export const createNodeToolConfig: ToolConfig = {
@@ -57,18 +58,6 @@ type PlacementReport = {
     | "empty_frame"
     | "anchor_outside_frame";
 };
-
-const nodeColorValues = [
-  "blue",
-  "green",
-  "red",
-  "yellow",
-  "purple",
-  "transparent",
-  "pink",
-  "orange",
-  "default",
-] as const;
 
 async function applyNodeDataTitle({
   nodeType,
@@ -216,7 +205,7 @@ export default function createNodeTool({
         .describe(
           "Optional absolute canvas position, used exactly as given even if it overlaps existing nodes. Prefer anchorNodeId/placement for automatic non-overlapping placement.",
         ),
-      color: z.enum(nodeColorValues).describe("Color of the node."),
+      color: z.enum(NODE_COLORS).describe("Color of the node."),
       nodeTitle: z
         .string()
         .optional()

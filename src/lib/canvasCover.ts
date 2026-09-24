@@ -1,4 +1,8 @@
-import type { CanvasColor } from "@/../convex/schemas/canvasesSchema";
+import {
+  CANVAS_COLORS,
+  type CanvasColor,
+} from "@/../convex/config/colorsConfig";
+import { colors } from "@/components/ui/styles";
 
 /**
  * La couverture d'un canvas sur la home : la teinte choisie par son
@@ -9,10 +13,8 @@ import type { CanvasColor } from "@/../convex/schemas/canvasesSchema";
  * de cartes grises. Tirée de l'id plutôt que du nom : renommer un canvas ne doit
  * pas lui changer de couleur.
  *
- * Les classes sont écrites en entier, jamais composées : Tailwind ne génère que
- * ce qu'il lit littéralement dans le code. Les teintes de tuile sont assez
- * sombres pour porter une initiale blanche ; le violet en est absent, il dit
- * déjà « Nolë » ailleurs dans l'app.
+ * Les teintes viennent de la palette des nodes (`src/components/ui/styles.ts`) :
+ * fond pâle `lightBg`, tuile `solidBg`, assez sombre pour une initiale blanche.
  */
 
 export type CanvasCover = {
@@ -22,22 +24,28 @@ export type CanvasCover = {
   tile: string;
 };
 
-/** Une entrée par clé de `CANVAS_COLORS` (convex/schemas/canvasesSchema.ts),
- *  dans le même ordre : le tirage par id en dépend. */
+/**
+ * La couverture de chaque teinte de canvas, prise dans la palette des nodes
+ * (`colors`) : la même couleur se lit pareil sur un node et sur un canvas.
+ */
 export const CANVAS_COVERS: Readonly<
   Record<CanvasColor, CanvasCover & { label: string }>
-> = {
-  blue: { tint: "bg-blue-100", tile: "bg-blue-600", label: "Blue" },
-  teal: { tint: "bg-teal-100", tile: "bg-teal-700", label: "Teal" },
-  orange: { tint: "bg-orange-100", tile: "bg-orange-700", label: "Orange" },
-  green: { tint: "bg-green-100", tile: "bg-green-700", label: "Green" },
-  pink: { tint: "bg-pink-100", tile: "bg-pink-700", label: "Pink" },
-  amber: { tint: "bg-amber-100", tile: "bg-amber-700", label: "Amber" },
-  sky: { tint: "bg-sky-100", tile: "bg-sky-700", label: "Sky" },
-  slate: { tint: "bg-slate-200", tile: "bg-slate-600", label: "Slate" },
-};
+> = Object.fromEntries(
+  CANVAS_COLORS.map((color) => [
+    color,
+    {
+      tint: colors[color].lightBg,
+      tile: colors[color].solidBg,
+      label: colors[color].label,
+    },
+  ]),
+) as Record<CanvasColor, CanvasCover & { label: string }>;
 
-const COVERS: readonly CanvasCover[] = Object.values(CANVAS_COVERS);
+/** Couverture neutre, tant qu'un canvas n'a ni teinte choisie ni id (création). */
+export const NEUTRAL_CANVAS_COVER: CanvasCover = {
+  tint: "bg-slate-200",
+  tile: "bg-slate-600",
+};
 
 /** Trame à pois de la couverture, en écho au fond par défaut du canvas. */
 export const CANVAS_COVER_DOTS_STYLE = {
@@ -62,7 +70,7 @@ export function canvasCover(
   for (let i = 0; i < canvasId.length; i++) {
     hash = (hash * 31 + canvasId.charCodeAt(i)) | 0;
   }
-  return COVERS[Math.abs(hash) % COVERS.length];
+  return CANVAS_COVERS[CANVAS_COLORS[Math.abs(hash) % CANVAS_COLORS.length]];
 }
 
 /** Ce que porte la tuile d'un canvas : son icône si elle en a une, sinon

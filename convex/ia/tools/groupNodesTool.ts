@@ -7,19 +7,8 @@ import {
   getNodeCapabilities,
 } from "../../config/nodeConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import { NODE_COLORS } from "../../config/colorsConfig";
 
-/** Les couleurs qu'un node peut porter, comme `create_node` les publie. */
-const nodeColorValues = [
-  "blue",
-  "green",
-  "red",
-  "yellow",
-  "purple",
-  "transparent",
-  "pink",
-  "orange",
-  "default",
-] as const;
 
 /**
  * En dessous, ce n'est pas un groupe.
@@ -75,7 +64,7 @@ export default function groupNodesTool({
           "The frame's name, shown above it. Required: a frame cannot be renamed afterwards, and an untitled one says nothing in the canvas structure map.",
         ),
       color: z
-        .enum(nodeColorValues)
+        .enum(NODE_COLORS)
         .optional()
         .describe("Optional color of the frame."),
     }),

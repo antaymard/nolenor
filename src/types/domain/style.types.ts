@@ -1,13 +1,7 @@
+import type { NodeColor } from "@/../convex/config/colorsConfig";
+
 /**
- * Color enum for UI elements
+ * Color enum for UI elements — the shared palette keys
+ * (`convex/config/colorsConfig.ts`).
  */
-export type colorsEnum =
-  | "blue"
-  | "green"
-  | "red"
-  | "yellow"
-  | "purple"
-  | "transparent"
-  | "pink"
-  | "orange"
-  | "default";
+export type colorsEnum = NodeColor;

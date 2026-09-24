@@ -15,7 +15,11 @@ import { Label } from "@/components/shadcn/label";
 import { Spinner } from "@/components/shadcn/spinner";
 import { toastError } from "@/components/utils/errorUtils";
 import toast from "react-hot-toast";
-import { CANVAS_COVERS, canvasCover } from "@/lib/canvasCover";
+import {
+  CANVAS_COVERS,
+  NEUTRAL_CANVAS_COVER,
+  canvasCover,
+} from "@/lib/canvasCover";
 import { cn } from "@/lib/utils";
 import CanvasBackgroundField from "./CanvasBackgroundField";
 import { CanvasCoverField, CanvasIdentityField } from "./CanvasAppearanceField";
@@ -147,7 +151,7 @@ export default function CanvasBackgroundPanel({
     ? CANVAS_COVERS[identityDraft.color].tint
     : selectedCanvasId
       ? canvasCover(selectedCanvasId).tint
-      : CANVAS_COVERS.slate.tint;
+      : NEUTRAL_CANVAS_COVER.tint;
 
   const handleSave = async () => {
     if (!selectedCanvasId || !isDirty) return;

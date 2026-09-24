@@ -31,7 +31,11 @@ import {
   type CanvasIdentityDraft,
 } from "@/components/settings/canvas/canvasAppearanceDraft";
 import type { CanvasColor } from "@/../convex/schemas/canvasesSchema";
-import { CANVAS_COVERS, canvasCover } from "@/lib/canvasCover";
+import {
+  CANVAS_COVERS,
+  NEUTRAL_CANVAS_COVER,
+  canvasCover,
+} from "@/lib/canvasCover";
 import {
   DEFAULT_CANVAS_BACKGROUND,
   resolveCanvasBackground,
@@ -220,7 +224,7 @@ export default function CanvasFormModal({
     ? CANVAS_COVERS[identityDraft.color].tint
     : canvasId
       ? canvasCover(canvasId).tint
-      : CANVAS_COVERS.slate.tint;
+      : NEUTRAL_CANVAS_COVER.tint;
 
   return (
     <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">

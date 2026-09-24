@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { CANVAS_COLORS, type CanvasColor } from "../config/colorsConfig";
 
 // Fond du canvas, partagé en realtime via le doc `canvases`.
 // Tout est optionnel : absent => défauts côté front (gris clair + lignes).
@@ -19,21 +20,10 @@ const canvasBackgroundValidator = v.object({
 });
 
 // Teinte d'identité du canvas (tuile de l'icône, pastille, fond de la
-// couverture sur la home). Une clé de palette et non une couleur libre : le
-// front écrit ses classes Tailwind en entier (cf. `src/lib/canvasCover.ts`),
-// et une teinte hors palette n'aurait pas de classe à lui répondre. Absente =>
-// teinte tirée de l'id, comme avant que le champ n'existe.
-const CANVAS_COLORS = [
-  "blue",
-  "teal",
-  "orange",
-  "green",
-  "pink",
-  "amber",
-  "sky",
-  "slate",
-] as const;
-
+// couverture sur la home) : une clé de la palette des nodes (cf.
+// `config/colorsConfig.ts`), pas une couleur libre — le front écrit ses
+// classes Tailwind en entier, et une teinte hors palette n'aurait pas de classe
+// à lui répondre. Absente => teinte tirée de l'id.
 const canvasColorValidator = v.union(
   ...CANVAS_COLORS.map((color) => v.literal(color)),
 );
@@ -80,8 +70,6 @@ const canvasesValidator = v.object({
 
   updatedAt: v.number(),
 });
-
-type CanvasColor = (typeof CANVAS_COLORS)[number];
 
 export {
   CANVAS_COLORS,

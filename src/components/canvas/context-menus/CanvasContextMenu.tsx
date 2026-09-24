@@ -7,7 +7,6 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useCaptureFraming } from "@/hooks/useViewportFraming";
-import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
   isPendingCanvasConnectionElement,
@@ -34,9 +33,6 @@ export default function ContextMenu({
     canvasId,
     enabled: false,
   });
-  const { startBookmark, dialog: bookmarkNameDialog } = useBookmarkNameDialog(
-    createBookmark,
-  );
 
   const pendingConnection =
     element && isPendingCanvasConnectionElement(element) ? element : null;
@@ -65,7 +61,11 @@ export default function ContextMenu({
           rejouée à la navigation (cf. `captureFraming` / `applyFraming`).
 
           Contrairement aux deux autres menus, ce repère est FIGÉ dans le
-          monde : il ne suit rien, puisqu'il ne vise rien. */}
+          monde : il ne suit rien, puisqu'il ne vise rien.
+
+          Créé sans nom, comme les autres : le panneau l'affiche « Position »
+          et on le renomme depuis lui. Pas de dialogue de nommage — il vivrait
+          dans ce menu, démonté dès le clic, et mourrait avec lui. */}
       {canBookmark && !pendingConnection && (
         <>
           <DropdownMenuSeparator />
@@ -75,7 +75,7 @@ export default function ContextMenu({
               const framing = captureFraming();
               closeMenu();
               if (framing) {
-                startBookmark({ kind: "framing", framing });
+                void createBookmark({ kind: "framing", framing });
               }
             }}
           >
@@ -84,8 +84,6 @@ export default function ContextMenu({
           </DropdownMenuItem>
         </>
       )}
-
-      {bookmarkNameDialog}
     </>
   );
 }

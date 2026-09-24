@@ -53,7 +53,7 @@ const MAX_BOOKMARK_LABEL_LENGTH = 80;
  * le canvas ne repère plus rien. La borne protège aussi le document : c'est le
  * seul champ de la table dont la taille dépend de ce que fait l'utilisateur.
  * Vit ici — et non dans le models — pour rester importable côté client, qui en
- * a besoin pour rogner la sélection AVANT de l'annoncer (cf. `useBookmarkNameDialog`).
+ * a besoin pour rogner la sélection AVANT de l'annoncer (cf. `SelectionContextMenu`).
  */
 const MAX_SELECTION_NODE_IDS = 100;
 
@@ -66,8 +66,9 @@ const canvasBookmarksValidator = v.object({
    * node : renommer le node renomme le repère, ce qui est ce qu'on attend d'un
    * raccourci vers lui. Dès qu'il est nommé, il se fige et ne suit plus.
    *
-   * Toujours posé pour `framing` et `selection`, qui n'ont aucun titre d'où
-   * retomber.
+   * Les menus créent tous les repères sans libellé : un `framing` s'affiche
+   * alors « Position », une `selection` « N nodes » (compte vivant), jusqu'à
+   * ce qu'on le renomme depuis le panneau.
    */
   label: v.optional(v.string()),
   target: bookmarkTargetValidator,

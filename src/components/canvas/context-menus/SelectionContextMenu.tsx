@@ -45,7 +45,6 @@ import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
-import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -67,9 +66,6 @@ export default function SelectionContextMenu({
     canvasId,
     enabled: false,
   });
-  const { startBookmark, dialog: bookmarkNameDialog } = useBookmarkNameDialog(
-    createBookmark,
-  );
   const { duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
@@ -96,7 +92,7 @@ export default function SelectionContextMenu({
   const elementsArray = Array.isArray(elements) ? elements : [];
 
   // Ce que le repère de sélection visera, borné au même plafond que le serveur
-  // (`normalizeTarget`) : le compte annoncé par le menu et le dialogue est
+  // (`normalizeTarget`) : le compte annoncé par le menu est
   // celui qui sera réellement repéré, pas un compte que le serveur rognerait
   // en silence. Le même tableau sert à la bascule, pour que « tout repéré »
   // parle bien de ce sur quoi le clic agira.
@@ -381,8 +377,8 @@ export default function SelectionContextMenu({
           position serait restée sur le vide laissé derrière.
 
           Bascule à la manière du gras sur une sélection de texte : tant que
-          tous les nodes ne sont pas repérés, le clic les repère tous (pas de
-          dialogue de nommage sur le retrait, il n'y a rien à nommer) ; une
+          tous les nodes ne sont pas repérés, le clic les repère tous — sans
+          nom, le panneau affiche « N nodes » et on renomme depuis lui ; une
           fois l'état homogène, le clic suivant les dé-repère tous — y compris
           ceux qui l'étaient par un autre repère, qu'il soit `node` ou
           `selection` (cf. `removeForNodes`). */}
@@ -393,7 +389,10 @@ export default function SelectionContextMenu({
             if (allNodesBookmarked) {
               void removeBookmarksForNodes(bookmarkNodeIds);
             } else {
-              startBookmark({ kind: "selection", nodeIds: bookmarkNodeIds });
+              void createBookmark({
+                kind: "selection",
+                nodeIds: bookmarkNodeIds,
+              });
             }
             closeMenu();
           }}
@@ -433,8 +432,6 @@ export default function SelectionContextMenu({
         <HiOutlineTrash />
         Delete
       </DropdownMenuItem>
-
-      {bookmarkNameDialog}
     </>
   );
 }

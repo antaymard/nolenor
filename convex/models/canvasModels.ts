@@ -5,11 +5,30 @@ import errors from "../config/errorsConfig";
 import { internal } from "../_generated/api";
 import type { NodeDataVersionActor } from "../schemas/nodeDataVersionsSchema";
 import * as CanvasBookmarkModels from "./canvasBookmarkModels";
+import {
+  MAX_CANVAS_ICON_LENGTH,
+  type CanvasColor,
+} from "../schemas/canvasesSchema";
+
+type CanvasCoverImage = NonNullable<Doc<"canvases">["coverImage"]>;
+
+/**
+ * Ce qu'une écriture change à l'identité visuelle d'un canvas. Par champ :
+ * `undefined` n'y touche pas, `null` l'efface, une valeur la remplace.
+ */
+export type CanvasAppearancePatch = {
+  icon?: string | null;
+  color?: CanvasColor | null;
+  coverImage?: CanvasCoverImage | null;
+};
 
 type UserCanvasListItem = {
   _id: Id<"canvases">;
   name: string;
   description?: string;
+  icon?: string;
+  color?: CanvasColor;
+  coverImage?: CanvasCoverImage;
   shared?: boolean;
   permission?: "viewer" | "editor";
   updatedAt: number;
@@ -24,6 +43,114 @@ async function getCanvasOrThrow(
   const canvas = await ctx.db.get("canvases", canvasId);
   if (!canvas) throw new ConvexError(errors.CANVAS_NOT_FOUND);
   return canvas;
+}
+
+/** Les champs d'identité présents sur le doc, sans clé `undefined` en trop. */
+function appearanceOf(
+  canvas: Doc<"canvases">,
+): Pick<UserCanvasListItem, "icon" | "color" | "coverImage"> {
+  return {
+    ...(canvas.icon !== undefined ? { icon: canvas.icon } : {}),
+    ...(canvas.color !== undefined ? { color: canvas.color } : {}),
+    ...(canvas.coverImage !== undefined
+      ? { coverImage: canvas.coverImage }
+      : {}),
+  };
+}
+
+/**
+ * Une couverture n'est acceptée que si elle pointe sur un objet uploadé par le
+ * propriétaire du canvas (les clés R2 sont préfixées par l'id de l'uploadeur,
+ * cf. `uploads.buildUpload`) et servi depuis notre bucket. Sans ça, n'importe
+ * quelle URL s'afficherait sur la home, et la libération de la couverture
+ * (`releaseCoverKeys`) pourrait viser l'objet de quelqu'un d'autre.
+ */
+function assertValidCoverImage(
+  coverImage: CanvasCoverImage,
+  ownerId: Id<"users">,
+): void {
+  const { url, key } = coverImage;
+  const publicBase = process.env.R2_PUBLIC_URL;
+  const urlMatchesKey = publicBase
+    ? url === `${publicBase}/${key}`
+    : url.startsWith("https://") && url.endsWith(`/${key}`);
+  if (!key.startsWith(`${ownerId}/`) || key.includes("..") || !urlMatchesKey) {
+    throw new ConvexError(errors.CANVAS_COVER_IMAGE_INVALID);
+  }
+}
+
+/** Icône nettoyée : `undefined` si vide, erreur si trop longue. */
+function normalizeIcon(icon: string): string | undefined {
+  const trimmed = icon.trim();
+  if (trimmed.length === 0) return undefined;
+  if (trimmed.length > MAX_CANVAS_ICON_LENGTH) {
+    throw new ConvexError(errors.CANVAS_ICON_TOO_LONG);
+  }
+  return trimmed;
+}
+
+/**
+ * Traduit un `CanvasAppearancePatch` en champs à poser sur le doc, et dit
+ * quelle clé de couverture l'écriture laisse derrière elle.
+ */
+function resolveAppearancePatch(
+  canvas: Doc<"canvases">,
+  appearance: CanvasAppearancePatch,
+): {
+  fields: Partial<Pick<Doc<"canvases">, "icon" | "color" | "coverImage">>;
+  releasedCoverKey: string | null;
+} {
+  const fields: Partial<
+    Pick<Doc<"canvases">, "icon" | "color" | "coverImage">
+  > = {};
+  let releasedCoverKey: string | null = null;
+
+  if (appearance.icon !== undefined) {
+    fields.icon =
+      appearance.icon === null ? undefined : normalizeIcon(appearance.icon);
+  }
+  if (appearance.color !== undefined) {
+    fields.color = appearance.color ?? undefined;
+  }
+  if (appearance.coverImage !== undefined) {
+    if (appearance.coverImage !== null) {
+      assertValidCoverImage(appearance.coverImage, canvas.creatorId);
+    }
+    fields.coverImage = appearance.coverImage ?? undefined;
+    const previousKey = canvas.coverImage?.key;
+    if (previousKey && previousKey !== appearance.coverImage?.key) {
+      releasedCoverKey = previousKey;
+    }
+  }
+
+  return { fields, releasedCoverKey };
+}
+
+/**
+ * Supprime de R2 les couvertures qu'un canvas vient de lâcher.
+ *
+ * Une clé encore référencée par un node (table `r2Objects`) est épargnée : la
+ * couverture est normalement un upload à elle, mais rien n'empêche un appel
+ * d'API de réutiliser la clé d'une image du canvas, et c'est le node qui
+ * perdrait son fichier.
+ */
+async function releaseCoverKeys(
+  ctx: MutationCtx,
+  keys: Array<string>,
+): Promise<void> {
+  const orphaned: Array<string> = [];
+  for (const key of keys) {
+    const stillUsed = await ctx.db
+      .query("r2Objects")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .first();
+    if (!stillUsed) orphaned.push(key);
+  }
+  if (orphaned.length > 0) {
+    await ctx.scheduler.runAfter(0, internal.uploads.deleteR2Files, {
+      keys: orphaned,
+    });
+  }
 }
 
 async function countLiveNodes(
@@ -68,6 +195,7 @@ export async function listUserCanvasesWithShares(
         return {
           _id: canvas._id,
           name: canvas.name,
+          ...appearanceOf(canvas),
           shared: true as const,
           permission: share.permission,
           updatedAt: canvas.updatedAt,
@@ -85,6 +213,7 @@ export async function listUserCanvasesWithShares(
         _id: canvas._id,
         name: canvas.name,
         description: canvas.description,
+        ...appearanceOf(canvas),
         updatedAt: canvas.updatedAt,
         nodeCount: await countLiveNodes(ctx, canvas._id),
       })),
@@ -129,18 +258,30 @@ export async function createCanvasForUser(
     name,
     description,
     background,
+    icon,
+    color,
+    coverImage,
   }: {
     authUserId: Id<"users">;
     name: string;
     description?: string;
     background?: NonNullable<Doc<"canvases">["background"]>;
+    icon?: string;
+    color?: CanvasColor;
+    coverImage?: CanvasCoverImage;
   },
 ): Promise<Id<"canvases">> {
+  if (coverImage !== undefined) assertValidCoverImage(coverImage, authUserId);
+  const normalizedIcon = icon !== undefined ? normalizeIcon(icon) : undefined;
+
   return await ctx.db.insert("canvases", {
     creatorId: authUserId,
     name,
     description,
     ...(background !== undefined ? { background } : {}),
+    ...(normalizedIcon !== undefined ? { icon: normalizedIcon } : {}),
+    ...(color !== undefined ? { color } : {}),
+    ...(coverImage !== undefined ? { coverImage } : {}),
     updatedAt: Date.now(),
   });
 }
@@ -152,22 +293,55 @@ export async function updateCanvasDetails(
     name,
     description,
     background,
+    appearance = {},
   }: {
     canvasId: Id<"canvases">;
     name: string;
     description?: string;
     // `undefined` = champ untouched : on ne touche pas au background stocké.
     background?: NonNullable<Doc<"canvases">["background"]>;
+    appearance?: CanvasAppearancePatch;
   },
 ): Promise<Id<"canvases">> {
-  await getCanvasOrThrow(ctx, canvasId);
+  const canvas = await getCanvasOrThrow(ctx, canvasId);
+  const { fields, releasedCoverKey } = resolveAppearancePatch(
+    canvas,
+    appearance,
+  );
 
   await ctx.db.patch("canvases", canvasId, {
     name,
     description,
     ...(background !== undefined ? { background } : {}),
+    ...fields,
     updatedAt: Date.now(),
   });
+  if (releasedCoverKey) await releaseCoverKeys(ctx, [releasedCoverKey]);
+
+  return canvasId;
+}
+
+export async function setCanvasAppearance(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    appearance,
+  }: {
+    canvasId: Id<"canvases">;
+    appearance: CanvasAppearancePatch;
+  },
+): Promise<Id<"canvases">> {
+  const canvas = await getCanvasOrThrow(ctx, canvasId);
+  const { fields, releasedCoverKey } = resolveAppearancePatch(
+    canvas,
+    appearance,
+  );
+
+  await ctx.db.patch("canvases", canvasId, {
+    ...fields,
+    updatedAt: Date.now(),
+  });
+  if (releasedCoverKey) await releaseCoverKeys(ctx, [releasedCoverKey]);
 
   return canvasId;
 }
@@ -207,7 +381,7 @@ export async function deleteCanvasAndShares(
     purgeVersions?: boolean;
   },
 ): Promise<Id<"canvases">> {
-  await getCanvasOrThrow(ctx, canvasId);
+  const canvas = await getCanvasOrThrow(ctx, canvasId);
 
   const shares = await ctx.db
     .query("shares")
@@ -261,6 +435,10 @@ export async function deleteCanvasAndShares(
   // n'ont aucun autre chemin de suppression — la purge de compte ne ramasse
   // que ceux de l'utilisateur qu'elle efface.
   await CanvasBookmarkModels.deleteForCanvas(ctx, { canvasId });
+
+  // La couverture n'est pas un fichier de node : la cascade nodeData ne la
+  // voit pas, elle part ici.
+  if (canvas.coverImage) await releaseCoverKeys(ctx, [canvas.coverImage.key]);
 
   // const tasks = await ctx.db
   //   .query("tasks")

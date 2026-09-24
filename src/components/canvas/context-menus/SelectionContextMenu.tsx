@@ -36,7 +36,7 @@ import { LAYER_COMMANDS } from "@/lib/nodeLayering";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { colors } from "@/components/ui/styles";
+import { colors, colorSwatchStyle } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -291,7 +291,7 @@ export default function SelectionContextMenu({
           <TbPalette size={16} /> Color
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <div className="grid grid-cols-5 gap-2 p-2">
+          <div className="grid grid-cols-6 gap-2 p-2">
             {availableColors.map(([key, value]) => (
               <button
                 key={key}
@@ -312,6 +312,7 @@ export default function SelectionContextMenu({
                   "border-border hover:border-primary/50",
                 )}
                 title={value.label}
+                style={colorSwatchStyle(key)}
               />
             ))}
           </div>

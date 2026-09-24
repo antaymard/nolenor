@@ -6,8 +6,6 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNavigate } from "@tanstack/react-router";
-import { TbChevronDown } from "react-icons/tb";
-import { cn } from "@/lib/utils";
 import { toastError } from "../utils/errorUtils";
 import {
   DialogContent,
@@ -19,6 +17,20 @@ import {
 import { Button } from "@/components/shadcn/button";
 import TextArea from "../ts-form/TextArea";
 import CanvasBackgroundField from "@/components/settings/canvas/CanvasBackgroundField";
+import CollapsibleSection from "@/components/settings/canvas/CollapsibleSection";
+import {
+  CanvasCoverField,
+  CanvasIdentityField,
+} from "@/components/settings/canvas/CanvasAppearanceField";
+import {
+  coverDraftFrom,
+  useCanvasCoverUpload,
+  type CanvasCoverDraft,
+  type CanvasCoverImage,
+  type CanvasIdentityDraft,
+} from "@/components/settings/canvas/canvasAppearanceDraft";
+import type { CanvasColor } from "@/../convex/schemas/canvasesSchema";
+import { canvasCover } from "@/lib/canvasCover";
 import {
   DEFAULT_CANVAS_BACKGROUND,
   resolveCanvasBackground,
@@ -34,6 +46,9 @@ interface CanvasFormModalProps {
     name: string;
     description?: string;
     background?: CanvasBackground;
+    icon?: string;
+    color?: CanvasColor;
+    coverImage?: CanvasCoverImage;
   };
   onSuccess?: () => void;
 }
@@ -56,6 +71,7 @@ export default function CanvasFormModal({
 }: CanvasFormModalProps) {
   const createCanvas = useMutation(api.canvases.createCanvas);
   const updateCanvasDetails = useMutation(api.canvases.updateCanvasDetails);
+  const resolveCoverForSave = useCanvasCoverUpload();
   const navigate = useNavigate();
 
   const defaults = {
@@ -70,8 +86,19 @@ export default function CanvasFormModal({
       resolveCanvasBackground(initialValues?.background),
     );
   const [backgroundTouched, setBackgroundTouched] = useState(false);
-  // Customisations repliables : replié en création, déplié en édition.
-  const [customizationOpen, setCustomizationOpen] = useState(mode === "edit");
+  // Icône et couleur : en haut, à côté du nom. La couverture vit dans la
+  // section repliable, avec le fond.
+  const [identityDraft, setIdentityDraft] = useState<CanvasIdentityDraft>({
+    icon: initialValues?.icon,
+    color: initialValues?.color,
+  });
+  const [coverDraft, setCoverDraft] = useState<CanvasCoverDraft>(() =>
+    coverDraftFrom(initialValues?.coverImage),
+  );
+
+  // Deux sections repliables indépendantes, repliées à l'ouverture.
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [backgroundOpen, setBackgroundOpen] = useState(false);
 
   // En edit sans background fourni par l'appelant, on hydrate depuis le
   // serveur sans marquer "touched" (sinon on écraserait au save).
@@ -125,15 +152,31 @@ export default function CanvasFormModal({
         const background = isBackgroundDirty
           ? sanitizeCanvasBackgroundForSave(backgroundDraft)
           : undefined;
+        const coverImage = await resolveCoverForSave(
+          coverDraft,
+          initialValues?.coverImage,
+        );
         if (mode === "edit") {
           if (!canvasId) {
             throw new Error("Missing canvasId for edit.");
           }
+          // Par champ : absent = inchangé, `null` = effacé.
+          const icon =
+            identityDraft.icon !== initialValues?.icon
+              ? (identityDraft.icon ?? null)
+              : undefined;
+          const color =
+            identityDraft.color !== initialValues?.color
+              ? (identityDraft.color ?? null)
+              : undefined;
           await updateCanvasDetails({
             canvasId,
             name: value.name,
             description,
             ...(background !== undefined ? { background } : {}),
+            ...(icon !== undefined ? { icon } : {}),
+            ...(color !== undefined ? { color } : {}),
+            ...(coverImage !== undefined ? { coverImage } : {}),
           });
           toast.success(`Workspace "${value.name}" updated successfully!`);
           onSuccess?.();
@@ -142,6 +185,9 @@ export default function CanvasFormModal({
             name: value.name,
             description,
             ...(background !== undefined ? { background } : {}),
+            ...(identityDraft.icon ? { icon: identityDraft.icon } : {}),
+            ...(identityDraft.color ? { color: identityDraft.color } : {}),
+            ...(coverImage ? { coverImage } : {}),
           });
           if (newCanvasId) {
             toast.success(
@@ -168,26 +214,33 @@ export default function CanvasFormModal({
 
   const isEdit = mode === "edit";
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
+  const draftName = useStore(form.store, (s) => s.values.name);
+  // Fond de l'aperçu de couverture : la teinte que la carte aura sur la home.
+  const coverTint = canvasCover(identityDraft.color).tint;
 
   return (
-    <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
+    // Colonne à hauteur bornée : en-tête et pied fixes, seul le corps défile —
+    // le bouton de validation reste visible quelle que soit la longueur du
+    // formulaire (sections dépliées comprises).
+    <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-2xl sm:max-w-xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
       <form
+        className="flex min-h-0 flex-1 flex-col"
         onSubmit={(e) => {
           e.preventDefault();
           form.handleSubmit();
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>
             {isEdit ? "Edit workspace" : "Create a workspace"}
           </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Update the name, description and background."
+              ? "Update the name, icon, description and look."
               : "Give this new workspace a name."}
           </DialogDescription>
         </DialogHeader>
-        <div className="my-3 space-y-3">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-2">
           <TextInput
             form={form}
             name="name"
@@ -200,6 +253,12 @@ export default function CanvasFormModal({
                 !value.trim() ? "Name cannot be empty" : undefined,
             }}
           />
+          <CanvasIdentityField
+            name={draftName}
+            value={identityDraft}
+            onChange={setIdentityDraft}
+            disabled={isSubmitting}
+          />
           <TextArea
             form={form}
             name="description"
@@ -207,64 +266,60 @@ export default function CanvasFormModal({
             placeholder="Canvas description. Helps the assistant to understand the context of the canvas."
           />
 
-          <div className="rounded-md border border-gray-200">
-            <button
-              type="button"
-              aria-expanded={customizationOpen}
-              onClick={() => setCustomizationOpen((prev) => !prev)}
-              className="flex w-full items-center justify-between px-3 py-2 text-left"
-            >
-              <span className="text-sm font-medium">
-                Customization (optional)
-              </span>
-              <TbChevronDown
-                size={16}
-                className={cn(
-                  "shrink-0 text-gray-500 transition-transform",
-                  customizationOpen && "rotate-180",
-                )}
+          <CollapsibleSection
+            title="Cover image (optional)"
+            open={coverOpen}
+            onToggle={() => setCoverOpen((prev) => !prev)}
+          >
+            <p className="text-xs text-muted-foreground">
+              Shown on the canvas card on the home page.
+            </p>
+            <CanvasCoverField
+              value={coverDraft}
+              onChange={setCoverDraft}
+              tintClassName={coverTint}
+              disabled={isSubmitting}
+            />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Background (optional)"
+            open={backgroundOpen}
+            onToggle={() => setBackgroundOpen((prev) => !prev)}
+          >
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={isSubmitting || editBackgroundLoading}
+                onClick={() => {
+                  setBackgroundDraft(DEFAULT_CANVAS_BACKGROUND);
+                  setBackgroundTouched(true);
+                }}
+              >
+                Reset to default
+              </Button>
+            </div>
+            {editBackgroundLoading ? (
+              <p className="text-xs text-muted-foreground">
+                Loading background…
+              </p>
+            ) : (
+              <CanvasBackgroundField
+                compact
+                hideHint
+                value={backgroundDraft}
+                disabled={isSubmitting}
+                onChange={(next) => {
+                  setBackgroundDraft(next);
+                  setBackgroundTouched(true);
+                }}
               />
-            </button>
-            {customizationOpen && (
-              <div className="space-y-2 border-t border-gray-200 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    Background (optional)
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={isSubmitting || editBackgroundLoading}
-                    onClick={() => {
-                      setBackgroundDraft(DEFAULT_CANVAS_BACKGROUND);
-                      setBackgroundTouched(true);
-                    }}
-                  >
-                    Reset to default
-                  </Button>
-                </div>
-                {editBackgroundLoading ? (
-                  <p className="text-xs text-muted-foreground">
-                    Loading background…
-                  </p>
-                ) : (
-                  <CanvasBackgroundField
-                    compact
-                    hideHint
-                    value={backgroundDraft}
-                    disabled={isSubmitting}
-                    onChange={(next) => {
-                      setBackgroundDraft(next);
-                      setBackgroundTouched(true);
-                    }}
-                  />
-                )}
-              </div>
             )}
-          </div>
+          </CollapsibleSection>
         </div>
-        <DialogFooter>
+        <DialogFooter className="border-t border-gray-200 px-6 py-4">
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting
               ? (isEdit ? "Saving..." : "Creating...")

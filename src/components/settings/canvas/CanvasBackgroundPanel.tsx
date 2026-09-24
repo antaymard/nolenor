@@ -15,7 +15,17 @@ import { Label } from "@/components/shadcn/label";
 import { Spinner } from "@/components/shadcn/spinner";
 import { toastError } from "@/components/utils/errorUtils";
 import toast from "react-hot-toast";
+import { canvasCover } from "@/lib/canvasCover";
 import CanvasBackgroundField from "./CanvasBackgroundField";
+import { CanvasCoverField, CanvasIdentityField } from "./CanvasAppearanceField";
+import CollapsibleSection from "./CollapsibleSection";
+import {
+  coverDraftFrom,
+  isCoverDraftDirty,
+  useCanvasCoverUpload,
+  type CanvasCoverDraft,
+  type CanvasIdentityDraft,
+} from "./canvasAppearanceDraft";
 
 export default function CanvasBackgroundPanel({
   initialCanvasId,
@@ -24,6 +34,8 @@ export default function CanvasBackgroundPanel({
 }) {
   const canvases = useQuery(api.canvases.listUserCanvases);
   const updateBackground = useMutation(api.canvases.updateCanvasBackground);
+  const updateAppearance = useMutation(api.canvases.updateCanvasAppearance);
+  const resolveCoverForSave = useCanvasCoverUpload();
   const [selectedCanvasId, setSelectedCanvasId] =
     useState<Id<"canvases"> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -78,6 +90,29 @@ export default function CanvasBackgroundPanel({
     setDraft(serverBackground);
   }, [serverBackground]);
 
+  const loadedCanvas = canvas ?? undefined;
+  const serverIcon: string | undefined = loadedCanvas?.icon;
+  const serverColor: CanvasIdentityDraft["color"] = loadedCanvas?.color;
+  const serverCover: { url: string; key: string } | undefined =
+    loadedCanvas?.coverImage;
+
+  const [identityDraft, setIdentityDraft] = useState<CanvasIdentityDraft>({});
+  const [coverDraft, setCoverDraft] = useState<CanvasCoverDraft>({
+    kind: "none",
+  });
+  // Couverture et fond repliés à l'ouverture, chacun de son côté.
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [backgroundOpen, setBackgroundOpen] = useState(false);
+
+  // Même resync que le fond : au changement de canvas comme à chaque réponse
+  // du serveur — deux canvas sans icône ne doivent pas se passer le brouillon.
+  useEffect(() => {
+    setIdentityDraft({ icon: serverIcon, color: serverColor });
+    setCoverDraft(coverDraftFrom(serverCover));
+    // `canvas` suffit : les trois valeurs en dérivent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvas]);
+
   if (canvases === undefined) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm text-muted-foreground">
@@ -95,24 +130,45 @@ export default function CanvasBackgroundPanel({
     );
   }
 
-  const isDirty =
+  const isBackgroundDirty =
     draft.bgColor !== serverBackground.bgColor ||
     draft.patternColor !== serverBackground.patternColor ||
     draft.variant !== serverBackground.variant ||
     draft.gap !== serverBackground.gap ||
     draft.size !== serverBackground.size;
+  const isIconDirty = identityDraft.icon !== serverIcon;
+  const isColorDirty = identityDraft.color !== serverColor;
+  const isCoverDirty = isCoverDraftDirty(coverDraft, serverCover);
+  const isDirty =
+    isBackgroundDirty || isIconDirty || isColorDirty || isCoverDirty;
+
+  const selectedCanvas = ownedCanvases.find(
+    (owned) => owned._id === selectedCanvasId,
+  );
+  const coverTint = canvasCover(identityDraft.color).tint;
 
   const handleSave = async () => {
     if (!selectedCanvasId || !isDirty) return;
     setIsSaving(true);
     try {
-      await updateBackground({
-        canvasId: selectedCanvasId,
-        background: sanitizeCanvasBackgroundForSave(draft),
-      });
-      toast.success("Canvas background updated — visible to everyone.");
+      if (isIconDirty || isColorDirty || isCoverDirty) {
+        const coverImage = await resolveCoverForSave(coverDraft, serverCover);
+        await updateAppearance({
+          canvasId: selectedCanvasId,
+          ...(isIconDirty ? { icon: identityDraft.icon ?? null } : {}),
+          ...(isColorDirty ? { color: identityDraft.color ?? null } : {}),
+          ...(coverImage !== undefined ? { coverImage } : {}),
+        });
+      }
+      if (isBackgroundDirty) {
+        await updateBackground({
+          canvasId: selectedCanvasId,
+          background: sanitizeCanvasBackgroundForSave(draft),
+        });
+      }
+      toast.success("Canvas updated — visible to everyone.");
     } catch (error) {
-      toastError(error, "Could not update the canvas background.");
+      toastError(error, "Could not update the canvas.");
     } finally {
       setIsSaving(false);
     }
@@ -154,15 +210,49 @@ export default function CanvasBackgroundPanel({
 
       {canvas === undefined ? (
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm text-muted-foreground">
-          <Spinner /> Loading background…
+          <Spinner /> Loading canvas…
         </div>
       ) : (
         <div className="space-y-3">
-          <CanvasBackgroundField
-            value={draft}
-            onChange={setDraft}
-            disabled={isSaving}
-          />
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <CanvasIdentityField
+              name={selectedCanvas?.name ?? ""}
+              value={identityDraft}
+              onChange={setIdentityDraft}
+              disabled={isSaving}
+            />
+          </div>
+
+          <CollapsibleSection
+            title="Cover image"
+            summary={coverDraft.kind === "none" ? "None" : "Set"}
+            className="rounded-xl border-slate-200 bg-white"
+            open={coverOpen}
+            onToggle={() => setCoverOpen((prev) => !prev)}
+          >
+            <p className="text-xs text-muted-foreground">
+              Shown on the canvas card on the home page.
+            </p>
+            <CanvasCoverField
+              value={coverDraft}
+              onChange={setCoverDraft}
+              tintClassName={coverTint}
+              disabled={isSaving}
+            />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Background"
+            className="rounded-xl border-slate-200 bg-white"
+            open={backgroundOpen}
+            onToggle={() => setBackgroundOpen((prev) => !prev)}
+          >
+            <CanvasBackgroundField
+              value={draft}
+              onChange={setDraft}
+              disabled={isSaving}
+            />
+          </CollapsibleSection>
 
           <div className="flex flex-wrap gap-2 pt-1">
             <Button
@@ -170,7 +260,7 @@ export default function CanvasBackgroundPanel({
               onClick={handleSave}
               disabled={!isDirty || isSaving}
             >
-              {isSaving ? "Saving…" : "Save background"}
+              {isSaving ? "Saving…" : "Save changes"}
             </Button>
             <Button
               type="button"
@@ -178,7 +268,7 @@ export default function CanvasBackgroundPanel({
               onClick={handleReset}
               disabled={isSaving}
             >
-              Reset to default
+              Reset background
             </Button>
           </div>
         </div>

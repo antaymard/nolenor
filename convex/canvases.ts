@@ -2,7 +2,19 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as CanvasModels from "./models/canvasModels";
-import { canvasBackgroundValidator } from "./schemas/canvasesSchema";
+import {
+  canvasBackgroundValidator,
+  canvasColorValidator,
+  canvasCoverImageValidator,
+} from "./schemas/canvasesSchema";
+
+// L'identité visuelle en écriture : par champ, absent = inchangé, `null` =
+// effacé (cf. `CanvasModels.CanvasAppearancePatch`).
+const canvasAppearancePatchFields = {
+  icon: v.optional(v.union(v.string(), v.null())),
+  color: v.optional(v.union(canvasColorValidator, v.null())),
+  coverImage: v.optional(v.union(canvasCoverImageValidator, v.null())),
+};
 
 export const listUserCanvases = query({
   args: {},
@@ -11,6 +23,9 @@ export const listUserCanvases = query({
       _id: v.id("canvases"),
       name: v.string(),
       description: v.optional(v.string()),
+      icon: v.optional(v.string()),
+      color: v.optional(canvasColorValidator),
+      coverImage: v.optional(canvasCoverImageValidator),
       shared: v.optional(v.boolean()),
       permission: v.optional(v.union(v.literal("viewer"), v.literal("editor"))),
       updatedAt: v.number(),
@@ -69,9 +84,12 @@ export const createCanvas = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     background: v.optional(canvasBackgroundValidator),
+    icon: v.optional(v.string()),
+    color: v.optional(canvasColorValidator),
+    coverImage: v.optional(canvasCoverImageValidator),
   },
   returns: v.id("canvases"),
-  handler: async (ctx, { name, description, background }) => {
+  handler: async (ctx, { name, description, background, ...appearance }) => {
     const authUserId = await requireAuth(ctx);
 
     return await CanvasModels.createCanvasForUser(ctx, {
@@ -79,6 +97,7 @@ export const createCanvas = mutation({
       name,
       description,
       ...(background !== undefined ? { background } : {}),
+      ...appearance,
     });
   },
 });
@@ -89,6 +108,7 @@ export const updateCanvasDetails = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     background: v.optional(canvasBackgroundValidator),
+    ...canvasAppearancePatchFields,
   },
   returns: v.id("canvases"),
   handler: async (ctx, args) => {
@@ -102,6 +122,28 @@ export const updateCanvasDetails = mutation({
       ...(args.background !== undefined
         ? { background: args.background }
         : {}),
+      appearance: {
+        icon: args.icon,
+        color: args.color,
+        coverImage: args.coverImage,
+      },
+    });
+  },
+});
+
+export const updateCanvasAppearance = mutation({
+  args: {
+    canvasId: v.id("canvases"),
+    ...canvasAppearancePatchFields,
+  },
+  returns: v.id("canvases"),
+  handler: async (ctx, { canvasId, ...appearance }) => {
+    const authUserId = await requireAuth(ctx);
+    await requireCanvasAccess(ctx, canvasId, authUserId, "owner");
+
+    return await CanvasModels.setCanvasAppearance(ctx, {
+      canvasId,
+      appearance,
     });
   },
 });

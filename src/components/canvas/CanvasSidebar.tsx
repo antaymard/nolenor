@@ -33,9 +33,14 @@ import { useState } from "react";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
 import CanvasHistoryControls from "@/components/canvas/on-canvas-ui/CanvasHistoryControls";
 import AppSidebar from "@/components/app-shell/AppSidebar";
-import { canvasCover, canvasInitial } from "@/lib/canvasCover";
+import {
+  EMOJI_FONT_STYLE,
+  canvasCover,
+  canvasGlyph,
+  type CanvasAppearance,
+} from "@/lib/canvasCover";
 
-type SidebarCanvas = {
+type SidebarCanvas = CanvasAppearance & {
   _id: Id<"canvases">;
   name: string;
   description?: string;
@@ -60,11 +65,9 @@ export default function CanvasSidebar({
     name: string;
   } | null>(null);
 
-  const [canvasToEdit, setCanvasToEdit] = useState<{
-    id: Id<"canvases">;
-    name: string;
-    description: string;
-  } | null>(null);
+  const [canvasToEdit, setCanvasToEdit] = useState<SidebarCanvas | null>(
+    null,
+  );
 
   const confirmDeleteCanvas = async () => {
     if (!canvasToDelete) return;
@@ -82,12 +85,7 @@ export default function CanvasSidebar({
     }
   };
 
-  const editCanvas = (c: SidebarCanvas) =>
-    setCanvasToEdit({
-      id: c._id,
-      name: c.name,
-      description: c.description ?? "",
-    });
+  const editCanvas = (c: SidebarCanvas) => setCanvasToEdit(c);
   const askDeleteCanvas = (c: SidebarCanvas) =>
     setCanvasToDelete({ id: c._id, name: c.name });
 
@@ -107,6 +105,15 @@ export default function CanvasSidebar({
       <SidebarInset className="flex-1">
         <div className="absolute top-3 left-4 z-10 animate-appear canvas-ui-container h-8 pr-2 max-w-72">
           <SidebarTrigger />
+          {currentCanvas?.icon && (
+            <span
+              className="shrink-0 text-base leading-none"
+              style={EMOJI_FONT_STYLE}
+              aria-hidden
+            >
+              {currentCanvas.icon}
+            </span>
+          )}
           <span className="text-sm font-bold truncate max-w-48">
             {currentCanvas?.name ?? "..."}
           </span>
@@ -123,15 +130,7 @@ export default function CanvasSidebar({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuItem
-                  onClick={() =>
-                    setCanvasToEdit({
-                      id: currentCanvas._id,
-                      name: currentCanvas.name,
-                      description: currentCanvas.description ?? "",
-                    })
-                  }
-                >
+                <DropdownMenuItem onClick={() => setCanvasToEdit(currentCanvas)}>
                   Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -160,14 +159,17 @@ export default function CanvasSidebar({
         }}
       >
         <CanvasFormModal
-          key={canvasToEdit?.id ?? "none"}
+          key={canvasToEdit?._id ?? "none"}
           mode="edit"
-          canvasId={canvasToEdit?.id}
+          canvasId={canvasToEdit?._id}
           initialValues={
             canvasToEdit
               ? {
                   name: canvasToEdit.name,
-                  description: canvasToEdit.description,
+                  description: canvasToEdit.description ?? "",
+                  icon: canvasToEdit.icon,
+                  color: canvasToEdit.color,
+                  coverImage: canvasToEdit.coverImage,
                 }
               : undefined
           }
@@ -289,8 +291,9 @@ function CanvasListSection({
 }
 
 /**
- * Un canvas de la liste : sa tuile de couleur (la même que sa carte sur la
- * home, cf. `canvasCover`), son nom, et le menu Edit / Delete pour les siens.
+ * Un canvas de la liste : sa tuile de couleur et son icône (les mêmes que sa
+ * carte sur la home, cf. `canvasCover`), son nom, et le menu Edit / Delete
+ * pour les siens.
  */
 function CanvasListItem({
   canvas,
@@ -306,7 +309,7 @@ function CanvasListItem({
   onDelete?: (canvas: SidebarCanvas) => void;
   index: number;
 }) {
-  const cover = canvasCover(canvas._id);
+  const cover = canvasCover(canvas.color);
 
   return (
     <div
@@ -324,12 +327,14 @@ function CanvasListItem({
       >
         <span
           className={cn(
-            "flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white",
+            "flex size-5 shrink-0 items-center justify-center rounded-md font-bold text-white",
+            canvas.icon ? "text-xs" : "text-[10px]",
             cover.tile,
           )}
+          style={canvas.icon ? EMOJI_FONT_STYLE : undefined}
           aria-hidden
         >
-          {canvasInitial(canvas.name)}
+          {canvasGlyph(canvas)}
         </span>
         <span
           className={cn(

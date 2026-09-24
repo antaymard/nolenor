@@ -30,7 +30,7 @@ import {
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { useGoToNode } from "@/hooks/useGoToNode";
 import { useUpdateCanvasEdge } from "@/hooks/useUpdateCanvasEdge";
-import { colors } from "@/components/ui/styles";
+import { colors, colorSwatchStyle } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
 import { MAX_BEND_POINTS } from "@/components/edges/edgeStyleUtils";
 import { generateLlmId } from "@/../convex/lib/llmId";
@@ -110,7 +110,7 @@ export default function EdgeContextMenu({
           <TbPalette size={16} /> Color
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <div className="grid grid-cols-5 gap-2 p-2">
+          <div className="grid grid-cols-6 gap-2 p-2">
             {availableColors.map(([key, value]) => (
               <button
                 key={key}
@@ -127,6 +127,7 @@ export default function EdgeContextMenu({
                     : "border-border hover:border-primary/50",
                 )}
                 title={value.label}
+                style={colorSwatchStyle(key)}
               >
                 {currentColor === key && (
                   <div className="absolute inset-0 flex items-center justify-center">

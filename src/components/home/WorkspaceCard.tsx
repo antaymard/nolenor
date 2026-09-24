@@ -12,8 +12,10 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import {
   CANVAS_COVER_DOTS_STYLE,
+  EMOJI_FONT_STYLE,
   canvasCover,
-  canvasInitial,
+  canvasGlyph,
+  type CanvasAppearance,
 } from "@/lib/canvasCover";
 import {
   getDockStatusAppearance,
@@ -24,7 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatBlocks, formatEdited } from "./workspaceFormat";
 
-export interface WorkspaceCardCanvas {
+export interface WorkspaceCardCanvas extends CanvasAppearance {
   _id: Id<"canvases">;
   name: string;
   description?: string;
@@ -141,7 +143,7 @@ export default function WorkspaceCard({
   className,
   style,
 }: WorkspaceItemProps) {
-  const cover = canvasCover(canvas._id);
+  const cover = canvasCover(canvas.color);
 
   return (
     <div
@@ -163,16 +165,28 @@ export default function WorkspaceCard({
 
       <div
         className={cn("relative flex h-24 items-end p-3", cover.tint)}
-        style={CANVAS_COVER_DOTS_STYLE}
+        style={canvas.coverImage ? undefined : CANVAS_COVER_DOTS_STYLE}
       >
+        {canvas.coverImage && (
+          // Décorative : le nom du canvas est déjà dit par le lien étiré.
+          <img
+            src={canvas.coverImage.url}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            className="absolute inset-0 size-full object-cover"
+          />
+        )}
         <span
           className={cn(
-            "flex size-9 items-center justify-center rounded-xl text-base font-bold text-white shadow-sm",
+            "relative flex size-9 items-center justify-center rounded-xl font-bold text-white shadow-sm",
+            canvas.icon ? "text-lg" : "text-base",
             cover.tile,
           )}
+          style={canvas.icon ? EMOJI_FONT_STYLE : undefined}
           aria-hidden
         >
-          {canvasInitial(canvas.name)}
+          {canvasGlyph(canvas)}
         </span>
         <CanvasTaskBadge
           tasks={pendingTasks}

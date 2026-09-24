@@ -1,5 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { canvasCover, canvasInitial } from "@/lib/canvasCover";
+import {
+  EMOJI_FONT_STYLE,
+  canvasCover,
+  canvasGlyph,
+} from "@/lib/canvasCover";
 import { cn } from "@/lib/utils";
 import {
   CanvasTaskBadge,
@@ -20,7 +24,7 @@ export default function WorkspaceRow({
   className,
   style,
 }: WorkspaceItemProps) {
-  const cover = canvasCover(canvas._id);
+  const cover = canvasCover(canvas.color);
 
   return (
     <li
@@ -40,12 +44,14 @@ export default function WorkspaceRow({
 
       <span
         className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white",
+          "flex size-8 shrink-0 items-center justify-center rounded-lg font-bold text-white",
+          canvas.icon ? "text-base" : "text-sm",
           cover.tile,
         )}
+        style={canvas.icon ? EMOJI_FONT_STYLE : undefined}
         aria-hidden
       >
-        {canvasInitial(canvas.name)}
+        {canvasGlyph(canvas)}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">
         {canvas.name}

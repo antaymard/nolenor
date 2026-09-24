@@ -18,7 +18,7 @@ import { api } from "@/../convex/_generated/api";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
 import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
 import { useNoleStore } from "@/stores/noleStore";
-import { colors } from "@/components/ui/styles";
+import { colors, colorSwatchStyle } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
@@ -209,7 +209,7 @@ export default function NodeContextMenu({
       icon: TbPalette,
       preventAutoClose: true,
       customSubContent: (
-        <div className="grid grid-cols-5 gap-2 p-2">
+        <div className="grid grid-cols-6 gap-2 p-2">
           {availableColors.map(([key, value]) => (
             <button
               key={key}
@@ -229,6 +229,7 @@ export default function NodeContextMenu({
                   : "border-border hover:border-primary/50",
               )}
               title={value.label}
+              style={colorSwatchStyle(key)}
             >
               {currentColor === key && (
                 <div className="absolute inset-0 flex items-center justify-center">

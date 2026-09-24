@@ -2,6 +2,10 @@ import { useState } from "react";
 
 import { BLOCK_NOTE_DEFAULT_PROPS } from "@/../convex/lib/blockNoteDocument";
 import {
+  NODE_COLORS,
+  type NodeColor,
+} from "@/../convex/config/colorsConfig";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -49,16 +53,13 @@ const CALLOUT_ICONS = [
  * (src/components/ui/styles.ts). "transparent" is excluded (meaningless for a
  * callout background) and "default" maps to the muted look, like Plate.js.
  */
-const CALLOUT_COLORS = [
+const CALLOUT_COLORS: ReadonlyArray<Exclude<NodeColor, "transparent">> = [
   "default",
-  "blue",
-  "red",
-  "yellow",
-  "green",
-  "pink",
-  "orange",
-  "purple",
-] as const;
+  ...NODE_COLORS.filter(
+    (color): color is Exclude<NodeColor, "transparent" | "default"> =>
+      color !== "transparent" && color !== "default",
+  ),
+];
 
 function calloutBgClass(color: string): string {
   if (color !== CALLOUT_DEFAULT_COLOR && color !== "transparent" && color in colors) {

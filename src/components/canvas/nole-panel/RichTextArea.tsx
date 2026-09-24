@@ -119,8 +119,11 @@ export default function RichTextArea({
         }
       }}
       onChange={(_, newValue) => onChange(newValue)}
+      // Largeur fixe, comme le menu « @ » de BlockNote (cf.
+      // `blocknote-overrides.css`) : sans elle, un node au titre très long
+      // étirait tout le dropdown. Les titres sont tronqués à la place.
       customSuggestionsContainer={(children) => (
-        <div className="min-w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+        <div className="w-80 max-w-[calc(100vw-20px)] overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
           {children}
         </div>
       )}
@@ -145,7 +148,9 @@ export default function RichTextArea({
               )}
             >
               {Icon && <Icon className="shrink-0 text-slate-400" size={13} />}
-              <span className="truncate">{entry.display}</span>
+              <span className="min-w-0 truncate" title={entry.display}>
+                {entry.display}
+              </span>
             </div>
           );
         }}

@@ -18,6 +18,39 @@ const canvasBackgroundValidator = v.object({
   size: v.optional(v.number()),
 });
 
+// Teinte d'identité du canvas (tuile de l'icône, pastille, fond de la
+// couverture sur la home). Une clé de palette et non une couleur libre : le
+// front écrit ses classes Tailwind en entier (cf. `src/lib/canvasCover.ts`),
+// et une teinte hors palette n'aurait pas de classe à lui répondre. Absente =>
+// teinte tirée de l'id, comme avant que le champ n'existe.
+const CANVAS_COLORS = [
+  "blue",
+  "teal",
+  "orange",
+  "green",
+  "pink",
+  "amber",
+  "sky",
+  "slate",
+] as const;
+
+const canvasColorValidator = v.union(
+  ...CANVAS_COLORS.map((color) => v.literal(color)),
+);
+
+// Plafond de l'icône, en unités UTF-16 : un emoji composé (drapeau, famille
+// ZWJ, modificateur de teint) dépasse vite 2, mais une icône n'est pas un
+// titre. Vit ici pour que le front coupe la saisie à la même borne.
+const MAX_CANVAS_ICON_LENGTH = 16;
+
+// Image de couverture sur la home, uploadée sur R2 comme les fichiers des
+// nodes. La `key` est gardée pour libérer l'objet quand la couverture change
+// ou que le canvas disparaît (cf. `canvasModels`), l'`url` pour l'afficher.
+const canvasCoverImageValidator = v.object({
+  url: v.string(),
+  key: v.string(),
+});
+
 // ── Main validator ──────────────────────────────────────────────────────
 
 // Les repères de navigation (`slideshows` et `hotspots`, deux tableaux
@@ -37,7 +70,25 @@ const canvasesValidator = v.object({
 
   background: v.optional(canvasBackgroundValidator),
 
+  // Identité visuelle, éditable par le propriétaire seul (comme le nom, la
+  // description et le fond) : icône (un emoji) sur la home, la sidebar et le
+  // coin du canvas ; couleur sur la home et la sidebar ; couverture sur la
+  // home. Tous optionnels, absents => initiale du nom et teinte tirée de l'id.
+  icon: v.optional(v.string()),
+  color: v.optional(canvasColorValidator),
+  coverImage: v.optional(canvasCoverImageValidator),
+
   updatedAt: v.number(),
 });
 
-export { canvasBackgroundValidator, canvasesValidator };
+type CanvasColor = (typeof CANVAS_COLORS)[number];
+
+export {
+  CANVAS_COLORS,
+  MAX_CANVAS_ICON_LENGTH,
+  canvasBackgroundValidator,
+  canvasColorValidator,
+  canvasCoverImageValidator,
+  canvasesValidator,
+};
+export type { CanvasColor };

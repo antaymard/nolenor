@@ -18,7 +18,7 @@ function RouteComponent() {
     <div>
       <PageHeader
         title="Canvas"
-        subtitle="Background color and pattern, shared with everyone who can see the canvas. Only canvases you own can be edited."
+        subtitle="Icon, color, cover image and background, shared with everyone who can see the canvas. Only canvases you own can be edited."
       />
 
       <div className="mt-6 rounded-2xl bg-slate-50 p-3">

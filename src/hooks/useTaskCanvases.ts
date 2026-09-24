@@ -26,7 +26,10 @@ export function useTaskCanvases({
       new Map(
         (userCanvases ?? []).map((canvas) => [
           canvas._id,
-          { name: canvas.name, cover: canvasCover(canvas._id) },
+          {
+            name: canvas.name,
+            cover: canvasCover(canvas._id, canvas.color),
+          },
         ]),
       ),
     [userCanvases],

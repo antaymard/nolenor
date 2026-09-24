@@ -56,6 +56,8 @@ const errors = {
   BOOKMARK_LABEL_TOO_LONG: "This bookmark name is too long.",
   BOOKMARKS_MUST_SHARE_CANVAS:
     "These bookmarks must belong to the same canvas.",
+  CANVAS_ICON_TOO_LONG: "This canvas icon is too long. Use a single emoji.",
+  CANVAS_COVER_IMAGE_INVALID: "This cover image cannot be used.",
 };
 
 export default errors;

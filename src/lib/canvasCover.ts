@@ -1,5 +1,8 @@
+import type { CanvasColor } from "@/../convex/schemas/canvasesSchema";
+
 /**
- * La couverture d'un canvas sur la home : une teinte stable, tirée de son id.
+ * La couverture d'un canvas sur la home : la teinte choisie par son
+ * propriétaire (`canvases.color`), ou à défaut une teinte stable tirée de son id.
  *
  * Pas de miniature réelle (il faudrait rendre le canvas), mais assez pour que
  * chaque canvas ait une identité visuelle et que la grille ne soit plus un mur
@@ -19,16 +22,22 @@ export type CanvasCover = {
   tile: string;
 };
 
-const COVERS: readonly CanvasCover[] = [
-  { tint: "bg-blue-100", tile: "bg-blue-600" },
-  { tint: "bg-teal-100", tile: "bg-teal-700" },
-  { tint: "bg-orange-100", tile: "bg-orange-700" },
-  { tint: "bg-green-100", tile: "bg-green-700" },
-  { tint: "bg-pink-100", tile: "bg-pink-700" },
-  { tint: "bg-amber-100", tile: "bg-amber-700" },
-  { tint: "bg-sky-100", tile: "bg-sky-700" },
-  { tint: "bg-slate-200", tile: "bg-slate-600" },
-];
+/** Une entrée par clé de `CANVAS_COLORS` (convex/schemas/canvasesSchema.ts),
+ *  dans le même ordre : le tirage par id en dépend. */
+export const CANVAS_COVERS: Readonly<
+  Record<CanvasColor, CanvasCover & { label: string }>
+> = {
+  blue: { tint: "bg-blue-100", tile: "bg-blue-600", label: "Blue" },
+  teal: { tint: "bg-teal-100", tile: "bg-teal-700", label: "Teal" },
+  orange: { tint: "bg-orange-100", tile: "bg-orange-700", label: "Orange" },
+  green: { tint: "bg-green-100", tile: "bg-green-700", label: "Green" },
+  pink: { tint: "bg-pink-100", tile: "bg-pink-700", label: "Pink" },
+  amber: { tint: "bg-amber-100", tile: "bg-amber-700", label: "Amber" },
+  sky: { tint: "bg-sky-100", tile: "bg-sky-700", label: "Sky" },
+  slate: { tint: "bg-slate-200", tile: "bg-slate-600", label: "Slate" },
+};
+
+const COVERS: readonly CanvasCover[] = Object.values(CANVAS_COVERS);
 
 /** Trame à pois de la couverture, en écho au fond par défaut du canvas. */
 export const CANVAS_COVER_DOTS_STYLE = {
@@ -37,13 +46,36 @@ export const CANVAS_COVER_DOTS_STYLE = {
   backgroundSize: "14px 14px",
 } as const;
 
-export function canvasCover(canvasId: string): CanvasCover {
+/** L'identité visuelle d'un canvas, telle que la renvoie `listUserCanvases`. */
+export type CanvasAppearance = {
+  icon?: string;
+  color?: CanvasColor;
+  coverImage?: { url: string; key: string };
+};
+
+export function canvasCover(
+  canvasId: string,
+  color?: CanvasColor,
+): CanvasCover {
+  if (color) return CANVAS_COVERS[color];
   let hash = 0;
   for (let i = 0; i < canvasId.length; i++) {
     hash = (hash * 31 + canvasId.charCodeAt(i)) | 0;
   }
   return COVERS[Math.abs(hash) % COVERS.length];
 }
+
+/** Ce que porte la tuile d'un canvas : son icône si elle en a une, sinon
+ *  l'initiale de son nom. */
+export function canvasGlyph(canvas: { name: string; icon?: string }): string {
+  return canvas.icon || canvasInitial(canvas.name);
+}
+
+/** Pile de polices qui sait afficher les emoji, pour les tuiles à icône. */
+export const EMOJI_FONT_STYLE = {
+  fontFamily:
+    '"Apple Color Emoji", "Segoe UI Emoji", NotoColorEmoji, "Noto Color Emoji", "Segoe UI Symbol", "Android Emoji", EmojiSymbols',
+} as const;
 
 /** La première lettre affichable du nom, ou un point quand il n'y en a pas. */
 export function canvasInitial(name: string): string {

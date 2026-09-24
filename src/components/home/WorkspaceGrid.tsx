@@ -181,6 +181,9 @@ export default function WorkspaceGrid({
               ? {
                   name: canvasToEdit.name,
                   description: canvasToEdit.description ?? "",
+                  icon: canvasToEdit.icon,
+                  color: canvasToEdit.color,
+                  coverImage: canvasToEdit.coverImage,
                 }
               : undefined
           }

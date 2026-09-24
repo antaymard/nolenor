@@ -20,6 +20,19 @@ import { Button } from "@/components/shadcn/button";
 import TextArea from "../ts-form/TextArea";
 import CanvasBackgroundField from "@/components/settings/canvas/CanvasBackgroundField";
 import {
+  CanvasCoverField,
+  CanvasIdentityField,
+} from "@/components/settings/canvas/CanvasAppearanceField";
+import {
+  coverDraftFrom,
+  useCanvasCoverUpload,
+  type CanvasCoverDraft,
+  type CanvasCoverImage,
+  type CanvasIdentityDraft,
+} from "@/components/settings/canvas/canvasAppearanceDraft";
+import type { CanvasColor } from "@/../convex/schemas/canvasesSchema";
+import { CANVAS_COVERS, canvasCover } from "@/lib/canvasCover";
+import {
   DEFAULT_CANVAS_BACKGROUND,
   resolveCanvasBackground,
   sanitizeCanvasBackgroundForSave,
@@ -34,6 +47,9 @@ interface CanvasFormModalProps {
     name: string;
     description?: string;
     background?: CanvasBackground;
+    icon?: string;
+    color?: CanvasColor;
+    coverImage?: CanvasCoverImage;
   };
   onSuccess?: () => void;
 }
@@ -56,6 +72,7 @@ export default function CanvasFormModal({
 }: CanvasFormModalProps) {
   const createCanvas = useMutation(api.canvases.createCanvas);
   const updateCanvasDetails = useMutation(api.canvases.updateCanvasDetails);
+  const resolveCoverForSave = useCanvasCoverUpload();
   const navigate = useNavigate();
 
   const defaults = {
@@ -70,6 +87,16 @@ export default function CanvasFormModal({
       resolveCanvasBackground(initialValues?.background),
     );
   const [backgroundTouched, setBackgroundTouched] = useState(false);
+  // Icône et couleur : en haut, à côté du nom. La couverture vit dans la
+  // section repliable, avec le fond.
+  const [identityDraft, setIdentityDraft] = useState<CanvasIdentityDraft>({
+    icon: initialValues?.icon,
+    color: initialValues?.color,
+  });
+  const [coverDraft, setCoverDraft] = useState<CanvasCoverDraft>(() =>
+    coverDraftFrom(initialValues?.coverImage),
+  );
+
   // Customisations repliables : replié en création, déplié en édition.
   const [customizationOpen, setCustomizationOpen] = useState(mode === "edit");
 
@@ -125,15 +152,31 @@ export default function CanvasFormModal({
         const background = isBackgroundDirty
           ? sanitizeCanvasBackgroundForSave(backgroundDraft)
           : undefined;
+        const coverImage = await resolveCoverForSave(
+          coverDraft,
+          initialValues?.coverImage,
+        );
         if (mode === "edit") {
           if (!canvasId) {
             throw new Error("Missing canvasId for edit.");
           }
+          // Par champ : absent = inchangé, `null` = effacé.
+          const icon =
+            identityDraft.icon !== initialValues?.icon
+              ? (identityDraft.icon ?? null)
+              : undefined;
+          const color =
+            identityDraft.color !== initialValues?.color
+              ? (identityDraft.color ?? null)
+              : undefined;
           await updateCanvasDetails({
             canvasId,
             name: value.name,
             description,
             ...(background !== undefined ? { background } : {}),
+            ...(icon !== undefined ? { icon } : {}),
+            ...(color !== undefined ? { color } : {}),
+            ...(coverImage !== undefined ? { coverImage } : {}),
           });
           toast.success(`Workspace "${value.name}" updated successfully!`);
           onSuccess?.();
@@ -142,6 +185,9 @@ export default function CanvasFormModal({
             name: value.name,
             description,
             ...(background !== undefined ? { background } : {}),
+            ...(identityDraft.icon ? { icon: identityDraft.icon } : {}),
+            ...(identityDraft.color ? { color: identityDraft.color } : {}),
+            ...(coverImage ? { coverImage } : {}),
           });
           if (newCanvasId) {
             toast.success(
@@ -168,6 +214,13 @@ export default function CanvasFormModal({
 
   const isEdit = mode === "edit";
   const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
+  const draftName = useStore(form.store, (s) => s.values.name);
+  // Fond de l'aperçu de couverture : la teinte que la carte aura sur la home.
+  const coverTint = identityDraft.color
+    ? CANVAS_COVERS[identityDraft.color].tint
+    : canvasId
+      ? canvasCover(canvasId).tint
+      : CANVAS_COVERS.slate.tint;
 
   return (
     <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
@@ -183,7 +236,7 @@ export default function CanvasFormModal({
           </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Update the name, description and background."
+              ? "Update the name, icon, description and look."
               : "Give this new workspace a name."}
           </DialogDescription>
         </DialogHeader>
@@ -199,6 +252,13 @@ export default function CanvasFormModal({
               onSubmit: ({ value }: { value: string }) =>
                 !value.trim() ? "Name cannot be empty" : undefined,
             }}
+          />
+          <CanvasIdentityField
+            canvasId={canvasId}
+            name={draftName}
+            value={identityDraft}
+            onChange={setIdentityDraft}
+            disabled={isSubmitting}
           />
           <TextArea
             form={form}
@@ -227,7 +287,19 @@ export default function CanvasFormModal({
             </button>
             {customizationOpen && (
               <div className="space-y-2 border-t border-gray-200 p-3">
-                <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">
+                  Cover image (optional)
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  Shown on the canvas card on the home page.
+                </p>
+                <CanvasCoverField
+                  value={coverDraft}
+                  onChange={setCoverDraft}
+                  tintClassName={coverTint}
+                  disabled={isSubmitting}
+                />
+                <div className="flex items-center justify-between border-t border-gray-200 pt-3">
                   <span className="text-sm font-medium">
                     Background (optional)
                   </span>

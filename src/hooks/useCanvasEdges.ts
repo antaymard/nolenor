@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   applyEdgeChanges,
   useEdgesState,
@@ -17,10 +17,17 @@ export function useCanvasEdges(canvasId: Id<"canvases">, canvasEdges?: Edge[]) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // CONVEX MUTATIONS
-  const trashEdgesInConvex = useMutation(api.edges.trash).withOptimisticUpdate(
-    (localStore, { edgeIds }) => {
-      removeEdgesFromListQuery(localStore, canvasId, edgeIds);
-    },
+  // Mémoïsée : `withOptimisticUpdate` rend une fonction neuve à chaque appel,
+  // et `handleEdgeChange` (donc `onEdgesChange`, donc `onConnect`) en dépend.
+  // Une identité neuve par rendu = une notification du store React Flow de
+  // plus à chaque frame de drag (cf. `useCanvasNodes`).
+  const trashEdges = useMutation(api.edges.trash);
+  const trashEdgesInConvex = useMemo(
+    () =>
+      trashEdges.withOptimisticUpdate((localStore, { edgeIds }) => {
+        removeEdgesFromListQuery(localStore, canvasId, edgeIds);
+      }),
+    [trashEdges, canvasId],
   );
 
   // Sync convex -> reactflow edges while preserving selection.

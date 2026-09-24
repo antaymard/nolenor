@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 import type { PartialBlock } from "@blocknote/core";
 import toast from "react-hot-toast";
 import { areNodePropsEqual } from "../areNodePropsEqual";
@@ -80,32 +80,20 @@ function BlocknoteNode(xyNode: XyNodeProps) {
     );
   }, [blocknoteTitle, blocks]);
 
-  // ── Visibility-gated rendering ──────────────────────────────────────────
-  // Same pattern as DocumentNode: IntersectionObserver with 300px rootMargin
-  // + content-visibility:auto so off-screen nodes skip serialization+render.
-  const [isVisible, setIsVisible] = useState(true);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-
-  // Ref for the always-rendered container (non-title variant). The wheel hook
-  // attaches its listener to this element so plain wheel scrolls the content
-  // locally while Ctrl/Meta+wheel bubbles to React Flow for canvas zoom.
+  // Toujours monté, jamais démonté hors écran. Un IntersectionObserver
+  // (marge 300px) démontait le contenu des nodes sortis de l'écran : au pan,
+  // chaque document qui rentrait remontait tout son arbre de blocs EN PLEIN
+  // GESTE — des montages React au milieu des frames du pan, et le scroll
+  // interne du document perdu au passage. Le coût d'affichage hors écran est
+  // déjà borné par `content-visibility: auto` sur le conteneur ci-dessous (et
+  // sur celui de NodeFrame) : le navigateur y saute layout et paint, sans que
+  // React n'ait rien à démonter.
+  //
+  // Ref du conteneur (variante non-titre) : le hook de molette y pose son
+  // listener, pour qu'une molette simple fasse défiler le contenu localement
+  // pendant que Ctrl/Meta+molette remonte jusqu'à React Flow pour le zoom.
   const scrollRef = useRef<HTMLDivElement>(null);
   useNoWheelUnlessZoom(scrollRef);
-
-  const setContainerRef = useCallback((el: HTMLDivElement | null) => {
-    observerRef.current?.disconnect();
-    observerRef.current = null;
-    // Keep scrollRef in sync: callback refs fire during commit, before passive
-    // effects, so the value is set before useNoWheelUnlessZoom's useEffect runs.
-    scrollRef.current = el;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsVisible(entry.isIntersecting),
-      { rootMargin: "300px" },
-    );
-    observer.observe(el);
-    observerRef.current = observer;
-  }, []);
 
   return (
     <>
@@ -130,29 +118,25 @@ function BlocknoteNode(xyNode: XyNodeProps) {
       <NodeFrame xyNode={xyNode}>
         {xyNode.data.variant !== "title" && (
           <div
-            ref={setContainerRef}
+            ref={scrollRef}
             // `overscroll-x-none` : le swipe trackpad horizontal qui naît ici
             // ne doit pas chaîner jusqu'au geste "back" navigateur — le scroll
             // vertical interne reste inchangé.
             className="h-full overscroll-x-none [content-visibility:auto] [contain-intrinsic-size:auto_300px]"
           >
-            {isVisible ? (
-              <>
-                {isEmpty ? (
-                  <NodeEmptyState
-                    icon={<TbNotes size={22} />}
-                    action="double-click"
-                  />
-                ) : (
-                  <BlockNoteErrorBoundary resetKey={docString}>
-                    <BlockNoteStatic
-                      blocks={blocks}
-                      className="h-full min-h-0 overflow-y-auto overscroll-x-none p-4 select-none bn-readonly-container"
-                    />
-                  </BlockNoteErrorBoundary>
-                )}
-              </>
-            ) : null}
+            {isEmpty ? (
+              <NodeEmptyState
+                icon={<TbNotes size={22} />}
+                action="double-click"
+              />
+            ) : (
+              <BlockNoteErrorBoundary resetKey={docString}>
+                <BlockNoteStatic
+                  blocks={blocks}
+                  className="h-full min-h-0 overflow-y-auto overscroll-x-none p-4 select-none bn-readonly-container"
+                />
+              </BlockNoteErrorBoundary>
+            )}
           </div>
         )}
         {xyNode.data.variant === "title" && (

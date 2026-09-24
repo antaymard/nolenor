@@ -6,7 +6,7 @@ import {
   getNodeDataTitle,
   getNodeIcon,
 } from "@/components/utils/nodeDataDisplayUtils";
-import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useNodeData } from "@/hooks/useNodeData";
 import { formatAbsoluteDate } from "@/lib/isoDate";
 import { parseRichTextCell } from "./richText";
 import {
@@ -46,49 +46,18 @@ export function CellDisplay({
   options,
   rowHeight = DEFAULT_ROW_HEIGHT,
 }: CellDisplayProps) {
-  const nodeVal = value as NodeCellValue | null | undefined;
-  // Appelé inconditionnellement : c'est un hook, et seule la branche `node`
-  // s'en sert. `useNodeDataIdOf(undefined)` ne lit rien.
-  const nodeDataId = useNodeDataIdOf(
-    type === "node" ? nodeVal?.nodeId : undefined,
-  );
-  const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
-  // Même raison, et même contrainte : sans mémo, chaque rendu de la grille
-  // reparse le JSON et rend un NOUVEAU tableau, ce qui fait rater le `memo` de
-  // BlockNoteStatic et re-rend tout l'arbre de blocs de chaque cellule.
+  // Appelé inconditionnellement : c'est un hook, et seule la branche
+  // `richtext` s'en sert. Sans mémo, chaque rendu de la grille reparse le JSON
+  // et rend un NOUVEAU tableau, ce qui fait rater le `memo` de BlockNoteStatic
+  // et re-rend tout l'arbre de blocs de chaque cellule.
   const richTextDoc = useMemo(
     () => (type === "richtext" ? parseRichTextCell(value) : null),
     [type, value],
   );
 
   if (type === "node") {
-    const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
-    const title = nodeData
-      ? getNodeDataTitle(nodeData)
-      : nodeVal?.nodeId
-        ? "Deleted node"
-        : null;
-    const Icon = nodeData ? getNodeIcon(nodeData.type) : null;
-
-    if (!title) {
-      return <span className="block w-full min-h-[1.4em] px-1" />;
-    }
     return (
-      <span className={cn(SHELL, "overflow-hidden whitespace-nowrap")}>
-        <span
-          className={cn(
-            "inline-flex min-w-0 max-w-full items-center gap-1 rounded-lg bg-muted px-1.5 py-0.5 font-medium",
-            !nodeData && "opacity-50",
-          )}
-        >
-          {Icon ? (
-            <Icon size={13} className="shrink-0 text-muted-foreground" />
-          ) : (
-            <TbNetwork size={13} className="shrink-0 text-muted-foreground" />
-          )}
-          <span className="truncate">{title}</span>
-        </span>
-      </span>
+      <NodeCellDisplay value={value as NodeCellValue | null | undefined} />
     );
   }
 
@@ -209,6 +178,55 @@ export function CellDisplay({
       )}
     >
       {value != null ? String(value) : ""}
+    </span>
+  );
+}
+
+/**
+ * La branche `node` : un lien vers un autre node du canvas, affiché par son
+ * titre.
+ *
+ * Isolée dans son propre composant parce qu'elle est la seule à lire le store
+ * React Flow et les nodeDatas. Quand ces lectures vivaient dans `CellDisplay`,
+ * TOUTES les cellules de TOUTES les tables du canvas s'y abonnaient, quel que
+ * soit le type de leur colonne : un sélecteur de plus par cellule, réévalué à
+ * chaque frame de pan et de drag, et un re-rendu de chaque cellule à la moindre
+ * modification d'un nodeData, n'importe où sur le canvas.
+ */
+function NodeCellDisplay({
+  value,
+}: {
+  value: NodeCellValue | null | undefined;
+}) {
+  const nodeDataId = useNodeDataIdOf(value?.nodeId);
+  // Le seul doc concerné, pas toute la map : on ne re-rend que quand CE node
+  // change.
+  const nodeData = useNodeData(nodeDataId);
+  const title = nodeData
+    ? getNodeDataTitle(nodeData)
+    : value?.nodeId
+      ? "Deleted node"
+      : null;
+  const Icon = nodeData ? getNodeIcon(nodeData.type) : null;
+
+  if (!title) {
+    return <span className="block w-full min-h-[1.4em] px-1" />;
+  }
+  return (
+    <span className={cn(SHELL, "overflow-hidden whitespace-nowrap")}>
+      <span
+        className={cn(
+          "inline-flex min-w-0 max-w-full items-center gap-1 rounded-lg bg-muted px-1.5 py-0.5 font-medium",
+          !nodeData && "opacity-50",
+        )}
+      >
+        {Icon ? (
+          <Icon size={13} className="shrink-0 text-muted-foreground" />
+        ) : (
+          <TbNetwork size={13} className="shrink-0 text-muted-foreground" />
+        )}
+        <span className="truncate">{title}</span>
+      </span>
     </span>
   );
 }

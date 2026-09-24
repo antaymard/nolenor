@@ -18,7 +18,6 @@ import { nodeTypes } from "@/components/nodes/nodeTypes";
 import { edgeTypes } from "@/components/edges/edgeTypes";
 import { injectMarkerColor } from "@/components/edges/edgeStyleUtils";
 import ContextMenu from "@/components/canvas/context-menus";
-import BookmarkNameDialogHost from "@/components/canvas/context-menus/BookmarkNameDialogHost";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { useCanvasNodes } from "@/hooks/useCanvasNodes";
 import { useCanvasEdges } from "@/hooks/useCanvasEdges";
@@ -813,9 +812,6 @@ export default function CanvasFlow({
           />
         )}
       </ReactFlow>
-      {/* Hors du menu contextuel, qui est démonté dès le clic sur l'item :
-          c'est ici que survit le dialogue de nommage d'un repère. */}
-      <BookmarkNameDialogHost canvasId={canvasId} />
     </>
   );
 }

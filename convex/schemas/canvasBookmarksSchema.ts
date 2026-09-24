@@ -66,8 +66,9 @@ const canvasBookmarksValidator = v.object({
    * node : renommer le node renomme le repère, ce qui est ce qu'on attend d'un
    * raccourci vers lui. Dès qu'il est nommé, il se fige et ne suit plus.
    *
-   * Toujours posé pour `framing` et `selection`, qui n'ont aucun titre d'où
-   * retomber.
+   * Les menus créent tous les repères sans libellé : un `framing` s'affiche
+   * alors « Position », une `selection` « N nodes » (compte vivant), jusqu'à
+   * ce qu'on le renomme depuis le panneau.
    */
   label: v.optional(v.string()),
   target: bookmarkTargetValidator,

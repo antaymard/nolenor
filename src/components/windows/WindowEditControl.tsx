@@ -15,8 +15,8 @@ interface WindowEditControlProps {
 /**
  * Bouton Edit + popover/dialog d'édition dans le header d'une window.
  *
- * Point d'entrée unique (DRY) : le header flottant (`WindowFrame`) et le plein
- * écran (`FullscreenWindowFrame`) rendent la même ligne, le dispatch par
+ * Point d'entrée unique (DRY) : le header de `WindowFrame`, flottante comme
+ * plein écran, rend cette ligne ; le dispatch par
  * `nodeType` choisit le contrôle partagé avec la toolbar canvas (`nodes/edit`,
  * `variant="window"` pour le trigger au format header).
  *

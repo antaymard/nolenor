@@ -126,10 +126,10 @@
 /* Editor gutters — BlockNote defaults to `padding-inline: 54px` to make room
  * for the drag handle. Plate used `px-5 py-3`; 2.25rem is the compromise that
  * gets close to it while keeping the drag handle and the `+` button clickable.
- * The fullscreen view overrides `padding-inline` from
- * FullscreenBlocknoteWindow.tsx (56rem centered measure, same as Plate). */
+ * The gutter lives in `--doc-gutter` so the rules below can reuse it. */
 .bn-editor {
-  padding-inline: 2.25rem;
+  --doc-gutter: 2.25rem;
+  padding-inline: var(--doc-gutter);
   padding-block: 0.75rem;
 }
 
@@ -138,8 +138,19 @@
  * tactile, où il s'affiche à la sélection plutôt qu'au survol. */
 @media (max-width: 640px) {
   .bn-editor {
-    padding-inline: 1rem;
+    --doc-gutter: 1rem;
   }
+}
+
+/* Window blocknote (`BlocknoteWindow`) : au-delà d'une colonne de 56rem (même
+ * mesure que Plate), le texte se centre au lieu de s'étaler. Le `%` se calcule
+ * sur la largeur de la window, donc c'est une container query sans le dire :
+ * une window étroite garde sa gouttière, une window large — plein écran ou
+ * simplement agrandie — centre sa colonne. Même composant dans les deux cas,
+ * aucun prop. Scopé aux windows : les éditeurs des nodes et des cellules de
+ * table gardent leur gouttière fixe. */
+.bn-window-doc .bn-editor {
+  padding-inline: max(var(--doc-gutter), calc((100% - 56rem) / 2));
 }
 
 /* ---------------------------------------------------------------------------

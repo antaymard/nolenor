@@ -187,23 +187,6 @@ type Delta = { x: number; y: number };
 
 export type SnapSide = "left" | "right" | "top";
 
-const FULLSCREEN_ELIGIBLE_NODE_TYPES: ReadonlySet<NodeType> = new Set([
-  "blocknote",
-  "table",
-  "pdf",
-  "app",
-  // Ajouter un type ici ne suffit pas : WindowsContainer retire la fenêtre
-  // normale de la liste dès qu'elle passe en plein écran, et sa chaîne de
-  // dispatch doit donc savoir quoi rendre à la place. Sans les deux, la
-  // fenêtre disparaît au lieu de s'agrandir.
-  "video",
-  "image",
-]);
-
-export function isFullscreenEligible(nodeType: NodeType): boolean {
-  return FULLSCREEN_ELIGIBLE_NODE_TYPES.has(nodeType);
-}
-
 export interface OpenedWindow {
   position: { x: number; y: number };
   width: number;
@@ -312,6 +295,16 @@ interface WindowsStore {
   snapWindow: (xyNodeId: string, side: SnapSide) => void;
   toggleFullscreenWindow: (xyNodeId: string) => void;
   exitFullscreen: () => void;
+  /**
+   * Geste inverse du snap top : sortir du plein écran en tirant le header.
+   * La window reprend sa taille flottante à `position` (calculée par
+   * l'appelant pour rester sous le curseur), en une seule écriture. Sans
+   * effet si cette window n'est pas celle en plein écran.
+   */
+  restoreFromFullscreen: (
+    xyNodeId: string,
+    position: { x: number; y: number },
+  ) => void;
 }
 
 export const useWindowsStore = create<WindowsStore>()(
@@ -668,6 +661,28 @@ export const useWindowsStore = create<WindowsStore>()(
           store.fullscreenNodeId === null ? store : { fullscreenNodeId: null },
         );
       },
+      restoreFromFullscreen: (xyNodeId, position) => {
+        set((store) => {
+          if (store.fullscreenNodeId !== xyNodeId) return store;
+          return {
+            fullscreenNodeId: null,
+            openedWindows: store.openedWindows.map((w) => {
+              if (w.xyNodeId !== xyNodeId) return w;
+              // Snappée left/right avant le plein écran : on reprend tout de
+              // suite sa taille d'origine, sinon `moveWindow` le ferait au
+              // premier delta et la window sauterait sous le curseur.
+              const size = w.preSnapSize ?? { width: w.width, height: w.height };
+              return {
+                ...w,
+                ...size,
+                position,
+                preSnapSize: undefined,
+                windowState: "normal",
+              };
+            }),
+          };
+        });
+      },
       snapWindow: (xyNodeId: string, side: SnapSide) => {
         set((store) => {
           const index = store.openedWindows.findIndex(
@@ -678,7 +693,6 @@ export const useWindowsStore = create<WindowsStore>()(
           const current = store.openedWindows[index];
 
           if (side === "top") {
-            if (!isFullscreenEligible(current.nodeType)) return store;
             return { fullscreenNodeId: xyNodeId };
           }
 

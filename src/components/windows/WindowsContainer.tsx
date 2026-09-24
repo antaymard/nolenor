@@ -1,30 +1,14 @@
-import { useState, useCallback, lazy, Suspense } from "react";
+import { useState, useCallback } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { cn } from "@/lib/utils";
 import { useWindowsStore, type SnapSide } from "@/stores/windowsStore";
 import { useExistingNodeIds } from "@/lib/nodeIdentity";
 import { useSyncWindowNodeDataIds } from "@/hooks/useSyncWindowNodeDataIds";
 import WindowFrame from "./WindowFrame";
-import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
 import {
   getWindowSaveHandler,
   useHasWindowSaveHandler,
 } from "./windowSaveRegistry";
-
-// Fullscreen windows share the heavy editor dependencies of their windowed
-// counterparts; load them on demand instead of with the canvas chunk.
-const FullscreenBlocknoteWindow = lazy(
-  () => import("./FullscreenBlocknoteWindow"),
-);
-const FullscreenTableWindow = lazy(() => import("./FullscreenTableWindow"));
-const FullscreenPdfWindow = lazy(() => import("./FullscreenPdfWindow"));
-const FullscreenAppWindow = lazy(() => import("./FullscreenAppWindow"));
-const FullscreenVideoWindow = lazy(
-  () => import("./FullscreenVideoWindow"),
-);
-const FullscreenImageWindow = lazy(
-  () => import("./FullscreenImageWindow"),
-);
 
 export default function WindowsContainer() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
@@ -38,10 +22,6 @@ export default function WindowsContainer() {
   // par le serveur). Monté ici parce que c'est le seul point où l'on est à la
   // fois sous le provider React Flow et au-dessus de toutes les windows.
   useSyncWindowNodeDataIds();
-
-  const fullscreenWindow = fullscreenNodeId
-    ? openedWindows.find((w) => w.xyNodeId === fullscreenNodeId)
-    : undefined;
 
   // `Mod+S` global, topmost strict : d'où que vienne le focus (canvas, chat,
   // cellule de table, BlockNote...), le save s'applique à la fenêtre au
@@ -93,34 +73,6 @@ export default function WindowsContainer() {
       data-slot="windows-container"
       className="pointer-events-none fixed inset-0 z-10 h-full w-full"
     >
-      {/* Fullscreen layer (rendered below regular windows) */}
-      {fullscreenWindow &&
-        existingNodeIds.has(fullscreenWindow.xyNodeId) && (
-          <div className="pointer-events-auto">
-            {/* Même raison qu'au-dessus de `NodeWindowContent` : sans boundary,
-                un chunk plein écran manquant emporte tout le canvas. */}
-            <WindowContentErrorBoundary
-              key={`${fullscreenWindow.nodeType}:${fullscreenWindow.nodeDataId}`}
-            >
-              <Suspense fallback={null}>
-                {fullscreenWindow.nodeType === "blocknote" ? (
-                  <FullscreenBlocknoteWindow openedWindow={fullscreenWindow} />
-                ) : fullscreenWindow.nodeType === "table" ? (
-                  <FullscreenTableWindow openedWindow={fullscreenWindow} />
-                ) : fullscreenWindow.nodeType === "pdf" ? (
-                  <FullscreenPdfWindow openedWindow={fullscreenWindow} />
-                ) : fullscreenWindow.nodeType === "app" ? (
-                  <FullscreenAppWindow openedWindow={fullscreenWindow} />
-                ) : fullscreenWindow.nodeType === "video" ? (
-                  <FullscreenVideoWindow openedWindow={fullscreenWindow} />
-                ) : fullscreenWindow.nodeType === "image" ? (
-                  <FullscreenImageWindow openedWindow={fullscreenWindow} />
-                ) : null}
-              </Suspense>
-            </WindowContentErrorBoundary>
-          </div>
-        )}
-
       {/* Snap preview overlay */}
       {snapPreview && (
         <div
@@ -139,35 +91,50 @@ export default function WindowsContainer() {
         />
       )}
 
+      {/* Une seule liste, clé stable : le plein écran n'est qu'un autre
+          placement du même wrapper. La fenêtre n'est donc jamais démontée en
+          entrant ou en sortant du plein écran — lecture vidéo, scroll, zoom
+          et brouillon non sauvegardé survivent à la bascule. En plein écran
+          elle passe sous les fenêtres flottantes (50 < 100 + zIndex). */}
       {openedWindows
         .filter((openedWindow) =>
           existingNodeIds.has(openedWindow.xyNodeId),
         )
-        .filter((openedWindow) => openedWindow.xyNodeId !== fullscreenNodeId)
-        .map((openedWindow) => (
-          <div
-            key={openedWindow.xyNodeId}
-            className={cn(
-              "pointer-events-auto absolute",
-              openedWindow.windowState === "minimized" && "hidden",
-            )}
-            onMouseDownCapture={(e) =>
-              handleWindowMouseDownCapture(openedWindow.xyNodeId, e)
-            }
-            style={{
-              left: openedWindow.position.x,
-              top: openedWindow.position.y,
-              width: openedWindow.width,
-              height: openedWindow.height,
-              zIndex: 100 + openedWindow.zIndex,
-            }}
-          >
-            <WindowFrame
-              openedWindow={openedWindow}
-              onSnapPreviewChange={handleSnapPreviewChange}
-            />
-          </div>
-        ))}
+        .map((openedWindow) => {
+          const isFullscreen =
+            openedWindow.xyNodeId === fullscreenNodeId &&
+            openedWindow.windowState !== "minimized";
+          return (
+            <div
+              key={openedWindow.xyNodeId}
+              className={cn(
+                "pointer-events-auto",
+                isFullscreen ? "fixed inset-0" : "absolute",
+                openedWindow.windowState === "minimized" && "hidden",
+              )}
+              onMouseDownCapture={(e) =>
+                handleWindowMouseDownCapture(openedWindow.xyNodeId, e)
+              }
+              style={
+                isFullscreen
+                  ? { zIndex: 50 }
+                  : {
+                      left: openedWindow.position.x,
+                      top: openedWindow.position.y,
+                      width: openedWindow.width,
+                      height: openedWindow.height,
+                      zIndex: 100 + openedWindow.zIndex,
+                    }
+              }
+            >
+              <WindowFrame
+                openedWindow={openedWindow}
+                isFullscreen={isFullscreen}
+                onSnapPreviewChange={handleSnapPreviewChange}
+              />
+            </div>
+          );
+        })}
     </div>
   );
 }

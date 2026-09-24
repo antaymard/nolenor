@@ -12,7 +12,7 @@ interface UsePdfViewportOptions {
 const EMPTY_PAGES: ReadonlySet<number> = new Set();
 
 /**
- * Géométrie partagée par les deux vues PDF : largeur de rendu « ajusté à la
+ * Géométrie de la vue PDF (`PdfWindow`) : largeur de rendu « ajusté à la
  * largeur », et pages actuellement à l'écran.
  *
  * La visibilité n'est pas un détail de confort : le zoom se fait par

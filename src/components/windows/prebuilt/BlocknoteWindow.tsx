@@ -145,11 +145,10 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   }
 
   // ── Plan tab: outline + scroll-to-heading ───────────────────────────────
-  // Own outline, independent of `onDocChange` (the fullscreen wrapper's own
-  // outline column/popover) — computed here so this registers correctly
-  // whether the editor is mounted floating or inside a fullscreen window, and
+  // Own outline, independent of `onDocChange` — computed here so the window
+  // frame's Plan tab gets it in both floating and fullscreen modes, and
   // scoped to `containerRef` so `scrollIntoView` finds whichever ancestor is
-  // actually scrollable in either chrome.
+  // actually scrollable.
   const [headings, setHeadings] = useState<Heading[]>(() =>
     extractHeadings(editor.document as unknown as Block[]),
   );
@@ -245,8 +244,8 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   // ── Initial document emission ────────────────────────────────────────────
   // `BlockNoteView`'s onChange only fires on a real transaction, never on
   // mount: the editor is built synchronously with the server content, so no
-  // transaction happens. Without this, a consumer of `onDocChange` (the
-  // fullscreen outline) stays empty until the first keystroke.
+  // transaction happens. Without this, a consumer of `onDocChange` (or the
+  // Plan-tab outline) stays empty until the first keystroke.
   useEffect(() => {
     const doc = editor.document as unknown as Block[];
     latestDocRef.current = doc;
@@ -350,7 +349,9 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full"
+      // `bn-window-doc` : mesure centrée quand la window est large (cf.
+      // blocknote-overrides.css).
+      className="bn-window-doc relative h-full w-full"
       onFocus={handleFocus}
       onBlur={handleBlur}
     >

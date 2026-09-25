@@ -814,10 +814,17 @@ export async function trashNodes(
   {
     nodeIds,
     actor,
+    trashedAt = Date.now(),
     touchCanvas: shouldTouchCanvas = true,
   }: {
     nodeIds: Array<string>;
     actor?: NodeDataVersionActor;
+    /**
+     * Fournie par un appelant qui met aussi des edges à la corbeille dans la
+     * même transaction (`canvasOps.apply`) : elles doivent porter la même
+     * date que le node, sinon `untrashEdgesTrashedWith` ne les rend pas.
+     */
+    trashedAt?: number;
     touchCanvas?: boolean;
   },
 ): Promise<string[]> {
@@ -849,10 +856,9 @@ export async function trashNodes(
     ...children.filter((child) => !namedIds.has(child.id)),
   ];
 
-  // Une seule date pour toute la transaction — cf. `trashNode`. C'est cette
-  // égalité qui permettra à `untrashNodes` de rendre exactement les enfants
-  // partis AVEC leur frame.
-  const trashedAt = Date.now();
+  // Une seule date pour toute la transaction (`trashedAt`, par défaut
+  // `Date.now()`) — cf. `trashNode`. C'est cette égalité qui permettra à
+  // `untrashNodes` de rendre exactement les enfants partis AVEC leur frame.
 
   const trashed: string[] = [];
   for (const node of nodes) {

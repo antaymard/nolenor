@@ -69,6 +69,13 @@ export const apply = mutation({
     const authUserId = await requireAuth(ctx);
     await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
 
+    // Une seule date de mise à la corbeille pour toute la transaction : une
+    // suppression depuis le canvas arrive en `trashEdges` + `trashNodes`, et
+    // les connexions d'un node ne reviennent avec lui depuis la modale
+    // corbeille que si elles portent exactement son `trashedAt` (cf.
+    // `EdgeModels.untrashEdgesTrashedWith`).
+    const trashedAt = Date.now();
+
     for (const op of ops) {
       switch (op.kind) {
         case "patchNodes": {
@@ -88,6 +95,7 @@ export const apply = mutation({
           await NodeModels.trashNodes(ctx, {
             nodeIds: op.nodeIds,
             actor: { type: "user", userId: authUserId },
+            trashedAt,
             touchCanvas: false,
           });
           break;
@@ -116,6 +124,7 @@ export const apply = mutation({
           await assertEdgesOnCanvas(ctx, canvasId, op.edgeIds);
           await EdgeModels.trashEdges(ctx, {
             edgeIds: op.edgeIds,
+            trashedAt,
             touchCanvas: false,
           });
           break;

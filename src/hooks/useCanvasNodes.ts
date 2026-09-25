@@ -16,10 +16,7 @@ import { api } from "@/../convex/_generated/api";
 import {
   fromCanvasNodesToXyNodes,
 } from "@/lib/node-types-converter";
-import {
-  applyNodePatchesToListQuery,
-  removeNodesFromListQuery,
-} from "@/lib/flowNodes";
+import { applyNodePatchesToListQuery } from "@/lib/flowNodes";
 import type { CanvasNode } from "@/types";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { pendingAutoSizeIds } from "@/components/nodes/prebuilt-nodes/useTitleNodeSizing";
@@ -212,14 +209,6 @@ export function useCanvasNodes(
         applyNodePatchesToListQuery(localStore, canvasId, updates);
       }),
     [patchNodes, canvasId],
-  );
-  const trashNodes = useMutation(api.nodes.trash);
-  const trashNodesInConvex = useMemo(
-    () =>
-      trashNodes.withOptimisticUpdate((localStore, { nodeIds }) => {
-        removeNodesFromListQuery(localStore, canvasId, nodeIds);
-      }),
-    [trashNodes, canvasId],
   );
 
   const persistLayoutUpdates = useCallback(
@@ -641,14 +630,9 @@ export function useCanvasNodes(
         // jamais : on purge son pending pour ne pas le garder en local.
         for (const id of removedIds) consumePendingCreation(id);
         closeWindowsForNodeIds(removedIds);
-        // Directly persist remove operations to Convex.
-        return persistNodeChange(
-          () =>
-            trashNodesInConvex({
-              nodeIds: removedChanges.map((c) => c.id),
-            }),
-          "Could not delete the node",
-        );
+        // Persistée par `useDeleteCanvasElements`, en une transaction avec
+        // les edges parties en même temps — cf. son commentaire.
+        return;
       } else if (dimensionChanges.length > 0) {
         // UPDATE NODE DIMENSIONS
         const titleDimensionChanges = dimensionChanges.filter((change) =>
@@ -896,7 +880,6 @@ export function useCanvasNodes(
     [
       canvasNodes,
       closeWindowsForNodeIds,
-      trashNodesInConvex,
       persistLayoutUpdates,
       bufferDragPositions,
       flushDragPositions,

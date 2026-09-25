@@ -44,7 +44,7 @@ import { useTemplateEditor } from "@/hooks/useTemplateEditor";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useNodeLayering } from "@/hooks/useNodeLayering";
 import { LAYER_COMMANDS } from "@/lib/nodeLayering";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import type { IconType } from "react-icons";
 import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
 import { createPortal } from "react-dom";
@@ -79,7 +79,7 @@ export default function NodeContextMenu({
   xyNode: Node;
 }) {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const { updateNode, getNodes } = useReactFlow();
+  const { updateNode } = useReactFlow();
   const { deleteCanvasElements } = useDeleteCanvasElements();
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   // `enabled: false` : poser un repère n'a pas besoin de lire la liste, et ce
@@ -97,7 +97,7 @@ export default function NodeContextMenu({
   // pour la pastille du node (`useSyncBookmarkedNodes`, monté par
   // `CanvasFlow`), donc le menu le lit sans ouvrir de souscription de plus.
   const isBookmarked = useIsNodeBookmarked(xyNode.id);
-  const { duplicateNode, duplicateNodes } = useDuplicateNode();
+  const { duplicateNode } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
   const patchNodes = useMutation(api.nodes.patch);
@@ -105,12 +105,8 @@ export default function NodeContextMenu({
   const removeNoleAttachments = useNoleStore(
     (state) => state.removeAttachments,
   );
-  const attachedNodeIds = useNoleStore((state) =>
-    state.attachedNodes.map((n) => n.id).join(","),
-  );
-  const attachedIds = useMemo(
-    () => new Set(attachedNodeIds ? attachedNodeIds.split(",") : []),
-    [attachedNodeIds],
+  const isAttached = useNoleStore((state) =>
+    state.attachedNodes.some((node) => node.id === xyNode.id),
   );
 
   // Custom nodes : édition du template depuis le canvas, sans passer par les
@@ -130,33 +126,17 @@ export default function NodeContextMenu({
   const availableColors = Object.entries(colors);
   const currentColor = (xyNode.data.color as colorsEnum) || "default";
 
-  // Clic droit sur un node d'un groupe sélectionné → tout le groupe
-  // (standard Figma/Miro, comme Duplicate) — avec la sémantique « bold » :
-  // partiel → attache les manquants ; tout attaché → détache tout.
-  const selectedNodes = getNodes().filter((node) => node.selected);
-  const attachTargets = (
-    xyNode.selected && selectedNodes.length > 1 ? selectedNodes : [xyNode]
-  ).filter(
-    (node) => node.type && getNodeCapabilities(node.type).agent.readable,
-  );
-  const allAttachTargetsAttached =
-    attachTargets.length > 0 &&
-    attachTargets.every((node) => attachedIds.has(node.id));
+  // Ce menu ne vise jamais que `xyNode` : un clic droit sur un node d'une
+  // sélection de plusieurs ouvre `SelectionContextMenu`, qui agit sur tout le
+  // groupe (cf. `useContextMenu`).
+  const canAttach =
+    !!xyNode.type && getNodeCapabilities(xyNode.type).agent.readable;
 
   function handleAttachToNole() {
-    if (allAttachTargetsAttached) {
-      removeNoleAttachments([
-        { type: "node", ids: attachTargets.map((node) => node.id) },
-      ]);
+    if (isAttached) {
+      removeNoleAttachments([{ type: "node", ids: [xyNode.id] }]);
     } else {
-      addNoleAttachments(
-        {
-          nodes: fromXyNodesToCanvasNodes(
-            attachTargets.filter((node) => !attachedIds.has(node.id)),
-          ),
-        },
-        false,
-      );
+      addNoleAttachments({ nodes: fromXyNodesToCanvasNodes([xyNode]) }, false);
     }
   }
 
@@ -263,9 +243,9 @@ export default function NodeContextMenu({
       },
     },
     {
-      hidden: attachTargets.length === 0,
-      label: allAttachTargetsAttached ? "Detach from Nolë" : "Attach to Nolë",
-      icon: allAttachTargetsAttached ? TbUnlink : TbPaperclip,
+      hidden: !canAttach,
+      label: isAttached ? "Detach from Nolë" : "Attach to Nolë",
+      icon: isAttached ? TbUnlink : TbPaperclip,
       shortcutHint: <Kbd>Alt + click</Kbd>,
       onClick: () => {
         handleAttachToNole();
@@ -299,14 +279,7 @@ export default function NodeContextMenu({
       icon: TbCopyPlus,
       shortcutHint: <Kbd>Ctrl + D</Kbd>,
       onClick: () => {
-        // Clic droit sur un node d'un groupe sélectionné → tout le groupe
-        // (standard Figma/Miro) ; sinon le seul node cliqué.
-        const selectedNodes = getNodes().filter((node) => node.selected);
-        if (xyNode.selected && selectedNodes.length > 1) {
-          void duplicateNodes(selectedNodes);
-        } else {
-          void duplicateNode(xyNode);
-        }
+        void duplicateNode(xyNode);
       },
     },
     {

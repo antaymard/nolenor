@@ -40,6 +40,9 @@ interface RichTextAreaProps {
   maxRows?: number;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Sur mobile, la touche "Entrée" du clavier virtuel sert à insérer un saut
+   *  de ligne, pas à envoyer : l'envoi passe uniquement par le bouton dédié. */
+  submitOnEnter?: boolean;
 }
 
 /**
@@ -58,6 +61,7 @@ export default function RichTextArea({
   maxRows = DEFAULT_MAX_ROWS,
   placeholder = "Ask Nolë, @ to mention a node",
   autoFocus = true,
+  submitOnEnter = true,
 }: RichTextAreaProps) {
   // Le brouillon est lu ici et pas plus haut : c'est le seul composant qui a
   // besoin du texte lui-même, donc le seul qui doive re-rendre à chaque
@@ -109,8 +113,8 @@ export default function RichTextArea({
       a11ySuggestionsListLabel="Nodes du canvas à mentionner"
       onKeyDown={(e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
-          if (e.shiftKey || e.ctrlKey || e.metaKey) {
-            // Shift/Ctrl/Cmd+Enter → new line (default behavior)
+          if (!submitOnEnter || e.shiftKey || e.ctrlKey || e.metaKey) {
+            // Mobile, ou Shift/Ctrl/Cmd+Enter → new line (default behavior)
             return;
           }
           // Enter alone → send

@@ -90,6 +90,7 @@ export default function MobileChatInput() {
             onSubmit={handleSend}
             minRows={INPUT_MIN_ROWS}
             maxRows={INPUT_MAX_ROWS}
+            submitOnEnter={false}
           />
         </div>
 

@@ -362,9 +362,12 @@ export async function trashEdges(
   ctx: MutationCtx,
   {
     edgeIds,
+    trashedAt = Date.now(),
     touchCanvas: shouldTouchCanvas = true,
   }: {
     edgeIds: Array<string>;
+    /** Cf. `NodeModels.trashNodes` : partagée par toute une transaction. */
+    trashedAt?: number;
     touchCanvas?: boolean;
   },
 ): Promise<string[]> {
@@ -376,7 +379,6 @@ export async function trashEdges(
   );
   const canvasId = requireSameCanvasId(edges.map((edge) => edge.canvasId));
 
-  const trashedAt = Date.now();
   const trashed: string[] = [];
   for (const edgeId of uniqueIds) {
     trashed.push(await trashEdge(ctx, { edgeId, trashedAt, touchCanvas: false }));

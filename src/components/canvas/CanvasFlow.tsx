@@ -426,10 +426,7 @@ export default function CanvasFlow({
   } = useCanvasNodes(canvasId, canvasNodes);
 
   // Canvas edges management
-  const { edges, setEdges, handleEdgeChange } = useCanvasEdges(
-    canvasId,
-    canvasEdges,
-  );
+  const { edges, setEdges, handleEdgeChange } = useCanvasEdges(canvasEdges);
   const { createEdge } = useCreateEdge();
 
   // Inject edge color into marker objects so React Flow renders colored arrows

@@ -1,34 +1,14 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 import {
   applyEdgeChanges,
   useEdgesState,
   type Edge,
   type EdgeChange,
   type EdgeAddChange,
-  type EdgeRemoveChange,
 } from "@xyflow/react";
-import { useMutation } from "convex/react";
-import type { Id } from "@/../convex/_generated/dataModel";
-import { api } from "@/../convex/_generated/api";
-import { removeEdgesFromListQuery } from "@/lib/flowNodes";
-import { toastError } from "@/components/utils/errorUtils";
 
-export function useCanvasEdges(canvasId: Id<"canvases">, canvasEdges?: Edge[]) {
+export function useCanvasEdges(canvasEdges?: Edge[]) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-
-  // CONVEX MUTATIONS
-  // Mémoïsée : `withOptimisticUpdate` rend une fonction neuve à chaque appel,
-  // et `handleEdgeChange` (donc `onEdgesChange`, donc `onConnect`) en dépend.
-  // Une identité neuve par rendu = une notification du store React Flow de
-  // plus à chaque frame de drag (cf. `useCanvasNodes`).
-  const trashEdges = useMutation(api.edges.trash);
-  const trashEdgesInConvex = useMemo(
-    () =>
-      trashEdges.withOptimisticUpdate((localStore, { edgeIds }) => {
-        removeEdgesFromListQuery(localStore, canvasId, edgeIds);
-      }),
-    [trashEdges, canvasId],
-  );
 
   // Sync convex -> reactflow edges while preserving selection.
   // Sans ça, le moindre push (`data` d'une autre edge, bypass optimiste)
@@ -68,9 +48,6 @@ export function useCanvasEdges(canvasId: Id<"canvases">, canvasEdges?: Edge[]) {
       const addedChanges = filteredChanges.filter(
         (change: EdgeChange) => change.type === "add",
       ) as EdgeAddChange[];
-      const removedChanges = filteredChanges.filter(
-        (change: EdgeChange) => change.type === "remove",
-      ) as EdgeRemoveChange[];
       const otherChanges = filteredChanges.filter(
         (change: EdgeChange) => change.type !== "add",
       );
@@ -99,16 +76,11 @@ export function useCanvasEdges(canvasId: Id<"canvases">, canvasEdges?: Edge[]) {
         onEdgesChange(otherChanges);
       }
 
-      // REMOVE EDGES
-      if (removedChanges.length > 0) {
-        void trashEdgesInConvex({
-          edgeIds: removedChanges.map((c) => c.id),
-        }).catch((error) => {
-          toastError(error, "Could not delete the connection");
-        });
-      }
+      // REMOVE EDGES — appliquée localement par `onEdgesChange` ci-dessus,
+      // persistée par `useDeleteCanvasElements` (une transaction avec les
+      // nodes supprimés en même temps).
     },
-    [trashEdgesInConvex, onEdgesChange, setEdges],
+    [onEdgesChange, setEdges],
   );
 
   return {

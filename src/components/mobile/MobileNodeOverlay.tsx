@@ -17,6 +17,7 @@ import NodeWindowDialogs from "@/components/windows/NodeWindowDialogs";
 import { useNodeWindowIdentity } from "@/components/windows/useNodeWindowIdentity";
 import { useWindowFrameState } from "@/components/windows/useWindowFrameState";
 import { useGoToNode } from "@/hooks/useGoToNode";
+import { useSyncWindowNodeDataIds } from "@/hooks/useSyncWindowNodeDataIds";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import {
   AlertDialog,
@@ -40,6 +41,13 @@ import { useMobileShell } from "./mobileShellContext";
 
 export default function MobileNodeOverlay() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
+
+  // Pendant mobile de `WindowsContainer` : un node ouvert juste après sa
+  // création fige l'id factice `pending_…`, et seul ce hook repointe la
+  // window sur le vrai id à la confirmation. Monté ici, sous le
+  // `ReactFlowProvider` de `MobileCanvas`, et avant le `return null` : il doit
+  // tourner quelle que soit la window affichée.
+  useSyncWindowNodeDataIds();
 
   // The "top" opened window = the most recently opened/brought-to-front.
   const topWindow = useMemo(() => {

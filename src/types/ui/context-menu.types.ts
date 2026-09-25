@@ -1,3 +1,5 @@
+import type { Node } from "@xyflow/react";
+
 export type ContextMenuType = "node" | "edge" | "canvas" | "selection";
 
 export interface ContextMenuState<T = unknown> {
@@ -52,10 +54,7 @@ export interface ConnectedNodeCreatedInfo {
 }
 
 export interface ContextMenuHandlers {
-  onNodeContextMenu: (
-    e: React.MouseEvent | MouseEvent,
-    element: object,
-  ) => void;
+  onNodeContextMenu: (e: React.MouseEvent | MouseEvent, node: Node) => void;
   onEdgeContextMenu: (
     e: React.MouseEvent | MouseEvent,
     element: object,
@@ -63,7 +62,7 @@ export interface ContextMenuHandlers {
   onPaneContextMenu: (e: React.MouseEvent | MouseEvent) => void;
   onSelectionContextMenu: (
     e: React.MouseEvent | MouseEvent,
-    element: object,
+    nodes: Node[],
   ) => void;
   closeContextMenu: () => void;
 }

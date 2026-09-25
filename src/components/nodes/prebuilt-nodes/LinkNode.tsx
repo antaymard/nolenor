@@ -18,6 +18,7 @@ import {
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { deriveEmbedUrl } from "@/../convex/lib/embedUrl";
+import { LINK_EMBED_SANDBOX } from "@/lib/embedIframe";
 import toast from "react-hot-toast";
 import type { XyNodeProps } from "@/types/domain";
 
@@ -116,7 +117,7 @@ function LinkNode(xyNode: XyNodeProps) {
                   className="w-full h-full border-0"
                   allow="autoplay; fullscreen; clipboard-read; clipboard-write"
                   allowFullScreen
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+                  sandbox={LINK_EMBED_SANDBOX}
                 />
               </IframeInteractionGate>
             </div>

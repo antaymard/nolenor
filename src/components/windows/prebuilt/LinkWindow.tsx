@@ -5,6 +5,7 @@ import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { deriveEmbedUrl } from "@/../convex/lib/embedUrl";
+import { LINK_EMBED_SANDBOX } from "@/lib/embedIframe";
 import type { LinkValueType } from "@/components/nodes/prebuilt-nodes/LinkNode";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { TranscriptPanel } from "@/components/windows/side-panel/TranscriptPanel";
@@ -89,7 +90,7 @@ function LinkWindow({ nodeDataId }: LinkWindowProps) {
         className="min-h-0 w-full flex-1 border-0"
         allow="autoplay; fullscreen; clipboard-read; clipboard-write"
         allowFullScreen
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+        sandbox={LINK_EMBED_SANDBOX}
       />
     </div>
   );

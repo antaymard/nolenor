@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { cn } from "@/lib/utils";
 import { useWindowsStore, type SnapSide } from "@/stores/windowsStore";
 import { useExistingNodeIds } from "@/lib/nodeIdentity";
 import { useSyncWindowNodeDataIds } from "@/hooks/useSyncWindowNodeDataIds";
@@ -13,7 +12,6 @@ import {
 export default function WindowsContainer() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
   const fullscreenNodeId = useWindowsStore((s) => s.fullscreenNodeId);
-  const bringWindowToFront = useWindowsStore((s) => s.bringWindowToFront);
   const existingNodeIds = useExistingNodeIds();
   const [snapPreview, setSnapPreview] = useState<SnapSide | null>(null);
 
@@ -54,20 +52,6 @@ export default function WindowsContainer() {
     [],
   );
 
-  const handleWindowMouseDownCapture = useCallback(
-    (xyNodeId: string, e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.button !== 0) return;
-
-      const target = e.target as HTMLElement | null;
-      const isWindowControl =
-        target?.closest('[data-window-control="true"]') !== null;
-      if (isWindowControl) return;
-
-      bringWindowToFront(xyNodeId);
-    },
-    [bringWindowToFront],
-  );
-
   return (
     <div
       data-slot="windows-container"
@@ -92,49 +76,23 @@ export default function WindowsContainer() {
       )}
 
       {/* Une seule liste, clé stable : le plein écran n'est qu'un autre
-          placement du même wrapper. La fenêtre n'est donc jamais démontée en
+          placement du même wrapper (rendu par `WindowFrame`). La fenêtre n'est donc jamais démontée en
           entrant ou en sortant du plein écran — lecture vidéo, scroll, zoom
           et brouillon non sauvegardé survivent à la bascule. En plein écran
           elle passe sous les fenêtres flottantes (50 < 100 + zIndex). */}
       {openedWindows
-        .filter((openedWindow) =>
-          existingNodeIds.has(openedWindow.xyNodeId),
-        )
-        .map((openedWindow) => {
-          const isFullscreen =
-            openedWindow.xyNodeId === fullscreenNodeId &&
-            openedWindow.windowState !== "minimized";
-          return (
-            <div
-              key={openedWindow.xyNodeId}
-              className={cn(
-                "pointer-events-auto",
-                isFullscreen ? "fixed inset-0" : "absolute",
-                openedWindow.windowState === "minimized" && "hidden",
-              )}
-              onMouseDownCapture={(e) =>
-                handleWindowMouseDownCapture(openedWindow.xyNodeId, e)
-              }
-              style={
-                isFullscreen
-                  ? { zIndex: 50 }
-                  : {
-                      left: openedWindow.position.x,
-                      top: openedWindow.position.y,
-                      width: openedWindow.width,
-                      height: openedWindow.height,
-                      zIndex: 100 + openedWindow.zIndex,
-                    }
-              }
-            >
-              <WindowFrame
-                openedWindow={openedWindow}
-                isFullscreen={isFullscreen}
-                onSnapPreviewChange={handleSnapPreviewChange}
-              />
-            </div>
-          );
-        })}
+        .filter((openedWindow) => existingNodeIds.has(openedWindow.xyNodeId))
+        .map((openedWindow) => (
+          <WindowFrame
+            key={openedWindow.xyNodeId}
+            openedWindow={openedWindow}
+            isFullscreen={
+              openedWindow.xyNodeId === fullscreenNodeId &&
+              openedWindow.windowState !== "minimized"
+            }
+            onSnapPreviewChange={handleSnapPreviewChange}
+          />
+        ))}
     </div>
   );
 }

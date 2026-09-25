@@ -121,7 +121,6 @@ export function useNoleChat() {
 
   // Dirty windows block sending until saved/closed.
   const dirtyNodeIds = useWindowsStore((s) => s.dirtyNodeIds);
-  const openedWindows = useWindowsStore((s) => s.openedWindows);
   const hasDirtyWindows = dirtyNodeIds.length > 0;
 
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
@@ -149,7 +148,12 @@ export function useNoleChat() {
     const viewport = reactFlow.getViewport();
     const messageContext = generateMessageContext({
       nodes: reactFlow.getNodes() as CanvasNode[],
-      openedNodeIds: openedWindows.map((w) => w.xyNodeId),
+      // Lu à l'envoi plutôt que souscrit : `openedWindows` change à chaque
+      // déplacement ou redimensionnement de window, et l'abonnement faisait
+      // re-rendre tout le chat pendant le geste.
+      openedNodeIds: useWindowsStore
+        .getState()
+        .openedWindows.map((w) => w.xyNodeId),
       attachedNodes,
       attachedPosition,
       viewport,
@@ -202,7 +206,6 @@ export function useNoleChat() {
     hasDirtyWindows,
     speech.sttBusy,
     reactFlow,
-    openedWindows,
     attachedNodes,
     attachedPosition,
     nodeDatas,

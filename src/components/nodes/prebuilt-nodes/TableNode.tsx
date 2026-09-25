@@ -8,6 +8,7 @@ import NodeFrame from "../NodeFrame";
 import { TbMaximize, TbTable } from "react-icons/tb";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoWheelUnlessZoom } from "@/hooks/useNoWheelUnlessZoom";
+import { useCanvasScrollArea } from "@/hooks/useCanvasScrollArea";
 import { applyFilters, applySorting, TablePreview } from "@/components/table";
 import NodeEmptyState from "../NodeEmptyState";
 import type { TableData } from "@/components/table";
@@ -26,6 +27,8 @@ function TableNode(xyNode: XyNodeProps) {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useNoWheelUnlessZoom(scrollRef);
+  // Ne défile qu'au survol du node (cf. `useCanvasScrollArea`).
+  useCanvasScrollArea(scrollRef);
 
   const tableData = (values?.table as TableData | undefined) ?? {
     columns: [],
@@ -97,7 +100,7 @@ function TableNode(xyNode: XyNodeProps) {
               ref={scrollRef}
               // `overscroll-x-none` : coupe le chaînage vers le "back"
               // navigateur au bord horizontal, sans bloquer le scroll interne.
-              className="flex-1 min-h-0 overflow-auto overscroll-x-none relative"
+              className="canvas-scroll-area flex-1 min-h-0 overflow-auto overscroll-x-none relative"
             >
               {isTableEmpty ? (
                 <NodeEmptyState icon={<TbTable size={22} />} action="double-click" />

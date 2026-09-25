@@ -594,6 +594,37 @@ button,
   margin: 0 0 -4.5px -4.5px;
 }
 
+/* Zones défilantes des nodes (corps des documents, tables) : elles ne défilent
+   qu'au survol de leur node, ou quand le focus est dedans. Un scroller
+   défilable est composé à part par le navigateur ; avec des dizaines de nodes à
+   l'écran, ces couches faisaient le plus gros du coût de chaque frame de pan
+   dézoomé. En `hidden`, la zone reste un conteneur de scroll : sa position de
+   défilement est conservée, seule sa scrollbar attend le survol.
+   Appareils à souris seulement : au doigt, pas de survol, on garde le défilement
+   permanent. */
+@media (hover: hover) and (pointer: fine) {
+  .react-flow__node:not(:hover) .canvas-scroll-area:not(:focus-within) {
+    overflow: hidden;
+  }
+  /* Même logique pour les en-têtes collants (tables) : tant que la zone n'est
+     pas défilée, un `sticky` est exactement à sa place naturelle, et un
+     `relative` rend pareil — même z-index, même ordre de peinture — sans être
+     une couche composée de plus. Une zone laissée défilée garde le sien
+     (`data-scrolled-y`, cf. `useCanvasScrollArea`). */
+  .react-flow__node:not(:hover)
+    .canvas-scroll-area:not(:focus-within):not([data-scrolled-y])
+    .sticky {
+    position: relative;
+  }
+}
+/* Contenu qui déborde : gouttière réservée en permanence, survol ou pas, pour
+   que la scrollbar n'y apparaisse pas en réagençant le contenu — c'est la
+   largeur qu'occupait la scrollbar toujours visible d'avant. Tenu à jour par
+   `useCanvasScrollArea`. */
+.canvas-scroll-area[data-overflow-y] {
+  scrollbar-gutter: stable;
+}
+
 /* Survol d'une edge : `BaseEdge` pose le stroke en inline, donc un override
    CSS du path ne prendrait jamais. `filter: drop-shadow` contourne ça — il
    s'applique à l'élément, pas au stroke — et donne le même halo que la

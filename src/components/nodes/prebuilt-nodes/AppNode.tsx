@@ -15,7 +15,7 @@ import { colors } from "@/components/ui/styles";
 import type { XyNodeProps, colorsEnum } from "@/types/domain";
 import { useAppNodeRunner } from "@/hooks/useAppNodeRunner";
 import IframeInteractionGate from "../IframeInteractionGate";
-import { NodeHeader } from "../NodeHeader";
+import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 import { filenameSlug } from "@/lib/filenameSlug";
 
@@ -43,6 +43,27 @@ function AppNode(xyNode: XyNodeProps) {
   // qu'il est stocké, sans le HTML d'exécution que `buildSrcdoc` fabrique
   // autour — c'est la source, pas le bundle, qui est utile hors du canvas.
   const appCode = (values?.code as string | undefined) ?? "";
+  const hasCode = appCode.trim().length > 0;
+
+  // L'en-tête (titre + Refresh) est posé par `NodeFrame` via l'option
+  // d'affichage `showTitle`, allumée par défaut sur les apps et absente de la
+  // variante `title`.
+  const { showTitle } = useNodeDisplayOptions(xyNode);
+
+  const handleRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const refreshButton = (
+    <button
+      className="shrink-0 text-slate-500 hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
+      onClick={(e) => {
+        e.stopPropagation();
+        handleRefresh();
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      title="Refresh app"
+    >
+      <TbRefresh size={14} />
+    </button>
+  );
 
   const handleDownloadCode = useCallback(() => {
     downloadBlob(
@@ -61,7 +82,7 @@ function AppNode(xyNode: XyNodeProps) {
         >
           <TbMaximize />
         </NodeToolbarButton>
-        {appCode.trim().length > 0 && (
+        {hasCode && (
           <NodeToolbarButton
             label="Download"
             title="Download code"
@@ -70,9 +91,23 @@ function AppNode(xyNode: XyNodeProps) {
             <TbDownload />
           </NodeToolbarButton>
         )}
+        {/* Sans en-tête, le Refresh qu'il portait passe dans la toolbar. */}
+        {hasCode && !showTitle && !isTitleVariant && (
+          <NodeToolbarButton
+            label="Refresh"
+            title="Refresh app"
+            onClick={handleRefresh}
+          >
+            <TbRefresh />
+          </NodeToolbarButton>
+        )}
         <AppTitleEditControl nodeDataId={nodeDataId} />
       </CanvasNodeToolbar>
-      <NodeFrame xyNode={xyNode} resizable={!isTitleVariant}>
+      <NodeFrame
+        xyNode={xyNode}
+        resizable={!isTitleVariant}
+        headerActions={hasCode && refreshButton}
+      >
         {isTitleVariant ? (
           <div
             className={cn(
@@ -85,7 +120,7 @@ function AppNode(xyNode: XyNodeProps) {
               {appTitle}
             </p>
           </div>
-        ) : !appCode.trim() ? (
+        ) : !hasCode ? (
           <NodeEmptyState
             icon={<Icon size={22} />}
             title="No app"
@@ -94,23 +129,6 @@ function AppNode(xyNode: XyNodeProps) {
           />
         ) : (
           <div className="w-full h-full flex flex-col overflow-hidden rounded-[4px]">
-            <NodeHeader
-              icon={Icon}
-              title={appTitle}
-              actions={
-                <button
-                  className="shrink-0 text-slate-500 hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setRefreshKey((k) => k + 1);
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  title="Refresh app"
-                >
-                  <TbRefresh size={14} />
-                </button>
-              }
-            />
             <IframeInteractionGate
               className="flex-1 min-h-0"
               isNodeSelected={!!xyNode.selected}

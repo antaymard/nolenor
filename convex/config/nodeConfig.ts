@@ -1,9 +1,5 @@
 import { z } from "zod";
 import { nodeTypeValues } from "../schemas/nodeTypeSchema";
-import type {
-  NodeDisplayOptionKey,
-  NodeDisplayOptions,
-} from "../schemas/nodesSchema";
 import {
   TABLE_COLUMN_TYPES,
   listColumnTypesForPrompt,
@@ -82,30 +78,6 @@ const DEFAULT_NODE_CAPABILITIES: NodeCapabilities = {
   search: { embed: true },
 };
 
-/**
- * Le catalogue des options d'affichage : ce que chaque option SIGNIFIE, une
- * fois pour tous les types. Un type ne fait que la proposer et choisir son
- * défaut (`NodeDataConfigItem.displayOptions`).
- *
- * `Record` exhaustif : une clé ajoutée à `nodeDisplayOptionsValidator` sans
- * entrée ici casse la compilation.
- */
-const NODE_DISPLAY_OPTIONS: Record<NodeDisplayOptionKey, { label: string }> = {
-  showTitle: { label: "Show title" },
-};
-
-/** L'ordre du catalogue, qui est aussi celui du menu Appearance. */
-const NODE_DISPLAY_OPTION_KEYS = Object.keys(
-  NODE_DISPLAY_OPTIONS,
-) as NodeDisplayOptionKey[];
-
-type NodeDisplayOptionConfig = {
-  /** La valeur d'un node qui n'a rien stocké pour cette option. */
-  default: boolean;
-};
-
-type ResolvedNodeDisplayOptions = Record<NodeDisplayOptionKey, boolean>;
-
 type NodeDataConfigItem = {
   type: z.infer<typeof nodeTypeZodValidator>;
   label: string;
@@ -117,18 +89,6 @@ type NodeDataConfigItem = {
     resizable?: boolean;
   };
   variants?: Record<string, NodeVariant>;
-  /**
-   * Les options d'affichage que ce type propose, et leur défaut. Cumulables et
-   * indépendantes de la variante (cf. `nodeDisplayOptionsValidator`). Une
-   * option absente ici n'existe pas pour ce type : elle n'apparaît pas au menu
-   * et se résout à `false`.
-   *
-   * Le défaut est lu à chaque rendu, pas figé à la création : le changer
-   * change aussi l'affichage des nodes qui n'ont jamais touché à l'option.
-   */
-  displayOptions?: Partial<
-    Record<NodeDisplayOptionKey, NodeDisplayOptionConfig>
-  >;
   defaultColor?: string;
   capabilities?: NodeCapabilitiesInput;
   dataValuesSchema: z.ZodTypeAny;
@@ -312,9 +272,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         defaultHeight: squareHeight,
         resizable: true,
       },
-    },
-    displayOptions: {
-      showTitle: { default: false },
     },
     dataValuesSchema: z
       .object({
@@ -953,42 +910,6 @@ function getDefaultNodeDataValues(
 }
 
 /**
- * Les options d'affichage que ce type propose, dans l'ordre du catalogue.
- * Vide pour un type inconnu de `nodeDataConfig` (`custom`, `fetch`).
- */
-function getSupportedDisplayOptions(nodeType: string): NodeDisplayOptionKey[] {
-  const declared = nodeDataConfig.find(
-    (item) => item.type === nodeType,
-  )?.displayOptions;
-  if (!declared) return [];
-  return NODE_DISPLAY_OPTION_KEYS.filter((key) => declared[key] !== undefined);
-}
-
-/**
- * Les options d'affichage effectives d'un node : la valeur stockée, sinon le
- * défaut du type. Une option que le type ne propose pas vaut `false`, même si
- * une valeur traîne en base — retirer une option d'un type ne demande donc
- * aucune migration.
- *
- * Seul point de lecture : le front ne teste jamais `displayOptions.x`
- * directement, il passe par ici pour que le défaut s'applique.
- */
-function resolveNodeDisplayOptions(
-  nodeType: string | undefined,
-  stored: NodeDisplayOptions | undefined,
-): ResolvedNodeDisplayOptions {
-  const declared = nodeType
-    ? nodeDataConfig.find((item) => item.type === nodeType)?.displayOptions
-    : undefined;
-  return Object.fromEntries(
-    NODE_DISPLAY_OPTION_KEYS.map((key) => {
-      const config = declared?.[key];
-      return [key, config ? (stored?.[key] ?? config.default) : false];
-    }),
-  ) as ResolvedNodeDisplayOptions;
-}
-
-/**
  * Les capabilities effectives d'un type, défauts appliqués.
  *
  * Tolère un type inconnu de `nodeDataConfig` — `custom` n'y a pas d'entrée, sa
@@ -1054,14 +975,6 @@ export {
   isNodeTypeEmbedded,
   agentCreatableNodeTypeZodValidator,
   DEFAULT_NODE_CAPABILITIES,
-  NODE_DISPLAY_OPTIONS,
-  getSupportedDisplayOptions,
-  resolveNodeDisplayOptions,
 };
-export type {
-  NodeDataConfigItem,
-  NodeVariant,
-  NodeCapabilities,
-  ResolvedNodeDisplayOptions,
-};
+export type { NodeDataConfigItem, NodeVariant, NodeCapabilities };
 export type FrameTitleLevel = (typeof FRAME_TITLE_LEVELS)[number];

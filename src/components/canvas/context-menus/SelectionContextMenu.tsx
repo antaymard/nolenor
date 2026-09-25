@@ -9,8 +9,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Kbd } from "@/components/shadcn/kbd";
-import { useReactFlow, type Node } from "@xyflow/react";
-import { useMutation } from "convex/react";
+import type { Node } from "@xyflow/react";
 
 import { HiOutlineTrash } from "react-icons/hi";
 import {
@@ -20,16 +19,13 @@ import {
   TbPalette,
   TbPaperclip,
   TbPhoto,
-  TbSpaces,
   TbStack2,
   TbUnlink,
 } from "react-icons/tb";
-import { api } from "@/../convex/_generated/api";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
 import { MAX_SELECTION_NODE_IDS } from "@/../convex/schemas/canvasBookmarksSchema";
 import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
 import { useNoleStore } from "@/stores/noleStore";
-import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useNodeLayering } from "@/hooks/useNodeLayering";
 import { LAYER_COMMANDS } from "@/lib/nodeLayering";
@@ -46,8 +42,7 @@ import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useBookmarkNameDialog } from "./useBookmarkNameDialog";
-import { getCommonDisplayOptions } from "@/lib/nodeDisplayOptions";
-import DisplayOptionsMenuItems from "./DisplayOptionsMenuItems";
+import AppearanceMenu from "./AppearanceMenu";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -56,7 +51,6 @@ export default function SelectionContextMenu({
   closeMenu: () => void;
   elements: Node[] | object | null;
 }) {
-  const { updateNode } = useReactFlow();
   const { deleteCanvasElements } = useDeleteCanvasElements();
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   // Écriture seule : ce menu se remonte à chaque clic droit, inutile d'ouvrir
@@ -73,10 +67,9 @@ export default function SelectionContextMenu({
     createBookmark,
   );
   const { duplicateNodes } = useDuplicateNode();
-  const { updateCanvasNode, updateCanvasNodes } = useUpdateCanvasNode();
+  const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
   const { updateNodeDataValues } = useUpdateNodeDataValues();
-  const patchNodes = useMutation(api.nodes.patch);
   const availableColors = Object.entries(colors);
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const removeNoleAttachments = useNoleStore(
@@ -109,83 +102,6 @@ export default function SelectionContextMenu({
   // repérer au premier clic, et seul le clic suivant — sur un état devenu
   // homogène — dé-repère tout.
   const allNodesBookmarked = useAreNodesBookmarked(bookmarkNodeIds);
-
-  // Variants common to all selected nodes. We match on the user-facing
-  // label, not the raw key: the same appearance ("Preview", "Title") can
-  // live under different keys per type — e.g. it's the `default` key on
-  // document/table but the `preview` key on app.
-  const labelToKeyPerNode = elementsArray.map(
-    (node) =>
-      new Map(
-        Object.entries(
-          prebuiltNodesConfig.find((c) => c.node.type === node.type)
-            ?.variants ?? {},
-        ).map(([key, v]) => [v.label, key]),
-      ),
-  );
-  const commonVariantLabels =
-    labelToKeyPerNode.length === 0
-      ? []
-      : [...labelToKeyPerNode[0].keys()].filter((label) =>
-          labelToKeyPerNode.every((m) => m.has(label)),
-        );
-
-  const commonDisplayOptions = getCommonDisplayOptions(elementsArray);
-
-  async function applyVariantToSelection(label: string) {
-    if (!Array.isArray(elements) || elements.length === 0) return;
-
-    // Resolve each node's own variant key (and dimensions) from the label.
-    const changes = elements
-      .map((node) => {
-        const variants = prebuiltNodesConfig.find(
-          (c) => c.node.type === node.type,
-        )?.variants;
-        if (!variants) return null;
-        const entry = Object.entries(variants).find(
-          ([, v]) => v.label === label,
-        );
-        if (!entry) return null;
-        const [variantKey, variantConfig] = entry;
-        return {
-          nodeId: node.id,
-          variantKey,
-          dimensions: {
-            width: variantConfig.defaultWidth,
-            height: variantConfig.defaultHeight,
-          },
-        };
-      })
-      .filter((c): c is NonNullable<typeof c> => c !== null);
-
-    if (changes.length === 0) return;
-
-    // Mark resizing locally to shield the new size from the Convex →
-    // ReactFlow sync until the mutation lands (mirrors NodeContextMenu).
-    changes.forEach(({ nodeId, dimensions }) => {
-      updateNode(nodeId, {
-        width: dimensions.width,
-        height: dimensions.height,
-        resizing: true,
-      });
-    });
-
-    void updateCanvasNodes(
-      changes.map(({ nodeId, variantKey }) => ({
-        nodeId,
-        props: { variant: variantKey },
-      })),
-    );
-
-    await patchNodes({
-      updates: changes.map(({ nodeId, dimensions }) => ({
-        nodeId,
-        props: { width: dimensions.width, height: dimensions.height },
-      })),
-    });
-
-    changes.forEach(({ nodeId }) => updateNode(nodeId, { resizing: false }));
-  }
 
   // Sémantique « bold » : partiel → attache les manquants ; tout
   // attaché → détache tout.
@@ -270,35 +186,7 @@ export default function SelectionContextMenu({
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
 
-      {/* Variants communs, puis options d'affichage communes */}
-      {(commonVariantLabels.length > 0 || commonDisplayOptions.length > 0) && (
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="whitespace-nowrap">
-            <TbSpaces size={16} /> Appearance
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {commonVariantLabels.map((label) => (
-              <DropdownMenuItem
-                className="whitespace-nowrap"
-                key={label}
-                onClick={() => {
-                  void applyVariantToSelection(label);
-                  closeMenu();
-                }}
-              >
-                {label}
-              </DropdownMenuItem>
-            ))}
-            {commonVariantLabels.length > 0 &&
-              commonDisplayOptions.length > 0 && <DropdownMenuSeparator />}
-            <DisplayOptionsMenuItems
-              nodes={elementsArray}
-              entries={commonDisplayOptions}
-              onApplied={closeMenu}
-            />
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-      )}
+      <AppearanceMenu nodes={elementsArray} closeMenu={closeMenu} />
 
       {/* Couleur */}
       <DropdownMenuSub>

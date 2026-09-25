@@ -23,7 +23,7 @@ import { useDownloadFile } from "@/hooks/useDownloadFile";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { cn } from "@/lib/utils";
 import type { XyNodeProps } from "@/types/domain";
-import { resolveNodeDisplayOptions } from "@/../convex/config/nodeConfig";
+import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
 import { NODE_HEADER_HEIGHT } from "../NodeHeader";
 
 type ImageItem = ImageEditItem;
@@ -222,10 +222,7 @@ function ImageNode(xyNode: XyNodeProps) {
   // republie width/height pendant le drag des poignées, donc la mosaïque se
   // recompose en direct. L'en-tête titre (posé par `NodeFrame`) est retranché :
   // la mosaïque se range dans ce qui reste, pas dans tout le node.
-  const { showTitle } = resolveNodeDisplayOptions(
-    xyNode.type,
-    xyNode.data.displayOptions,
-  );
+  const { showTitle } = useNodeDisplayOptions(xyNode);
   const contentHeight =
     (xyNode.height ?? 0) - (showTitle ? NODE_HEADER_HEIGHT : 0);
   const aspect =

@@ -14,10 +14,12 @@ import { nodeTypeValidator } from "./nodeTypeSchema";
  * Objet typé plutôt qu'un `v.record` : la base refuse une clé inconnue ou une
  * valeur du mauvais type. Ajouter une option, c'est ajouter un champ
  * optionnel ici (aucune migration, les docs existants restent valides) et son
- * entrée dans `NODE_DISPLAY_OPTIONS` (`convex/config/nodeConfig.ts`), que le
- * typage rend obligatoire.
+ * entrée dans `NODE_DISPLAY_OPTIONS`, que le typage rend obligatoire. Leur sens
+ * et leurs défauts sont une config purement front
+ * (`src/components/nodes/prebuilt-nodes/nodeDisplayOptions.ts`) : le backend
+ * stocke ces valeurs mais n'en lit aucune.
  *
- * Une clé absente vaut le défaut du type (`resolveNodeDisplayOptions`) : la
+ * Une clé absente vaut le défaut du type, résolu côté front : la
  * base ne porte que les choix explicites de l'utilisateur.
  */
 const nodeDisplayOptionsValidator = v.object({

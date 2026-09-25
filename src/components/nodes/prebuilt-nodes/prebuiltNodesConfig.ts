@@ -5,6 +5,10 @@ import { nodeDataConfig } from "@/../convex/config/nodeConfig";
 import type { NodeDataConfigItem } from "@/../convex/config/nodeConfig";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 import { OPENABLE_PREBUILT_NODE_TYPES } from "./nodeOpenability";
+import {
+  NODE_TYPE_DISPLAY_OPTIONS,
+  type NodeTypeDisplayOptions,
+} from "./nodeDisplayOptions";
 import BlocknoteNode from "./BlocknoteNode";
 import TitleNode from "./TitleNode";
 import ImageNode from "./ImageNode";
@@ -33,7 +37,16 @@ type NodeUiConfigItem = {
 };
 
 type PrebuiltNodeConfig = NodeDataConfigItem &
-  NodeUiConfigItem & { node: XyNode };
+  NodeUiConfigItem & {
+    node: XyNode;
+    /**
+     * Les options d'affichage que ce type propose. Déclarées dans
+     * `nodeDisplayOptions.ts`, séparé pour la même raison que
+     * `nodeOpenability.ts`, et reprises ici pour que la config front d'un
+     * type se lise en un seul endroit.
+     */
+    displayOptions: NodeTypeDisplayOptions;
+  };
 
 const nodeUiConfig: Record<string, NodeUiConfigItem> = {
   title: {
@@ -134,6 +147,7 @@ const prebuiltNodesConfig: Array<PrebuiltNodeConfig> = nodeDataConfig
     return {
       ...config,
       ...ui,
+      displayOptions: NODE_TYPE_DISPLAY_OPTIONS[config.type] ?? {},
       node: {
         id: "",
         type: config.type,

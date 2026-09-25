@@ -44,14 +44,16 @@ export function NodeHeader({ icon: Icon, title, actions }: NodeHeaderProps) {
 function NodeTitleHeaderComponent({
   nodeDataId,
   nodeType,
+  actions,
 }: {
   nodeDataId: Id<"nodeDatas"> | undefined;
   nodeType: string | undefined;
+  actions?: React.ReactNode;
 }) {
   const title = useNodeDataTitle(nodeDataId) ?? "";
   const icon =
     (nodeType && NODE_TYPE_ICON_MAP[nodeType]) || NODE_TYPE_ICON_MAP.custom;
-  return <NodeHeader icon={icon} title={title} />;
+  return <NodeHeader icon={icon} title={title} actions={actions} />;
 }
 
 export const NodeTitleHeader = memo(NodeTitleHeaderComponent);

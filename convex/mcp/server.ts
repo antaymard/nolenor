@@ -26,7 +26,9 @@ const INSTRUCTIONS = `Nolênor is a visual canvas workspace. Each canvas holds n
 
 Typical workflow: call list_canvases to get canvas IDs, then list_nodes / read_nodes / search_canvas to explore a canvas, then the write tools (create_node, create_connection, set_node_data, block / table tools) to edit it.
 
-Every tool except list_canvases requires a canvasId argument. Write tools require an API token with "write" permission and editor access to the canvas.`;
+Every tool except list_canvases requires a canvasId argument. Write tools require an API token with "write" permission and editor access to the canvas.
+
+The user may paste node references copied from the app, such as "canvasId:abc|nodeIds:n1,n2", "canvasId:abc|nodeId:n1" or "nodeId:n1" (fields separated by "|", ids by ","). Pass these values as the canvasId and nodeIds arguments (e.g. to read_nodes). When no canvasId is given, ask the user which canvas (list_canvases lists them).`;
 
 const CANVAS_ID_FIELD = z
   .string()

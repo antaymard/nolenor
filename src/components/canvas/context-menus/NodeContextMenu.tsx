@@ -31,6 +31,7 @@ import {
   TbBookmark,
   TbBookmarkOff,
   TbCheck,
+  TbCopy,
   TbCopyPlus,
   TbLayoutBoardSplit,
   TbPalette,
@@ -47,6 +48,7 @@ import { LAYER_COMMANDS } from "@/lib/nodeLayering";
 import { useState } from "react";
 import type { IconType } from "react-icons";
 import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
+import { useCopyNodeIdsItems } from "@/hooks/useCopyNodeIds";
 import { createPortal } from "react-dom";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
@@ -118,6 +120,7 @@ export default function NodeContextMenu({
   const templateId = xyNode.data?.templateId as string | undefined;
   const ownsTemplate = useOwnsTemplate(templateId);
   const { openTemplateEditor } = useTemplateEditor();
+  const copyIds = useCopyNodeIdsItems([xyNode.id]);
 
   const variants = prebuiltNodesConfig.find(
     (config) => config.node.type === xyNode.type,
@@ -281,6 +284,11 @@ export default function NodeContextMenu({
       onClick: () => {
         void duplicateNode(xyNode);
       },
+    },
+    {
+      label: copyIds.label,
+      icon: TbCopy,
+      subMenu: copyIds.items,
     },
     {
       label: "Move to another canvas",

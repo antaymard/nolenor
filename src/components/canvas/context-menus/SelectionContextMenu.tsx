@@ -45,6 +45,7 @@ import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
+import CopyNodeIdsSubMenu from "./CopyNodeIdsSubMenu";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -419,6 +420,12 @@ export default function SelectionContextMenu({
           <Kbd>Ctrl + D</Kbd>
         </DropdownMenuShortcut>
       </DropdownMenuItem>
+
+      {/* Ids pour un agent extérieur (MCP) */}
+      <CopyNodeIdsSubMenu
+        nodeIds={elementsArray.map((node) => node.id)}
+        closeMenu={closeMenu}
+      />
 
       {/* Suppression */}
       <DropdownMenuItem

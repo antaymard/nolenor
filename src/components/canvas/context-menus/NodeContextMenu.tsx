@@ -1,6 +1,4 @@
-import prebuiltNodesConfig, {
-  canNodeTypeBeCreated,
-} from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
+import { canNodeTypeBeCreated } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -12,9 +10,6 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Kbd } from "@/components/shadcn/kbd";
 import type { Node } from "@xyflow/react";
-import { useReactFlow } from "@xyflow/react";
-import { useMutation } from "convex/react";
-import { api } from "@/../convex/_generated/api";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
 import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
 import { useNoleStore } from "@/stores/noleStore";
@@ -23,9 +18,7 @@ import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
-import { getCommonDisplayOptions } from "@/lib/nodeDisplayOptions";
-import type { NodeVariant } from "@/../convex/config/nodeConfig";
-import DisplayOptionsMenuItems from "./DisplayOptionsMenuItems";
+import AppearanceMenu from "./AppearanceMenu";
 
 // Icons
 import { HiOutlineTrash } from "react-icons/hi";
@@ -39,7 +32,6 @@ import {
   TbLayoutBoardSplit,
   TbPalette,
   TbPaperclip,
-  TbSpaces,
   TbStack2,
   TbUnlink,
 } from "react-icons/tb";
@@ -84,7 +76,6 @@ export default function NodeContextMenu({
   xyNode: Node;
 }) {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const { updateNode } = useReactFlow();
   const { deleteCanvasElements } = useDeleteCanvasElements();
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   // `enabled: false` : poser un repère n'a pas besoin de lire la liste, et ce
@@ -105,7 +96,6 @@ export default function NodeContextMenu({
   const { duplicateNode } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
-  const patchNodes = useMutation(api.nodes.patch);
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const removeNoleAttachments = useNoleStore(
     (state) => state.removeAttachments,
@@ -125,46 +115,6 @@ export default function NodeContextMenu({
   const { openTemplateEditor } = useTemplateEditor();
   const copyIds = useCopyNodeIdsItems([xyNode.id]);
 
-  const variants = prebuiltNodesConfig.find(
-    (config) => config.node.type === xyNode.type,
-  )?.variants;
-  const variantEntries = Object.entries(variants ?? {});
-  const displayOptionEntries = getCommonDisplayOptions([xyNode]);
-
-  async function applyVariant(variantKey: string, variantConfig: NodeVariant) {
-    updateCanvasNode({
-      nodeId: xyNode.id,
-      props: { variant: variantKey },
-    });
-
-    const dimensions = {
-      width: variantConfig.defaultWidth,
-      height: variantConfig.defaultHeight,
-    };
-
-    // Marquer resizing: true pour protéger du sync Convex → ReactFlow
-    updateNode(xyNode.id, {
-      width: dimensions.width,
-      height: dimensions.height,
-      resizing: true,
-    });
-
-    // Envoyer la mutation, puis libérer le flag resizing
-    await patchNodes({
-      updates: [
-        {
-          nodeId: xyNode.id,
-          props: {
-            width: dimensions.width,
-            height: dimensions.height,
-          },
-        },
-      ],
-    });
-
-    updateNode(xyNode.id, { resizing: false });
-  }
-
   const availableColors = Object.entries(colors);
   const currentColor = (xyNode.data.color as colorsEnum) || "default";
 
@@ -183,37 +133,6 @@ export default function NodeContextMenu({
   }
 
   const nodeOptions: NodeOption[] = [
-    {
-      // Variants (un choix exclusif) puis options d'affichage (cumulables,
-      // indépendantes de la variante).
-      hidden: variantEntries.length === 0 && displayOptionEntries.length === 0,
-      label: "Appearance",
-      icon: TbSpaces,
-      customSubContent: (
-        <>
-          {variantEntries.map(([variantKey, variantConfig]) => (
-            <DropdownMenuItem
-              className="whitespace-nowrap"
-              key={variantKey}
-              onClick={() => {
-                void applyVariant(variantKey, variantConfig);
-                closeMenu();
-              }}
-            >
-              {variantConfig.label}
-            </DropdownMenuItem>
-          ))}
-          {variantEntries.length > 0 && displayOptionEntries.length > 0 && (
-            <DropdownMenuSeparator />
-          )}
-          <DisplayOptionsMenuItems
-            nodes={[xyNode]}
-            entries={displayOptionEntries}
-            onApplied={closeMenu}
-          />
-        </>
-      ),
-    },
     {
       label: "Color",
       icon: TbPalette,
@@ -344,6 +263,7 @@ export default function NodeContextMenu({
         Block actions
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
+      <AppearanceMenu nodes={[xyNode]} closeMenu={closeMenu} />
       {nodeOptions
         .filter((option) => option.hidden !== true)
         .map((option, i) =>

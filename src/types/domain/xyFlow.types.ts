@@ -21,7 +21,7 @@ export interface DisplayPropsThatGoInXyData {
   zIndex?: number;
   /**
    * Les options d'affichage telles que stockées. À ne pas lire directement :
-   * `resolveNodeDisplayOptions` y applique les défauts du type.
+   * `useNodeDisplayOptions` y applique les défauts du type et de la variante.
    */
   displayOptions?: NodeDisplayOptions;
 }

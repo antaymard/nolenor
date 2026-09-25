@@ -9,7 +9,7 @@ import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import BookmarkedBadge from "./BookmarkedBadge";
 import { NodeTitleHeader } from "./NodeHeader";
-import { resolveNodeDisplayOptions } from "@/../convex/config/nodeConfig";
+import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
 
 function NodeFrame({
   xyNode,
@@ -17,12 +17,18 @@ function NodeFrame({
   resizable = true,
   minWidth,
   minHeight,
+  headerActions,
 }: {
   xyNode: XyNodeProps;
   children: React.ReactNode;
   resizable?: boolean;
   minWidth?: number;
   minHeight?: number;
+  /**
+   * Boutons de l'en-tête titre (option `showTitle`), ex. le Refresh d'une
+   * app. Ignoré quand l'en-tête n'est pas affiché.
+   */
+  headerActions?: React.ReactNode;
 }) {
   // `||` et non `??` : une couleur vide vaut "default", comme avant le typage.
   const nodeColor = colors[xyNode.data.color || "default"];
@@ -51,12 +57,9 @@ function NodeFrame({
 
   // L'en-tête titre est posé ici, pour tous les types, et non par chaque
   // node : proposer `showTitle` à un nouveau type tient alors en une ligne de
-  // `nodeDataConfig`. Le contenu du node passe dans un corps `flex-1`, où son
+  // `nodeDisplayOptions.ts`. Le contenu du node passe dans un corps `flex-1`, où son
   // `h-full` vaut la hauteur restante.
-  const { showTitle } = resolveNodeDisplayOptions(
-    nodeType,
-    xyNode.data.displayOptions,
-  );
+  const { showTitle } = useNodeDisplayOptions(xyNode);
 
   // Une iframe déverrouillée (cf. IframeInteractionGate) avale les pointermove :
   // drag et resize perdraient leurs frames dès que le curseur la survole. Le
@@ -149,7 +152,11 @@ function NodeFrame({
           )}
           {showTitle ? (
             <>
-              <NodeTitleHeader nodeDataId={nodeDataId} nodeType={nodeType} />
+              <NodeTitleHeader
+                nodeDataId={nodeDataId}
+                nodeType={nodeType}
+                actions={headerActions}
+              />
               <div className="relative flex-1 min-h-0">{children}</div>
             </>
           ) : (

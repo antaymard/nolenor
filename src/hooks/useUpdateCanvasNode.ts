@@ -14,7 +14,7 @@ import type {
   NodeDisplayOptions,
   NodePatchProps,
 } from "@/../convex/schemas/nodesSchema";
-import { resolveNodeDisplayOptions } from "@/../convex/config/nodeConfig";
+import { resolveNodeDisplayOptions } from "@/components/nodes/prebuilt-nodes/nodeDisplayOptions";
 
 interface ConvexNodeProps {
   locked?: boolean;
@@ -83,6 +83,7 @@ function inverseProps(
   if (props?.displayOptions !== undefined) {
     const before = resolveNodeDisplayOptions(
       snapshot.type,
+      snapshotData.variant as string | undefined,
       snapshotData.displayOptions as NodeDisplayOptions | undefined,
     );
     inverse.displayOptions = Object.fromEntries(

@@ -16,11 +16,11 @@ import {
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "Meta Muse Spark 1.3 Contributor",
-    value: "meta/muse-spark-1.3-contributor",
-    price: "0.1_0.2",
+    label: "GPT 6 Luna",
+    value: "openai/gpt-6-luna",
+    price: "0.10_0.50",
     isMultimodal: true,
-    maxContext: 1000000,
+    maxContext: 1100000,
   },
   {
     label: "GLM 5.3 Flash",
@@ -30,11 +30,18 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Inception Mercury 2.5",
-    value: "inception/mercury-2.5",
-    price: "0.04_0.15",
-    isMultimodal: false,
-    maxContext: 260000,
+    label: "Meta Muse Spark 1.3 Contributor",
+    value: "meta/muse-spark-1.3-contributor",
+    price: "0.1_0.2",
+    isMultimodal: true,
+    maxContext: 1000000,
+  },
+  {
+    label: "Mimo 2.6 Flash",
+    value: "xiaomi/mimo-v2.6-flash",
+    price: "0.14_0.28",
+    isMultimodal: true,
+    maxContext: 1000000,
   },
   {
     label: "Deepseek V4.1 flash",

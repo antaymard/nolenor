@@ -552,6 +552,17 @@ button,
   cursor: default !important;
 }
 
+/* Le fond du canvas et les edges n'ont aucun texte à sélectionner. Sans ça,
+   chaque clic dessus lançait la recherche d'une position de texte dans tout le
+   layout du canvas (≈ 30 ms par clic sur un canvas chargé). Les nodes et les
+   labels d'edge sont déjà en `none` (CSS React Flow), les champs éditables
+   restent sélectionnables. L'effacement d'une sélection faite ailleurs, que ce
+   clic provoquait, est rejoué par `CanvasFlow` (`clearTextSelectionFromPane`). */
+.react-flow__pane {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* Outil main : le pane retrouve les curseurs que React Flow lui donne
    nativement (`.draggable` → grab, `.dragging` → grabbing) et que l'override
    ci-dessus lui retire partout ailleurs. `!important` pour la même raison

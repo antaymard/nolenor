@@ -22,14 +22,28 @@ export function useCanvasEdges(canvasEdges?: Edge[]) {
         setEdges([]);
         return;
       }
+      // Partage structurel : Convex rend des objets neufs pour TOUTES les
+      // edges à chaque mise à jour de la query, même quand une seule a changé.
+      // Une edge dont le contenu est identique garde l'objet qu'on a déjà —
+      // sélection comprise — et React Flow ne la re-rend pas. Sans ça, chaque
+      // push (un drop, une édition, un collaborateur, Nolë) re-rendait toutes
+      // les edges du canvas : un gel de plusieurs dizaines de millisecondes sur
+      // un canvas chargé.
       setEdges((current) => {
-        const selectedIds = new Set(
-          current.filter((edge) => edge.selected).map((edge) => edge.id),
-        );
-        if (selectedIds.size === 0) return canvasEdges;
-        return canvasEdges.map((edge) =>
-          selectedIds.has(edge.id) ? { ...edge, selected: true } : edge,
-        );
+        const currentById = new Map(current.map((edge) => [edge.id, edge]));
+        let changed = current.length !== canvasEdges.length;
+        const next = canvasEdges.map((incoming, index) => {
+          const existing = currentById.get(incoming.id);
+          if (existing && isSameEdge(existing, incoming)) {
+            if (current[index] !== existing) changed = true;
+            return existing;
+          }
+          changed = true;
+          return existing?.selected
+            ? { ...incoming, selected: true }
+            : incoming;
+        });
+        return changed ? next : current;
       });
     }
   }, [canvasEdges, setEdges]);
@@ -88,4 +102,36 @@ export function useCanvasEdges(canvasEdges?: Edge[]) {
     setEdges,
     handleEdgeChange,
   };
+}
+
+/**
+ * Même contenu, à la sélection près (état local, jamais renvoyé par Convex).
+ */
+function isSameEdge(existing: Edge, incoming: Edge): boolean {
+  const { selected: _selected, ...rest } = existing;
+  return isSameJsonValue(rest, incoming);
+}
+
+/**
+ * Égalité profonde de valeurs JSON (ce que renvoie Convex). Une clé à
+ * `undefined` vaut une clé absente, comme après un aller-retour JSON.
+ */
+function isSameJsonValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const other = b as unknown[];
+    return (
+      a.length === other.length &&
+      a.every((item, index) => isSameJsonValue(item, other[index]))
+    );
+  }
+  const aEntries = Object.entries(a).filter(([, v]) => v !== undefined);
+  const bObject = b as Record<string, unknown>;
+  const bKeys = Object.keys(bObject).filter((k) => bObject[k] !== undefined);
+  return (
+    aEntries.length === bKeys.length &&
+    aEntries.every(([key, value]) => isSameJsonValue(value, bObject[key]))
+  );
 }

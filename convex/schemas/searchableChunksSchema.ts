@@ -3,10 +3,19 @@ import { nodeTypeValidator } from "./nodeTypeSchema";
 
 // ── Sub-validators ──────────────────────────────────────────────────────
 
+// Deux propriétaires distincts écrivent dans cette table :
+//  - le chunkBuilder (`searchable/chunkBuilder.ts`) possède `node`, `page` et
+//    `annotation` : des DÉRIVÉS des `values`, reconstruits à chaque write ;
+//  - la transcription (`ia/transcriptionRun.ts`) possède `transcript` : de la
+//    DONNÉE PRIMAIRE, déjà payée (OpenRouter), que rien ne sait régénérer
+//    gratuitement. Le builder ne la supprime que quand le fichier source change
+//    (`metadata.sourceKey`), cf. `SearchableChunkModels.upsertChunks`.
+// Tout futur « reindex global » doit donc épargner `transcript`.
 const chunkTypeValidator = v.union(
   v.literal("node"),
   v.literal("page"),
   v.literal("annotation"),
+  v.literal("transcript"),
 );
 
 // ── Main validator ──────────────────────────────────────────────────────
@@ -59,6 +68,9 @@ const fusedHitValidator = v.object({
   title: v.optional(v.string()),
   page: v.optional(v.number()),
   sectionTitle: v.optional(v.string()),
+  /** Plage temporelle d'un chunk `transcript` (secondes). */
+  startSec: v.optional(v.number()),
+  endSec: v.optional(v.number()),
   /** Score RRF (hybride) ou similarité cosinus (sémantique pure). */
   score: v.number(),
   sources: v.array(v.union(v.literal("keyword"), v.literal("semantic"))),
@@ -74,6 +86,13 @@ const searchSnippetValidator = v.object({
   chunkType: chunkTypeValidator,
   order: v.number(),
   page: v.optional(v.number()),
+  /**
+   * Chunk `transcript` : instant du passage (secondes). Précis au segment
+   * quand l'extrait vient de la recherche keyword, au chunk sinon.
+   */
+  startSec: v.optional(v.number()),
+  /** Titre du passage d'un chunk `transcript`, quand il a été résumé. */
+  sectionTitle: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
   matchStart: v.number(),
   matchEnd: v.number(),
@@ -98,6 +117,8 @@ const groupedSearchResultValidator = v.object({
 
 type GroupedSearchResult = Infer<typeof groupedSearchResultValidator>;
 
+type ChunkTypeValue = Infer<typeof chunkTypeValidator>;
+
 export {
   searchableChunksValidator,
   chunkTypeValidator,
@@ -107,6 +128,7 @@ export {
   groupedSearchResultValidator,
 };
 export type {
+  ChunkTypeValue,
   SearchModeValue,
   FusedHit,
   SearchSnippetValue,

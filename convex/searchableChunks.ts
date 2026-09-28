@@ -12,6 +12,10 @@ import {
 } from "./lib/searchQuery";
 import { stripLoneSurrogates } from "./lib/textSanitize";
 import {
+  findSegmentAtOffset,
+  parseTranscriptMetadata,
+} from "./lib/transcriptChunks";
+import {
   getImageUrlFromMetadata,
   getImageUrlsFromMetadata,
   getPageFromMetadata,
@@ -50,6 +54,8 @@ export const search = query({
             chunkType: chunkTypeValidator,
             order: v.number(),
             page: v.optional(v.number()),
+            startSec: v.optional(v.number()),
+            sectionTitle: v.optional(v.string()),
             imageUrl: v.optional(v.string()),
             matchStart: v.number(),
             matchEnd: v.number(),
@@ -197,6 +203,8 @@ export const search = query({
                 chunkType: chunk.chunkType,
                 order: chunk.order,
                 page: getPageFromMetadata(chunk.metadata),
+                startSec: getSnippetStartSec(chunk.metadata, match.matchStart),
+                sectionTitle: getTranscriptPassageTitle(chunk.metadata),
                 imageUrl: getImageUrlFromMetadata(chunk.metadata),
                 matchStart: match.matchStart,
                 matchEnd: match.matchEnd,
@@ -302,6 +310,31 @@ export const listPdfPages = query({
     });
   },
 });
+
+/** Titre du passage d'un chunk `transcript` (les PDF n'en ont pas besoin ici). */
+function getTranscriptPassageTitle(metadata: unknown): string | undefined {
+  const title = parseTranscriptMetadata(metadata)?.passageTitle;
+  return title ? stripLoneSurrogates(title) : undefined;
+}
+
+/**
+ * Instant d'un extrait de transcript : le segment qui contient le mot trouvé.
+ * `matchStart` est un offset dans le texte replié par `buildChunkSnippets`, et
+ * le texte d'un chunk `transcript` est déjà stocké replié (cf.
+ * `lib/transcriptChunks.ts`) : les deux repères coïncident. Repli sur le début
+ * du chunk si les segments manquent.
+ */
+function getSnippetStartSec(
+  metadata: unknown,
+  matchStart: number,
+): number | undefined {
+  const transcript = parseTranscriptMetadata(metadata);
+  if (!transcript) return undefined;
+  return (
+    findSegmentAtOffset(transcript.segments, matchStart)?.s ??
+    transcript.startSec
+  );
+}
 
 /** Extraits centrés sur les mots POSITIFS de la requête (jamais sur `-exclu`). */
 export function buildChunkSnippets(text: string, queryTerms: string[]) {

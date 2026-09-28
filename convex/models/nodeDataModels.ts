@@ -418,3 +418,40 @@ export async function clearImageGeneration(
     updatedAt: Date.now(),
   });
 }
+
+/**
+ * Statut de transcription d'un node audio, même contrat que
+ * `setImageGeneration` : patch direct hors `values`, `updatedAt` bumpé pour
+ * que le `nodeDataStore` client voie le changement.
+ */
+export async function setTranscription(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    status,
+    sourceKey,
+    error,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    status: "running" | "error";
+    sourceKey: string;
+    error?: string;
+  },
+): Promise<void> {
+  const now = Date.now();
+  await ctx.db.patch("nodeDatas", nodeDataId, {
+    transcription: { status, sourceKey, startedAt: now, error },
+    updatedAt: now,
+  });
+}
+
+/** Le succès se lit dans les chunks `transcript` : on efface le statut. */
+export async function clearTranscription(
+  ctx: MutationCtx,
+  { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
+): Promise<void> {
+  await ctx.db.patch("nodeDatas", nodeDataId, {
+    transcription: undefined,
+    updatedAt: Date.now(),
+  });
+}

@@ -4,7 +4,6 @@ import { internal } from "../../_generated/api";
 import { escapeXmlText } from "../../lib/xml";
 import { resolveUserDisplayName } from "../../lib/userDisplayName";
 import { nodeTypesPresentation } from "./systemParts";
-import { formatTemplatesForPrompt } from "../helpers/customTemplateHelpers";
 
 function formatMemorySnapshot(rawContent?: string | null): string {
   if (!rawContent) {
@@ -69,7 +68,6 @@ async function generateNoleSystemPrompt({
     minimapResult,
     availableSkills,
     userCanvases,
-    userTemplates,
     user,
   ] = await Promise.all([
     ctx.runQuery(internal.wrappers.memoryWrappers.read, {
@@ -87,9 +85,6 @@ async function generateNoleSystemPrompt({
       userId,
     }),
     ctx.runQuery(internal.wrappers.canvasWrappers.listUserCanvases, { userId }),
-    ctx.runQuery(internal.wrappers.nodeTemplateWrappers.listByCreator, {
-      creatorId: userId,
-    }),
     ctx.runQuery(internal.wrappers.userWrappers.read, { userId }),
   ]);
 
@@ -97,7 +92,6 @@ async function generateNoleSystemPrompt({
   const canvasMemoryContext = formatMemorySnapshot(canvasMemory?.content);
   const availableSkillsContext = formatAvailableSkills(availableSkills);
   const userCanvasesContext = formatUserCanvases(userCanvases);
-  const userTemplatesContext = formatTemplatesForPrompt(userTemplates);
   // Réglé par l'utilisateur lui-même (Settings → Account), à défaut hérité du
   // provider d'auth. Échappé : c'est du texte libre qui atterrit dans le system
   // prompt.

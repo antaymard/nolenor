@@ -8,6 +8,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/shadcn/empty";
+import { formatTime } from "@/hooks/useMediaPlayback";
 import type { SearchSnippet as SearchSnippetType } from "./useSearch";
 
 /**
@@ -65,8 +66,16 @@ export function SearchSnippet({
   terms: string[];
   compact?: boolean;
 }) {
+  // Transcript excerpts carry the moment they were spoken at: "2:11" says
+  // more than "transcript".
   const pageLabel =
-    typeof snippet.page === "number" ? `Page ${snippet.page}` : snippet.chunkType;
+    typeof snippet.startSec === "number"
+      ? snippet.sectionTitle
+        ? `${formatTime(snippet.startSec)} · ${snippet.sectionTitle}`
+        : formatTime(snippet.startSec)
+      : typeof snippet.page === "number"
+        ? `Page ${snippet.page}`
+        : snippet.chunkType;
 
   if (compact) {
     return (
@@ -85,7 +94,10 @@ export function SearchSnippet({
         terms={terms}
         className="line-clamp-2 min-w-0 flex-1 overflow-hidden leading-snug text-muted-foreground"
       />
-      <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+      <span
+        className="max-w-48 shrink-0 truncate rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
+        title={pageLabel}
+      >
         {pageLabel}
       </span>
     </div>

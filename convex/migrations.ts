@@ -11,7 +11,7 @@ import * as NodeDataModels from "./models/nodeDataModels";
 // `embedding` absent ou tagué d'un autre modèle. Balayage paginé (100 docs /
 // transaction), embed via Voyage, patch, puis chaînage au scheduler.
 //
-// Les types exclus via `nodeConfig` (`search.embed: false` : title, audio,
+// Les types exclus via `nodeConfig` (`search.embed: false` : title,
 // video, frame, app) ne sont jamais vectorisés : leurs chunks restent
 // keyword seuls.
 //

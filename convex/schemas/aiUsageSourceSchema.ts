@@ -7,14 +7,17 @@ import { v } from "convex/values";
  * accumulés jusqu'ici (worker et génération de titre ne l'étaient pas).
  *
  * Hors périmètre pour l'instant, et donc absents : le captioning d'images et
- * l'OCR PDF (searchable/chunkBuilder.ts), le speech-to-text (speech.ts) et la
- * recherche web Parallel. Leur dépense n'apparaît pas dans /settings/ai-usage.
+ * l'OCR PDF (searchable/chunkBuilder.ts), la dictée speech-to-text (speech.ts)
+ * et la recherche web Parallel. Leur dépense n'apparaît pas dans
+ * /settings/ai-usage. La transcription des nodes audio, elle, est comptée
+ * (`transcription`, cf. ia/transcriptionRun.ts).
  */
 const aiUsageSources = {
   nole: "nole",
   worker: "worker",
   threadTitle: "threadTitle",
   imageGeneration: "imageGeneration",
+  transcription: "transcription",
 } as const;
 
 const vAiUsageSource = v.union(
@@ -22,6 +25,7 @@ const vAiUsageSource = v.union(
   v.literal(aiUsageSources.worker),
   v.literal(aiUsageSources.threadTitle),
   v.literal(aiUsageSources.imageGeneration),
+  v.literal(aiUsageSources.transcription),
 );
 
 type AiUsageSource = typeof vAiUsageSource.type;

@@ -13,34 +13,304 @@ import { stripLoneSurrogates } from "../lib/textSanitize";
 import {
   getImageUrlFromMetadata,
   getSectionTitleFromMetadata,
+  getTimeRangeFromMetadata,
 } from "../lib/chunkMetadata";
-import type { FusedHit } from "../schemas/searchableChunksSchema";
+import type {
+  ChunkTypeValue,
+  FusedHit,
+} from "../schemas/searchableChunksSchema";
+import {
+  getTranscriptSourceKey,
+  parseTranscriptMetadata,
+  splitTranscriptText,
+  type TranscriptChunkMetadata,
+} from "../lib/transcriptChunks";
 
 type SearchableChunk = Doc<"searchableChunks">;
 
+/** Les types de chunk que possède le chunkBuilder (dérivés des `values`). */
+export const BUILDER_CHUNK_TYPES = [
+  "node",
+  "page",
+  "annotation",
+] as const satisfies ReadonlyArray<ChunkTypeValue>;
+
+type ChunkInput = Omit<SearchableChunk, "_id" | "_creationTime">;
+
+/** Mise à jour d'un chunk `transcript` préservé (renommage du node). */
+export type TranscriptChunkPatch = {
+  id: Id<"searchableChunks">;
+  title?: string;
+  embedding?: number[];
+  embeddingModel?: string;
+};
+
+/**
+ * Remplace les chunks d'un node, mais SEULEMENT ceux des types listés dans
+ * `replaceChunkTypes` (par défaut : ceux du chunkBuilder).
+ *
+ * Longtemps un delete-then-insert de TOUS les chunks du node. Ça ne tient plus
+ * depuis les chunks `transcript` : ils sont de la donnée primaire, déjà payée,
+ * et le builder repasse à chaque write de `values` (renommage, boucle…). Un
+ * appelant ne remplace donc que ce qu'il possède.
+ *
+ * `transcriptSourceKey` (nodes audio) : la clé du fichier courant, `null` s'il
+ * n'y en a plus. Les chunks `transcript` d'un AUTRE fichier sont supprimés —
+ * c'est la seule exception à la règle de propriété, et c'est ce qui invalide
+ * un transcript quand l'utilisateur remplace son fichier. `undefined` = ne pas
+ * toucher aux transcripts.
+ *
+ * `transcriptPatches` : titre (et embedding recalculé) des transcripts
+ * préservés, quand le titre du node a changé. Un id disparu ou supprimé
+ * ci-dessus (re-transcription, fichier remplacé) est ignoré.
+ */
 export async function upsertChunks(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    chunks,
+    replaceChunkTypes = BUILDER_CHUNK_TYPES,
+    transcriptSourceKey,
+    transcriptPatches = [],
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    chunks: ChunkInput[];
+    replaceChunkTypes?: ReadonlyArray<ChunkTypeValue>;
+    transcriptSourceKey?: string | null;
+    transcriptPatches?: TranscriptChunkPatch[];
+  },
+): Promise<void> {
+  const existing = await ctx.db
+    .query("searchableChunks")
+    .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+    .collect();
+
+  const replaced = new Set<ChunkTypeValue>(replaceChunkTypes);
+  const deletedIds = new Set<Id<"searchableChunks">>();
+
+  for (const chunk of existing) {
+    const isStaleTranscript =
+      chunk.chunkType === "transcript" &&
+      transcriptSourceKey !== undefined &&
+      getTranscriptSourceKey(chunk.metadata) !== transcriptSourceKey;
+    if (replaced.has(chunk.chunkType) || isStaleTranscript) {
+      await ctx.db.delete(chunk._id);
+      deletedIds.add(chunk._id);
+    }
+  }
+
+  for (const patch of transcriptPatches) {
+    if (deletedIds.has(patch.id)) continue;
+    const target = existing.find((chunk) => chunk._id === patch.id);
+    // Le patch a été calculé par l'action à partir d'une lecture antérieure :
+    // on n'applique que sur un transcript de CE node, encore présent.
+    if (!target || target.chunkType !== "transcript") continue;
+    await ctx.db.patch(patch.id, {
+      ...(patch.title !== undefined && { title: patch.title }),
+      ...(patch.embedding !== undefined && {
+        embedding: patch.embedding,
+        embeddingModel: patch.embeddingModel,
+      }),
+    });
+  }
+
+  for (const chunk of chunks) {
+    await ctx.db.insert("searchableChunks", chunk);
+  }
+}
+
+/**
+ * Remplace les chunks `transcript` d'un node — écrit par la transcription,
+ * seul propriétaire de ce type. Les autres chunks ne sont pas touchés.
+ */
+export async function replaceTranscriptChunks(
   ctx: MutationCtx,
   {
     nodeDataId,
     chunks,
   }: {
     nodeDataId: Id<"nodeDatas">;
-    chunks: Array<Omit<SearchableChunk, "_id" | "_creationTime">>;
+    chunks: ChunkInput[];
   },
 ): Promise<void> {
-  // Keep implementation simple and predictable: replace all chunks for this node.
-  const existing = await ctx.db
+  await upsertChunks(ctx, {
+    nodeDataId,
+    chunks,
+    replaceChunkTypes: ["transcript"],
+  });
+}
+
+/** Le transcript d'un fichier, prêt à lire : segments découpés par chunk. */
+export type CurrentTranscript = {
+  model?: string;
+  language?: string;
+  durationSec?: number;
+  overview?: string;
+  chunks: Array<{
+    order: number;
+    startSec: number;
+    endSec: number;
+    passageTitle?: string;
+    summary?: string;
+    segments: Array<{ s: number; e: number; text: string }>;
+  }>;
+};
+
+/**
+ * Le transcript du fichier `sourceKey` d'un node, `null` s'il n'y en a pas.
+ * Filtré sur la clé : entre le remplacement d'un fichier et le rebuild qui
+ * purge l'ancien transcript, celui-ci ne doit être servi à personne.
+ */
+export async function getCurrentTranscript(
+  ctx: QueryCtx,
+  {
+    nodeDataId,
+    sourceKey,
+  }: { nodeDataId: Id<"nodeDatas">; sourceKey: string },
+): Promise<CurrentTranscript | null> {
+  const chunks = (await listTranscriptChunks(ctx, { nodeDataId })).filter(
+    (chunk) => chunk.metadata.sourceKey === sourceKey,
+  );
+  if (chunks.length === 0) return null;
+
+  const first = chunks[0].metadata;
+  return {
+    model: first.model,
+    language: first.language,
+    durationSec: first.durationSec,
+    ...(first.overview !== undefined && { overview: first.overview }),
+    chunks: chunks.map((chunk) => ({
+      order: chunk.order,
+      startSec: chunk.metadata.startSec,
+      endSec: chunk.metadata.endSec,
+      ...(chunk.metadata.passageTitle !== undefined && {
+        passageTitle: chunk.metadata.passageTitle,
+      }),
+      ...(chunk.metadata.summary !== undefined && {
+        summary: chunk.metadata.summary,
+      }),
+      segments: splitTranscriptText(chunk.text, chunk.metadata.segments),
+    })),
+  };
+}
+
+/**
+ * Écrit les résumés d'un transcript dans la `metadata` de ses chunks — et
+ * nulle part ailleurs : ni `text` ni `embedding` ne bougent, donc aucune
+ * réindexation, et rien dans `nodeDatas.values`, donc aucun rebuild.
+ *
+ * Tout ou rien : si le transcript de `sourceKey` n'a plus exactement
+ * `passageCount` chunks (re-transcription ou fichier remplacé pendant
+ * l'appel LLM), les résumés décrivent autre chose et sont jetés.
+ */
+export async function patchTranscriptSummaries(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    sourceKey,
+    passageCount,
+    overview,
+    summaryModel,
+    passages,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    sourceKey: string;
+    passageCount: number;
+    overview?: string;
+    summaryModel: string;
+    passages: Array<{ order: number; title: string; summary: string }>;
+  },
+): Promise<boolean> {
+  const chunks = (await listTranscriptChunks(ctx, { nodeDataId })).filter(
+    (chunk) => chunk.metadata.sourceKey === sourceKey,
+  );
+  if (chunks.length === 0 || chunks.length !== passageCount) return false;
+
+  const byOrder = new Map(passages.map((passage) => [passage.order, passage]));
+  for (const chunk of chunks) {
+    const passage = byOrder.get(chunk.order);
+    const isFirst = chunk.order === chunks[0].order;
+    if (!passage && !(isFirst && overview)) continue;
+
+    const existing = await ctx.db.get(chunk._id);
+    if (!existing) continue;
+    await ctx.db.patch(chunk._id, {
+      metadata: {
+        ...(existing.metadata ?? {}),
+        ...(passage && {
+          passageTitle: passage.title,
+          summary: passage.summary,
+        }),
+        ...(isFirst && overview && { overview, summaryModel }),
+      },
+    });
+  }
+  return true;
+}
+
+/**
+ * Existe-t-il un transcript pour ce fichier ? S'arrête au premier chunk
+ * trouvé : la toolbar n'a besoin que d'un booléen.
+ */
+export async function hasTranscript(
+  ctx: QueryCtx,
+  {
+    nodeDataId,
+    sourceKey,
+  }: { nodeDataId: Id<"nodeDatas">; sourceKey: string },
+): Promise<boolean> {
+  const chunks = ctx.db
+    .query("searchableChunks")
+    .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId));
+  for await (const chunk of chunks) {
+    if (
+      chunk.chunkType === "transcript" &&
+      getTranscriptSourceKey(chunk.metadata) === sourceKey
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Un chunk `transcript`, projeté sans l'embedding. */
+export type TranscriptChunk = {
+  _id: Id<"searchableChunks">;
+  order: number;
+  title: string | undefined;
+  text: string;
+  metadata: TranscriptChunkMetadata;
+};
+
+/**
+ * Les chunks `transcript` d'un node, triés par `order`. Ceux dont la metadata
+ * est illisible sont écartés (jamais écrits ainsi par la transcription).
+ */
+export async function listTranscriptChunks(
+  ctx: QueryCtx,
+  { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
+): Promise<TranscriptChunk[]> {
+  const chunks = await ctx.db
     .query("searchableChunks")
     .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
     .collect();
 
-  for (const chunk of existing) {
-    await ctx.db.delete(chunk._id);
-  }
-
-  for (const chunk of chunks) {
-    await ctx.db.insert("searchableChunks", chunk);
-  }
+  return chunks
+    .flatMap((chunk) => {
+      if (chunk.chunkType !== "transcript") return [];
+      const metadata = parseTranscriptMetadata(chunk.metadata);
+      if (!metadata) return [];
+      return [
+        {
+          _id: chunk._id,
+          order: chunk.order,
+          title: chunk.title,
+          text: chunk.text,
+          metadata,
+        },
+      ];
+    })
+    .sort((a, b) => a.order - b.order);
 }
 
 export async function deleteByNodeDataId(
@@ -244,6 +514,8 @@ type FullTextSearchHit = {
   title?: string;
   page?: number;
   sectionTitle?: string;
+  startSec?: number;
+  endSec?: number;
 };
 
 type KeywordSearchResult = {
@@ -551,6 +823,7 @@ export async function keywordSearch(
       title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
       page: getPage(chunk.metadata),
       sectionTitle: getSectionTitleFromMetadata(chunk.metadata),
+      ...getTimeRangeFromMetadata(chunk.metadata),
     });
   }
 
@@ -628,6 +901,7 @@ export async function hydrateVectorHits(
         title: doc.title ? stripLoneSurrogates(doc.title) : doc.title,
         page: getPage(doc.metadata),
         sectionTitle: getSectionTitleFromMetadata(doc.metadata),
+        ...getTimeRangeFromMetadata(doc.metadata),
         imageUrl: getImageUrlFromMetadata(doc.metadata),
         score,
       },

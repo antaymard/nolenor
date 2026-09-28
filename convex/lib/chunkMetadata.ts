@@ -4,11 +4,18 @@ import { stripLoneSurrogates } from "./textSanitize";
 // endroit, importable depuis les models comme depuis les fonctions
 // (importer depuis `searchableChunks.ts` créerait un cycle models ↔ fonctions).
 
-/** Premier titre de section d'un chunk PDF, locateur compact. */
+/**
+ * Locateur compact d'un chunk : premier titre de section d'une page PDF, ou
+ * titre du passage d'un chunk `transcript` (cf. ia/transcriptSummaryRun.ts).
+ */
 export function getSectionTitleFromMetadata(
   metadata: unknown,
 ): string | undefined {
   if (!metadata || typeof metadata !== "object") return undefined;
+  const passageTitle = (metadata as { passageTitle?: unknown }).passageTitle;
+  if (typeof passageTitle === "string" && passageTitle.trim().length > 0) {
+    return stripLoneSurrogates(passageTitle.trim());
+  }
   const sections = (metadata as { sections?: unknown }).sections;
   if (!Array.isArray(sections) || sections.length === 0) return undefined;
   const first = sections[0];
@@ -24,6 +31,24 @@ export function getPageFromMetadata(metadata: unknown): number | undefined {
   if (!metadata || typeof metadata !== "object") return undefined;
   const maybePage = (metadata as { page?: unknown }).page;
   return typeof maybePage === "number" ? maybePage : undefined;
+}
+
+/**
+ * Plage temporelle d'un chunk `transcript` (secondes depuis le début du
+ * fichier), si présente et bien typée.
+ */
+export function getTimeRangeFromMetadata(
+  metadata: unknown,
+): { startSec: number; endSec: number } | undefined {
+  if (!metadata || typeof metadata !== "object") return undefined;
+  const { startSec, endSec } = metadata as {
+    startSec?: unknown;
+    endSec?: unknown;
+  };
+  if (typeof startSec !== "number" || typeof endSec !== "number") {
+    return undefined;
+  }
+  return { startSec, endSec };
 }
 
 /** Première URL d'image d'un chunk (image / annotation PDF). */

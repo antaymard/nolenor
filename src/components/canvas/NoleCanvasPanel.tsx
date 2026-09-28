@@ -39,13 +39,13 @@ export default function NoleCanvasPanel() {
           <ResizablePanelGroup
             direction="horizontal"
             autoSaveId="nolenor:nole-panel-width"
-            className="h-full"
+            className="h-full bg-transparent!"
           >
             <ResizablePanel
               defaultSize={62.5}
               minSize={40}
               maxSize={95}
-              className="pointer-events-auto"
+              className="pointer-events-auto rounded-xl!"
             >
               <ChatContainer onClose={() => setPanelLayout("minimized")} />
             </ResizablePanel>

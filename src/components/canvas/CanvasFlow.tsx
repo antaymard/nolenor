@@ -53,14 +53,6 @@ import { useIsTouchFirst } from "@/hooks/useTabletMode";
 import "@xyflow/react/dist/style.css";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
 import { generateLlmId } from "@/../convex/lib/llmId";
-import {
-  FALLBACK_NODE_HEIGHT,
-  FALLBACK_NODE_WIDTH,
-  getBestTargetHandle,
-  getClosestHandlesForDirectedEdge,
-  parseSourceSide,
-  type ConnectionNodeRect,
-} from "@/lib/connectionHandles";
 import type {
   ConnectedNodeCreatedInfo,
   PendingCanvasConnection,
@@ -478,19 +470,29 @@ export default function CanvasFlow({
   // une notification du store — donc un tour de tous les sélecteurs de tous les
   // nodes. Pendant un drag, `setNodes` re-rend ce composant à chaque frame :
   // c'était une notification de trop, par frame.
-  // Un node ne peut pas être connecté à lui-même : on refuse la connexion.
+  // Un node ne peut pas être connecté à lui-même, ni à un node auquel il est
+  // déjà relié (dans un sens ou dans l'autre) : les edges prennent leurs
+  // handles en live, une seconde edge se superposerait à la première.
   const isValidConnection = useCallback(
-    (connection: Connection | Edge) => connection.source !== connection.target,
-    [],
+    (connection: Connection | Edge) => {
+      const { source, target } = connection;
+      if (source === target) return false;
+      return !getEdges().some(
+        (edge) =>
+          (edge.source === source && edge.target === target) ||
+          (edge.source === target && edge.target === source),
+      );
+    },
+    [getEdges],
   );
 
   const onConnect = useCallback(
     (params: Connection) => {
       // Destructurés avant la garde : le narrowing doit survivre dans le
-      // callback `.catch` (les paramètres ne le conservent pas).
+      // callback `.catch` (les paramètres ne le conservent pas). Les handles
+      // du geste ne sont pas gardés : l'edge prend en live ceux qui se font
+      // face (cf. `CustomEdge`).
       const { source, target } = params;
-      const sourceHandle = params.sourceHandle ?? undefined;
-      const targetHandle = params.targetHandle ?? undefined;
       if (!source || !target || source === target) {
         return;
       }
@@ -499,12 +501,7 @@ export default function CanvasFlow({
       // explicite est identique au default serveur. En échec, on retire
       // l'edge en local uniquement : pas de `trash` serveur d'un edge
       // jamais créé.
-      const { edgeId, settled } = createEdge({
-        source,
-        target,
-        sourceHandle,
-        targetHandle,
-      });
+      const { edgeId, settled } = createEdge({ source, target });
       handleEdgeChange([
         {
           type: "add" as const,
@@ -512,8 +509,6 @@ export default function CanvasFlow({
             id: edgeId,
             source,
             target,
-            sourceHandle,
-            targetHandle,
             markerEnd: {
               type: MarkerType.Arrow,
               width: 30,
@@ -577,7 +572,6 @@ export default function CanvasFlow({
       }
       const pending: PendingCanvasConnection = {
         sourceNodeId: fromNode.id,
-        sourceHandleId: fromHandle.id ?? null,
         dropFlowPosition: screenToFlowPosition({ x: clientX, y: clientY }),
       };
       setContextMenu({
@@ -589,57 +583,16 @@ export default function CanvasFlow({
     [panWithFinger, canEdit, screenToFlowPosition, setContextMenu],
   );
 
-  // Chaînage de l'edge après création du node depuis un drag dans le vide :
-  // le handle source reste celui attrapé par l'utilisateur, seul le handle
-  // cible du nouveau node est calculé (le plus proche du point source).
+  // Chaînage de l'edge après création du node depuis un drag dans le vide.
   // L'edge visuelle est posée aussitôt (même frame que le node) ; sa
   // persistance attend la confirmation serveur du node — le serveur refuse
   // une edge vers un node pas encore commité.
   const handleConnectionNodeCreated = useCallback(
     (info: ConnectedNodeCreatedInfo) => {
-      const { pendingConnection, nodeId, position } = info;
-      if (nodeId === pendingConnection.sourceNodeId) {
+      const { pendingConnection, nodeId } = info;
+      const source = pendingConnection.sourceNodeId;
+      if (nodeId === source) {
         return;
-      }
-      const sourceNode = getNodes().find(
-        (node) => node.id === pendingConnection.sourceNodeId,
-      );
-      if (!sourceNode) {
-        return;
-      }
-      const sourceRect: ConnectionNodeRect = {
-        id: sourceNode.id,
-        position: { ...sourceNode.position },
-        width:
-          sourceNode.measured?.width ?? sourceNode.width ?? FALLBACK_NODE_WIDTH,
-        height:
-          sourceNode.measured?.height ??
-          sourceNode.height ??
-          FALLBACK_NODE_HEIGHT,
-      };
-      const targetRect: ConnectionNodeRect = {
-        id: nodeId,
-        position: { ...position },
-        width: info.width,
-        height: info.height,
-      };
-      const sourceSide = parseSourceSide(pendingConnection.sourceHandleId);
-      let sourceHandle: string;
-      let targetHandle: string;
-      if (pendingConnection.sourceHandleId && sourceSide) {
-        sourceHandle = pendingConnection.sourceHandleId;
-        targetHandle = getBestTargetHandle({
-          sourceRect,
-          sourceSide,
-          target: targetRect,
-        });
-      } else {
-        const handles = getClosestHandlesForDirectedEdge({
-          from: sourceRect,
-          to: targetRect,
-        });
-        sourceHandle = handles.sourceHandle;
-        targetHandle = handles.targetHandle;
       }
       // Id pré-généré : le visuel et la persistance (différée) partagent le
       // même llmId, préservé tel quel par le serveur.
@@ -652,10 +605,8 @@ export default function CanvasFlow({
           type: "add" as const,
           item: {
             id: edgeId,
-            source: sourceRect.id,
+            source,
             target: nodeId,
-            sourceHandle,
-            targetHandle,
             markerEnd: {
               type: MarkerType.Arrow,
               width: 30,
@@ -669,17 +620,11 @@ export default function CanvasFlow({
       // Échec du node (toast + rollback déjà gérés par son hook) : on retire
       // l'edge orpheline, sans second toast.
       void info.nodeSettled.then(() => {
-        const { settled } = createEdge({
-          edgeId,
-          source: sourceRect.id,
-          target: nodeId,
-          sourceHandle,
-          targetHandle,
-        });
+        const { settled } = createEdge({ edgeId, source, target: nodeId });
         void settled.catch(removeLocalEdge);
       }, removeLocalEdge);
     },
-    [createEdge, getNodes, handleEdgeChange, setEdges],
+    [createEdge, handleEdgeChange, setEdges],
   );
 
   // Fond partagé : stocké sur le doc canvas, défauts front si absent

@@ -192,6 +192,7 @@ async function cloneCanvasForUser(
     await EdgeModels.createEdges(ctx, {
       edges: clonedEdges,
       touchCanvas: false,
+      allowDuplicatePairs: true,
     });
   }
 

@@ -158,7 +158,7 @@ export const runTranscription = internalAction({
 
       const { saved } = await ctx.runMutation(
         internal.ia.transcription.saveTranscript,
-        { nodeDataId, sourceKey, chunks },
+        { nodeDataId, sourceKey, chunks, authUserId },
       );
 
       console.log("[transcription] done", {

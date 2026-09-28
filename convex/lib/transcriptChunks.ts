@@ -42,6 +42,12 @@ export type TranscriptChunkMetadata = {
   startSec: number;
   endSec: number;
   segments: TranscriptSegmentIndex[];
+  /** Résumés (ia/transcriptSummaryRun.ts), absents tant qu'ils n'ont pas tourné. */
+  passageTitle?: string;
+  summary?: string;
+  /** Vue d'ensemble de tout l'audio : sur le chunk `order 0` seulement. */
+  overview?: string;
+  summaryModel?: string;
 };
 
 /**
@@ -219,7 +225,17 @@ export function parseTranscriptMetadata(
     startSec: m.startSec,
     endSec: m.endSec,
     segments,
+    passageTitle: readNonEmptyString(m.passageTitle),
+    summary: readNonEmptyString(m.summary),
+    overview: readNonEmptyString(m.overview),
+    summaryModel: readNonEmptyString(m.summaryModel),
   };
+}
+
+function readNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : undefined;
 }
 
 /**

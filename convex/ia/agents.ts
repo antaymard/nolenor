@@ -181,6 +181,15 @@ export function getChatModel(
 }
 
 /**
+ * Un modèle OpenRouter hors `chatModelOptions`, pour un appel ponctuel hors
+ * agent (résumé de transcript…). Même helper, donc même usage accounting :
+ * le `cost` revient dans la réponse, à passer à `extractOpenRouterCost`.
+ */
+export function getOpenRouterLanguageModel(modelId: string): LanguageModelV3 {
+  return openRouterModel(modelId);
+}
+
+/**
  * Résultat d'un lot d'images : les images elles-mêmes, ce qu'OpenRouter a
  * facturé, et ce qu'il a compté en tokens.
  */

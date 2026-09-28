@@ -84,18 +84,26 @@ export const listTranscriptChunksForRebuild = internalQuery({
  * `read_nodes`. `null` sans fichier ou sans transcript.
  */
 export const getCurrentTranscript = internalQuery({
-  args: { nodeDataId: v.id("nodeDatas") },
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    // Attendu par l'appelant : si le fichier courant n'est plus celui-là
+    // (remplacé entre-temps), on ne sert rien plutôt qu'un autre transcript.
+    sourceKey: v.optional(v.string()),
+  },
   returns: v.union(
     v.null(),
     v.object({
       model: v.optional(v.string()),
       language: v.optional(v.string()),
       durationSec: v.optional(v.number()),
+      overview: v.optional(v.string()),
       chunks: v.array(
         v.object({
           order: v.number(),
           startSec: v.number(),
           endSec: v.number(),
+          passageTitle: v.optional(v.string()),
+          summary: v.optional(v.string()),
           segments: v.array(
             v.object({ s: v.number(), e: v.number(), text: v.string() }),
           ),
@@ -103,10 +111,13 @@ export const getCurrentTranscript = internalQuery({
       ),
     }),
   ),
-  handler: async (ctx, { nodeDataId }) => {
+  handler: async (ctx, { nodeDataId, sourceKey: expectedSourceKey }) => {
     const nodeData = await ctx.db.get(nodeDataId);
     const sourceKey = nodeData ? getTranscribableSourceKey(nodeData) : null;
     if (!sourceKey) return null;
+    if (expectedSourceKey !== undefined && expectedSourceKey !== sourceKey) {
+      return null;
+    }
     return await SearchableChunkModels.getCurrentTranscript(ctx, {
       nodeDataId,
       sourceKey,

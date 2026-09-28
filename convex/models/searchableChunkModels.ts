@@ -145,10 +145,13 @@ export type CurrentTranscript = {
   model?: string;
   language?: string;
   durationSec?: number;
+  overview?: string;
   chunks: Array<{
     order: number;
     startSec: number;
     endSec: number;
+    passageTitle?: string;
+    summary?: string;
     segments: Array<{ s: number; e: number; text: string }>;
   }>;
 };
@@ -175,13 +178,74 @@ export async function getCurrentTranscript(
     model: first.model,
     language: first.language,
     durationSec: first.durationSec,
+    ...(first.overview !== undefined && { overview: first.overview }),
     chunks: chunks.map((chunk) => ({
       order: chunk.order,
       startSec: chunk.metadata.startSec,
       endSec: chunk.metadata.endSec,
+      ...(chunk.metadata.passageTitle !== undefined && {
+        passageTitle: chunk.metadata.passageTitle,
+      }),
+      ...(chunk.metadata.summary !== undefined && {
+        summary: chunk.metadata.summary,
+      }),
       segments: splitTranscriptText(chunk.text, chunk.metadata.segments),
     })),
   };
+}
+
+/**
+ * Écrit les résumés d'un transcript dans la `metadata` de ses chunks — et
+ * nulle part ailleurs : ni `text` ni `embedding` ne bougent, donc aucune
+ * réindexation, et rien dans `nodeDatas.values`, donc aucun rebuild.
+ *
+ * Tout ou rien : si le transcript de `sourceKey` n'a plus exactement
+ * `passageCount` chunks (re-transcription ou fichier remplacé pendant
+ * l'appel LLM), les résumés décrivent autre chose et sont jetés.
+ */
+export async function patchTranscriptSummaries(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    sourceKey,
+    passageCount,
+    overview,
+    summaryModel,
+    passages,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    sourceKey: string;
+    passageCount: number;
+    overview?: string;
+    summaryModel: string;
+    passages: Array<{ order: number; title: string; summary: string }>;
+  },
+): Promise<boolean> {
+  const chunks = (await listTranscriptChunks(ctx, { nodeDataId })).filter(
+    (chunk) => chunk.metadata.sourceKey === sourceKey,
+  );
+  if (chunks.length === 0 || chunks.length !== passageCount) return false;
+
+  const byOrder = new Map(passages.map((passage) => [passage.order, passage]));
+  for (const chunk of chunks) {
+    const passage = byOrder.get(chunk.order);
+    const isFirst = chunk.order === chunks[0].order;
+    if (!passage && !(isFirst && overview)) continue;
+
+    const existing = await ctx.db.get(chunk._id);
+    if (!existing) continue;
+    await ctx.db.patch(chunk._id, {
+      metadata: {
+        ...(existing.metadata ?? {}),
+        ...(passage && {
+          passageTitle: passage.title,
+          summary: passage.summary,
+        }),
+        ...(isFirst && overview && { overview, summaryModel }),
+      },
+    });
+  }
+  return true;
 }
 
 /**

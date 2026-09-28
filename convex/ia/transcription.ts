@@ -130,11 +130,14 @@ export const getTranscript = query({
       model: v.optional(v.string()),
       language: v.optional(v.string()),
       durationSec: v.optional(v.number()),
+      overview: v.optional(v.string()),
       chunks: v.array(
         v.object({
           order: v.number(),
           startSec: v.number(),
           endSec: v.number(),
+          passageTitle: v.optional(v.string()),
+          summary: v.optional(v.string()),
           segments: v.array(transcriptSegmentValidator),
         }),
       ),
@@ -199,9 +202,11 @@ export const saveTranscript = internalMutation({
     nodeDataId: v.id("nodeDatas"),
     sourceKey: v.string(),
     chunks: v.array(v.object(searchableChunksValidator.fields)),
+    // Qui a lancé la transcription : l'étape de résumé lui est imputée.
+    authUserId: v.id("users"),
   },
   returns: v.object({ saved: v.boolean() }),
-  handler: async (ctx, { nodeDataId, sourceKey, chunks }) => {
+  handler: async (ctx, { nodeDataId, sourceKey, chunks, authUserId }) => {
     const nodeData = await ctx.db.get(nodeDataId);
     if (!nodeData) return { saved: false };
 
@@ -229,8 +234,40 @@ export const saveTranscript = internalMutation({
       })),
     });
     await NodeDataModels.clearTranscription(ctx, { nodeDataId });
+
+    // Seul déclencheur des résumés : une transcription qui vient d'être
+    // écrite. Le chunkBuilder n'en planifie jamais, donc aucun write de
+    // `values` (renommage, boucle…) ne les relance. Étape à part : le
+    // transcript est lisible tout de suite, et son échec ne casse rien.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.ia.transcriptSummaryRun.summarizeTranscript,
+      { nodeDataId, sourceKey, authUserId },
+    );
     return { saved: true };
   },
+});
+
+/**
+ * Écrit les résumés dans la `metadata` des chunks `transcript` — ni `text`,
+ * ni embedding, ni `values` : aucune réindexation, aucun rebuild. Jetés si le
+ * transcript a changé pendant l'appel LLM (cf. `patchTranscriptSummaries`).
+ */
+export const saveTranscriptSummaries = internalMutation({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    sourceKey: v.string(),
+    passageCount: v.number(),
+    overview: v.optional(v.string()),
+    summaryModel: v.string(),
+    passages: v.array(
+      v.object({ order: v.number(), title: v.string(), summary: v.string() }),
+    ),
+  },
+  returns: v.object({ saved: v.boolean() }),
+  handler: async (ctx, args) => ({
+    saved: await SearchableChunkModels.patchTranscriptSummaries(ctx, args),
+  }),
 });
 
 /** Passe le statut en erreur, si le run concerne toujours le fichier courant. */

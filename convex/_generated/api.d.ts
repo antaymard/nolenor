@@ -53,6 +53,7 @@ import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkForma
 import type * as ia_helpers_resolveNodeMentionTokens from "../ia/helpers/resolveNodeMentionTokens.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
 import type * as ia_helpers_transcriptFormatters from "../ia/helpers/transcriptFormatters.js";
+import type * as ia_helpers_transcriptSummaryPrompt from "../ia/helpers/transcriptSummaryPrompt.js";
 import type * as ia_imageGeneration from "../ia/imageGeneration.js";
 import type * as ia_imageGenerationRun from "../ia/imageGenerationRun.js";
 import type * as ia_nole from "../ia/nole.js";
@@ -83,6 +84,7 @@ import type * as ia_tools_tableUpdateSchemaTool from "../ia/tools/tableUpdateSch
 import type * as ia_tools_toolHelpers from "../ia/tools/toolHelpers.js";
 import type * as ia_tools_viewImageTool from "../ia/tools/viewImageTool.js";
 import type * as ia_tools_websearchTool from "../ia/tools/websearchTool.js";
+import type * as ia_transcriptSummaryRun from "../ia/transcriptSummaryRun.js";
 import type * as ia_transcription from "../ia/transcription.js";
 import type * as ia_transcriptionRun from "../ia/transcriptionRun.js";
 import type * as ia_usage from "../ia/usage.js";
@@ -259,6 +261,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/resolveNodeMentionTokens": typeof ia_helpers_resolveNodeMentionTokens;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
   "ia/helpers/transcriptFormatters": typeof ia_helpers_transcriptFormatters;
+  "ia/helpers/transcriptSummaryPrompt": typeof ia_helpers_transcriptSummaryPrompt;
   "ia/imageGeneration": typeof ia_imageGeneration;
   "ia/imageGenerationRun": typeof ia_imageGenerationRun;
   "ia/nole": typeof ia_nole;
@@ -289,6 +292,7 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/toolHelpers": typeof ia_tools_toolHelpers;
   "ia/tools/viewImageTool": typeof ia_tools_viewImageTool;
   "ia/tools/websearchTool": typeof ia_tools_websearchTool;
+  "ia/transcriptSummaryRun": typeof ia_transcriptSummaryRun;
   "ia/transcription": typeof ia_transcription;
   "ia/transcriptionRun": typeof ia_transcriptionRun;
   "ia/usage": typeof ia_usage;

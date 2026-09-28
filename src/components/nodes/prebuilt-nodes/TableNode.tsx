@@ -109,6 +109,8 @@ function TableNode(xyNode: XyNodeProps) {
                   columns={tableData.columns}
                   rows={visibleRows}
                   rowHeight={tableData.rowHeight}
+                  scrollContainerRef={scrollRef}
+                  viewportHeightHint={xyNode.height ?? 600}
                 />
               )}
             </div>

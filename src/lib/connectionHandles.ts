@@ -9,9 +9,10 @@
  * Le handle source reste celui attrapé par l'utilisateur au drag — seul le
  * handle cible du nouveau node est calculé (le plus proche du point source).
  *
- * Le tracé, lui, ne dépend plus de ces handles : `CustomEdge` accroche chaque
- * bout au bord de son node, face à l'autre (cf. `floatingEdgeGeometry`). Ils
- * restent requis par React Flow pour rendre l'edge, et servent de repli.
+ * Le tracé, lui, ne dépend plus de ces handles : `CustomEdge` choisit en live
+ * le handle qui fait face à l'autre bout (cf. `floatingEdgeGeometry`). Ceux
+ * enregistrés restent requis par React Flow pour rendre l'edge, et servent de
+ * repli.
  */
 
 export type ConnectionSide = "l" | "r" | "t" | "b";

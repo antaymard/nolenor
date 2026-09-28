@@ -24,7 +24,6 @@ import EdgeLabelEditor from "./EdgeLabelEditor";
 import EdgeBendHandle from "./EdgeBendHandle";
 import {
   getFloatingAnchors,
-  getNodeRect,
   isSameNodeGeometry,
 } from "./floatingEdgeGeometry";
 
@@ -95,8 +94,8 @@ function useEdgeLabelContainer(): HTMLElement | null {
 
 /**
  * Le node interne d'une extrémité, re-rendu seulement quand sa géométrie
- * change (position absolue, taille mesurée). Le sélecteur rend l'entrée du
- * `nodeLookup` telle quelle : aucune allocation par tick du store.
+ * change (position absolue, taille mesurée, handles). Le sélecteur rend
+ * l'entrée du `nodeLookup` telle quelle : aucune allocation par tick du store.
  */
 function useNodeGeometry(nodeId: string): InternalNode | undefined {
   return useStore(
@@ -142,17 +141,12 @@ function CustomEdge({
   const bendPoints = edgeData.bendPoints ?? [];
   const hasBendPoints = bendPoints.length > 0;
 
-  // Edge flottante : chaque bout se pose sur le bord de son node, face à
+  // Edge flottante : chaque bout prend en live le handle qui fait face à
   // l'autre bout (cf. `floatingEdgeGeometry`). Le handle enregistré ne sert
-  // plus que de repli (node pas mesuré, nodes qui se chevauchent).
+  // plus que de repli, tant qu'un node n'est pas mesuré.
   const sourceNode = useNodeGeometry(source);
   const targetNode = useNodeGeometry(target);
-  const sourceRect = getNodeRect(sourceNode);
-  const targetRect = getNodeRect(targetNode);
-  const anchors =
-    sourceRect && targetRect
-      ? getFloatingAnchors(sourceRect, targetRect, bendPoints)
-      : { source: null, target: null };
+  const anchors = getFloatingAnchors(sourceNode, targetNode, bendPoints);
   const sourceX = anchors.source?.x ?? handleSourceX;
   const sourceY = anchors.source?.y ?? handleSourceY;
   const sourcePosition = anchors.source?.position ?? handleSourcePosition;

@@ -32,7 +32,7 @@ const SUGGESTIONS: Suggestion[] = [
   {
     label: "Create an image",
     prompt:
-      "Create an image node on this canvas and fill in its image-generation prompt based on this idea: [describe the image]",
+      "Create an image node on this canvas and fill in its image-generation prompt based on this idea: [describe the image or invent something if left blank]",
     icon: TbPhoto,
   },
   {
@@ -48,9 +48,9 @@ const SUGGESTIONS: Suggestion[] = [
     icon: TbClockHour4,
   },
   {
-    label: "Create images of France",
+    label: "Show me images of France",
     prompt:
-      "Create five image nodes, one each for Brittany, Paris, Marseille, Annecy, and Bordeaux. Write a distinct image-generation prompt for each node, ready for the user to generate.",
+      "Create five image nodes, one each for Brittany, Paris, Marseille, Annecy, and Bordeaux. Get the images from the web.",
     icon: TbMapPin,
   },
   {
@@ -72,8 +72,6 @@ function pickRandom<T>(items: readonly T[], count: number): T[] {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j]!, copy[i]!];
   }
-  return copy.slice(0, count);
-}
   return copy.slice(0, count);
 }
 
@@ -112,16 +110,16 @@ export default function EmptyThreadSuggestions({
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3 overflow-y-auto px-6 py-4 text-center">
-      <span className="flex size-11 items-center justify-center rounded-full bg-slate-100 opacity-60">
+      <span className="flex size-11 items-center justify-center rounded-full bg-brand/10 border-2 border-brand">
         <NoleIcon size={20} />
       </span>
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-slate-600">{greeting}</p>
-        <p className="text-sm text-slate-400">
+        <p className="text-2xl font-semibold text-slate-600">{greeting}</p>
+        <p className="text-sm text-slate-400 mb-5">
           Here are a few ideas to get started.
         </p>
       </div>
-      <div className="flex w-full max-w-70 flex-col gap-1.5">
+      <div className="flex w-full max-w-70 flex-col gap-2">
         {visible.map((suggestion) => {
           const tone = colors[suggestion.color];
           const Icon = suggestion.icon;
@@ -142,7 +140,7 @@ export default function EmptyThreadSuggestions({
               <span
                 className={cn(
                   "flex size-6 shrink-0 items-center justify-center rounded-lg text-white",
-                  tone.solidBg,
+                  tone.accentBg,
                 )}
               >
                 <Icon size={15} />

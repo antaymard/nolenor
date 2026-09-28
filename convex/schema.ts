@@ -96,6 +96,7 @@ const schema = defineSchema({
     .index("by_status_and_trashedAt", ["status", "trashedAt"]),
   edges: defineTable(edgesValidator)
     .index("by_canvas", ["canvasId"])
+    .index("by_canvas_and_source_and_target", ["canvasId", "source", "target"])
     .index("by_llmid", ["id"])
     .index("by_status_and_trashedAt", ["status", "trashedAt"]),
 

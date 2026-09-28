@@ -102,6 +102,18 @@ export default function createConnectionTool({
           };
         }
 
+        // L'inverse se superposerait à l'existante (mêmes handles, cf.
+        // `CustomEdge`) : refusé, comme sur le canvas.
+        const reverseEdge = edges.find(
+          (edge) =>
+            edge.source === targetNodeId && edge.target === sourceNodeId,
+        );
+        if (reverseEdge) {
+          return toolError(
+            `${targetNodeId} is already connected to ${sourceNodeId} (edge ${reverseEdge.id}). Two nodes can only be linked once, in one direction.`,
+          );
+        }
+
         // Id serveur via `edgeWrappers.create` : le llmId est généré et
         // vérifié côté base, jamais côté tool. Pas de handles : le canvas
         // choisit en live ceux qui se font face (cf. `CustomEdge`).

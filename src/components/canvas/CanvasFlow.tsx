@@ -470,10 +470,20 @@ export default function CanvasFlow({
   // une notification du store — donc un tour de tous les sélecteurs de tous les
   // nodes. Pendant un drag, `setNodes` re-rend ce composant à chaque frame :
   // c'était une notification de trop, par frame.
-  // Un node ne peut pas être connecté à lui-même : on refuse la connexion.
+  // Un node ne peut pas être connecté à lui-même, ni à un node auquel il est
+  // déjà relié (dans un sens ou dans l'autre) : les edges prennent leurs
+  // handles en live, une seconde edge se superposerait à la première.
   const isValidConnection = useCallback(
-    (connection: Connection | Edge) => connection.source !== connection.target,
-    [],
+    (connection: Connection | Edge) => {
+      const { source, target } = connection;
+      if (source === target) return false;
+      return !getEdges().some(
+        (edge) =>
+          (edge.source === source && edge.target === target) ||
+          (edge.source === target && edge.target === source),
+      );
+    },
+    [getEdges],
   );
 
   const onConnect = useCallback(

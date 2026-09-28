@@ -201,6 +201,28 @@ export default function CanvasFlow({
     [addNoleAttachments, screenToFlowPosition],
   );
 
+  // Le fond du canvas et les edges ne démarrent plus de sélection de texte
+  // (cf. index.css) : à chaque clic, le navigateur y cherchait une position de
+  // texte en parcourant tout le layout du canvas — une trentaine de
+  // millisecondes par clic sur un canvas chargé. Mais ce même clic effaçait
+  // une sélection faite ailleurs (panneau Nolë…), et les raccourcis (Mod+C,
+  // Suppr) s'y fient via `hasTextSelection`. On l'efface donc nous-mêmes, sur
+  // les mêmes cibles et les mêmes boutons qu'avant : clic gauche et clic droit
+  // sur le fond ou une edge. Nodes et labels d'edge n'étaient déjà pas
+  // sélectionnables (CSS React Flow) : un clic dessus la laisse en place, comme
+  // avant ; le clic molette ne l'a jamais effacée.
+  const clearTextSelectionFromPane = useCallback((event: MouseEvent) => {
+    if (event.type === "mousedown" && event.button !== 0) return;
+    const target = event.target as Element | null;
+    if (!target || typeof target.closest !== "function") return;
+    if (
+      target.classList.contains("react-flow__pane") ||
+      target.closest(".react-flow__edges")
+    ) {
+      window.getSelection()?.removeAllRanges();
+    }
+  }, []);
+
   useHotkey(
     "Mod+D",
     (event) => {
@@ -747,6 +769,8 @@ export default function CanvasFlow({
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onPaneClick={onPaneClick}
+        onMouseDownCapture={clearTextSelectionFromPane}
+        onContextMenuCapture={clearTextSelectionFromPane}
         onPaneContextMenu={onPaneContextMenu}
         onNodeContextMenu={onNodeContextMenu}
         onNodeClick={onNodeClick}

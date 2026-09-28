@@ -548,7 +548,7 @@ export default function readNodesTool({
       "For pdf nodes, by default returns a paginated table of contents in markdown ('# Heading [pageNumber]') along with the total page count. " +
       "Pass `pdfPages=[{nodeId, pages:[…]}]` to read the full OCR markdown of specific 1-based pages instead. " +
       "PDF chunks come from cached Mistral OCR; nodes not yet indexed are flagged. " +
-      "For audio nodes, returns the timestamped transcript ('[m:ss] text' lines) when the user has transcribed the file: in full when short, otherwise an outline of ~2-minute passages. " +
+      "For audio nodes, returns the timestamped transcript ('[m:ss] text' lines) when the user has transcribed the file, preceded by an overview of the recording and split into ~2-minute passages titled '## [m:ss] title' when summaries exist: in full when short, otherwise an outline with one 'title — summary' line per passage. " +
       "Pass `mediaRanges=[{nodeId, startSec, endSec}]` to read the transcript of a time range (e.g. around a search_canvas hit's startSec). " +
       `For table nodes, by default returns the first ${TABLE_DEFAULT_ROW_LIMIT} rows along with column definitions (incl. select options and node references). ` +
       "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after search_canvas to read matched rows).",

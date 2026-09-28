@@ -4,9 +4,13 @@ import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 // `pdfChunkFormatters.ts` : pur, sans `ctx`. Trois vues :
 //  - full    : tout le transcript, ligne par ligne `[m:ss] texte`, tant qu'il
 //              tient sous `MAX_TRANSCRIPT_FULL_CHARS` ;
-//  - outline : au-delà, une ligne par chunk (~2 min) pour s'orienter ;
+//  - outline : au-delà, une ligne par passage (~2 min) pour s'orienter —
+//              `titre — résumé` quand les résumés existent (cf.
+//              ia/transcriptSummaryRun.ts), un aperçu du texte sinon ;
 //  - range   : les segments d'une plage demandée (`mediaRanges`), plafonnés à
 //              `MAX_TRANSCRIPT_CHARS_PER_CALL`.
+// Les vues full et outline s'ouvrent sur la vue d'ensemble quand elle existe,
+// et les vues full et range titrent chaque passage (`## [m:ss] titre`).
 
 /** Transcript rendu en entier en dessous de ce seuil (≈ 10 min de parole). */
 export const MAX_TRANSCRIPT_FULL_CHARS = 15_000;
@@ -18,12 +22,15 @@ export type ReadableTranscriptChunk = {
   order: number;
   startSec: number;
   endSec: number;
+  passageTitle?: string;
+  summary?: string;
   segments: Array<{ s: number; e: number; text: string }>;
 };
 
 export type ReadableTranscript = {
   language?: string;
   durationSec?: number;
+  overview?: string;
   chunks: ReadableTranscriptChunk[];
 };
 
@@ -72,8 +79,42 @@ function segmentLine(segment: { s: number; text: string }): string {
   return `[${formatTimestamp(segment.s)}] ${escapeXmlText(segment.text)}`;
 }
 
-function allSegments(transcript: ReadableTranscript) {
-  return transcript.chunks.flatMap((chunk) => chunk.segments);
+function passageHeader(chunk: ReadableTranscriptChunk): string | null {
+  return chunk.passageTitle
+    ? `## [${formatTimestamp(chunk.startSec)}] ${escapeXmlText(chunk.passageTitle)}`
+    : null;
+}
+
+/** Les lignes d'un passage (titre éventuel, puis ses segments). */
+function passageLines(
+  chunk: ReadableTranscriptChunk,
+  segments = chunk.segments,
+): string[] {
+  const header = passageHeader(chunk);
+  return [...(header ? [header] : []), ...segments.map(segmentLine)];
+}
+
+function overviewBlock(transcript: ReadableTranscript): string[] {
+  return transcript.overview
+    ? [
+        `<transcriptOverview>\n${escapeXmlText(transcript.overview)}\n</transcriptOverview>`,
+      ]
+    : [];
+}
+
+function outlineLine(chunk: ReadableTranscriptChunk): string {
+  const range = `[${formatTimestamp(chunk.startSec)}–${formatTimestamp(chunk.endSec)}]`;
+  if (chunk.passageTitle && chunk.summary) {
+    return `${range} ${escapeXmlText(chunk.passageTitle)} — ${escapeXmlText(chunk.summary)}`;
+  }
+  const text = chunk.segments.map((segment) => segment.text).join(" ");
+  const preview =
+    text.length > OUTLINE_PREVIEW_CHARS
+      ? `${text.slice(0, OUTLINE_PREVIEW_CHARS).trimEnd()}…`
+      : text;
+  return chunk.passageTitle
+    ? `${range} ${escapeXmlText(chunk.passageTitle)} — ${escapeXmlText(preview)}`
+    : `${range} ${escapeXmlText(preview)}`;
 }
 
 function transcriptOpenTag(
@@ -99,33 +140,40 @@ function transcriptOpenTag(
 export function buildTranscriptDefaultView(
   transcript: ReadableTranscript,
 ): string {
-  const lines = allSegments(transcript).map(segmentLine);
+  const lines = transcript.chunks.flatMap((chunk) => passageLines(chunk));
   const totalChars = lines.reduce((sum, line) => sum + line.length + 1, 0);
 
   if (totalChars <= MAX_TRANSCRIPT_FULL_CHARS) {
-    return `${transcriptOpenTag(transcript, "full")}\n${lines.join("\n")}\n</transcript>`;
+    return [
+      ...overviewBlock(transcript),
+      transcriptOpenTag(transcript, "full"),
+      ...lines,
+      "</transcript>",
+    ].join("\n");
   }
 
-  const outline = transcript.chunks.map((chunk) => {
-    const text = chunk.segments.map((segment) => segment.text).join(" ");
-    const preview =
-      text.length > OUTLINE_PREVIEW_CHARS
-        ? `${text.slice(0, OUTLINE_PREVIEW_CHARS).trimEnd()}…`
-        : text;
-    return `[${formatTimestamp(chunk.startSec)}–${formatTimestamp(chunk.endSec)}] ${escapeXmlText(preview)}`;
-  });
   return [
-    `${transcriptOpenTag(transcript, "outline")}`,
-    ...outline,
+    ...overviewBlock(transcript),
+    transcriptOpenTag(transcript, "outline"),
+    ...transcript.chunks.map(outlineLine),
     "</transcript>",
     `<transcriptHint>${escapeXmlText(TRANSCRIPT_HINTS.outline(transcript.chunks.length))}</transcriptHint>`,
   ].join("\n");
 }
 
+function overlapsRange(
+  segment: { s: number; e: number },
+  range: { startSec: number; endSec: number },
+): boolean {
+  return segment.e > segment.s
+    ? segment.s < range.endSec && segment.e > range.startSec
+    : segment.s >= range.startSec && segment.s < range.endSec;
+}
+
 /**
- * Les segments qui chevauchent `[startSec, endSec)`, dans l'ordre. Plafonné
- * à `MAX_TRANSCRIPT_CHARS_PER_CALL` : au-delà, le hint donne l'instant d'où
- * reprendre.
+ * Les segments qui chevauchent `[startSec, endSec)`, dans l'ordre, sous le
+ * titre de leur passage. Plafonné à `MAX_TRANSCRIPT_CHARS_PER_CALL` : au-delà,
+ * le hint donne l'instant d'où reprendre.
  */
 export function buildTranscriptRangeView(
   transcript: ReadableTranscript,
@@ -135,35 +183,43 @@ export function buildTranscriptRangeView(
     return `<warning>${escapeXmlText(TRANSCRIPT_HINTS.invalidRange)}</warning>`;
   }
 
-  const inRange = allSegments(transcript).filter((segment) =>
-    segment.e > segment.s
-      ? segment.s < range.endSec && segment.e > range.startSec
-      : segment.s >= range.startSec && segment.s < range.endSec,
-  );
   const rangeAttribute = `from="${formatTimestamp(range.startSec)}" to="${formatTimestamp(range.endSec)}"`;
+  const lines: string[] = [];
+  let chars = 0;
+  let segmentCount = 0;
+  let nextStartSec: number | undefined;
 
-  if (inRange.length === 0) {
+  outer: for (const chunk of transcript.chunks) {
+    const inRange = chunk.segments.filter((segment) =>
+      overlapsRange(segment, range),
+    );
+    if (inRange.length === 0) continue;
+    const header = passageHeader(chunk);
+    let headerPending = header !== null;
+    for (const segment of inRange) {
+      const line = segmentLine(segment);
+      const added =
+        line.length + 1 + (headerPending && header ? header.length + 1 : 0);
+      // Au moins une ligne, même trop longue : sinon l'agent bouclerait.
+      if (segmentCount > 0 && chars + added > MAX_TRANSCRIPT_CHARS_PER_CALL) {
+        nextStartSec = Math.floor(segment.s);
+        break outer;
+      }
+      if (headerPending && header) {
+        lines.push(header);
+        headerPending = false;
+      }
+      lines.push(line);
+      chars += added;
+      segmentCount += 1;
+    }
+  }
+
+  if (segmentCount === 0) {
     return [
       `${transcriptOpenTag(transcript, "range", rangeAttribute)}</transcript>`,
       `<transcriptHint>${escapeXmlText(TRANSCRIPT_HINTS.emptyRange(transcript.durationSec))}</transcriptHint>`,
     ].join("\n");
-  }
-
-  const lines: string[] = [];
-  let chars = 0;
-  let nextStartSec: number | undefined;
-  for (const segment of inRange) {
-    const line = segmentLine(segment);
-    // Au moins une ligne, même trop longue : sinon l'agent bouclerait.
-    if (
-      lines.length > 0 &&
-      chars + line.length + 1 > MAX_TRANSCRIPT_CHARS_PER_CALL
-    ) {
-      nextStartSec = Math.floor(segment.s);
-      break;
-    }
-    lines.push(line);
-    chars += line.length + 1;
   }
 
   return [

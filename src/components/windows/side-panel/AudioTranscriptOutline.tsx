@@ -8,19 +8,25 @@ export interface AudioTranscriptOutlineChunk {
   order: number;
   startSec: number;
   endSec: number;
+  passageTitle?: string;
+  summary?: string;
   segments: Array<{ s: number; e: number; text: string }>;
 }
 
 /**
- * Plan tab of the audio window: one line per ~2-minute passage (the search
- * chunks), each jumping the window's player to where the passage starts.
- * The full transcript is the window body; this is the table of contents.
+ * Plan tab of the audio window: the overview of the recording, then one entry
+ * per ~2-minute passage (the search chunks), each jumping the window's player
+ * to where the passage starts. Titles and summaries come from the summary
+ * step that follows a transcription; until they land (or if it failed), a
+ * passage shows the beginning of its text instead.
  */
 export function AudioTranscriptOutline({
   chunks,
+  overview,
   onSeek,
 }: {
   chunks: AudioTranscriptOutlineChunk[] | null | undefined;
+  overview?: string;
   onSeek: (seconds: number) => void;
 }) {
   if (chunks === undefined) {
@@ -39,6 +45,19 @@ export function AudioTranscriptOutline({
 
   return (
     <div className="flex flex-col gap-1 p-2">
+      {overview && (
+        <>
+          <SectionLabel
+            hint="An overview of the whole recording, generated from its transcript."
+            className="mb-2 mt-2"
+          >
+            Overview
+          </SectionLabel>
+          <p className="mb-3 whitespace-pre-wrap px-2 text-sm leading-relaxed text-slate-600 select-text">
+            {overview}
+          </p>
+        </>
+      )}
       <SectionLabel
         hint="The transcript in passages of about two minutes. Click one to play it."
         className="mb-3 mt-2"
@@ -61,8 +80,13 @@ export function AudioTranscriptOutline({
             <span className="font-mono text-xs tabular-nums text-slate-400">
               {formatTime(chunk.startSec)}–{formatTime(chunk.endSec)}
             </span>
-            <span className="line-clamp-2 text-sm text-slate-600">
-              {preview}
+            {chunk.passageTitle && (
+              <span className="text-sm font-medium text-slate-700">
+                {chunk.passageTitle}
+              </span>
+            )}
+            <span className="line-clamp-3 text-sm text-slate-600">
+              {chunk.summary ?? preview}
             </span>
           </button>
         );

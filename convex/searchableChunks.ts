@@ -55,6 +55,7 @@ export const search = query({
             order: v.number(),
             page: v.optional(v.number()),
             startSec: v.optional(v.number()),
+            sectionTitle: v.optional(v.string()),
             imageUrl: v.optional(v.string()),
             matchStart: v.number(),
             matchEnd: v.number(),
@@ -203,6 +204,7 @@ export const search = query({
                 order: chunk.order,
                 page: getPageFromMetadata(chunk.metadata),
                 startSec: getSnippetStartSec(chunk.metadata, match.matchStart),
+                sectionTitle: getTranscriptPassageTitle(chunk.metadata),
                 imageUrl: getImageUrlFromMetadata(chunk.metadata),
                 matchStart: match.matchStart,
                 matchEnd: match.matchEnd,
@@ -308,6 +310,12 @@ export const listPdfPages = query({
     });
   },
 });
+
+/** Titre du passage d'un chunk `transcript` (les PDF n'en ont pas besoin ici). */
+function getTranscriptPassageTitle(metadata: unknown): string | undefined {
+  const title = parseTranscriptMetadata(metadata)?.passageTitle;
+  return title ? stripLoneSurrogates(title) : undefined;
+}
 
 /**
  * Instant d'un extrait de transcript : le segment qui contient le mot trouvé.

@@ -91,6 +91,8 @@ const searchSnippetValidator = v.object({
    * quand l'extrait vient de la recherche keyword, au chunk sinon.
    */
   startSec: v.optional(v.number()),
+  /** Titre du passage d'un chunk `transcript`, quand il a été résumé. */
+  sectionTitle: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
   matchStart: v.number(),
   matchEnd: v.number(),

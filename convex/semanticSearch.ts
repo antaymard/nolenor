@@ -484,6 +484,10 @@ export const search = action({
                   page: hit.page,
                   // Pas de segments sur un hit fusionné : début du chunk.
                   startSec: hit.startSec,
+                  // Transcript seulement : le badge Cmd+K ne montre pas les
+                  // sections PDF, déjà signalées par leur numéro de page.
+                  sectionTitle:
+                    hit.chunkType === "transcript" ? hit.sectionTitle : undefined,
                   imageUrl: hit.imageUrl,
                   matchStart: match.matchStart,
                   matchEnd: match.matchEnd,

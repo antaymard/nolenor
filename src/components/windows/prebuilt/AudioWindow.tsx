@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useQuery } from "convex/react";
 import {
   TbAlertTriangle,
@@ -205,6 +213,7 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
               ? undefined
               : (transcript?.chunks ?? null)
         }
+        overview={transcript?.overview}
         onSeek={seek}
       />,
     );
@@ -280,9 +289,12 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
             )}
             {segments.map((segment, index) => {
               const startsChunk =
-                index > 0 &&
+                index === 0 ||
                 segment.chunkIndex !== segments[index - 1].chunkIndex;
-              return (
+              const passage = startsChunk
+                ? transcript.chunks[segment.chunkIndex]
+                : undefined;
+              const row = (
                 <div
                   key={`${segment.chunkIndex}:${segment.s}:${index}`}
                   ref={(el) => {
@@ -290,7 +302,10 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
                   }}
                   className={cn(
                     "flex cursor-pointer gap-3 rounded-md px-2 py-1 hover:bg-slate-50",
-                    startsChunk && "mt-2 border-t pt-3",
+                    startsChunk &&
+                      index > 0 &&
+                      !passage?.passageTitle &&
+                      "mt-2 border-t pt-3",
                     index === activeIndex && "bg-amber-50 hover:bg-amber-50",
                   )}
                   onClick={() => {
@@ -314,6 +329,29 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
                     {segment.text}
                   </p>
                 </div>
+              );
+              // A summarized passage opens with its title, like a chapter.
+              if (!passage?.passageTitle) return row;
+              return (
+                <Fragment key={`${segment.chunkIndex}:${segment.s}:${index}`}>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex items-baseline gap-3 px-2 pb-1 text-left",
+                      index > 0 ? "mt-3 border-t pt-3" : "mt-1",
+                    )}
+                    title={`Play from ${formatTime(passage.startSec)}`}
+                    onClick={() => seek(passage.startSec)}
+                  >
+                    <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums text-slate-400">
+                      {formatTime(passage.startSec)}
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {passage.passageTitle}
+                    </span>
+                  </button>
+                  {row}
+                </Fragment>
               );
             })}
           </div>

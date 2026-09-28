@@ -4,10 +4,11 @@ import {
   useReactFlow,
   useStore,
   type EdgeProps,
+  type InternalNode,
   type Position,
   type ReactFlowState,
 } from "@xyflow/react";
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useEdgeEditorStore } from "@/stores/edgeEditorStore";
 import { useUpdateCanvasEdge } from "@/hooks/useUpdateCanvasEdge";
@@ -21,6 +22,11 @@ import {
 } from "./edgeStyleUtils";
 import EdgeLabelEditor from "./EdgeLabelEditor";
 import EdgeBendHandle from "./EdgeBendHandle";
+import {
+  getFloatingAnchors,
+  getNodeRect,
+  isSameNodeGeometry,
+} from "./floatingEdgeGeometry";
 
 /**
  * Computes a smooth quadratic bezier path that passes exactly through every
@@ -87,15 +93,29 @@ function useEdgeLabelContainer(): HTMLElement | null {
   );
 }
 
+/**
+ * Le node interne d'une extrémité, re-rendu seulement quand sa géométrie
+ * change (position absolue, taille mesurée). Le sélecteur rend l'entrée du
+ * `nodeLookup` telle quelle : aucune allocation par tick du store.
+ */
+function useNodeGeometry(nodeId: string): InternalNode | undefined {
+  return useStore(
+    useCallback((s: ReactFlowState) => s.nodeLookup.get(nodeId), [nodeId]),
+    isSameNodeGeometry,
+  );
+}
+
 function CustomEdge({
   id,
   data,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
+  source,
+  target,
+  sourceX: handleSourceX,
+  sourceY: handleSourceY,
+  targetX: handleTargetX,
+  targetY: handleTargetY,
+  sourcePosition: handleSourcePosition,
+  targetPosition: handleTargetPosition,
   markerStart,
   markerEnd,
   selected,
@@ -121,6 +141,24 @@ function CustomEdge({
 
   const bendPoints = edgeData.bendPoints ?? [];
   const hasBendPoints = bendPoints.length > 0;
+
+  // Edge flottante : chaque bout se pose sur le bord de son node, face à
+  // l'autre bout (cf. `floatingEdgeGeometry`). Le handle enregistré ne sert
+  // plus que de repli (node pas mesuré, nodes qui se chevauchent).
+  const sourceNode = useNodeGeometry(source);
+  const targetNode = useNodeGeometry(target);
+  const sourceRect = getNodeRect(sourceNode);
+  const targetRect = getNodeRect(targetNode);
+  const anchors =
+    sourceRect && targetRect
+      ? getFloatingAnchors(sourceRect, targetRect, bendPoints)
+      : { source: null, target: null };
+  const sourceX = anchors.source?.x ?? handleSourceX;
+  const sourceY = anchors.source?.y ?? handleSourceY;
+  const sourcePosition = anchors.source?.position ?? handleSourcePosition;
+  const targetX = anchors.target?.x ?? handleTargetX;
+  const targetY = anchors.target?.y ?? handleTargetY;
+  const targetPosition = anchors.target?.position ?? handleTargetPosition;
 
   const [edgePath, labelX, labelY] = hasBendPoints
     ? getSmoothPathThroughPoints(

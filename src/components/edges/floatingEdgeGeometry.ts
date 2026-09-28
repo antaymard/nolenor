@@ -7,9 +7,10 @@ import { Position, type InternalNode } from "@xyflow/react";
  * qui fait face à l'autre bout (centre du node opposé, ou bend point voisin).
  * Déplacer un node fait donc basculer l'edge d'un handle à l'autre.
  *
- * Les handles enregistrés restent requis par React Flow pour rendre l'edge
- * (erreur 008 sans handle correspondant) et servent de repli tant qu'un node
- * n'est pas mesuré. Ils ne décident plus du tracé.
+ * Les nouvelles edges ne stockent plus de handle (UI comme agent) : React
+ * Flow retombe alors sur le premier handle du node, le temps qu'il soit
+ * mesuré. Les edges plus anciennes gardent le leur, qui ne sert plus que
+ * de ce même repli.
  */
 
 export interface FloatingPoint {

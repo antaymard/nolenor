@@ -15,8 +15,6 @@ export interface ContextMenuState<T = unknown> {
  */
 export interface PendingCanvasConnection {
   sourceNodeId: string;
-  /** Id du handle attrapé (`${nodeId}_s{l|r|t|b}`), préservé tel quel. */
-  sourceHandleId: string | null;
   dropFlowPosition: { x: number; y: number };
 }
 
@@ -27,8 +25,6 @@ export function isPendingCanvasConnectionElement(
   const candidate = element as Record<string, unknown>;
   return (
     typeof candidate.sourceNodeId === "string" &&
-    (typeof candidate.sourceHandleId === "string" ||
-      candidate.sourceHandleId === null) &&
     typeof candidate.dropFlowPosition === "object" &&
     candidate.dropFlowPosition !== null &&
     typeof (candidate.dropFlowPosition as Record<string, unknown>).x ===
@@ -42,9 +38,6 @@ export function isPendingCanvasConnectionElement(
 export interface ConnectedNodeCreatedInfo {
   pendingConnection: PendingCanvasConnection;
   nodeId: string;
-  position: { x: number; y: number };
-  width: number;
-  height: number;
   /**
    * Confirmation serveur du node : l'edge visuelle est posée aussitôt, sa
    * persistance attend `nodeSettled` (le serveur refuse une edge vers un

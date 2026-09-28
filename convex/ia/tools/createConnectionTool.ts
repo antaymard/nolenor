@@ -5,9 +5,7 @@ import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import {
   EDGE_LABEL_FIELD,
   EXPLANATION_FIELD,
-  getClosestHandlesForDirectedEdge,
   getEdgeLabel,
-  type NodeRect,
   type ToolConfig,
   toolError,
 } from "./toolHelpers";
@@ -104,29 +102,9 @@ export default function createConnectionTool({
           };
         }
 
-        const sourceRect: NodeRect = {
-          id: sourceNode.id,
-          position: sourceNode.position,
-          width: sourceNode.width,
-          height: sourceNode.height,
-        };
-
-        const targetRect: NodeRect = {
-          id: targetNode.id,
-          position: targetNode.position,
-          width: targetNode.width,
-          height: targetNode.height,
-        };
-
-        const { sourceHandle, targetHandle } = getClosestHandlesForDirectedEdge(
-          {
-            from: sourceRect,
-            to: targetRect,
-          },
-        );
-
         // Id serveur via `edgeWrappers.create` : le llmId est généré et
-        // vérifié côté base, jamais côté tool.
+        // vérifié côté base, jamais côté tool. Pas de handles : le canvas
+        // choisit en live ceux qui se font face (cf. `CustomEdge`).
         const [edgeId] = await ctx.runMutation(
           internal.wrappers.edgeWrappers.create,
           {
@@ -135,8 +113,6 @@ export default function createConnectionTool({
                 canvasId,
                 source: sourceNodeId,
                 target: targetNodeId,
-                sourceHandle,
-                targetHandle,
                 ...(label && { data: { label } }),
               },
             ],

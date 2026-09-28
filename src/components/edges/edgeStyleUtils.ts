@@ -51,19 +51,34 @@ export function getEdgeHexColor(color: colorsEnum | undefined): string {
  * instead of the default grey.
  *
  * Markers passed as strings (custom marker ids) are left untouched.
+ *
+ * Le résultat est mémorisé par edge source : une edge inchangée (même objet)
+ * ressort sous le même objet coloré. Sans ça, chaque changement du tableau —
+ * sélectionner une edge, la désélectionner d'un clic dans le vide, un push
+ * Convex — rendait 600 objets neufs pour 600 edges : React Flow y voyait
+ * autant d'edges modifiées et les re-rendait toutes, d'où un gel visible à
+ * chaque clic sur un canvas chargé. Les edges de l'état sont immuables
+ * (`applyEdgeChanges` copie avant de modifier), donc l'identité suffit.
  */
+const coloredEdgeCache = new WeakMap<Edge, Edge>();
+
 export function injectMarkerColor<T extends Edge>(edges: T[]): T[] {
   return edges.map((edge) => {
+    const cached = coloredEdgeCache.get(edge);
+    if (cached) return cached as T;
+
     const data = (edge.data ?? {}) as { color?: colorsEnum };
     const hex = getEdgeHexColor(data.color);
     const withColor = (marker: T["markerEnd"]): T["markerEnd"] =>
       marker && typeof marker === "object"
         ? ({ ...(marker as EdgeMarker), color: hex } as EdgeMarker)
         : marker;
-    return {
+    const colored: T = {
       ...edge,
       markerStart: withColor(edge.markerStart),
       markerEnd: withColor(edge.markerEnd),
     };
+    coloredEdgeCache.set(edge, colored);
+    return colored;
   });
 }

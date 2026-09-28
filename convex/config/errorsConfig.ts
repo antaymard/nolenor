@@ -16,6 +16,7 @@ const errors = {
   EDGES_MUST_SHARE_CANVAS: "These connections must belong to the same canvas.",
   EDGE_SOURCE_NOT_FOUND: "The source node of this connection does not exist.",
   EDGE_TARGET_NOT_FOUND: "The target node of this connection does not exist.",
+  EDGE_ALREADY_EXISTS: "These two nodes are already connected.",
   EDGE_ID_ALREADY_TAKEN:
     "This connection id is already used in another canvas.",
   SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT:

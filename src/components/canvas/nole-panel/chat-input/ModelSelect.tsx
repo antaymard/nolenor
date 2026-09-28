@@ -15,8 +15,6 @@ type ModelSelectProps = {
   setSelectedModel: (model: ChatModelValues) => void;
   /** Disable while a message is sending / the assistant is responding. */
   disabled?: boolean;
-  triggerClassName?: string;
-  iconSize?: number;
 };
 
 /**
@@ -28,8 +26,6 @@ export default function ModelSelect({
   selectedModel,
   setSelectedModel,
   disabled,
-  triggerClassName,
-  iconSize = 12,
 }: ModelSelectProps) {
   const hasNoModels = (modelOptions?.length ?? 0) === 0;
 
@@ -38,11 +34,11 @@ export default function ModelSelect({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="icon"
+          size="sm"
           disabled={disabled || hasNoModels}
-          className={cn("text-slate-500", triggerClassName)}
+          className={cn("text-slate-500 ")}
         >
-          <TbBrain size={iconSize} />
+          <TbBrain size={6} /> Model
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

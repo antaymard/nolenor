@@ -1,3 +1,4 @@
+import { useRef, type RefObject } from "react";
 import {
   TableBody,
   TableCell,
@@ -8,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CellDisplay } from "./CellDisplay";
 import { DEFAULT_ROW_HEIGHT } from "./types";
+import { useRowWindow } from "./useRowWindow";
 import type { RowHeight, TableColumn, TableRowData } from "./types";
 
 /**
@@ -23,6 +25,14 @@ export interface TablePreviewProps {
   /** Défaut `short`. Le node transmet la hauteur réglée en édition. */
   rowHeight?: RowHeight;
   className?: string;
+  /**
+   * La zone qui fait défiler l'aperçu. Fournie (node du canvas), seules les
+   * lignes visibles sont rendues, cf. `useRowWindow`. Absente (historique de
+   * versions…), toutes les lignes le sont, comme avant.
+   */
+  scrollContainerRef?: RefObject<HTMLElement | null>;
+  /** Majorant de la hauteur visible, avec `scrollContainerRef`. */
+  viewportHeightHint?: number;
 }
 
 export function TablePreview({
@@ -30,8 +40,22 @@ export function TablePreview({
   rows,
   rowHeight = DEFAULT_ROW_HEIGHT,
   className,
+  scrollContainerRef,
+  viewportHeightHint = 600,
 }: TablePreviewProps) {
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const windowed = scrollContainerRef !== undefined;
+  const { renderCount, spacerHeight } = useRowWindow({
+    enabled: windowed,
+    rowCount: rows.length,
+    scrollContainerRef,
+    tbodyRef,
+    viewportHeightHint,
+  });
+
   if (columns.length === 0) return null;
+
+  const renderedRows = windowed ? rows.slice(0, renderCount) : rows;
 
   const widths = columns.map((col) => col.width ?? DEFAULT_COLUMN_WIDTH);
   const total = widths.reduce((sum, width) => sum + width, 0);
@@ -71,8 +95,8 @@ export function TablePreview({
           ))}
         </TableRow>
       </TableHeader>
-      <TableBody>
-        {rows.map((row) => (
+      <TableBody ref={tbodyRef}>
+        {renderedRows.map((row) => (
           <TableRow key={row.id}>
             {columns.map((col) => (
               <TableCell
@@ -92,6 +116,16 @@ export function TablePreview({
             ))}
           </TableRow>
         ))}
+        {/* Tient la place des lignes pas encore rendues : la zone défile et
+            déborde comme si elles y étaient. Dernier enfant, donc sans
+            bordure (`[&_tr:last-child]:border-0`) — et la dernière ligne
+            rendue garde la sienne, comme toute ligne qui n'est pas la
+            dernière de la table. */}
+        {spacerHeight > 0 && (
+          <tr aria-hidden style={{ height: spacerHeight }}>
+            <td colSpan={columns.length} style={{ padding: 0, border: 0 }} />
+          </tr>
+        )}
       </TableBody>
     </table>
   );

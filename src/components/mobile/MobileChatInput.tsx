@@ -101,8 +101,6 @@ export default function MobileChatInput() {
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               disabled={isSending || isAssistantResponding}
-              triggerClassName="size-9 rounded-full"
-              iconSize={16}
             />
             <VoiceProviderSelect disabled={sttBusy}>
               <Button

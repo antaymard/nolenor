@@ -49,7 +49,7 @@ export default function NoleCanvasPanel() {
             >
               <ChatContainer onClose={() => setPanelLayout("minimized")} />
             </ResizablePanel>
-            <ResizableHandle className="pointer-events-auto w-1.5 cursor-ew-resize rounded-full bg-transparent transition-colors after:hidden hover:bg-slate-300/50 data-[resize-handle-state=drag]:bg-violet-400/60" />
+            <ResizableHandle className="my-5 pointer-events-auto w-0.5 cursor-ew-resize rounded-full bg-transparent transition-colors after:hidden hover:bg-slate-300/50 data-[resize-handle-state=drag]:bg-brand" />
             <ResizablePanel
               defaultSize={37.5}
               minSize={0}

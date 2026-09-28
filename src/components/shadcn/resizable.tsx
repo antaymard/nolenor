@@ -1,8 +1,8 @@
-import * as React from "react"
-import { GripVertical } from "lucide-react"
-import * as ResizablePrimitive from "react-resizable-panels"
+import * as React from "react";
+import { GripVertical } from "lucide-react";
+import * as ResizablePrimitive from "react-resizable-panels";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 function ResizablePanelGroup({
   className,
@@ -13,17 +13,17 @@ function ResizablePanelGroup({
       data-slot="resizable-panel-group"
       className={cn(
         "flex h-full w-full data-[panel-group-direction=vertical]:flex-col",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function ResizablePanel(
-  props: React.ComponentProps<typeof ResizablePrimitive.Panel>
+  props: React.ComponentProps<typeof ResizablePrimitive.Panel>,
 ) {
-  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />
+  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
 }
 
 function ResizableHandle({
@@ -31,16 +31,16 @@ function ResizableHandle({
   className,
   ...props
 }: React.ComponentProps<typeof ResizablePrimitive.PanelResizeHandle> & {
-  withHandle?: boolean
+  withHandle?: boolean;
 }) {
   return (
     <ResizablePrimitive.PanelResizeHandle
       data-slot="resizable-handle"
       className={cn(
-        "bg-border focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-hidden relative flex w-px items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 data-[resize-handle-active]:bg-border data-[resize-handle-state=drag]:bg-border",
+        "bg-border focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-hidden relative flex w-px items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 data-resize-handle-active:bg-border data-[resize-handle-state=drag]:bg-border",
         withHandle &&
           "after:block after:h-6 after:w-3.5 after:rounded-md after:border after:border-border after:bg-border",
-        className
+        className,
       )}
       {...props}
     >
@@ -50,7 +50,7 @@ function ResizableHandle({
         </div>
       )}
     </ResizablePrimitive.PanelResizeHandle>
-  )
+  );
 }
 
-export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
+export { ResizablePanelGroup, ResizablePanel, ResizableHandle };

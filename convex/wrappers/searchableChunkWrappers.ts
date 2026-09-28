@@ -79,6 +79,41 @@ export const listTranscriptChunksForRebuild = internalQuery({
   },
 });
 
+/**
+ * Le transcript du fichier courant d'un node (clé relue ici), pour
+ * `read_nodes`. `null` sans fichier ou sans transcript.
+ */
+export const getCurrentTranscript = internalQuery({
+  args: { nodeDataId: v.id("nodeDatas") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      model: v.optional(v.string()),
+      language: v.optional(v.string()),
+      durationSec: v.optional(v.number()),
+      chunks: v.array(
+        v.object({
+          order: v.number(),
+          startSec: v.number(),
+          endSec: v.number(),
+          segments: v.array(
+            v.object({ s: v.number(), e: v.number(), text: v.string() }),
+          ),
+        }),
+      ),
+    }),
+  ),
+  handler: async (ctx, { nodeDataId }) => {
+    const nodeData = await ctx.db.get(nodeDataId);
+    const sourceKey = nodeData ? getTranscribableSourceKey(nodeData) : null;
+    if (!sourceKey) return null;
+    return await SearchableChunkModels.getCurrentTranscript(ctx, {
+      nodeDataId,
+      sourceKey,
+    });
+  },
+});
+
 export const deleteByNodeDataId = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),
@@ -153,6 +188,8 @@ export const keywordSearch = internalQuery({
         title: v.optional(v.string()),
         page: v.optional(v.number()),
         sectionTitle: v.optional(v.string()),
+        startSec: v.optional(v.number()),
+        endSec: v.optional(v.number()),
       }),
     ),
     scanned: v.number(),

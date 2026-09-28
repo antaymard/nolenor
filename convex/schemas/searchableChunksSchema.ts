@@ -68,6 +68,9 @@ const fusedHitValidator = v.object({
   title: v.optional(v.string()),
   page: v.optional(v.number()),
   sectionTitle: v.optional(v.string()),
+  /** Plage temporelle d'un chunk `transcript` (secondes). */
+  startSec: v.optional(v.number()),
+  endSec: v.optional(v.number()),
   /** Score RRF (hybride) ou similarité cosinus (sémantique pure). */
   score: v.number(),
   sources: v.array(v.union(v.literal("keyword"), v.literal("semantic"))),
@@ -83,6 +86,11 @@ const searchSnippetValidator = v.object({
   chunkType: chunkTypeValidator,
   order: v.number(),
   page: v.optional(v.number()),
+  /**
+   * Chunk `transcript` : instant du passage (secondes). Précis au segment
+   * quand l'extrait vient de la recherche keyword, au chunk sinon.
+   */
+  startSec: v.optional(v.number()),
   imageUrl: v.optional(v.string()),
   matchStart: v.number(),
   matchEnd: v.number(),

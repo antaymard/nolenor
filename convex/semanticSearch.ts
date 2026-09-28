@@ -298,6 +298,8 @@ export const runHybridSearch = internalAction({
           title: hit.title,
           page: hit.page,
           sectionTitle: hit.sectionTitle,
+          startSec: hit.startSec,
+          endSec: hit.endSec,
         },
       }),
     );
@@ -314,6 +316,8 @@ export const runHybridSearch = internalAction({
           title: hit.title,
           page: hit.page,
           sectionTitle: hit.sectionTitle,
+          startSec: hit.startSec,
+          endSec: hit.endSec,
           imageUrl: hit.imageUrl,
         },
       }),
@@ -478,6 +482,8 @@ export const search = action({
                   chunkType: hit.chunkType,
                   order: hit.order,
                   page: hit.page,
+                  // Pas de segments sur un hit fusionné : début du chunk.
+                  startSec: hit.startSec,
                   imageUrl: hit.imageUrl,
                   matchStart: match.matchStart,
                   matchEnd: match.matchEnd,

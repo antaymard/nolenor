@@ -13,6 +13,7 @@ import { stripLoneSurrogates } from "../lib/textSanitize";
 import {
   getImageUrlFromMetadata,
   getSectionTitleFromMetadata,
+  getTimeRangeFromMetadata,
 } from "../lib/chunkMetadata";
 import type {
   ChunkTypeValue,
@@ -21,6 +22,7 @@ import type {
 import {
   getTranscriptSourceKey,
   parseTranscriptMetadata,
+  splitTranscriptText,
   type TranscriptChunkMetadata,
 } from "../lib/transcriptChunks";
 
@@ -136,6 +138,75 @@ export async function replaceTranscriptChunks(
     chunks,
     replaceChunkTypes: ["transcript"],
   });
+}
+
+/** Le transcript d'un fichier, prêt à lire : segments découpés par chunk. */
+export type CurrentTranscript = {
+  model?: string;
+  language?: string;
+  durationSec?: number;
+  chunks: Array<{
+    order: number;
+    startSec: number;
+    endSec: number;
+    segments: Array<{ s: number; e: number; text: string }>;
+  }>;
+};
+
+/**
+ * Le transcript du fichier `sourceKey` d'un node, `null` s'il n'y en a pas.
+ * Filtré sur la clé : entre le remplacement d'un fichier et le rebuild qui
+ * purge l'ancien transcript, celui-ci ne doit être servi à personne.
+ */
+export async function getCurrentTranscript(
+  ctx: QueryCtx,
+  {
+    nodeDataId,
+    sourceKey,
+  }: { nodeDataId: Id<"nodeDatas">; sourceKey: string },
+): Promise<CurrentTranscript | null> {
+  const chunks = (await listTranscriptChunks(ctx, { nodeDataId })).filter(
+    (chunk) => chunk.metadata.sourceKey === sourceKey,
+  );
+  if (chunks.length === 0) return null;
+
+  const first = chunks[0].metadata;
+  return {
+    model: first.model,
+    language: first.language,
+    durationSec: first.durationSec,
+    chunks: chunks.map((chunk) => ({
+      order: chunk.order,
+      startSec: chunk.metadata.startSec,
+      endSec: chunk.metadata.endSec,
+      segments: splitTranscriptText(chunk.text, chunk.metadata.segments),
+    })),
+  };
+}
+
+/**
+ * Existe-t-il un transcript pour ce fichier ? S'arrête au premier chunk
+ * trouvé : la toolbar n'a besoin que d'un booléen.
+ */
+export async function hasTranscript(
+  ctx: QueryCtx,
+  {
+    nodeDataId,
+    sourceKey,
+  }: { nodeDataId: Id<"nodeDatas">; sourceKey: string },
+): Promise<boolean> {
+  const chunks = ctx.db
+    .query("searchableChunks")
+    .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId));
+  for await (const chunk of chunks) {
+    if (
+      chunk.chunkType === "transcript" &&
+      getTranscriptSourceKey(chunk.metadata) === sourceKey
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Un chunk `transcript`, projeté sans l'embedding. */
@@ -379,6 +450,8 @@ type FullTextSearchHit = {
   title?: string;
   page?: number;
   sectionTitle?: string;
+  startSec?: number;
+  endSec?: number;
 };
 
 type KeywordSearchResult = {
@@ -686,6 +759,7 @@ export async function keywordSearch(
       title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
       page: getPage(chunk.metadata),
       sectionTitle: getSectionTitleFromMetadata(chunk.metadata),
+      ...getTimeRangeFromMetadata(chunk.metadata),
     });
   }
 
@@ -763,6 +837,7 @@ export async function hydrateVectorHits(
         title: doc.title ? stripLoneSurrogates(doc.title) : doc.title,
         page: getPage(doc.metadata),
         sectionTitle: getSectionTitleFromMetadata(doc.metadata),
+        ...getTimeRangeFromMetadata(doc.metadata),
         imageUrl: getImageUrlFromMetadata(doc.metadata),
         score,
       },

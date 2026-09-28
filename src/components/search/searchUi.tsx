@@ -8,6 +8,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/shadcn/empty";
+import { formatTime } from "@/hooks/useMediaPlayback";
 import type { SearchSnippet as SearchSnippetType } from "./useSearch";
 
 /**
@@ -65,8 +66,14 @@ export function SearchSnippet({
   terms: string[];
   compact?: boolean;
 }) {
+  // Transcript excerpts carry the moment they were spoken at: "2:11" says
+  // more than "transcript".
   const pageLabel =
-    typeof snippet.page === "number" ? `Page ${snippet.page}` : snippet.chunkType;
+    typeof snippet.startSec === "number"
+      ? formatTime(snippet.startSec)
+      : typeof snippet.page === "number"
+        ? `Page ${snippet.page}`
+        : snippet.chunkType;
 
   if (compact) {
     return (

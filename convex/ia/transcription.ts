@@ -10,7 +10,6 @@ import {
   STALE_TRANSCRIPTION_MS,
 } from "../config/transcriptionConfig";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
-import { splitTranscriptText } from "../lib/transcriptChunks";
 import { stripLoneSurrogates } from "../lib/textSanitize";
 import { searchableChunksValidator } from "../schemas/searchableChunksSchema";
 import * as NodeDataModels from "../models/nodeDataModels";
@@ -110,8 +109,8 @@ export const transcribeAudio = mutation({
 });
 
 const transcriptSegmentValidator = v.object({
-  start: v.number(),
-  end: v.number(),
+  s: v.number(),
+  e: v.number(),
   text: v.string(),
 });
 
@@ -150,32 +149,35 @@ export const getTranscript = query({
     const audio = readStoredAudio(nodeData);
     if (!audio) return null;
 
-    // Filtré sur la clé courante : entre le remplacement d'un fichier et le
-    // rebuild qui purge l'ancien transcript, celui-ci ne doit pas s'afficher.
-    const chunks = (
-      await SearchableChunkModels.listTranscriptChunks(ctx, { nodeDataId })
-    ).filter((chunk) => chunk.metadata.sourceKey === audio.key);
-    if (chunks.length === 0) return null;
-
-    const first = chunks[0].metadata;
-    return {
+    const transcript = await SearchableChunkModels.getCurrentTranscript(ctx, {
+      nodeDataId,
       sourceKey: audio.key,
-      model: first.model,
-      language: first.language,
-      durationSec: first.durationSec,
-      chunks: chunks.map((chunk) => ({
-        order: chunk.order,
-        startSec: chunk.metadata.startSec,
-        endSec: chunk.metadata.endSec,
-        segments: splitTranscriptText(chunk.text, chunk.metadata.segments).map(
-          (segment) => ({
-            start: segment.s,
-            end: segment.e,
-            text: segment.text,
-          }),
-        ),
-      })),
-    };
+    });
+    return transcript ? { sourceKey: audio.key, ...transcript } : null;
+  },
+});
+
+/**
+ * Le fichier courant a-t-il un transcript ? Pour la toolbar, qui n'a besoin
+ * que de savoir quoi afficher : bien plus léger que `getTranscript`.
+ */
+export const hasTranscript = query({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, { nodeDataId }) => {
+    const authUserId = await requireAuth(ctx);
+    const nodeData = await ctx.db.get(nodeDataId);
+    if (!nodeData) throw new ConvexError(errors.NODE_DATA_NOT_FOUND);
+    await requireCanvasAccess(ctx, nodeData.canvasId, authUserId);
+
+    const audio = readStoredAudio(nodeData);
+    if (!audio) return false;
+    return await SearchableChunkModels.hasTranscript(ctx, {
+      nodeDataId,
+      sourceKey: audio.key,
+    });
   },
 });
 

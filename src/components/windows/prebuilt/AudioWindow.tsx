@@ -43,7 +43,6 @@ type FlatSegment = {
   s: number;
   e: number;
   text: string;
-  chunkIndex: number;
   /** Index in `transcript.chapters`, -1 without chapters. */
   chapterIndex: number;
 };
@@ -92,7 +91,7 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
     if (!transcript) return [];
     const chapters = transcript.chapters ?? [];
     let chapterIndex = chapters.length > 0 ? 0 : -1;
-    return transcript.chunks.flatMap((chunk, chunkIndex) =>
+    return transcript.chunks.flatMap((chunk) =>
       chunk.segments.map((segment) => {
         // Segments and chapters are both in time order: walk them together.
         while (
@@ -101,7 +100,7 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
         ) {
           chapterIndex += 1;
         }
-        return { ...segment, chunkIndex, chapterIndex };
+        return { ...segment, chapterIndex };
       }),
     );
   }, [transcript]);
@@ -220,13 +219,12 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
   useEffect(() => {
     setPlanTabContent(
       <AudioTranscriptOutline
-        // undefined = loading, null = no transcript for the current file.
-        chunks={
+        hasTranscript={
           !audio
-            ? null
+            ? false
             : transcript === undefined
               ? undefined
-              : (transcript?.chunks ?? null)
+              : transcript !== null && transcript.chunks.length > 0
         }
         chapters={transcript?.chapters}
         overview={transcript?.overview}
@@ -310,20 +308,14 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
                 segment.chapterIndex !== previous?.chapterIndex
                   ? transcript.chapters?.[segment.chapterIndex]
                   : undefined;
-              // Without chapters, a thin rule still marks each passage.
-              const startsPassage =
-                segment.chapterIndex === -1 &&
-                previous !== undefined &&
-                segment.chunkIndex !== previous.chunkIndex;
               const row = (
                 <div
-                  key={`${segment.chunkIndex}:${segment.s}:${index}`}
+                  key={`${segment.s}:${index}`}
                   ref={(el) => {
                     rowRefs.current[index] = el;
                   }}
                   className={cn(
                     "flex cursor-pointer gap-3 rounded-md px-2 py-1 hover:bg-slate-50",
-                    startsPassage && "mt-2 border-t pt-3",
                     index === activeIndex && "bg-amber-50 hover:bg-amber-50",
                   )}
                   onClick={() => {
@@ -351,7 +343,7 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
               // A chapter opens with its title.
               if (!chapter) return row;
               return (
-                <Fragment key={`${segment.chunkIndex}:${segment.s}:${index}`}>
+                <Fragment key={`${segment.s}:${index}`}>
                   <button
                     type="button"
                     className={cn(

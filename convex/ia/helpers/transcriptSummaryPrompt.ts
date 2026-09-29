@@ -42,8 +42,6 @@ export type ResolvedChapter = {
 const MAX_TITLE_CHARS = 80;
 const MAX_SUMMARY_CHARS = 700;
 const MAX_OVERVIEW_CHARS = 2_000;
-/** Un chapitre plus court est fondu dans le précédent. */
-const MIN_CHAPTER_SEC = 20;
 /** Longueur visée d'un chapitre, pour suggérer un nombre au modèle. */
 const TYPICAL_CHAPTER_SEC = 7 * 60;
 /** Garde-fou de stockage : la liste vit dans la metadata du chunk 0. */
@@ -227,7 +225,7 @@ export function validateChapterDrafts(
 /**
  * Passe des premières lignes aux secondes. Chaque chapitre finit où commence
  * le suivant ; le premier commence à 0, le dernier finit à `durationSec`.
- * Un chapitre de moins de `MIN_CHAPTER_SEC` est fondu dans le précédent.
+ * Deux chapitres au même instant (segments de même début) n'en font qu'un.
  */
 export function resolveChapters(
   lines: TranscriptLine[],
@@ -248,16 +246,10 @@ export function resolveChapters(
   if (starts.length === 0) return [];
   starts[0] = { ...starts[0], startSec: 0 };
 
-  const kept: Array<{ draft: ChapterDraft; startSec: number }> = [];
-  starts.forEach((entry, index) => {
-    const nextStart = starts[index + 1]?.startSec ?? end;
-    const tooShort = nextStart - entry.startSec < MIN_CHAPTER_SEC;
-    if (kept.length > 0 && tooShort) return;
-    // Même instant que le précédent (segments de même début) : fondu aussi.
-    const previous = kept[kept.length - 1];
-    if (previous && entry.startSec <= previous.startSec) return;
-    kept.push(entry);
-  });
+  const kept = starts.filter(
+    (entry, index) =>
+      index === 0 || entry.startSec > starts[index - 1].startSec,
+  );
 
   return kept.slice(0, MAX_CHAPTERS).map((entry, index, list) => ({
     startSec: entry.startSec,

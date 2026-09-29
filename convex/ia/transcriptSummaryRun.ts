@@ -8,25 +8,28 @@ import { internal } from "../_generated/api";
 import { getOpenRouterLanguageModel } from "./agents";
 import { extractOpenRouterCost } from "./usage";
 import {
-  TRANSCRIPT_SUMMARY_BATCH_SIZE,
-  TRANSCRIPT_SUMMARY_SINGLE_CALL_MAX_PASSAGES,
+  TRANSCRIPT_CHAPTERS_BATCH_CHARS,
+  TRANSCRIPT_CHAPTERS_SINGLE_CALL_MAX_CHARS,
   getTranscriptSummaryModel,
 } from "../config/transcriptionConfig";
 import { aiUsageSources } from "../schemas/aiUsageSourceSchema";
 import {
   TRANSCRIPT_SUMMARY_SYSTEM,
-  buildFullSummaryPrompt,
-  buildOverviewFromSummariesPrompt,
-  buildPassagesPrompt,
+  buildBatchChaptersPrompt,
+  buildFullChaptersPrompt,
+  buildOverviewFromChaptersPrompt,
+  chaptersOnlySchema,
   cleanOverview,
-  fullSummarySchema,
-  matchPassageSummaries,
+  collectBatchedChapterDrafts,
+  flattenTranscriptLines,
+  fullChaptersSchema,
   overviewOnlySchema,
-  passagesOnlySchema,
-  splitIntoBatches,
-  withNeighbours,
-  type PassageSummary,
-  type SummaryPassage,
+  resolveChapters,
+  transcriptPromptChars,
+  validateChapterDrafts,
+  type ChapterDraft,
+  type ResolvedChapter,
+  type TranscriptLine,
 } from "./helpers/transcriptSummaryPrompt";
 
 type UsageTotals = {
@@ -38,16 +41,18 @@ type UsageTotals = {
 };
 
 /**
- * Titre + résumé par passage, et vue d'ensemble, pour le transcript d'un node
- * audio. Planifiée par `saveTranscript` seulement (cf. ia/transcription.ts).
+ * Chapitres (titre + résumé) et vue d'ensemble du transcript d'un node audio.
+ * Planifiée par `saveTranscript` seulement (cf. ia/transcription.ts).
  *
- * Un seul appel LLM pour tout le fichier (≈ 15k tokens pour 1 h), plus un
- * rattrapage ciblé des passages manquants ; par lots au-delà de
- * `TRANSCRIPT_SUMMARY_SINGLE_CALL_MAX_PASSAGES`. Sortie structurée validée
- * par zod (ai-sdk), rapprochée par `id` (cf. helpers/transcriptSummaryPrompt).
+ * Les chapitres sont libres : le modèle les coupe aux changements de sujet, à
+ * la ligne près (cf. helpers/transcriptSummaryPrompt). Un seul appel LLM pour
+ * tout le fichier jusqu'à ≈ 2 h ; au-delà, par lots, chacun reprenant au
+ * début du dernier chapitre du lot précédent pour ne pas couper un sujet à
+ * la frontière. Sortie structurée validée par zod (ai-sdk). Un appel qui ne
+ * rend aucun chapitre valide est retenté une fois.
  *
- * Jamais bloquante : un échec laisse un transcript sans résumés, pleinement
- * utilisable. Rien n'est réessayé automatiquement.
+ * Jamais bloquante : un échec laisse un transcript sans chapitres, pleinement
+ * utilisable. Rien n'est réessayé automatiquement au-delà de ça.
  */
 export const summarizeTranscript = internalAction({
   args: {
@@ -73,12 +78,8 @@ export const summarizeTranscript = internalAction({
       );
       if (!transcript || transcript.chunks.length === 0) return null;
 
-      const passages: SummaryPassage[] = transcript.chunks.map((chunk) => ({
-        order: chunk.order,
-        startSec: chunk.startSec,
-        endSec: chunk.endSec,
-        text: chunk.segments.map((segment) => segment.text).join(" "),
-      }));
+      const lines = flattenTranscriptLines(transcript.chunks);
+      if (lines.length === 0) return null;
       const model = getOpenRouterLanguageModel(modelId);
 
       async function call<S extends z.ZodType>(
@@ -106,88 +107,85 @@ export const summarizeTranscript = internalAction({
         return result.output as z.infer<S>;
       }
 
-      const allOrders = passages.map((passage) => passage.order);
-      const summaries = new Map<number, PassageSummary>();
+      /**
+       * Chapitres de `batch`, validés ; un second essai si aucun ne l'est.
+       * `overview` : celle de l'appel retenu, quand le prompt en demande une.
+       */
+      async function chaptersFor(
+        batch: TranscriptLine[],
+        prompt: string,
+        withOverview: boolean,
+      ): Promise<{ drafts: ChapterDraft[]; overview?: string }> {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const output = withOverview
+            ? await call(fullChaptersSchema, prompt)
+            : { ...(await call(chaptersOnlySchema, prompt)), overview: "" };
+          const drafts = validateChapterDrafts(batch, output.chapters);
+          if (drafts.length > 0) {
+            return { drafts, overview: cleanOverview(output.overview) };
+          }
+          console.warn("[transcriptSummary] no-valid-chapter", {
+            nodeDataId,
+            attempt,
+            firstLine: batch[0].id,
+          });
+        }
+        throw new Error("The model returned no valid chapter");
+      }
+
       let overview: string | undefined;
+      let chapters: ResolvedChapter[];
 
-      if (passages.length <= TRANSCRIPT_SUMMARY_SINGLE_CALL_MAX_PASSAGES) {
-        const output = await call(
-          fullSummarySchema,
-          buildFullSummaryPrompt(passages),
+      if (
+        transcriptPromptChars(lines) <=
+        TRANSCRIPT_CHAPTERS_SINGLE_CALL_MAX_CHARS
+      ) {
+        const result = await chaptersFor(
+          lines,
+          buildFullChaptersPrompt(lines),
+          true,
         );
-        overview = cleanOverview(output.overview);
-        for (const [order, summary] of matchPassageSummaries(
-          allOrders,
-          output.passages,
-        )) {
-          summaries.set(order, summary);
-        }
+        overview = result.overview;
+        chapters = resolveChapters(
+          lines,
+          result.drafts,
+          transcript.durationSec,
+        );
       } else {
-        // Audio long : lots successifs, chacun avec le fil des précédents.
-        let previousSummary: string | undefined;
-        for (const batch of splitIntoBatches(
-          passages,
-          TRANSCRIPT_SUMMARY_BATCH_SIZE,
-        )) {
+        // Audio long : lots successifs (cf. collectBatchedChapterDrafts).
+        const drafts = await collectBatchedChapterDrafts(
+          lines,
+          TRANSCRIPT_CHAPTERS_BATCH_CHARS,
+          async (batch, previousChapters) =>
+            (
+              await chaptersFor(
+                batch,
+                buildBatchChaptersPrompt({ lines: batch, previousChapters }),
+                false,
+              )
+            ).drafts,
+        );
+        chapters = resolveChapters(lines, drafts, transcript.durationSec);
+        if (chapters.length > 0) {
           const output = await call(
-            passagesOnlySchema,
-            buildPassagesPrompt({ targets: batch, previousSummary }),
+            overviewOnlySchema,
+            buildOverviewFromChaptersPrompt(chapters),
           );
-          const matched = matchPassageSummaries(
-            batch.map((passage) => passage.order),
-            output.passages,
-          );
-          for (const [order, summary] of matched) summaries.set(order, summary);
-          previousSummary = [...matched.values()]
-            .map((summary) => `${summary.title}: ${summary.summary}`)
-            .join("\n");
+          overview = cleanOverview(output.overview);
         }
       }
 
-      // Rattrapage : un second appel, sur les seuls passages manquants.
-      const missing = allOrders.filter((order) => !summaries.has(order));
-      if (missing.length > 0) {
-        console.warn("[transcriptSummary] missing-passages:retry", {
-          nodeDataId,
-          missing,
-        });
-        const { targets, context } = withNeighbours(passages, missing);
-        const output = await call(
-          passagesOnlySchema,
-          buildPassagesPrompt({ targets, context }),
-        );
-        for (const [order, summary] of matchPassageSummaries(
-          missing,
-          output.passages,
-        )) {
-          summaries.set(order, summary);
-        }
-      }
-
-      if (overview === undefined && summaries.size > 0) {
-        const output = await call(
-          overviewOnlySchema,
-          buildOverviewFromSummariesPrompt(
-            passages
-              .filter((passage) => summaries.has(passage.order))
-              .map((passage) => ({
-                ...summaries.get(passage.order)!,
-                startSec: passage.startSec,
-              })),
-          ),
-        );
-        overview = cleanOverview(output.overview);
-      }
+      if (chapters.length === 0 && !overview) return null;
 
       const { saved } = await ctx.runMutation(
-        internal.ia.transcription.saveTranscriptSummaries,
+        internal.ia.transcription.saveTranscriptChapters,
         {
           nodeDataId,
           sourceKey,
-          passageCount: passages.length,
+          passageCount: transcript.chunks.length,
           overview,
           summaryModel: modelId,
-          passages: [...summaries.values()],
+          chapters,
         },
       );
 
@@ -195,8 +193,8 @@ export const summarizeTranscript = internalAction({
         nodeDataId,
         model: modelId,
         saved,
-        passages: passages.length,
-        summarized: summaries.size,
+        lines: lines.length,
+        chapters: chapters.length,
         calls: usage.calls,
       });
     } catch (error) {

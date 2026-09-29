@@ -13,6 +13,7 @@ import {
 import { stripLoneSurrogates } from "./lib/textSanitize";
 import {
   findSegmentAtOffset,
+  getTranscriptChapterTitle,
   parseTranscriptMetadata,
 } from "./lib/transcriptChunks";
 import {
@@ -203,8 +204,7 @@ export const search = query({
                 chunkType: chunk.chunkType,
                 order: chunk.order,
                 page: getPageFromMetadata(chunk.metadata),
-                startSec: getSnippetStartSec(chunk.metadata, match.matchStart),
-                sectionTitle: getTranscriptPassageTitle(chunk.metadata),
+                ...transcriptSnippetLocation(chunk.metadata, match.matchStart),
                 imageUrl: getImageUrlFromMetadata(chunk.metadata),
                 matchStart: match.matchStart,
                 matchEnd: match.matchEnd,
@@ -311,10 +311,23 @@ export const listPdfPages = query({
   },
 });
 
-/** Titre du passage d'un chunk `transcript` (les PDF n'en ont pas besoin ici). */
-function getTranscriptPassageTitle(metadata: unknown): string | undefined {
-  const title = parseTranscriptMetadata(metadata)?.passageTitle;
-  return title ? stripLoneSurrogates(title) : undefined;
+/**
+ * Instant et chapitre d'un extrait de transcript (les PDF n'en ont pas
+ * besoin ici) : le chapitre est celui en cours à l'instant du mot trouvé.
+ */
+function transcriptSnippetLocation(
+  metadata: unknown,
+  matchStart: number,
+): { startSec: number | undefined; sectionTitle: string | undefined } {
+  const startSec = getSnippetStartSec(metadata, matchStart);
+  const title =
+    startSec !== undefined
+      ? getTranscriptChapterTitle(metadata, startSec)
+      : undefined;
+  return {
+    startSec,
+    sectionTitle: title ? stripLoneSurrogates(title) : undefined,
+  };
 }
 
 /**

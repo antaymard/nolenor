@@ -167,8 +167,17 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
   // hand back.
   useEffect(() => () => notifyStopped(slotKey), [notifyStopped, slotKey]);
 
-  const { setPlanTabContent } = useWindowFrameContext();
+  const { setPlanTabContent, requestSidePanelOpen } = useWindowFrameContext();
   const isRunning = transcription.state === "running";
+
+  // The transcript lives in the side panel: open it once when there is one to
+  // read. Once per mount — closing it afterwards is the user's call.
+  const hasRequestedPanelRef = useRef(false);
+  useEffect(() => {
+    if (!transcript || hasRequestedPanelRef.current) return;
+    hasRequestedPanelRef.current = true;
+    requestSidePanelOpen();
+  }, [requestSidePanelOpen, transcript]);
   useEffect(() => {
     if (!video) {
       setPlanTabContent(<PlanTabPlaceholder message="No video yet." />);

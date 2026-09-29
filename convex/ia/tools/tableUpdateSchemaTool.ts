@@ -2,7 +2,7 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
-import { generateLlmId } from "../../lib/llmId";
+import { generateColumnId, generateLlmId } from "../../lib/llmId";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import {
   TableWriteConflictError,
@@ -147,8 +147,8 @@ function removeSpaces(value: string): string {
 
 function buildColumnId(existingColumns: Array<TableColumn>): string {
   const takenIds = new Set(existingColumns.map((column) => column.id));
-  let id = generateLlmId();
-  while (takenIds.has(id)) id = generateLlmId();
+  let id = generateColumnId();
+  while (takenIds.has(id)) id = generateColumnId();
   return id;
 }
 

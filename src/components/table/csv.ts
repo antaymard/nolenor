@@ -11,7 +11,7 @@ import type {
   TableColumn,
   TableRowData,
 } from "./types";
-import { generateLlmId } from "@/../convex/lib/llmId";
+import { generateColumnId, generateLlmId } from "@/../convex/lib/llmId";
 
 // --------------------------------------------------------------------------
 // EXPORT
@@ -282,7 +282,7 @@ export function buildTableFromParsedCsv(parsed: ParsedCsv): {
         .slice(0, TYPE_INFERENCE_SAMPLE_SIZE)
         .map((row) => row[csvIndex] ?? "");
       return {
-        id: generateLlmId(),
+        id: generateColumnId(),
         name: parsed.headers[csvIndex] || `Column ${csvIndex + 1}`,
         type: inferColumnType(samples),
       };

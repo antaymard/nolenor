@@ -30,7 +30,7 @@ import type {
   TableSort,
 } from "@/components/table";
 import WindowLoadingState from "@/components/windows/WindowLoadingState";
-import { generateLlmId } from "@/../convex/lib/llmId";
+import { generateColumnId, generateLlmId } from "@/../convex/lib/llmId";
 
 function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const { setDirty, setSaveHandler, setPlanTabContent } =
@@ -150,7 +150,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const addColumn = useCallback(
     (type: ColumnType = "text") => {
       const newCol: TableColumn = {
-        id: generateLlmId(),
+        id: generateColumnId(),
         name: `Column ${columnsRef.current.length + 1}`,
         type,
       };

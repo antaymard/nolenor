@@ -140,6 +140,44 @@ function groupChars(group: CleanSegment[]): number {
   );
 }
 
+/**
+ * Recolle les segments de plusieurs morceaux d'un même fichier (découpés par
+ * le voice-server) en un seul flux horodaté depuis le début du fichier.
+ *
+ * Chaque morceau a ses timestamps relatifs à son propre début : on les décale
+ * de son `startSec`. À la couture, un segment identique au précédent et qui
+ * le suit à moins d'une seconde est un doublon (le STT a entendu deux fois la
+ * même phrase de part et d'autre de la coupe) : il est écarté. Les segments
+ * vides passent : `groupSegmentsIntoChunks` les nettoie de toute façon.
+ */
+export function mergeTranscriptParts(
+  parts: Array<{ startSec: number; segments: RawTranscriptSegment[] }>,
+): RawTranscriptSegment[] {
+  const merged: RawTranscriptSegment[] = [];
+  for (const part of parts) {
+    const offset = Number.isFinite(part.startSec) ? part.startSec : 0;
+    part.segments.forEach((segment, index) => {
+      const shifted = {
+        start: segment.start + offset,
+        end: segment.end + offset,
+        text: segment.text,
+      };
+      const previous = merged[merged.length - 1];
+      if (
+        index === 0 &&
+        previous &&
+        normalizeSegmentText(previous.text) ===
+          normalizeSegmentText(shifted.text) &&
+        Math.abs(shifted.start - previous.end) < 1
+      ) {
+        return;
+      }
+      merged.push(shifted);
+    });
+  }
+  return merged;
+}
+
 /** Regroupe des segments STT en chunks d'environ deux minutes. */
 export function groupSegmentsIntoChunks(
   segments: RawTranscriptSegment[],

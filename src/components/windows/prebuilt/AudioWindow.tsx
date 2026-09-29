@@ -367,13 +367,17 @@ function TranscriptEmptyState({
 }: {
   transcription: ReturnType<typeof useAudioTranscription>;
 }) {
-  const { state, error, start } = transcription;
+  const { state, error, start, progress, maxBytes } = transcription;
 
   if (state === "running") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
         <Spinner className="size-5 text-muted-foreground" />
-        <p className="text-sm text-slate-600">Transcribing…</p>
+        <p className="text-sm text-slate-600">
+          {progress
+            ? `Transcribing… ${progress.done}/${progress.total} parts`
+            : "Transcribing…"}
+        </p>
         <p className="text-xs text-muted-foreground">
           You can close this window, the transcription keeps going.
         </p>
@@ -386,7 +390,8 @@ function TranscriptEmptyState({
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
         <TbTextCaption className="size-6 text-slate-300" />
         <p className="text-sm text-slate-500">
-          This file is too large to be transcribed (max 25 MB).
+          This file is too large to be transcribed
+          {maxBytes ? ` (max ${Math.round(maxBytes / (1024 * 1024))} MB)` : ""}.
         </p>
       </div>
     );

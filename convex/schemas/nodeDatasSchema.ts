@@ -48,6 +48,9 @@ const nodeDatasValidator = v.object({
       sourceKey: v.string(),
       startedAt: v.number(),
       error: v.optional(v.string()),
+      // Transcription longue (découpée par le voice-server) : morceaux
+      // transcrits sur le total, connu une fois la découpe calculée.
+      progress: v.optional(v.object({ done: v.number(), total: v.number() })),
     }),
   ),
 });

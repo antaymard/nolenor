@@ -16,10 +16,56 @@ export function getTranscriptionModel(): string {
 }
 
 /**
- * Plafond d'OpenRouter par requête STT. Au-delà, il faudrait extraire et
- * recompresser la piste (ffmpeg) puis découper : hors V1, la mutation refuse.
+ * Plafond d'OpenRouter par requête STT. En dessous, le fichier part tel quel
+ * (chemin direct) ; au-delà, il passe par le module `audio-parts` du
+ * voice-server, qui le découpe en morceaux transcriptibles.
  */
-export const MAX_TRANSCRIPTION_BYTES = 25 * 1024 * 1024;
+export const MAX_TRANSCRIPTION_DIRECT_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Plafond avec le voice-server : la limite d'upload audio
+ * (cf. `config/uploadsConfig.ts`). Le voice-server borne de son côté la
+ * durée (8 h) et la taille (600 Mo).
+ */
+export const MAX_TRANSCRIPTION_LONG_BYTES = 200 * 1024 * 1024;
+
+/** Découpe demandée au voice-server : des morceaux d'environ 20 min. */
+export const TRANSCRIPTION_PART_SECONDS = 1200;
+/** Morceaux transcrits en même temps, au plus. */
+export const TRANSCRIPTION_PARALLELISM = 4;
+/** Cadence de lecture de l'état du job de découpe. */
+export const TRANSCRIPTION_POLL_MS = 2_500;
+/**
+ * Temps de travail d'une transcription longue. Convex tue une action à
+ * 10 min : on s'arrête avant, pour avoir encore le temps d'écrire le statut
+ * `error` et de libérer le job sur le voice-server.
+ */
+export const TRANSCRIPTION_TIME_BUDGET_MS = 510_000;
+
+export type VoiceServerMediaConfig = { baseUrl: string; token: string };
+
+/**
+ * Accès au voice-server pour la découpe des longs fichiers : les mêmes
+ * `VOICE_SERVER_URL` / `VOICE_SERVER_TOKEN` que le STT live (cf. voice.ts).
+ * L'URL peut y être en `wss://` ou sans schéma : ramenée en `https://`.
+ * `null` si l'une manque, et le mode long est alors désactivé.
+ */
+export function getVoiceServerMediaConfig(): VoiceServerMediaConfig | null {
+  const rawUrl = process.env.VOICE_SERVER_URL?.trim();
+  const token = process.env.VOICE_SERVER_TOKEN?.trim();
+  if (!rawUrl || !token) return null;
+  let baseUrl = rawUrl.replace(/\/+$/, "");
+  baseUrl = baseUrl.replace(/^wss:/i, "https:").replace(/^ws:/i, "http:");
+  if (!/^https?:\/\//i.test(baseUrl)) baseUrl = `https://${baseUrl}`;
+  return { baseUrl, token };
+}
+
+/** Plus gros fichier transcriptible, selon que le mode long est disponible. */
+export function getMaxTranscriptionBytes(): number {
+  return getVoiceServerMediaConfig()
+    ? MAX_TRANSCRIPTION_LONG_BYTES
+    : MAX_TRANSCRIPTION_DIRECT_BYTES;
+}
 
 /**
  * Au-delà, un statut `running` ne peut plus correspondre à une action vivante

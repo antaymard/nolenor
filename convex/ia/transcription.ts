@@ -6,7 +6,7 @@ import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import { enforceRateLimit } from "../lib/rateLimits";
 import errors from "../config/errorsConfig";
 import {
-  MAX_TRANSCRIPTION_BYTES,
+  getMaxTranscriptionBytes,
   STALE_TRANSCRIPTION_MS,
 } from "../config/transcriptionConfig";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
@@ -58,7 +58,8 @@ export const transcribeAudio = mutation({
   handler: async (ctx, { nodeDataId }) => {
     const authUserId = await requireAuth(ctx);
 
-    // Chaque appel envoie jusqu'à 25 Mo d'audio à un STT facturé à la durée.
+    // Chaque appel envoie de l'audio (jusqu'à plusieurs heures) à un STT
+    // facturé à la durée.
     await enforceRateLimit(ctx, "audioTranscription", authUserId);
 
     const nodeData = await ctx.db.get(nodeDataId);
@@ -73,7 +74,9 @@ export const transcribeAudio = mutation({
     if (!audio) throw new ConvexError(errors.TRANSCRIPTION_NO_FILE);
     // Taille inconnue (vieux node) : on laisse partir, l'action revérifie sur
     // les octets réellement téléchargés.
-    if (audio.size !== undefined && audio.size > MAX_TRANSCRIPTION_BYTES) {
+    // 25 Mo sans voice-server, la limite d'upload (200 Mo) avec : au-delà de
+    // 25 Mo, l'action passe par la découpe du voice-server.
+    if (audio.size !== undefined && audio.size > getMaxTranscriptionBytes()) {
       throw new ConvexError(errors.TRANSCRIPTION_FILE_TOO_LARGE);
     }
 
@@ -106,6 +109,16 @@ export const transcribeAudio = mutation({
 
     return null;
   },
+});
+
+/**
+ * Plus gros fichier transcriptible. Servi par le backend plutôt que codé en
+ * dur côté client : il dépend de la présence du voice-server (env Convex).
+ */
+export const getTranscriptionLimits = query({
+  args: {},
+  returns: v.object({ maxBytes: v.number() }),
+  handler: async () => ({ maxBytes: getMaxTranscriptionBytes() }),
 });
 
 const transcriptSegmentValidator = v.object({
@@ -268,6 +281,21 @@ export const saveTranscriptSummaries = internalMutation({
   handler: async (ctx, args) => ({
     saved: await SearchableChunkModels.patchTranscriptSummaries(ctx, args),
   }),
+});
+
+/** Avancement d'une transcription longue (morceaux transcrits / total). */
+export const setTranscriptionProgress = internalMutation({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    sourceKey: v.string(),
+    done: v.number(),
+    total: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await NodeDataModels.setTranscriptionProgress(ctx, args);
+    return null;
+  },
 });
 
 /** Passe le statut en erreur, si le run concerne toujours le fichier courant. */

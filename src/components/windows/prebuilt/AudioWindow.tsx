@@ -39,7 +39,13 @@ const lastPositionByNode = new Map<Id<"nodeDatas">, number>();
 /** After a manual scroll, stop following playback for this long. */
 const FOLLOW_PAUSE_AFTER_USER_SCROLL_MS = 5_000;
 
-type FlatSegment = { s: number; e: number; text: string; chunkIndex: number };
+type FlatSegment = {
+  s: number;
+  e: number;
+  text: string;
+  /** Index in `transcript.chapters`, -1 without chapters. */
+  chapterIndex: number;
+};
 
 /** Index of the last segment starting at or before `time`, -1 if none. */
 function findActiveIndex(segments: FlatSegment[], time: number): number {
@@ -81,15 +87,23 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
     withTranscriptCheck: false,
   });
 
-  const segments = useMemo<FlatSegment[]>(
-    () =>
-      transcript
-        ? transcript.chunks.flatMap((chunk, chunkIndex) =>
-            chunk.segments.map((segment) => ({ ...segment, chunkIndex })),
-          )
-        : [],
-    [transcript],
-  );
+  const segments = useMemo<FlatSegment[]>(() => {
+    if (!transcript) return [];
+    const chapters = transcript.chapters ?? [];
+    let chapterIndex = chapters.length > 0 ? 0 : -1;
+    return transcript.chunks.flatMap((chunk) =>
+      chunk.segments.map((segment) => {
+        // Segments and chapters are both in time order: walk them together.
+        while (
+          chapterIndex + 1 < chapters.length &&
+          chapters[chapterIndex + 1].startSec <= segment.s
+        ) {
+          chapterIndex += 1;
+        }
+        return { ...segment, chapterIndex };
+      }),
+    );
+  }, [transcript]);
 
   // ── Player (same slot / volume / restore contract as VideoWindow) ──────
 
@@ -205,14 +219,14 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
   useEffect(() => {
     setPlanTabContent(
       <AudioTranscriptOutline
-        // undefined = loading, null = no transcript for the current file.
-        chunks={
+        hasTranscript={
           !audio
-            ? null
+            ? false
             : transcript === undefined
               ? undefined
-              : (transcript?.chunks ?? null)
+              : transcript !== null && transcript.chunks.length > 0
         }
+        chapters={transcript?.chapters}
         overview={transcript?.overview}
         onSeek={seek}
       />,
@@ -288,24 +302,20 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
               </p>
             )}
             {segments.map((segment, index) => {
-              const startsChunk =
-                index === 0 ||
-                segment.chunkIndex !== segments[index - 1].chunkIndex;
-              const passage = startsChunk
-                ? transcript.chunks[segment.chunkIndex]
-                : undefined;
+              const previous = index > 0 ? segments[index - 1] : undefined;
+              const chapter =
+                segment.chapterIndex !== -1 &&
+                segment.chapterIndex !== previous?.chapterIndex
+                  ? transcript.chapters?.[segment.chapterIndex]
+                  : undefined;
               const row = (
                 <div
-                  key={`${segment.chunkIndex}:${segment.s}:${index}`}
+                  key={`${segment.s}:${index}`}
                   ref={(el) => {
                     rowRefs.current[index] = el;
                   }}
                   className={cn(
                     "flex cursor-pointer gap-3 rounded-md px-2 py-1 hover:bg-slate-50",
-                    startsChunk &&
-                      index > 0 &&
-                      !passage?.passageTitle &&
-                      "mt-2 border-t pt-3",
                     index === activeIndex && "bg-amber-50 hover:bg-amber-50",
                   )}
                   onClick={() => {
@@ -330,24 +340,24 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
                   </p>
                 </div>
               );
-              // A summarized passage opens with its title, like a chapter.
-              if (!passage?.passageTitle) return row;
+              // A chapter opens with its title.
+              if (!chapter) return row;
               return (
-                <Fragment key={`${segment.chunkIndex}:${segment.s}:${index}`}>
+                <Fragment key={`${segment.s}:${index}`}>
                   <button
                     type="button"
                     className={cn(
                       "flex items-baseline gap-3 px-2 pb-1 text-left",
                       index > 0 ? "mt-3 border-t pt-3" : "mt-1",
                     )}
-                    title={`Play from ${formatTime(passage.startSec)}`}
-                    onClick={() => seek(passage.startSec)}
+                    title={`Play from ${formatTime(chapter.startSec)}`}
+                    onClick={() => seek(chapter.startSec)}
                   >
                     <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums text-slate-400">
-                      {formatTime(passage.startSec)}
+                      {formatTime(chapter.startSec)}
                     </span>
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {passage.passageTitle}
+                      {chapter.title}
                     </span>
                   </button>
                   {row}
@@ -367,13 +377,17 @@ function TranscriptEmptyState({
 }: {
   transcription: ReturnType<typeof useAudioTranscription>;
 }) {
-  const { state, error, start } = transcription;
+  const { state, error, start, progress, maxBytes } = transcription;
 
   if (state === "running") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
         <Spinner className="size-5 text-muted-foreground" />
-        <p className="text-sm text-slate-600">Transcribing…</p>
+        <p className="text-sm text-slate-600">
+          {progress
+            ? `Transcribing… ${progress.done}/${progress.total} parts`
+            : "Transcribing…"}
+        </p>
         <p className="text-xs text-muted-foreground">
           You can close this window, the transcription keeps going.
         </p>
@@ -386,7 +400,8 @@ function TranscriptEmptyState({
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
         <TbTextCaption className="size-6 text-slate-300" />
         <p className="text-sm text-slate-500">
-          This file is too large to be transcribed (max 25 MB).
+          This file is too large to be transcribed
+          {maxBytes ? ` (max ${Math.round(maxBytes / (1024 * 1024))} MB)` : ""}.
         </p>
       </div>
     );

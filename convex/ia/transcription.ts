@@ -6,7 +6,7 @@ import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import { enforceRateLimit } from "../lib/rateLimits";
 import errors from "../config/errorsConfig";
 import {
-  MAX_TRANSCRIPTION_BYTES,
+  getMaxTranscriptionBytes,
   STALE_TRANSCRIPTION_MS,
 } from "../config/transcriptionConfig";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
@@ -58,7 +58,8 @@ export const transcribeAudio = mutation({
   handler: async (ctx, { nodeDataId }) => {
     const authUserId = await requireAuth(ctx);
 
-    // Chaque appel envoie jusqu'à 25 Mo d'audio à un STT facturé à la durée.
+    // Chaque appel envoie de l'audio (jusqu'à plusieurs heures) à un STT
+    // facturé à la durée.
     await enforceRateLimit(ctx, "audioTranscription", authUserId);
 
     const nodeData = await ctx.db.get(nodeDataId);
@@ -73,7 +74,9 @@ export const transcribeAudio = mutation({
     if (!audio) throw new ConvexError(errors.TRANSCRIPTION_NO_FILE);
     // Taille inconnue (vieux node) : on laisse partir, l'action revérifie sur
     // les octets réellement téléchargés.
-    if (audio.size !== undefined && audio.size > MAX_TRANSCRIPTION_BYTES) {
+    // 25 Mo sans voice-server, la limite d'upload (200 Mo) avec : au-delà de
+    // 25 Mo, l'action passe par la découpe du voice-server.
+    if (audio.size !== undefined && audio.size > getMaxTranscriptionBytes()) {
       throw new ConvexError(errors.TRANSCRIPTION_FILE_TOO_LARGE);
     }
 
@@ -108,10 +111,27 @@ export const transcribeAudio = mutation({
   },
 });
 
+/**
+ * Plus gros fichier transcriptible. Servi par le backend plutôt que codé en
+ * dur côté client : il dépend de la présence du voice-server (env Convex).
+ */
+export const getTranscriptionLimits = query({
+  args: {},
+  returns: v.object({ maxBytes: v.number() }),
+  handler: async () => ({ maxBytes: getMaxTranscriptionBytes() }),
+});
+
 const transcriptSegmentValidator = v.object({
   s: v.number(),
   e: v.number(),
   text: v.string(),
+});
+
+const transcriptChapterValidator = v.object({
+  startSec: v.number(),
+  endSec: v.number(),
+  title: v.string(),
+  summary: v.string(),
 });
 
 /**
@@ -131,13 +151,12 @@ export const getTranscript = query({
       language: v.optional(v.string()),
       durationSec: v.optional(v.number()),
       overview: v.optional(v.string()),
+      chapters: v.optional(v.array(transcriptChapterValidator)),
       chunks: v.array(
         v.object({
           order: v.number(),
           startSec: v.number(),
           endSec: v.number(),
-          passageTitle: v.optional(v.string()),
-          summary: v.optional(v.string()),
           segments: v.array(transcriptSegmentValidator),
         }),
       ),
@@ -235,7 +254,7 @@ export const saveTranscript = internalMutation({
     });
     await NodeDataModels.clearTranscription(ctx, { nodeDataId });
 
-    // Seul déclencheur des résumés : une transcription qui vient d'être
+    // Seul déclencheur des chapitres : une transcription qui vient d'être
     // écrite. Le chunkBuilder n'en planifie jamais, donc aucun write de
     // `values` (renommage, boucle…) ne les relance. Étape à part : le
     // transcript est lisible tout de suite, et son échec ne casse rien.
@@ -249,25 +268,39 @@ export const saveTranscript = internalMutation({
 });
 
 /**
- * Écrit les résumés dans la `metadata` des chunks `transcript` — ni `text`,
- * ni embedding, ni `values` : aucune réindexation, aucun rebuild. Jetés si le
- * transcript a changé pendant l'appel LLM (cf. `patchTranscriptSummaries`).
+ * Écrit les chapitres et la vue d'ensemble dans la `metadata` des chunks
+ * `transcript` — ni `text`, ni embedding, ni `values` : aucune réindexation,
+ * aucun rebuild. Jetés si le transcript a changé pendant l'appel LLM (cf.
+ * `patchTranscriptChapters`).
  */
-export const saveTranscriptSummaries = internalMutation({
+export const saveTranscriptChapters = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),
     sourceKey: v.string(),
     passageCount: v.number(),
     overview: v.optional(v.string()),
     summaryModel: v.string(),
-    passages: v.array(
-      v.object({ order: v.number(), title: v.string(), summary: v.string() }),
-    ),
+    chapters: v.array(transcriptChapterValidator),
   },
   returns: v.object({ saved: v.boolean() }),
   handler: async (ctx, args) => ({
-    saved: await SearchableChunkModels.patchTranscriptSummaries(ctx, args),
+    saved: await SearchableChunkModels.patchTranscriptChapters(ctx, args),
   }),
+});
+
+/** Avancement d'une transcription longue (morceaux transcrits / total). */
+export const setTranscriptionProgress = internalMutation({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    sourceKey: v.string(),
+    done: v.number(),
+    total: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await NodeDataModels.setTranscriptionProgress(ctx, args);
+    return null;
+  },
 });
 
 /** Passe le statut en erreur, si le run concerne toujours le fichier courant. */

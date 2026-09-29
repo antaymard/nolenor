@@ -44,6 +44,7 @@ import type * as ia_helpers_generateCanvasMinimap from "../ia/helpers/generateCa
 import type * as ia_helpers_generateMessageContext from "../ia/helpers/generateMessageContext.js";
 import type * as ia_helpers_getCanvasChangesSinceLastMessage from "../ia/helpers/getCanvasChangesSinceLastMessage.js";
 import type * as ia_helpers_headlessBlockNote from "../ia/helpers/headlessBlockNote.js";
+import type * as ia_helpers_longTranscription from "../ia/helpers/longTranscription.js";
 import type * as ia_helpers_makeNodeDataLLMFriendly from "../ia/helpers/makeNodeDataLLMFriendly.js";
 import type * as ia_helpers_nodeDataSchemaXml from "../ia/helpers/nodeDataSchemaXml.js";
 import type * as ia_helpers_nodeFieldsAndTypesHelper from "../ia/helpers/nodeFieldsAndTypesHelper.js";
@@ -123,6 +124,7 @@ import type * as lib_textSanitize from "../lib/textSanitize.js";
 import type * as lib_transcriptChunks from "../lib/transcriptChunks.js";
 import type * as lib_usageDay from "../lib/usageDay.js";
 import type * as lib_userDisplayName from "../lib/userDisplayName.js";
+import type * as lib_voiceServerMedia from "../lib/voiceServerMedia.js";
 import type * as lib_voyage from "../lib/voyage.js";
 import type * as lib_xml from "../lib/xml.js";
 import type * as links from "../links.js";
@@ -252,6 +254,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/generateMessageContext": typeof ia_helpers_generateMessageContext;
   "ia/helpers/getCanvasChangesSinceLastMessage": typeof ia_helpers_getCanvasChangesSinceLastMessage;
   "ia/helpers/headlessBlockNote": typeof ia_helpers_headlessBlockNote;
+  "ia/helpers/longTranscription": typeof ia_helpers_longTranscription;
   "ia/helpers/makeNodeDataLLMFriendly": typeof ia_helpers_makeNodeDataLLMFriendly;
   "ia/helpers/nodeDataSchemaXml": typeof ia_helpers_nodeDataSchemaXml;
   "ia/helpers/nodeFieldsAndTypesHelper": typeof ia_helpers_nodeFieldsAndTypesHelper;
@@ -331,6 +334,7 @@ declare const fullApi: ApiFromModules<{
   "lib/transcriptChunks": typeof lib_transcriptChunks;
   "lib/usageDay": typeof lib_usageDay;
   "lib/userDisplayName": typeof lib_userDisplayName;
+  "lib/voiceServerMedia": typeof lib_voiceServerMedia;
   "lib/voyage": typeof lib_voyage;
   "lib/xml": typeof lib_xml;
   links: typeof links;

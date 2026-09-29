@@ -445,6 +445,35 @@ export async function setTranscription(
   });
 }
 
+/**
+ * Avancement d'une transcription longue. Ne touche qu'un statut `running`
+ * du même fichier : un run dépassé (fichier remplacé, relance) n'écrase pas
+ * le statut du suivant.
+ */
+export async function setTranscriptionProgress(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    sourceKey,
+    done,
+    total,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    sourceKey: string;
+    done: number;
+    total: number;
+  },
+): Promise<void> {
+  const nodeData = await ctx.db.get("nodeDatas", nodeDataId);
+  const current = nodeData?.transcription;
+  if (!current || current.status !== "running") return;
+  if (current.sourceKey !== sourceKey) return;
+  await ctx.db.patch("nodeDatas", nodeDataId, {
+    transcription: { ...current, progress: { done, total } },
+    updatedAt: Date.now(),
+  });
+}
+
 /** Le succès se lit dans les chunks `transcript` : on efface le statut. */
 export async function clearTranscription(
   ctx: MutationCtx,

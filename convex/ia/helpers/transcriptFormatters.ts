@@ -1,19 +1,20 @@
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
+import { findChapterIndexAt } from "../../lib/transcriptChunks";
 
 // Rendu du transcript d'un node audio pour `read_nodes`, sur le modèle de
 // `pdfChunkFormatters.ts` : pur, sans `ctx`. Trois vues :
 //  - full    : tout le transcript, ligne par ligne `[m:ss] texte`, tant qu'il
 //              tient sous `MAX_TRANSCRIPT_FULL_CHARS` ;
-//  - outline : au-delà, une ligne par passage (~2 min) pour s'orienter —
-//              `titre — résumé` quand les résumés existent (cf.
-//              ia/transcriptSummaryRun.ts), un aperçu du texte sinon ;
+//  - outline : au-delà, une ligne par chapitre (`titre — résumé`, cf.
+//              ia/transcriptSummaryRun.ts) pour s'orienter, ou, sans
+//              chapitres, un aperçu du texte par passage (~2 min) ;
 //  - range   : les segments d'une plage demandée (`mediaRanges`), plafonnés à
 //              `MAX_TRANSCRIPT_CHARS_PER_CALL`.
 // Les vues full et outline s'ouvrent sur la vue d'ensemble quand elle existe,
-// et les vues full et range titrent chaque passage (`## [m:ss] titre`).
+// et les vues full et range titrent chaque chapitre (`## [m:ss] titre`).
 
-/** Transcript rendu en entier en dessous de ce seuil (≈ 10 min de parole). */
-export const MAX_TRANSCRIPT_FULL_CHARS = 15_000;
+/** Transcript rendu en entier en dessous de ce seuil (≈ 20 min de parole). */
+export const MAX_TRANSCRIPT_FULL_CHARS = 30_000;
 /** Plafond d'une lecture par plage, aligné sur les PDF. */
 export const MAX_TRANSCRIPT_CHARS_PER_CALL = 60_000;
 const OUTLINE_PREVIEW_CHARS = 150;
@@ -22,15 +23,21 @@ export type ReadableTranscriptChunk = {
   order: number;
   startSec: number;
   endSec: number;
-  passageTitle?: string;
-  summary?: string;
   segments: Array<{ s: number; e: number; text: string }>;
+};
+
+export type ReadableTranscriptChapter = {
+  startSec: number;
+  endSec: number;
+  title: string;
+  summary: string;
 };
 
 export type ReadableTranscript = {
   language?: string;
   durationSec?: number;
   overview?: string;
+  chapters?: ReadableTranscriptChapter[];
   chunks: ReadableTranscriptChunk[];
 };
 
@@ -47,8 +54,8 @@ export const TRANSCRIPT_HINTS = {
     "A transcription is in progress. Read this node again in a moment to get the transcript.",
   error: (error: string) =>
     `The last transcription failed: ${error}. The user can retry from the node toolbar.`,
-  outline: (chunkCount: number) =>
-    `Transcript too long to show in full: outline of ${chunkCount} passages (~2 min each). Read a passage with read_nodes mediaRanges=[{nodeId, startSec, endSec}] (up to ${MAX_TRANSCRIPT_CHARS_PER_CALL} characters per call).`,
+  outline: (count: number, unit: "chapters" | "passages") =>
+    `Transcript too long to show in full: outline of ${count} ${unit === "chapters" ? "chapters" : "passages (~2 min each)"}. Read a ${unit === "chapters" ? "chapter" : "passage"} with read_nodes mediaRanges=[{nodeId, startSec, endSec}] (up to ${MAX_TRANSCRIPT_CHARS_PER_CALL} characters per call).`,
   truncated: (nextStartSec: number) =>
     `Output truncated: call read_nodes again with mediaRanges startSec=${nextStartSec} to continue.`,
   emptyRange: (durationSec: number | undefined) =>
@@ -79,19 +86,28 @@ function segmentLine(segment: { s: number; text: string }): string {
   return `[${formatTimestamp(segment.s)}] ${escapeXmlText(segment.text)}`;
 }
 
-function passageHeader(chunk: ReadableTranscriptChunk): string | null {
-  return chunk.passageTitle
-    ? `## [${formatTimestamp(chunk.startSec)}] ${escapeXmlText(chunk.passageTitle)}`
-    : null;
+function chapterHeader(chapter: ReadableTranscriptChapter): string {
+  return `## [${formatTimestamp(chapter.startSec)}] ${escapeXmlText(chapter.title)}`;
 }
 
-/** Les lignes d'un passage (titre éventuel, puis ses segments). */
-function passageLines(
-  chunk: ReadableTranscriptChunk,
-  segments = chunk.segments,
-): string[] {
-  const header = passageHeader(chunk);
-  return [...(header ? [header] : []), ...segments.map(segmentLine)];
+/**
+ * Les lignes de `segments` (dans l'ordre), chacune précédée du titre de son
+ * chapitre quand il change — y compris avant la toute première, pour qu'une
+ * plage lue au milieu d'un chapitre dise où elle se trouve.
+ */
+function createLineWriter(chapters: ReadableTranscriptChapter[] = []) {
+  const starts = chapters.map((chapter) => ({ s: chapter.startSec }));
+  let currentChapter = -1;
+  return (segment: { s: number; text: string }): string[] => {
+    const index = findChapterIndexAt(starts, segment.s);
+    const lines: string[] = [];
+    if (index !== -1 && index !== currentChapter) {
+      lines.push(chapterHeader(chapters[index]));
+      currentChapter = index;
+    }
+    lines.push(segmentLine(segment));
+    return lines;
+  };
 }
 
 function overviewBlock(transcript: ReadableTranscript): string[] {
@@ -102,19 +118,21 @@ function overviewBlock(transcript: ReadableTranscript): string[] {
     : [];
 }
 
-function outlineLine(chunk: ReadableTranscriptChunk): string {
-  const range = `[${formatTimestamp(chunk.startSec)}–${formatTimestamp(chunk.endSec)}]`;
-  if (chunk.passageTitle && chunk.summary) {
-    return `${range} ${escapeXmlText(chunk.passageTitle)} — ${escapeXmlText(chunk.summary)}`;
-  }
+function timeRange(startSec: number, endSec: number): string {
+  return `[${formatTimestamp(startSec)}–${formatTimestamp(endSec)}]`;
+}
+
+function chapterOutlineLine(chapter: ReadableTranscriptChapter): string {
+  return `${timeRange(chapter.startSec, chapter.endSec)} ${escapeXmlText(chapter.title)} — ${escapeXmlText(chapter.summary)}`;
+}
+
+function passageOutlineLine(chunk: ReadableTranscriptChunk): string {
   const text = chunk.segments.map((segment) => segment.text).join(" ");
   const preview =
     text.length > OUTLINE_PREVIEW_CHARS
       ? `${text.slice(0, OUTLINE_PREVIEW_CHARS).trimEnd()}…`
       : text;
-  return chunk.passageTitle
-    ? `${range} ${escapeXmlText(chunk.passageTitle)} — ${escapeXmlText(preview)}`
-    : `${range} ${escapeXmlText(preview)}`;
+  return `${timeRange(chunk.startSec, chunk.endSec)} ${escapeXmlText(preview)}`;
 }
 
 function transcriptOpenTag(
@@ -130,6 +148,9 @@ function transcriptOpenTag(
       ? `durationSec="${Math.round(transcript.durationSec)}"`
       : "",
     `chunks="${transcript.chunks.length}"`,
+    transcript.chapters?.length
+      ? `chapters="${transcript.chapters.length}"`
+      : "",
     `view="${view}"`,
     extra,
   ].filter(Boolean);
@@ -140,7 +161,10 @@ function transcriptOpenTag(
 export function buildTranscriptDefaultView(
   transcript: ReadableTranscript,
 ): string {
-  const lines = transcript.chunks.flatMap((chunk) => passageLines(chunk));
+  const writeLines = createLineWriter(transcript.chapters);
+  const lines = transcript.chunks.flatMap((chunk) =>
+    chunk.segments.flatMap(writeLines),
+  );
   const totalChars = lines.reduce((sum, line) => sum + line.length + 1, 0);
 
   if (totalChars <= MAX_TRANSCRIPT_FULL_CHARS) {
@@ -152,12 +176,21 @@ export function buildTranscriptDefaultView(
     ].join("\n");
   }
 
+  const chapters = transcript.chapters ?? [];
+  const outline =
+    chapters.length > 0
+      ? chapters.map(chapterOutlineLine)
+      : transcript.chunks.map(passageOutlineLine);
   return [
     ...overviewBlock(transcript),
     transcriptOpenTag(transcript, "outline"),
-    ...transcript.chunks.map(outlineLine),
+    ...outline,
     "</transcript>",
-    `<transcriptHint>${escapeXmlText(TRANSCRIPT_HINTS.outline(transcript.chunks.length))}</transcriptHint>`,
+    `<transcriptHint>${escapeXmlText(
+      chapters.length > 0
+        ? TRANSCRIPT_HINTS.outline(chapters.length, "chapters")
+        : TRANSCRIPT_HINTS.outline(transcript.chunks.length, "passages"),
+    )}</transcriptHint>`,
   ].join("\n");
 }
 
@@ -172,7 +205,7 @@ function overlapsRange(
 
 /**
  * Les segments qui chevauchent `[startSec, endSec)`, dans l'ordre, sous le
- * titre de leur passage. Plafonné à `MAX_TRANSCRIPT_CHARS_PER_CALL` : au-delà,
+ * titre de leur chapitre. Plafonné à `MAX_TRANSCRIPT_CHARS_PER_CALL` : au-delà,
  * le hint donne l'instant d'où reprendre.
  */
 export function buildTranscriptRangeView(
@@ -189,28 +222,22 @@ export function buildTranscriptRangeView(
   let segmentCount = 0;
   let nextStartSec: number | undefined;
 
+  const writeLines = createLineWriter(transcript.chapters);
   outer: for (const chunk of transcript.chunks) {
-    const inRange = chunk.segments.filter((segment) =>
-      overlapsRange(segment, range),
-    );
-    if (inRange.length === 0) continue;
-    const header = passageHeader(chunk);
-    let headerPending = header !== null;
-    for (const segment of inRange) {
-      const line = segmentLine(segment);
-      const added =
-        line.length + 1 + (headerPending && header ? header.length + 1 : 0);
+    for (const segment of chunk.segments) {
+      if (!overlapsRange(segment, range)) continue;
+      const added = writeLines(segment);
+      const addedChars = added.reduce((sum, line) => sum + line.length + 1, 0);
       // Au moins une ligne, même trop longue : sinon l'agent bouclerait.
-      if (segmentCount > 0 && chars + added > MAX_TRANSCRIPT_CHARS_PER_CALL) {
+      if (
+        segmentCount > 0 &&
+        chars + addedChars > MAX_TRANSCRIPT_CHARS_PER_CALL
+      ) {
         nextStartSec = Math.floor(segment.s);
         break outer;
       }
-      if (headerPending && header) {
-        lines.push(header);
-        headerPending = false;
-      }
-      lines.push(line);
-      chars += added;
+      lines.push(...added);
+      chars += addedChars;
       segmentCount += 1;
     }
   }

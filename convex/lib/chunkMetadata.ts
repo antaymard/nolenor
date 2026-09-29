@@ -1,4 +1,5 @@
 import { stripLoneSurrogates } from "./textSanitize";
+import { getTranscriptChapterTitle } from "./transcriptChunks";
 
 // Helpers de lecture des métadonnées de chunk (purs, sans `ctx`) : un seul
 // endroit, importable depuis les models comme depuis les fonctions
@@ -6,16 +7,14 @@ import { stripLoneSurrogates } from "./textSanitize";
 
 /**
  * Locateur compact d'un chunk : premier titre de section d'une page PDF, ou
- * titre du passage d'un chunk `transcript` (cf. ia/transcriptSummaryRun.ts).
+ * titre du chapitre d'un chunk `transcript` (cf. ia/transcriptSummaryRun.ts).
  */
 export function getSectionTitleFromMetadata(
   metadata: unknown,
 ): string | undefined {
   if (!metadata || typeof metadata !== "object") return undefined;
-  const passageTitle = (metadata as { passageTitle?: unknown }).passageTitle;
-  if (typeof passageTitle === "string" && passageTitle.trim().length > 0) {
-    return stripLoneSurrogates(passageTitle.trim());
-  }
+  const chapterTitle = getTranscriptChapterTitle(metadata);
+  if (chapterTitle) return stripLoneSurrogates(chapterTitle.trim());
   const sections = (metadata as { sections?: unknown }).sections;
   if (!Array.isArray(sections) || sections.length === 0) return undefined;
   const first = sections[0];

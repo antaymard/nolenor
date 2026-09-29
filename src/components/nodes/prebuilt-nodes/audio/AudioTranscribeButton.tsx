@@ -21,7 +21,8 @@ export function AudioTranscribeButton({
   nodeDataId: Id<"nodeDatas">;
   onOpenWindow: () => void;
 }) {
-  const { state, error, start } = useAudioTranscription(nodeDataId);
+  const { state, error, start, progress, maxBytes } =
+    useAudioTranscription(nodeDataId);
 
   switch (state) {
     case "noFile":
@@ -29,7 +30,11 @@ export function AudioTranscribeButton({
     case "running":
       return (
         <NodeToolbarButton
-          label="Transcribing…"
+          label={
+            progress
+              ? `Transcribing… ${progress.done}/${progress.total}`
+              : "Transcribing…"
+          }
           title="Transcription in progress — you can keep working"
           disabled
         >
@@ -50,7 +55,9 @@ export function AudioTranscribeButton({
       return (
         <NodeToolbarButton
           label="Transcribe"
-          title="File too large to transcribe (max 25 MB)"
+          title={`File too large to transcribe${
+            maxBytes ? ` (max ${Math.round(maxBytes / (1024 * 1024))} MB)` : ""
+          }`}
           disabled
         >
           <TbTextCaption />

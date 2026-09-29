@@ -20,9 +20,11 @@ import type {
   FusedHit,
 } from "../schemas/searchableChunksSchema";
 import {
+  buildChapterMarks,
   getTranscriptSourceKey,
   parseTranscriptMetadata,
   splitTranscriptText,
+  type TranscriptChapter,
   type TranscriptChunkMetadata,
 } from "../lib/transcriptChunks";
 
@@ -146,14 +148,21 @@ export type CurrentTranscript = {
   language?: string;
   durationSec?: number;
   overview?: string;
+  chapters?: TranscriptChapterOutput[];
   chunks: Array<{
     order: number;
     startSec: number;
     endSec: number;
-    passageTitle?: string;
-    summary?: string;
     segments: Array<{ s: number; e: number; text: string }>;
   }>;
+};
+
+/** Un chapitre, tel que servi aux lecteurs (UI, agent). */
+export type TranscriptChapterOutput = {
+  startSec: number;
+  endSec: number;
+  title: string;
+  summary: string;
 };
 
 /**
@@ -179,31 +188,35 @@ export async function getCurrentTranscript(
     language: first.language,
     durationSec: first.durationSec,
     ...(first.overview !== undefined && { overview: first.overview }),
+    ...(first.chapters !== undefined && {
+      chapters: first.chapters.map((chapter) => ({
+        startSec: chapter.s,
+        endSec: chapter.e,
+        title: chapter.title,
+        summary: chapter.summary,
+      })),
+    }),
     chunks: chunks.map((chunk) => ({
       order: chunk.order,
       startSec: chunk.metadata.startSec,
       endSec: chunk.metadata.endSec,
-      ...(chunk.metadata.passageTitle !== undefined && {
-        passageTitle: chunk.metadata.passageTitle,
-      }),
-      ...(chunk.metadata.summary !== undefined && {
-        summary: chunk.metadata.summary,
-      }),
       segments: splitTranscriptText(chunk.text, chunk.metadata.segments),
     })),
   };
 }
 
 /**
- * Écrit les résumés d'un transcript dans la `metadata` de ses chunks — et
- * nulle part ailleurs : ni `text` ni `embedding` ne bougent, donc aucune
- * réindexation, et rien dans `nodeDatas.values`, donc aucun rebuild.
+ * Écrit les chapitres et la vue d'ensemble d'un transcript dans la `metadata`
+ * de ses chunks — et nulle part ailleurs : ni `text` ni `embedding` ne
+ * bougent, donc aucune réindexation, et rien dans `nodeDatas.values`, donc
+ * aucun rebuild. `chapters` va sur le chunk `order 0`, et chaque chunk reçoit
+ * les repères (`chapterMarks`) des chapitres qu'il recouvre.
  *
  * Tout ou rien : si le transcript de `sourceKey` n'a plus exactement
  * `passageCount` chunks (re-transcription ou fichier remplacé pendant
- * l'appel LLM), les résumés décrivent autre chose et sont jetés.
+ * l'appel LLM), les chapitres décrivent autre chose et sont jetés.
  */
-export async function patchTranscriptSummaries(
+export async function patchTranscriptChapters(
   ctx: MutationCtx,
   {
     nodeDataId,
@@ -211,14 +224,14 @@ export async function patchTranscriptSummaries(
     passageCount,
     overview,
     summaryModel,
-    passages,
+    chapters,
   }: {
     nodeDataId: Id<"nodeDatas">;
     sourceKey: string;
     passageCount: number;
     overview?: string;
     summaryModel: string;
-    passages: Array<{ order: number; title: string; summary: string }>;
+    chapters: TranscriptChapterOutput[];
   },
 ): Promise<boolean> {
   const chunks = (await listTranscriptChunks(ctx, { nodeDataId })).filter(
@@ -226,22 +239,37 @@ export async function patchTranscriptSummaries(
   );
   if (chunks.length === 0 || chunks.length !== passageCount) return false;
 
-  const byOrder = new Map(passages.map((passage) => [passage.order, passage]));
-  for (const chunk of chunks) {
-    const passage = byOrder.get(chunk.order);
-    const isFirst = chunk.order === chunks[0].order;
-    if (!passage && !(isFirst && overview)) continue;
+  const stored: TranscriptChapter[] = chapters.map((chapter) => ({
+    s: chapter.startSec,
+    e: chapter.endSec,
+    title: chapter.title,
+    summary: chapter.summary,
+  }));
 
+  for (const chunk of chunks) {
+    const isFirst = chunk.order === chunks[0].order;
     const existing = await ctx.db.get(chunk._id);
     if (!existing) continue;
+    // Les titres et résumés par passage de la première version sont
+    // remplacés par les chapitres : on les retire au passage.
+    const {
+      passageTitle: _passageTitle,
+      summary: _summary,
+      ...metadata
+    } = existing.metadata ?? {};
+    const chapterMarks =
+      stored.length > 0
+        ? buildChapterMarks(stored, chunk.metadata)
+        : undefined;
     await ctx.db.patch(chunk._id, {
       metadata: {
-        ...(existing.metadata ?? {}),
-        ...(passage && {
-          passageTitle: passage.title,
-          summary: passage.summary,
+        ...metadata,
+        ...(chapterMarks && { chapterMarks }),
+        ...(isFirst && {
+          ...(overview && { overview }),
+          ...(stored.length > 0 && { chapters: stored }),
+          summaryModel,
         }),
-        ...(isFirst && overview && { overview, summaryModel }),
       },
     });
   }

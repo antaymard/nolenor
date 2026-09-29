@@ -8,24 +8,31 @@ export interface AudioTranscriptOutlineChunk {
   order: number;
   startSec: number;
   endSec: number;
-  passageTitle?: string;
-  summary?: string;
   segments: Array<{ s: number; e: number; text: string }>;
 }
 
+export interface AudioTranscriptChapter {
+  startSec: number;
+  endSec: number;
+  title: string;
+  summary: string;
+}
+
 /**
- * Plan tab of the audio window: the overview of the recording, then one entry
- * per ~2-minute passage (the search chunks), each jumping the window's player
- * to where the passage starts. Titles and summaries come from the summary
- * step that follows a transcription; until they land (or if it failed), a
- * passage shows the beginning of its text instead.
+ * Plan tab of the audio window: the overview of the recording, then its
+ * chapters, each jumping the window's player to where the chapter starts.
+ * Chapters come from the step that follows a transcription, cut by topic;
+ * until they land (or if it failed), the outline lists the ~2-minute search
+ * passages with the beginning of their text instead.
  */
 export function AudioTranscriptOutline({
   chunks,
+  chapters,
   overview,
   onSeek,
 }: {
   chunks: AudioTranscriptOutlineChunk[] | null | undefined;
+  chapters?: AudioTranscriptChapter[];
   overview?: string;
   onSeek: (seconds: number) => void;
 }) {
@@ -43,6 +50,35 @@ export function AudioTranscriptOutline({
     );
   }
 
+  const entries: Array<{
+    key: number;
+    startSec: number;
+    endSec: number;
+    title?: string;
+    text: string;
+  }> =
+    chapters && chapters.length > 0
+      ? chapters.map((chapter) => ({
+          key: chapter.startSec,
+          startSec: chapter.startSec,
+          endSec: chapter.endSec,
+          title: chapter.title,
+          text: chapter.summary,
+        }))
+      : chunks.map((chunk) => {
+          const text = chunk.segments.map((segment) => segment.text).join(" ");
+          return {
+            key: chunk.order,
+            startSec: chunk.startSec,
+            endSec: chunk.endSec,
+            text:
+              text.length > PREVIEW_CHARS
+                ? `${text.slice(0, PREVIEW_CHARS).trimEnd()}…`
+                : text,
+          };
+        });
+  const hasChapters = Boolean(chapters && chapters.length > 0);
+
   return (
     <div className="flex flex-col gap-1 p-2">
       {overview && (
@@ -59,38 +95,41 @@ export function AudioTranscriptOutline({
         </>
       )}
       <SectionLabel
-        hint="The transcript in passages of about two minutes. Click one to play it."
+        hint={
+          hasChapters
+            ? "The recording split by topic. Click a chapter to play it."
+            : "The transcript in passages of about two minutes. Click one to play it."
+        }
         className="mb-3 mt-2"
       >
-        Outline
+        {hasChapters ? "Chapters" : "Outline"}
       </SectionLabel>
-      {chunks.map((chunk) => {
-        const text = chunk.segments.map((segment) => segment.text).join(" ");
-        const preview =
-          text.length > PREVIEW_CHARS
-            ? `${text.slice(0, PREVIEW_CHARS).trimEnd()}…`
-            : text;
-        return (
-          <button
-            key={chunk.order}
-            type="button"
-            onClick={() => onSeek(chunk.startSec)}
-            className="flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-slate-50"
+      {entries.map((entry) => (
+        <button
+          key={entry.key}
+          type="button"
+          onClick={() => onSeek(entry.startSec)}
+          className="flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-slate-50"
+        >
+          <span className="font-mono text-xs tabular-nums text-slate-400">
+            {formatTime(entry.startSec)}–{formatTime(entry.endSec)}
+          </span>
+          {entry.title && (
+            <span className="text-sm font-medium text-slate-700">
+              {entry.title}
+            </span>
+          )}
+          <span
+            className={
+              hasChapters
+                ? "line-clamp-4 text-sm text-slate-600"
+                : "line-clamp-3 text-sm text-slate-600"
+            }
           >
-            <span className="font-mono text-xs tabular-nums text-slate-400">
-              {formatTime(chunk.startSec)}–{formatTime(chunk.endSec)}
-            </span>
-            {chunk.passageTitle && (
-              <span className="text-sm font-medium text-slate-700">
-                {chunk.passageTitle}
-              </span>
-            )}
-            <span className="line-clamp-3 text-sm text-slate-600">
-              {chunk.summary ?? preview}
-            </span>
-          </button>
-        );
-      })}
+            {entry.text}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }

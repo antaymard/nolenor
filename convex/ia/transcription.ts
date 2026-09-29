@@ -127,6 +127,13 @@ const transcriptSegmentValidator = v.object({
   text: v.string(),
 });
 
+const transcriptChapterValidator = v.object({
+  startSec: v.number(),
+  endSec: v.number(),
+  title: v.string(),
+  summary: v.string(),
+});
+
 /**
  * Le transcript du fichier COURANT d'un node audio, segment par segment,
  * reconstruit depuis les chunks `transcript` (cf. `lib/transcriptChunks.ts`).
@@ -144,13 +151,12 @@ export const getTranscript = query({
       language: v.optional(v.string()),
       durationSec: v.optional(v.number()),
       overview: v.optional(v.string()),
+      chapters: v.optional(v.array(transcriptChapterValidator)),
       chunks: v.array(
         v.object({
           order: v.number(),
           startSec: v.number(),
           endSec: v.number(),
-          passageTitle: v.optional(v.string()),
-          summary: v.optional(v.string()),
           segments: v.array(transcriptSegmentValidator),
         }),
       ),
@@ -248,7 +254,7 @@ export const saveTranscript = internalMutation({
     });
     await NodeDataModels.clearTranscription(ctx, { nodeDataId });
 
-    // Seul déclencheur des résumés : une transcription qui vient d'être
+    // Seul déclencheur des chapitres : une transcription qui vient d'être
     // écrite. Le chunkBuilder n'en planifie jamais, donc aucun write de
     // `values` (renommage, boucle…) ne les relance. Étape à part : le
     // transcript est lisible tout de suite, et son échec ne casse rien.
@@ -262,24 +268,23 @@ export const saveTranscript = internalMutation({
 });
 
 /**
- * Écrit les résumés dans la `metadata` des chunks `transcript` — ni `text`,
- * ni embedding, ni `values` : aucune réindexation, aucun rebuild. Jetés si le
- * transcript a changé pendant l'appel LLM (cf. `patchTranscriptSummaries`).
+ * Écrit les chapitres et la vue d'ensemble dans la `metadata` des chunks
+ * `transcript` — ni `text`, ni embedding, ni `values` : aucune réindexation,
+ * aucun rebuild. Jetés si le transcript a changé pendant l'appel LLM (cf.
+ * `patchTranscriptChapters`).
  */
-export const saveTranscriptSummaries = internalMutation({
+export const saveTranscriptChapters = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),
     sourceKey: v.string(),
     passageCount: v.number(),
     overview: v.optional(v.string()),
     summaryModel: v.string(),
-    passages: v.array(
-      v.object({ order: v.number(), title: v.string(), summary: v.string() }),
-    ),
+    chapters: v.array(transcriptChapterValidator),
   },
   returns: v.object({ saved: v.boolean() }),
   handler: async (ctx, args) => ({
-    saved: await SearchableChunkModels.patchTranscriptSummaries(ctx, args),
+    saved: await SearchableChunkModels.patchTranscriptChapters(ctx, args),
   }),
 });
 

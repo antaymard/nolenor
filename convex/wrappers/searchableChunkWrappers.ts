@@ -97,13 +97,21 @@ export const getCurrentTranscript = internalQuery({
       language: v.optional(v.string()),
       durationSec: v.optional(v.number()),
       overview: v.optional(v.string()),
+      chapters: v.optional(
+        v.array(
+          v.object({
+            startSec: v.number(),
+            endSec: v.number(),
+            title: v.string(),
+            summary: v.string(),
+          }),
+        ),
+      ),
       chunks: v.array(
         v.object({
           order: v.number(),
           startSec: v.number(),
           endSec: v.number(),
-          passageTitle: v.optional(v.string()),
-          summary: v.optional(v.string()),
           segments: v.array(
             v.object({ s: v.number(), e: v.number(), text: v.string() }),
           ),

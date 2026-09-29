@@ -2,130 +2,182 @@ import { z } from "zod";
 import { escapeXmlText } from "../../lib/xml";
 import { formatTimestamp } from "./transcriptFormatters";
 
-// Prompt et post-traitement des résumés de transcript (titre + résumé par
-// passage, vue d'ensemble). Pur, sans `ctx` : testable seul, et utilisé par
+// Prompt et post-traitement des chapitres de transcript (titre + résumé par
+// chapitre, vue d'ensemble). Pur, sans `ctx` : testable seul, et utilisé par
 // ia/transcriptSummaryRun.ts.
 //
-// Précision par passage malgré un appel unique pour tout le fichier :
-//  - les passages sont délimités PAR NOUS (les chunks `transcript`, ~2 min),
-//    jamais redécoupés par le modèle ;
-//  - la sortie est un tableau `{id, title, summary}` rapproché par `id`,
-//    jamais par position ;
-//  - les `id` manquants repartent dans un second appel ciblé.
+// Les chapitres sont libres : c'est le modèle qui place les coupures, aux
+// changements de sujet, indépendamment des chunks de recherche (~2 min).
+// Pour que ces coupures tombent juste :
+//  - le transcript lui est donné ligne par ligne (un segment STT par ligne),
+//    chaque ligne numérotée ;
+//  - il renvoie, pour chaque chapitre, le numéro de sa première ligne — un
+//    entier qu'on valide, jamais un timestamp à interpréter ;
+//  - la fin d'un chapitre est le début du suivant : pas de trou, pas de
+//    chevauchement, par construction.
 
-/** Un passage à résumer : un chunk `transcript`. */
-export type SummaryPassage = {
-  order: number;
-  startSec: number;
-  endSec: number;
+/** Une ligne du transcript : un segment STT, numéroté dans tout le fichier. */
+export type TranscriptLine = {
+  id: number;
+  s: number;
+  e: number;
   text: string;
 };
 
-export type PassageSummary = { order: number; title: string; summary: string };
+/** Un chapitre tel que rendu par le modèle, validé : sa première ligne. */
+export type ChapterDraft = {
+  startLine: number;
+  title: string;
+  summary: string;
+};
+
+/** Un chapitre résolu en secondes, prêt à stocker. */
+export type ResolvedChapter = {
+  startSec: number;
+  endSec: number;
+  title: string;
+  summary: string;
+};
 
 const MAX_TITLE_CHARS = 80;
-const MAX_SUMMARY_CHARS = 600;
+const MAX_SUMMARY_CHARS = 700;
 const MAX_OVERVIEW_CHARS = 2_000;
+/** Un chapitre plus court est fondu dans le précédent. */
+const MIN_CHAPTER_SEC = 20;
+/** Longueur visée d'un chapitre, pour suggérer un nombre au modèle. */
+const TYPICAL_CHAPTER_SEC = 7 * 60;
+/** Garde-fou de stockage : la liste vit dans la metadata du chunk 0. */
+const MAX_CHAPTERS = 200;
 
-const passageSummaryItem = z.object({
-  id: z.number().int().describe("The id of the passage, copied as is."),
+const chapterItem = z.object({
+  startLine: z
+    .number()
+    .int()
+    .describe(
+      "The number of the line where this chapter starts (the N of its #N prefix).",
+    ),
   title: z
     .string()
-    .describe("A short title for this passage: 4 to 8 words, no quotes."),
+    .describe("A short title for this chapter: 3 to 8 words, no quotes."),
   summary: z
     .string()
     .describe(
-      "1 to 3 sentences on what is said in this passage only: the points made, decisions, facts, names.",
+      "1 to 4 sentences on what is said in this chapter: the points made, decisions, facts, names.",
     ),
 });
 
-/** Sortie d'un appel complet : vue d'ensemble + un résumé par passage. */
-export const fullSummarySchema = z.object({
+/** Sortie d'un appel complet : vue d'ensemble + chapitres. */
+export const fullChaptersSchema = z.object({
   overview: z
     .string()
     .describe(
       "5 to 10 lines giving an overview of the whole recording: what it is, who speaks, the main topics and conclusions, in order.",
     ),
-  passages: z.array(passageSummaryItem),
+  chapters: z.array(chapterItem),
 });
 
-/** Sortie d'un lot ou d'un rattrapage : les passages seulement. */
-export const passagesOnlySchema = z.object({
-  passages: z.array(passageSummaryItem),
+/** Sortie d'un lot (audio long) : les chapitres seulement. */
+export const chaptersOnlySchema = z.object({
+  chapters: z.array(chapterItem),
 });
 
-/** Sortie de la vue d'ensemble construite à partir des résumés (audio long). */
+/** Sortie de la vue d'ensemble construite à partir des chapitres. */
 export const overviewOnlySchema = z.object({
-  overview: fullSummarySchema.shape.overview,
+  overview: fullChaptersSchema.shape.overview,
 });
 
 export const TRANSCRIPT_SUMMARY_SYSTEM = [
-  "You summarize the transcript of an audio recording so that a reader, or another AI agent, can get an overview of it and find a passage without reading everything.",
-  'The transcript is split into passages of about two minutes, each in a <passage id="…" start="m:ss" end="m:ss"> tag. The split is fixed: never merge, split or skip passages.',
-  "Return exactly one entry per passage to summarize, with its id copied as is, in the same order.",
-  'Each title and summary must describe only what is said in its own passage. Use the neighbouring passages only to resolve references (who "she" is, which project is meant).',
+  "You split the transcript of an audio recording into chapters, so that a reader, or another AI agent, can get an overview of it and jump to a topic without reading everything.",
+  'The transcript is given one line per spoken segment, each prefixed with "#N (m:ss)": N is the line number, m:ss the time it is said.',
+  "A chapter starts where the conversation moves to a new topic, and lasts until the next chapter starts. Follow the content: a long discussion of one topic is one chapter, a quick aside is not a chapter of its own.",
+  "Return the chapters in order. The first one starts at the first line. Give each its first line number, copied as is, a title and a summary.",
+  "Each title and summary must describe only what is said in its own chapter.",
   "Be factual and specific: keep names, figures, dates and decisions. Do not invent anything that is not in the transcript.",
   "Write in the language of the transcript.",
 ].join("\n");
 
-function passageXml(passage: SummaryPassage, tag = "passage"): string {
-  return `<${tag} id="${passage.order}" start="${formatTimestamp(passage.startSec)}" end="${formatTimestamp(passage.endSec)}">\n${escapeXmlText(passage.text)}\n</${tag}>`;
+/** Les segments de tous les chunks, numérotés dans l'ordre. */
+export function flattenTranscriptLines(
+  chunks: Array<{ segments: Array<{ s: number; e: number; text: string }> }>,
+): TranscriptLine[] {
+  return chunks
+    .flatMap((chunk) => chunk.segments)
+    .filter((segment) => segment.text.trim().length > 0)
+    .map((segment, id) => ({ id, ...segment }));
 }
 
-/** Appel complet : tout le transcript, vue d'ensemble + passages. */
-export function buildFullSummaryPrompt(passages: SummaryPassage[]): string {
+function lineText(line: TranscriptLine): string {
+  return `#${line.id} (${formatTimestamp(line.s)}) ${escapeXmlText(line.text)}`;
+}
+
+/** Le nombre de chapitres suggéré au modèle : un repère, pas une consigne. */
+export function suggestedChapterCount(lines: TranscriptLine[]): number {
+  if (lines.length === 0) return 1;
+  const duration = lines[lines.length - 1].e - lines[0].s;
+  return Math.max(1, Math.round(duration / TYPICAL_CHAPTER_SEC));
+}
+
+function chapterCountHint(lines: TranscriptLine[]): string {
+  const count = suggestedChapterCount(lines);
+  return count === 1
+    ? "This excerpt is short: one or two chapters are usually enough."
+    : `As a rough guide, expect around ${count} chapters here; follow the topics rather than this number.`;
+}
+
+/** Appel complet : tout le transcript, vue d'ensemble + chapitres. */
+export function buildFullChaptersPrompt(lines: TranscriptLine[]): string {
   return [
-    `Summarize each of the ${passages.length} passages below, then write an overview of the whole recording.`,
+    "Split the transcript below into chapters, then write an overview of the whole recording.",
+    chapterCountHint(lines),
     "",
-    ...passages.map((passage) => passageXml(passage)),
+    "<transcript>",
+    ...lines.map(lineText),
+    "</transcript>",
   ].join("\n");
 }
 
 /**
- * Un sous-ensemble de passages (lot d'un audio long, ou rattrapage des
- * manquants). `context` : passages fournis pour comprendre, à ne pas résumer.
- * `previousSummary` : où en était l'enregistrement avant ce lot.
+ * Un lot d'un audio long. `previousChapters` : les chapitres déjà faits, pour
+ * que le modèle sache où en est l'enregistrement.
  */
-export function buildPassagesPrompt({
-  targets,
-  context = [],
-  previousSummary,
+export function buildBatchChaptersPrompt({
+  lines,
+  previousChapters,
 }: {
-  targets: SummaryPassage[];
-  context?: SummaryPassage[];
-  previousSummary?: string;
+  lines: TranscriptLine[];
+  previousChapters: ResolvedChapter[];
 }): string {
-  const targetIds = targets.map((passage) => passage.order).join(", ");
-  const all = [
-    ...targets.map((p) => ({ p, target: true })),
-    ...context.map((p) => ({ p, target: false })),
-  ].sort((a, b) => a.p.order - b.p.order);
+  const first = lines[0];
   return [
-    `Summarize only the passages with these ids: ${targetIds}. Passages in <context> tags are there to help you understand; do not summarize them.`,
-    ...(previousSummary
+    `Split this part of the transcript (lines #${first.id} to #${lines[lines.length - 1].id}) into chapters. Its first chapter starts at line #${first.id}.`,
+    chapterCountHint(lines),
+    ...(previousChapters.length > 0
       ? [
           "",
-          "What the recording covered before these passages:",
-          previousSummary,
+          "The chapters of the recording before this part, for context only (do not return them):",
+          ...previousChapters.map(
+            (chapter) =>
+              `[${formatTimestamp(chapter.startSec)}] ${escapeXmlText(chapter.title)}`,
+          ),
         ]
       : []),
     "",
-    ...all.map(({ p, target }) =>
-      passageXml(p, target ? "passage" : "context"),
-    ),
+    "<transcript>",
+    ...lines.map(lineText),
+    "</transcript>",
   ].join("\n");
 }
 
-/** Audio long : vue d'ensemble à partir des résumés de passages. */
-export function buildOverviewFromSummariesPrompt(
-  passages: Array<PassageSummary & { startSec: number }>,
+/** Audio long : vue d'ensemble à partir des chapitres. */
+export function buildOverviewFromChaptersPrompt(
+  chapters: ResolvedChapter[],
 ): string {
   return [
-    "Here are the titles and summaries of the successive passages of an audio recording. Write an overview of the whole recording.",
+    "Here are the chapters of an audio recording, with their titles and summaries. Write an overview of the whole recording.",
     "",
-    ...passages.map(
-      (passage) =>
-        `[${formatTimestamp(passage.startSec)}] ${escapeXmlText(passage.title)} — ${escapeXmlText(passage.summary)}`,
+    ...chapters.map(
+      (chapter) =>
+        `[${formatTimestamp(chapter.startSec)}] ${escapeXmlText(chapter.title)} — ${escapeXmlText(chapter.summary)}`,
     ),
   ].join("\n");
 }
@@ -138,27 +190,81 @@ function clean(value: string, maxChars: number): string {
 }
 
 /**
- * Rapproche la sortie du modèle des passages attendus, PAR `id` : un `id`
- * inconnu ou déjà vu est ignoré, un titre ou résumé vide aussi. Les passages
- * absents du résultat sont ceux à rattraper.
+ * Valide les chapitres rendus pour les lignes `lines` (un lot, ou tout le
+ * fichier) : numéro hors du lot, déjà vu, titre ou résumé vide → ignoré ;
+ * triés par première ligne ; le premier est ramené au début du lot, pour
+ * que rien ne reste hors chapitre.
  */
-export function matchPassageSummaries(
-  expectedOrders: number[],
-  output: Array<{ id: number; title: string; summary: string }>,
-): Map<number, PassageSummary> {
-  const expected = new Set(expectedOrders);
-  const matched = new Map<number, PassageSummary>();
+export function validateChapterDrafts(
+  lines: TranscriptLine[],
+  output: Array<{ startLine: number; title: string; summary: string }>,
+): ChapterDraft[] {
+  if (lines.length === 0) return [];
+  const firstId = lines[0].id;
+  const lastId = lines[lines.length - 1].id;
+  const seen = new Set<number>();
+  const drafts: ChapterDraft[] = [];
   for (const item of output) {
-    if (!expected.has(item.id) || matched.has(item.id)) continue;
+    const startLine = item.startLine;
+    if (!Number.isInteger(startLine)) continue;
+    if (startLine < firstId || startLine > lastId || seen.has(startLine)) {
+      continue;
+    }
     const title = clean(
       item.title.replace(/^["'«“]+|["'»”]+$/g, ""),
       MAX_TITLE_CHARS,
     );
     const summary = clean(item.summary, MAX_SUMMARY_CHARS);
     if (!title || !summary) continue;
-    matched.set(item.id, { order: item.id, title, summary });
+    seen.add(startLine);
+    drafts.push({ startLine, title, summary });
   }
-  return matched;
+  drafts.sort((a, b) => a.startLine - b.startLine);
+  if (drafts.length > 0) drafts[0] = { ...drafts[0], startLine: firstId };
+  return drafts;
+}
+
+/**
+ * Passe des premières lignes aux secondes. Chaque chapitre finit où commence
+ * le suivant ; le premier commence à 0, le dernier finit à `durationSec`.
+ * Un chapitre de moins de `MIN_CHAPTER_SEC` est fondu dans le précédent.
+ */
+export function resolveChapters(
+  lines: TranscriptLine[],
+  drafts: ChapterDraft[],
+  durationSec: number | undefined,
+): ResolvedChapter[] {
+  if (lines.length === 0 || drafts.length === 0) return [];
+  const startById = new Map(lines.map((line) => [line.id, line.s]));
+  const lastEnd = lines[lines.length - 1].e;
+  const end = Math.max(durationSec ?? 0, lastEnd);
+
+  const starts = drafts
+    .map((draft) => ({ draft, startSec: startById.get(draft.startLine) }))
+    .filter(
+      (entry): entry is { draft: ChapterDraft; startSec: number } =>
+        entry.startSec !== undefined,
+    );
+  if (starts.length === 0) return [];
+  starts[0] = { ...starts[0], startSec: 0 };
+
+  const kept: Array<{ draft: ChapterDraft; startSec: number }> = [];
+  starts.forEach((entry, index) => {
+    const nextStart = starts[index + 1]?.startSec ?? end;
+    const tooShort = nextStart - entry.startSec < MIN_CHAPTER_SEC;
+    if (kept.length > 0 && tooShort) return;
+    // Même instant que le précédent (segments de même début) : fondu aussi.
+    const previous = kept[kept.length - 1];
+    if (previous && entry.startSec <= previous.startSec) return;
+    kept.push(entry);
+  });
+
+  return kept.slice(0, MAX_CHAPTERS).map((entry, index, list) => ({
+    startSec: entry.startSec,
+    endSec: index + 1 < list.length ? list[index + 1].startSec : end,
+    title: entry.draft.title,
+    summary: entry.draft.summary,
+  }));
 }
 
 export function cleanOverview(overview: string): string | undefined {
@@ -169,36 +275,70 @@ export function cleanOverview(overview: string): string | undefined {
     : trimmed;
 }
 
-/** Les passages manquants, et leurs voisins immédiats comme contexte. */
-export function withNeighbours(
-  passages: SummaryPassage[],
-  missingOrders: number[],
-): { targets: SummaryPassage[]; context: SummaryPassage[] } {
-  const missing = new Set(missingOrders);
-  const contextIndexes = new Set<number>();
-  passages.forEach((passage, index) => {
-    if (!missing.has(passage.order)) return;
-    for (const neighbour of [index - 1, index + 1]) {
-      const candidate = passages[neighbour];
-      if (candidate && !missing.has(candidate.order)) {
-        contextIndexes.add(neighbour);
-      }
-    }
-  });
-  return {
-    targets: passages.filter((passage) => missing.has(passage.order)),
-    context: [...contextIndexes]
-      .sort((a, b) => a - b)
-      .map((index) => passages[index]),
-  };
+/**
+ * Premier lot de lignes à partir de `from`, sous `maxChars` caractères de
+ * prompt (au moins une ligne). Renvoie l'index de fin, exclusif.
+ */
+export function takeBatch(
+  lines: TranscriptLine[],
+  from: number,
+  maxChars: number,
+): number {
+  let chars = 0;
+  let to = from;
+  while (to < lines.length) {
+    const next = lineText(lines[to]).length + 1;
+    if (to > from && chars + next > maxChars) break;
+    chars += next;
+    to += 1;
+  }
+  return to;
 }
 
-/** Découpe en lots consécutifs de `batchSize` passages. */
-export function splitIntoBatches<T>(items: T[], batchSize: number): T[][] {
-  const size = Math.max(1, Math.floor(batchSize));
-  const batches: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    batches.push(items.slice(i, i + size));
+/**
+ * Chapitrage d'un audio long, lot par lot. Le dernier chapitre d'un lot reste
+ * ouvert : le lot suivant repart de son début et peut le prolonger, pour ne
+ * pas couper un sujet à la frontière. Sauf s'il occupe plus de la moitié du
+ * lot : on n'avancerait presque plus, on le ferme à la frontière.
+ *
+ * `chapterBatch` rend les chapitres validés d'un lot (au moins un), avec en
+ * contexte ceux déjà retenus. Les `id` des lignes sont leurs index.
+ */
+export async function collectBatchedChapterDrafts(
+  lines: TranscriptLine[],
+  maxChars: number,
+  chapterBatch: (
+    batch: TranscriptLine[],
+    previousChapters: ResolvedChapter[],
+  ) => Promise<ChapterDraft[]>,
+): Promise<ChapterDraft[]> {
+  const drafts: ChapterDraft[] = [];
+  let from = 0;
+  while (from < lines.length) {
+    const to = takeBatch(lines, from, maxChars);
+    const batch = lines.slice(from, to);
+    const batchDrafts = await chapterBatch(
+      batch,
+      resolveChapters(lines.slice(0, from), drafts, undefined),
+    );
+    const open = batchDrafts[batchDrafts.length - 1];
+    const carryOver =
+      to < lines.length &&
+      batchDrafts.length > 1 &&
+      open.startLine > from &&
+      to - open.startLine <= (to - from) / 2;
+    if (carryOver) {
+      drafts.push(...batchDrafts.slice(0, -1));
+      from = open.startLine;
+    } else {
+      drafts.push(...batchDrafts);
+      from = to;
+    }
   }
-  return batches;
+  return drafts;
+}
+
+/** Taille du prompt d'un transcript entier, en caractères. */
+export function transcriptPromptChars(lines: TranscriptLine[]): number {
+  return lines.reduce((sum, line) => sum + lineText(line).length + 1, 0);
 }

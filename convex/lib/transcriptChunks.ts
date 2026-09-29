@@ -42,13 +42,34 @@ export type TranscriptChunkMetadata = {
   startSec: number;
   endSec: number;
   segments: TranscriptSegmentIndex[];
-  /** Résumés (ia/transcriptSummaryRun.ts), absents tant qu'ils n'ont pas tourné. */
-  passageTitle?: string;
-  summary?: string;
+  /**
+   * Chapitres (ia/transcriptSummaryRun.ts), absents tant qu'ils n'ont pas
+   * tourné. Leur découpage est libre, choisi par le modèle selon les sujets :
+   * il ne suit pas celui des chunks, pensé pour la recherche.
+   * `chapters` et `overview` : sur le chunk `order 0` seulement.
+   */
+  chapters?: TranscriptChapter[];
+  /** Sur chaque chunk : les chapitres qu'il recouvre, pour la recherche. */
+  chapterMarks?: TranscriptChapterMark[];
   /** Vue d'ensemble de tout l'audio : sur le chunk `order 0` seulement. */
   overview?: string;
   summaryModel?: string;
 };
+
+/** Un chapitre : de `s` à `e` (secondes), titré et résumé. */
+export type TranscriptChapter = {
+  s: number;
+  e: number;
+  title: string;
+  summary: string;
+};
+
+/**
+ * Le début et le titre d'un chapitre, recopiés sur chaque chunk qu'il
+ * recouvre : un résultat de recherche nomme son chapitre sans relire le
+ * chunk `order 0`. Le premier repère peut commencer avant le chunk.
+ */
+export type TranscriptChapterMark = { s: number; title: string };
 
 /**
  * Bornes de découpe. ~120 s de parole ≈ 300 mots ≈ 400 tokens ≈ 1 800
@@ -263,8 +284,8 @@ export function parseTranscriptMetadata(
     startSec: m.startSec,
     endSec: m.endSec,
     segments,
-    passageTitle: readNonEmptyString(m.passageTitle),
-    summary: readNonEmptyString(m.summary),
+    chapters: parseChapters(m.chapters),
+    chapterMarks: parseChapterMarks(m.chapterMarks),
     overview: readNonEmptyString(m.overview),
     summaryModel: readNonEmptyString(m.summaryModel),
   };
@@ -274,6 +295,90 @@ function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value
     : undefined;
+}
+
+function parseChapters(value: unknown): TranscriptChapter[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const chapters = value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const c = entry as Record<string, unknown>;
+    const title = readNonEmptyString(c.title);
+    const summary = readNonEmptyString(c.summary);
+    if (typeof c.s !== "number" || typeof c.e !== "number") return [];
+    if (!title || !summary) return [];
+    return [{ s: c.s, e: c.e, title, summary }];
+  });
+  return chapters.length > 0 ? chapters : undefined;
+}
+
+function parseChapterMarks(
+  value: unknown,
+): TranscriptChapterMark[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const marks = value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const c = entry as Record<string, unknown>;
+    const title = readNonEmptyString(c.title);
+    if (typeof c.s !== "number" || !title) return [];
+    return [{ s: c.s, title }];
+  });
+  return marks.length > 0 ? marks : undefined;
+}
+
+/** Les repères des chapitres qui recouvrent `[startSec, endSec)`. */
+export function buildChapterMarks(
+  chapters: TranscriptChapter[],
+  range: { startSec: number; endSec: number },
+): TranscriptChapterMark[] {
+  const overlapping = chapters.filter(
+    (chapter) => chapter.s < range.endSec && chapter.e > range.startSec,
+  );
+  // Chunk hors de toute plage (bornes arrondies) : le chapitre en cours.
+  const current = chapters[findChapterIndexAt(chapters, range.startSec)];
+  const marks =
+    overlapping.length > 0 ? overlapping : current ? [current] : [];
+  return marks.map((chapter) => ({ s: chapter.s, title: chapter.title }));
+}
+
+/**
+ * Index du chapitre en cours à l'instant `sec` : le dernier qui commence
+ * avant, ou le premier. -1 sans chapitres. Les chapitres sont triés.
+ */
+export function findChapterIndexAt(
+  chapters: ReadonlyArray<{ s: number }>,
+  sec: number,
+): number {
+  if (chapters.length === 0) return -1;
+  let found = 0;
+  for (let i = 0; i < chapters.length; i++) {
+    if (chapters[i].s > sec) break;
+    found = i;
+  }
+  return found;
+}
+
+/**
+ * Titre du chapitre d'un chunk `transcript` : celui en cours à `atSec` (un
+ * extrait de recherche), sinon celui qui couvre la plus grande part du chunk.
+ */
+export function getTranscriptChapterTitle(
+  metadata: unknown,
+  atSec?: number,
+): string | undefined {
+  const transcript = parseTranscriptMetadata(metadata);
+  const marks = transcript?.chapterMarks;
+  if (!transcript || !marks) return undefined;
+  if (atSec !== undefined) {
+    return marks[findChapterIndexAt(marks, atSec)]?.title;
+  }
+  let best: { title: string; covered: number } | undefined;
+  marks.forEach((mark, index) => {
+    const from = Math.max(mark.s, transcript.startSec);
+    const to = Math.min(marks[index + 1]?.s ?? Infinity, transcript.endSec);
+    const covered = to - from;
+    if (!best || covered > best.covered) best = { title: mark.title, covered };
+  });
+  return best?.title;
 }
 
 /**

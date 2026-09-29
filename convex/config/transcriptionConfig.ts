@@ -75,8 +75,8 @@ export function getMaxTranscriptionBytes(): number {
 export const STALE_TRANSCRIPTION_MS = 10 * 60 * 1000;
 
 /**
- * Résumés des transcripts (titre + résumé par passage, vue d'ensemble), en un
- * appel LLM après la transcription. Surchargeable par `TRANSCRIPT_SUMMARY_MODEL`
+ * Chapitres des transcripts (titre + résumé par chapitre, vue d'ensemble), en
+ * un appel LLM après la transcription. Surchargeable par `TRANSCRIPT_SUMMARY_MODEL`
  * dans l'env du déploiement. Le même modèle rapide que le captioning d'images.
  */
 export const DEFAULT_TRANSCRIPT_SUMMARY_MODEL = "deepseek/deepseek-v4.1-flash";
@@ -87,10 +87,10 @@ export function getTranscriptSummaryModel(): string {
 }
 
 /**
- * Au-delà de ce nombre de passages (~2 min chacun, donc ≈ 80 min), le résumé
- * part par lots de `TRANSCRIPT_SUMMARY_BATCH_SIZE`, chacun avec le résumé du
- * lot précédent en contexte. Inatteignable tant que la transcription est
- * plafonnée à 25 Mo (≈ 1 h), mais le code est prêt pour la vidéo / l'audio long.
+ * Au-delà de cette taille de transcript (en caractères de prompt, ≈ 2 h de
+ * parole, ≈ 30k tokens), le chapitrage part par lots d'au plus
+ * `TRANSCRIPT_CHAPTERS_BATCH_CHARS`, chacun avec les chapitres précédents en
+ * contexte, puis la vue d'ensemble se fait à partir des chapitres.
  */
-export const TRANSCRIPT_SUMMARY_SINGLE_CALL_MAX_PASSAGES = 40;
-export const TRANSCRIPT_SUMMARY_BATCH_SIZE = 20;
+export const TRANSCRIPT_CHAPTERS_SINGLE_CALL_MAX_CHARS = 120_000;
+export const TRANSCRIPT_CHAPTERS_BATCH_CHARS = 90_000;

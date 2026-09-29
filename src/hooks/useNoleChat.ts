@@ -126,7 +126,7 @@ export function useNoleChat() {
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
   const reactFlow = useReactFlow();
 
-  const sendCurrentMessage = useCallback(async () => {
+  const sendCurrentMessage = useCallback(async (): Promise<string | null> => {
     // Lecture ponctuelle à l'envoi (pas un rendu) : c'est ce qui garde ce
     // callback stable d'une frappe à l'autre.
     const userInput = useNoleStore.getState().userInput;
@@ -141,7 +141,7 @@ export function useNoleChat() {
       hasDirtyWindows ||
       speech.sttBusy
     ) {
-      return;
+      return null;
     }
 
     const prompt = userInput;
@@ -190,12 +190,16 @@ export function useNoleChat() {
         threadId: activeThreadId,
         onlyIfUntitled: true,
       });
+      // Renvoyé à l'appelant (onboarding) : il ouvre le panel sur le thread
+      // qui vient de naître puis ferme l'onboarding.
+      return activeThreadId;
     } catch (error) {
       console.error("Erreur lors de l'envoi:", error);
       setUserInput(prompt);
       toast.error("Impossible d'envoyer le message. Réessayez.", {
         position: "bottom-left",
       });
+      return null;
     } finally {
       setIsSending(false);
     }

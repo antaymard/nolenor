@@ -1,8 +1,4 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery } from "convex/react";
-import { SlotText } from "slot-text/react";
-import "slot-text/style.css";
-import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -10,6 +6,7 @@ import {
   previewStyle,
 } from "@/lib/canvasBackground";
 import { TbArrowRight } from "react-icons/tb";
+import OnboardingChatInput from "./OnboardingChatInput";
 
 type EmptyCanvasWithNoleProps = {
   canvasId: Id<"canvases">;
@@ -18,37 +15,23 @@ type EmptyCanvasWithNoleProps = {
 
 const ONBOARDING_BACKGROUND_STYLE = previewStyle({
   ...DEFAULT_CANVAS_BACKGROUND,
-  bgColor: "#fff",
-  patternColor: "#bfdbfe",
+  bgColor: "oklch(98.4% 0.003 247.858)",
+  patternColor: "oklch(88.2% 0.059 254.128)",
 });
 export default function EmptyCanvasWithNole(_: EmptyCanvasWithNoleProps) {
   const navigate = useNavigate();
 
-  // Même `displayName` que partout ailleurs (Settings → Account, puis provider).
-  // `undefined` pendant le chargement, `null` pour un anonyme : les deux
-  // retombent sur le titre générique (cf. `EmptyThreadSuggestions`).
-  const me = useQuery(api.users.me);
-  const firstName = me?.displayName?.trim()?.split(/\s+/)?.[0] || null;
-
-  // Sortie manuelle : revoir le canvas vide (l'effet du hook ne re-ajoute le
-  // param que si le canvas est toujours vide — donc rester ici, c'est
-  // impossible : re-cliquer ne refait qu'un aller-retour. C'est volontaire
-  // pour les fondations : l'échappatoire sert à prévisualiser, pas à rester).
+  // Sortie manuelle : revoir le canvas vide. Posée en `false` explicite (et
+  // non retirée) pour que le hook ne re-entre pas aussitôt — le canvas est
+  // encore vide à cet instant. Le param est nettoyé dès que le canvas ne
+  // l'est plus, il n'est utile que pendant la phase vide.
   const exitOnboarding = () => {
     void navigate({
       to: ".",
-      search: (prev) => ({ ...prev, onboarding: undefined }),
+      search: (prev) => ({ ...prev, onboarding: false }),
       replace: true,
     });
   };
-
-  const TEXTS = [
-    {
-      title: "What’s on your mind?",
-      subtitle:
-        "A project, notes, documents… Bring them here. Nolë helps you make sense of it all.",
-    },
-  ] as const;
 
   return (
     <div
@@ -81,14 +64,16 @@ export default function EmptyCanvasWithNole(_: EmptyCanvasWithNoleProps) {
             <TbArrowRight />
           </Button>
 
-          {/*Input*/}
-          <div className=>
-            
+          {/*Input héro : mêmes briques que le composer Nolë, sans choix de
+              modèle — à l'envoi, l'onboarding se ferme et le canvas s'ouvre
+              avec le panel sur le thread créé (cf. `OnboardingChatInput`).*/}
+          <div className="mt-8 flex w-full justify-center">
+            <OnboardingChatInput />
           </div>
         </div>
 
         <div className="bg-blue-50 rounded-xl flex items-center justify-center mt-12 border border-dashed border-blue-500 text-blue-500 hover:bg-blue-100">
-          <p>Drop files here (PDF, images, audio, links)</p>
+          <p>Drop files here (PDF, images, audio, links, .csv, .md, .txt)</p>
         </div>
       </div>
     </div>

@@ -13,8 +13,8 @@ import { findChapterIndexAt } from "../../lib/transcriptChunks";
 // Les vues full et outline s'ouvrent sur la vue d'ensemble quand elle existe,
 // et les vues full et range titrent chaque chapitre (`## [m:ss] titre`).
 
-/** Transcript rendu en entier en dessous de ce seuil (≈ 10 min de parole). */
-export const MAX_TRANSCRIPT_FULL_CHARS = 15_000;
+/** Transcript rendu en entier en dessous de ce seuil (≈ 20 min de parole). */
+export const MAX_TRANSCRIPT_FULL_CHARS = 30_000;
 /** Plafond d'une lecture par plage, aligné sur les PDF. */
 export const MAX_TRANSCRIPT_CHARS_PER_CALL = 60_000;
 const OUTLINE_PREVIEW_CHARS = 150;

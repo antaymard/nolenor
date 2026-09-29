@@ -1,32 +1,34 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useQuery } from "convex/react";
+import { SlotText } from "slot-text/react";
+import "slot-text/style.css";
+import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
-import NoleIcon from "@/assets/svg-components/NoleIcon";
-import ChatContainer from "@/components/canvas/nole-panel/ChatContainer";
 import { Button } from "@/components/shadcn/button";
+import {
+  DEFAULT_CANVAS_BACKGROUND,
+  previewStyle,
+} from "@/lib/canvasBackground";
+import { TbArrowRight } from "react-icons/tb";
 
 type EmptyCanvasWithNoleProps = {
   canvasId: Id<"canvases">;
   canvasName: string;
 };
 
-/**
- * Fondations de l'onboarding canvas vide : rendu à la place du canvas
- * React Flow quand l'URL porte `?onboarding=true` (cf.
- * `useEmptyCanvasOnboarding`).
- *
- * Pour l'instant, une page centrée avec le vrai `ChatContainer` de Nolë —
- * mêmes suggestions, même composer, même thread du canvas — et une sortie de
- * secours vers le canvas vide. Le premier node créé par Nolë fait sortir de
- * l'onboarding tout seul (le hook retire le param).
- *
- * Doit rester monté sous le `ReactFlowProvider` de la route canvas :
- * `ChatContainer` → `useNoleChat` → `useReactFlow` (contexte du message,
- * viewport). C'est le cas : `CanvasContent` rend ce composant à l'intérieur.
- */
-export default function EmptyCanvasWithNole({
-  canvasName,
-}: EmptyCanvasWithNoleProps) {
+const ONBOARDING_BACKGROUND_STYLE = previewStyle({
+  ...DEFAULT_CANVAS_BACKGROUND,
+  bgColor: "#fff",
+  patternColor: "#bfdbfe",
+});
+export default function EmptyCanvasWithNole(_: EmptyCanvasWithNoleProps) {
   const navigate = useNavigate();
+
+  // Même `displayName` que partout ailleurs (Settings → Account, puis provider).
+  // `undefined` pendant le chargement, `null` pour un anonyme : les deux
+  // retombent sur le titre générique (cf. `EmptyThreadSuggestions`).
+  const me = useQuery(api.users.me);
+  const firstName = me?.displayName?.trim()?.split(/\s+/)?.[0] || null;
 
   // Sortie manuelle : revoir le canvas vide (l'effet du hook ne re-ajoute le
   // param que si le canvas est toujours vide — donc rester ici, c'est
@@ -40,30 +42,55 @@ export default function EmptyCanvasWithNole({
     });
   };
 
+  const TEXTS = [
+    {
+      title: "What’s on your mind?",
+      subtitle:
+        "A project, notes, documents… Bring them here. Nolë helps you make sense of it all.",
+    },
+  ] as const;
+
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-6 overflow-y-auto bg-white px-6 py-10">
-      <header className="flex max-w-2xl flex-col items-center gap-3 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full border-2 border-brand bg-brand/10">
-          <NoleIcon size={22} />
-        </span>
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-800">
-            Start {canvasName} with Nolë
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Describe what you want — Nolë creates the first nodes on this
-            canvas for you.
-          </p>
+    <div
+      style={ONBOARDING_BACKGROUND_STYLE}
+      className="flex h-screen w-screen flex-col items-center justify-center gap-6 px-25 py-20"
+    >
+      <div className="relative h-full w-full sm:mx-10 bg-white rounded-[18px] shadow-[0_3px_12px_rgba(15,23,42,0.12)] p-5 border border-slate-300 grid grid-cols-[2fr_1fr]">
+        <div className="flex flex-col items-center text-center justify-center">
+          {/*<img
+            src="/favicon.svg"
+            alt="Nolenor"
+            className="size-12 border-2 rounded-full border-text"
+          />*/}
+          <div className="flex flex-col gap-5">
+            <h1 className="text-4xl font-semibold tracking-tight ">
+              What’s on your mind?
+              {/*<SlotText text={title} options={{ rollBy: "word" }} />*/}
+            </h1>
+            <p className="text-[17px]">
+              A project, notes, documents… Bring them here. Nolë helps you make
+              sense of it all.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            className="absolute top-5 right-5"
+            onClick={exitOnboarding}
+          >
+            Start from scratch
+            <TbArrowRight />
+          </Button>
+
+          {/*Input*/}
+          <div className=>
+            
+          </div>
         </div>
-      </header>
 
-      <div className="h-[min(560px,60vh)] w-full max-w-2xl">
-        <ChatContainer />
+        <div className="bg-blue-50 rounded-xl flex items-center justify-center mt-12 border border-dashed border-blue-500 text-blue-500 hover:bg-blue-100">
+          <p>Drop files here (PDF, images, audio, links)</p>
+        </div>
       </div>
-
-      <Button variant="ghost" size="sm" onClick={exitOnboarding}>
-        Skip for now, show me the blank canvas
-      </Button>
     </div>
   );
 }

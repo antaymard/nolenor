@@ -1,7 +1,6 @@
 import { v, ConvexError } from "convex/values";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { internal } from "../_generated/api";
-import type { Doc } from "../_generated/dataModel";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import { enforceRateLimit } from "../lib/rateLimits";
 import errors from "../config/errorsConfig";
@@ -10,39 +9,17 @@ import {
   STALE_TRANSCRIPTION_MS,
 } from "../config/transcriptionConfig";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
+import {
+  getTranscribableFile,
+  isTranscribableNodeType,
+} from "../lib/transcriptChunks";
 import { stripLoneSurrogates } from "../lib/textSanitize";
 import { searchableChunksValidator } from "../schemas/searchableChunksSchema";
 import * as NodeDataModels from "../models/nodeDataModels";
 import * as SearchableChunkModels from "../models/searchableChunkModels";
 
-/** Le fichier d'un node audio, tel que stocké dans `values.audio`. */
-type StoredAudio = {
-  url?: unknown;
-  key?: unknown;
-  size?: unknown;
-  filename?: unknown;
-  mimeType?: unknown;
-};
-
-function readStoredAudio(nodeData: Doc<"nodeDatas">): {
-  url: string;
-  key: string;
-  size: number | undefined;
-} | null {
-  const audio = nodeData.values.audio as StoredAudio | null | undefined;
-  if (!audio) return null;
-  if (typeof audio.url !== "string" || typeof audio.key !== "string") {
-    return null;
-  }
-  return {
-    url: audio.url,
-    key: audio.key,
-    size: typeof audio.size === "number" ? audio.size : undefined,
-  };
-}
-
 /**
- * Lance la transcription d'un node audio.
+ * Lance la transcription d'un node audio ou vidéo (de sa piste audio).
  *
  * Rend la main immédiatement, comme `generateImages` : le travail part dans
  * une action planifiée, et une transcription déjà payée n'est pas perdue si
@@ -64,19 +41,24 @@ export const transcribeAudio = mutation({
 
     const nodeData = await ctx.db.get(nodeDataId);
     if (!nodeData) throw new ConvexError(errors.NODE_DATA_NOT_FOUND);
-    if (nodeData.type !== "audio") {
+    if (!isTranscribableNodeType(nodeData.type)) {
       throw new ConvexError(errors.TRANSCRIPTION_WRONG_NODE_TYPE);
     }
 
     await requireCanvasAccess(ctx, nodeData.canvasId, authUserId, "editor");
 
-    const audio = readStoredAudio(nodeData);
-    if (!audio) throw new ConvexError(errors.TRANSCRIPTION_NO_FILE);
+    const file = getTranscribableFile(nodeData);
+    if (!file) throw new ConvexError(errors.TRANSCRIPTION_NO_FILE);
+    // Audio : 25 Mo sans voice-server, la limite d'upload (200 Mo) avec — au
+    // delà de 25 Mo, l'action passe par la découpe du voice-server. Vidéo :
+    // toujours le voice-server, jusqu'à la limite d'upload (500 Mo).
+    const maxBytes = getMaxTranscriptionBytes(file.nodeType);
+    if (maxBytes === null) {
+      throw new ConvexError(errors.TRANSCRIPTION_UNAVAILABLE);
+    }
     // Taille inconnue (vieux node) : on laisse partir, l'action revérifie sur
     // les octets réellement téléchargés.
-    // 25 Mo sans voice-server, la limite d'upload (200 Mo) avec : au-delà de
-    // 25 Mo, l'action passe par la découpe du voice-server.
-    if (audio.size !== undefined && audio.size > getMaxTranscriptionBytes()) {
+    if (file.size !== undefined && file.size > maxBytes) {
       throw new ConvexError(errors.TRANSCRIPTION_FILE_TOO_LARGE);
     }
 
@@ -93,7 +75,7 @@ export const transcribeAudio = mutation({
     await NodeDataModels.setTranscription(ctx, {
       nodeDataId,
       status: "running",
-      sourceKey: audio.key,
+      sourceKey: file.key,
     });
 
     await ctx.scheduler.runAfter(
@@ -102,8 +84,8 @@ export const transcribeAudio = mutation({
       {
         nodeDataId,
         authUserId,
-        sourceKey: audio.key,
-        audioUrl: audio.url,
+        sourceKey: file.key,
+        audioUrl: file.url,
       },
     );
 
@@ -112,13 +94,20 @@ export const transcribeAudio = mutation({
 });
 
 /**
- * Plus gros fichier transcriptible. Servi par le backend plutôt que codé en
- * dur côté client : il dépend de la présence du voice-server (env Convex).
+ * Plus gros fichier transcriptible, par type de node (`null` : pas de
+ * transcription possible). Servi par le backend plutôt que codé en dur côté
+ * client : il dépend de la présence du voice-server (env Convex).
  */
 export const getTranscriptionLimits = query({
   args: {},
-  returns: v.object({ maxBytes: v.number() }),
-  handler: async () => ({ maxBytes: getMaxTranscriptionBytes() }),
+  returns: v.object({
+    audio: v.union(v.number(), v.null()),
+    video: v.union(v.number(), v.null()),
+  }),
+  handler: async () => ({
+    audio: getMaxTranscriptionBytes("audio"),
+    video: getMaxTranscriptionBytes("video"),
+  }),
 });
 
 const transcriptSegmentValidator = v.object({
@@ -135,7 +124,7 @@ const transcriptChapterValidator = v.object({
 });
 
 /**
- * Le transcript du fichier COURANT d'un node audio, segment par segment,
+ * Le transcript du fichier COURANT d'un node audio ou vidéo, segment par segment,
  * reconstruit depuis les chunks `transcript` (cf. `lib/transcriptChunks.ts`).
  * `null` quand il n'y a pas de transcript pour ce fichier.
  */
@@ -168,14 +157,14 @@ export const getTranscript = query({
     if (!nodeData) throw new ConvexError(errors.NODE_DATA_NOT_FOUND);
     await requireCanvasAccess(ctx, nodeData.canvasId, authUserId);
 
-    const audio = readStoredAudio(nodeData);
-    if (!audio) return null;
+    const file = getTranscribableFile(nodeData);
+    if (!file) return null;
 
     const transcript = await SearchableChunkModels.getCurrentTranscript(ctx, {
       nodeDataId,
-      sourceKey: audio.key,
+      sourceKey: file.key,
     });
-    return transcript ? { sourceKey: audio.key, ...transcript } : null;
+    return transcript ? { sourceKey: file.key, ...transcript } : null;
   },
 });
 
@@ -194,11 +183,11 @@ export const hasTranscript = query({
     if (!nodeData) throw new ConvexError(errors.NODE_DATA_NOT_FOUND);
     await requireCanvasAccess(ctx, nodeData.canvasId, authUserId);
 
-    const audio = readStoredAudio(nodeData);
-    if (!audio) return false;
+    const file = getTranscribableFile(nodeData);
+    if (!file) return false;
     return await SearchableChunkModels.hasTranscript(ctx, {
       nodeDataId,
-      sourceKey: audio.key,
+      sourceKey: file.key,
     });
   },
 });
@@ -229,8 +218,8 @@ export const saveTranscript = internalMutation({
     const nodeData = await ctx.db.get(nodeDataId);
     if (!nodeData) return { saved: false };
 
-    const audio = readStoredAudio(nodeData);
-    if (!audio || audio.key !== sourceKey) {
+    const file = getTranscribableFile(nodeData);
+    if (!file || file.key !== sourceKey) {
       // Le statut ne concerne plus le fichier courant : on l'efface aussi.
       if (nodeData.transcription?.sourceKey === sourceKey) {
         await NodeDataModels.clearTranscription(ctx, { nodeDataId });

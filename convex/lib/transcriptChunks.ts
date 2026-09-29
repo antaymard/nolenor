@@ -381,18 +381,65 @@ export function getTranscriptChapterTitle(
   return best?.title;
 }
 
+/** Types de node transcriptibles, et le champ de `values` qui porte le fichier. */
+export const TRANSCRIBABLE_FILE_FIELD = {
+  audio: "audio",
+  video: "video",
+} as const;
+
+export type TranscribableNodeType = keyof typeof TRANSCRIBABLE_FILE_FIELD;
+
+export function isTranscribableNodeType(
+  type: string,
+): type is TranscribableNodeType {
+  return Object.prototype.hasOwnProperty.call(TRANSCRIBABLE_FILE_FIELD, type);
+}
+
+/** Le fichier transcriptible d'un node (`values.audio` / `values.video`). */
+export type TranscribableFile = {
+  nodeType: TranscribableNodeType;
+  url: string;
+  key: string;
+  /** Taille déclarée à l'upload ; absente sur les vieux nodes. */
+  size: number | undefined;
+  filename: string | undefined;
+};
+
+/** Le fichier transcriptible d'un node, `null` s'il n'en porte pas. */
+export function getTranscribableFile(nodeData: {
+  type: string;
+  values: Record<string, unknown>;
+}): TranscribableFile | null {
+  if (!isTranscribableNodeType(nodeData.type)) return null;
+  const file = nodeData.values[TRANSCRIBABLE_FILE_FIELD[nodeData.type]] as
+    | { url?: unknown; key?: unknown; size?: unknown; filename?: unknown }
+    | null
+    | undefined;
+  if (typeof file?.url !== "string" || typeof file.key !== "string") {
+    return null;
+  }
+  return {
+    nodeType: nodeData.type,
+    url: file.url,
+    key: file.key,
+    size: typeof file.size === "number" ? file.size : undefined,
+    filename:
+      typeof file.filename === "string" && file.filename.length > 0
+        ? file.filename
+        : undefined,
+  };
+}
+
 /**
- * Clé R2 du fichier transcriptible d'un node (`values.audio.key`), `null` si
- * le node n'en porte pas. C'est elle que doivent porter ses chunks
- * `transcript` (`metadata.sourceKey`) pour rester valides.
+ * Clé R2 du fichier transcriptible d'un node (`values.audio.key` ou
+ * `values.video.key`), `null` s'il n'en porte pas. C'est elle que doivent
+ * porter ses chunks `transcript` (`metadata.sourceKey`) pour rester valides.
  */
 export function getTranscribableSourceKey(nodeData: {
   type: string;
   values: Record<string, unknown>;
 }): string | null {
-  if (nodeData.type !== "audio") return null;
-  const audio = nodeData.values.audio as { key?: unknown } | null | undefined;
-  return typeof audio?.key === "string" ? audio.key : null;
+  return getTranscribableFile(nodeData)?.key ?? null;
 }
 
 /** Clé du fichier transcrit, sans exiger une metadata complète. */

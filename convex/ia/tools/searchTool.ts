@@ -122,7 +122,7 @@ function toJsonString(value: unknown): string {
 const DESCRIPTION_PARTS = [
   "Hybrid search over the canvas chunks (all node types, pdf included).",
   "Provide keyword_search and/or semantic_search expressing the same intent. keyword_search is precise lookup with operators: bare words required, \"quoted text\" verbatim, -word excluded, a OR b. semantic_search is conceptual lookup: short affirmative statements, never a question. Both together run fused; either alone runs that branch.",
-  "Hits from an audio transcript (chunkType 'transcript') carry startSec/endSec, in seconds from the start of the file, and the title of the chapter they fall in as sectionTitle when chapters exist: read around the hit with read_nodes mediaRanges=[{nodeId, startSec, endSec}].",
+  "Hits from an audio or video transcript (chunkType 'transcript') carry startSec/endSec, in seconds from the start of the file, and the title of the chapter they fall in as sectionTitle when chapters exist: read around the hit with read_nodes mediaRanges=[{nodeId, startSec, endSec}].",
   "Hits are scored — triage by score/bestScore, not hitCount (keyword-only scores 0). Scores compare within one response only, never across modes or calls. Status and hint tell you what to do next (reformulate, narrow with nodeIds, or read_nodes). groupByNode groups hits per node and auto-compacts beyond the limit.",
 ];
 

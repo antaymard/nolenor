@@ -21,7 +21,10 @@ import {
 } from "../lib/voyage";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { TranscriptChunkPatch } from "../models/searchableChunkModels";
-import { getTranscribableSourceKey } from "../lib/transcriptChunks";
+import {
+  getTranscribableSourceKey,
+  isTranscribableNodeType,
+} from "../lib/transcriptChunks";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,10 +59,11 @@ const EXPENSIVE_CONTENT_FIELD: Partial<Record<string, string>> = {
   image: "images",
 };
 
-// Clés d'un node audio qui ne changent rien à ce qui est indexé : réglages de
-// lecture. Sans ce skip, déplacer une boucle relancerait l'embedding du chunk
-// nom de fichier — et un rebuild pour rien à chaque glissé de poignée.
-const AUDIO_PLAYBACK_ONLY_KEYS = new Set(["loop", "playbackRate"]);
+// Clés d'un node audio ou vidéo qui ne changent rien à ce qui est indexé :
+// réglages de lecture. Sans ce skip, déplacer une boucle relancerait
+// l'embedding du chunk nom de fichier — et un rebuild pour rien à chaque
+// glissé de poignée.
+const MEDIA_PLAYBACK_ONLY_KEYS = new Set(["loop", "playbackRate"]);
 
 async function rebuildChunksForNodeData(
   ctx: ActionCtx,
@@ -148,13 +152,12 @@ async function rebuildChunksForNodeData(
 
   // Les chunks `transcript` ne sont pas au builder (cf. searchableChunksSchema) :
   // il ne fait que les invalider (fichier remplacé) ou les retitrer.
-  const transcriptMaintenance =
-    nodeData.type === "audio"
-      ? await prepareTranscriptMaintenance(ctx, {
-          nodeData,
-          title: stripLoneSurrogates(getNodeDataTitle(nodeData, template)),
-        })
-      : {};
+  const transcriptMaintenance = isTranscribableNodeType(nodeData.type)
+    ? await prepareTranscriptMaintenance(ctx, {
+        nodeData,
+        title: stripLoneSurrogates(getNodeDataTitle(nodeData, template)),
+      })
+    : {};
 
   // `replaceChunkTypes` omis : l'upsert ne remplace que les types du builder.
   await ctx.runMutation(
@@ -298,12 +301,12 @@ async function buildChunks(
   }
 
   if (
-    nodeData.type === "audio" &&
+    (nodeData.type === "audio" || nodeData.type === "video") &&
     updatedKeys &&
     updatedKeys.length > 0 &&
-    updatedKeys.every((key) => AUDIO_PLAYBACK_ONLY_KEYS.has(key))
+    updatedKeys.every((key) => MEDIA_PLAYBACK_ONLY_KEYS.has(key))
   ) {
-    console.log("[chunkBuilder] buildChunks:skip-audio-playback-keys", {
+    console.log("[chunkBuilder] buildChunks:skip-media-playback-keys", {
       nodeDataId: nodeData._id,
       updatedKeys,
     });

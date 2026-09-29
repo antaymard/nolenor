@@ -43,7 +43,7 @@ import {
 import { useAudioStore } from "@/stores/audioStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import type { XyNodeProps } from "@/types/domain";
-import { AudioTranscribeButton } from "./audio/AudioTranscribeButton";
+import { TranscribeButton } from "./media/TranscribeButton";
 import { displayNameOf } from "./audio/audioDisplayName";
 
 export type AudioValue = {
@@ -313,8 +313,9 @@ function AudioNode(xyNode: XyNodeProps) {
           <TbMaximize />
         </NodeToolbarButton>
         {audio && nodeDataId && (
-          <AudioTranscribeButton
+          <TranscribeButton
             nodeDataId={nodeDataId}
+            nodeType="audio"
             onOpenWindow={handleOpenWindow}
           />
         )}

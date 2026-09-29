@@ -1,7 +1,7 @@
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import { findChapterIndexAt } from "../../lib/transcriptChunks";
 
-// Rendu du transcript d'un node audio pour `read_nodes`, sur le modèle de
+// Rendu du transcript d'un node audio ou vidéo pour `read_nodes`, sur le modèle de
 // `pdfChunkFormatters.ts` : pur, sans `ctx`. Trois vues :
 //  - full    : tout le transcript, ligne par ligne `[m:ss] texte`, tant qu'il
 //              tient sous `MAX_TRANSCRIPT_FULL_CHARS` ;
@@ -49,7 +49,7 @@ export type TranscriptReadStatus =
   | { kind: "error"; error: string };
 
 export const TRANSCRIPT_HINTS = {
-  none: "This audio has not been transcribed. The user can transcribe it from the node toolbar (Transcribe button); you cannot start a transcription yourself.",
+  none: "This file has not been transcribed. The user can transcribe it from the node toolbar (Transcribe button); you cannot start a transcription yourself.",
   running:
     "A transcription is in progress. Read this node again in a moment to get the transcript.",
   error: (error: string) =>
@@ -61,13 +61,14 @@ export const TRANSCRIPT_HINTS = {
   emptyRange: (durationSec: number | undefined) =>
     `No transcript segment in this range${
       durationSec !== undefined
-        ? ` (the audio lasts ${formatTimestamp(durationSec)})`
+        ? ` (the recording lasts ${formatTimestamp(durationSec)})`
         : ""
     }.`,
   invalidRange: "mediaRanges endSec must be greater than startSec.",
-  notAnAudio: "mediaRanges was provided for a non-audio node and was ignored.",
+  notAnAudio:
+    "mediaRanges was provided for a node that is neither an audio nor a video, and was ignored.",
   notTranscribed:
-    "mediaRanges was provided but this audio has no transcript yet.",
+    "mediaRanges was provided but this file has no transcript yet.",
 } as const;
 
 /** `m:ss`, ou `h:mm:ss` à partir d'une heure. */
@@ -261,7 +262,7 @@ export function buildTranscriptRangeView(
   ].join("\n");
 }
 
-/** Corps transcript d'un node audio, selon son état et la plage demandée. */
+/** Corps transcript d'un node audio ou vidéo, selon son état et la plage demandée. */
 export function buildTranscriptBody(
   status: TranscriptReadStatus,
   range?: { startSec: number; endSec: number },

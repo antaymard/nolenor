@@ -24,6 +24,7 @@ import {
 } from "@/components/shadcn/popover";
 import { VideoEditControl } from "../edit/VideoEditControl";
 import type { VideoValue } from "../edit/VideoEditControl";
+import { TranscribeButton } from "./media/TranscribeButton";
 import { useNodeDataValuesField } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useDownloadFile } from "@/hooks/useDownloadFile";
@@ -174,6 +175,13 @@ function VideoNode(xyNode: XyNodeProps) {
         >
           <TbMaximize />
         </NodeToolbarButton>
+        {video && nodeDataId && (
+          <TranscribeButton
+            nodeDataId={nodeDataId}
+            nodeType="video"
+            onOpenWindow={handleOpenWindow}
+          />
+        )}
         {video && (
           <>
             <Popover>

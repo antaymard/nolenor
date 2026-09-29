@@ -1,11 +1,19 @@
-import { memo, useCallback, useEffect, useRef } from "react";
-import { TbVideo } from "react-icons/tb";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "convex/react";
+import { TbRefresh, TbVideo } from "react-icons/tb";
+import { api } from "@/../convex/_generated/api";
 import { useNodeDataValues } from "@/hooks/useNodeData";
+import { useMediaTranscription } from "@/hooks/useMediaTranscription";
+import { createPlaybackClock } from "@/lib/transcriptPlayback";
 import { useAudioStore } from "@/stores/audioStore";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { VideoValue } from "@/components/nodes/prebuilt-nodes/VideoNode";
+import { Button } from "@/components/shadcn/button";
+import { Spinner } from "@/components/shadcn/spinner";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
+import { MediaTranscriptPanel } from "@/components/windows/side-panel/MediaTranscriptPanel";
 import { PlanTabPlaceholder } from "@/components/windows/side-panel/PlanTabPlaceholder";
+import { TranscriptEmptyState } from "@/components/windows/TranscriptEmptyState";
 import WindowLoadingState from "@/components/windows/WindowLoadingState";
 
 /**
@@ -29,7 +37,8 @@ interface VideoWindowProps {
 
 /**
  * Watching surface: the picture as large as the window allows, with the
- * browser's own controls.
+ * browser's own controls. The transcript lives in the side panel's Plan tab,
+ * by chapter (cf. `MediaTranscriptPanel`): the picture keeps the room.
  *
  * Native `controls` here rather than the node's custom strip — off the canvas
  * there is no drag to fight, and they bring native fullscreen, picture-in-
@@ -38,6 +47,18 @@ interface VideoWindowProps {
 function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
   const values = useNodeDataValues(nodeDataId);
   const video = (values?.video as VideoValue | null | undefined) ?? null;
+
+  const transcript = useQuery(
+    api.ia.transcription.getTranscript,
+    video?.key ? { nodeDataId } : "skip",
+  );
+  // The full transcript is already read here: no need for the lighter check.
+  const transcription = useMediaTranscription(nodeDataId, "video", {
+    withTranscriptCheck: false,
+  });
+  // Where playback is, for the side panel — without re-rendering this window
+  // on every `timeupdate` (cf. transcriptPlayback.ts).
+  const [clock] = useState(createPlaybackClock);
 
   const elementRef = useRef<HTMLVideoElement | null>(null);
   const hasRestoredRef = useRef(false);
@@ -78,11 +99,26 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
   // events. Miss this and the window plays straight over an audio node.
   const handlePlay = useCallback(() => {
     requestPlay(slotKey);
-  }, [requestPlay, slotKey]);
+    clock.setPlaying(true);
+  }, [clock, requestPlay, slotKey]);
 
   const handleStopped = useCallback(() => {
     notifyStopped(slotKey);
-  }, [notifyStopped, slotKey]);
+    clock.setPlaying(false);
+  }, [clock, notifyStopped, slotKey]);
+
+  const handleTimeUpdate = useCallback(() => {
+    const el = elementRef.current;
+    if (el) clock.setTime(el.currentTime);
+  }, [clock]);
+
+  const seek = useCallback((seconds: number) => {
+    const el = elementRef.current;
+    if (!el) return;
+    el.currentTime = seconds;
+    // `play` fires the element's own event, which claims the slot.
+    void el.play().catch(() => {});
+  }, []);
 
   // Something else claimed the slot — stand down.
   useEffect(() => {
@@ -132,12 +168,55 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
   useEffect(() => () => notifyStopped(slotKey), [notifyStopped, slotKey]);
 
   const { setPlanTabContent } = useWindowFrameContext();
+  const isRunning = transcription.state === "running";
   useEffect(() => {
+    if (!video) {
+      setPlanTabContent(<PlanTabPlaceholder message="No video yet." />);
+      return () => setPlanTabContent(null);
+    }
     setPlanTabContent(
-      <PlanTabPlaceholder message="Transcript support is coming soon." />,
+      <MediaTranscriptPanel
+        transcript={transcript}
+        clock={clock}
+        onSeek={seek}
+        emptyState={
+          <TranscriptEmptyState transcription={transcription} noun="video" />
+        }
+        header={
+          <div className="flex flex-col gap-1.5">
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={isRunning || transcription.tooLarge}
+                title="Transcribe this file again — the current transcript will be replaced"
+                onClick={() => void transcription.start()}
+              >
+                {isRunning ? <Spinner /> : <TbRefresh />}
+                Re-transcribe
+              </Button>
+            </div>
+            {isRunning && (
+              <p className="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-muted-foreground">
+                <Spinner className="size-3.5" />
+                Transcribing again — this transcript will be replaced when it's
+                done.
+              </p>
+            )}
+          </div>
+        }
+      />,
     );
     return () => setPlanTabContent(null);
-  }, [setPlanTabContent]);
+  }, [
+    clock,
+    isRunning,
+    seek,
+    setPlanTabContent,
+    transcript,
+    transcription,
+    video,
+  ]);
 
   if (!values) return <WindowLoadingState />;
 
@@ -164,6 +243,8 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
         onPlay={handlePlay}
         onPause={handleStopped}
         onEnded={handleStopped}
+        onTimeUpdate={handleTimeUpdate}
+        onSeeked={handleTimeUpdate}
       />
     </div>
   );

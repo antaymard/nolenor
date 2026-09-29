@@ -8,11 +8,15 @@
  * modèle routé ailleurs répond 400 à `verbose_json`, et la transcription
  * échoue avec ce message plutôt que de produire un transcript sans repères.
  */
-export const DEFAULT_TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo";
+export const DEFAULT_TRANSCRIPTION_MODEL = "mistralai/voxtral-mini-transcribe";
+export const DEFAULT_TRANSCRIPTION_MODEL_PROVIDERS = ['mistral/eu'];
 
 export function getTranscriptionModel(): string {
   const fromEnv = process.env.TRANSCRIPTION_MODEL?.trim();
   return fromEnv ? fromEnv : DEFAULT_TRANSCRIPTION_MODEL;
+}
+export function getTranscriptionModelProviders(): string[] {
+  return DEFAULT_TRANSCRIPTION_MODEL_PROVIDERS;
 }
 
 /**

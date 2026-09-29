@@ -426,10 +426,12 @@ export async function requestOpenRouterTranscription({
   model,
   audio,
   filename,
+  onlyProviders
 }: {
   model: string;
   audio: Blob;
   filename: string;
+  onlyProviders: string[];
 }): Promise<OpenRouterTranscriptionResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set.");
@@ -439,6 +441,7 @@ export async function requestOpenRouterTranscription({
   form.append("model", model);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "segment");
+  form.append("provider", JSON.stringify({only: onlyProviders}))
 
   const response = await fetch(
     "https://openrouter.ai/api/v1/audio/transcriptions",

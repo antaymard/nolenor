@@ -15,6 +15,7 @@ import {
   TRANSCRIPTION_POLL_MS,
   TRANSCRIPTION_TIME_BUDGET_MS,
   getTranscriptionModel,
+  getTranscriptionModelProviders,
   getVoiceServerMediaConfig,
 } from "../config/transcriptionConfig";
 import { aiUsageSources } from "../schemas/aiUsageSourceSchema";
@@ -93,6 +94,7 @@ export const runTranscription = internalAction({
   handler: async (ctx, { nodeDataId, authUserId, sourceKey, audioUrl }) => {
     const deadline = Date.now() + TRANSCRIPTION_TIME_BUDGET_MS;
     const model = getTranscriptionModel();
+    const onlyProviders = getTranscriptionModelProviders();
     const usage: UsageTotals = {
       calls: 0,
       costUsd: undefined,
@@ -115,6 +117,7 @@ export const runTranscription = internalAction({
           model,
           audio,
           filename: name,
+          onlyProviders
         });
         addUsage(usage, result);
         return result;

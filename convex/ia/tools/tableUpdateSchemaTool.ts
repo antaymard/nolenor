@@ -92,12 +92,10 @@ const selectOptionInputSchema = z.object({
     ),
 });
 
+// Pas d'id en entrée : il est toujours généré (format llmId, comme les nodes et
+// les lignes). Un id court et sans structure répétée évite que le modèle
+// recolle des morceaux de deux UUID ; un id fourni par l'agent est ignoré.
 const columnInputSchema = z.object({
-  id: z
-    .string()
-    .min(1)
-    .optional()
-    .describe("Optional column id. If omitted, one is generated."),
   name: z.string().min(1).describe("Column display name."),
   type: columnTypeSchema.describe("Column type."),
   options: z
@@ -147,18 +145,11 @@ function removeSpaces(value: string): string {
   return value.replace(/\s+/g, "");
 }
 
-function buildColumnId(name: string): string {
-  const normalized = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  if (normalized.length > 0) {
-    return normalized;
-  }
-
-  return generateLlmId();
+function buildColumnId(existingColumns: Array<TableColumn>): string {
+  const takenIds = new Set(existingColumns.map((column) => column.id));
+  let id = generateLlmId();
+  while (takenIds.has(id)) id = generateLlmId();
+  return id;
 }
 
 function buildOptionId(label: string): string {
@@ -210,9 +201,10 @@ function normalizeSelectOptions(
 
 function buildColumnFromInput(
   raw: z.infer<typeof columnInputSchema>,
+  existingColumns: Array<TableColumn>,
 ): { ok: true; column: TableColumn } | { ok: false; error: string } {
   const name = raw.name.trim();
-  const id = raw.id?.trim() || buildColumnId(name);
+  const id = buildColumnId(existingColumns);
   const base: TableColumn = { id, name, type: raw.type };
 
   if (raw.type === "select") {
@@ -410,7 +402,7 @@ export default function tableUpdateSchemaTool({
 
             const nextColumns: Array<TableColumn> = [];
             for (const raw of inputColumns) {
-              const built = buildColumnFromInput(raw);
+              const built = buildColumnFromInput(raw, nextColumns);
               if (!built.ok) return built.error;
               nextColumns.push(built.column);
             }
@@ -440,7 +432,7 @@ export default function tableUpdateSchemaTool({
               return toolError("payload.column is required for add_column.");
             }
 
-            const built = buildColumnFromInput(inputColumn);
+            const built = buildColumnFromInput(inputColumn, columns);
             if (!built.ok) return built.error;
 
             const nextColumns = [...columns, built.column];

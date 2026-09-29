@@ -34,6 +34,7 @@ import {
   parseCsvFile,
   type ParsedCsv,
 } from "./csv";
+import { generateLlmId } from "@/../convex/lib/llmId";
 
 // `node` is omitted: a CSV cell can't reference an internal canvas node id
 // in any meaningful way, so we don't offer it as an import target.
@@ -201,7 +202,7 @@ export function TableImportDialog({
 
       if (replace) {
         // Always create new columns in replace mode.
-        const id = crypto.randomUUID();
+        const id = generateLlmId();
         newColumnsFromCsv.push({
           id,
           name: m.csvHeader || `Column ${m.csvIndex + 1}`,
@@ -209,7 +210,7 @@ export function TableImportDialog({
         });
         csvIndexToTargetColId.set(m.csvIndex, id);
       } else if (m.target === TARGET_NEW) {
-        const id = crypto.randomUUID();
+        const id = generateLlmId();
         newColumnsFromCsv.push({
           id,
           name: m.csvHeader || `Column ${m.csvIndex + 1}`,
@@ -244,7 +245,7 @@ export function TableImportDialog({
         cells[targetColId] = coerceCsvValue(row[csvIndex] ?? "", type);
       }
 
-      return { id: crypto.randomUUID(), cells };
+      return { id: generateLlmId(), cells };
     });
 
     onImport({ columns: finalColumns, rows: newRows, replace });

@@ -45,6 +45,14 @@ const limits = {
     period: MINUTE,
     capacity: 15,
   },
+  // Transcription d'un node audio via OpenRouter, facturée à la durée : une
+  // requête porte jusqu'à 25 Mo d'audio. Bien plus serré que la dictée.
+  audioTranscription: {
+    kind: "token bucket",
+    rate: 10,
+    period: MINUTE,
+    capacity: 3,
+  },
   // API LinkPreview, facturée à la requête.
   linkMetadata: {
     kind: "token bucket",
@@ -107,6 +115,7 @@ export const USER_KEYED_RATE_LIMITS = [
   "noleMessage",
   "imageGeneration",
   "speechTranscribe",
+  "audioTranscription",
   "linkMetadata",
   "uploadUrl",
 ] as const satisfies ReadonlyArray<keyof typeof limits>;

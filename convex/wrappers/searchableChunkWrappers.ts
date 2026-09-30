@@ -3,24 +3,133 @@ import { paginationOptsValidator } from "convex/server";
 import { internalMutation, internalQuery } from "../_generated/server";
 import * as SearchableChunkModels from "../models/searchableChunkModels";
 import {
+  chunkTypeValidator,
   fusedHitValidator,
   searchableChunksValidator,
 } from "../schemas/searchableChunksSchema";
 import { nodeTypeValidator } from "../schemas/nodeTypeSchema";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import { EMBEDDING_MODEL_TAG } from "../lib/voyage";
+import { getTranscribableSourceKey } from "../lib/transcriptChunks";
 
 const chunkInputValidator = v.object(searchableChunksValidator.fields);
 
+// Remplacement scopé par propriétaire : cf. `SearchableChunkModels.upsertChunks`.
 export const upsertChunks = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),
     chunks: v.array(chunkInputValidator),
+    replaceChunkTypes: v.optional(v.array(chunkTypeValidator)),
+    // Supprime les chunks `transcript` d'un fichier qui n'est plus celui du
+    // node. La clé courante est relue ICI, dans la transaction, et non reçue
+    // de l'action : un rebuild parti avant un remplacement de fichier ne doit
+    // pas effacer le transcript tout juste écrit pour le nouveau.
+    pruneStaleTranscripts: v.optional(v.boolean()),
+    transcriptPatches: v.optional(
+      v.array(
+        v.object({
+          id: v.id("searchableChunks"),
+          title: v.optional(v.string()),
+          embedding: v.optional(v.array(v.float64())),
+          embeddingModel: v.optional(v.string()),
+        }),
+      ),
+    ),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    await SearchableChunkModels.upsertChunks(ctx, args);
+  handler: async (ctx, { pruneStaleTranscripts, ...args }) => {
+    let transcriptSourceKey: string | null | undefined;
+    if (pruneStaleTranscripts) {
+      const nodeData = await ctx.db.get(args.nodeDataId);
+      transcriptSourceKey = nodeData
+        ? getTranscribableSourceKey(nodeData)
+        : null;
+    }
+    await SearchableChunkModels.upsertChunks(ctx, {
+      ...args,
+      transcriptSourceKey,
+    });
     return null;
+  },
+});
+
+/**
+ * Les chunks `transcript` d'un node, allégés (ni embedding ni segments) : ce
+ * dont le chunkBuilder a besoin pour décider de les garder, de les retitrer
+ * ou de les supprimer.
+ */
+export const listTranscriptChunksForRebuild = internalQuery({
+  args: { nodeDataId: v.id("nodeDatas") },
+  returns: v.array(
+    v.object({
+      id: v.id("searchableChunks"),
+      title: v.optional(v.string()),
+      text: v.string(),
+      sourceKey: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const chunks = await SearchableChunkModels.listTranscriptChunks(ctx, args);
+    return chunks.map((chunk) => ({
+      id: chunk._id,
+      title: chunk.title,
+      text: chunk.text,
+      sourceKey: chunk.metadata.sourceKey,
+    }));
+  },
+});
+
+/**
+ * Le transcript du fichier courant d'un node (clé relue ici), pour
+ * `read_nodes`. `null` sans fichier ou sans transcript.
+ */
+export const getCurrentTranscript = internalQuery({
+  args: {
+    nodeDataId: v.id("nodeDatas"),
+    // Attendu par l'appelant : si le fichier courant n'est plus celui-là
+    // (remplacé entre-temps), on ne sert rien plutôt qu'un autre transcript.
+    sourceKey: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      model: v.optional(v.string()),
+      language: v.optional(v.string()),
+      durationSec: v.optional(v.number()),
+      overview: v.optional(v.string()),
+      chapters: v.optional(
+        v.array(
+          v.object({
+            startSec: v.number(),
+            endSec: v.number(),
+            title: v.string(),
+            summary: v.string(),
+          }),
+        ),
+      ),
+      chunks: v.array(
+        v.object({
+          order: v.number(),
+          startSec: v.number(),
+          endSec: v.number(),
+          segments: v.array(
+            v.object({ s: v.number(), e: v.number(), text: v.string() }),
+          ),
+        }),
+      ),
+    }),
+  ),
+  handler: async (ctx, { nodeDataId, sourceKey: expectedSourceKey }) => {
+    const nodeData = await ctx.db.get(nodeDataId);
+    const sourceKey = nodeData ? getTranscribableSourceKey(nodeData) : null;
+    if (!sourceKey) return null;
+    if (expectedSourceKey !== undefined && expectedSourceKey !== sourceKey) {
+      return null;
+    }
+    return await SearchableChunkModels.getCurrentTranscript(ctx, {
+      nodeDataId,
+      sourceKey,
+    });
   },
 });
 
@@ -92,16 +201,14 @@ export const keywordSearch = internalQuery({
         nodeId: v.string(),
         nodeDataId: v.id("nodeDatas"),
         nodeType: v.string(),
-        chunkType: v.union(
-          v.literal("node"),
-          v.literal("page"),
-          v.literal("annotation"),
-        ),
+        chunkType: chunkTypeValidator,
         order: v.number(),
         text: v.string(),
         title: v.optional(v.string()),
         page: v.optional(v.number()),
         sectionTitle: v.optional(v.string()),
+        startSec: v.optional(v.number()),
+        endSec: v.optional(v.number()),
       }),
     ),
     scanned: v.number(),

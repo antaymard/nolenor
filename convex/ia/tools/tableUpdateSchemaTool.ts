@@ -129,12 +129,14 @@ const updateColumnPayloadSchema = z.object({
     .array(selectOptionInputSchema)
     .optional()
     .describe(
-      "For select columns: replace the options list. Existing cell values referencing removed option ids will be cleaned automatically.",
+      "For select columns: replace the options list. Existing cell values referencing removed option ids will be cleaned automatically. Ignored for other types.",
     ),
   isMulti: z
     .boolean()
     .optional()
-    .describe("For select columns: change the isMulti flag."),
+    .describe(
+      "For select columns: change the isMulti flag. Ignored for other types.",
+    ),
 });
 
 function normalizeLookupKey(value: string): string {
@@ -216,13 +218,9 @@ function buildColumnFromInput(
       base.options = [];
     }
     base.isMulti = raw.isMulti ?? false;
-  } else if (raw.options !== undefined || raw.isMulti !== undefined) {
-    return {
-      ok: false,
-      error: toolError(
-        `options and isMulti are only valid for select columns (got type "${raw.type}").`,
-      ),
-    };
+  } else {
+    // options et isMulti n'ont de sens que pour un select : les ignorer
+    // silencieusement si le modèle les fournit pour un autre type.
   }
 
   return { ok: true, column: base };
@@ -480,17 +478,13 @@ export default function tableUpdateSchemaTool({
 
             const target = matches[0];
 
-            const isOptionsUpdate = update.options !== undefined;
-            const isMultiUpdate = update.isMulti !== undefined;
-
-            if (
-              (isOptionsUpdate || isMultiUpdate) &&
-              target.type !== "select"
-            ) {
-              return toolError(
-                `options and isMulti can only be set on select columns (column "${target.name}" is type "${target.type}").`,
-              );
-            }
+            // options et isMulti n'ont de sens que pour un select : les ignorer
+            // silencieusement si le modèle les fournit pour un autre type.
+            const isSelectTarget = target.type === "select";
+            const isOptionsUpdate =
+              update.options !== undefined && isSelectTarget;
+            const isMultiUpdate =
+              update.isMulti !== undefined && isSelectTarget;
 
             let nextOptions = target.options;
             let prunedRows = rows;
@@ -508,12 +502,27 @@ export default function tableUpdateSchemaTool({
               });
             }
 
-            const updatedColumn: TableColumn = {
-              ...target,
-              name: update.name?.trim() || target.name,
-              options: nextOptions,
-              isMulti: isMultiUpdate ? update.isMulti : target.isMulti,
-            };
+            const renamedName = update.name?.trim() || target.name;
+            // Retirer proprement les clés select résiduelles sur un non-select
+            // (plutôt que les laisser à `undefined` dans l'objet stocké).
+            const {
+              options: _ignoredOptions,
+              isMulti: _ignoredIsMulti,
+              ...restTarget
+            } = target;
+            void _ignoredOptions;
+            void _ignoredIsMulti;
+            const updatedColumn: TableColumn = isSelectTarget
+              ? {
+                  ...target,
+                  name: renamedName,
+                  options: nextOptions,
+                  isMulti: isMultiUpdate ? update.isMulti : target.isMulti,
+                }
+              : {
+                  ...restTarget,
+                  name: renamedName,
+                };
 
             const nextColumns = columns.map((col) =>
               col.id === target.id ? updatedColumn : col,

@@ -20,6 +20,8 @@ import {
   embedDocuments,
 } from "../lib/voyage";
 import type { Doc, Id } from "../_generated/dataModel";
+import type { TranscriptChunkPatch } from "../models/searchableChunkModels";
+import { getTranscribableSourceKey } from "../lib/transcriptChunks";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,11 @@ const EXPENSIVE_CONTENT_FIELD: Partial<Record<string, string>> = {
   pdf: "files",
   image: "images",
 };
+
+// Clés d'un node audio qui ne changent rien à ce qui est indexé : réglages de
+// lecture. Sans ce skip, déplacer une boucle relancerait l'embedding du chunk
+// nom de fichier — et un rebuild pour rien à chaque glissé de poignée.
+const AUDIO_PLAYBACK_ONLY_KEYS = new Set(["loop", "playbackRate"]);
 
 async function rebuildChunksForNodeData(
   ctx: ActionCtx,
@@ -93,6 +100,11 @@ async function rebuildChunksForNodeData(
     : null;
 
   const rawChunks = await buildChunks(ctx, nodeData, updatedKeys, template);
+  // `null` = rien de ce qui est indexé n'a changé : on NE touche PAS aux
+  // chunks. (Ce skip renvoyait autrefois `[]`, que l'upsert prenait pour
+  // « plus aucun chunk » : modifier une autre clé d'un PDF effaçait son OCR.)
+  if (rawChunks === null) return;
+
   const chunks = rawChunks.map((chunk) => ({
     ...chunk,
     title: chunk.title ? stripLoneSurrogates(chunk.title) : chunk.title,
@@ -100,7 +112,7 @@ async function rebuildChunksForNodeData(
   }));
 
   // Vectorisation Voyage-4 (title + text), sauf types exclus via `nodeConfig`
-  // (`search.embed: false` : title, audio, video, frame, app) — leurs chunks
+  // (`search.embed: false` : title, video, frame, app) — leurs chunks
   // restent keyword seuls. En cas d'échec (clé absente, réseau, quota), on
   // dégrade : upsert sans embedding, la recherche keyword reste opérationnelle
   // et le backfill couvrira le chunk plus tard.
@@ -134,11 +146,23 @@ async function rebuildChunksForNodeData(
     chunkCount: chunks.length,
   });
 
+  // Les chunks `transcript` ne sont pas au builder (cf. searchableChunksSchema) :
+  // il ne fait que les invalider (fichier remplacé) ou les retitrer.
+  const transcriptMaintenance =
+    nodeData.type === "audio"
+      ? await prepareTranscriptMaintenance(ctx, {
+          nodeData,
+          title: stripLoneSurrogates(getNodeDataTitle(nodeData, template)),
+        })
+      : {};
+
+  // `replaceChunkTypes` omis : l'upsert ne remplace que les types du builder.
   await ctx.runMutation(
     internal.wrappers.searchableChunkWrappers.upsertChunks,
     {
       nodeDataId,
       chunks,
+      ...transcriptMaintenance,
     },
   );
 
@@ -146,6 +170,66 @@ async function rebuildChunksForNodeData(
   //   nodeDataId,
   //   chunkCount: chunks.length,
   // });
+}
+
+/**
+ * Entretien des chunks `transcript` d'un node audio lors d'un rebuild.
+ *
+ * - `pruneStaleTranscripts` : l'upsert supprime les transcripts d'un autre
+ *   fichier que celui du node (clé relue dans la transaction) : c'est ce qui
+ *   invalide un transcript quand l'utilisateur remplace son audio.
+ * - `transcriptPatches` : quand le titre du node a changé, les transcripts
+ *   préservés prennent le nouveau titre ET un nouvel embedding —
+ *   `buildEmbeddingText` préfixe le titre, un vecteur calculé avec l'ancien
+ *   décrirait un autre node. Voyage seulement (≈ 0,001 $ par heure d'audio),
+ *   jamais le STT. Si Voyage échoue, on retitre quand même : l'affichage et
+ *   `search_title` doivent suivre, le vecteur légèrement daté reste utile.
+ */
+async function prepareTranscriptMaintenance(
+  ctx: ActionCtx,
+  { nodeData, title }: { nodeData: Doc<"nodeDatas">; title: string },
+): Promise<{
+  pruneStaleTranscripts: true;
+  transcriptPatches: TranscriptChunkPatch[];
+}> {
+  const transcriptSourceKey = getTranscribableSourceKey(nodeData);
+
+  const existing = await ctx.runQuery(
+    internal.wrappers.searchableChunkWrappers.listTranscriptChunksForRebuild,
+    { nodeDataId: nodeData._id },
+  );
+  const retitled = existing.filter(
+    (chunk) =>
+      chunk.sourceKey === transcriptSourceKey && chunk.title !== title,
+  );
+  if (retitled.length === 0) {
+    return { pruneStaleTranscripts: true, transcriptPatches: [] };
+  }
+
+  let embeddings: number[][] | undefined;
+  try {
+    embeddings = await embedDocuments(
+      retitled.map((chunk) => buildEmbeddingText(title, chunk.text)),
+    );
+  } catch (error) {
+    console.warn("[chunkBuilder] transcript-retitle:embed-failed", {
+      nodeDataId: nodeData._id,
+      chunkCount: retitled.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return {
+    pruneStaleTranscripts: true,
+    transcriptPatches: retitled.map((chunk, i) => ({
+      id: chunk.id,
+      title,
+      ...(embeddings && {
+        embedding: embeddings[i],
+        embeddingModel: EMBEDDING_MODEL_TAG,
+      }),
+    })),
+  };
 }
 
 export const rebuildChunks = internalAction({
@@ -192,7 +276,7 @@ async function buildChunks(
   nodeData: Doc<"nodeDatas">,
   updatedKeys?: string[],
   template?: Doc<"nodeTemplates"> | null,
-): Promise<ChunkInput[]> {
+): Promise<ChunkInput[] | null> {
   console.log("[chunkBuilder] buildChunks:start", {
     nodeDataId: nodeData._id,
     nodeType: nodeData.type,
@@ -209,9 +293,23 @@ async function buildChunks(
         requiredField: expensiveField,
         updatedKeys,
       });
-      return [];
+      return null;
     }
   }
+
+  if (
+    nodeData.type === "audio" &&
+    updatedKeys &&
+    updatedKeys.length > 0 &&
+    updatedKeys.every((key) => AUDIO_PLAYBACK_ONLY_KEYS.has(key))
+  ) {
+    console.log("[chunkBuilder] buildChunks:skip-audio-playback-keys", {
+      nodeDataId: nodeData._id,
+      updatedKeys,
+    });
+    return null;
+  }
+
   const base = {
     nodeDataId: nodeData._id,
     canvasId: nodeData.canvasId,
@@ -262,8 +360,9 @@ async function buildChunks(
     }
 
     case "audio": {
-      // Cheap branch: the filename is all we have to go on until transcription
-      // lands, and it is what the user searches for.
+      // Le chunk nom de fichier + tags, seul chunk audio possédé par le
+      // builder. Le transcript (chunks `transcript`) est écrit par
+      // ia/transcriptionRun.ts et entretenu par `prepareTranscriptMaintenance`.
       const audio = nodeData.values.audio as
         | {
             filename?: string;

@@ -17,8 +17,6 @@ function readObject(source: unknown, key: string): unknown {
   return (source as Record<string, unknown>)[key];
 }
 
-type UsageHandlerArgs = Parameters<UsageHandler>[1];
-
 /**
  * Coût facturé par OpenRouter pour ce step. OpenRouter l'expose à deux
  * endroits alimentés par le même champ de sa réponse : on lit les deux, pour
@@ -30,7 +28,10 @@ type UsageHandlerArgs = Parameters<UsageHandler>[1];
  * `undefined` ici veut dire « OpenRouter n'a rien dit », pas « gratuit » — un
  * modèle réellement gratuit renvoie `cost: 0`.
  */
-function extractCost(args: UsageHandlerArgs): {
+export function extractOpenRouterCost(args: {
+  usage?: { raw?: unknown } | undefined;
+  providerMetadata?: unknown;
+}): {
   costUsd: number | undefined;
   upstreamCostUsd: number | undefined;
 } {
@@ -66,7 +67,7 @@ function extractCost(args: UsageHandlerArgs): {
 export function createUsageHandler(source: AiUsageSource): UsageHandler {
   return async (ctx, args) => {
     try {
-      const { costUsd, upstreamCostUsd } = extractCost(args);
+      const { costUsd, upstreamCostUsd } = extractOpenRouterCost(args);
 
       if (costUsd === undefined) {
         // Bruyant mais non bloquant. Si cette ligne apparaît, c'est presque

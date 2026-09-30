@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { TbListDetails, TbLink, TbHistory } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
-import type { NodeType } from "@/types/domain/nodeTypes";
 import {
   Tabs,
   TabsContent,
@@ -15,18 +14,8 @@ import { VersionsTab } from "./VersionsTab";
 
 type SidePanelTab = "plan" | "links" | "versions";
 
-/**
- * Types with no window body to register Plan-tab content (no `AudioWindow`
- * yet) but which the search indexer already treats as "will eventually get a
- * transcript" (see `convex/searchable/chunkBuilder.ts`'s audio/video cases —
- * cheap filename-only indexing until real transcription lands). Falls back to
- * the same placeholder video's own window body registers, so the fallback
- * doesn't need to guess a message for a type it doesn't otherwise know.
- */
-function defaultPlanTabContent(nodeType: NodeType): ReactNode {
-  if (nodeType === "audio") {
-    return <PlanTabPlaceholder message="Transcript support is coming soon." />;
-  }
+/** Shown while a window body has not registered Plan-tab content. */
+function defaultPlanTabContent(): ReactNode {
   return <PlanTabPlaceholder />;
 }
 
@@ -42,7 +31,6 @@ function defaultPlanTabContent(nodeType: NodeType): ReactNode {
 export function WindowSidePanel({
   nodeDataId,
   xyNodeId,
-  nodeType,
   canvasId,
   planTabContent,
   previewVersionId,
@@ -51,7 +39,6 @@ export function WindowSidePanel({
 }: {
   nodeDataId: Id<"nodeDatas">;
   xyNodeId: string;
-  nodeType: NodeType;
   canvasId: Id<"canvases"> | undefined;
   planTabContent: ReactNode | null;
   previewVersionId: Id<"nodeDataVersions"> | null;
@@ -95,7 +82,7 @@ export function WindowSidePanel({
             />
           </div>
           <div className="min-h-0 flex-1">
-            {planTabContent ?? defaultPlanTabContent(nodeType)}
+            {planTabContent ?? defaultPlanTabContent()}
           </div>
         </TabsContent>
 

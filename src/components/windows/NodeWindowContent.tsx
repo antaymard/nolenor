@@ -16,6 +16,7 @@ const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
 const TableWindow = lazy(() => import("./prebuilt/TableWindow"));
 const AppWindow = lazy(() => import("./prebuilt/AppWindow"));
 const VideoWindow = lazy(() => import("./prebuilt/VideoWindow"));
+const AudioWindow = lazy(() => import("./prebuilt/AudioWindow"));
 const CustomWindow = lazy(() => import("./prebuilt/CustomWindow"));
 
 type NodeWindowContentProps = Pick<
@@ -72,6 +73,8 @@ function NodeWindowBody({
       return <TableWindow nodeDataId={nodeDataId} />;
     case "video":
       return <VideoWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
+    case "audio":
+      return <AudioWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
     case "custom":
       return <CustomWindow nodeDataId={nodeDataId} />;
     default:

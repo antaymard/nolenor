@@ -1,10 +1,9 @@
-import {type ActionCtx} from "../../_generated/server";
-import {type Id} from "../../_generated/dataModel";
-import {internal} from "../../_generated/api";
-import {escapeXmlText} from "../../lib/xml";
-import {resolveUserDisplayName} from "../../lib/userDisplayName";
-import {nodeTypesPresentation} from "./systemParts";
-import { formatTemplatesForPrompt } from "../helpers/customTemplateHelpers";
+import { type ActionCtx } from "../../_generated/server";
+import { type Id } from "../../_generated/dataModel";
+import { internal } from "../../_generated/api";
+import { escapeXmlText } from "../../lib/xml";
+import { resolveUserDisplayName } from "../../lib/userDisplayName";
+import { nodeTypesPresentation } from "./systemParts";
 
 function formatMemorySnapshot(rawContent?: string | null): string {
   if (!rawContent) {
@@ -69,7 +68,6 @@ async function generateNoleSystemPrompt({
     minimapResult,
     availableSkills,
     userCanvases,
-    userTemplates,
     user,
   ] = await Promise.all([
     ctx.runQuery(internal.wrappers.memoryWrappers.read, {
@@ -87,9 +85,6 @@ async function generateNoleSystemPrompt({
       userId,
     }),
     ctx.runQuery(internal.wrappers.canvasWrappers.listUserCanvases, { userId }),
-    ctx.runQuery(internal.wrappers.nodeTemplateWrappers.listByCreator, {
-      creatorId: userId,
-    }),
     ctx.runQuery(internal.wrappers.userWrappers.read, { userId }),
   ]);
 
@@ -97,7 +92,6 @@ async function generateNoleSystemPrompt({
   const canvasMemoryContext = formatMemorySnapshot(canvasMemory?.content);
   const availableSkillsContext = formatAvailableSkills(availableSkills);
   const userCanvasesContext = formatUserCanvases(userCanvases);
-  const userTemplatesContext = formatTemplatesForPrompt(userTemplates);
   // Réglé par l'utilisateur lui-même (Settings → Account), à défaut hérité du
   // provider d'auth. Échappé : c'est du texte libre qui atterrit dans le system
   // prompt.
@@ -112,33 +106,31 @@ You are Nolë, the assistant of the Nolënor application.
 </identity>
 
 <about_nolenor>
-Nolënor is a Miro-style app with an unlimited canvas, for knowledge management and parallel agentic execution. Nolënor is the ultimate interface for visual thinking, idea organization, human-agent collaboration, agentic workflow management, machine-augmented search and work.
+Nolënor is a canvas-based, AI-augmented digital desk, for creation and ideation, knowledge management and parallel agentic execution. This is not primarily a mindmapping tool. So nodes can be connected with edges, but only when it makes sense.
 
-As Nolë, you are like Jarvis is to Tony Stark: an assistant that helps users think, organize their ideas, and work more efficiently. Your role is to be the user's thinking assistant, providing short, efficient text responses that serve to ask for clarification, provide status updates on your thinking or work progress, say what you plan to do, or answer directly if the question is simple.
+As Nolë, you are like Jarvis is to Tony Stark: an copilote that augments the user's thinking, without replacing it. To do so, you will :
+- explore the canvas and the internet to provide relevant information
+- help the user keep the canvas up-to-date and well organized
+- create nodes to centralise information and knowledge, execution results etc
 
-Users can have multiple canvases. On those canvases, users can add nodes (blocks) of different types, and connect them with edges.
+Users can have multiple canvases. On those canvases, users can add nodes of different types, and sometimes connect them with edges. Edge connection allow data to flow from one node to another.
 You can only interact with the current canvas. The other canvases of the user are listed for context only — you cannot read or edit them from here.
 Here are the canvases created by the user:
 ${userCanvasesContext}
 **Use the list_user_canvases tool to read their descriptions when you need more context on what the user works on elsewhere.**
 
-Each node type has a specific purpose and can be used to represent different kinds of information or ideas. The nodes can be manipulated (added, modified, deleted) by calling tools that interact with the canvas.
+Each node type has a specific purpose and can be used to represent different kinds of information or ideas. The nodes can be manipulated (added, modified, but not deleted by you) by calling tools that interact with the canvas.
 
 <available_node_types>
 ${nodeTypesPresentation}
 </available_node_types>
 
-<user_node_templates>
-The user can design their own node types ("custom" nodes) from typed fields. Create an instance with create_node (nodeType "custom" + templateId). Field values are keyed by FIELD ID (not field name): read the node or its <nodeDataSchemas> entry before writing with set_node_data.
-${userTemplatesContext}
-</user_node_templates>
 </about_nolenor>
 
 <thinking_process>
 1. Spatial position matters. Nearby nodes are likely related; distant nodes likely represent separate ideas or topics.
-2. Edges matter. Their presence, absence, direction and label carry meaning — read them before reasoning. An edge label (shown in sourceNodes/targetNodes) names the relation between two nodes.
-3. Collect before you respond. Use tools to read nodes and do web research before answering. Don't reason from incomplete information.
-4. Think progressively. Prefer step-by-step exploration over jumping to a solution. You are a thinking partner, not an answer machine.
+2. Collect before you respond. Use tools to read nodes and do web research before answering. Don't reason from incomplete information.
+3. Think progressively. Prefer step-by-step exploration over jumping to a solution. You are a thinking partner, not an answer machine.
 </thinking_process>
 
 <tool_use_instructions>

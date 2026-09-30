@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import NoleIcon from "@/assets/svg-components/NoleIcon";
 import { TbPlus, TbX } from "react-icons/tb";
 import { ThinkingOrb } from "thinking-orbs";
 import toast from "react-hot-toast";
@@ -13,6 +12,7 @@ import { useNoleChat } from "@/hooks/useNoleChat";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
 import ChatInput from "./ChatInput";
 import ChatInterface from "./ChatInterface";
+import EmptyThreadSuggestions from "./EmptyThreadSuggestions";
 import ThreadSelector from "./ThreadSelector";
 import ThreadStatsBadge from "./ThreadStatsBadge";
 import ThreadStatusPill from "./ThreadStatusPill";
@@ -116,7 +116,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
             isRunActive={chat.runStatus === "running"}
           />
         ) : (
-          <EmptyThreadState />
+          <EmptyThreadSuggestions onSelect={setUserInput} />
         )}
       </div>
 
@@ -142,26 +142,6 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
         dirtyNodeIds={chat.dirtyNodeIds}
         hasDirtyWindows={chat.hasDirtyWindows}
       />
-    </div>
-  );
-}
-
-/** Écran d'accueil d'une conversation vierge, avant le premier message. */
-function EmptyThreadState() {
-  return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <span className="flex size-11 items-center justify-center rounded-full bg-slate-100 opacity-60">
-        <NoleIcon size={20} />
-      </span>
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-slate-600">
-          Start talking to Nolë
-        </p>
-        <p className="text-sm text-slate-400">
-          Mention a node with <span className="font-medium">@</span> to give it
-          context.
-        </p>
-      </div>
     </div>
   );
 }

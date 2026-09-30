@@ -31,4 +31,6 @@ export const OPENABLE_PREBUILT_NODE_TYPES: ReadonlySet<string> = new Set([
   "table",
   "app",
   "video",
+  // La window porte le transcript (lecteur + texte horodaté cliquable).
+  "audio",
 ]);

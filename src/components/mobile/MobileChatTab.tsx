@@ -4,6 +4,7 @@ import { ThinkingOrb } from "thinking-orbs";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import ChatInterface from "@/components/canvas/nole-panel/ChatInterface";
+import EmptyThreadSuggestions from "@/components/canvas/nole-panel/EmptyThreadSuggestions";
 import { useMobileNoleChat } from "./mobileNoleContextValue";
 import ThreadStatusPill from "@/components/canvas/nole-panel/ThreadStatusPill";
 import MobileChatInput from "./MobileChatInput";
@@ -76,9 +77,7 @@ export default function MobileChatTab({
             isRunActive={runStatus === "running"}
           />
         ) : (
-          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">
-            Start talking to Nolë
-          </div>
+          <EmptyThreadSuggestions onSelect={setUserInput} />
         )}
       </div>
 

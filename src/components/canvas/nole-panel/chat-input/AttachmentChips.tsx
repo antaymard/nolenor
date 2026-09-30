@@ -7,6 +7,7 @@ import { useTemplatesStore } from "@/stores/templatesStore";
 import { getCanvasNodeTitle } from "@/lib/getCanvasNodeTitle";
 import { cn } from "@/lib/utils";
 import type { CanvasNode } from "@/types";
+import { Kbd } from "@/components/shadcn/kbd";
 
 type AttachmentActions = {
   addAttachments: (args: { nodes: CanvasNode[] }) => void;
@@ -34,8 +35,15 @@ export function AttachmentRow({
   removeAttachments,
 }: AttachmentRowProps) {
   const hasAny =
-    selectableNodes.length > 0 || attachedNodes.length > 0 || !!attachedPosition;
-  if (!hasAny) return null;
+    selectableNodes.length > 0 ||
+    attachedNodes.length > 0 ||
+    !!attachedPosition;
+  if (!hasAny)
+    return (
+      <div className="flex items-center justify-start gap-1 px-2 pt-2 text-xs opacity-50 italic">
+        <Kbd>Alt + Clic</Kbd> on a node to attach as context
+      </div>
+    );
 
   const removeNode = (nodeId: string) =>
     removeAttachments([{ type: "node", ids: [nodeId] }]);
@@ -145,7 +153,10 @@ function NodeAttachment({
       {NodeIcon ? (
         <NodeIcon
           size={12}
-          className={cn("min-w-3", isAttached ? "text-violet-500" : "text-slate-400")}
+          className={cn(
+            "min-w-3",
+            isAttached ? "text-violet-500" : "text-slate-400",
+          )}
         />
       ) : null}
       <span className="truncate">{nodeTitle}</span>

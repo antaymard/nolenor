@@ -3,6 +3,7 @@ import {
   TbDownload,
   TbFlag,
   TbGauge,
+  TbMaximize,
   TbMusic,
   TbPencil,
   TbPlayerPause,
@@ -40,7 +41,10 @@ import {
   type MediaLoop,
 } from "@/hooks/useMediaPlayback";
 import { useAudioStore } from "@/stores/audioStore";
+import { useWindowsStore } from "@/stores/windowsStore";
 import type { XyNodeProps } from "@/types/domain";
+import { AudioTranscribeButton } from "./audio/AudioTranscribeButton";
+import { displayNameOf } from "./audio/audioDisplayName";
 
 export type AudioValue = {
   url: string;
@@ -56,21 +60,6 @@ export type AudioValue = {
   label?: string;
   cover?: { url: string; key: string } | null;
 };
-
-/**
- * Mirrors getNodeDataTitle's precedence: what the user typed, then the file's
- * own tags, then the filename.
- */
-function displayNameOf(audio: AudioValue | null): string {
-  if (!audio) return "";
-  if (audio.label?.trim()) return audio.label.trim();
-  if (audio.title?.trim()) {
-    const title = audio.title.trim();
-    const artist = audio.artist?.trim();
-    return artist ? `${artist} — ${title}` : title;
-  }
-  return audio.filename;
-}
 
 const DEFAULT_LOOP: MediaLoop = { start: 0, end: 0, enabled: false };
 
@@ -97,6 +86,12 @@ function AudioNode(xyNode: XyNodeProps) {
 
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+
+  const openWindow = useWindowsStore((s) => s.openWindow);
+  const handleOpenWindow = useCallback(() => {
+    if (!nodeDataId) return;
+    openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "audio" });
+  }, [nodeDataId, openWindow, xyNode.id]);
 
   // The duration is not known at upload time (the file is never decoded), so
   // it is picked up from the element and written once.
@@ -309,6 +304,20 @@ function AudioNode(xyNode: XyNodeProps) {
   return (
     <>
       <CanvasNodeToolbar xyNode={xyNode}>
+        <NodeToolbarButton
+          label="Open"
+          disabled={!nodeDataId}
+          title="Open in window"
+          onClick={handleOpenWindow}
+        >
+          <TbMaximize />
+        </NodeToolbarButton>
+        {audio && nodeDataId && (
+          <AudioTranscribeButton
+            nodeDataId={nodeDataId}
+            onOpenWindow={handleOpenWindow}
+          />
+        )}
         {audio && (
           <>
             <Popover>

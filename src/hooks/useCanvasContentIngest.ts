@@ -20,6 +20,26 @@ const GRID_GAP = 24;
 /** Nombre de nodes par ligne dans la grille d'un drop multi-fichiers. */
 const GRID_COLUMNS = 4;
 
+/**
+ * Progression globale d'un ingest multi-fichiers (cf. `OnboardingDropzone`) :
+ * `done`/`total` en fichiers soldés, plus le fichier qui bouge encore et son
+ * pourcentage. `currentPercent` est la moyenne sur tous les fichiers — les
+ * créations sans upload (CSV, markdown) ne reportent rien et comptent via
+ * `done`.
+ */
+export type IngestProgress = {
+  done: number;
+  total: number;
+  currentLabel: string;
+  currentPercent: number;
+};
+
+export type CreateNodesFromFilesOptions = {
+  /** Pas de toasts : l'appelant affiche sa propre progression (onboarding). */
+  silent?: boolean;
+  onProgress?: (progress: IngestProgress) => void;
+};
+
 function getNodeConfig(type: NodeType) {
   return prebuiltNodesConfig.find((config) => config.node.type === type);
 }
@@ -64,10 +84,11 @@ function layoutPositions(
 /**
  * Fabrique partagée « contenu externe → node sur le canvas ».
  *
- * Utilisée par le coller (`useCanvasPasteHandler`, position = curseur suivi)
- * et par le glisser-déposer (`useCanvasDropHandler`, position = point
- * de drop). Toute la création passe par `useCreateNode`, et les fichiers par
- * `useFileUpload` (R2).
+ * Utilisée par le coller (`useCanvasPasteHandler`, position = curseur suivi),
+ * par le glisser-déposer (`useCanvasDropHandler`, position = point de drop)
+ * et par la zone d'onboarding (`OnboardingDropzone`, position = centre du
+ * viewport décalé du panel). Toute la création passe par `useCreateNode`, et
+ * les fichiers par `useFileUpload` (R2).
  */
 export function useCanvasContentIngest() {
   const { setNodes } = useReactFlow();
@@ -210,14 +231,18 @@ export function useCanvasContentIngest() {
    * visible to land, then patch it with the uploaded URL.
    */
   const createImageNodeFromFile = useCallback(
-    async (file: File, position: XYPosition) => {
+    async (
+      file: File,
+      position: XYPosition,
+      onFileProgress?: (percent: number) => void,
+    ) => {
       const result = await createImageNode(position, "");
       if (!result) return;
 
       const { nodeId, nodeDataId } = result;
 
       try {
-        const fileData = await uploadFile(file);
+        const fileData = await uploadFile(file, undefined, onFileProgress);
         await updateNodeDataValues({
           _id: nodeDataId,
           values: { images: [fileData] },
@@ -236,7 +261,11 @@ export function useCanvasContentIngest() {
    * Handle an audio file: node first, then upload + tags + cover art.
    */
   const createAudioNodeFromFile = useCallback(
-    async (file: File, position: XYPosition) => {
+    async (
+      file: File,
+      position: XYPosition,
+      onFileProgress?: (percent: number) => void,
+    ) => {
       const audioNodeConfig = getNodeConfig("audio");
       if (!audioNodeConfig) {
         toast.error("Error: AudioNode configuration not found");
@@ -250,7 +279,8 @@ export function useCanvasContentIngest() {
       const { nodeDataId } = await settled;
 
       try {
-        const fileData = await uploadFile(file);
+        // Seul l'upload principal reporte : la pochette est un bonus.
+        const fileData = await uploadFile(file, undefined, onFileProgress);
         const tags = await extractAudioMetadata(file);
 
         let cover: { url: string; key: string } | null = null;
@@ -295,7 +325,11 @@ export function useCanvasContentIngest() {
    * Handle a video file: node first, then upload + poster frame.
    */
   const createVideoNodeFromFile = useCallback(
-    async (file: File, position: XYPosition) => {
+    async (
+      file: File,
+      position: XYPosition,
+      onFileProgress?: (percent: number) => void,
+    ) => {
       const videoNodeConfig = getNodeConfig("video");
       if (!videoNodeConfig) {
         toast.error("Error: VideoNode configuration not found");
@@ -310,9 +344,10 @@ export function useCanvasContentIngest() {
 
       try {
         // The capture reads the local file, so it costs nothing to run it
-        // alongside the upload rather than after it.
+        // alongside the upload rather than after it. Seul l'upload principal
+        // reporte : le poster est un bonus.
         const [fileData, captured] = await Promise.all([
-          uploadFile(file),
+          uploadFile(file, undefined, onFileProgress),
           captureVideoPoster(file),
         ]);
 
@@ -353,7 +388,11 @@ export function useCanvasContentIngest() {
    * how to preview PDFs and download the rest.
    */
   const createFileNodeFromFile = useCallback(
-    async (file: File, position: XYPosition) => {
+    async (
+      file: File,
+      position: XYPosition,
+      onFileProgress?: (percent: number) => void,
+    ) => {
       const pdfNodeConfig = getNodeConfig("pdf");
       if (!pdfNodeConfig) {
         toast.error("Error: PdfNode configuration not found");
@@ -367,7 +406,7 @@ export function useCanvasContentIngest() {
       const { nodeDataId } = await settled;
 
       try {
-        const fileData = await uploadFile(file);
+        const fileData = await uploadFile(file, undefined, onFileProgress);
         await updateNodeDataValues({
           _id: nodeDataId,
           values: { files: [fileData] },
@@ -384,16 +423,23 @@ export function useCanvasContentIngest() {
   /**
    * Create the node matching a single file's type at the given position.
    * Rejects if the upload (or the CSV parsing) fails — callers report.
+   * `onFileProgress` ne sert qu'aux uploads (image, audio, vidéo, fichier
+   * générique) : CSV et markdown sont des opérations locales quasi
+   * instantanées.
    */
   const createNodeFromFile = useCallback(
-    async (file: File, position: XYPosition) => {
+    async (
+      file: File,
+      position: XYPosition,
+      onFileProgress?: (percent: number) => void,
+    ) => {
       switch (resolveFileNodeType(file)) {
         case "image":
-          return createImageNodeFromFile(file, position);
+          return createImageNodeFromFile(file, position, onFileProgress);
         case "audio":
-          return createAudioNodeFromFile(file, position);
+          return createAudioNodeFromFile(file, position, onFileProgress);
         case "video":
-          return createVideoNodeFromFile(file, position);
+          return createVideoNodeFromFile(file, position, onFileProgress);
         case "table":
           await createTableNodeFromCsv(file, position);
           return;
@@ -401,7 +447,7 @@ export function useCanvasContentIngest() {
           await createBlocknoteNode(await file.text(), position);
           return;
         default:
-          return createFileNodeFromFile(file, position);
+          return createFileNodeFromFile(file, position, onFileProgress);
       }
     },
     [
@@ -416,38 +462,81 @@ export function useCanvasContentIngest() {
 
   /**
    * Create one node per file, laid out in a grid from `origin`. Uploads run in
-   * parallel; a failed file drops its own node and is counted in the toast.
+   * parallel; a failed file drops its own node and is counted in the toast
+   * (sauf `silent` : l'appelant affiche sa propre progression).
+   * Retourne le bilan — les appelants historiques l'ignorent.
    */
   const createNodesFromFiles = useCallback(
-    async (files: File[], origin: XYPosition) => {
-      if (files.length === 0) return;
+    async (
+      files: File[],
+      origin: XYPosition,
+      options?: CreateNodesFromFilesOptions,
+    ): Promise<{ created: number; failed: number }> => {
+      if (files.length === 0) return { created: 0, failed: 0 };
+      const { silent = false, onProgress } = options ?? {};
 
       const positions = layoutPositions(files.map(resolveFileNodeType), origin);
+      // Pourcentage courant par fichier : la moyenne fait le pourcentage
+      // global. Les créations sans upload ne reportent rien et soldent leur
+      // case à la fin.
+      const percents = files.map(() => 0);
+      let settledCount = 0;
+      let lastActive = 0;
+      const emit = () => {
+        const currentPercent =
+          percents.reduce((sum, percent) => sum + percent, 0) / files.length;
+        onProgress?.({
+          done: settledCount,
+          total: files.length,
+          currentLabel: files[lastActive]?.name ?? "",
+          currentPercent,
+        });
+      };
+      emit();
       // Déposer cinq fichiers est UN geste : sans cette transaction, chaque
       // node confirmé ouvrirait sa propre entrée d'historique et il faudrait
       // cinq Ctrl+Z pour défaire un seul glisser-déposer.
       const results = await withUndoTransaction("Add files", () =>
         Promise.allSettled(
-          files.map((file, index) => createNodeFromFile(file, positions[index])),
+          files.map(async (file, index) => {
+            try {
+              await createNodeFromFile(
+                file,
+                positions[index],
+                (percent) => {
+                  percents[index] = percent;
+                  lastActive = index;
+                  emit();
+                },
+              );
+            } finally {
+              percents[index] = 100;
+              settledCount += 1;
+              emit();
+            }
+          }),
         ),
       );
 
       const failed = results.filter((r) => r.status === "rejected").length;
       const created = results.length - failed;
 
-      if (created === 1) {
-        const type = resolveFileNodeType(
-          files[results.findIndex((r) => r.status === "fulfilled")],
-        );
-        toast.success(`${getNodeConfig(type)?.label ?? "Node"} added to canvas`);
-      } else if (created > 1) {
-        toast.success(`${created} nodes added to canvas`);
+      if (!silent) {
+        if (created === 1) {
+          const type = resolveFileNodeType(
+            files[results.findIndex((r) => r.status === "fulfilled")],
+          );
+          toast.success(`${getNodeConfig(type)?.label ?? "Node"} added to canvas`);
+        } else if (created > 1) {
+          toast.success(`${created} nodes added to canvas`);
+        }
+        if (failed > 0) {
+          toast.error(
+            failed === 1 ? "A file could not be added" : `${failed} files failed`,
+          );
+        }
       }
-      if (failed > 0) {
-        toast.error(
-          failed === 1 ? "A file could not be added" : `${failed} files failed`,
-        );
-      }
+      return { created, failed };
     },
     [createNodeFromFile],
   );

@@ -149,7 +149,7 @@ ${nodeTypesPresentation}
 1. Use text responses to follow up, confirm, keep the user informed, or provide simple answers, in mostly short responses, with little to no formatting in a old-chat style.
 2. Prefer creating nodes to answer, rather than relying on complex and heavily formatted text responses.
 3. Don't hesitate to mention nodes in your responses when relevant, written [[node:NODE_ID]] — the same token as in documents. The client renders it as a clickable pill with the node's live title, so don't repeat the title next to it. Only the id is read: a label copied from read_nodes ([[node:NODE_ID|type|title]]) is harmless but unnecessary.
-4. Respond in the user's language.
+4. Respond in the user's language, and create all canvas content (nodes, blocks, tables, titles, labels) in the user's language too, unless the user explicitly asks for another language.
 5. Be concise in your responses. Don't use 10 words when 3 will do.
 </output_formatting>
 

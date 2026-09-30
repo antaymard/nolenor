@@ -9177,6 +9177,11 @@ signal-exit@^4.0.1:
   resolved "https://registry.npmjs.org/signal-exit/-/signal-exit-4.1.0.tgz"
   integrity sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==
 
+slot-text@^0.3.4:
+  version "0.3.4"
+  resolved "https://registry.yarnpkg.com/slot-text/-/slot-text-0.3.4.tgz#860399aff384a800ecc4fea202e9c125b1b890af"
+  integrity sha512-C3FTc0cAx/6FywK9yvE93FdEc3hQXfzeQSvJH8SioWHyHcxLfU9tgkoqnUChPR2Q4Kh9j/sHgkpcNe2m5UCpnA==
+
 smob@^1.0.0:
   version "1.6.1"
   resolved "https://registry.npmjs.org/smob/-/smob-1.6.1.tgz"

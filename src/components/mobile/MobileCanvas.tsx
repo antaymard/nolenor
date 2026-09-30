@@ -17,6 +17,8 @@ import MobileCanvasSwitcherSheet from "./MobileCanvasSwitcherSheet";
 import MobileNodeOverlay from "./MobileNodeOverlay";
 import CanvasWelcomeModal from "@/components/canvas/welcome/CanvasWelcomeModal";
 import { useOpenThreadFromUrl } from "@/hooks/useOpenThreadFromUrl";
+import { useEmptyCanvasOnboarding } from "@/hooks/useEmptyCanvasOnboarding";
+import EmptyCanvasWithNole from "@/components/canvas/onboarding/EmptyCanvasWithNole";
 
 export default function MobileCanvas({
   canvasId,
@@ -62,6 +64,19 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
   const showChat = useCallback(() => setActiveTab("chat"), [setActiveTab]);
   useOpenThreadFromUrl({ ready: Boolean(canvas), onOpened: showChat });
 
+  // Même onboarding que desktop (`CanvasContent`) : canvas vide avéré +
+  // `?onboarding=true` → `EmptyCanvasWithNole` au lieu des onglets. Le shell
+  // mobile n'est monté que connecté (cf. la route), donc `isAuthenticated`
+  // suffit ici comme garde d'auto-entrée avec la permission d'édition.
+  const { showOnboarding, isRedirectPending } = useEmptyCanvasOnboarding({
+    flowNodes,
+    flowEdges,
+    canAutoEnter:
+      isAuthenticated &&
+      Boolean(canvas) &&
+      canvas?._permission !== "viewer",
+  });
+
   if (isCanvasError && canvasError) {
     return (
       <CanvasErrorScreen
@@ -83,6 +98,39 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
     return (
       <div className="flex h-dvh items-center justify-center">
         <Spinner className="size-6 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Canvas vide en cours de bascule vers `?onboarding=true` : même garde que
+  // desktop, on ne peint pas d'onglet canvas vide une frame.
+  if (isRedirectPending) {
+    return (
+      <div className="flex h-dvh items-center justify-center">
+        <Spinner className="size-6 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Onboarding : la top bar reste (navigation entre workspaces), mais pas les
+  // onglets ni la bottom nav — juste Nolë. Pas de `CanvasWelcomeModal` ici
+  // non plus, comme desktop. Reste sous le `ReactFlowProvider` du dessus
+  // (requis par `ChatContainer` via `useNoleChat` → `useReactFlow`).
+  if (showOnboarding) {
+    return (
+      <div className="flex h-dvh w-screen flex-col overflow-hidden bg-white">
+        <MobileTopBar
+          canvasName={canvas.name}
+          onOpenCanvasSwitcher={() => setSwitcherOpen(true)}
+        />
+        <div className="min-h-0 flex-1">
+          <EmptyCanvasWithNole canvasId={canvasId} canvasName={canvas.name} />
+        </div>
+        <MobileCanvasSwitcherSheet
+          canvasId={canvasId}
+          open={switcherOpen}
+          onOpenChange={setSwitcherOpen}
+        />
       </div>
     );
   }

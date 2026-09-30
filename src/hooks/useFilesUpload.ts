@@ -34,7 +34,11 @@ export const useFileUpload = () => {
    * @returns Les données du fichier uploadé (à utiliser pour mettre à jour votre state local)
    */
   const uploadFile = useCallback(
-    async (file: File, customId?: string): Promise<UploadedFileData> => {
+    async (
+      file: File,
+      customId?: string,
+      onProgress?: (percent: number) => void,
+    ): Promise<UploadedFileData> => {
       const fileId = customId || crypto.randomUUID();
 
       // Initialiser le tracking
@@ -73,6 +77,7 @@ export const useFileUpload = () => {
                 ...prev,
                 [fileId]: { ...prev[fileId], progress: percent },
               }));
+              onProgress?.(percent);
             }
           },
         });
@@ -82,6 +87,7 @@ export const useFileUpload = () => {
           ...prev,
           [fileId]: { ...prev[fileId], status: "done", progress: 100 },
         }));
+        onProgress?.(100);
 
         // 4. Retourner les données du fichier (à utiliser dans votre state local)
         const fileData: UploadedFileData = {

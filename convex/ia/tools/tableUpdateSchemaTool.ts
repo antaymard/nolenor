@@ -2,8 +2,13 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
-import { generateLlmId } from "../../lib/llmId";
+import { generateColumnId, generateLlmId } from "../../lib/llmId";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import {
+  TableWriteConflictError,
+  withTableWriteRetry,
+  writeTableIfUnchanged,
+} from "../helpers/tableWrite";
 import {
   TABLE_COLUMN_TYPES,
   listColumnTypesForPrompt,
@@ -13,10 +18,7 @@ import {
 // Tool compaction config
 export const tableUpdateSchemaToolConfig: ToolConfig = {
   name: "table_update_schema",
-  authorized_agents: [
-    toolAgentNames.nole,
-    toolAgentNames.worker,
-  ],
+  authorized_agents: [toolAgentNames.nole, toolAgentNames.worker],
   mcp: { access: "write" },
 };
 
@@ -42,8 +44,6 @@ const SELECT_COLORS = [
 ] as const;
 
 type SelectColor = (typeof SELECT_COLORS)[number];
-
-
 
 type SelectOption = {
   id: string;
@@ -92,12 +92,10 @@ const selectOptionInputSchema = z.object({
     ),
 });
 
+// Pas d'id en entrée : il est toujours généré (format llmId, comme les nodes et
+// les lignes). Un id court et sans structure répétée évite que le modèle
+// recolle des morceaux de deux UUID ; un id fourni par l'agent est ignoré.
 const columnInputSchema = z.object({
-  id: z
-    .string()
-    .min(1)
-    .optional()
-    .describe("Optional column id. If omitted, one is generated."),
   name: z.string().min(1).describe("Column display name."),
   type: columnTypeSchema.describe("Column type."),
   options: z
@@ -136,7 +134,9 @@ const updateColumnPayloadSchema = z.object({
   isMulti: z
     .boolean()
     .optional()
-    .describe("For select columns: change the isMulti flag. Ignored for other types."),
+    .describe(
+      "For select columns: change the isMulti flag. Ignored for other types.",
+    ),
 });
 
 function normalizeLookupKey(value: string): string {
@@ -147,18 +147,11 @@ function removeSpaces(value: string): string {
   return value.replace(/\s+/g, "");
 }
 
-function buildColumnId(name: string): string {
-  const normalized = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  if (normalized.length > 0) {
-    return normalized;
-  }
-
-  return generateLlmId();
+function buildColumnId(existingColumns: Array<TableColumn>): string {
+  const takenIds = new Set(existingColumns.map((column) => column.id));
+  let id = generateColumnId();
+  while (takenIds.has(id)) id = generateColumnId();
+  return id;
 }
 
 function buildOptionId(label: string): string {
@@ -210,9 +203,10 @@ function normalizeSelectOptions(
 
 function buildColumnFromInput(
   raw: z.infer<typeof columnInputSchema>,
+  existingColumns: Array<TableColumn>,
 ): { ok: true; column: TableColumn } | { ok: false; error: string } {
   const name = raw.name.trim();
-  const id = raw.id?.trim() || buildColumnId(name);
+  const id = buildColumnId(existingColumns);
   const base: TableColumn = { id, name, type: raw.type };
 
   if (raw.type === "select") {
@@ -355,319 +349,294 @@ export default function tableUpdateSchemaTool({
         })
         .describe("Operation payload."),
     }),
-    execute: async (ctx, input): Promise<string> => {
-      console.log(
-        `🧮 Table schema update requested on node ${input.nodeId} (${input.operation})`,
-      );
-
-      try {
-        const { node, nodeData } = await ctx.runQuery(
-          internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
-          {
-            canvasId,
-            nodeId: input.nodeId,
-          },
+    execute: (ctx, input): Promise<string> =>
+      withTableWriteRetry(async () => {
+        console.log(
+          `🧮 Table schema update requested on node ${input.nodeId} (${input.operation})`,
         );
 
-        if (node.type !== "table" || nodeData.type !== "table") {
-          return ERROR_TARGET_NOT_TABLE;
-        }
-
-        const tableValue = (nodeData.values.table ?? {}) as StoredTableValue;
-        const columns = Array.isArray(tableValue.columns)
-          ? tableValue.columns
-          : null;
-        const rows = Array.isArray(tableValue.rows) ? tableValue.rows : null;
-
-        if (!columns || !rows) {
-          return ERROR_INVALID_TABLE_CONTENT;
-        }
-
-        if (input.operation === "set") {
-          const inputColumns = input.payload.columns;
-          if (!inputColumns || inputColumns.length === 0) {
-            return toolError(
-              "payload.columns is required for set and must contain at least one column.",
-            );
-          }
-
-          if (columns.length > 0) {
-            return toolError("set is allowed only when table schema is empty.");
-          }
-
-          if (rows.length > 0) {
-            return toolError(
-              "set is allowed only when table schema is empty (no columns and no rows).",
-            );
-          }
-
-          const nextColumns: Array<TableColumn> = [];
-          for (const raw of inputColumns) {
-            const built = buildColumnFromInput(raw);
-            if (!built.ok) return built.error;
-            nextColumns.push(built.column);
-          }
-
-          const duplicatesError = validateNoDuplicateColumns(nextColumns);
-          if (duplicatesError) {
-            return duplicatesError;
-          }
-
-          await ctx.runMutation(
-            internal.wrappers.nodeDataWrappers.updateValues,
+        try {
+          const { node, nodeData } = await ctx.runQuery(
+            internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
             {
-              _id: nodeData._id,
-              values: {
-                ...nodeData.values,
-                table: {
-                  ...tableValue,
-                  columns: nextColumns,
-                  rows,
-                },
-              },
+              canvasId,
+              nodeId: input.nodeId,
+            },
+          );
+
+          if (node.type !== "table" || nodeData.type !== "table") {
+            return ERROR_TARGET_NOT_TABLE;
+          }
+
+          const tableValue = (nodeData.values.table ?? {}) as StoredTableValue;
+          const columns = Array.isArray(tableValue.columns)
+            ? tableValue.columns
+            : null;
+          const rows = Array.isArray(tableValue.rows) ? tableValue.rows : null;
+
+          if (!columns || !rows) {
+            return ERROR_INVALID_TABLE_CONTENT;
+          }
+
+          if (input.operation === "set") {
+            const inputColumns = input.payload.columns;
+            if (!inputColumns || inputColumns.length === 0) {
+              return toolError(
+                "payload.columns is required for set and must contain at least one column.",
+              );
+            }
+
+            if (columns.length > 0) {
+              return toolError(
+                "set is allowed only when table schema is empty.",
+              );
+            }
+
+            if (rows.length > 0) {
+              return toolError(
+                "set is allowed only when table schema is empty (no columns and no rows).",
+              );
+            }
+
+            const nextColumns: Array<TableColumn> = [];
+            for (const raw of inputColumns) {
+              const built = buildColumnFromInput(raw, nextColumns);
+              if (!built.ok) return built.error;
+              nextColumns.push(built.column);
+            }
+
+            const duplicatesError = validateNoDuplicateColumns(nextColumns);
+            if (duplicatesError) {
+              return duplicatesError;
+            }
+
+            await writeTableIfUnchanged(ctx, {
+              nodeDataId: nodeData._id,
+              expectedTable: nodeData.values.table,
+              table: { ...tableValue, columns: nextColumns, rows },
               actor: {
                 type: "agent",
                 userId: threadCtx.authUserId,
                 threadId: ctx.threadId,
               },
-            },
-          );
-
-          return `Successfully set table schema with ${nextColumns.length} columns.`;
-        }
-
-        if (input.operation === "add_column") {
-          const inputColumn = input.payload.column;
-          if (!inputColumn) {
-            return toolError("payload.column is required for add_column.");
-          }
-
-          const built = buildColumnFromInput(inputColumn);
-          if (!built.ok) return built.error;
-
-          const nextColumns = [...columns, built.column];
-          const duplicatesError = validateNoDuplicateColumns(nextColumns);
-          if (duplicatesError) {
-            return duplicatesError;
-          }
-
-          await ctx.runMutation(
-            internal.wrappers.nodeDataWrappers.updateValues,
-            {
-              _id: nodeData._id,
-              values: {
-                ...nodeData.values,
-                table: {
-                  ...tableValue,
-                  columns: nextColumns,
-                  rows,
-                },
-              },
-              actor: {
-                type: "agent",
-                userId: threadCtx.authUserId,
-                threadId: ctx.threadId,
-              },
-            },
-          );
-
-          return `Successfully added column "${built.column.name}".`;
-        }
-
-        if (input.operation === "update_column") {
-          const update = input.payload.updateColumn;
-          if (!update) {
-            return toolError(
-              "payload.updateColumn is required for update_column.",
-            );
-          }
-
-          const matches = resolveColumnMatches({
-            columns,
-            identifier: update.identifier,
-          });
-          if (matches.length === 0) {
-            return toolError(
-              `No match found for column "${update.identifier}".`,
-            );
-          }
-          if (matches.length > 1) {
-            return toolError(
-              `Found ${matches.length} matches for column "${update.identifier}". Please use a unique id.`,
-            );
-          }
-
-          const target = matches[0];
-
-          // options et isMulti n'ont de sens que pour un select : les ignorer
-          // silencieusement si le modèle les fournit pour un autre type.
-          const isSelectTarget = target.type === "select";
-          const isOptionsUpdate =
-            update.options !== undefined && isSelectTarget;
-          const isMultiUpdate = update.isMulti !== undefined && isSelectTarget;
-
-          let nextOptions = target.options;
-          let prunedRows = rows;
-
-          if (isOptionsUpdate) {
-            const normalized = normalizeSelectOptions(update.options ?? []);
-            if (!normalized.ok) return normalized.error;
-            nextOptions = normalized.options;
-
-            const validOptionIds = new Set(nextOptions.map((opt) => opt.id));
-            prunedRows = pruneSelectOptionValues({
-              rows,
-              columnId: target.id,
-              validOptionIds,
             });
+
+            return `Successfully set table schema with ${nextColumns.length} columns.`;
           }
 
-          const renamedName = update.name?.trim() || target.name;
-          // Retirer proprement les clés select résiduelles sur un non-select
-          // (plutôt que les laisser à `undefined` dans l'objet stocké).
-          const { options: _ignoredOptions, isMulti: _ignoredIsMulti, ...restTarget } =
-            target;
-          void _ignoredOptions;
-          void _ignoredIsMulti;
-          const updatedColumn: TableColumn = isSelectTarget
-            ? {
-                ...target,
-                name: renamedName,
-                options: nextOptions,
-                isMulti: isMultiUpdate ? update.isMulti : target.isMulti,
-              }
-            : {
-                ...restTarget,
-                name: renamedName,
-              };
+          if (input.operation === "add_column") {
+            const inputColumn = input.payload.column;
+            if (!inputColumn) {
+              return toolError("payload.column is required for add_column.");
+            }
 
-          const nextColumns = columns.map((col) =>
-            col.id === target.id ? updatedColumn : col,
-          );
+            const built = buildColumnFromInput(inputColumn, columns);
+            if (!built.ok) return built.error;
 
-          const duplicatesError = validateNoDuplicateColumns(nextColumns);
-          if (duplicatesError) {
-            return duplicatesError;
-          }
+            const nextColumns = [...columns, built.column];
+            const duplicatesError = validateNoDuplicateColumns(nextColumns);
+            if (duplicatesError) {
+              return duplicatesError;
+            }
 
-          await ctx.runMutation(
-            internal.wrappers.nodeDataWrappers.updateValues,
-            {
-              _id: nodeData._id,
-              values: {
-                ...nodeData.values,
-                table: {
-                  ...tableValue,
-                  columns: nextColumns,
-                  rows: prunedRows,
-                },
-              },
+            await writeTableIfUnchanged(ctx, {
+              nodeDataId: nodeData._id,
+              expectedTable: nodeData.values.table,
+              table: { ...tableValue, columns: nextColumns, rows },
               actor: {
                 type: "agent",
                 userId: threadCtx.authUserId,
                 threadId: ctx.threadId,
               },
-            },
-          );
+            });
 
-          return `Successfully updated column "${updatedColumn.name}".`;
-        }
+            return `Successfully added column "${built.column.name}".`;
+          }
 
-        const identifiers = input.payload.columnIdentifiers;
-        if (!identifiers || identifiers.length === 0) {
-          return toolError(
-            "payload.columnIdentifiers is required for delete_column.",
-          );
-        }
+          if (input.operation === "update_column") {
+            const update = input.payload.updateColumn;
+            if (!update) {
+              return toolError(
+                "payload.updateColumn is required for update_column.",
+              );
+            }
 
-        const resolvedColumnIds: Array<string> = [];
-        const resolvedColumns: Array<TableColumn> = [];
+            const matches = resolveColumnMatches({
+              columns,
+              identifier: update.identifier,
+            });
+            if (matches.length === 0) {
+              return toolError(
+                `No match found for column "${update.identifier}".`,
+              );
+            }
+            if (matches.length > 1) {
+              return toolError(
+                `Found ${matches.length} matches for column "${update.identifier}". Please use a unique id.`,
+              );
+            }
 
-        for (const identifier of identifiers) {
-          const matches = resolveColumnMatches({
-            columns,
-            identifier,
+            const target = matches[0];
+
+            // options et isMulti n'ont de sens que pour un select : les ignorer
+            // silencieusement si le modèle les fournit pour un autre type.
+            const isSelectTarget = target.type === "select";
+            const isOptionsUpdate =
+              update.options !== undefined && isSelectTarget;
+            const isMultiUpdate =
+              update.isMulti !== undefined && isSelectTarget;
+
+            let nextOptions = target.options;
+            let prunedRows = rows;
+
+            if (isOptionsUpdate) {
+              const normalized = normalizeSelectOptions(update.options ?? []);
+              if (!normalized.ok) return normalized.error;
+              nextOptions = normalized.options;
+
+              const validOptionIds = new Set(nextOptions.map((opt) => opt.id));
+              prunedRows = pruneSelectOptionValues({
+                rows,
+                columnId: target.id,
+                validOptionIds,
+              });
+            }
+
+            const renamedName = update.name?.trim() || target.name;
+            // Retirer proprement les clés select résiduelles sur un non-select
+            // (plutôt que les laisser à `undefined` dans l'objet stocké).
+            const {
+              options: _ignoredOptions,
+              isMulti: _ignoredIsMulti,
+              ...restTarget
+            } = target;
+            void _ignoredOptions;
+            void _ignoredIsMulti;
+            const updatedColumn: TableColumn = isSelectTarget
+              ? {
+                  ...target,
+                  name: renamedName,
+                  options: nextOptions,
+                  isMulti: isMultiUpdate ? update.isMulti : target.isMulti,
+                }
+              : {
+                  ...restTarget,
+                  name: renamedName,
+                };
+
+            const nextColumns = columns.map((col) =>
+              col.id === target.id ? updatedColumn : col,
+            );
+
+            const duplicatesError = validateNoDuplicateColumns(nextColumns);
+            if (duplicatesError) {
+              return duplicatesError;
+            }
+
+            await writeTableIfUnchanged(ctx, {
+              nodeDataId: nodeData._id,
+              expectedTable: nodeData.values.table,
+              table: { ...tableValue, columns: nextColumns, rows: prunedRows },
+              actor: {
+                type: "agent",
+                userId: threadCtx.authUserId,
+                threadId: ctx.threadId,
+              },
+            });
+
+            return `Successfully updated column "${updatedColumn.name}".`;
+          }
+
+          const identifiers = input.payload.columnIdentifiers;
+          if (!identifiers || identifiers.length === 0) {
+            return toolError(
+              "payload.columnIdentifiers is required for delete_column.",
+            );
+          }
+
+          const resolvedColumnIds: Array<string> = [];
+          const resolvedColumns: Array<TableColumn> = [];
+
+          for (const identifier of identifiers) {
+            const matches = resolveColumnMatches({
+              columns,
+              identifier,
+            });
+
+            if (matches.length === 0) {
+              return toolError(`No match found for column "${identifier}".`);
+            }
+            if (matches.length > 1) {
+              return toolError(
+                `Found ${matches.length} matches for column "${identifier}". Please use a unique id.`,
+              );
+            }
+
+            const matchedColumn = matches[0];
+            if (resolvedColumnIds.includes(matchedColumn.id)) {
+              return toolError(
+                `Column "${matchedColumn.name}" is provided multiple times.`,
+              );
+            }
+
+            resolvedColumnIds.push(matchedColumn.id);
+            resolvedColumns.push(matchedColumn);
+          }
+
+          const shouldDeleteValues = input.deleteColumnsValues ?? false;
+          const idsToDelete = new Set(resolvedColumnIds);
+
+          const rowsWithValues = rows.filter((row) => {
+            const rowCells = row.cells ?? {};
+            return [...idsToDelete].some(
+              (columnId) => rowCells[columnId] !== undefined,
+            );
           });
 
-          if (matches.length === 0) {
-            return toolError(`No match found for column "${identifier}".`);
-          }
-          if (matches.length > 1) {
+          if (!shouldDeleteValues && rowsWithValues.length > 0) {
             return toolError(
-              `Found ${matches.length} matches for column "${identifier}". Please use a unique id.`,
+              "Some rows contain values for columns to delete. Set deleteColumnsValues=true to remove these values.",
             );
           }
 
-          const matchedColumn = matches[0];
-          if (resolvedColumnIds.includes(matchedColumn.id)) {
-            return toolError(
-              `Column "${matchedColumn.name}" is provided multiple times.`,
-            );
-          }
-
-          resolvedColumnIds.push(matchedColumn.id);
-          resolvedColumns.push(matchedColumn);
-        }
-
-        const shouldDeleteValues = input.deleteColumnsValues ?? false;
-        const idsToDelete = new Set(resolvedColumnIds);
-
-        const rowsWithValues = rows.filter((row) => {
-          const rowCells = row.cells ?? {};
-          return [...idsToDelete].some(
-            (columnId) => rowCells[columnId] !== undefined,
+          const nextColumns = columns.filter(
+            (column) => !idsToDelete.has(column.id),
           );
-        });
 
-        if (!shouldDeleteValues && rowsWithValues.length > 0) {
-          return toolError(
-            "Some rows contain values for columns to delete. Set deleteColumnsValues=true to remove these values.",
-          );
-        }
+          const nextRows =
+            shouldDeleteValues && rowsWithValues.length > 0
+              ? rows.map((row) => {
+                  const rowCells = { ...(row.cells ?? {}) };
+                  for (const columnId of idsToDelete) {
+                    delete rowCells[columnId];
+                  }
 
-        const nextColumns = columns.filter(
-          (column) => !idsToDelete.has(column.id),
-        );
+                  return {
+                    ...row,
+                    cells: rowCells,
+                  };
+                })
+              : rows;
 
-        const nextRows =
-          shouldDeleteValues && rowsWithValues.length > 0
-            ? rows.map((row) => {
-                const rowCells = { ...(row.cells ?? {}) };
-                for (const columnId of idsToDelete) {
-                  delete rowCells[columnId];
-                }
-
-                return {
-                  ...row,
-                  cells: rowCells,
-                };
-              })
-            : rows;
-
-        await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {
-          _id: nodeData._id,
-          values: {
-            ...nodeData.values,
-            table: {
-              ...tableValue,
-              columns: nextColumns,
-              rows: nextRows,
+          await writeTableIfUnchanged(ctx, {
+            nodeDataId: nodeData._id,
+            expectedTable: nodeData.values.table,
+            table: { ...tableValue, columns: nextColumns, rows: nextRows },
+            actor: {
+              type: "agent",
+              userId: threadCtx.authUserId,
+              threadId: ctx.threadId,
             },
-          },
-          actor: {
-            type: "agent",
-            userId: threadCtx.authUserId,
-            threadId: ctx.threadId,
-          },
-        });
+          });
 
-        return `Successfully deleted ${resolvedColumns.length} column(s).`;
-      } catch (error) {
-        console.error("Table update schema tool error:", error);
-        return toolError(
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    },
+          return `Successfully deleted ${resolvedColumns.length} column(s).`;
+        } catch (error) {
+          if (error instanceof TableWriteConflictError) throw error;
+          console.error("Table update schema tool error:", error);
+          return toolError(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }),
   });
 }

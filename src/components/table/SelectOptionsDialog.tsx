@@ -24,6 +24,7 @@ import {
   type SelectColor,
   type SelectOption,
 } from "./types";
+import { generateLlmId } from "@/../convex/lib/llmId";
 
 export interface SelectOptionsDialogProps {
   open: boolean;
@@ -126,7 +127,7 @@ export function SelectOptionsDialog({
 
   function addOption() {
     const newOpt: SelectOption = {
-      id: crypto.randomUUID(),
+      id: generateLlmId(),
       label: "",
       color: pickNextColor(draftOptions),
     };

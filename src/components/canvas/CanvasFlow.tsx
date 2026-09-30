@@ -32,6 +32,7 @@ import FrameDrawOverlay from "./FrameDrawOverlay";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
 import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
+import { useOpenSelectionHotkey } from "@/hooks/useOpenSelectionHotkey";
 import { isEditableTarget, hasTextSelection } from "@/lib/editableTarget";
 import { hadQuietBefore } from "@/lib/isolatedKeystroke";
 import { withTouchDragGate } from "./touchDragGate";
@@ -325,6 +326,9 @@ export default function CanvasFlow({
 
   // Création d'un node au curseur (T titre, D doc, I image, A table, L lien)
   useCreateNodeHotkeys({ canEdit, isTouch });
+
+  // Entrée : ouvrir la sélection en window(s), ou éditer un titre.
+  useOpenSelectionHotkey({ canEdit, isTouch });
 
   // ── Suppression au clavier ──────────────────────────────────────────────
   // React Flow sait le faire tout seul (prop `deleteKeyCode`), mais son

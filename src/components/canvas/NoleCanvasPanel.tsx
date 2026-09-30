@@ -3,19 +3,19 @@ import ChatContainer from "@/components/canvas/nole-panel/ChatContainer";
 import { useNoleStore } from "@/stores/noleStore";
 import { Button } from "../shadcn/button";
 import { Kbd } from "../shadcn/kbd";
+import { useIsolatedHotkey } from "@/hooks/useIsolatedHotkey";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "../shadcn/resizable";
-import { useHotkey } from "@tanstack/react-hotkeys";
 
 export default function NoleCanvasPanel() {
   const layout = useNoleStore((state) => state.panelLayout);
   const setPanelLayout = useNoleStore((state) => state.setPanelLayout);
   const togglePanelLayout = useNoleStore((state) => state.togglePanelLayout);
 
-  useHotkey("N", () => togglePanelLayout());
+  useIsolatedHotkey("N", togglePanelLayout);
 
   return (
     <div className="relative">

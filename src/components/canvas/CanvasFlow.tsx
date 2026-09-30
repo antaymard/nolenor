@@ -33,6 +33,7 @@ import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
 import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
 import { isEditableTarget, hasTextSelection } from "@/lib/editableTarget";
+import { hadQuietBefore } from "@/lib/isolatedKeystroke";
 import { withTouchDragGate } from "./touchDragGate";
 import { markCanvasMoved } from "@/lib/canvasPanGesture";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "@/lib/canvasViewportFraming";
@@ -322,8 +323,7 @@ export default function CanvasFlow({
     },
   );
 
-  // Création d'un node au curseur (T titre, B blocknote, I image, A table,
-  // V repère de navigation)
+  // Création d'un node au curseur (T titre, D doc, I image, A table, L lien)
   useCreateNodeHotkeys({ canEdit, isTouch });
 
   // ── Suppression au clavier ──────────────────────────────────────────────
@@ -339,6 +339,11 @@ export default function CanvasFlow({
   const deleteSelection = useCallback(
     (event: KeyboardEvent) => {
       if (event.repeat || isEditableTarget(event.target)) return;
+      // Un Backspace au fil d'une frappe corrige une faute : si le texte part
+      // dans le vide (focus resté sur le canvas), il ne doit pas emporter la
+      // sélection. Silence « avant » seulement : la suppression voulue reste
+      // immédiate.
+      if (!hadQuietBefore(event)) return;
       // Même logique que Mod+C : une sélection de texte (historique Nolë…)
       // ne doit jamais coûter les nodes sélectionnés derrière.
       if (hasTextSelection()) return;

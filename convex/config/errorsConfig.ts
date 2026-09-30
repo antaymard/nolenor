@@ -52,10 +52,12 @@ const errors = {
     "This model does not accept reference images. Pick another model, or remove the references.",
   IMAGE_GENERATION_TOO_MANY_REFERENCES:
     "Too many reference images for this model.",
-  TRANSCRIPTION_WRONG_NODE_TYPE: "Only audio nodes can be transcribed.",
-  TRANSCRIPTION_NO_FILE: "This node has no audio file to transcribe.",
-  TRANSCRIPTION_FILE_TOO_LARGE:
-    "This audio file is too large to be transcribed.",
+  TRANSCRIPTION_WRONG_NODE_TYPE:
+    "Only audio and video nodes can be transcribed.",
+  TRANSCRIPTION_NO_FILE: "This node has no file to transcribe.",
+  TRANSCRIPTION_FILE_TOO_LARGE: "This file is too large to be transcribed.",
+  TRANSCRIPTION_UNAVAILABLE:
+    "Transcription is not available for this file on this deployment.",
   TRANSCRIPTION_ALREADY_RUNNING:
     "A transcription is already running on this node.",
   BOOKMARK_NOT_FOUND: "This bookmark does not exist.",

@@ -1,7 +1,10 @@
 import { TbAlertTriangle, TbCheck, TbTextCaption } from "react-icons/tb";
 import { Spinner } from "@/components/shadcn/spinner";
 import { NodeToolbarButton } from "../../toolbar/NodeToolbarButton";
-import { useAudioTranscription } from "@/hooks/useAudioTranscription";
+import {
+  useMediaTranscription,
+  type TranscribableNodeType,
+} from "@/hooks/useMediaTranscription";
 import type { Id } from "@/../convex/_generated/dataModel";
 
 /**
@@ -9,23 +12,28 @@ import type { Id } from "@/../convex/_generated/dataModel";
  *
  * Its own component so that it only mounts while the toolbar shows (the node
  * is selected): the `hasTranscript` subscription behind it then costs nothing
- * for the dozens of audio nodes a canvas may hold.
+ * for the dozens of audio and video nodes a canvas may hold.
  *
  * Once transcribed, the button opens the window, where the transcript is read
  * (and re-run if needed) — the toolbar stays a launcher.
  */
-export function AudioTranscribeButton({
+export function TranscribeButton({
   nodeDataId,
+  nodeType,
   onOpenWindow,
 }: {
   nodeDataId: Id<"nodeDatas">;
+  nodeType: TranscribableNodeType;
   onOpenWindow: () => void;
 }) {
-  const { state, error, start, progress, maxBytes } =
-    useAudioTranscription(nodeDataId);
+  const { state, error, start, progress, maxBytes } = useMediaTranscription(
+    nodeDataId,
+    nodeType,
+  );
 
   switch (state) {
     case "noFile":
+    case "unavailable":
       return null;
     case "running":
       return (
@@ -77,7 +85,7 @@ export function AudioTranscribeButton({
       return (
         <NodeToolbarButton
           label="Transcribe"
-          title="Transcribe this audio to make its content searchable"
+          title={`Transcribe this ${nodeType} to make its content searchable`}
           onClick={() => void start()}
         >
           <TbTextCaption />

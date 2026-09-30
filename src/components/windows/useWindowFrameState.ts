@@ -23,6 +23,9 @@ export function useWindowFrameState(xyNodeId: string) {
   const [planTabContent, setPlanTabContent] = useState<ReactNode | null>(
     null,
   );
+  // Compteur plutôt que booléen : chaque demande est un événement, que le
+  // chrome (qui possède l'état ouvert/fermé du panel) traite une fois.
+  const [sidePanelOpenRequest, setSidePanelOpenRequest] = useState(0);
 
   const addDirtyNode = useWindowsStore((s) => s.addDirtyNode);
   const removeDirtyNode = useWindowsStore((s) => s.removeDirtyNode);
@@ -72,6 +75,7 @@ export function useWindowFrameState(xyNodeId: string) {
       setRefreshHandler: (fn: (() => void) | null) =>
         setRefreshHandler(() => fn),
       setPlanTabContent: (node: ReactNode | null) => setPlanTabContent(node),
+      requestSidePanelOpen: () => setSidePanelOpenRequest((n) => n + 1),
     }),
     [],
   );
@@ -83,6 +87,7 @@ export function useWindowFrameState(xyNodeId: string) {
     saveHandler,
     refreshHandler,
     planTabContent,
+    sidePanelOpenRequest,
     handleSave,
     contextValue,
   };

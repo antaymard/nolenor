@@ -8,16 +8,11 @@ import {
   useState,
 } from "react";
 import { useQuery } from "convex/react";
-import {
-  TbAlertTriangle,
-  TbMusic,
-  TbRefresh,
-  TbTextCaption,
-} from "react-icons/tb";
+import { TbMusic, TbRefresh } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataValues } from "@/hooks/useNodeData";
-import { useAudioTranscription } from "@/hooks/useAudioTranscription";
+import { useMediaTranscription } from "@/hooks/useMediaTranscription";
 import { formatTime } from "@/hooks/useMediaPlayback";
 import { useAudioStore } from "@/stores/audioStore";
 import type { AudioValue } from "@/components/nodes/prebuilt-nodes/AudioNode";
@@ -26,7 +21,9 @@ import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { AudioTranscriptOutline } from "@/components/windows/side-panel/AudioTranscriptOutline";
+import { TranscriptEmptyState } from "@/components/windows/TranscriptEmptyState";
 import WindowLoadingState from "@/components/windows/WindowLoadingState";
+import { findActiveIndex } from "@/lib/transcriptPlayback";
 import { cn } from "@/lib/utils";
 
 /**
@@ -47,23 +44,6 @@ type FlatSegment = {
   chapterIndex: number;
 };
 
-/** Index of the last segment starting at or before `time`, -1 if none. */
-function findActiveIndex(segments: FlatSegment[], time: number): number {
-  let low = 0;
-  let high = segments.length - 1;
-  let found = -1;
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    if (segments[mid].s <= time) {
-      found = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-  return found;
-}
-
 interface AudioWindowProps {
   xyNodeId: string;
   nodeDataId: Id<"nodeDatas">;
@@ -83,7 +63,7 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
     audio?.key ? { nodeDataId } : "skip",
   );
   // The full transcript is already read here: no need for the lighter check.
-  const transcription = useAudioTranscription(nodeDataId, {
+  const transcription = useMediaTranscription(nodeDataId, "audio", {
     withTranscriptCheck: false,
   });
 
@@ -291,7 +271,7 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
         {transcript === undefined ? (
           <WindowLoadingState />
         ) : transcript === null ? (
-          <TranscriptEmptyState transcription={transcription} />
+          <TranscriptEmptyState transcription={transcription} noun="audio" />
         ) : (
           <div className="flex flex-col p-2">
             {isRunning && (
@@ -367,68 +347,6 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-/** What the transcript area shows before there is a transcript. */
-function TranscriptEmptyState({
-  transcription,
-}: {
-  transcription: ReturnType<typeof useAudioTranscription>;
-}) {
-  const { state, error, start, progress, maxBytes } = transcription;
-
-  if (state === "running") {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-        <Spinner className="size-5 text-muted-foreground" />
-        <p className="text-sm text-slate-600">
-          {progress
-            ? `Transcribing… ${progress.done}/${progress.total} parts`
-            : "Transcribing…"}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          You can close this window, the transcription keeps going.
-        </p>
-      </div>
-    );
-  }
-
-  if (state === "tooLarge") {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-        <TbTextCaption className="size-6 text-slate-300" />
-        <p className="text-sm text-slate-500">
-          This file is too large to be transcribed
-          {maxBytes ? ` (max ${Math.round(maxBytes / (1024 * 1024))} MB)` : ""}.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-      {state === "error" ? (
-        <p className="flex max-w-sm items-start gap-1.5 text-left text-xs text-destructive">
-          <TbAlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span className="min-w-0 break-words">
-            {error ?? "The transcription failed."}
-          </span>
-        </p>
-      ) : (
-        <>
-          <TbTextCaption className="size-6 text-slate-300" />
-          <p className="max-w-sm text-sm text-slate-500">
-            Transcribe this audio to read it here, jump to any passage, and find
-            what was said from search and from Nolë.
-          </p>
-        </>
-      )}
-      <Button size="sm" onClick={() => void start()}>
-        <TbTextCaption />
-        {state === "error" ? "Retry" : "Transcribe"}
-      </Button>
     </div>
   );
 }

@@ -22,6 +22,7 @@ import { aiUsageSources } from "../schemas/aiUsageSourceSchema";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
 import { stripLoneSurrogates } from "../lib/textSanitize";
 import {
+  getTranscribableFile,
   groupSegmentsIntoChunks,
   type RawTranscriptSegment,
 } from "../lib/transcriptChunks";
@@ -34,20 +35,9 @@ import { transcribeLongAudio } from "./helpers/longTranscription";
 
 type ChunkInput = Omit<Doc<"searchableChunks">, "_id" | "_creationTime">;
 
-const TOO_LARGE_MESSAGE = "This audio file is too large to be transcribed.";
-
-function readFilename(nodeData: Doc<"nodeDatas">): string {
-  const audio = nodeData.values.audio as { filename?: unknown } | undefined;
-  return typeof audio?.filename === "string" && audio.filename.length > 0
-    ? audio.filename
-    : "audio";
-}
-
-/** Taille déclarée à l'upload ; absente sur les vieux nodes. */
-function readDeclaredSize(nodeData: Doc<"nodeDatas">): number | undefined {
-  const audio = nodeData.values.audio as { size?: unknown } | undefined;
-  return typeof audio?.size === "number" ? audio.size : undefined;
-}
+const TOO_LARGE_MESSAGE = "This file is too large to be transcribed.";
+const NO_VOICE_SERVER_MESSAGE =
+  "Video transcription is not available on this deployment.";
 
 /** Dépense STT cumulée sur tous les appels d'un run (un par morceau en long). */
 type UsageTotals = {
@@ -69,9 +59,10 @@ function addUsage(totals: UsageTotals, result: OpenRouterTranscriptionResult) {
 }
 
 /**
- * Transcrit un node audio et écrit le résultat en chunks `transcript`.
+ * Transcrit un node audio ou vidéo et écrit le résultat en chunks
+ * `transcript`.
  *
- * Deux chemins, choisis par taille :
+ * Deux chemins, choisis par taille (une vidéo prend toujours le second) :
  * - jusqu'à 25 Mo, le fichier part tel quel au STT (un seul appel) ;
  * - au-delà, le voice-server le découpe en morceaux (~20 min, coupés dans
  *   les silences), transcrits en parallèle puis recollés (cf.
@@ -110,7 +101,9 @@ export const runTranscription = internalAction({
         { _id: nodeDataId },
       );
       if (!nodeData) return null;
-      const filename = readFilename(nodeData);
+      const file = getTranscribableFile(nodeData);
+      const filename = file?.filename ?? nodeData.type;
+      const isVideo = nodeData.type === "video";
 
       const transcribe = async (audio: Blob, name: string) => {
         const result = await requestOpenRouterTranscription({
@@ -125,7 +118,11 @@ export const runTranscription = internalAction({
 
       const transcribeViaVoiceServer = async () => {
         const voiceServer = getVoiceServerMediaConfig();
-        if (!voiceServer) throw new Error(TOO_LARGE_MESSAGE);
+        if (!voiceServer) {
+          throw new Error(
+            isVideo ? NO_VOICE_SERVER_MESSAGE : TOO_LARGE_MESSAGE,
+          );
+        }
         return await transcribeLongAudio({
           voiceServer,
           sourceUrl: audioUrl,
@@ -161,10 +158,13 @@ export const runTranscription = internalAction({
         durationSec: number | undefined;
       };
 
-      const declaredSize = readDeclaredSize(nodeData);
+      // Une vidéo passe toujours par le voice-server : c'est lui qui en
+      // extrait la piste audio, et le fichier brut n'irait pas au STT.
+      const declaredSize = file?.size;
       if (
-        declaredSize !== undefined &&
-        declaredSize > MAX_TRANSCRIPTION_DIRECT_BYTES
+        isVideo ||
+        (declaredSize !== undefined &&
+          declaredSize > MAX_TRANSCRIPTION_DIRECT_BYTES)
       ) {
         outcome = await transcribeViaVoiceServer();
       } else {
@@ -198,7 +198,7 @@ export const runTranscription = internalAction({
 
       const drafts = groupSegmentsIntoChunks(outcome.segments);
       if (drafts.length === 0) {
-        throw new Error("No speech was detected in this audio file.");
+        throw new Error("No speech was detected in this file.");
       }
 
       // Titre provisoire, pour l'embedding : `saveTranscript` impose le titre

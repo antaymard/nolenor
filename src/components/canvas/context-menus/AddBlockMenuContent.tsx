@@ -15,10 +15,7 @@ import prebuiltNodesConfig, {
 } from "../../nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useMyTemplates } from "@/stores/templatesStore";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
-import {
-  NODE_CREATION_SHORTCUTS_ENABLED,
-  SHOW_DEV_ONLY_SETTINGS,
-} from "@/lib/featureFlags";
+import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 import type {
   ConnectedNodeCreatedInfo,
@@ -336,15 +333,11 @@ export default function AddBlockMenuContent({
                       <span className="truncate text-sm font-medium text-foreground">
                         {nodeConfig.label}
                       </span>
-                      {/* Pas de hint tant que les raccourcis sont coupés :
-                          il annoncerait une touche inerte. */}
-                      {NODE_CREATION_SHORTCUTS_ENABLED &&
-                        showShortcuts &&
-                        nodeConfig.creationShortcut && (
-                          <Kbd className="ml-auto shrink-0">
-                            {nodeConfig.creationShortcut}
-                          </Kbd>
-                        )}
+                      {showShortcuts && nodeConfig.creationShortcut && (
+                        <Kbd className="ml-auto shrink-0">
+                          {nodeConfig.creationShortcut}
+                        </Kbd>
+                      )}
                     </span>
                     <span className="line-clamp-2 text-xs leading-snug font-normal text-muted-foreground">
                       {nodeConfig.description}

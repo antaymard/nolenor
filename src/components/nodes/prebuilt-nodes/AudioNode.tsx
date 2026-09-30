@@ -2,7 +2,6 @@ import { memo, useCallback, useMemo, useState } from "react";
 import {
   TbDownload,
   TbFlag,
-  TbGauge,
   TbMaximize,
   TbMusic,
   TbPencil,
@@ -43,7 +42,7 @@ import {
 import { useAudioStore } from "@/stores/audioStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import type { XyNodeProps } from "@/types/domain";
-import { AudioTranscribeButton } from "./audio/AudioTranscribeButton";
+import { TranscribeButton } from "./media/TranscribeButton";
 import { displayNameOf } from "./audio/audioDisplayName";
 
 export type AudioValue = {
@@ -313,73 +312,14 @@ function AudioNode(xyNode: XyNodeProps) {
           <TbMaximize />
         </NodeToolbarButton>
         {audio && nodeDataId && (
-          <AudioTranscribeButton
+          <TranscribeButton
             nodeDataId={nodeDataId}
+            nodeType="audio"
             onOpenWindow={handleOpenWindow}
           />
         )}
         {audio && (
           <>
-            <Popover>
-              <PopoverTrigger asChild>
-                <NodeToolbarButton label="Speed" title="Speed and volume">
-                  <TbGauge />
-                </NodeToolbarButton>
-              </PopoverTrigger>
-              <PopoverContent className="w-56">
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <p className="mb-1.5 text-xs text-muted-foreground">
-                      Speed
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {PLAYBACK_RATES.map((rate) => (
-                        <Button
-                          key={rate}
-                          size="sm"
-                          variant={
-                            rate === playbackRate ? "default" : "outline"
-                          }
-                          onClick={() => handleRateChange(rate)}
-                        >
-                          {rate}x
-                        </Button>
-                      ))}
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">
-                      Pitch is preserved.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs text-muted-foreground">
-                      Volume
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={toggleMuted}
-                        title={muted ? "Unmute" : "Mute"}
-                      >
-                        {muted ? (
-                          <TbVolumeOff size={16} />
-                        ) : (
-                          <TbVolume size={16} />
-                        )}
-                      </button>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={volume}
-                        onChange={(e) => setVolume(Number(e.target.value))}
-                        className="flex-1"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
             {loopIsSet && (
               <NodeToolbarButton
                 label="Clear loop"
@@ -486,6 +426,74 @@ function AudioNode(xyNode: XyNodeProps) {
                   />
                 )}
                 <p className="min-w-0 flex-1 truncate">{displayName}</p>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="nodrag shrink-0 text-muted-foreground hover:text-foreground"
+                      onMouseDown={stopMouseDown}
+                      title={muted ? "Unmute" : "Mute"}
+                    >
+                      {muted || volume === 0 ? (
+                        <TbVolumeOff size={14} />
+                      ) : (
+                        <TbVolume size={14} />
+                      )}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-3" side="top" align="center">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={toggleMuted}
+                        title={muted ? "Unmute" : "Mute"}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {muted ? (
+                          <TbVolumeOff size={16} />
+                        ) : (
+                          <TbVolume size={16} />
+                        )}
+                      </button>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={volume}
+                        onChange={(e) => setVolume(Number(e.target.value))}
+                        className="nodrag flex-1"
+                        onMouseDown={stopMouseDown}
+                      />
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="nodrag shrink-0 rounded px-1 text-[11px] tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onMouseDown={stopMouseDown}
+                      title="Vitesse de lecture"
+                    >
+                      {playbackRate}x
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2" side="top" align="center">
+                    <div className="flex gap-1">
+                      {PLAYBACK_RATES.map((rate) => (
+                        <Button
+                          key={rate}
+                          size="sm"
+                          variant={rate === playbackRate ? "default" : "outline"}
+                          onClick={() => handleRateChange(rate)}
+                        >
+                          {rate}x
+                        </Button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 <div className="w-16 shrink-0">{bar}</div>
               </div>
             ) : (
@@ -520,8 +528,86 @@ function AudioNode(xyNode: XyNodeProps) {
                     {" / "}
                     {formatTime(duration)}
                   </span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="rounded px-1 tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onMouseDown={stopMouseDown}
+                        title="Vitesse de lecture"
+                      >
+                        {playbackRate}x
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-auto p-2"
+                      side="top"
+                      align="center"
+                    >
+                      <div className="flex gap-1">
+                        {PLAYBACK_RATES.map((rate) => (
+                          <Button
+                            key={rate}
+                            size="sm"
+                            variant={
+                              rate === playbackRate ? "default" : "outline"
+                            }
+                            onClick={() => handleRateChange(rate)}
+                          >
+                            {rate}x
+                          </Button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
 
                   <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground"
+                          onMouseDown={stopMouseDown}
+                          title={muted ? "Unmute" : "Mute"}
+                        >
+                          {muted || volume === 0 ? (
+                            <TbVolumeOff size={15} />
+                          ) : (
+                            <TbVolume size={15} />
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-48 p-3"
+                        side="top"
+                        align="center"
+                      >
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={toggleMuted}
+                            title={muted ? "Unmute" : "Mute"}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            {muted ? (
+                              <TbVolumeOff size={16} />
+                            ) : (
+                              <TbVolume size={16} />
+                            )}
+                          </button>
+                          <input
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={volume}
+                            onChange={(e) => setVolume(Number(e.target.value))}
+                            className="nodrag flex-1"
+                            onMouseDown={stopMouseDown}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <button
                       type="button"
                       className="flex items-center gap-0.5 text-muted-foreground hover:text-violet-700"

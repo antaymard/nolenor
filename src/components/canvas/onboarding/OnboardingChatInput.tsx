@@ -7,6 +7,7 @@ import { Kbd } from "@/components/shadcn/kbd";
 import { useNoleChat } from "@/hooks/useNoleChat";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
 import { useHasUserInput, useNoleStore } from "@/stores/noleStore";
+import { useOnboardingIngestStore } from "@/stores/onboardingIngestStore";
 import { cn } from "@/lib/utils";
 import RichTextArea from "../nole-panel/RichTextArea";
 import SoundWaveAnimation from "../nole-panel/SoundWaveAnimation";
@@ -39,18 +40,28 @@ export default function OnboardingChatInput() {
   // non vide (cf. `ChatInput`).
   const hasUserInput = useHasUserInput();
 
+  // Uploads depuis la dropzone en cours : l'envoi attend la fin, sinon Nolë
+  // répondrait pendant que les fichiers atterrissent encore.
+  const ingestActive = useOnboardingIngestStore((state) => state.active);
+
   const canSend =
     hasUserInput &&
     !chat.isAssistantResponding &&
     !chat.isSending &&
-    !chat.sttBusy;
+    !chat.sttBusy &&
+    !ingestActive;
 
   const handleSend = useCallback(async () => {
+    // Garde-fou pour le chemin clavier (`RichTextArea onSubmit`), qui ne
+    // passe pas par `canSend`.
+    if (useOnboardingIngestStore.getState().active) return;
     const createdThreadId = await chat.sendCurrentMessage();
     if (!createdThreadId) return;
     // Le message est parti : on désigne la conversation au panel, on
     // l'ouvre, et on sort de l'onboarding (`false` explicite : le canvas est
-    // encore vide à cet instant et le hook ne doit pas y re-entrer).
+    // encore vide à cet instant et le hook ne doit pas y re-entrer). Clôt
+    // aussi la session d'ingest éventuelle (cf. `exitOnboarding`).
+    useOnboardingIngestStore.getState().reset();
     useNoleStore.getState().setActiveThreadId(createdThreadId);
     useNoleStore.getState().setPanelLayout("expanded");
     void navigate({
@@ -145,10 +156,17 @@ export default function OnboardingChatInput() {
           </div>
         </div>
       </ComposerShell>
-      <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-400">
-        <TbWaveSine size={12} />
-        Hold Ctrl+Alt to dictate
-      </p>
+      {ingestActive ? (
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-blue-500">
+          <TbWaveSine size={12} />
+          Upload en cours — envoi disponible à la fin
+        </p>
+      ) : (
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+          <TbWaveSine size={12} />
+          Hold Ctrl+Alt to dictate
+        </p>
+      )}
     </div>
   );
 }

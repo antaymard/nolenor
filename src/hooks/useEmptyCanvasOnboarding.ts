@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import type { Edge } from "@xyflow/react";
 import { useNoleStore } from "@/stores/noleStore";
+import { useOnboardingIngestStore } from "@/stores/onboardingIngestStore";
 import type { CanvasNode } from "@/types/convex";
 
 /**
@@ -62,6 +63,12 @@ type UseEmptyCanvasOnboardingArgs = {
  * (`activeThreadId`) : sans ces gardes l'effet re-ajouterait
  * `?onboarding=true` dans la foulée et `isRedirectPending` resterait bloqué
  * sur le spinner.
+ *
+ * Session d'ingest (`OnboardingDropzone`) : les fichiers droppés créent de
+ * vrais nodes pendant que la modale reste ouverte — le canvas n'est donc plus
+ * vide sans que la modale doive se fermer. Tant qu'une session existe,
+ * `showOnboarding` reste vrai et le nettoyage du param attend le `reset`
+ * explicite (fermeture ou envoi depuis la modale).
  */
 export function useEmptyCanvasOnboarding({
   flowNodes,
@@ -97,6 +104,13 @@ export function useEmptyCanvasOnboarding({
     (state) => state.activeThreadId !== null,
   );
 
+  // Session d'ingest depuis la modale : des nodes naissent en arrière-plan
+  // sans que la modale doive se fermer (cf. `OnboardingDropzone`). Le
+  // nettoyage du param attend la fin explicite de la session.
+  const hasIngestSession = useOnboardingIngestStore(
+    (state) => state.hasSession,
+  );
+
   useEffect(() => {
     if (!isLoaded) return;
     if (
@@ -111,9 +125,10 @@ export function useEmptyCanvasOnboarding({
         search: (prev) => ({ ...prev, onboarding: true }),
         replace: true,
       });
-    } else if (!isEmpty && (isOnboarding || isDismissed)) {
+    } else if (!isEmpty && (isOnboarding || isDismissed) && !hasIngestSession) {
       // Le canvas ne l'est plus : le param n'a plus aucun rôle, on le
-      // nettoie dans les deux cas (`true` comme `false` explicite).
+      // nettoie dans les deux cas (`true` comme `false` explicite) — sauf
+      // session d'ingest en cours, qui garde la modale ouverte.
       void navigate({
         to: ".",
         search: (prev) => ({ ...prev, onboarding: undefined }),
@@ -127,13 +142,14 @@ export function useEmptyCanvasOnboarding({
     isOnboarding,
     isDismissed,
     hasActiveConversation,
+    hasIngestSession,
     navigate,
   ]);
 
   return {
     isEmpty,
     isOnboarding,
-    showOnboarding: isEmpty && isOnboarding,
+    showOnboarding: isOnboarding && (isEmpty || hasIngestSession),
     isRedirectPending:
       isEmpty &&
       canAutoEnter &&

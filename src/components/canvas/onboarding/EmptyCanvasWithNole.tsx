@@ -5,8 +5,10 @@ import {
   DEFAULT_CANVAS_BACKGROUND,
   previewStyle,
 } from "@/lib/canvasBackground";
+import { useOnboardingIngestStore } from "@/stores/onboardingIngestStore";
 import { TbArrowRight } from "react-icons/tb";
 import OnboardingChatInput from "./OnboardingChatInput";
+import OnboardingDropzone from "./OnboardingDropzone";
 
 type EmptyCanvasWithNoleProps = {
   canvasId: Id<"canvases">;
@@ -24,8 +26,11 @@ export default function EmptyCanvasWithNole(_: EmptyCanvasWithNoleProps) {
   // Sortie manuelle : revoir le canvas vide. Posée en `false` explicite (et
   // non retirée) pour que le hook ne re-entre pas aussitôt — le canvas est
   // encore vide à cet instant. Le param est nettoyé dès que le canvas ne
-  // l'est plus, il n'est utile que pendant la phase vide.
+  // l'est plus, il n'est utile que pendant la phase vide. Clôt aussi la
+  // session d'ingest éventuelle : les uploads en cours continuent en tâche de
+  // fond, leurs nodes atterriront sur le canvas révélé.
   const exitOnboarding = () => {
+    useOnboardingIngestStore.getState().reset();
     void navigate({
       to: ".",
       search: (prev) => ({ ...prev, onboarding: false }),
@@ -72,9 +77,10 @@ export default function EmptyCanvasWithNole(_: EmptyCanvasWithNoleProps) {
           </div>
         </div>
 
-        <div className="bg-blue-50 rounded-xl flex items-center justify-center mt-12 border border-dashed border-blue-500 text-blue-500 hover:bg-blue-100">
-          <p>Drop files here (PDF, images, audio, links, .csv, .md, .txt)</p>
-        </div>
+        {/*Drop de fichiers : les nodes naissent en arrière-plan sur le
+            canvas, la modale reste ouverte (session d'ingest), on les voit
+            en fermant (cf. `OnboardingDropzone`).*/}
+        <OnboardingDropzone />
       </div>
     </div>
   );

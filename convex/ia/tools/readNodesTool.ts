@@ -548,7 +548,7 @@ export default function readNodesTool({
       "For pdf nodes, by default returns a paginated table of contents in markdown ('# Heading [pageNumber]') along with the total page count. " +
       "Pass `pdfPages=[{nodeId, pages:[…]}]` to read the full OCR markdown of specific 1-based pages instead. " +
       "PDF chunks come from cached Mistral OCR; nodes not yet indexed are flagged. " +
-      "For audio nodes, returns the timestamped transcript ('[m:ss] text' lines) when the user has transcribed the file, preceded by an overview of the recording and split into topic chapters titled '## [m:ss] title' when they exist: in full when short, otherwise an outline with one '[start–end] title — summary' line per chapter. " +
+      "For audio and video nodes, returns the timestamped transcript ('[m:ss] text' lines) when the user has transcribed the file, preceded by an overview of the recording and split into topic chapters titled '## [m:ss] title' when they exist: in full when short, otherwise an outline with one '[start–end] title — summary' line per chapter. " +
       "Pass `mediaRanges=[{nodeId, startSec, endSec}]` to read the transcript of a time range (e.g. around a search_canvas hit's startSec). " +
       `For table nodes, by default returns the first ${TABLE_DEFAULT_ROW_LIMIT} rows along with column definitions (incl. select options and node references). ` +
       "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after search_canvas to read matched rows).",
@@ -605,8 +605,8 @@ export default function readNodesTool({
         )
         .optional()
         .describe(
-          "For audio nodes only: read the transcript segments of one time range per nodeId. " +
-            "If omitted, a transcribed audio returns its full transcript when short, or an outline of its chapters.",
+          "For audio and video nodes only: read the transcript segments of one time range per nodeId. " +
+            "If omitted, a transcribed audio or video returns its full transcript when short, or an outline of its chapters.",
         ),
       tableRows: z
         .array(
@@ -1049,12 +1049,11 @@ export default function readNodesTool({
               content = `<warning>${escapeXmlText(PDF_HINTS.notAPdf)}</warning>\n${content}`;
             }
 
-            // Audio : le transcript (chunks `transcript` du fichier courant) suit
-            // la ligne fichier. Un audio sans fichier n'a rien à transcrire.
+            // Audio et vidéo : le transcript (chunks `transcript` du fichier
+            // courant) suit la ligne fichier. Sans fichier, rien à transcrire.
             let transcriptState: TranscriptReadStatus["kind"] | null = null;
-            const audioSourceKey =
-              node.type === "audio" ? getTranscribableSourceKey(nodeData) : null;
-            if (audioSourceKey) {
+            const mediaSourceKey = getTranscribableSourceKey(nodeData);
+            if (mediaSourceKey) {
               const transcript = await ctx.runQuery(
                 internal.wrappers.searchableChunkWrappers.getCurrentTranscript,
                 { nodeDataId: nodeData._id },
@@ -1062,7 +1061,7 @@ export default function readNodesTool({
               // Un statut ne vaut que pour le fichier courant ; un transcript
               // existant prime (re-transcription en cours = l'ancien reste lisible).
               const pending =
-                nodeData.transcription?.sourceKey === audioSourceKey
+                nodeData.transcription?.sourceKey === mediaSourceKey
                   ? nodeData.transcription
                   : undefined;
               const status: TranscriptReadStatus = transcript

@@ -32,7 +32,7 @@ const nodeDatasValidator = v.object({
       error: v.optional(v.string()),
     }),
   ),
-  // Transcription en cours ou échouée sur un node "audio". Hors `values` pour
+  // Transcription en cours ou échouée sur un node audio ou vidéo. Hors `values` pour
   // les mêmes raisons que `imageGeneration` (ni checkpoint, ni réindexation).
   //
   // Le succès n'est pas un état : le transcript vit dans les `searchableChunks`

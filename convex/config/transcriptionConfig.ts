@@ -1,5 +1,5 @@
 /**
- * Transcription des nodes audio (OpenRouter `/api/v1/audio/transcriptions`).
+ * Transcription des nodes audio et vidéo (OpenRouter `/api/v1/audio/transcriptions`).
  *
  * Changer de modèle : poser `TRANSCRIPTION_MODEL` dans les variables d'env du
  * déploiement Convex (`npx convex env set TRANSCRIPTION_MODEL <id>`), sans
@@ -33,6 +33,13 @@ export const MAX_TRANSCRIPTION_DIRECT_BYTES = 25 * 1024 * 1024;
  */
 export const MAX_TRANSCRIPTION_LONG_BYTES = 200 * 1024 * 1024;
 
+/**
+ * Plafond des vidéos : leur limite d'upload. Une vidéo passe toujours par le
+ * voice-server, qui n'en garde que la piste audio : Convex ne télécharge
+ * jamais la vidéo elle-même.
+ */
+export const MAX_VIDEO_TRANSCRIPTION_BYTES = 500 * 1024 * 1024;
+
 /** Découpe demandée au voice-server : des morceaux d'environ 20 min. */
 export const TRANSCRIPTION_PART_SECONDS = 1200;
 /** Morceaux transcrits en même temps, au plus. */
@@ -64,9 +71,19 @@ export function getVoiceServerMediaConfig(): VoiceServerMediaConfig | null {
   return { baseUrl, token };
 }
 
-/** Plus gros fichier transcriptible, selon que le mode long est disponible. */
-export function getMaxTranscriptionBytes(): number {
-  return getVoiceServerMediaConfig()
+/**
+ * Plus gros fichier transcriptible pour ce type de node, selon que le
+ * voice-server est disponible. `null` : pas de transcription possible (une
+ * vidéo sans voice-server, faute d'extraction de l'audio).
+ */
+export function getMaxTranscriptionBytes(
+  nodeType: "audio" | "video",
+): number | null {
+  const hasVoiceServer = getVoiceServerMediaConfig() !== null;
+  if (nodeType === "video") {
+    return hasVoiceServer ? MAX_VIDEO_TRANSCRIPTION_BYTES : null;
+  }
+  return hasVoiceServer
     ? MAX_TRANSCRIPTION_LONG_BYTES
     : MAX_TRANSCRIPTION_DIRECT_BYTES;
 }

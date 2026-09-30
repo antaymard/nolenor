@@ -10,6 +10,9 @@ interface WindowFrameContextValue {
    * window (seul détenteur des refs/queries propres à son type). `null` =
    * rien à montrer, le panel retombe sur son état vide générique. */
   setPlanTabContent: (node: ReactNode | null) => void;
+  /** Ouvre le panel latéral s'il est fermé (sans effet sinon, ni sur mobile).
+   * Pour un body dont le contenu principal y vit (le transcript d'une vidéo). */
+  requestSidePanelOpen: () => void;
 }
 
 const WindowFrameContext = createContext<WindowFrameContextValue>({
@@ -17,6 +20,7 @@ const WindowFrameContext = createContext<WindowFrameContextValue>({
   setSaveHandler: () => {},
   setRefreshHandler: () => {},
   setPlanTabContent: () => {},
+  requestSidePanelOpen: () => {},
 });
 
 export function useWindowFrameContext() {

@@ -53,6 +53,7 @@ import type * as ia_helpers_nodePlacement from "../ia/helpers/nodePlacement.js";
 import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkFormatters.js";
 import type * as ia_helpers_resolveNodeMentionTokens from "../ia/helpers/resolveNodeMentionTokens.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
+import type * as ia_helpers_tableWrite from "../ia/helpers/tableWrite.js";
 import type * as ia_helpers_transcriptFormatters from "../ia/helpers/transcriptFormatters.js";
 import type * as ia_helpers_transcriptSummaryPrompt from "../ia/helpers/transcriptSummaryPrompt.js";
 import type * as ia_imageGeneration from "../ia/imageGeneration.js";
@@ -263,6 +264,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/pdfChunkFormatters": typeof ia_helpers_pdfChunkFormatters;
   "ia/helpers/resolveNodeMentionTokens": typeof ia_helpers_resolveNodeMentionTokens;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
+  "ia/helpers/tableWrite": typeof ia_helpers_tableWrite;
   "ia/helpers/transcriptFormatters": typeof ia_helpers_transcriptFormatters;
   "ia/helpers/transcriptSummaryPrompt": typeof ia_helpers_transcriptSummaryPrompt;
   "ia/imageGeneration": typeof ia_imageGeneration;

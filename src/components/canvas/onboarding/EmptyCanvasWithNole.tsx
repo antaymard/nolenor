@@ -45,15 +45,14 @@ export default function EmptyCanvasWithNole(_: EmptyCanvasWithNoleProps) {
     >
       <div className="relative h-full w-full sm:mx-10 bg-white rounded-[18px] shadow-[0_3px_12px_rgba(15,23,42,0.12)] p-5 border border-slate-300 grid grid-cols-[2fr_1fr]">
         <div className="flex flex-col items-center text-center justify-center">
-          {/*<img
+          <img
             src="/favicon.svg"
             alt="Nolenor"
-            className="size-12 border-2 rounded-full border-text"
-          />*/}
+            className="size-12 border-2 rounded-full border-text mb-5"
+          />
           <div className="flex flex-col gap-5">
             <h1 className="text-4xl font-semibold tracking-tight ">
               What’s on your mind?
-              {/*<SlotText text={title} options={{ rollBy: "word" }} />*/}
             </h1>
             <p className="text-[17px]">
               A project, notes, documents… Bring them here. Nolë helps you make

@@ -30,7 +30,7 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
   return createTool({
     description:
-      "A tool to list and filter nodes from the current canvas. Returns a compact list of nodes (id, type, title, position) without their full content. Use read_nodes to get the full content of specific nodes after identifying them with this tool. All filters are combined with AND logic — call the tool multiple times to simulate OR. Results are capped at 20 nodes; if truncated, refine your filters to narrow down.",
+      "A tool to list and filter nodes from the current canvas. Returns a compact list of nodes (id, type, title, position) without their full content. Use read_nodes to get the full content of specific nodes after identifying them with this tool. Every filter is optional: omit the ones you don't need rather than passing empty values. All filters are combined with AND logic — call the tool multiple times to simulate OR. Results are capped at 20 nodes; if truncated, refine your filters to narrow down.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeTypes: z
@@ -81,6 +81,23 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
     execute: async (ctx, input): Promise<string> => {
       console.log(`📋 Listing nodes from canvas ${canvasId}`);
 
+      // Le modèle remplit souvent chaque filtre optionnel, avec une valeur
+      // vide quand il n'en veut pas (`near: { nodeId: "" }`, `frameId: ""`).
+      // Un id vide veut dire « pas de filtre », pas « le node d'id "" ».
+      const targetNodeId = input.targetNode?.nodeId.trim() || null;
+      const nearNodeId = input.near?.nodeId.trim() || null;
+      const frameId = input.frameId?.trim() || null;
+      const nodeTypes = (input.nodeTypes ?? [])
+        .map((type) => type.trim())
+        .filter((type) => type.length > 0);
+      // Même chose pour une zone réduite à un point (`{0,0,0,0}` par défaut) :
+      // ce n'est pas une vraie zone, c'est une absence de filtre.
+      const area =
+        input.area &&
+        (input.area.x1 !== input.area.x2 || input.area.y1 !== input.area.y2)
+          ? input.area
+          : null;
+
       try {
         const { nodes: canvasNodes, edges: canvasEdges } = await ctx.runQuery(
           internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
@@ -99,8 +116,9 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         // relation que le filtre vient de suivre.
         let connectedNodeIds: Set<string> | null = null;
         const edgeLabelsByNodeId = new Map<string, string[]>();
-        if (input.targetNode) {
-          const { nodeId, direction } = input.targetNode;
+        if (input.targetNode && targetNodeId) {
+          const nodeId = targetNodeId;
+          const { direction } = input.targetNode;
           const connectedIds = new Set<string>();
           const addConnection = (connectedId: string, label: string | null) => {
             connectedIds.add(connectedId);
@@ -123,11 +141,11 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
 
         // Resolve near center position if set
         let nearCenter: { x: number; y: number } | null = null;
-        if (input.near) {
-          const pos = nodePosById.get(input.near.nodeId);
+        if (nearNodeId) {
+          const pos = nodePosById.get(nearNodeId);
           if (!pos) {
             return toolError(
-              `Reference node "${input.near.nodeId}" not found on canvas`,
+              `Reference node "${nearNodeId}" not found on canvas`,
             );
           }
           nearCenter = pos;
@@ -139,26 +157,26 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           // que soient les filtres demandés.
           if (!isNodeTypeReadableByAgent(node.type)) return false;
 
-          if (input.nodeTypes && input.nodeTypes.length > 0) {
-            if (!input.nodeTypes.includes(node.type)) return false;
+          if (nodeTypes.length > 0) {
+            if (!nodeTypes.includes(node.type)) return false;
           }
 
           if (connectedNodeIds !== null) {
             if (!connectedNodeIds.has(node.id)) return false;
           }
 
-          if (input.frameId && node.parentId !== input.frameId) return false;
+          if (frameId && node.parentId !== frameId) return false;
 
           const position = nodePosById.get(node.id) ?? node.position;
 
-          if (input.area) {
-            const { x1, y1, x2, y2 } = input.area;
+          if (area) {
+            const { x1, y1, x2, y2 } = area;
             const nx = position.x;
             const ny = position.y;
             if (nx < x1 || nx > x2 || ny < y1 || ny > y2) return false;
           }
 
-          if (input.near && nearCenter) {
+          if (nearCenter) {
             const dx = position.x - nearCenter.x;
             const dy = position.y - nearCenter.y;
             if (Math.sqrt(dx * dx + dy * dy) > 500) return false;

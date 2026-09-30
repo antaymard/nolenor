@@ -14,7 +14,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import AddBlockMenuContent from "@/components/canvas/context-menus/AddBlockMenuContent";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
@@ -161,26 +160,15 @@ export default function MobileCanvasToolbar({
       )}
 
       {selectedIds.length > 0 && (
-        <ConfirmableButton
-          title={
-            selectedIds.length === 1
-              ? "Delete this node?"
-              : `Delete ${selectedIds.length} nodes?`
-          }
-          text="This cannot be undone."
-          confirmLabel="Delete"
-          destructive
-          onConfirm={handleDelete}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-red-500"
+          onClick={handleDelete}
+          aria-label="Supprimer"
         >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-red-500"
-            aria-label="Supprimer"
-          >
-            <TbTrash size={20} />
-          </Button>
-        </ConfirmableButton>
+          <TbTrash size={20} />
+        </Button>
       )}
     </div>
   );

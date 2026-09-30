@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useHotkey } from "@tanstack/react-hotkeys";
+import { useIsolatedHotkey } from "@/hooks/useIsolatedHotkey";
 import ChatContainer from "@/components/canvas/nole-panel/ChatContainer";
 import NoleIcon from "@/assets/svg-components/NoleIcon";
 import { Button } from "@/components/shadcn/button";
@@ -45,7 +45,7 @@ function NoleTrigger({ onClick }: { onClick: () => void }) {
 export function NoleOverlay() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  useHotkey("N", () => setIsChatOpen((v) => !v));
+  useIsolatedHotkey("N", () => setIsChatOpen((v) => !v));
 
   return (
     <div className="pointer-events-none absolute bottom-4 left-4 z-10">
@@ -70,7 +70,7 @@ export function NoleOverlay() {
 export function NoleAside() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  useHotkey("N", () => setIsChatOpen((v) => !v));
+  useIsolatedHotkey("N", () => setIsChatOpen((v) => !v));
 
   return (
     <aside className="relative flex w-95 shrink-0 flex-col border-r bg-white [&>div]:shadow-none!">

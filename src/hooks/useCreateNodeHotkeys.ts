@@ -6,7 +6,7 @@ import { useCanvasPointerPosition } from "./useCanvasPointerPosition";
 import { shortcutCreatableNodes } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import type { PrebuiltNodeConfig } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import type { NodeType } from "@/types/domain";
-import { NODE_CREATION_SHORTCUTS_ENABLED } from "@/lib/featureFlags";
+import { runIfIsolatedKeystroke } from "@/lib/isolatedKeystroke";
 
 type ShortcutNodeConfig = PrebuiltNodeConfig & { creationShortcut: LetterKey };
 
@@ -30,10 +30,11 @@ const TITLE = requireShortcutConfig("title");
 const BLOCKNOTE = requireShortcutConfig("blocknote");
 const IMAGE = requireShortcutConfig("image");
 const TABLE = requireShortcutConfig("table");
+const LINK = requireShortcutConfig("link");
 
 function useCreateNodeShortcut(
   config: ShortcutNodeConfig,
-  createNodeAtPointer: (config: ShortcutNodeConfig) => void,
+  createNodeAtPointer: (config: ShortcutNodeConfig, event: KeyboardEvent) => void,
   enabled: boolean,
 ) {
   useHotkey(
@@ -43,7 +44,7 @@ function useCreateNodeShortcut(
       // `requireReset` est faux par défaut, donc l'auto-répétition rejoue le
       // binding.
       if (event.repeat) return;
-      createNodeAtPointer(config);
+      createNodeAtPointer(config, event);
     },
     {
       enabled,
@@ -57,7 +58,7 @@ function useCreateNodeShortcut(
 
 /**
  * Crée un node à l'endroit du curseur à la frappe d'une lettre : T titre,
- * B blocknote, I image, A table, V repère de navigation. Le coin
+ * D blocknote (doc), I image, A table, L lien. Le coin
  * supérieur-gauche du node est posé au pointeur,
  * sélectionné et au sommet de la pile — soit exactement ce que fait le menu
  * « Add a block », dont il partage le mapping (`creationShortcut`).
@@ -70,7 +71,9 @@ function useCreateNodeShortcut(
  * `creationShortcut` dans `prebuiltNodesConfig` sans ajouter sa ligne ici
  * donne un raccourci affiché dans le menu mais inerte.
  *
- * Inactif tant que `NODE_CREATION_SHORTCUTS_ENABLED` est faux.
+ * Seule une frappe isolée crée un node (cf. `runIfIsolatedKeystroke`) : taper
+ * une phrase alors que le focus est resté sur le canvas n'en pose aucun. Le
+ * node part donc ~200 ms après la touche.
  *
  * Doit être appelé à l'intérieur de la route canvas et d'un `ReactFlowProvider`
  * (contrainte de `useCreateNode`).
@@ -90,33 +93,35 @@ export function useCreateNodeHotkeys({
   // point.
   const isCreatingRef = useRef(false);
 
-  const hotkeysEnabled = useCanvasHotkeysEnabled({ canEdit, isTouch });
-  // Coupés globalement pour l'instant (cf. `NODE_CREATION_SHORTCUTS_ENABLED`).
-  const enabled = NODE_CREATION_SHORTCUTS_ENABLED && hotkeysEnabled;
+  const enabled = useCanvasHotkeysEnabled({ canEdit, isTouch });
 
   const createNodeAtPointer = useCallback(
-    (config: ShortcutNodeConfig) => {
-      if (isCreatingRef.current) return;
-
-      const nodeToCreate = { ...config.node };
-      // Même override que `AddBlockMenuContent` : c'est la variante par défaut
-      // qui donne les dimensions réellement posées.
-      if (config.variants?.default) {
-        nodeToCreate.height = config.variants.default.defaultHeight;
-        nodeToCreate.width = config.variants.default.defaultWidth;
-      }
-
+    (config: ShortcutNodeConfig, event: KeyboardEvent) => {
+      // Lu à la frappe, pas au départ différé : le node tombe là où était le
+      // pointeur quand on a appuyé.
       const point = getPointerFlowPosition();
 
-      isCreatingRef.current = true;
-      // Verrou libéré à la confirmation serveur, comme avant : l'id
-      // synchrone ne change rien au rythme des frappes.
-      void createNode({
-        node: nodeToCreate,
-        position: point,
-        autoEdit: true,
-      }).settled.finally(() => {
-        isCreatingRef.current = false;
+      runIfIsolatedKeystroke(event, () => {
+        if (isCreatingRef.current) return;
+
+        const nodeToCreate = { ...config.node };
+        // Même override que `AddBlockMenuContent` : c'est la variante par
+        // défaut qui donne les dimensions réellement posées.
+        if (config.variants?.default) {
+          nodeToCreate.height = config.variants.default.defaultHeight;
+          nodeToCreate.width = config.variants.default.defaultWidth;
+        }
+
+        isCreatingRef.current = true;
+        // Verrou libéré à la confirmation serveur, comme avant : l'id
+        // synchrone ne change rien au rythme des frappes.
+        void createNode({
+          node: nodeToCreate,
+          position: point,
+          autoEdit: true,
+        }).settled.finally(() => {
+          isCreatingRef.current = false;
+        });
       });
     },
     [createNode, getPointerFlowPosition],
@@ -126,4 +131,5 @@ export function useCreateNodeHotkeys({
   useCreateNodeShortcut(BLOCKNOTE, createNodeAtPointer, enabled);
   useCreateNodeShortcut(IMAGE, createNodeAtPointer, enabled);
   useCreateNodeShortcut(TABLE, createNodeAtPointer, enabled);
+  useCreateNodeShortcut(LINK, createNodeAtPointer, enabled);
 }

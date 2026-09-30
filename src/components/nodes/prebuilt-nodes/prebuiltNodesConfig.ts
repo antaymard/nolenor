@@ -48,6 +48,7 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.link,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("link"),
     creatable: true,
+    creationShortcut: "L",
   },
   image: {
     nodeComponent: ImageNode,
@@ -61,7 +62,8 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.blocknote,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("blocknote"),
     creatable: true,
-    creationShortcut: "B",
+    // D comme « doc » : B ouvre le panneau des repères (cf. `CanvasDock`).
+    creationShortcut: "D",
   },
   value: {
     nodeComponent: ValueNode,

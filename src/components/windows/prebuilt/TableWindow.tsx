@@ -30,6 +30,7 @@ import type {
   TableSort,
 } from "@/components/table";
 import WindowLoadingState from "@/components/windows/WindowLoadingState";
+import { generateColumnId, generateLlmId } from "@/../convex/lib/llmId";
 
 function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const { setDirty, setSaveHandler, setPlanTabContent } =
@@ -149,7 +150,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   const addColumn = useCallback(
     (type: ColumnType = "text") => {
       const newCol: TableColumn = {
-        id: crypto.randomUUID(),
+        id: generateColumnId(),
         name: `Column ${columnsRef.current.length + 1}`,
         type,
       };
@@ -229,7 +230,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
   // l'éditeur de la cellule sur laquelle l'utilisateur vient de cliquer.
   const addRow = useCallback((): string => {
     const newRow: TableRowData = {
-      id: crypto.randomUUID(),
+      id: generateLlmId(),
       cells: Object.fromEntries(
         columnsRef.current.map((col) => [col.id, null]),
       ),

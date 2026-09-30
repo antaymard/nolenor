@@ -30,8 +30,8 @@ const DEFAULT_WINDOW_SIZE: WindowSizePreset = { width: 800, height: 520 };
 
 // Gabarit « document » : la colonne étroite et pleine hauteur du blocknote.
 // Partagé par tous les types dont la window est une surface de lecture, de
-// regard ou d'édition — blocknote, link, app, custom, pdf, image, video —
-// pour qu'ils s'ouvrent tous à la même taille plutôt qu'à des formats
+// regard ou d'édition — blocknote, link, app, custom, pdf, image, video,
+// audio — pour qu'ils s'ouvrent tous à la même taille plutôt qu'à des formats
 // arbitraires par type. Seul `table` garde un gabarit à part (large).
 const DOCUMENT_WINDOW_SIZE: WindowSizePreset = {
   widthRatio: 1 / 2.3,
@@ -46,6 +46,7 @@ const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
   pdf: DOCUMENT_WINDOW_SIZE,
   table: { widthRatio: 1 / 1.8, heightRatio: 0.9 },
   video: DOCUMENT_WINDOW_SIZE,
+  audio: DOCUMENT_WINDOW_SIZE,
   // Fallback pour les custom nodes dont le template ne définit pas de
   // windowSize (la taille passe normalement par le payload openWindow).
   custom: DOCUMENT_WINDOW_SIZE,

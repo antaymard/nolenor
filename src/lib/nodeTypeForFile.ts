@@ -35,6 +35,22 @@ const VIDEO_EXTENSIONS = [
 ];
 
 /**
+ * Les extensions audio qu'on reconnaît. Même cas que la vidéo : les fichiers
+ * glissés depuis certains explorateurs arrivent avec un `type` vide, et sans
+ * ce repli un `.mp3` sans MIME tombait dans le node `pdf` générique au lieu
+ * du lecteur audio.
+ */
+const AUDIO_EXTENSIONS = [
+  ".mp3",
+  ".m4a",
+  ".wav",
+  ".ogg",
+  ".opus",
+  ".flac",
+  ".aac",
+];
+
+/**
  * Le type MIME à annoncer à l'upload.
  *
  * `file.type` est vide pour beaucoup de fichiers glissés depuis un
@@ -59,6 +75,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   ".m4a": "audio/mp4",
   ".wav": "audio/wav",
   ".ogg": "audio/ogg",
+  ".opus": "audio/opus",
   ".flac": "audio/flac",
   ".aac": "audio/aac",
 };
@@ -101,7 +118,7 @@ export function resolveFileNodeType(file: {
   if (type.startsWith("video/") || hasExtension(name, VIDEO_EXTENSIONS)) {
     return "video";
   }
-  if (type.startsWith("audio/")) {
+  if (type.startsWith("audio/") || hasExtension(name, AUDIO_EXTENSIONS)) {
     return "audio";
   }
   if (type === "text/csv" || hasExtension(name, [".csv"])) {

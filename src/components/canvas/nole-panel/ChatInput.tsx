@@ -16,6 +16,7 @@ import {
 } from "@/components/shadcn/tooltip";
 import type { CanvasNode } from "@/types";
 import type { ChatModelOption, ChatModelValues } from "@/types/convex";
+import { Button } from "@/components/shadcn/button";
 
 /** Le champ s'ouvre sur une ligne et grandit jusqu'à dix, puis scrolle. */
 const INPUT_MIN_ROWS = 1;
@@ -106,22 +107,22 @@ export default function ChatInput({
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               disabled={isSending || isAssistantResponding}
-              triggerClassName="size-8 rounded-full"
-              iconSize={14}
             />
             <VoiceProviderSelect disabled={sttBusy}>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 type="button"
                 disabled={sttBusy}
                 title="Dictation engine"
-                className="flex cursor-pointer items-center rounded-full px-1.5 py-1 transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
+                className="text-slate-500"
               >
                 <MicStatus
                   isRecording={isRecording}
                   isTranscribing={isTranscribing}
                   level={micLevel}
                 />
-              </button>
+              </Button>
             </VoiceProviderSelect>
           </div>
 
@@ -171,7 +172,7 @@ function MicStatus({
     );
   }
   return (
-    <span className="flex items-center gap-1 text-xs text-slate-400">
+    <span className="flex items-center gap-1 text-xs text-slate-500">
       <TbMicrophone size={14} className="shrink-0" />
       <Kbd>Alt + Ctrl</Kbd>
     </span>
@@ -188,8 +189,7 @@ function DirtyWindowsBadge({ count }: { count: number }) {
         </span>
       </TooltipTrigger>
       <TooltipContent className="text-sm">
-        Please save or close the modified windows before sending
-        your message.
+        Please save or close the modified windows before sending your message.
       </TooltipContent>
     </Tooltip>
   );

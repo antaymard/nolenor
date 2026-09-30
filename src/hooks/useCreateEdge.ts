@@ -18,8 +18,6 @@ type CreateEdgeInput = {
   edgeId?: string;
   source: string;
   target: string;
-  sourceHandle?: string;
-  targetHandle?: string;
 };
 
 /**
@@ -59,12 +57,6 @@ export function useCreateEdge() {
                 canvasId: item.canvasId,
                 source: item.source,
                 target: item.target,
-                ...(item.sourceHandle !== undefined && {
-                  sourceHandle: item.sourceHandle,
-                }),
-                ...(item.targetHandle !== undefined && {
-                  targetHandle: item.targetHandle,
-                }),
                 // Parité `DEFAULT_MARKER_END` serveur : l'edge en attente
                 // rend exactement comme le doc confirmé le remplacera.
                 markerEnd: {
@@ -89,8 +81,6 @@ export function useCreateEdge() {
       edgeId = generateLlmId(),
       source,
       target,
-      sourceHandle,
-      targetHandle,
     }: CreateEdgeInput) => {
       const settled = trackCanvasSync(() =>
         createEdges({
@@ -100,8 +90,6 @@ export function useCreateEdge() {
               canvasId,
               source,
               target,
-              ...(sourceHandle !== undefined && { sourceHandle }),
-              ...(targetHandle !== undefined && { targetHandle }),
             },
           ],
         }),

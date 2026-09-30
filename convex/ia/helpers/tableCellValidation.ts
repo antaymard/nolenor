@@ -342,3 +342,10 @@ export function normalizeCellValueForColumn({
       return assertNeverColumnType(column.type, "normalizeCellValueForColumn");
   }
 }
+
+// Liste lisible des colonnes pour les messages d'erreur : un id de colonne
+// erroné (souvent deux UUID recollés par le modèle) est ainsi corrigeable sans
+// relire toute la table.
+export function describeColumns(columns: TableColumn[]): string {
+  return columns.map((col) => `"${col.name}" (id: ${col.id})`).join(", ");
+}

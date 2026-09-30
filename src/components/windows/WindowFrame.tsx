@@ -856,7 +856,6 @@ function WindowFrame({
                 <WindowSidePanel
                   nodeDataId={nodeDataId}
                   xyNodeId={xyNodeId}
-                  nodeType={openedWindow.nodeType}
                   canvasId={canvasId}
                   planTabContent={planTabContent}
                   previewVersionId={previewVersionId}

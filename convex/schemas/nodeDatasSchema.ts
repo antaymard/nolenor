@@ -32,6 +32,27 @@ const nodeDatasValidator = v.object({
       error: v.optional(v.string()),
     }),
   ),
+  // Transcription en cours ou échouée sur un node "audio". Hors `values` pour
+  // les mêmes raisons que `imageGeneration` (ni checkpoint, ni réindexation).
+  //
+  // Le succès n'est pas un état : le transcript vit dans les `searchableChunks`
+  // de type `transcript`, et c'est leur présence (pour ce `sourceKey`) qui dit
+  // « transcrit ». La transaction qui les écrit efface ce champ.
+  //
+  // `sourceKey` : la clé R2 du fichier en cours de transcription. Si
+  // l'utilisateur remplace son fichier entre-temps, le statut ne le concerne
+  // plus (l'UI compare avec `values.audio.key`).
+  transcription: v.optional(
+    v.object({
+      status: v.union(v.literal("running"), v.literal("error")),
+      sourceKey: v.string(),
+      startedAt: v.number(),
+      error: v.optional(v.string()),
+      // Transcription longue (découpée par le voice-server) : morceaux
+      // transcrits sur le total, connu une fois la découpe calculée.
+      progress: v.optional(v.object({ done: v.number(), total: v.number() })),
+    }),
+  ),
 });
 
 export { nodeDatasValidator };

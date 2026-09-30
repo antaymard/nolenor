@@ -17,10 +17,6 @@ import { useMyTemplates } from "@/stores/templatesStore";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
-import {
-  FALLBACK_NODE_HEIGHT,
-  FALLBACK_NODE_WIDTH,
-} from "@/lib/connectionHandles";
 import type {
   ConnectedNodeCreatedInfo,
   PendingCanvasConnection,
@@ -151,20 +147,10 @@ export default function AddBlockMenuContent({
   // et `position` sont capturés avant, la fermeture ne les efface pas.
   function chainPendingConnection(
     nodeId: string,
-    position: { x: number; y: number },
-    width: number,
-    height: number,
     nodeSettled: Promise<unknown>,
   ) {
     if (!pendingConnection || !onConnectionNodeCreated) return;
-    onConnectionNodeCreated({
-      pendingConnection,
-      nodeId,
-      position,
-      width,
-      height,
-      nodeSettled,
-    });
+    onConnectionNodeCreated({ pendingConnection, nodeId, nodeSettled });
   }
 
   function handleCreateNode(nodeConfig: PrebuiltNodeConfig) {
@@ -186,13 +172,7 @@ export default function AddBlockMenuContent({
       position,
       autoEdit: true,
     });
-    chainPendingConnection(
-      nodeId,
-      position,
-      nodeToCreate.width ?? FALLBACK_NODE_WIDTH,
-      nodeToCreate.height ?? FALLBACK_NODE_HEIGHT,
-      settled,
-    );
+    chainPendingConnection(nodeId, settled);
     // Échec éventuel déjà toasté + rollback par le hook : on l'absorbe ici
     // (personne n'attend cette promesse).
     void settled.catch(() => {});
@@ -215,13 +195,7 @@ export default function AddBlockMenuContent({
       },
       position,
     });
-    chainPendingConnection(
-      nodeId,
-      position,
-      template.defaultDimensions.width,
-      template.defaultDimensions.height,
-      settled,
-    );
+    chainPendingConnection(nodeId, settled);
     void settled.catch(() => {});
   }
 

@@ -418,3 +418,69 @@ export async function clearImageGeneration(
     updatedAt: Date.now(),
   });
 }
+
+/**
+ * Statut de transcription d'un node audio, même contrat que
+ * `setImageGeneration` : patch direct hors `values`, `updatedAt` bumpé pour
+ * que le `nodeDataStore` client voie le changement.
+ */
+export async function setTranscription(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    status,
+    sourceKey,
+    error,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    status: "running" | "error";
+    sourceKey: string;
+    error?: string;
+  },
+): Promise<void> {
+  const now = Date.now();
+  await ctx.db.patch("nodeDatas", nodeDataId, {
+    transcription: { status, sourceKey, startedAt: now, error },
+    updatedAt: now,
+  });
+}
+
+/**
+ * Avancement d'une transcription longue. Ne touche qu'un statut `running`
+ * du même fichier : un run dépassé (fichier remplacé, relance) n'écrase pas
+ * le statut du suivant.
+ */
+export async function setTranscriptionProgress(
+  ctx: MutationCtx,
+  {
+    nodeDataId,
+    sourceKey,
+    done,
+    total,
+  }: {
+    nodeDataId: Id<"nodeDatas">;
+    sourceKey: string;
+    done: number;
+    total: number;
+  },
+): Promise<void> {
+  const nodeData = await ctx.db.get("nodeDatas", nodeDataId);
+  const current = nodeData?.transcription;
+  if (!current || current.status !== "running") return;
+  if (current.sourceKey !== sourceKey) return;
+  await ctx.db.patch("nodeDatas", nodeDataId, {
+    transcription: { ...current, progress: { done, total } },
+    updatedAt: Date.now(),
+  });
+}
+
+/** Le succès se lit dans les chunks `transcript` : on efface le statut. */
+export async function clearTranscription(
+  ctx: MutationCtx,
+  { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
+): Promise<void> {
+  await ctx.db.patch("nodeDatas", nodeDataId, {
+    transcription: undefined,
+    updatedAt: Date.now(),
+  });
+}

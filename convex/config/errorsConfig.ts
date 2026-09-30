@@ -16,6 +16,7 @@ const errors = {
   EDGES_MUST_SHARE_CANVAS: "These connections must belong to the same canvas.",
   EDGE_SOURCE_NOT_FOUND: "The source node of this connection does not exist.",
   EDGE_TARGET_NOT_FOUND: "The target node of this connection does not exist.",
+  EDGE_ALREADY_EXISTS: "These two nodes are already connected.",
   EDGE_ID_ALREADY_TAKEN:
     "This connection id is already used in another canvas.",
   SOURCE_AND_TARGET_CANVAS_MUST_BE_DIFFERENT:
@@ -51,6 +52,12 @@ const errors = {
     "This model does not accept reference images. Pick another model, or remove the references.",
   IMAGE_GENERATION_TOO_MANY_REFERENCES:
     "Too many reference images for this model.",
+  TRANSCRIPTION_WRONG_NODE_TYPE: "Only audio nodes can be transcribed.",
+  TRANSCRIPTION_NO_FILE: "This node has no audio file to transcribe.",
+  TRANSCRIPTION_FILE_TOO_LARGE:
+    "This audio file is too large to be transcribed.",
+  TRANSCRIPTION_ALREADY_RUNNING:
+    "A transcription is already running on this node.",
   BOOKMARK_NOT_FOUND: "This bookmark does not exist.",
   BOOKMARK_EMPTY_SELECTION: "A bookmark needs at least one node to point at.",
   BOOKMARK_LABEL_TOO_LONG: "This bookmark name is too long.",

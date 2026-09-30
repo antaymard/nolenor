@@ -1,12 +1,14 @@
 import { TbPlus, TbX } from "react-icons/tb";
 import { HiMiniXMark } from "react-icons/hi2";
 import { LuMousePointerClick } from "react-icons/lu";
+import { getNodeDataTitle } from "@/../convex/lib/getNodeDataTitle";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
-import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useNodeData } from "@/hooks/useNodeData";
+import { getNodeDataId, useNodeDataIdOf } from "@/lib/nodeIdentity";
 import { useTemplatesStore } from "@/stores/templatesStore";
-import { getCanvasNodeTitle } from "@/lib/getCanvasNodeTitle";
 import { cn } from "@/lib/utils";
 import type { CanvasNode } from "@/types";
+import { Kbd } from "@/components/shadcn/kbd";
 
 type AttachmentActions = {
   addAttachments: (args: { nodes: CanvasNode[] }) => void;
@@ -34,8 +36,15 @@ export function AttachmentRow({
   removeAttachments,
 }: AttachmentRowProps) {
   const hasAny =
-    selectableNodes.length > 0 || attachedNodes.length > 0 || !!attachedPosition;
-  if (!hasAny) return null;
+    selectableNodes.length > 0 ||
+    attachedNodes.length > 0 ||
+    !!attachedPosition;
+  if (!hasAny)
+    return (
+      <div className="flex items-center justify-start gap-1 px-2 pt-2 text-xs opacity-50 italic">
+        <Kbd>Alt + Clic</Kbd> on a node to attach as context
+      </div>
+    );
 
   const removeNode = (nodeId: string) =>
     removeAttachments([{ type: "node", ids: [nodeId] }]);
@@ -107,7 +116,14 @@ function NodeAttachment({
   onRemove: (nodeId: string) => void;
   onAttach: (node: CanvasNode) => void;
 }) {
-  const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
+  // Le `node` reçu est un snapshot (pris à la sélection / à l'attachement) :
+  // son contenu ne suit pas les renommages. On résout le titre depuis les
+  // sources vivantes — nodeDataId suivi via React Flow (gère aussi la
+  // bascule pending_ → id serveur), puis le doc suivi par id — pour que le
+  // chip se mette à jour sans ré-attacher.
+  const liveDataId = useNodeDataIdOf(node.id);
+  const dataId = liveDataId ?? getNodeDataId(node);
+  const nodeData = useNodeData(dataId);
   // Souscription : la Map ne change de référence que quand un template change
   // réellement (upsertTemplates renvoie l'état inchangé sinon), donc renommer
   // un template met le chip à jour sans re-rendre à chaque push de query.
@@ -115,7 +131,13 @@ function NodeAttachment({
   const NodeIcon = prebuiltNodesConfig.find(
     (config) => config.type === node.type,
   )?.nodeIcon;
-  const nodeTitle = getCanvasNodeTitle(node, nodeDatas, templates);
+  const template = nodeData?.templateId
+    ? templates.get(nodeData.templateId)
+    : undefined;
+  const nodeTitle = nodeData
+    ? getNodeDataTitle(nodeData, template ?? null)
+    : (prebuiltNodesConfig.find((config) => config.type === node.type)?.label ||
+      node.type);
 
   return (
     <div
@@ -145,7 +167,10 @@ function NodeAttachment({
       {NodeIcon ? (
         <NodeIcon
           size={12}
-          className={cn("min-w-3", isAttached ? "text-violet-500" : "text-slate-400")}
+          className={cn(
+            "min-w-3",
+            isAttached ? "text-violet-500" : "text-slate-400",
+          )}
         />
       ) : null}
       <span className="truncate">{nodeTitle}</span>

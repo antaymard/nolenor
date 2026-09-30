@@ -38,7 +38,7 @@ const VOCABULARY: LiveVocabularyEntry[] = [
  * donne une meilleure ponctuation sans ajouter de latence perceptible en
  * push-to-talk.
  */
-const ENDPOINTING_S = 0.3;
+const ENDPOINTING_S = 0.5;
 
 export interface UseNoleLiveTranscription extends UseLiveTranscription {
   /** true tant que la config Convex n'est pas encore chargée. */

@@ -17,7 +17,6 @@ import {
 import {
   EDGE_LABEL_FIELD,
   EXPLANATION_FIELD,
-  getClosestHandlesForDirectedEdge,
   type NodeRect,
   type ToolConfig,
   toolError,
@@ -579,39 +578,19 @@ export default function createNodeTool({
           [];
 
         if (sources.length > 0) {
-          // Fetch partagé avec le placement relatif : en placement absolu,
-          // le batch n'a pas encore été lu.
-          if (!nodeRectsById) {
-            const { nodes } = await ctx.runQuery(
-              internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
-              {
-                canvasId,
-              },
-            );
-            // Positions MONDE, comme dans la branche du placement relatif :
-            // une source qui vit dans une frame porte une position relative, et
-            // les poignées d'edge se calculeraient sur un rectangle fantôme
-            // posé près de l'origine.
-            const worldPositions = absolutePositionsById(nodes);
-            nodeRectsById = new Map(
-              nodes.map((node) => [
-                node.id,
-                {
-                  id: node.id,
-                  position: worldPositions.get(node.id) ?? node.position,
-                  width: node.width,
-                  height: node.height,
-                },
-              ]),
-            );
-          }
-
-          const toRect: NodeRect = {
-            id: nodeId,
-            position: finalPosition,
-            width: defaultDimensions.width,
-            height: defaultDimensions.height,
-          };
+          // Ids du batch, déjà lus par le placement relatif ; en placement
+          // absolu, le batch n'a pas encore été lu. Les handles ne sont pas
+          // calculés : le canvas choisit en live ceux qui se font face.
+          const canvasNodeIds = nodeRectsById
+            ? new Set(nodeRectsById.keys())
+            : new Set(
+                (
+                  await ctx.runQuery(
+                    internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
+                    { canvasId },
+                  )
+                ).nodes.map((node) => node.id),
+              );
 
           for (const { nodeId: sourceNodeId, label } of sources) {
             if (sourceNodeId === nodeId) {
@@ -623,8 +602,7 @@ export default function createNodeTool({
               continue;
             }
 
-            const fromRect = nodeRectsById.get(sourceNodeId);
-            if (!fromRect) {
+            if (!canvasNodeIds.has(sourceNodeId)) {
               skippedSources.push({
                 sourceNodeId,
                 reason: "source node not found on this canvas",
@@ -633,12 +611,6 @@ export default function createNodeTool({
             }
 
             try {
-              const { sourceHandle, targetHandle } =
-                getClosestHandlesForDirectedEdge({
-                  from: fromRect,
-                  to: toRect,
-                });
-
               // Id serveur via `edgeWrappers.create` : le node vient d'être
               // commit par `createWithNodeData`, la validation des endpoints
               // passe.
@@ -650,8 +622,6 @@ export default function createNodeTool({
                       canvasId,
                       source: sourceNodeId,
                       target: nodeId,
-                      sourceHandle,
-                      targetHandle,
                       ...(label && { data: { label } }),
                     },
                   ],

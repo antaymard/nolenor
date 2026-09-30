@@ -2137,7 +2137,7 @@
   dependencies:
     "@floating-ui/utils" "^0.2.12"
 
-"@floating-ui/dom@^1.0.0", "@floating-ui/dom@^1.8.0":
+"@floating-ui/dom@^1.0.0", "@floating-ui/dom@^1.6.10", "@floating-ui/dom@^1.8.0":
   version "1.8.0"
   resolved "https://registry.npmjs.org/@floating-ui/dom/-/dom-1.8.0.tgz"
   integrity sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg==
@@ -4788,6 +4788,14 @@
   version "3.2.0"
   resolved "https://registry.npmjs.org/@vercel/oidc/-/oidc-3.2.0.tgz"
   integrity sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==
+
+"@vidstack/react@1.15.6":
+  version "1.15.6"
+  resolved "https://registry.yarnpkg.com/@vidstack/react/-/react-1.15.6.tgz#cc9a27d5942a3af67310722319106118da92a7e2"
+  integrity sha512-hO7cLld5yfxCdDnDCYqh5aS7JxmHfsmX43PmKBJWzDTwK40P3hh5qAdDQzl3qDtEJLYjuo3Sv+kr6tt/VRtJzQ==
+  dependencies:
+    "@floating-ui/dom" "^1.6.10"
+    media-captions "^1.0.4"
 
 "@vimeo/player@2.29.0":
   version "2.29.0"
@@ -7498,6 +7506,11 @@ mdast-util-to-string@^4.0.0:
   dependencies:
     "@types/mdast" "^4.0.0"
 
+media-captions@^1.0.4:
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/media-captions/-/media-captions-1.0.4.tgz#aaacb6a554f7549fc7308b6b7cf766686cf42fad"
+  integrity sha512-cyDNmuZvvO4H27rcBq2Eudxo9IZRDCOX/I7VEyqbxsEiD2Ei7UYUhG/Sc5fvMZjmathgz3fEK7iAKqvpY+Ux1w==
+
 media-chrome@~4.16.1:
   version "4.16.1"
   resolved "https://registry.npmjs.org/media-chrome/-/media-chrome-4.16.1.tgz"
@@ -9176,6 +9189,11 @@ signal-exit@^4.0.1:
   version "4.1.0"
   resolved "https://registry.npmjs.org/signal-exit/-/signal-exit-4.1.0.tgz"
   integrity sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==
+
+slot-text@^0.3.4:
+  version "0.3.4"
+  resolved "https://registry.yarnpkg.com/slot-text/-/slot-text-0.3.4.tgz#860399aff384a800ecc4fea202e9c125b1b890af"
+  integrity sha512-C3FTc0cAx/6FywK9yvE93FdEc3hQXfzeQSvJH8SioWHyHcxLfU9tgkoqnUChPR2Q4Kh9j/sHgkpcNe2m5UCpnA==
 
 smob@^1.0.0:
   version "1.6.1"

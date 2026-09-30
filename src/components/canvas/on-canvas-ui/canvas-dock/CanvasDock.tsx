@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { TbBookmark } from "react-icons/tb";
 import { Toggle } from "@/components/shadcn/toggle";
+import { useCanvasOwnsKeyboard } from "@/hooks/useCanvasHotkeysEnabled";
+import { useIsolatedHotkey } from "@/hooks/useIsolatedHotkey";
 import {
   isBookmarksDockOpen,
   setBookmarksDockOpen,
@@ -17,6 +19,8 @@ import DockBookmarksList from "./DockBookmarksList";
  * du bouton — le geste d'un dossier du Dock macOS. Même montage que
  * `NoleCanvasPanel` en bas à gauche : un wrapper `relative`, la liste en
  * `absolute`, l'îlot du bouton en flux dessous.
+ *
+ * `B` bascule la liste, comme `N` le panneau Nolë.
  */
 export default function CanvasDock() {
   const [isOpen, setIsOpen] = useState(isBookmarksDockOpen);
@@ -25,6 +29,11 @@ export default function CanvasDock() {
     setIsOpen(next);
     setBookmarksDockOpen(next);
   }
+
+  const canvasOwnsKeyboard = useCanvasOwnsKeyboard();
+  useIsolatedHotkey("B", () => handleToggle(!isOpen), {
+    enabled: canvasOwnsKeyboard,
+  });
 
   return (
     <div className="relative">
@@ -45,7 +54,7 @@ export default function CanvasDock() {
           onPressedChange={handleToggle}
           className="h-10 w-10 rounded-lg p-0"
           aria-label="Bookmarks"
-          title="Bookmarks: jump to a saved spot"
+          title="Bookmarks: jump to a saved spot (B)"
         >
           <TbBookmark size={19} />
         </Toggle>

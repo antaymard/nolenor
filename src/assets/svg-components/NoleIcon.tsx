@@ -16,16 +16,16 @@ export default function NoleIcon({ size = "1.3em" }: NoleIconProps) {
         width="8.50007"
         height="6.3572"
         rx="2.25"
-        stroke="#475569"
-        strokeWidth="1.5"
+        stroke="#505785"
+        strokeWidth="1.15"
       />
       <line
         x1="0.750244"
         y1="9.5"
         x2="9.25031"
         y2="9.5"
-        stroke="#475569"
-        strokeWidth="1.5"
+        stroke="#505785"
+        strokeWidth="1.15"
         strokeLinecap="round"
       />
       <ellipse
@@ -33,14 +33,14 @@ export default function NoleIcon({ size = "1.3em" }: NoleIconProps) {
         cy="3.64586"
         rx="0.781266"
         ry="1.04169"
-        fill="#475569"
+        fill="#505785"
       />
       <ellipse
         cx="6.59279"
         cy="3.64586"
         rx="0.781266"
         ry="1.04169"
-        fill="#475569"
+        fill="#505785"
       />
     </svg>
   );

@@ -18,12 +18,16 @@ export function isLoopSet(loop: MediaLoop | undefined): boolean {
  */
 const NO_LOOP: MediaLoop = { start: 0, end: 0, enabled: false };
 
+/** `m:ss`, or `h:mm:ss` from one hour on (a long recording read "61:40"). */
 export function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const total = Math.floor(seconds);
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${mins}:${String(secs).padStart(2, "0")}`;
+  const hours = Math.floor(total / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  const secs = String(total % 60).padStart(2, "0");
+  return hours > 0
+    ? `${hours}:${String(mins).padStart(2, "0")}:${secs}`
+    : `${mins}:${secs}`;
 }
 
 interface UseMediaPlaybackOptions {

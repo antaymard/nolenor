@@ -20,6 +20,12 @@ import {
   buildPdfTocMarkdown,
 } from "../helpers/pdfChunkFormatters";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
+import {
+  TRANSCRIPT_HINTS,
+  buildTranscriptBody,
+  type TranscriptReadStatus,
+} from "../helpers/transcriptFormatters";
+import { getTranscribableSourceKey } from "../../lib/transcriptChunks";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { buildNodeDataSchemaXml } from "../helpers/nodeDataSchemaXml";
 import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
@@ -542,6 +548,8 @@ export default function readNodesTool({
       "For pdf nodes, by default returns a paginated table of contents in markdown ('# Heading [pageNumber]') along with the total page count. " +
       "Pass `pdfPages=[{nodeId, pages:[…]}]` to read the full OCR markdown of specific 1-based pages instead. " +
       "PDF chunks come from cached Mistral OCR; nodes not yet indexed are flagged. " +
+      "For audio and video nodes, returns the timestamped transcript ('[m:ss] text' lines) when the user has transcribed the file, preceded by an overview of the recording and split into topic chapters titled '## [m:ss] title' when they exist: in full when short, otherwise an outline with one '[start–end] title — summary' line per chapter. " +
+      "Pass `mediaRanges=[{nodeId, startSec, endSec}]` to read the transcript of a time range (e.g. around a search_canvas hit's startSec). " +
       `For table nodes, by default returns the first ${TABLE_DEFAULT_ROW_LIMIT} rows along with column definitions (incl. select options and node references). ` +
       "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after search_canvas to read matched rows).",
     inputSchema: z.object({
@@ -580,6 +588,25 @@ export default function readNodesTool({
         .describe(
           "For pdf nodes only: request specific 1-based page numbers per nodeId. " +
             "If omitted, the pdf returns its paginated table of contents and a hint.",
+        ),
+      mediaRanges: z
+        .array(
+          z.object({
+            nodeId: z.string(),
+            startSec: z
+              .number()
+              .nonnegative()
+              .describe("Start of the range, in seconds from the start of the file."),
+            endSec: z
+              .number()
+              .positive()
+              .describe("End of the range, in seconds (exclusive)."),
+          }),
+        )
+        .optional()
+        .describe(
+          "For audio and video nodes only: read the transcript segments of one time range per nodeId. " +
+            "If omitted, a transcribed audio or video returns its full transcript when short, or an outline of its chapters.",
         ),
       tableRows: z
         .array(
@@ -667,6 +694,17 @@ export default function readNodesTool({
         const pdfPagesByNodeId = new Map<string, number[]>();
         for (const entry of input.pdfPages ?? []) {
           pdfPagesByNodeId.set(entry.nodeId, entry.pages);
+        }
+
+        const mediaRangeByNodeId = new Map<
+          string,
+          { startSec: number; endSec: number }
+        >();
+        for (const entry of input.mediaRanges ?? []) {
+          mediaRangeByNodeId.set(entry.nodeId, {
+            startSec: entry.startSec,
+            endSec: entry.endSec,
+          });
         }
 
         const tableRowsByNodeId = new Map<string, TableRowSliceInput>();
@@ -903,6 +941,7 @@ export default function readNodesTool({
                 content: "",
                 pdfBody: null as string | null,
                 pdfTotalPages: null as number | null,
+                transcriptState: null as TranscriptReadStatus["kind"] | null,
                 tableBody: null as string | null,
                 tableTotalRows: null as number | null,
                 tableDisplayedRows: null as number | null,
@@ -1010,6 +1049,37 @@ export default function readNodesTool({
               content = `<warning>${escapeXmlText(PDF_HINTS.notAPdf)}</warning>\n${content}`;
             }
 
+            // Audio et vidéo : le transcript (chunks `transcript` du fichier
+            // courant) suit la ligne fichier. Sans fichier, rien à transcrire.
+            let transcriptState: TranscriptReadStatus["kind"] | null = null;
+            const mediaSourceKey = getTranscribableSourceKey(nodeData);
+            if (mediaSourceKey) {
+              const transcript = await ctx.runQuery(
+                internal.wrappers.searchableChunkWrappers.getCurrentTranscript,
+                { nodeDataId: nodeData._id },
+              );
+              // Un statut ne vaut que pour le fichier courant ; un transcript
+              // existant prime (re-transcription en cours = l'ancien reste lisible).
+              const pending =
+                nodeData.transcription?.sourceKey === mediaSourceKey
+                  ? nodeData.transcription
+                  : undefined;
+              const status: TranscriptReadStatus = transcript
+                ? { kind: "complete", transcript }
+                : pending?.status === "running"
+                  ? { kind: "running" }
+                  : pending?.status === "error"
+                    ? {
+                        kind: "error",
+                        error: pending.error ?? "Unknown error.",
+                      }
+                    : { kind: "none" };
+              transcriptState = status.kind;
+              content = `${content}\n${buildTranscriptBody(status, mediaRangeByNodeId.get(nodeId))}`;
+            } else if (mediaRangeByNodeId.has(nodeId)) {
+              content = `<warning>${escapeXmlText(TRANSCRIPT_HINTS.notAnAudio)}</warning>\n${content}`;
+            }
+
             if (node.type === "table") {
               const rowSlice = tableRowsByNodeId.get(nodeId);
               const result = buildTableNodeBody({
@@ -1055,6 +1125,7 @@ export default function readNodesTool({
               content,
               pdfBody,
               pdfTotalPages,
+              transcriptState,
               tableBody,
               tableTotalRows,
               tableDisplayedRows,
@@ -1172,6 +1243,7 @@ export default function readNodesTool({
                   content,
                   pdfBody,
                   pdfTotalPages,
+                  transcriptState,
                   tableBody,
                   tableTotalRows,
                   tableDisplayedRows,
@@ -1218,7 +1290,11 @@ ${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${tableBody}
 </node>`;
                   }
 
-                  return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}">
+                  const transcriptAttr =
+                    transcriptState !== null
+                      ? ` transcript="${transcriptState}"`
+                      : "";
+                  return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${escapeXmlAttribute(sourceNodes.join(" ; "))}" targetNodes="${escapeXmlAttribute(targetNodes.join(" ; "))}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}"${transcriptAttr}>
     ${error ? `<readError>${escapeXmlText(error)}</readError>` : ""}
 ${content}
 </node>`;

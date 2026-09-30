@@ -5,18 +5,21 @@ import { internal } from "../../_generated/api";
 import { type Id } from "../../_generated/dataModel";
 import {
   cellValueSchema,
+  describeColumns,
   normalizeCellValueForColumn,
   type TableColumn,
 } from "../helpers/tableCellValidation";
 import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
+import {
+  TableWriteConflictError,
+  withTableWriteRetry,
+  writeTableIfUnchanged,
+} from "../helpers/tableWrite";
 
 // Tool compaction config
 export const tableUpdateRowsToolConfig: ToolConfig = {
   name: "table_update_rows",
-  authorized_agents: [
-    toolAgentNames.nole,
-    toolAgentNames.worker,
-  ],
+  authorized_agents: [toolAgentNames.nole, toolAgentNames.worker],
   mcp: { access: "write" },
 };
 
@@ -69,207 +72,205 @@ export default function tableUpdateRowsTool({
         'Row updates in this format: `{"rowId":{"columnId":value}}`. Example: `{"588P493x":{"description":"Embedded content"},"412Z233E":{"type":"Document","color":"Navy"}}`.',
       ),
     }),
-    execute: async (ctx, input): Promise<string> => {
-      console.log(`🧮 Table rows update requested on node ${input.nodeId}`);
+    execute: (ctx, input): Promise<string> =>
+      withTableWriteRetry(async () => {
+        console.log(`🧮 Table rows update requested on node ${input.nodeId}`);
 
-      try {
-        const { nodeId } = input;
+        try {
+          const { nodeId } = input;
 
-        const requestedEntries = Object.entries(input.values).map(
-          ([rawRowId, rowValues]) => ({
-            rawRowId,
-            rowId: rawRowId.trim(),
-            rowValues,
-          }),
-        );
-
-        const emptyRowId = requestedEntries.find(
-          (entry) => entry.rowId.length === 0,
-        );
-        if (emptyRowId) {
-          return toolError("rowId must be a non-empty string.");
-        }
-
-        const duplicateRequestedRowId = requestedEntries.find(
-          (entry, index) =>
-            requestedEntries.findIndex(
-              (candidate) => candidate.rowId === entry.rowId,
-            ) !== index,
-        );
-        if (duplicateRequestedRowId) {
-          return toolError(
-            `rowId "${duplicateRequestedRowId.rawRowId}" is provided multiple times.`,
+          const requestedEntries = Object.entries(input.values).map(
+            ([rawRowId, rowValues]) => ({
+              rawRowId,
+              rowId: rawRowId.trim(),
+              rowValues,
+            }),
           );
-        }
 
-        const { node, nodeData } = await ctx.runQuery(
-          internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
-          {
-            canvasId,
-            nodeId,
-          },
-        );
-
-        if (node.type !== "table" || nodeData.type !== "table") {
-          return ERROR_TARGET_NOT_TABLE;
-        }
-
-        const tableValue = (nodeData.values.table ?? {}) as StoredTableValue;
-        const columns = Array.isArray(tableValue.columns)
-          ? tableValue.columns
-          : null;
-        const rows = Array.isArray(tableValue.rows) ? tableValue.rows : null;
-
-        if (!columns || !rows) {
-          return ERROR_INVALID_TABLE_CONTENT;
-        }
-
-        if (columns.length === 0) {
-          return ERROR_TABLE_SCHEMA_EMPTY;
-        }
-
-        const needsCanvasNodeIds = columns.some((col) => col.type === "node");
-        const knownCanvasNodeIds = new Set<string>();
-        if (needsCanvasNodeIds) {
-          const { nodes: canvasNodes } = await ctx.runQuery(
-            internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
-            {
-              canvasId: canvasId as Id<"canvases">,
-            },
+          const emptyRowId = requestedEntries.find(
+            (entry) => entry.rowId.length === 0,
           );
-          for (const cn of canvasNodes) {
-            knownCanvasNodeIds.add(cn.id);
+          if (emptyRowId) {
+            return toolError("rowId must be a non-empty string.");
           }
-        }
 
-        for (const entry of requestedEntries) {
-          const rowMatches = rows.filter(
-            (row) => (row.id ?? "").trim() === entry.rowId,
+          const duplicateRequestedRowId = requestedEntries.find(
+            (entry, index) =>
+              requestedEntries.findIndex(
+                (candidate) => candidate.rowId === entry.rowId,
+              ) !== index,
           );
-          if (rowMatches.length === 0) {
-            return toolError(`No match found for rowId "${entry.rawRowId}".`);
-          }
-          if (rowMatches.length > 1) {
+          if (duplicateRequestedRowId) {
             return toolError(
-              `Found ${rowMatches.length} matches for rowId "${entry.rawRowId}". Please provide a unique rowId.`,
+              `rowId "${duplicateRequestedRowId.rawRowId}" is provided multiple times.`,
             );
           }
-        }
 
-        const updatesByRowId = new Map<
-          string,
-          Array<{ columnId: string; value: unknown }>
-        >();
-
-        for (const entry of requestedEntries) {
-          const resolvedUpdates: Array<{ columnId: string; value: unknown }> =
-            [];
-
-          for (const [rawColumnId, rawValue] of Object.entries(
-            entry.rowValues,
-          )) {
-            const columnId = rawColumnId.trim();
-            if (!columnId) {
-              return toolError("columnId must be a non-empty string.");
-            }
-
-            const matchedColumns = columns.filter(
-              (column) => column.id.trim() === columnId,
-            );
-
-            if (matchedColumns.length === 0) {
-              return toolError(`No match found for columnId "${rawColumnId}".`);
-            }
-            if (matchedColumns.length > 1) {
-              return toolError(
-                `Found ${matchedColumns.length} matches for columnId "${rawColumnId}". Please provide a unique column id.`,
-              );
-            }
-
-            const matchedColumn = matchedColumns[0];
-
-            const duplicate = resolvedUpdates.some(
-              (existing) => existing.columnId === matchedColumn.id,
-            );
-            if (duplicate) {
-              return toolError(
-                `Column "${matchedColumn.name}" is provided multiple times.`,
-              );
-            }
-
-            const normalized = normalizeCellValueForColumn({
-              rawValue,
-              column: matchedColumn,
-              ctx: { knownCanvasNodeIds },
-            });
-            if (!normalized.ok) {
-              return normalized.error;
-            }
-
-            resolvedUpdates.push({
-              columnId: matchedColumn.id,
-              value: normalized.value,
-            });
-          }
-
-          updatesByRowId.set(entry.rowId, resolvedUpdates);
-        }
-
-        const updatedRows = rows.map((row) => {
-          const rowId = (row.id ?? "").trim();
-          const rowUpdates = updatesByRowId.get(rowId);
-
-          if (!rowUpdates) {
-            return row;
-          }
-
-          const nextCells: Record<string, unknown> = {
-            ...(row.cells ?? {}),
-          };
-
-          for (const update of rowUpdates) {
-            nextCells[update.columnId] = update.value;
-          }
-
-          return {
-            ...row,
-            cells: nextCells,
-          };
-        });
-
-        await ctx.runMutation(internal.wrappers.nodeDataWrappers.updateValues, {
-          _id: nodeData._id,
-          values: {
-            ...nodeData.values,
-            table: {
-              ...tableValue,
-              columns,
-              rows: updatedRows,
+          const { node, nodeData } = await ctx.runQuery(
+            internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+            {
+              canvasId,
+              nodeId,
             },
-          },
-          actor: {
-            type: "agent",
-            userId: threadCtx.authUserId,
-            threadId: ctx.threadId,
-          },
-        });
+          );
 
-        console.log(
-          `✅ Table row update complete for node ${nodeId} (${requestedEntries.length} row(s))`,
-        );
+          if (node.type !== "table" || nodeData.type !== "table") {
+            return ERROR_TARGET_NOT_TABLE;
+          }
 
-        const updatedCellsCount = Array.from(updatesByRowId.values()).reduce(
-          (count, updates) => count + updates.length,
-          0,
-        );
+          const tableValue = (nodeData.values.table ?? {}) as StoredTableValue;
+          const columns = Array.isArray(tableValue.columns)
+            ? tableValue.columns
+            : null;
+          const rows = Array.isArray(tableValue.rows) ? tableValue.rows : null;
 
-        return `Successfully updated ${requestedEntries.length} rows and ${updatedCellsCount} cells.`;
-      } catch (error) {
-        console.error("Table update rows tool error:", error);
-        return toolError(
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    },
+          if (!columns || !rows) {
+            return ERROR_INVALID_TABLE_CONTENT;
+          }
+
+          if (columns.length === 0) {
+            return ERROR_TABLE_SCHEMA_EMPTY;
+          }
+
+          const needsCanvasNodeIds = columns.some((col) => col.type === "node");
+          const knownCanvasNodeIds = new Set<string>();
+          if (needsCanvasNodeIds) {
+            const { nodes: canvasNodes } = await ctx.runQuery(
+              internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
+              {
+                canvasId: canvasId as Id<"canvases">,
+              },
+            );
+            for (const cn of canvasNodes) {
+              knownCanvasNodeIds.add(cn.id);
+            }
+          }
+
+          for (const entry of requestedEntries) {
+            const rowMatches = rows.filter(
+              (row) => (row.id ?? "").trim() === entry.rowId,
+            );
+            if (rowMatches.length === 0) {
+              return toolError(`No match found for rowId "${entry.rawRowId}".`);
+            }
+            if (rowMatches.length > 1) {
+              return toolError(
+                `Found ${rowMatches.length} matches for rowId "${entry.rawRowId}". Please provide a unique rowId.`,
+              );
+            }
+          }
+
+          const updatesByRowId = new Map<
+            string,
+            Array<{ columnId: string; value: unknown }>
+          >();
+
+          for (const entry of requestedEntries) {
+            const resolvedUpdates: Array<{ columnId: string; value: unknown }> =
+              [];
+
+            for (const [rawColumnId, rawValue] of Object.entries(
+              entry.rowValues,
+            )) {
+              const columnId = rawColumnId.trim();
+              if (!columnId) {
+                return toolError("columnId must be a non-empty string.");
+              }
+
+              const matchedColumns = columns.filter(
+                (column) => column.id.trim() === columnId,
+              );
+
+              if (matchedColumns.length === 0) {
+                return toolError(
+                  `No match found for columnId "${rawColumnId}". Valid columns: ${describeColumns(columns)}.`,
+                );
+              }
+              if (matchedColumns.length > 1) {
+                return toolError(
+                  `Found ${matchedColumns.length} matches for columnId "${rawColumnId}". Please provide a unique column id.`,
+                );
+              }
+
+              const matchedColumn = matchedColumns[0];
+
+              const duplicate = resolvedUpdates.some(
+                (existing) => existing.columnId === matchedColumn.id,
+              );
+              if (duplicate) {
+                return toolError(
+                  `Column "${matchedColumn.name}" is provided multiple times.`,
+                );
+              }
+
+              const normalized = normalizeCellValueForColumn({
+                rawValue,
+                column: matchedColumn,
+                ctx: { knownCanvasNodeIds },
+              });
+              if (!normalized.ok) {
+                return normalized.error;
+              }
+
+              resolvedUpdates.push({
+                columnId: matchedColumn.id,
+                value: normalized.value,
+              });
+            }
+
+            updatesByRowId.set(entry.rowId, resolvedUpdates);
+          }
+
+          const updatedRows = rows.map((row) => {
+            const rowId = (row.id ?? "").trim();
+            const rowUpdates = updatesByRowId.get(rowId);
+
+            if (!rowUpdates) {
+              return row;
+            }
+
+            const nextCells: Record<string, unknown> = {
+              ...(row.cells ?? {}),
+            };
+
+            for (const update of rowUpdates) {
+              nextCells[update.columnId] = update.value;
+            }
+
+            return {
+              ...row,
+              cells: nextCells,
+            };
+          });
+
+          await writeTableIfUnchanged(ctx, {
+            nodeDataId: nodeData._id,
+            expectedTable: nodeData.values.table,
+            table: { ...tableValue, columns, rows: updatedRows },
+            actor: {
+              type: "agent",
+              userId: threadCtx.authUserId,
+              threadId: ctx.threadId,
+            },
+          });
+
+          console.log(
+            `✅ Table row update complete for node ${nodeId} (${requestedEntries.length} row(s))`,
+          );
+
+          const updatedCellsCount = Array.from(updatesByRowId.values()).reduce(
+            (count, updates) => count + updates.length,
+            0,
+          );
+
+          return `Successfully updated ${requestedEntries.length} rows and ${updatedCellsCount} cells.`;
+        } catch (error) {
+          if (error instanceof TableWriteConflictError) throw error;
+          console.error("Table update rows tool error:", error);
+          return toolError(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }),
   });
 }

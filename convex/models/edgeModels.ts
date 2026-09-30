@@ -127,8 +127,33 @@ async function requireLiveEndpointNode(
 }
 
 /**
+ * Vrai si une edge vivante relie déjà ces deux nodes, dans un sens ou dans
+ * l'autre. Les edges choisissent leurs handles en live (cf. `CustomEdge`) :
+ * deux edges entre la même paire suivraient le même tracé, superposées.
+ */
+async function isPairAlreadyConnected(
+  ctx: MutationCtx,
+  { canvasId, a, b }: { canvasId: Id<"canvases">; a: string; b: string },
+): Promise<boolean> {
+  for (const [source, target] of [
+    [a, b],
+    [b, a],
+  ]) {
+    const edges = await ctx.db
+      .query("edges")
+      .withIndex("by_canvas_and_source_and_target", (q) =>
+        q.eq("canvasId", canvasId).eq("source", source).eq("target", target),
+      )
+      .collect();
+    if (edges.some((edge) => edge.status !== "trashed")) return true;
+  }
+  return false;
+}
+
+/**
  * Crée des edges dans la table `edges`. Valide que source/target sont des
- * nodes vivants du même canvas — jamais de dangling edge. Chaque item
+ * nodes vivants du même canvas — jamais de dangling edge — et qu'aucune
+ * edge ne les relie déjà (sauf `allowDuplicatePairs`). Chaque item
  * accepte un `id` optionnel : fourni (création local-first, ids générés
  * client), il est préservé tel quel — idempotent sur le même canvas (retry
  * réseau), conflit refusé cross-canvas ; absent (API publique), un llmId
@@ -140,9 +165,15 @@ export async function createEdges(
   {
     edges,
     touchCanvas: shouldTouchCanvas = true,
+    allowDuplicatePairs = false,
   }: {
     edges: Array<EdgeCreateInput & { id?: string }>;
     touchCanvas?: boolean;
+    /**
+     * Clone fidèle d'un canvas existant (onboarding) : ses éventuels
+     * doublons historiques ne doivent pas faire échouer la copie.
+     */
+    allowDuplicatePairs?: boolean;
   },
 ): Promise<string[]> {
   if (edges.length === 0) return [];
@@ -182,6 +213,20 @@ export async function createEdges(
       }
     } else {
       llmId = await generateUniqueLlmId(ctx);
+    }
+
+    // Après l'idempotence : un retry réseau retrouve son edge ci-dessus, il
+    // ne doit pas buter sur lui-même. Couvre aussi les doublons du batch,
+    // chaque insert étant visible des lectures suivantes.
+    if (
+      !allowDuplicatePairs &&
+      (await isPairAlreadyConnected(ctx, {
+        canvasId,
+        a: edge.source,
+        b: edge.target,
+      }))
+    ) {
+      throw new ConvexError(errors.EDGE_ALREADY_EXISTS);
     }
 
     await ctx.db.insert("edges", {

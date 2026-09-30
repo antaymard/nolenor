@@ -101,6 +101,7 @@ function WindowFrame({
     saveHandler,
     refreshHandler,
     planTabContent,
+    sidePanelOpenRequest,
     handleSave,
     contextValue,
   } = useWindowFrameState(xyNodeId);
@@ -189,6 +190,16 @@ function WindowFrame({
     resizeWindow,
     xyNodeId,
   ]);
+
+  // The body asked for the panel (cf. `requestSidePanelOpen`): open it if it
+  // is closed, once per request — a user who closes it afterwards keeps it
+  // closed.
+  const handledSidePanelRequestRef = useRef(sidePanelOpenRequest);
+  useEffect(() => {
+    if (sidePanelOpenRequest === handledSidePanelRequestRef.current) return;
+    handledSidePanelRequestRef.current = sidePanelOpenRequest;
+    if (!sidePanelOpen) toggleSidePanel();
+  }, [sidePanelOpen, sidePanelOpenRequest, toggleSidePanel]);
 
   // ── Version preview (in place, no dialog) ───────────────────────────────
   const [previewVersionId, setPreviewVersionId] =
@@ -856,7 +867,6 @@ function WindowFrame({
                 <WindowSidePanel
                   nodeDataId={nodeDataId}
                   xyNodeId={xyNodeId}
-                  nodeType={openedWindow.nodeType}
                   canvasId={canvasId}
                   planTabContent={planTabContent}
                   previewVersionId={previewVersionId}

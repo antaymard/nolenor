@@ -181,6 +181,15 @@ export function getChatModel(
 }
 
 /**
+ * Un modèle OpenRouter hors `chatModelOptions`, pour un appel ponctuel hors
+ * agent (résumé de transcript…). Même helper, donc même usage accounting :
+ * le `cost` revient dans la réponse, à passer à `extractOpenRouterCost`.
+ */
+export function getOpenRouterLanguageModel(modelId: string): LanguageModelV3 {
+  return openRouterModel(modelId);
+}
+
+/**
  * Résultat d'un lot d'images : les images elles-mêmes, ce qu'OpenRouter a
  * facturé, et ce qu'il a compté en tokens.
  */
@@ -383,6 +392,114 @@ export async function requestOpenRouterImages({
       ),
     },
     failures,
+  };
+}
+
+/** Résultat d'une transcription : segments horodatés, coût et compteurs. */
+export type OpenRouterTranscriptionResult = {
+  text: string;
+  language: string | undefined;
+  durationSec: number | undefined;
+  segments: Array<{ start: number; end: number; text: string }>;
+  costUsd: number | undefined;
+  tokens: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+};
+
+/**
+ * Point de passage UNIQUE vers OpenRouter pour la transcription (STT).
+ *
+ * Multipart « à la OpenAI » sur `/api/v1/audio/transcriptions`, en
+ * `verbose_json` : c'est le seul format qui rend des `segments` horodatés, et
+ * sans eux le transcript ne peut ni être découpé en chunks temporels ni servir
+ * au seek. Un modèle qui n'en rend pas (provider non compatible OpenAI) fait
+ * donc échouer la transcription avec un message explicite, plutôt que de
+ * produire un transcript sans repères.
+ *
+ * Même contrat de coût que les images : `usage.cost` tel qu'OpenRouter le
+ * facture, `undefined` quand il n'a rien dit — jamais d'estimation locale.
+ */
+export async function requestOpenRouterTranscription({
+  model,
+  audio,
+  filename,
+  onlyProviders
+}: {
+  model: string;
+  audio: Blob;
+  filename: string;
+  onlyProviders: string[];
+}): Promise<OpenRouterTranscriptionResult> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set.");
+
+  const form = new FormData();
+  form.append("file", audio, filename);
+  form.append("model", model);
+  form.append("response_format", "verbose_json");
+  form.append("timestamp_granularities[]", "segment");
+  form.append("provider", JSON.stringify({only: onlyProviders}))
+
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/audio/transcriptions",
+    {
+      method: "POST",
+      // Pas de `Content-Type` : `fetch` pose lui-même le boundary multipart.
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    },
+  );
+
+  if (!response.ok) {
+    // Le corps porte le message utile (modèle inconnu, format refusé, crédit
+    // épuisé) : il finit affiché sur le node, donc on le garde.
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `OpenRouter transcription failed (${response.status}): ${detail.slice(0, 500)}`,
+    );
+  }
+
+  const payload: unknown = await response.json();
+  const segments = readArray(readObjectKey(payload, "segments")).flatMap(
+    (item) => {
+      const start = readNumber(readObjectKey(item, "start"));
+      const end = readNumber(readObjectKey(item, "end"));
+      const text = readString(readObjectKey(item, "text"));
+      if (start === undefined || end === undefined || text === undefined) {
+        return [];
+      }
+      return [{ start, end, text }];
+    },
+  );
+
+  const text = readString(readObjectKey(payload, "text")) ?? "";
+  if (segments.length === 0 && text.trim().length > 0) {
+    throw new Error(
+      `The transcription model "${model}" returned no timestamped segments. Use a model that supports verbose_json (e.g. openai/whisper-large-v3-turbo).`,
+    );
+  }
+
+  const usage = readObjectKey(payload, "usage");
+  return {
+    text,
+    language: readString(readObjectKey(payload, "language")),
+    durationSec: readNumber(readObjectKey(payload, "duration")),
+    segments,
+    costUsd: readNumber(readObjectKey(usage, "cost")),
+    tokens: {
+      inputTokens:
+        readNumber(readObjectKey(usage, "input_tokens")) ??
+        readNumber(readObjectKey(usage, "prompt_tokens")) ??
+        0,
+      outputTokens:
+        readNumber(readObjectKey(usage, "output_tokens")) ??
+        readNumber(readObjectKey(usage, "completion_tokens")) ??
+        0,
+      totalTokens: readNumber(readObjectKey(usage, "total_tokens")) ?? 0,
+    },
   };
 }
 

@@ -16,10 +16,10 @@ export type ResolvedCanvasBackground = {
 
 /** Défaut front : les nouveaux canvas (background absent) gardent l'aspect actuel. */
 export const DEFAULT_CANVAS_BACKGROUND: ResolvedCanvasBackground = {
-  bgColor: "#f8fafc",
-  patternColor: "#e2e8f0",
+  bgColor: "oklch(98.4% 0.003 247.858)",
+  patternColor: "oklch(70.7% 0.165 254.624)",
   variant: "lines",
-  gap: 20,
+  gap: 25,
   size: 0.3,
 };
 

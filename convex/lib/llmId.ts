@@ -44,6 +44,15 @@ export function generateLlmId(
   return value;
 }
 
+// Colonnes de table : llmId préfixé. Le "_" colle le préfixe à l'id (même
+// classe \w), donc `buildLlmIdTextRegex` n'y trouve aucune frontière de mot
+// et ne transforme pas l'id en pill de node quand l'agent l'écrit en clair.
+export const COLUMN_ID_PREFIX = "col_";
+
+export function generateColumnId(): string {
+  return `${COLUMN_ID_PREFIX}${generateLlmId()}`;
+}
+
 export function matchesLlmIdFormat(
   value: string,
   chunkCount: number = DEFAULT_CHUNK_COUNT,

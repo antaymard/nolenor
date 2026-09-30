@@ -22,6 +22,8 @@ import { useConvexAuth } from "convex/react";
 import SearchModale from "@/components/canvas/search-modale/SearchModale";
 import CanvasWelcomeModal from "@/components/canvas/welcome/CanvasWelcomeModal";
 import { useOpenThreadFromUrl } from "@/hooks/useOpenThreadFromUrl";
+import { useEmptyCanvasOnboarding } from "@/hooks/useEmptyCanvasOnboarding";
+import EmptyCanvasWithNole from "@/components/canvas/onboarding/EmptyCanvasWithNole";
 // Mobile-only surface: don't ship it to desktop sessions.
 const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
 
@@ -37,9 +39,19 @@ const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
 // `?thread=<threadId>` : la conversation Nolë à ouvrir en arrivant, posée par le
 // bouton « Open » d'une tâche sur la home (cf. `useOpenThreadFromUrl`, qui la
 // retire de l'URL une fois consommée).
+//
+// `?onboarding=true` : le canvas est vide (ni nodes ni edges) et l'onboarding
+// prend le relais — `EmptyCanvasWithNole` au lieu du canvas React Flow vide
+// (cf. `useEmptyCanvasOnboarding`). L'union booléen/chaîne couvre les deux
+// formes que TanStack peut fournir : `true` parsé, ou `"true"` brut d'une URL
+// construite à la main.
 const canvasSearchSchema = z.object({
   v: z.string().optional().catch(undefined),
   thread: z.string().optional().catch(undefined),
+  onboarding: z
+    .union([z.boolean(), z.enum(["true", "false"])])
+    .optional()
+    .catch(undefined),
 });
 
 export const Route = createFileRoute("/canvas/$canvasId")({
@@ -110,6 +122,18 @@ function CanvasContent({
   // à zéro : ses effets passent avant ceux de ce hook.
   useOpenThreadFromUrl({ ready: Boolean(canvas) && isAuthenticated });
 
+  // Onboarding canvas vide : vide avéré + `?onboarding=true` → on rend
+  // `EmptyCanvasWithNole` au lieu du canvas. Le hook pose/retire le param
+  // tout seul (arrivée sur un canvas vide / premier node créé par Nolë).
+  const { showOnboarding, isRedirectPending } = useEmptyCanvasOnboarding({
+    flowNodes,
+    flowEdges,
+    canAutoEnter:
+      isAuthenticated &&
+      Boolean(canvas) &&
+      canvas?._permission !== "viewer",
+  });
+
   if (isCanvasError && canvasError) {
     return (
       <CanvasErrorScreen
@@ -133,6 +157,27 @@ function CanvasContent({
     return (
       <div className="flex items-center justify-center h-full animate-appear">
         <Spinner className="size-6 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Canvas vide en cours de bascule vers `?onboarding=true` : ne pas peindre
+  // un React Flow vide une frame — le param arrive par `replace` juste après.
+  if (isRedirectPending) {
+    return (
+      <div className="flex items-center justify-center h-full animate-appear">
+        <Spinner className="size-6 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Onboarding : pas de canvas, pas de toolbars — juste Nolë. Reste sous le
+  // `ReactFlowProvider` de la route (requis par `ChatContainer` via
+  // `useNoleChat` → `useReactFlow`).
+  if (showOnboarding) {
+    return (
+      <div className="flex h-full w-full flex-col overflow-hidden overscroll-none">
+        <EmptyCanvasWithNole canvasId={canvasId} canvasName={canvas.name} />
       </div>
     );
   }

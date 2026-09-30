@@ -276,7 +276,9 @@ function VideoWindow({ xyNodeId, nodeDataId }: VideoWindowProps) {
         onTimeUpdate={handleTimeUpdate}
       >
         <MediaProvider>
-          <Poster className="vds-poster" />
+          {/* The poster is a bare <img> sized to the player: without
+              object-fit it stretches to the window's shape. */}
+          <Poster className="vds-poster object-contain" />
           {chapterCues.length > 0 && (
             <Track
               // New chapters (a re-run) replace the track rather than patch it.

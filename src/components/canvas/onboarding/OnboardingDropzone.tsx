@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { TbAlertCircle, TbCheck, TbUpload } from "react-icons/tb";
+import { Button } from "@/components/shadcn/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useCanvasContentIngest } from "@/hooks/useCanvasContentIngest";
 import { useFlowPosition } from "@/hooks/useCanvasPointerPosition";
 import { useOnboardingIngestStore } from "@/stores/onboardingIngestStore";
@@ -56,6 +58,9 @@ export default function OnboardingDropzone() {
   // on compte pour ne retomber qu'en sortant réellement de la zone.
   const dragDepth = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Zone de dépôt sur desktop (drag & drop), bouton sur mobile — le tactile
+  // ne manipule pas de fichiers glissés, on ouvre le sélecteur de fichiers.
+  const isMobile = useIsMobile();
 
   // Centre du viewport, décalé à gauche du futur panel Nolë — en unités flow
   // (divisé par le zoom), pas en pixels écran.
@@ -136,30 +141,7 @@ export default function OnboardingDropzone() {
   );
 
   return (
-    <div
-      onDragEnter={(event) => {
-        event.preventDefault();
-        dragDepth.current += 1;
-        setIsOver(true);
-      }}
-      onDragLeave={() => {
-        dragDepth.current = Math.max(0, dragDepth.current - 1);
-        if (dragDepth.current === 0) setIsOver(false);
-      }}
-      onDragOver={(event) => {
-        // Sans ce preventDefault, `drop` ne se déclenche jamais.
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-      }}
-      onDrop={handleDrop}
-      className={cn(
-        "mt-12 flex items-center justify-center rounded-xl border border-dashed p-6 text-center transition-colors",
-        isOver
-          ? "border-blue-600 bg-blue-100 text-blue-700"
-          : "border-blue-500 bg-blue-50 text-blue-500 hover:bg-blue-100",
-      )}
-    >
+    <>
       <input
         ref={inputRef}
         type="file"
@@ -174,7 +156,7 @@ export default function OnboardingDropzone() {
       {active ? (
         <div className="flex w-full flex-col gap-2 text-blue-700">
           <p className="text-sm font-medium">
-            Ajout de {done}/{total} fichier{total > 1 ? "s" : ""}…
+            Adding {done}/{total} file{total > 1 ? "s" : ""}…
           </p>
           <div
             className="h-2 w-full overflow-hidden rounded-full bg-blue-200"
@@ -198,47 +180,102 @@ export default function OnboardingDropzone() {
             {failed > 0 ? (
               <>
                 <TbAlertCircle size={16} />
-                {total - failed}/{total} fichiers prêts
-                {failed > 1 ? "s" : ""} ({failed} échec{failed > 1 ? "s" : ""})
+                {total - failed}/{total} file{(total - failed > 1 ? "s" : "")}{" "}
+                ready ({failed} failed)
               </>
             ) : (
               <>
                 <TbCheck size={16} />
-                {total} fichier{total > 1 ? "s" : ""} prêt
-                {total > 1 ? "s" : ""} sur le canvas
+                {total} file{total > 1 ? "s" : ""} ready on the canvas
               </>
             )}
           </p>
           <p className="text-xs text-blue-500">
-            D'autres fichiers ? Déposez-les ici ou{" "}
-            <button
-              type="button"
-              className="underline hover:text-blue-700"
-              onClick={() => inputRef.current?.click()}
-            >
-              parcourez
-            </button>
-            .
+            {isMobile ? (
+              <>
+                More files?{" "}
+                <button
+                  type="button"
+                  className="underline hover:text-blue-700"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  Browse files
+                </button>
+                .
+              </>
+            ) : (
+              <>
+                More files? Drop them here or{" "}
+                <button
+                  type="button"
+                  className="underline hover:text-blue-700"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  browse
+                </button>
+                .
+              </>
+            )}
+          </p>
+        </div>
+      ) : isMobile ? (
+        <div className="flex flex-col items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => inputRef.current?.click()}
+            className="rounded-full"
+          >
+            <TbUpload size={16} />
+            Upload files
+          </Button>
+          <p className="text-xs text-slate-400">
+            PDF, images, audio, links, .csv, .md, .txt
           </p>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-1.5">
-          <TbUpload size={20} />
-          <p className="text-sm font-medium">
-            Drop files here (PDF, images, audio, links, .csv, .md, .txt)
-          </p>
-          <p className="text-xs opacity-80">
-            ou{" "}
-            <button
-              type="button"
-              className="underline hover:text-blue-700"
-              onClick={() => inputRef.current?.click()}
-            >
-              parcourez vos fichiers
-            </button>
-          </p>
+        <div
+          onDragEnter={(event) => {
+            event.preventDefault();
+            dragDepth.current += 1;
+            setIsOver(true);
+          }}
+          onDragLeave={() => {
+            dragDepth.current = Math.max(0, dragDepth.current - 1);
+            if (dragDepth.current === 0) setIsOver(false);
+          }}
+          onDragOver={(event) => {
+            // Sans ce preventDefault, `drop` ne se déclenche jamais.
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+          }}
+          onDrop={handleDrop}
+          className={cn(
+            "mt-6 flex items-center justify-center rounded-xl border border-dashed p-4 text-center transition-colors md:mt-12 md:flex-1 md:p-6",
+            isOver
+              ? "border-blue-600 bg-blue-100 text-blue-700"
+              : "border-blue-500 bg-blue-50 text-blue-500 hover:bg-blue-100",
+          )}
+        >
+          <div className="flex flex-col items-center gap-1.5">
+            <TbUpload size={20} />
+            <p className="text-sm font-medium">
+              Drop files here (PDF, images, audio, links, .csv, .md, .txt)
+            </p>
+            <p className="text-xs opacity-80">
+              or{" "}
+              <button
+                type="button"
+                className="underline hover:text-blue-700"
+                onClick={() => inputRef.current?.click()}
+              >
+                browse your files
+              </button>
+            </p>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

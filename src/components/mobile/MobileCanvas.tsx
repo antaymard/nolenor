@@ -123,7 +123,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
           canvasName={canvas.name}
           onOpenCanvasSwitcher={() => setSwitcherOpen(true)}
         />
-        <div className="min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col">
           <EmptyCanvasWithNole canvasId={canvasId} canvasName={canvas.name} />
         </div>
         <MobileCanvasSwitcherSheet

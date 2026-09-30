@@ -6,6 +6,7 @@ import { Button } from "@/components/shadcn/button";
 import { Kbd } from "@/components/shadcn/kbd";
 import { useNoleChat } from "@/hooks/useNoleChat";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useTypewriterPlaceholder } from "@/hooks/useTypewriterPlaceholder";
 import { useHasUserInput, useNoleStore } from "@/stores/noleStore";
 import { useOnboardingIngestStore } from "@/stores/onboardingIngestStore";
@@ -98,6 +99,9 @@ export default function OnboardingChatInput() {
   // Push-to-talk desktop (Ctrl+Alt maintenus), comme dans `ChatContainer`.
   usePushToTalk({ onStart: chat.startSTT, onStop: chat.stopSTT });
 
+  // Champ plus compact sur mobile : l'écran vertical est précieux.
+  const isMobile = useIsMobile();
+
   // Booléen dérivé plutôt que le texte : ne bascule qu'au passage vide →
   // non vide (cf. `ChatInput`).
   const hasUserInput = useHasUserInput();
@@ -188,7 +192,7 @@ export default function OnboardingChatInput() {
           <div className="px-4 pt-4">
             <RichTextArea
               onSubmit={() => void handleSend()}
-              minRows={INPUT_MIN_ROWS}
+              minRows={isMobile ? 2 : INPUT_MIN_ROWS}
               maxRows={INPUT_MAX_ROWS}
               placeholder={placeholder}
             />
@@ -258,7 +262,8 @@ export default function OnboardingChatInput() {
             Uploading — send available when done
           </p>
         ) : (
-          <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+          // Le raccourci Ctrl+Alt n'existe pas sur mobile : hint desktop only.
+          <p className="mt-2 hidden items-center justify-center gap-1.5 text-xs text-slate-400 md:flex">
             <TbWaveSine size={12} />
             Hold Ctrl+Alt to dictate
           </p>
@@ -296,7 +301,7 @@ function MicStatus({
   return (
     <span className="flex items-center gap-1 text-xs text-slate-500">
       <TbMicrophone size={14} className="shrink-0" />
-      <Kbd>Alt + Ctrl</Kbd>
+      <Kbd className="hidden md:inline-flex">Alt + Ctrl</Kbd>
     </span>
   );
 }

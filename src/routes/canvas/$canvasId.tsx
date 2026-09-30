@@ -176,7 +176,7 @@ function CanvasContent({
   // `useNoleChat` → `useReactFlow`).
   if (showOnboarding) {
     return (
-      <div className="flex-1 w-full h-full overflow-hidden overscroll-none">
+      <div className="flex h-full w-full flex-col overflow-hidden overscroll-none">
         <EmptyCanvasWithNole canvasId={canvasId} canvasName={canvas.name} />
       </div>
     );

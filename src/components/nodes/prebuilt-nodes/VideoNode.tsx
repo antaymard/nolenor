@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   TbDownload,
-  TbGauge,
   TbMaximize,
   TbPlayerPause,
   TbPlayerPlay,
@@ -184,34 +183,6 @@ function VideoNode(xyNode: XyNodeProps) {
         )}
         {video && (
           <>
-            <Popover>
-              <PopoverTrigger asChild>
-                <NodeToolbarButton label="Speed" title="Playback speed">
-                  <TbGauge />
-                </NodeToolbarButton>
-              </PopoverTrigger>
-              <PopoverContent className="w-56">
-                {/* Le volume vit dans la ligne de contrôles du lecteur, pas
-                    ici : un même réglage à deux endroits est pire qu'un
-                    réglage mal placé. */}
-                <p className="mb-1.5 text-xs text-muted-foreground">Speed</p>
-                <div className="flex flex-wrap gap-1">
-                  {PLAYBACK_RATES.map((rate) => (
-                    <Button
-                      key={rate}
-                      size="sm"
-                      variant={rate === playbackRate ? "default" : "outline"}
-                      onClick={() => handleRateChange(rate)}
-                    >
-                      {rate}x
-                    </Button>
-                  ))}
-                </div>
-                <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  Pitch is preserved.
-                </p>
-              </PopoverContent>
-            </Popover>
             <NodeToolbarButton
               label="Download"
               title="Download"
@@ -288,6 +259,8 @@ function VideoNode(xyNode: XyNodeProps) {
                       "bg-gradient-to-t from-black/80 via-black/40 to-transparent",
                       "opacity-0 transition-opacity duration-150",
                       "pointer-events-none group-hover/player:pointer-events-auto group-hover/player:opacity-100",
+                      // Speed menu open: the controls stay while it is in use.
+                      "has-[[data-state=open]]:pointer-events-auto has-[[data-state=open]]:opacity-100",
                     )}
                   >
                     {bar}
@@ -320,6 +293,38 @@ function VideoNode(xyNode: XyNodeProps) {
                         {" / "}
                         {formatTime(duration)}
                       </span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="rounded px-1 tabular-nums text-white/80 hover:bg-white/15 hover:text-white"
+                            onMouseDown={stopMouseDown}
+                            title="Playback speed"
+                          >
+                            {playbackRate}x
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-auto p-2"
+                          side="top"
+                          align="center"
+                        >
+                          <div className="flex gap-1">
+                            {PLAYBACK_RATES.map((rate) => (
+                              <Button
+                                key={rate}
+                                size="sm"
+                                variant={
+                                  rate === playbackRate ? "default" : "outline"
+                                }
+                                onClick={() => handleRateChange(rate)}
+                              >
+                                {rate}x
+                              </Button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
 
                       <span className="ml-auto flex shrink-0 items-center gap-1">
                         <button

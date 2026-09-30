@@ -28,12 +28,17 @@ import {
 } from "./floatingEdgeGeometry";
 
 /**
- * Computes a smooth quadratic bezier path that passes exactly through every
+ * Computes a smooth cubic bezier path that passes exactly through every
  * bend point (in flow coordinates), from source to target.
  *
- * Uses one `Q` segment (control = midpoint of source and first bend point)
- * followed by `T` smooth-continuation segments for each subsequent point.
- * The curve has C1 continuity (smooth tangents) at every bend point.
+ * Catmull-Rom → Bezier conversion: the tangent at each point is
+ * `(next - prev) / 2`, i.e. symmetric and tangent to the local curvature.
+ * Control points: `C1 = Pi + (P[i+1] - P[i-1]) / 6`,
+ * `C2 = P[i+1] - (P[i+2] - P[i]) / 6`. Endpoints are duplicated so the
+ * curve leaves source / enters target along the neighbouring segment.
+ * The curve has C1 continuity (smooth tangents) at every bend point,
+ * without the loops / S-kinks that `Q` + `T` reflection produces when a
+ * point is dragged off-axis.
  */
 function getSmoothPathThroughPoints(
   sourceX: number,
@@ -57,11 +62,16 @@ function getSmoothPathThroughPoints(
   }
 
   let path = `M ${points[0].x} ${points[0].y}`;
-  const c1x = (points[0].x + points[1].x) / 2;
-  const c1y = (points[0].y + points[1].y) / 2;
-  path += ` Q ${c1x} ${c1y} ${points[1].x} ${points[1].y}`;
-  for (let i = 2; i < points.length; i++) {
-    path += ` T ${points[i].x} ${points[i].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    path += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
   }
 
   const midIndex = Math.floor(points.length / 2);

@@ -25,15 +25,19 @@ export function useCanvasHotkeysEnabled({
   canEdit: boolean;
   isTouch: boolean;
 }): boolean {
+  const hasKeyboard = useCanvasOwnsKeyboard();
+  return canEdit && !isTouch && hasKeyboard;
+}
+
+/**
+ * La moitié « clavier » de `useCanvasHotkeysEnabled`, sans les droits
+ * d'édition : pour un raccourci nu qui ne modifie pas le canvas (ouvrir les
+ * repères…), qu'un lecteur doit pouvoir utiliser.
+ */
+export function useCanvasOwnsKeyboard(): boolean {
   const focus = useCanvasStore((state) => state.focus);
   const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
   const isCommandCenterOpen = useCommandCenterStore((state) => state.isOpen);
 
-  return (
-    canEdit &&
-    !isTouch &&
-    focus === "canvas" &&
-    !isSearchModalOpen &&
-    !isCommandCenterOpen
-  );
+  return focus === "canvas" && !isSearchModalOpen && !isCommandCenterOpen;
 }

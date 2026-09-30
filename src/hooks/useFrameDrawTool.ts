@@ -6,6 +6,7 @@ import { useCanvasHotkeysEnabled } from "@/hooks/useCanvasHotkeysEnabled";
 import { useCreateNode } from "@/hooks/useCreateNode";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { withUndoTransaction } from "@/stores/canvasHistoryStore";
+import { runIfIsolatedKeystroke } from "@/lib/isolatedKeystroke";
 
 /**
  * En deçà, le geste est un clic manqué et pas un tracé : on annule plutôt que
@@ -74,7 +75,11 @@ export function useFrameDrawTool({
       // Une touche maintenue rejouerait le binding et ferait clignoter le mode
       // — `requireReset` est faux par défaut.
       if (event.repeat) return;
-      setTool(tool === "frame" ? "select" : "frame");
+      // Lu au départ différé, pas à la frappe : l'outil a pu changer entre-temps.
+      runIfIsolatedKeystroke(event, () => {
+        const current = useCanvasStore.getState().tool;
+        setTool(current === "frame" ? "select" : "frame");
+      });
     },
     { enabled: hotkeysEnabled, ignoreInputs: true },
   );

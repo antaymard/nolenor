@@ -107,6 +107,40 @@ const PLACEMENT_STEP = 40;
 const SNAP_EDGE_THRESHOLD = 20;
 const SNAP_PADDING = 10;
 
+/** Au-delà, `openWindowsTiled` n'ouvre que les premières. */
+export const MAX_TILED_WINDOWS = 4;
+/**
+ * Largeur sous laquelle une case de la grille ne sert plus à rien (une table
+ * y serait illisible) : on retombe alors sur le placement libre.
+ */
+const TILE_MIN_WIDTH = 400;
+const TILE_GAP = 10;
+
+type WindowRect = { x: number; y: number; width: number; height: number };
+
+/**
+ * Les cases de la grille, dans l'ordre de lecture : 2 → 50/50, 3 → trois
+ * tiers, 4 → 2×2. `null` si l'écran est trop étroit pour des cases utiles.
+ */
+function computeTileRects(count: number): WindowRect[] | null {
+  const cols = count === 4 ? 2 : count;
+  const rows = count === 4 ? 2 : 1;
+  const width = Math.floor(
+    (window.innerWidth - SNAP_PADDING * 2 - TILE_GAP * (cols - 1)) / cols,
+  );
+  const height = Math.floor(
+    (window.innerHeight - SNAP_PADDING * 2 - TILE_GAP * (rows - 1)) / rows,
+  );
+  if (width < TILE_MIN_WIDTH || height < MIN_WINDOW_HEIGHT) return null;
+
+  return Array.from({ length: count }, (_, index) => ({
+    x: SNAP_PADDING + (index % cols) * (width + TILE_GAP),
+    y: SNAP_PADDING + Math.floor(index / cols) * (height + TILE_GAP),
+    width,
+    height,
+  }));
+}
+
 /**
  * Scans the viewport in a raster pattern to find a position for a new window
  * that doesn't overlap any existing visible window.
@@ -252,6 +286,14 @@ function resolveOpenability(
   return { canOpen: true, windowSize: template.windowSize };
 }
 
+/** `openWindow` ouvrirait-il quelque chose pour ce node ? */
+export function canOpenWindow(
+  nodeType: NodeType,
+  nodeDataId: Id<"nodeDatas">,
+): boolean {
+  return resolveOpenability(nodeType, nodeDataId).canOpen;
+}
+
 interface WindowsStore {
   openedWindows: OpenedWindow[];
   topZIndex: number;
@@ -263,6 +305,20 @@ interface WindowsStore {
   // Les appelants qui ont un repli — naviguer vers le node sur le canvas —
   // testent ce retour ; les autres appellent et ignorent.
   openWindow: (payload: OpenedWindowPayload) => boolean;
+  /**
+   * Ouvre plusieurs windows d'un coup, disposées en grille (cf.
+   * `computeTileRects`), et réduit dans le dock toutes les autres windows
+   * visibles : l'écran montre exactement ce qu'on a demandé.
+   *
+   * Les payloads sans window sont ignorés ; au-delà de `MAX_TILED_WINDOWS`,
+   * seuls les premiers comptent — l'ordre des payloads est celui des cases.
+   * Une window déjà ouverte est replacée dans sa case, pas dupliquée. Avec une
+   * seule window (ou un écran trop étroit), placement libre comme
+   * `openWindow`.
+   *
+   * Renvoie le nombre de windows ouvertes ou replacées.
+   */
+  openWindowsTiled: (payloads: OpenedWindowPayload[]) => number;
   /**
    * Repointe les windows ouvertes sur le `nodeDataId` courant de leur node.
    *
@@ -398,6 +454,108 @@ export const useWindowsStore = create<WindowsStore>()(
         });
 
         return true;
+      },
+      openWindowsTiled: (payloads: OpenedWindowPayload[]) => {
+        // Même règle que `openWindow` : l'ouvrabilité se tranche hors du `set`.
+        const openable = payloads
+          .map((payload) => ({
+            payload,
+            openability: resolveOpenability(payload.nodeType, payload.nodeDataId),
+          }))
+          .filter(
+            (
+              entry,
+            ): entry is {
+              payload: OpenedWindowPayload;
+              openability: { canOpen: true; windowSize?: WindowSize };
+            } => entry.openability.canOpen,
+          )
+          .slice(0, MAX_TILED_WINDOWS);
+        if (openable.length === 0) return 0;
+
+        const rects =
+          openable.length > 1 ? computeTileRects(openable.length) : null;
+
+        set((store) => {
+          const targetIds = new Set(openable.map((e) => e.payload.xyNodeId));
+          let topZIndex = store.topZIndex;
+
+          // Les autres windows partent dans le dock ; celles du lot seront
+          // (ré)écrites juste après.
+          let openedWindows: OpenedWindow[] = store.openedWindows.map((w) =>
+            targetIds.has(w.xyNodeId) || w.windowState === "minimized"
+              ? w
+              : { ...w, windowState: "minimized" },
+          );
+
+          openable.forEach(({ payload, openability }, index) => {
+            const existing = openedWindows.find(
+              (w) => w.xyNodeId === payload.xyNodeId,
+            );
+            const effectiveWindowSize =
+              payload.windowSize ?? openability.windowSize;
+            // La taille « libre » de la window : celle qu'elle retrouve quand
+            // on la sort de sa case en la tirant (cf. `preSnapSize`).
+            const freeSize = existing
+              ? (existing.preSnapSize ?? {
+                  width: existing.width,
+                  height: existing.height,
+                })
+              : effectiveWindowSize
+                ? resolveWindowSize(effectiveWindowSize)
+                : getDefaultWindowSize(payload.nodeType);
+            const rect = rects?.[index];
+            topZIndex += 1;
+
+            const next: OpenedWindow = rect
+              ? {
+                  xyNodeId: payload.xyNodeId,
+                  nodeDataId: payload.nodeDataId,
+                  nodeType: payload.nodeType,
+                  position: { x: rect.x, y: rect.y },
+                  width: rect.width,
+                  height: rect.height,
+                  preSnapSize: freeSize,
+                  windowState: "normal",
+                  zIndex: topZIndex,
+                }
+              : {
+                  xyNodeId: payload.xyNodeId,
+                  nodeDataId: payload.nodeDataId,
+                  nodeType: payload.nodeType,
+                  // Pas de grille : une window déjà ouverte garde sa place.
+                  position:
+                    existing?.position ??
+                    findSmartPosition(
+                      openedWindows.filter(
+                        (w) => w.xyNodeId !== payload.xyNodeId,
+                      ),
+                      freeSize.width,
+                      freeSize.height,
+                    ),
+                  width: existing?.width ?? freeSize.width,
+                  height: existing?.height ?? freeSize.height,
+                  preSnapSize: existing?.preSnapSize,
+                  windowState: "normal",
+                  zIndex: topZIndex,
+                };
+
+            openedWindows = existing
+              ? openedWindows.map((w) =>
+                  w.xyNodeId === payload.xyNodeId ? next : w,
+                )
+              : [...openedWindows, next];
+          });
+
+          return {
+            openedWindows,
+            topZIndex,
+            // Une window en plein écran masquerait la grille.
+            fullscreenNodeId: null,
+          };
+        });
+
+        return openable.length;
       },
       syncWindowNodeDataIds: (nodeDataIdByXyNodeId) => {
         set((store) => {

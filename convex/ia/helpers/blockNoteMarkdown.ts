@@ -32,6 +32,12 @@ import {
   BLOCK_NOTE_DEFAULT_CELL_PROPS,
 } from "../../lib/blockNoteDocument";
 import { normalizeDatePillValue } from "../../lib/datePill";
+import {
+  formatPillToken,
+  normalizePillProps,
+  PILL_COLORS,
+  parsePillTokenBody,
+} from "../../lib/colorPill";
 import { buildNodeMentionTokenRegex } from "../../lib/nodeMentionToken";
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import {
@@ -45,10 +51,10 @@ export const BLOCKNOTE_XML_VERSION = "1";
 
 // ── Frontend-only custom types ──────────────────────────────────────────────
 //
-// `date` (inline), `mention` (inline) and `callout` (block) are declared by
+// `date`, `mention`, `pill` (inline) and `callout` (block) are declared by
 // the frontend schema (src/components/blocknote/). The headless editor runs
 // the DEFAULT schema and throws "node type X not found in schema" on them, so
-// all three are rewritten before anything is handed to it.
+// all four are rewritten before anything is handed to it.
 //
 //  • callouts → paragraphs. Lossless for the agent: icon/color live in props,
 //    which the XML carries independently of the headless editor.
@@ -56,6 +62,9 @@ export const BLOCKNOTE_XML_VERSION = "1";
 //  • mention pills (a reference to another canvas node, see
 //    src/components/blocknote/mention-inline-content.tsx) → the `[[node:…]]`
 //    token, which round-trips like a date pill.
+//  • colored pills (src/components/blocknote/pill-inline-content.tsx) → the
+//    `[[pill:<color>[:solid]|<text>]]` token (convex/lib/colorPill.ts), which
+//    round-trips like a date pill; the search index gets the bare text.
 //
 // A mention is the one custom type this codec cannot resolve on its own: it
 // stores a `nodeDataId`, while the agent addresses nodes by their CANVAS node
@@ -192,6 +201,17 @@ function mentionStandIn(props: unknown, mentions?: MentionInfoByNodeDataId): str
   return typeof title === "string" && title.trim() ? title.trim() : "Node";
 }
 
+/**
+ * The token goes through the Markdown parser on the way back, so a pill text
+ * holding `*c*` would come back as emphasis, splitting the token.
+ * Backslash-escaping the emphasis/code characters makes the parser hand the
+ * text back verbatim. (`<tag>`-like text is not covered: BlockNote's parser
+ * drops it as HTML even escaped — same limitation as plain text here.)
+ */
+function escapePillTokenText(token: string): string {
+  return token.replace(/[\\`*_~]/g, (c) => `\\${c}`);
+}
+
 function frontendOnlyInlineToText(content: unknown, opts: SerializeOptions): unknown {
   if (typeof content === "string" || content === undefined || content === null) {
     return content;
@@ -205,6 +225,13 @@ function frontendOnlyInlineToText(content: unknown, opts: SerializeOptions): unk
       }
       if (n.type === "mention") {
         return { type: "text", text: mentionStandIn(n.props, opts.mentions) };
+      }
+      if (n.type === "pill") {
+        const text =
+          opts.mode === "label"
+            ? normalizePillProps(n.props).text
+            : escapePillTokenText(formatPillToken(n.props));
+        return { type: "text", text };
       }
       if (n.content !== undefined) {
         return { ...n, content: frontendOnlyInlineToText(n.content, opts) };
@@ -338,7 +365,7 @@ function sanitizeBlockForHeadless(
  * is what lets an ill-formed token fall through as plain text instead of
  * silently eating the rest of the leaf.
  */
-const PILL_TOKEN_RE = /\[\[(date|node):([^\]]*)\]\]/g;
+const PILL_TOKEN_RE = /\[\[(date|node|pill):([^\]]*)\]\]/g;
 
 /**
  * Same body as `PILL_TOKEN_RE`, date branch only: used on the way back, to name
@@ -347,9 +374,16 @@ const PILL_TOKEN_RE = /\[\[(date|node):([^\]]*)\]\]/g;
  */
 const MALFORMED_DATE_TOKEN_RE = /\[\[date:[^\]]*\]\]/g;
 
+/** Same as `MALFORMED_DATE_TOKEN_RE`, for colored pills. */
+const MALFORMED_PILL_TOKEN_RE = /\[\[pill:[^\]]*\]\]/g;
+
 /** True when a text leaf can possibly hold a token — the cheap pre-check. */
 function mayHoldPillToken(text: string): boolean {
-  return text.includes("[[date:") || text.includes("[[node:");
+  return (
+    text.includes("[[date:") ||
+    text.includes("[[node:") ||
+    text.includes("[[pill:")
+  );
 }
 
 /**
@@ -364,6 +398,10 @@ function tokenToPill(
 ): Record<string, unknown> | null {
   if (kind === "date") {
     return /^\d{4}-\d{2}-\d{2}$/.test(body) ? { type: "date", props: { date: body } } : null;
+  }
+  if (kind === "pill") {
+    const props = parsePillTokenBody(body);
+    return props ? { type: "pill", props } : null;
   }
   // Only the id is significant; everything past the first `|` is the human
   // label the serializer appends, and is deliberately thrown away.
@@ -521,6 +559,35 @@ export function findMalformedDateTokens(blocks: readonly unknown[]): string[] {
     }
   });
   return [...tokens];
+}
+
+/** Pill tokens `tokenToPill` refused, still sitting in a PARSED tree as text. */
+export function findMalformedPillTokens(blocks: readonly unknown[]): string[] {
+  const tokens = new Set<string>();
+  forEachTextLeaf(blocks, (text) => {
+    if (!text.includes("[[pill:")) return;
+    for (const match of text.matchAll(MALFORMED_PILL_TOKEN_RE)) {
+      tokens.add(match[0]);
+    }
+    // A token whose text held Markdown (`*bold*`, `<tag>`) is split across
+    // leaves by the parser: this leaf holds its head but never its `]]`.
+    const lastOpen = text.lastIndexOf("[[pill:");
+    if (!text.includes("]]", lastOpen)) tokens.add(`${text.slice(lastOpen)}…`);
+  });
+  return [...tokens];
+}
+
+/** The tool error for pill tokens that reached the parsed document as text. */
+export function malformedPillTokensError(tokens: string[]): string {
+  const names = tokens.map((token) => `\`${token}\``).join(", ");
+  return (
+    `Pill token${tokens.length > 1 ? "s" : ""} ${names} ` +
+    `${tokens.length > 1 ? "are" : "is"} not a valid colored pill and would have been ` +
+    "written as literal text. A pill is spelled [[pill:COLOR|Text]] (pastel) or " +
+    "[[pill:COLOR:solid|Text]] (solid), with COLOR one of " +
+    `${PILL_COLORS.join(", ")} and a non-empty text without brackets ` +
+    "(backslash-escape Markdown characters such as \\* or \\_ inside it)."
+  );
 }
 
 /**

@@ -5,6 +5,8 @@ import { createCalloutBlockSpec, CalloutView } from "./callout-block";
 import { getCalloutSlashMenuItem } from "./calloutSlashMenuItem";
 import { dateInlineContentSpec, DatePillView } from "./date-inline-content";
 import { getDateSlashMenuItem } from "./dateSlashMenuItem";
+import { pillInlineContentSpec, PillView } from "./pill-inline-content";
+import { getPillSlashMenuItem } from "./pillSlashMenuItem";
 import {
   nodeMentionInlineContentSpec,
   MentionPillView,
@@ -47,6 +49,7 @@ export const customBlockSpecs = {
 export const customInlineContentSpecs = {
   date: dateInlineContentSpec,
   mention: nodeMentionInlineContentSpec,
+  pill: pillInlineContentSpec,
 };
 
 // ── Entries (source of truth for Views + slash menu + lookups) ──────────────
@@ -93,6 +96,12 @@ export const customInlineContent: CustomInlineContentEntry[] = [
     type: "mention",
     spec: customInlineContentSpecs.mention,
     View: MentionPillView,
+  },
+  {
+    type: "pill",
+    spec: customInlineContentSpecs.pill,
+    View: PillView,
+    slashMenuItem: getPillSlashMenuItem,
   },
 ];
 

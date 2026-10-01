@@ -7,8 +7,10 @@ import { getNodeCapabilities } from "../../config/nodeConfig";
 import { validateNodeInputSchemaForLLM } from "../helpers/nodeInputSchemaValidatorForLLM";
 import {
   findMalformedDateTokens,
+  findMalformedPillTokens,
   findUnresolvedMentionTokens,
   malformedDateTokensError,
+  malformedPillTokensError,
   markdownToBlockNoteBlocks,
 } from "../helpers/blockNoteMarkdown";
 import {
@@ -42,7 +44,7 @@ export default function setNodeDataTool({
 
   return createTool({
     description:
-      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For blocknote nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document with the given markdown — this is an intentionally lossy operation: block ids are regenerated and block-level props (colors, alignment, etc.) are reset to defaults, so you MUST re-read the node (read_nodes) before any block-id-addressed edit (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text). For precise/preserving edits prefer those block-level tools instead. That Markdown supports the same pill tokens as the block-level tools: `[[date:YYYY-MM-DD]]`, and `[[node:<nodeId>]]` to mention another node of this canvas. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). For custom (user-templated) nodes, `data` keys are the FIELD IDS of the node\'s template (not field names — see the <nodeDataSchemas> entry from read_nodes/list_nodes); provided field ids overwrite their value, other fields are kept. Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
+      'Set values on the nodeData of a given nodeId. `data` may be either a JSON object or a JSON-encoded string (it will be parsed). For blocknote nodes, pass `{ doc: "<markdown>" }` to replace the ENTIRE document with the given markdown — this is an intentionally lossy operation: block ids are regenerated and block-level props (colors, alignment, etc.) are reset to defaults, so you MUST re-read the node (read_nodes) before any block-id-addressed edit (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text). For precise/preserving edits prefer those block-level tools instead. That Markdown supports the same pill tokens as the block-level tools: `[[date:YYYY-MM-DD]]`, `[[node:<nodeId>]]` to mention another node of this canvas, and `[[pill:COLOR|Text]]` / `[[pill:COLOR:solid|Text]]` for a colored pill. For app nodes, partial updates are supported: pass `{ state }` alone to update only the persisted app state and keep the existing `code` untouched, or pass `{ code }` alone to update only the source code. When a key is provided it overwrites the existing value (no deep merge of `state`). For custom (user-templated) nodes, `data` keys are the FIELD IDS of the node\'s template (not field names — see the <nodeDataSchemas> entry from read_nodes/list_nodes); provided field ids overwrite their value, other fields are kept. Table nodes are not supported here — use table_insert_rows, table_update_rows, table_delete_rows, or table_update_schema.',
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeType: z
@@ -183,6 +185,10 @@ export default function setNodeDataTool({
           const malformedDates = findMalformedDateTokens(blocks);
           if (malformedDates.length > 0) {
             return toolError(malformedDateTokensError(malformedDates));
+          }
+          const malformedPills = findMalformedPillTokens(blocks);
+          if (malformedPills.length > 0) {
+            return toolError(malformedPillTokensError(malformedPills));
           }
           await ctx.runMutation(
             internal.wrappers.nodeDataWrappers.editBlockNoteDocument,

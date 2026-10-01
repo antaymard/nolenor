@@ -10,6 +10,7 @@
 // XML <-> BlockNote conversion (which needs jsdom) lives in
 // `convex/ia/helpers/blockNoteMarkdown.ts`.
 
+import { parsePillTokenBody } from "./colorPill";
 import { countExactMatches } from "./text";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -215,7 +216,7 @@ function generateUniqueBlockId(existing: Set<string>): string {
 // src/components/blocknote/registry.tsx `customInlineContentSpecs`). Duplicated
 // here rather than imported so this module stays free of any React/BlockNote
 // dependency — keep in sync with the registry when adding a new inline type.
-const CUSTOM_INLINE_CONTENT_TYPES = ["date", "mention"] as const;
+const CUSTOM_INLINE_CONTENT_TYPES = ["date", "mention", "pill"] as const;
 
 // The only inline leaf types BlockNote's real schema can ever produce: "text"
 // and "link" (@blocknote/core's `defaultInlineContentSpecs`) plus the app's
@@ -705,6 +706,11 @@ export function extractInlineText(content: unknown): string {
       } else if (isPlainObj(node)) {
         if (typeof node.text === "string") out += node.text;
         else if (node.content !== undefined) out += extractInlineText(node.content);
+        // A colored pill carries its label in props (convex/lib/colorPill.ts).
+        else if (node.type === "pill") {
+          const text = (node.props as Record<string, unknown> | undefined)?.text;
+          if (typeof text === "string") out += text;
+        }
       }
     }
     return out;
@@ -1060,8 +1066,8 @@ export function updateBlockProps(
 // ── Native text patch ────────────────────────────────────────────────────────
 //
 // `new_string` is literal visible text, with one exception: a `[[date:…]]`
-// token becomes a real date pill, exactly as it does on the XML and Markdown
-// write paths. Without it, `patch_block_text` was the one blocknote tool that
+// (or `[[pill:…]]`) token becomes a real pill, exactly as it does on the XML
+// and Markdown write paths. Without it, `patch_block_text` was the one blocknote tool that
 // could not author a pill — while `replace_block`'s own description sends the
 // model here for every text edit, so "add a due date to this block" produced
 // literal `[[date:…]]` debris.
@@ -1070,8 +1076,25 @@ export function updateBlockProps(
 // which only a canvas lookup can resolve, and this module is pure. It is
 // refused rather than written as text, and the error names the way out.
 
-/** The one accepted spelling, kept in lockstep with `tokenToPill`'s check. */
-const PATCH_DATE_TOKEN_RE = /\[\[date:(\d{4}-\d{2}-\d{2})\]\]/g;
+/**
+ * Date and colored-pill tokens; each match is re-validated by
+ * `patchTokenToPill`, kept in lockstep with the codec's `tokenToPill`.
+ */
+const PATCH_PILL_TOKEN_RE = /\[\[(date|pill):([^\]]*)\]\]/g;
+
+const ANY_PILL_TOKEN_RE = /\[\[pill:[^\]]*\]\]/g;
+
+function patchTokenToPill(kind: string, body: string): Record<string, unknown> | null {
+  if (kind === "date") {
+    return /^\d{4}-\d{2}-\d{2}$/.test(body) ? { type: "date", props: { date: body } } : null;
+  }
+  const props = parsePillTokenBody(body);
+  return props ? { type: "pill", props } : null;
+}
+
+function mayHoldPatchToken(text: string): boolean {
+  return text.includes("[[date:") || text.includes("[[pill:");
+}
 
 /** Any date token, well-formed or not — what the guard below reports on. */
 const ANY_DATE_TOKEN_RE = /\[\[date:[^\]]*\]\]/g;
@@ -1115,6 +1138,18 @@ function assertPatchTokensSupported(newString: string): void {
         "have been written as literal text. A date pill is spelled " +
         "[[date:YYYY-MM-DD]] and nothing else: four-digit year, zero-padded " +
         "month and day, no label, no relative wording.",
+    );
+  }
+
+  const malformedPills = matchAll(newString, ANY_PILL_TOKEN_RE).filter(
+    (token) => parsePillTokenBody(token.slice("[[pill:".length, -2)) === null,
+  );
+  if (malformedPills.length > 0) {
+    throw new BlockNotePatchError(
+      `Pill token${malformedPills.length > 1 ? "s" : ""} ${malformedPills.join(", ")} ` +
+        `${malformedPills.length > 1 ? "are" : "is"} not a valid colored pill and would ` +
+        "have been written as literal text. A pill is spelled [[pill:COLOR|Text]] " +
+        "or [[pill:COLOR:solid|Text]], with COLOR a palette color and a non-empty text.",
     );
   }
 }
@@ -1183,8 +1218,8 @@ function applyInlinePatch(content: unknown, oldString: string, newString: string
     const patched = content.replace(oldString, newString);
     // Une pill ne tient pas dans une chaîne : dès qu'il y en a une, le contenu
     // passe en tableau inline (la forme normale d'un contenu BlockNote).
-    return patched.includes("[[date:")
-      ? expandDateTokens(patched, { text: patched, isObject: false })
+    return mayHoldPatchToken(patched)
+      ? expandPillTokens(patched, { text: patched, isObject: false })
       : patched;
   }
   if (Array.isArray(content)) {
@@ -1247,27 +1282,29 @@ function makeLeaf(text: string, template: TextLeaf): unknown {
 }
 
 /**
- * Split a replacement into text leaves and `date` inline nodes. The text around
+ * Split a replacement into text leaves and `date` / `pill` inline nodes. The text around
  * each token keeps `template`'s styles — the pill itself carries none, the
  * frontend styles it from its own value.
  */
-function expandDateTokens(text: string, template: TextLeaf): unknown[] {
-  if (!text.includes("[[date:")) {
+function expandPillTokens(text: string, template: TextLeaf): unknown[] {
+  if (!mayHoldPatchToken(text)) {
     const leaf = makeLeaf(text, template);
     return leaf === null ? [] : [leaf];
   }
 
   const out: unknown[] = [];
   let cursor = 0;
-  PATCH_DATE_TOKEN_RE.lastIndex = 0;
+  PATCH_PILL_TOKEN_RE.lastIndex = 0;
   for (
-    let match = PATCH_DATE_TOKEN_RE.exec(text);
+    let match = PATCH_PILL_TOKEN_RE.exec(text);
     match;
-    match = PATCH_DATE_TOKEN_RE.exec(text)
+    match = PATCH_PILL_TOKEN_RE.exec(text)
   ) {
+    const pill = patchTokenToPill(match[1], match[2]);
+    if (!pill) continue;
     const before = makeLeaf(text.slice(cursor, match.index), template);
     if (before !== null) out.push(before);
-    out.push({ type: "date", props: { date: match[1] } });
+    out.push(pill);
     cursor = match.index + match[0].length;
   }
   const rest = makeLeaf(text.slice(cursor), template);
@@ -1407,7 +1444,7 @@ function spliceRun(
     // The replacement lands once, in the leaf where the match begins — as a
     // run of nodes, since a `[[date:…]]` token in it becomes a real pill.
     if (!inserted && start <= matchStart && matchStart < end) {
-      out.push(...expandDateTokens(newString, leaf));
+      out.push(...expandPillTokens(newString, leaf));
       inserted = true;
     }
     // Tail: the part of this leaf sitting after the match.

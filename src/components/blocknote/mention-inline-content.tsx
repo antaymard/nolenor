@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
  */
 
 const pillClassName =
-  "inline-flex max-w-64 items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 align-baseline text-muted-foreground";
+  "inline-flex max-w-64 items-center gap-1 rounded-sm bg-muted px-1.5 py-[0.12em] align-middle leading-none text-muted-foreground";
 
 function useMentionPillData(nodeDataId: string | undefined) {
   const id = nodeDataId as Id<"nodeDatas"> | undefined;

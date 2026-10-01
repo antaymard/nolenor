@@ -97,6 +97,7 @@ import type * as lib_authEmail from "../lib/authEmail.js";
 import type * as lib_authOtp from "../lib/authOtp.js";
 import type * as lib_blockNoteDocument from "../lib/blockNoteDocument.js";
 import type * as lib_chunkMetadata from "../lib/chunkMetadata.js";
+import type * as lib_colorPill from "../lib/colorPill.js";
 import type * as lib_datePill from "../lib/datePill.js";
 import type * as lib_deployment from "../lib/deployment.js";
 import type * as lib_embedUrl from "../lib/embedUrl.js";
@@ -308,6 +309,7 @@ declare const fullApi: ApiFromModules<{
   "lib/authOtp": typeof lib_authOtp;
   "lib/blockNoteDocument": typeof lib_blockNoteDocument;
   "lib/chunkMetadata": typeof lib_chunkMetadata;
+  "lib/colorPill": typeof lib_colorPill;
   "lib/datePill": typeof lib_datePill;
   "lib/deployment": typeof lib_deployment;
   "lib/embedUrl": typeof lib_embedUrl;

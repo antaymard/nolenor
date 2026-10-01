@@ -40,7 +40,8 @@ export function formatDatePillLabel(date: string): string {
   });
 }
 
-const pillBaseClassName = "w-fit rounded-sm px-1";
+const pillBaseClassName =
+  "inline-block w-fit rounded-sm px-1 py-[0.12em] align-middle leading-none";
 
 export type DatePillTone = "today" | "overdue" | "soon" | "default";
 

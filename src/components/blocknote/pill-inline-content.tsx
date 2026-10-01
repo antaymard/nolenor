@@ -48,7 +48,7 @@ function pillColorClassName(color: PillColor, variant: PillVariant): string {
 }
 
 const pillBaseClassName =
-  "inline-block max-w-64 truncate rounded-sm px-1.5 align-baseline text-[0.85em] leading-normal font-semibold";
+  "inline-block max-w-64 truncate rounded-sm px-1.5 py-[0.12em] align-middle text-[0.85em] leading-none font-semibold";
 
 /**
  * Static (read-only) rendering of a pill. Used by the canvas read-only

@@ -22,7 +22,7 @@ export type PillColor = (typeof PILL_COLORS)[number];
 export const PILL_VARIANTS = ["pastel", "solid"] as const;
 export type PillVariant = (typeof PILL_VARIANTS)[number];
 
-export const PILL_DEFAULT_TEXT = "Status";
+export const PILL_DEFAULT_TEXT = "click-me";
 export const PILL_DEFAULT_COLOR: PillColor = "default";
 export const PILL_DEFAULT_VARIANT: PillVariant = "pastel";
 

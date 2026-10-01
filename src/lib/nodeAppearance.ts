@@ -2,14 +2,11 @@ import type { Node } from "@xyflow/react";
 import prebuiltNodesConfig from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import {
   NODE_DISPLAY_OPTIONS,
-  getSupportedDisplayOptions,
-  resolveNodeDisplayOptions,
+  getSupportedDisplayOptionsOfNode,
+  resolveDisplayOptionsOfNode,
 } from "@/components/nodes/prebuilt-nodes/nodeDisplayOptions";
 import type { NodeVariant } from "@/../convex/config/nodeConfig";
-import type {
-  NodeDisplayOptionKey,
-  NodeDisplayOptions,
-} from "@/../convex/schemas/nodesSchema";
+import type { NodeDisplayOptionKey } from "@/../convex/schemas/nodesSchema";
 
 export type AppearanceVariantEntry = {
   label: string;
@@ -67,24 +64,13 @@ export function getAppearanceEntries(nodes: Node[]): AppearanceEntries {
       }),
     }));
 
-  const stateOf = (node: Node) => ({
-    type: node.type,
-    variant: node.data?.variant as string | undefined,
-    stored: node.data?.displayOptions as NodeDisplayOptions | undefined,
-  });
-  const [first, ...others] = nodes.map((node) => {
-    const { type, variant } = stateOf(node);
-    return getSupportedDisplayOptions(type, variant);
-  });
+  const [first, ...others] = nodes.map(getSupportedDisplayOptionsOfNode);
   const displayOptions = first
     .filter((key) => others.every((supported) => supported.includes(key)))
     .map((key) => ({
       key,
       label: NODE_DISPLAY_OPTIONS[key].label,
-      checked: nodes.every((node) => {
-        const { type, variant, stored } = stateOf(node);
-        return resolveNodeDisplayOptions(type, variant, stored)[key];
-      }),
+      checked: nodes.every((node) => resolveDisplayOptionsOfNode(node)[key]),
     }));
 
   return { variants, displayOptions };

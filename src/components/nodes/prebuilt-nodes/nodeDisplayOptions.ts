@@ -8,6 +8,18 @@ import type {
  * Les options d'affichage des nodes prébuilts : réglages cumulables, portés
  * par la ligne `nodes` (`displayOptions`) et indépendants de la variante.
  *
+ * Ajouter une option :
+ * 1. son champ dans `nodeDisplayOptionsValidator`
+ *    (`convex/schemas/nodesSchema.ts`) — c'est tout ce que le backend voit ;
+ * 2. son libellé dans `NODE_DISPLAY_OPTIONS` ci-dessous (l'oubli casse la
+ *    compilation) ;
+ * 3. les types qui la proposent, et leur défaut, dans
+ *    `NODE_TYPE_DISPLAY_OPTIONS` ;
+ * 4. son rendu : dans `NodeFrame` si elle vaut pour n'importe quel node,
+ *    sinon dans le composant du node, via `useNodeDisplayOptions`.
+ * Rien d'autre : stockage, undo, optimiste, duplication, memo et menu
+ * Appearance sont génériques.
+ *
  * Config purement front : le backend stocke les valeurs (le validator de
  * `convex/schemas/nodesSchema.ts` en borne les clés et les types) mais n'en
  * lit aucune. Tout ce qui décide de leur sens et de leur défaut vit donc ici.
@@ -28,6 +40,7 @@ export const NODE_DISPLAY_OPTIONS: Record<
   { label: string }
 > = {
   showTitle: { label: "Show title" },
+  scaleWithZoom: { label: "Scale with zoom" },
 };
 
 const NODE_DISPLAY_OPTION_KEYS = Object.keys(
@@ -64,6 +77,11 @@ export const NODE_TYPE_DISPLAY_OPTIONS: Partial<
 > = {
   image: {
     showTitle: { default: false },
+  },
+  title: {
+    // Un titre de section doit se lire de loin, comme celui d'une frame.
+    // `false` : les titres existants ne changent pas d'aspect.
+    scaleWithZoom: { default: false },
   },
   app: {
     // `true` : c'est l'en-tête que la variante preview a toujours eu, les
@@ -121,4 +139,34 @@ export function resolveNodeDisplayOptions(
       return [key, config ? (stored?.[key] ?? config.default) : false];
     }),
   ) as ResolvedNodeDisplayOptions;
+}
+
+/**
+ * Ce que les helpers ci-dessous lisent d'un node : React Flow (`XyNode`,
+ * `NodeProps`, snapshot d'undo) ou n'importe quel objet de même forme.
+ */
+type NodeLike = { type?: string; data?: Record<string, unknown> };
+
+function readNode(node: NodeLike) {
+  return {
+    type: node.type,
+    variant: node.data?.variant as string | undefined,
+    stored: node.data?.displayOptions as NodeDisplayOptions | undefined,
+  };
+}
+
+/** `resolveNodeDisplayOptions`, lu directement sur un node React Flow. */
+export function resolveDisplayOptionsOfNode(
+  node: NodeLike,
+): ResolvedNodeDisplayOptions {
+  const { type, variant, stored } = readNode(node);
+  return resolveNodeDisplayOptions(type, variant, stored);
+}
+
+/** `getSupportedDisplayOptions`, lu directement sur un node React Flow. */
+export function getSupportedDisplayOptionsOfNode(
+  node: NodeLike,
+): NodeDisplayOptionKey[] {
+  const { type, variant } = readNode(node);
+  return getSupportedDisplayOptions(type, variant);
 }

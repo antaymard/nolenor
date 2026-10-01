@@ -25,6 +25,12 @@ import { nodeTypeValidator } from "./nodeTypeSchema";
 const nodeDisplayOptionsValidator = v.object({
   /** En-tête titre en haut du node (cf. `NodeFrame`). */
   showTitle: v.optional(v.boolean()),
+  /**
+   * Le node garde sa taille à l'écran quand on dézoome, comme le titre des
+   * frames (cf. `NodeFrame`). Visuel seul : la boîte du node (edges,
+   * sélection, fitView) ne change pas.
+   */
+  scaleWithZoom: v.optional(v.boolean()),
 });
 
 type NodeDisplayOptions = Infer<typeof nodeDisplayOptionsValidator>;

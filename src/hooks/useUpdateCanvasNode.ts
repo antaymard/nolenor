@@ -14,7 +14,7 @@ import type {
   NodeDisplayOptions,
   NodePatchProps,
 } from "@/../convex/schemas/nodesSchema";
-import { resolveNodeDisplayOptions } from "@/components/nodes/prebuilt-nodes/nodeDisplayOptions";
+import { resolveDisplayOptionsOfNode } from "@/components/nodes/prebuilt-nodes/nodeDisplayOptions";
 
 interface ConvexNodeProps {
   locked?: boolean;
@@ -81,11 +81,7 @@ function inverseProps(
   // pas de clé, et une fusion shallow ne sait pas en retirer une. Réécrire
   // le défaut explicitement revient au même.
   if (props?.displayOptions !== undefined) {
-    const before = resolveNodeDisplayOptions(
-      snapshot.type,
-      snapshotData.variant as string | undefined,
-      snapshotData.displayOptions as NodeDisplayOptions | undefined,
-    );
+    const before = resolveDisplayOptionsOfNode(snapshot);
     inverse.displayOptions = Object.fromEntries(
       (Object.keys(props.displayOptions) as NodeDisplayOptionKey[]).map(
         (key) => [key, before[key]],

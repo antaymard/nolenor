@@ -1,6 +1,5 @@
-import type { NodeDisplayOptions } from "@/../convex/schemas/nodesSchema";
 import {
-  resolveNodeDisplayOptions,
+  resolveDisplayOptionsOfNode,
   type ResolvedNodeDisplayOptions,
 } from "@/components/nodes/prebuilt-nodes/nodeDisplayOptions";
 
@@ -14,11 +13,7 @@ import {
  */
 export function useNodeDisplayOptions(xyNode: {
   type?: string;
-  data: { variant?: unknown; displayOptions?: NodeDisplayOptions };
+  data?: Record<string, unknown>;
 }): ResolvedNodeDisplayOptions {
-  return resolveNodeDisplayOptions(
-    xyNode.type,
-    xyNode.data.variant as string | undefined,
-    xyNode.data.displayOptions,
-  );
+  return resolveDisplayOptionsOfNode(xyNode);
 }

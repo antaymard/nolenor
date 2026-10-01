@@ -13,13 +13,13 @@ export const loadSkillToolConfig: ToolConfig = {
 export default function loadSkillTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
-      "Load a resource by its exact name. First tries to match a skill listed in <available_skills> (returns the skill body and the list of its attachments). If no skill matches, tries to match an attachment that belongs to one of your accessible skills (returns the attachment content). Use this tool when the user's request matches a skill, then again with an attachment name as referenced in the skill body.",
+      "Load a resource by its exact name. First tries to match a skill (returns the skill body and the list of its attachments): one listed in <available_skills>, or one that a previously loaded skill tells you to load by name. If no skill matches, tries to match an attachment that belongs to one of your accessible skills (returns the attachment content). Use this tool when the user's request matches a skill, then again with a skill or attachment name as referenced in the skill body.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       name: z
         .string()
         .describe(
-          "The exact name of a skill (as listed in <available_skills>) or of an attachment (as referenced in a previously loaded skill's body).",
+          "The exact name of a skill (as listed in <available_skills>, or as referenced in a previously loaded skill's body) or of an attachment (as referenced in a previously loaded skill's body).",
         ),
     }),
     execute: async (ctx, input): Promise<string> => {

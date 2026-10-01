@@ -36,7 +36,55 @@ for (const slug of readdirSync(SKILLS_DIR).sort()) {
       `[generateSystemSkillsRegistry] ${skillPath} is missing 'name' or 'description' in frontmatter.`,
     );
   }
-  entries.push({ name: meta.name, description: meta.description, content: body });
+  entries.push({
+    name: meta.name,
+    description: meta.description,
+    content: body,
+    // `hidden: true` : le skill reste chargeable par son nom exact (load_skill)
+    // mais n'est pas listé dans <available_skills>. Sert aux sous-sections
+    // qu'un skill d'entrée énumère lui-même (cf. `nolenor-user-manual`).
+    hidden: meta.hidden === "true",
+  });
+}
+
+const seenNames = new Set();
+for (const e of entries) {
+  if (seenNames.has(e.name)) {
+    throw new Error(
+      `[generateSystemSkillsRegistry] duplicate skill name '${e.name}'.`,
+    );
+  }
+  seenNames.add(e.name);
+}
+
+// Une référence à un skill masqué qui ne correspond à aucun skill (faute de
+// frappe dans un renvoi) est une impasse pour Nolë : on la refuse au build.
+// Seuls les noms de la famille d'un skill masqué (même premier segment, par
+// exemple `manual-…`) sont contrôlés, pour ne pas prendre n'importe quel mot en
+// code inline pour un renvoi.
+const hiddenFamilies = new Set(
+  entries.filter((e) => e.hidden).map((e) => e.name.split("-")[0]),
+);
+for (const e of entries) {
+  for (const match of e.content.matchAll(/`([a-z0-9]+(?:-[a-z0-9]+)+)`/g)) {
+    const token = match[1];
+    if (hiddenFamilies.has(token.split("-")[0]) && !seenNames.has(token)) {
+      throw new Error(
+        `[generateSystemSkillsRegistry] '${e.name}' refers to unknown skill '${token}'.`,
+      );
+    }
+  }
+}
+
+// Un skill masqué n'est joignable que si un skill listé le nomme : sans cela,
+// il serait chargeable en théorie mais introuvable en pratique.
+const listedEntries = entries.filter((e) => !e.hidden);
+for (const e of entries.filter((entry) => entry.hidden)) {
+  if (!listedEntries.some((listed) => listed.content.includes(e.name))) {
+    throw new Error(
+      `[generateSystemSkillsRegistry] hidden skill '${e.name}' is not referenced by any listed skill, so nobody can reach it.`,
+    );
+  }
 }
 
 const lines = [
@@ -47,6 +95,8 @@ const lines = [
   "  name: string;",
   "  description: string;",
   "  content: string;",
+  "  /** Chargeable par nom, mais absent de <available_skills>. */",
+  "  hidden?: boolean;",
   "};",
   "",
   "export const SYSTEM_SKILLS: readonly SystemSkill[] = [",
@@ -56,6 +106,7 @@ for (const e of entries) {
   lines.push(`    name: ${JSON.stringify(e.name)},`);
   lines.push(`    description: ${JSON.stringify(e.description)},`);
   lines.push(`    content: ${JSON.stringify(e.content)},`);
+  if (e.hidden) lines.push("    hidden: true,");
   lines.push("  },");
 }
 lines.push("] as const;");

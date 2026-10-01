@@ -32,7 +32,7 @@ const ChatInterface = memo(function ChatInterface({
   } = useUIMessages(
     api.threads.listMessages,
     { threadId },
-    { initialNumItems: 20, stream: true },
+    { initialNumItems: 60, stream: true },
   );
 
   const modelOptions = useQuery(api.ia.nole.listChatModels, {});
@@ -62,7 +62,7 @@ const ChatInterface = memo(function ChatInterface({
           <div className={cn("flex flex-col gap-6", reserveOverlaySpace && "pb-12")}>
             {status === "CanLoadMore" && (
               <button
-                onClick={() => loadMore(10)}
+                onClick={() => loadMore(30)}
                 className="mx-auto rounded-full border border-slate-200 px-3 py-1 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
               >
                 Load more messages

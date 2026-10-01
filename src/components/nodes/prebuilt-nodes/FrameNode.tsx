@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import { LuHeading1, LuHeading2, LuHeading3 } from "react-icons/lu";
 import { areNodePropsEqual } from "../areNodePropsEqual";
+import { zoomCompensationScaleSelector } from "@/lib/zoomCompensation";
 import NodeHandles from "../NodeHandles";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import { NodeToolbarLabel } from "../toolbar/NodeToolbarLabel";
@@ -58,17 +59,6 @@ const TITLE_LEVEL_ICONS: Record<FrameTitleLevel, ReactNode> = {
   h3: <LuHeading3 />,
 };
 
-/**
- * Le titre garde sa taille à l'écran quand on dézoome.
- *
- * `Math.max(1 / zoom, 1)` — copié de `scaleSelector` dans React Flow, qui
- * l'applique à ses poignées de resize : le titre grossit à mesure qu'on
- * s'éloigne, donc reste lisible, mais ne rétrécit jamais sous sa taille CSS
- * quand on zoome dedans. Les poignées de resize juste à côté suivent
- * exactement la même règle, l'ensemble reste cohérent.
- */
-const titleScaleSelector = (state: { transform: [number, number, number] }) =>
-  Math.max(1 / state.transform[2], 1);
 
 const RESIZE_LINE_STYLE: CSSProperties = { borderWidth: 2 };
 const RESIZE_HANDLE_STYLE: CSSProperties = {
@@ -155,7 +145,9 @@ function FrameNode(xyNode: XyNodeProps) {
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const { getNodes } = useReactFlow();
-  const titleScale = useStore(titleScaleSelector);
+  // Le titre garde sa taille à l'écran quand on dézoome. Les poignées de
+  // resize juste à côté suivent la même règle (cf. `zoomCompensation`).
+  const titleScale = useStore(zoomCompensationScaleSelector);
 
   const title = typeof values?.title === "string" ? values.title : "";
   const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];

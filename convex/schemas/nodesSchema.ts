@@ -2,6 +2,40 @@ import { v, type Infer } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { nodeTypeValidator } from "./nodeTypeSchema";
 
+/**
+ * Réglages d'affichage d'un node, cumulables et indépendants de sa variante :
+ * là où une variante est un choix exclusif (Carousel OU Grid), chaque option
+ * s'allume ou s'éteint seule, quelle que soit la variante.
+ *
+ * Portés par la ligne `nodes` et pas par le nodeData : c'est du visuel, comme
+ * `color` ou `variant`, pas du contenu — ils n'entrent ni dans l'historique de
+ * versions ni dans l'indexation.
+ *
+ * Objet typé plutôt qu'un `v.record` : la base refuse une clé inconnue ou une
+ * valeur du mauvais type. Ajouter une option, c'est ajouter un champ
+ * optionnel ici (aucune migration, les docs existants restent valides) et son
+ * entrée dans `NODE_DISPLAY_OPTIONS`, que le typage rend obligatoire. Leur sens
+ * et leurs défauts sont une config purement front
+ * (`src/components/nodes/prebuilt-nodes/nodeDisplayOptions.ts`) : le backend
+ * stocke ces valeurs mais n'en lit aucune.
+ *
+ * Une clé absente vaut le défaut du type, résolu côté front : la
+ * base ne porte que les choix explicites de l'utilisateur.
+ */
+const nodeDisplayOptionsValidator = v.object({
+  /** En-tête titre en haut du node (cf. `NodeFrame`). */
+  showTitle: v.optional(v.boolean()),
+  /**
+   * Le node garde sa taille à l'écran quand on dézoome, comme le titre des
+   * frames (cf. `NodeFrame`). Visuel seul : la boîte du node (edges,
+   * sélection, fitView) ne change pas.
+   */
+  scaleWithZoom: v.optional(v.boolean()),
+});
+
+type NodeDisplayOptions = Infer<typeof nodeDisplayOptionsValidator>;
+type NodeDisplayOptionKey = keyof NodeDisplayOptions;
+
 const nodesValidator = v.object({
   id: v.string(), // llmid
   status: v.optional(v.literal("trashed")),
@@ -24,6 +58,7 @@ const nodesValidator = v.object({
   zIndex: v.optional(v.number()),
   color: v.optional(v.string()),
   variant: v.optional(v.string()),
+  displayOptions: v.optional(nodeDisplayOptionsValidator),
 
   parentId: v.optional(v.string()),
   extent: v.optional(
@@ -57,6 +92,12 @@ const nodePatchPropsValidator = v.object({
   zIndex: v.optional(v.number()),
   color: v.optional(v.string()),
   variant: v.optional(v.string()),
+  /**
+   * Fusionné clé par clé avec l'existant : ne fournir que les options
+   * touchées. Toutes les clés étant optionnelles, le validator est partiel
+   * par construction.
+   */
+  displayOptions: v.optional(nodeDisplayOptionsValidator),
   /**
    * `null` = sortir le node de sa frame, absent = ne pas y toucher.
    *
@@ -114,9 +155,16 @@ type NodeCreateWithDataItem = Infer<typeof nodeCreateWithDataItemValidator>;
 type NodePatchUpdate = Infer<typeof nodePatchUpdateValidator>;
 
 export {
+  nodeDisplayOptionsValidator,
   nodePatchPropsValidator,
   nodeCreateInputValidator,
   nodeCreateWithDataItemValidator,
   nodePatchUpdateValidator,
 };
-export type { NodePatchProps, NodeCreateWithDataItem, NodePatchUpdate };
+export type {
+  NodeDisplayOptions,
+  NodeDisplayOptionKey,
+  NodePatchProps,
+  NodeCreateWithDataItem,
+  NodePatchUpdate,
+};

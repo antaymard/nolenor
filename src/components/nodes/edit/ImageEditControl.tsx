@@ -1,8 +1,9 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { TbArrowFork, TbGripVertical, TbPencil, TbTrash } from "react-icons/tb";
 import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import { Button } from "@/components/shadcn/button";
+import { Input } from "@/components/shadcn/input";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,57 @@ export type ImageEditItem = {
 type Value = ImageEditItem[];
 
 const defaultValue: Value = [];
+
+/**
+ * Le nom du node, en tête du dialog. Vide = le titre retombe sur le filename
+ * de la première image (cf. `getNodeDataTitle`), que le placeholder montre.
+ *
+ * Écrit au blur et sur Enter, pas à la frappe : chaque écriture de `values`
+ * pose un point de restauration et recale le titre des chunks de recherche.
+ * `DialogContent` démonte à la fermeture, donc l'état local repart de la
+ * valeur stockée à chaque ouverture.
+ */
+function ImageTitleField({
+  nodeDataId,
+  storedTitle,
+  fallbackTitle,
+}: {
+  nodeDataId: Id<"nodeDatas">;
+  storedTitle: string;
+  fallbackTitle: string;
+}) {
+  const { updateNodeDataValues } = useUpdateNodeDataValues();
+  const [draft, setDraft] = useState(storedTitle);
+
+  const commit = useCallback(() => {
+    const next = draft.trim();
+    if (next === storedTitle.trim()) return;
+    updateNodeDataValues({ nodeDataId, values: { title: next } });
+  }, [draft, storedTitle, nodeDataId, updateNodeDataValues]);
+
+  // Fermer le dialog (Échap, clic dehors) démonte le champ sans `blur` : la
+  // saisie en cours est validée au démontage, via la dernière version de
+  // `commit`.
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
+  useEffect(() => () => commitRef.current(), []);
+
+  return (
+    <Input
+      aria-label="Title"
+      placeholder={fallbackTitle}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        }
+      }}
+    />
+  );
+}
 
 function SortableImageItem({
   image,
@@ -378,6 +430,7 @@ export function ImageEditControl({
   // Library. `DialogContent` (Radix) démonte à la fermeture, donc ce
   // `defaultValue` est réévalué à chaque ouverture.
   const hasPrompt = storedPrompt.trim().length > 0;
+  const storedTitle = typeof values?.title === "string" ? values.title : "";
 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -394,6 +447,13 @@ export function ImageEditControl({
         <DialogHeader>
           <DialogTitle>Manage images</DialogTitle>
         </DialogHeader>
+        {nodeDataId && (
+          <ImageTitleField
+            nodeDataId={nodeDataId}
+            storedTitle={storedTitle}
+            fallbackTitle={currentValue[0]?.filename ?? "Image"}
+          />
+        )}
         {nodeDataId && (
           <Tabs defaultValue={hasPrompt ? "generate" : "library"}>
             <TabsList className="w-full">

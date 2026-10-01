@@ -21,6 +21,7 @@ import { deriveEmbedUrl } from "@/../convex/lib/embedUrl";
 import { LINK_EMBED_SANDBOX } from "@/lib/embedIframe";
 import toast from "react-hot-toast";
 import type { XyNodeProps } from "@/types/domain";
+import { NodeHeader } from "../NodeHeader";
 
 export type { LinkValueType };
 
@@ -84,26 +85,23 @@ function LinkNode(xyNode: XyNodeProps) {
         {isEmbed ? (
           linkValue.href ? (
             <div className="w-full h-full flex flex-col overflow-hidden rounded-[4px]">
-              <div className="flex items-center gap-2 h-8 shrink-0 px-2 py-1.5 font-medium rounded-t-[4px]">
-                <TbLink size={18} className="shrink-0" />
-                <p
-                  className="truncate flex-1 min-w-0"
-                  title={linkValue.pageTitle || linkValue.href}
-                >
-                  {linkValue.pageTitle || linkValue.href}
-                </p>
-                <button
-                  className="shrink-0 text-slate-500 hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setRefreshKey((k) => k + 1);
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  title="Refresh embed"
-                >
-                  <TbRefresh size={14} />
-                </button>
-              </div>
+              <NodeHeader
+                icon={TbLink}
+                title={linkValue.pageTitle || linkValue.href}
+                actions={
+                  <button
+                    className="shrink-0 text-slate-500 hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRefreshKey((k) => k + 1);
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    title="Refresh embed"
+                  >
+                    <TbRefresh size={14} />
+                  </button>
+                }
+              />
               <IframeInteractionGate
                 className="flex-1 min-h-0"
                 isNodeSelected={!!xyNode.selected}

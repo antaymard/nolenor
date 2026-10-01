@@ -1,4 +1,4 @@
-import { NodeResizer } from "@xyflow/react";
+import { NodeResizer, useStore } from "@xyflow/react";
 import { memo, useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { colors } from "@/components/ui/styles";
@@ -8,6 +8,31 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import BookmarkedBadge from "./BookmarkedBadge";
+import { NodeTitleHeader } from "./NodeHeader";
+import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
+import { zoomCompensationScaleSelector } from "@/lib/zoomCompensation";
+
+/**
+ * Option `scaleWithZoom` : la boîte visuelle du node (cadre, ring de
+ * sélection, pastille, contenu) garde sa taille à l'écran quand on dézoome,
+ * comme le titre des frames. Elle grandit depuis son centre, autour de la
+ * boîte réelle, que les edges continuent de viser.
+ *
+ * Composant à part pour que seuls les nodes qui ont l'option s'abonnent au
+ * zoom. Les handles et le resizer restent hors de l'échelle : React Flow les
+ * mesure, une mesure sous `scale` fausserait les edges.
+ */
+function ZoomCompensated({ children }: { children: React.ReactNode }) {
+  const scale = useStore(zoomCompensationScaleSelector);
+  return (
+    <div
+      className="h-full"
+      style={{ scale: String(scale), transformOrigin: "center" }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function NodeFrame({
   xyNode,
@@ -15,12 +40,18 @@ function NodeFrame({
   resizable = true,
   minWidth,
   minHeight,
+  headerActions,
 }: {
   xyNode: XyNodeProps;
   children: React.ReactNode;
   resizable?: boolean;
   minWidth?: number;
   minHeight?: number;
+  /**
+   * Boutons de l'en-tête titre (option `showTitle`), ex. le Refresh d'une
+   * app. Ignoré quand l'en-tête n'est pas affiché.
+   */
+  headerActions?: React.ReactNode;
 }) {
   // `||` et non `??` : une couleur vide vaut "default", comme avant le typage.
   const nodeColor = colors[xyNode.data.color || "default"];
@@ -47,6 +78,12 @@ function NodeFrame({
     openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType });
   }, [nodeDataId, xyNode.id, nodeType, openWindow]);
 
+  // L'en-tête titre est posé ici, pour tous les types, et non par chaque
+  // node : proposer `showTitle` à un nouveau type tient alors en une ligne de
+  // `nodeDisplayOptions.ts`. Le contenu du node passe dans un corps `flex-1`, où son
+  // `h-full` vaut la hauteur restante.
+  const { showTitle, scaleWithZoom } = useNodeDisplayOptions(xyNode);
+
   // Une iframe déverrouillée (cf. IframeInteractionGate) avale les pointermove :
   // drag et resize perdraient leurs frames dès que le curseur la survole. Le
   // gate se reverrouille de lui-même sur `dragging`, mais pas sur le resize,
@@ -54,6 +91,86 @@ function NodeFrame({
   const needsPointerShieldWhileMoving =
     nodeType === "app" ||
     (nodeType === "link" && xyNode.data.variant === "embed");
+
+  // La boîte visuelle du node. Hors de l'échelle `scaleWithZoom` : les
+  // handles et le resizer rendus à côté (cf. `ZoomCompensated`).
+  const box = (
+    <div
+      className={cn(
+        "relative rounded-xl text-card-foreground",
+        // PAS de `overflow-hidden` ici : il rognerait l'outline pointillé
+        // violet du node attaché à Nolë (`after:` en `-inset-1`, donc hors
+        // boîte). Le clip du contenu vit sur le conteneur interne, qui a
+        // lui le rayon de la face interne de la bordure (14px - 1px).
+        // `transition-[…]` explicite, et pas un `duration-150` nu : la valeur
+        // initiale CSS de `transition-property` étant `all`, la durée seule
+        // rendait *toute* propriété animable sur chaque node — donc 150 ms de
+        // repaint au moindre changement de style, ring de survol compris.
+        "group h-full flex flex-col border animate-node-appear",
+        "transition-[box-shadow,border-color,transform] duration-200 ease-out",
+        nodeColor.nodeBg,
+        nodeColor.nodeBorder,
+        !isTransparent && "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
+        isAttachedToNole &&
+          "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
+        !canDrag && "nodrag",
+        xyNode.selected
+          ? cn(
+              "ring-2 ring-blue-500/70",
+              !isTransparent && "shadow-[0_3px_12px_rgba(15,23,42,0.12)]",
+            )
+          : cn(
+              "hover:ring-1 hover:ring-blue-400/60",
+              !isTransparent && "hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
+            ),
+      )}
+      onDoubleClick={handleDoubleClick}
+    >
+      {/* Pastille de repère. Sur la racine et pas dans le conteneur interne,
+          qui porte `overflow-hidden` : elle déborde volontairement du coin
+          (cf. `BookmarkedBadge`). */}
+      {isBookmarked && <BookmarkedBadge />}
+
+      {/* `content-visibility: auto` : le navigateur saute le layout et le
+          paint du contenu tant que le node est hors écran, ce qui borne le
+          coût d'un pan au seul contenu visible. Sur le conteneur interne et
+          non sur la racine du node : `content-visibility` implique
+          `contain: paint`, qui rognerait le ring de sélection et les poignées
+          du `NodeResizer`, tous deux rendus en dehors de ce div. Même patron
+          que `BlocknoteNode`, qui l'applique déjà à son propre contenu. */}
+      <div
+        className={cn(
+          // `overflow-hidden` + rayon de la face interne de la bordure
+          // (rounded-xl = 14px, moins 1px de border) : c'est lui qui garantit
+          // que le contenu (image, table, BlockNote, iframe) est rogné aux
+          // coins du frame. Sans ça, un enfant à coins carrés dépassait.
+          // La dernière fois on l'a mis sur le frame et ça avait rogné
+          // l'outline du node attaché — d'où ce placement.
+          "h-full relative overflow-hidden rounded-[13px] [content-visibility:auto]",
+          showTitle && "flex flex-col",
+          xyNode.data.color === "transparent"
+            ? "bg-transparent"
+            : "bg-white/80",
+        )}
+      >
+        {needsPointerShieldWhileMoving && (isResizing || xyNode.dragging) && (
+          <div className="absolute inset-0 z-10" />
+        )}
+        {showTitle ? (
+          <>
+            <NodeTitleHeader
+              nodeDataId={nodeDataId}
+              nodeType={nodeType}
+              actions={headerActions}
+            />
+            <div className="relative flex-1 min-h-0">{children}</div>
+          </>
+        ) : (
+          children
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -74,70 +191,7 @@ function NodeFrame({
           zIndex: 10,
         }}
       />
-      <div
-        className={cn(
-          "relative rounded-xl text-card-foreground",
-          // PAS de `overflow-hidden` ici : il rognerait l'outline pointillé
-          // violet du node attaché à Nolë (`after:` en `-inset-1`, donc hors
-          // boîte). Le clip du contenu vit sur le conteneur interne, qui a
-          // lui le rayon de la face interne de la bordure (14px - 1px).
-          // `transition-[…]` explicite, et pas un `duration-150` nu : la valeur
-          // initiale CSS de `transition-property` étant `all`, la durée seule
-          // rendait *toute* propriété animable sur chaque node — donc 150 ms de
-          // repaint au moindre changement de style, ring de survol compris.
-          "group h-full flex flex-col border animate-node-appear",
-          "transition-[box-shadow,border-color,transform] duration-200 ease-out",
-          nodeColor.nodeBg,
-          nodeColor.nodeBorder,
-          !isTransparent && "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
-          isAttachedToNole &&
-            "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
-          !canDrag && "nodrag",
-          xyNode.selected
-            ? cn(
-                "ring-2 ring-blue-500/70",
-                !isTransparent && "shadow-[0_3px_12px_rgba(15,23,42,0.12)]",
-              )
-            : cn(
-                "hover:ring-1 hover:ring-blue-400/60",
-                !isTransparent &&
-                  "hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",
-              ),
-        )}
-        onDoubleClick={handleDoubleClick}
-      >
-        {/* Pastille de repère. Sur la racine et pas dans le conteneur interne,
-            qui porte `overflow-hidden` : elle déborde volontairement du coin
-            (cf. `BookmarkedBadge`). */}
-        {isBookmarked && <BookmarkedBadge />}
-
-        {/* `content-visibility: auto` : le navigateur saute le layout et le
-            paint du contenu tant que le node est hors écran, ce qui borne le
-            coût d'un pan au seul contenu visible. Sur le conteneur interne et
-            non sur la racine du node : `content-visibility` implique
-            `contain: paint`, qui rognerait le ring de sélection et les poignées
-            du `NodeResizer`, tous deux rendus en dehors de ce div. Même patron
-            que `BlocknoteNode`, qui l'applique déjà à son propre contenu. */}
-        <div
-          className={cn(
-            // `overflow-hidden` + rayon de la face interne de la bordure
-            // (rounded-xl = 14px, moins 1px de border) : c'est lui qui garantit
-            // que le contenu (image, table, BlockNote, iframe) est rogné aux
-            // coins du frame. Sans ça, un enfant à coins carrés dépassait.
-            // La dernière fois on l'a mis sur le frame et ça avait rogné
-            // l'outline du node attaché — d'où ce placement.
-            "h-full relative overflow-hidden rounded-[13px] [content-visibility:auto]",
-            xyNode.data.color === "transparent"
-              ? "bg-transparent"
-              : "bg-white/80",
-          )}
-        >
-          {needsPointerShieldWhileMoving && (isResizing || xyNode.dragging) && (
-            <div className="absolute inset-0 z-10" />
-          )}
-          {children}
-        </div>
-      </div>
+      {scaleWithZoom ? <ZoomCompensated>{box}</ZoomCompensated> : box}
     </>
   );
 }

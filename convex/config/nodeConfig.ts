@@ -254,7 +254,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     label: "Image",
     description: "Node for storing an image.",
     llmDescription:
-      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageIncludeReferences' controls whether the images of image nodes connected as inputs of this node are silently attached as references to the next generation (default true). Set it to false to block them. Reference images have no placeholder syntax in the prompt: when references are included, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.",
+      "For storing/displaying an image. Use this node to display images on the canvas, including the ones you extracted or generated via others tools or sources. \nThe data value 'images' is an array of objects each with a 'url' (the URL of the image).\nThe data value 'imagePrompt' is the prompt the user generates images from, in the node's generation tab. You can write it to help the user craft a better prompt (load the image prompting skill if there is one). Writing it does NOT generate anything: only the user can start a generation, from the node itself. Both values are independent — write 'imagePrompt' alone to leave the existing images untouched.\nThe data value 'imageIncludeReferences' controls whether the images of image nodes connected as inputs of this node are silently attached as references to the next generation (default true). Set it to false to block them. Reference images have no placeholder syntax in the prompt: when references are included, the prompt itself should describe them in words (e.g. \"using the attached sketch as the structure\") — write 'imagePrompt' accordingly.\nThe data value 'title' is the name the user gave to the node; when it is empty, the node is titled by the filename of its first image.",
     defaultDimensions: { width: bigWidth, height: squareHeight, resizable: true },
     variants: {
       // Clé `default` et non `carousel` : les nodes image déjà en base portent
@@ -275,6 +275,13 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     },
     dataValuesSchema: z
       .object({
+        // Nom donné par l'utilisateur. Absent ou vide : le titre retombe sur
+        // le filename de la première image, puis sur « Image »
+        // (cf. `getNodeDataTitle`).
+        title: z
+          .string()
+          .optional()
+          .describe("The title of the node, set by the user."),
         images: z
           .array(
             z.object({

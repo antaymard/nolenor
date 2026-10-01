@@ -1,5 +1,6 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { TbArrowRight, TbChecks, TbCircleCheck } from "react-icons/tb";
+import { TbArrowRight, TbChecks, TbCircleCheck, TbUndo } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import { useClearHomeTasks } from "@/hooks/useClearHomeTasks";
@@ -11,6 +12,9 @@ import {
 import TaskRow from "./TaskRow";
 
 export type TaskCanvasInfo = { name: string; cover: CanvasCover };
+
+/** Le temps de se raviser : assez pour lire la ligne, pas assez pour l'oublier. */
+const UNDO_WINDOW_MS = 6000;
 
 interface TaskListProps {
   /** Déjà triées (cf. `useHomePendingTasks`). */
@@ -32,11 +36,70 @@ interface TaskListProps {
  * réciproquement.
  */
 export default function TaskList({ tasks, canvases, limit }: TaskListProps) {
-  const clearTasks = useClearHomeTasks();
+  const { clearTasks, revertTasks } = useClearHomeTasks();
+
+  // Les tâches acquittées restent visibles quelques secondes en état
+  // « cleared » avec un bouton Undo inline — pas de toast. La mutation est
+  // immédiate : quitter la page ne les ramène pas.
+  const [recentlyCleared, setRecentlyCleared] = useState<HomePendingThread[]>(
+    [],
+  );
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  const dropCleared = useCallback((threadId: string) => {
+    timers.current.delete(threadId);
+    setRecentlyCleared((current) =>
+      current.filter((task) => task.threadId !== threadId),
+    );
+  }, []);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
+
+  const clear = useCallback(
+    (toClear: HomePendingThread[]) => {
+      const fresh = toClear.filter(
+        (task) => !timers.current.has(task.threadId),
+      );
+      if (fresh.length === 0) return;
+      clearTasks(fresh);
+      setRecentlyCleared((current) => [...fresh, ...current]);
+      for (const task of fresh) {
+        timers.current.set(
+          task.threadId,
+          setTimeout(() => dropCleared(task.threadId), UNDO_WINDOW_MS),
+        );
+      }
+    },
+    [clearTasks, dropCleared],
+  );
+
+  const revert = useCallback(
+    (threadId: string) => {
+      const timer = timers.current.get(threadId);
+      if (timer) clearTimeout(timer);
+      timers.current.delete(threadId);
+      // Retrait optimiste local : la query remettra la ligne d'elle-même via
+      // l'update optimiste du unmark, sans attendre le serveur.
+      setRecentlyCleared((current) =>
+        current.filter((task) => task.threadId !== threadId),
+      );
+      revertTasks([threadId]);
+    },
+    [revertTasks],
+  );
 
   const listed = tasks.filter((task) => canvases.has(task.canvasId));
   const visible = limit ? listed.slice(0, limit) : listed;
   const hidden = listed.length - visible.length;
+  const clearedVisible = recentlyCleared.filter((task) =>
+    canvases.has(task.canvasId),
+  );
 
   // Tout ce qui ne tourne plus. Pas les tours en cours, que le serveur refuse
   // d'accuser : les compter promettrait un effet qui n'aurait pas lieu.
@@ -61,7 +124,7 @@ export default function TaskList({ tasks, canvases, limit }: TaskListProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => clearTasks(clearable)}
+            onClick={() => clear(clearable)}
             className="gap-1.5 text-slate-600"
           >
             <TbChecks />
@@ -70,7 +133,7 @@ export default function TaskList({ tasks, canvases, limit }: TaskListProps) {
         )}
       </div>
 
-      {listed.length === 0 ? (
+      {listed.length === 0 && clearedVisible.length === 0 ? (
         <div className="flex items-center gap-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 px-4 py-4">
           <TbCircleCheck className="size-7 shrink-0 text-emerald-600" />
           <div className="flex flex-col">
@@ -91,8 +154,29 @@ export default function TaskList({ tasks, canvases, limit }: TaskListProps) {
               task={task}
               // `listed` ne garde que les tâches dont le canvas est connu.
               canvas={canvases.get(task.canvasId)!}
-              onClear={(cleared) => clearTasks([cleared])}
+              onClear={(cleared) => clear([cleared])}
             />
+          ))}
+          {clearedVisible.map((task) => (
+            <li
+              key={`cleared-${task.threadId}`}
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 py-2.5 pr-2.5 pl-3 opacity-70"
+              aria-live="polite"
+            >
+              <span className="truncate flex-1 text-sm text-slate-500 line-through">
+                {task.title || "Nolë"}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => revert(task.threadId)}
+                className="gap-1.5 bg-white"
+                aria-label={`Undo clear of ${task.title || "Nolë"}`}
+              >
+                <TbUndo />
+                Undo
+              </Button>
+            </li>
           ))}
         </ul>
       )}

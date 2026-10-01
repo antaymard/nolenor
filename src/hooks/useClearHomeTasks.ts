@@ -1,25 +1,23 @@
 import { useCallback } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
-import { showActionToast } from "@/components/ui/ActionToast";
 import { toastError } from "@/components/utils/errorUtils";
 
-/** Le temps de se raviser : assez pour lire le toast, pas assez pour l'oublier. */
-const UNDO_WINDOW_MS = 6000;
-
 /**
- * Accuse réception de tâches depuis la home, avec un « Undo ».
+ * Accuse réception de tâches depuis la home, avec un revert éphémère porté
+ * par la ligne elle-même (pas de toast).
  *
- * La ligne disparaît tout de suite (update optimiste sur la query de la home),
- * puis un toast propose de revenir en arrière. Clear depuis une liste, c'est
- * un geste rapide qu'on fait en série : un mauvais clic ne doit pas faire perdre
- * la trace d'un travail qu'on n'a pas lu.
+ * La mutation est immédiate ; c'est l'UI (`TaskList`) qui garde la ligne
+ * visible quelques secondes en état « acquittée » avec un bouton Undo.
+ * Quitter la page avant la fin du délai ne change rien : le serveur a déjà
+ * enregistré l'acquittement.
  *
  * Même effet que la croix du dock sur un canvas : la tâche en sort aussi.
  */
-export function useClearHomeTasks(): (
-  tasks: { threadId: string; title: string | null }[],
-) => void {
+export function useClearHomeTasks(): {
+  clearTasks: (tasks: { threadId: string; title: string | null }[]) => void;
+  revertTasks: (threadIds: string[]) => void;
+} {
   const markReviewed = useMutation(
     api.threads.markThreadReviewed,
   ).withOptimisticUpdate((store, { threadId }) => {
@@ -36,33 +34,39 @@ export function useClearHomeTasks(): (
       ),
     );
   });
-  const unmarkReviewed = useMutation(api.threads.unmarkThreadReviewed);
+  const unmarkReviewed = useMutation(
+    api.threads.unmarkThreadReviewed,
+  ).withOptimisticUpdate((store, { threadId }) => {
+    const current = store.getQuery(api.threads.listPendingThreadsForUser, {});
+    if (!current) return;
+    store.setQuery(
+      api.threads.listPendingThreadsForUser,
+      {},
+      current.map((task) =>
+        task.threadId === threadId ? { ...task, reviewedAt: null } : task,
+      ),
+    );
+  });
 
-  return useCallback(
+  const clearTasks = useCallback(
     (tasks) => {
       if (tasks.length === 0) return;
-
-      const ids = tasks.map((task) => task.threadId);
       void Promise.all(
-        ids.map((threadId) => markReviewed({ threadId })),
+        tasks.map((task) => markReviewed({ threadId: task.threadId })),
       ).catch((error) => toastError(error, "Could not clear this task."));
-
-      const label =
-        tasks.length === 1
-          ? `“${tasks[0].title || "Nolë"}” cleared`
-          : `${tasks.length} tasks cleared`;
-
-      showActionToast({
-        message: label,
-        actionLabel: "Undo",
-        onAction: () => {
-          void Promise.all(
-            ids.map((threadId) => unmarkReviewed({ threadId })),
-          ).catch((error) => toastError(error, "Could not undo."));
-        },
-        duration: UNDO_WINDOW_MS,
-      });
     },
-    [markReviewed, unmarkReviewed],
+    [markReviewed],
   );
+
+  const revertTasks = useCallback(
+    (threadIds: string[]) => {
+      if (threadIds.length === 0) return;
+      void Promise.all(
+        threadIds.map((threadId) => unmarkReviewed({ threadId })),
+      ).catch((error) => toastError(error, "Could not undo."));
+    },
+    [unmarkReviewed],
+  );
+
+  return { clearTasks, revertTasks };
 }

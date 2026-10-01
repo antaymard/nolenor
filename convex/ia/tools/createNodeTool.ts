@@ -30,6 +30,10 @@ import {
 import { absolutePositionsById } from "../../lib/nodeGeometry";
 import { FRAME_CONTENT_PADDING } from "../../config/nodeConfig";
 import { NODE_COLORS } from "../../config/colorsConfig";
+import {
+  measureTitleNode,
+  normalizeTitleLevel,
+} from "../../lib/titleNodeSizing";
 
 // Tool compaction config
 export const createNodeToolConfig: ToolConfig = {
@@ -313,6 +317,18 @@ export default function createNodeTool({
           });
           initialValues = titled.values;
           titleApplied = titled.titleApplied;
+
+          // Un title prend la taille de son texte, pas celle du type : le
+          // client ne remesure pas un node qu'il découvre déjà dimensionné.
+          if (input.nodeType === "title") {
+            defaultDimensions = measureTitleNode({
+              text:
+                typeof initialValues.text === "string"
+                  ? initialValues.text
+                  : "",
+              level: normalizeTitleLevel(initialValues.level),
+            });
+          }
         }
 
         // ── Placement ──

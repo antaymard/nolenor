@@ -10,6 +10,7 @@ import {
 } from "../config/trashConfig";
 import { generateLlmId } from "../lib/llmId";
 import { frameZIndexBelow } from "../lib/nodeLayering";
+import { measureTitleNode, normalizeTitleLevel } from "../lib/titleNodeSizing";
 import * as CanvasBookmarkModels from "./canvasBookmarkModels";
 import * as CanvasModels from "./canvasModels";
 import * as EdgeModels from "./edgeModels";
@@ -679,6 +680,40 @@ export async function patchNode(
   }
 
   return node.id;
+}
+
+/**
+ * Redimensionne les title nodes d'un nodeData à leur texte, après une écriture
+ * serveur (agent, MCP). Le client ne remesure qu'un texte qui change sous ses
+ * yeux : sans ça, un canvas fermé pendant l'écriture rouvrirait sur l'ancienne
+ * taille. En `manual`, la largeur reste celle de l'utilisateur et seule la
+ * hauteur suit.
+ */
+export async function fitTitleNodesToText(
+  ctx: MutationCtx,
+  { nodeDataId }: { nodeDataId: Id<"nodeDatas"> },
+): Promise<void> {
+  const nodeData = await ctx.db.get("nodeDatas", nodeDataId);
+  if (!nodeData || nodeData.type !== "title") return;
+
+  const text =
+    typeof nodeData.values?.text === "string" ? nodeData.values.text : "";
+  const level = normalizeTitleLevel(nodeData.values?.level);
+
+  const nodes = await ctx.db
+    .query("nodes")
+    .withIndex("by_nodeDataId", (q) => q.eq("nodeDataId", nodeDataId))
+    .take(50);
+  for (const node of nodes) {
+    const { width, height } = measureTitleNode({
+      text,
+      level,
+      sizingMode: node.data?.titleSizing === "manual" ? "manual" : "auto",
+      width: node.width,
+    });
+    if (width === node.width && height === node.height) continue;
+    await ctx.db.patch(node._id, { width, height });
+  }
 }
 
 export async function patchNodes(

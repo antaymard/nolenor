@@ -1,19 +1,19 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useReactFlow, useStoreApi, type Edge, type Node } from "@xyflow/react";
 import type {
-  ContextMenuState,
   ContextMenuType,
   ContextMenuHandlers,
 } from "@/types/ui/context-menu.types";
+import { useContextMenuStore } from "@/stores/contextMenuStore";
 
 export function useContextMenu() {
   const { getNodes, getEdges, setEdges, setNodes } = useReactFlow();
   const store = useStoreApi();
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
-    type: null,
-    position: { x: 0, y: 0 },
-    element: null,
-  });
+  // État partagé canvas ↔ windows : le clic droit sur le header d'une
+  // `WindowFrame` ouvre le même menu que sur le canvas, rendu une seule fois
+  // par `CanvasFlow` (position fixed).
+  const contextMenu = useContextMenuStore((s) => s.contextMenu);
+  const setContextMenu = useContextMenuStore((s) => s.setContextMenu);
 
   const handleContextMenu = useCallback(
     (
@@ -28,7 +28,7 @@ export function useContextMenu() {
         element,
       });
     },
-    [],
+    [setContextMenu],
   );
 
   // Aiguillage commun au clic droit sur un node et sur le cadre du lasso : le
@@ -125,7 +125,7 @@ export function useContextMenu() {
     ),
     closeContextMenu: useCallback(() => {
       setContextMenu({ type: null, position: { x: 0, y: 0 }, element: null });
-    }, []),
+    }, [setContextMenu]),
   };
 
   return {

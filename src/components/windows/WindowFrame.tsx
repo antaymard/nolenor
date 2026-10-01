@@ -33,6 +33,7 @@ import NodeWindowContent from "./NodeWindowContent";
 import { isPendingDocId } from "@/lib/pendingDocIds";
 import { WindowEditControl } from "./WindowEditControl";
 import { useNodeWindowIdentity } from "./useNodeWindowIdentity";
+import { useContextMenu } from "@/hooks/useContextMenu";
 import { useWindowFrameState } from "./useWindowFrameState";
 import { WindowFrameContext } from "./WindowFrameContext";
 import { WindowSidePanelTrigger } from "./side-panel/WindowSidePanelTrigger";
@@ -119,6 +120,7 @@ function WindowFrame({
   const addAttachments = useNoleStore((s) => s.addAttachments);
   const isAttachedToConversation = useIsNodeAttached(xyNodeId);
   const { getNode } = useReactFlow();
+  const { onNodeContextMenu } = useContextMenu();
   const goToNode = useGoToNode();
 
   const { title, NodeIcon } = useNodeWindowIdentity(nodeDataId);
@@ -347,6 +349,19 @@ function WindowFrame({
       toggleFullscreenWindow(xyNodeId);
     },
     [xyNodeId, toggleFullscreenWindow],
+  );
+
+  // Clic droit sur le header = mêmes actions que sur le node canvas : on
+  // route vers `onNodeContextMenu`, qui gère sélection exclusive et menu
+  // `node` / `selection`, rendu une seule fois par `CanvasFlow`.
+  const handleHeaderContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const node = getNode(xyNodeId);
+      if (!node) return;
+      bringWindowToFront(xyNodeId);
+      onNodeContextMenu(e, node);
+    },
+    [getNode, xyNodeId, bringWindowToFront, onNodeContextMenu],
   );
 
   const handleResizeMouseDown = useCallback(
@@ -673,6 +688,7 @@ function WindowFrame({
               )}
               onMouseDown={handleHeaderMouseDown}
               onDoubleClick={handleHeaderDoubleClick}
+              onContextMenu={handleHeaderContextMenu}
               title={title}
             >
               {NodeIcon ? (

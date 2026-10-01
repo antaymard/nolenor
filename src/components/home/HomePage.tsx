@@ -77,17 +77,17 @@ export default function HomePage() {
               l'accueille, et on lui montre quand même ce qui l'attend. */}
           {hasNoOwnCanvas && <WelcomeBlock />}
 
-          {/* Section masquée quand il n'y a rien : la sidebar compte déjà les
-              tâches, et un « tout est fait » permanent en tête de page
-              repousserait les canvas pour ne rien dire. L'Inbox, elle,
-              l'affiche. */}
-          {visibleTaskCount > 0 && (
-            <TaskList
-              tasks={pending.tasks}
-              canvases={taskCanvases}
-              limit={HOME_TASKS_LIMIT}
-            />
-          )}
+          {/* Sur la home, pas de « tout est fait » permanent : la sidebar compte
+              déjà les tâches. `hideWhenEmpty` retourne null quand il n'y a
+              rien — mais la section reste montée tant qu'un revert est
+              possible, sinon acquitter la dernière ferait disparaître son
+              Undo. L'Inbox, elle, affiche l'état vide. */}
+          <TaskList
+            tasks={pending.tasks}
+            canvases={taskCanvases}
+            limit={HOME_TASKS_LIMIT}
+            hideWhenEmpty
+          />
 
           <WorkspaceGrid
             ownCanvases={ownCanvases}

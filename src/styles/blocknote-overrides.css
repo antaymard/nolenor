@@ -35,7 +35,7 @@
  * keeping its proportions — shrinking h1 alone would have collided with h2.
  * This also retires Plate's h5 quirk, where it was expressed in `rem`
  * and ended up marginally larger than h4. Resulting sizes on a 15px base:
- * 24 / 20.3 / 17.7 / 16.2 / 15.3 / 15 px.
+ * 24 / 20.3 / 17.7 / 15.9 / 15.3 / 15 px.
  * ------------------------------------------------------------------------- */
 :root {
   /* Kept unitless so the same number can drive both a font-size (`* 1em`) and
@@ -43,7 +43,7 @@
   --doc-h1-scale: 1.6;
   --doc-h2-scale: 1.35;
   --doc-h3-scale: 1.18;
-  --doc-h4-scale: 1.08;
+  --doc-h4-scale: 1.06;
   --doc-h5-scale: 1.02;
   --doc-h6-scale: 1;
 

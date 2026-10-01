@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { TbArrowRight, TbChecks, TbCircleCheck, TbUndo } from "react-icons/tb";
+import {
+  TbArrowRight,
+  TbChecks,
+  TbCircleCheck,
+  TbArrowBackUp,
+} from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import { useClearHomeTasks } from "@/hooks/useClearHomeTasks";
@@ -24,6 +29,9 @@ interface TaskListProps {
   canvases: ReadonlyMap<Id<"canvases">, TaskCanvasInfo>;
   /** Au-delà, la home renvoie vers l'Inbox plutôt que de devenir une liste. */
   limit?: number;
+  /** Sur la home, rien à afficher = rien du tout (pas de « tout est fait ») —
+   *  mais la section doit rester montée tant qu'un revert est possible. */
+  hideWhenEmpty?: boolean;
 }
 
 /**
@@ -35,7 +43,12 @@ interface TaskListProps {
  * (`isPendingReview`), donc écarter ici la retire aussi du dock, et
  * réciproquement.
  */
-export default function TaskList({ tasks, canvases, limit }: TaskListProps) {
+export default function TaskList({
+  tasks,
+  canvases,
+  limit,
+  hideWhenEmpty = false,
+}: TaskListProps) {
   const { clearTasks, revertTasks } = useClearHomeTasks();
 
   // Les tâches acquittées restent visibles quelques secondes en état
@@ -108,6 +121,12 @@ export default function TaskList({ tasks, canvases, limit }: TaskListProps) {
     (task) => resolveRunStatus(task, now) !== "running",
   );
 
+  // Sur la home, la section reste montée tant qu'un revert est possible :
+  // acquitter la dernière tâche ne doit pas faire disparaître son Undo.
+  if (hideWhenEmpty && listed.length === 0 && clearedVisible.length === 0) {
+    return null;
+  }
+
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -141,8 +160,8 @@ export default function TaskList({ tasks, canvases, limit }: TaskListProps) {
               You're all caught up
             </span>
             <span className="text-xs text-slate-500">
-              When Nolë finishes something, it lands here until you've looked
-              at it.
+              When Nolë finishes something, it lands here until you've looked at
+              it.
             </span>
           </div>
         </div>
@@ -173,7 +192,7 @@ export default function TaskList({ tasks, canvases, limit }: TaskListProps) {
                 className="gap-1.5 bg-white"
                 aria-label={`Undo clear of ${task.title || "Nolë"}`}
               >
-                <TbUndo />
+                <TbArrowBackUp />
                 Undo
               </Button>
             </li>

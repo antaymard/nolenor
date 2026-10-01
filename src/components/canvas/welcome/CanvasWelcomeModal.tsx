@@ -9,10 +9,12 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Kbd, KbdGroup } from "@/components/shadcn/kbd";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useIsTouchFirst } from "@/hooks/useTabletMode";
 import { hasSeenWelcome, markWelcomeSeen } from "@/lib/welcomeStorage";
 import {
   ContextMenuIllustration,
+  DesktopFirstIllustration,
   NavigationIllustration,
   OpenNodeIllustration,
 } from "./WelcomeIllustrations";
@@ -144,6 +146,24 @@ function touchSteps(): Step[] {
   ];
 }
 
+/**
+ * L'étape 0 de l'interface mobile : dire d'emblée que Nolënor se pense sur
+ * ordinateur, et que le téléphone en est la vue compagnon. Sans ça, un premier
+ * contact sur mobile jugeait l'app sur sa version la plus réduite.
+ */
+const DESKTOP_FIRST_STEP: Step = {
+  key: "desktop-first",
+  illustration: <DesktopFirstIllustration />,
+  title: "Best on a computer",
+  body: (
+    <>
+      Nolënor is designed for a <strong>large screen</strong>. On your phone,
+      this is the companion view: browse your canvases, review your nodes and
+      ask Nolë on the go. For the full experience, open Nolënor on a computer.
+    </>
+  ),
+};
+
 export default function CanvasWelcomeModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
@@ -153,6 +173,9 @@ export default function CanvasWelcomeModal() {
   // là où `useIsTouchDevice` démarre à `false` puis bascule — ce qui ferait
   // clignoter la copy sous les yeux de l'utilisateur.
   const isTouchFirst = useIsTouchFirst();
+  // L'interface mobile (et non le simple tactile : une tablette a l'interface
+  // complète) — même signal que la route canvas pour choisir `MobileCanvas`.
+  const isMobile = useIsMobile();
 
   // Lu au montage et pas au rendu : `hasSeenWelcome` touche au `localStorage`,
   // qui n'a rien à faire dans le chemin de rendu.
@@ -165,7 +188,8 @@ export default function CanvasWelcomeModal() {
     setIsOpen(false);
   };
 
-  const steps = isTouchFirst ? touchSteps() : pointerSteps();
+  const gestureSteps = isTouchFirst ? touchSteps() : pointerSteps();
+  const steps = isMobile ? [DESKTOP_FIRST_STEP, ...gestureSteps] : gestureSteps;
   const current = steps[Math.min(stepIndex, steps.length - 1)];
   const isLast = stepIndex >= steps.length - 1;
 
@@ -187,7 +211,9 @@ export default function CanvasWelcomeModal() {
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="text-xl font-bold tracking-tight">Welcome to Nolënor</DialogTitle>
           <DialogDescription>
-            Three gestures to get you moving. You'll pick up the rest as you go.
+            {isMobile
+              ? "A few things to know before you start."
+              : "Three gestures to get you moving. You'll pick up the rest as you go."}
           </DialogDescription>
         </DialogHeader>
 

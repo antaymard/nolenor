@@ -584,6 +584,15 @@ button,
   z-index: 1001 !important;
 }
 
+/* Calque des titres de frame (cf. `FrameTitleLayer`) : au-dessus de tous les
+   nodes, dont les z-index sont des rangs denses 0..n-1 (cf. nodeLayering), et
+   toujours sous la toolbar des nodes, qui vit hors du viewport. Transparent au
+   pointeur : seuls les titres eux-mêmes le réactivent. */
+.react-flow__viewport-portal {
+  z-index: 100000;
+  pointer-events: none;
+}
+
 /* Les handles de `NodeHandles` (9×9, cf. le composant) se centrent sur le bord
    du node par des marges négatives au lieu du `transform: translate(±50%)` de
    React Flow. Même boîte, même position, même zone cliquable — mais plus de
@@ -603,6 +612,26 @@ button,
 }
 .react-flow__handle.canvas-handle.react-flow__handle-bottom {
   margin: 0 0 -4.5px -4.5px;
+}
+
+/* Poignées de resize au doigt : 8px à l'écran (moins une fois dézoomé), c'est
+   trop petit pour être attrapé. La zone de toucher s'étend par un
+   pseudo-élément transparent — il fait partie de la poignée, donc c'est bien
+   elle qui reçoit le geste —, le visuel ne change pas. */
+@media (pointer: coarse) {
+  .react-flow__resize-control.handle::after,
+  .react-flow__resize-control.line::after {
+    content: "";
+    position: absolute;
+  }
+  .react-flow__resize-control.handle::after {
+    inset: -14px;
+  }
+  /* Plus étroit : la bande déborde aussi vers l'intérieur du node, et ne doit
+     pas manger le contenu. Les coins, rendus après, restent prioritaires. */
+  .react-flow__resize-control.line::after {
+    inset: -8px;
+  }
 }
 
 /* Zones défilantes des nodes (corps des documents, tables) : elles ne défilent

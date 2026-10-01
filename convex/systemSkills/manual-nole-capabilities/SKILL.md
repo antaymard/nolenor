@@ -11,7 +11,7 @@ Nolë is a copilot that works **on the open canvas through real tools**: it crea
 ## What Nolë can do
 - **Explore**: list, read and search the blocks of the open canvas (documents, tables, values, links, PDF text including scans, transcripts of audio/video you transcribed, image content). It understands the canvas layout: nearby blocks count as related, frames and titles as sections.
 - **Research**: search the web and read web pages, then file the results in blocks with sources.
-- **Create blocks**: Title, Link, Image (from web pictures), Document, Value, Table (with typed columns), App, and frames around existing blocks. It can place blocks next to others, connect them with labelled connections, and put new blocks inside a frame.
+- **Create blocks**: Title, Link, Image (from web pictures), Document, Value, Table (with typed columns), App, and frames around existing blocks. It can place blocks next to others, connect them (without labels — double-click a connection to name it yourself), and put new blocks inside a frame.
 - **Edit blocks**: rewrite or patch a document block by block, insert/update/delete table rows, change a table's columns, set values, rename, update an App's code, set an audio loop.
 - **Apps**: describe a dashboard, calculator, timer or prototype and it writes a working **App** block that reads the blocks connected to it.
 - **Images**: it can write or improve the **generation prompt** of an Image block (and suggest reference images) but **you press Generate**.

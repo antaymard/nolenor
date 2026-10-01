@@ -57,6 +57,14 @@ function NodeFrame({
   const nodeColor = colors[xyNode.data.color || "default"];
   const isTransparent = xyNode.data.color === "transparent";
   const [isResizing, setIsResizing] = useState(false);
+  // Stables, et c'est ce qui rend le resize possible au doigt : `ResizeControl`
+  // (@xyflow/react) recrée son drag d3 dès qu'un de ses callbacks change, ce
+  // qui rebranche les listeners sur la poignée. À la souris ça passe (d3 écoute
+  // `mousemove` sur window), mais au toucher `touchmove` est écouté sur la
+  // poignée elle-même : le nouveau drag n'y connaît pas le doigt en cours, et
+  // le geste s'arrêtait au premier rerender — un tick de resize, puis plus rien.
+  const handleResizeStart = useCallback(() => setIsResizing(true), []);
+  const handleResizeEnd = useCallback(() => setIsResizing(false), []);
   const canDrag = true;
   const openWindow = useWindowsStore((state) => state.openWindow);
   const isAttachedToNole = useIsNodeAttached(xyNode.id);
@@ -179,8 +187,8 @@ function NodeFrame({
         isVisible={resizable && xyNode?.selected}
         minWidth={minWidth}
         minHeight={minHeight}
-        onResizeStart={() => setIsResizing(true)}
-        onResizeEnd={() => setIsResizing(false)}
+        onResizeStart={handleResizeStart}
+        onResizeEnd={handleResizeEnd}
         lineStyle={{
           borderWidth: 2,
         }}

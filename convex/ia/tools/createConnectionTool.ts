@@ -2,13 +2,7 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../_generated/api";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
-import {
-  EDGE_LABEL_FIELD,
-  EXPLANATION_FIELD,
-  getEdgeLabel,
-  type ToolConfig,
-  toolError,
-} from "./toolHelpers";
+import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 // Tool compaction config
 export const createConnectionToolConfig: ToolConfig = {
@@ -29,8 +23,7 @@ export default function createConnectionTool({
 
   return createTool({
     description:
-      "Create a directed connection between two existing nodes, optionally with a label naming the relation. " +
-      'If the connection already exists, passing `label` updates its label instead ("" removes it).',
+      "Create a directed connection between two existing nodes.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       sourceNodeId: z
@@ -39,13 +32,10 @@ export default function createConnectionTool({
       targetNodeId: z
         .string()
         .describe("Target node ID in the current canvas."),
-      label: EDGE_LABEL_FIELD.optional(),
     }),
     execute: async (ctx, input) => {
       try {
         const { sourceNodeId, targetNodeId } = input;
-        // `undefined` : pas de label demandé. `""` : effacer le label.
-        const label = input.label?.trim();
 
         if (sourceNodeId === targetNodeId) {
           return toolError("sourceNodeId and targetNodeId must be different.");
@@ -73,33 +63,9 @@ export default function createConnectionTool({
             edge.source === sourceNodeId && edge.target === targetNodeId,
         );
         if (existingEdge) {
-          if (label === undefined) {
-            return toolError(
-              `A connection from ${sourceNodeId} to ${targetNodeId} already exists. Pass \`label\` to change its label.`,
-            );
-          }
-
-          // Upsert du label : c'est le seul moyen pour l'agent de modifier
-          // une edge existante sans en connaître l'id. `null` pour effacer,
-          // comme l'éditeur inline du canvas.
-          await ctx.runMutation(internal.wrappers.edgeWrappers.patch, {
-            updates: [
-              {
-                edgeId: existingEdge.id,
-                data: { label: label === "" ? null : label },
-              },
-            ],
-          });
-
-          return {
-            success: true,
-            updated: true,
-            edgeId: existingEdge.id,
-            sourceNodeId,
-            targetNodeId,
-            previousLabel: getEdgeLabel(existingEdge),
-            label: label === "" ? null : label,
-          };
+          return toolError(
+            `A connection from ${sourceNodeId} to ${targetNodeId} already exists (edge ${existingEdge.id}).`,
+          );
         }
 
         // L'inverse se superposerait à l'existante (mêmes handles, cf.
@@ -125,7 +91,6 @@ export default function createConnectionTool({
                 canvasId,
                 source: sourceNodeId,
                 target: targetNodeId,
-                ...(label && { data: { label } }),
               },
             ],
           },
@@ -133,11 +98,9 @@ export default function createConnectionTool({
 
         return {
           success: true,
-          updated: false,
           edgeId,
           sourceNodeId,
           targetNodeId,
-          label: label || null,
         };
       } catch (error) {
         return toolError(

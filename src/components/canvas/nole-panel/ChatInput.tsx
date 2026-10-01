@@ -6,7 +6,6 @@ import { AttachmentRow } from "./chat-input/AttachmentChips";
 import ComposerShell from "./chat-input/ComposerShell";
 import ModelSelect from "./chat-input/ModelSelect";
 import SendStopButton from "./chat-input/SendStopButton";
-import VoiceProviderSelect from "./chat-input/VoiceProviderSelect";
 import { Kbd } from "@/components/shadcn/kbd";
 import { useHasUserInput } from "@/stores/noleStore";
 import {
@@ -16,7 +15,6 @@ import {
 } from "@/components/shadcn/tooltip";
 import type { CanvasNode } from "@/types";
 import type { ChatModelOption, ChatModelValues } from "@/types/convex";
-import { Button } from "@/components/shadcn/button";
 
 /** Le champ s'ouvre sur une ligne et grandit jusqu'à dix, puis scrolle. */
 const INPUT_MIN_ROWS = 1;
@@ -108,22 +106,13 @@ export default function ChatInput({
               setSelectedModel={setSelectedModel}
               disabled={isSending || isAssistantResponding}
             />
-            <VoiceProviderSelect disabled={sttBusy}>
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                disabled={sttBusy}
-                title="Dictation engine"
-                className="text-slate-500"
-              >
-                <MicStatus
-                  isRecording={isRecording}
-                  isTranscribing={isTranscribing}
-                  level={micLevel}
-                />
-              </Button>
-            </VoiceProviderSelect>
+            <span className="px-2.5" title="Hold Alt + Ctrl to dictate">
+              <MicStatus
+                isRecording={isRecording}
+                isTranscribing={isTranscribing}
+                level={micLevel}
+              />
+            </span>
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">

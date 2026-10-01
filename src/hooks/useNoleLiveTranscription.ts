@@ -6,7 +6,6 @@ import {
   type UseLiveTranscription,
   type UseLiveTranscriptionOptions,
 } from "./useLiveTranscription";
-import { useNoleStore } from "@/stores/noleStore";
 
 /**
  * Langues candidates de la dictée. L'app est en français mais les termes
@@ -50,8 +49,8 @@ export interface UseNoleLiveTranscription extends UseLiveTranscription {
 /**
  * Variante "app" de `useLiveTranscription` : récupère l'URL + le token du
  * voice-server depuis Convex (`api.voice.realtimeConfig`), de sorte que le token
- * ne soit jamais embarqué dans le bundle front, et applique les réglages du
- * moteur choisi dans le store Nolë (sélecteur du composer). Le flux audio
+ * ne soit jamais embarqué dans le bundle front, et applique les réglages de
+ * Gladia, seul moteur proposé. Le flux audio
  * temps réel part ensuite en direct du navigateur vers le voice-server
  * (WebSocket).
  *
@@ -71,10 +70,6 @@ export function useNoleLiveTranscription(
   > = {},
 ): UseNoleLiveTranscription {
   const config = useQuery(api.voice.realtimeConfig);
-  // Lu au render : `useLiveTranscription` ne consulte le moteur qu'à
-  // l'ouverture de la session, et le sélecteur est désactivé pendant la dictée.
-  const provider = useNoleStore((state) => state.voiceProvider);
-
   const live = useLiveTranscription({
     // Réglages du moteur d'abord : les options du caller restent prioritaires.
     languages: LANGUAGES,
@@ -82,7 +77,9 @@ export function useNoleLiveTranscription(
     vocabulary: VOCABULARY,
     endpointing: ENDPOINTING_S,
     ...options,
-    provider,
+    // Gladia seul : le choix du moteur a été retiré de l'UI (vocabulaire
+    // métier, fr/en). Mistral reste supporté par `useLiveTranscription`.
+    provider: "gladia",
     serverUrl: config?.url ?? null,
     token: config?.token ?? null,
   });

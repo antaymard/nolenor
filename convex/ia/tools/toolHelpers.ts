@@ -65,16 +65,7 @@ export const EXPLANATION_FIELD = z
 // Le label vit dans `edge.data.label`, comme l'écrit l'éditeur inline du
 // canvas (`CustomEdge`). Effacé côté UI, il est patché à `null` — la fusion
 // shallow de `patchEdge` le laisse en base : on le lit donc comme « absent ».
-
-/** Même limite que l'éditeur inline du canvas (`EdgeLabelEditor`). */
-export const EDGE_LABEL_MAX_LENGTH = 80;
-
-export const EDGE_LABEL_FIELD = z
-  .string()
-  .max(EDGE_LABEL_MAX_LENGTH)
-  .describe(
-    `Short text displayed on the edge, naming the relation from source to target (1–5 words, max ${EDGE_LABEL_MAX_LENGTH} chars, in the user's language). E.g. "depends on", "contradicts", "step 2".`,
-  );
+// L'agent les lit, mais n'en écrit plus (cf. `create_connection`).
 
 /** Le label d'une edge, `null` s'il est absent, effacé ou vide. */
 export function getEdgeLabel(edge: {

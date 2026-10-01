@@ -54,6 +54,7 @@ type ContextNodeRef = {
 
 type StructuredMessageContext = {
   generatedAt?: string;
+  device?: string;
   localDate?: string;
   timeZone?: string;
   viewport?: {
@@ -69,6 +70,14 @@ type StructuredMessageContext = {
 function formatStructuredMessageContext(
   context: StructuredMessageContext,
 ): string {
+  // Envoyé par le client depuis l'ajout de l'accompagnement des nouveaux
+  // utilisateurs : absent des messages plus anciens, et validé par personne
+  // (`v.any()`), d'où la liste fermée.
+  const deviceTag =
+    context.device === "mobile" || context.device === "desktop"
+      ? `<device>${context.device}</device>`
+      : "";
+
   let viewportTag = "";
   const viewport = context.viewport;
   if (viewport?.bounds) {
@@ -116,6 +125,7 @@ function formatStructuredMessageContext(
   // Assemblage final via un template literal explicite
   const blocks = [
     "Note: Coordinates are provided as [top-left -> bottom-right], e.g., [100, 200 -> 300, 400].",
+    deviceTag,
     viewportTag,
     openNodesSection,
     attachedPosTag,

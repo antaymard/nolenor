@@ -12,6 +12,8 @@ import {
   ResizeControlVariant,
   useReactFlow,
   useStore,
+  ViewportPortal,
+  type ReactFlowState,
 } from "@xyflow/react";
 import { LuHeading1, LuHeading2, LuHeading3 } from "react-icons/lu";
 import { areNodePropsEqual } from "../areNodePropsEqual";
@@ -343,30 +345,36 @@ function FrameNode(xyNode: XyNodeProps) {
           mange pas la surface utile, et le contenu de la frame ne passe jamais
           sous elle. D'où l'origine de transformation en bas à gauche — le titre
           grandit vers le haut et la droite, en restant collé au coin de la
-          frame. */}
-      <div
-        className="absolute bottom-full left-0 mb-1 flex max-w-full cursor-grab items-center gap-1 active:cursor-grabbing"
-        style={{ scale: String(titleScale), transformOrigin: "bottom left" }}
-        title={title || undefined}
-      >
-        {/* `nodrag` : sans ça, le pointerdown qui ouvre l'édition du titre
-            démarrerait un déplacement de la frame, puisque tout le corps drague
-            désormais. C'est la classe que React Flow exclut de son drag (cf.
-            `noDragClassName`), la même que portent ses `<Handle>`. */}
-        <InlineEditableText
-          value={title}
-          onSave={rename}
-          startInEditMode={startInEditMode}
-          singleLine
-          placeholder="Untitled frame"
-          className={cn(
-            "nodrag max-w-[40ch] truncate rounded px-1 leading-tight",
-            TITLE_LEVEL_CLASSNAMES[level],
-            nodeColor.textColor,
-          )}
-          inputClassName={TITLE_LEVEL_CLASSNAMES[level]}
-        />
-      </div>
+          frame.
+
+          Rendu hors du node, dans le calque du viewport au-dessus de tous les
+          nodes (cf. `FrameTitleLayer`) : posé dans la frame, il héritait de
+          son plan, et tout node qui débordait sur la bande au-dessus d'elle
+          le recouvrait. */}
+      <FrameTitleLayer nodeId={xyNode.id}>
+        <div
+          className="pointer-events-auto absolute bottom-full left-0 mb-1 flex max-w-full items-center gap-1"
+          style={{ scale: String(titleScale), transformOrigin: "bottom left" }}
+          title={title || undefined}
+        >
+          {/* `nodrag nopan` : le titre ne déplace ni la frame ni le canvas,
+              comme quand il vivait dans le node (où `nodrag` empêchait que le
+              pointerdown qui ouvre l'édition démarre un drag). */}
+          <InlineEditableText
+            value={title}
+            onSave={rename}
+            startInEditMode={startInEditMode}
+            singleLine
+            placeholder="Untitled frame"
+            className={cn(
+              "nodrag nopan max-w-[40ch] truncate rounded px-1 leading-tight",
+              TITLE_LEVEL_CLASSNAMES[level],
+              nodeColor.textColor,
+            )}
+            inputClassName={TITLE_LEVEL_CLASSNAMES[level]}
+          />
+        </div>
+      </FrameTitleLayer>
 
       <div
         className={cn(
@@ -401,6 +409,57 @@ function FrameNode(xyNode: XyNodeProps) {
         {isBookmarked && <BookmarkedBadge />}
       </div>
     </>
+  );
+}
+
+type TitleAnchor = { x: number; y: number; width: number | undefined };
+
+function sameAnchor(a?: TitleAnchor, b?: TitleAnchor) {
+  return a?.x === b?.x && a?.y === b?.y && a?.width === b?.width;
+}
+
+/**
+ * Le calque des titres de frame : `ViewportPortal` rend dans
+ * `.react-flow__viewport-portal`, frère des nodes, placé au-dessus d'eux
+ * (cf. index.css). Le titre y reste donc lisible quel que soit le plan de sa
+ * frame.
+ *
+ * Le portail est React : les événements du titre remontent quand même au
+ * wrapper du node — clic (sélection, alt-clic vers Nolë), double-clic, menu
+ * contextuel. Seul le drag natif (d3) de React Flow ne le voit pas.
+ *
+ * Abonné seul à la position absolue de la frame (et à sa largeur, qui borne
+ * celle du titre) : `areNodePropsEqual` ignore
+ * la position, et c'est voulu — la frame ne re-rend pas à chaque pixel d'un
+ * drag, seul ce petit conteneur le fait.
+ */
+function FrameTitleLayer({
+  nodeId,
+  children,
+}: {
+  nodeId: string;
+  children: ReactNode;
+}) {
+  const anchor = useStore((state: ReactFlowState): TitleAnchor | undefined => {
+    const node = state.nodeLookup.get(nodeId);
+    if (!node) return undefined;
+    const { x, y } = node.internals.positionAbsolute;
+    return { x, y, width: node.measured.width ?? node.width };
+  }, sameAnchor);
+  if (!anchor) return null;
+
+  return (
+    <ViewportPortal>
+      <div
+        className="absolute top-0 left-0"
+        style={{
+          transform: `translate(${anchor.x}px, ${anchor.y}px)`,
+          width: anchor.width,
+        }}
+      >
+        {children}
+      </div>
+    </ViewportPortal>
   );
 }
 

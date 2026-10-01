@@ -3,6 +3,9 @@ import { isNodeTypeReadableByAgent } from "@/../convex/config/nodeConfig";
 import { absolutePositionsById } from "@/../convex/lib/nodeGeometry";
 import { toIsoDateString } from "@/../convex/lib/datePill";
 
+/** Le seuil de `useIsMobile` (hooks/use-mobile.ts). */
+const MOBILE_BREAKPOINT = 768;
+
 type ViewportState = {
   x: number;
   y: number;
@@ -44,6 +47,12 @@ export type MessageContextNodeSummary = {
 
 export type MessageContextPayload = {
   generatedAt: string;
+  /**
+   * L'interface que l'utilisateur a sous les yeux, pour que Nolë donne les
+   * bons gestes (double-clic ou double-tap…). Même seuil que le choix de
+   * l'interface mobile (`useIsMobile`, route canvas).
+   */
+  device: "mobile" | "desktop";
   localDate: string;
   timeZone: string;
   openNodes: MessageContextNodeSummary[];
@@ -206,6 +215,7 @@ export function generateMessageContext({
 
   return {
     generatedAt: formatTimeNaturalLanguage(time),
+    device: viewportWidth < MOBILE_BREAKPOINT ? "mobile" : "desktop",
     // La même instant que `generatedAt`, mais dans la forme que l'agent
     // recopie sans la reformater : celle d'un token `[[date:YYYY-MM-DD]]`.
     // Prise sur l'horloge du CLIENT — le serveur Convex tourne en UTC, et une

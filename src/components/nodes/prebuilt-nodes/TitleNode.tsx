@@ -257,10 +257,18 @@ function TitleNode(xyNode: XyNodeProps) {
   );
 
   // ── Resize detection ────────────────────────────────────────────────────
-  const handleResizeStart = useCallback(() => {
-    initialResizeWidthRef.current = xyNode.width ?? 0;
-    setIsResizing(true);
+  // La largeur passe par une ref plutôt que par les dépendances : elle change
+  // à chaque pixel du resize, et un `onResizeStart` recréé fait rebrancher son
+  // drag à `NodeResizeControl` — ce qui coupe le geste au doigt (cf.
+  // `NodeFrame`).
+  const widthRef = useRef(xyNode.width);
+  useEffect(() => {
+    widthRef.current = xyNode.width;
   }, [xyNode.width]);
+  const handleResizeStart = useCallback(() => {
+    initialResizeWidthRef.current = widthRef.current ?? 0;
+    setIsResizing(true);
+  }, []);
 
   const handleResizeEnd = useCallback(
     (

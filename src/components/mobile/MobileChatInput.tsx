@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { TbCloudExclamation, TbMicrophone, TbWaveSine } from "react-icons/tb";
+import { TbCloudExclamation, TbMicrophone } from "react-icons/tb";
 import { ThinkingOrb } from "thinking-orbs";
 import toast from "react-hot-toast";
 import { Button } from "@/components/shadcn/button";
@@ -13,7 +13,6 @@ import SoundWaveAnimation from "@/components/canvas/nole-panel/SoundWaveAnimatio
 import { AttachmentRow } from "@/components/canvas/nole-panel/chat-input/AttachmentChips";
 import ComposerShell from "@/components/canvas/nole-panel/chat-input/ComposerShell";
 import ModelSelect from "@/components/canvas/nole-panel/chat-input/ModelSelect";
-import VoiceProviderSelect from "@/components/canvas/nole-panel/chat-input/VoiceProviderSelect";
 import SendStopButton from "@/components/canvas/nole-panel/chat-input/SendStopButton";
 import { cn } from "@/lib/utils";
 import { useHasUserInput } from "@/stores/noleStore";
@@ -83,6 +82,7 @@ export default function MobileChatInput() {
           attachedPosition={attachedPosition}
           addAttachments={addAttachments}
           removeAttachments={removeAttachments}
+          emptyHint="Hold the mic button and speak to dictate"
         />
 
         <div className="px-3 pt-2.5">
@@ -102,17 +102,6 @@ export default function MobileChatInput() {
               setSelectedModel={setSelectedModel}
               disabled={isSending || isAssistantResponding}
             />
-            <VoiceProviderSelect disabled={sttBusy}>
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={sttBusy}
-                title="Dictation engine"
-                className="size-9 rounded-full text-slate-500"
-              >
-                <TbWaveSine size={16} />
-              </Button>
-            </VoiceProviderSelect>
             <Button
               type="button"
               variant="ghost"
@@ -128,7 +117,8 @@ export default function MobileChatInput() {
               onPointerUp={mic.onPointerUp}
               onPointerCancel={mic.onPointerUp}
               onPointerLeave={mic.onPointerUp}
-              aria-label="Maintenir pour dicter"
+              aria-label="Hold to dictate"
+              title="Hold to dictate"
             >
               {isTranscribing ? (
                 <ThinkingOrb state="listening" size={20} />

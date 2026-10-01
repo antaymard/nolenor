@@ -35,6 +35,10 @@ export async function listAvailableForUser(
     merged.push({ name: skill.name, description: skill.description });
   }
   for (const skill of SYSTEM_SKILLS) {
+    // Un skill masqué ne figure pas dans <available_skills> : il se charge par
+    // son nom exact, que lui donne le skill listé qui y renvoie
+    // (cf. `findByNameForUser`, qui ne filtre pas).
+    if (skill.hidden) continue;
     if (seen.has(skill.name)) continue;
     seen.add(skill.name);
     merged.push({ name: skill.name, description: skill.description });

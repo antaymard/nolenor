@@ -186,7 +186,7 @@ ${canvasMemoryContext}
 </memory_context>
 
 <available_skills>
-<hint>Skills are reusable prompt modules you can activate when they match the user's request. Use the load_skill tool with the exact name below to read a skill's full content before following its instructions. Once loaded, a skill's body may reference attachments (scripts, reference docs) by name — call load_skill again with that exact attachment name to fetch its content on demand.</hint>
+<hint>Skills are reusable prompt modules you can activate when they match the user's request. Use the load_skill tool with the exact name below to read a skill's full content before following its instructions. Once loaded, a skill's body may reference attachments (scripts, reference docs) or other skills by name — call load_skill again with that exact name to fetch its content on demand.</hint>
 ${availableSkillsContext}
 </available_skills>
 `;

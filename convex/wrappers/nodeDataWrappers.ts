@@ -13,6 +13,7 @@ import {
 } from "../schemas/threadMetadataSchema";
 
 import * as NodeDataModels from "../models/nodeDataModels";
+import * as NodeModels from "../models/nodeModels";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
   type BlockNoteBlock,
@@ -103,6 +104,9 @@ export const updateValues = internalMutation({
   returns: v.boolean(),
   handler: async (ctx, args) => {
     const updated = await NodeDataModels.updateValues(ctx, args);
+    if ("text" in args.values || "level" in args.values) {
+      await NodeModels.fitTitleNodesToText(ctx, { nodeDataId: args._id });
+    }
     await trackAgentTouch(ctx, {
       actor: args.actor,
       nodeDataId: args._id,

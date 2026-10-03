@@ -49,7 +49,7 @@ export function useClearHomeTasks(): {
   });
 
   const clearTasks = useCallback(
-    (tasks) => {
+    (tasks: { threadId: string; title: string | null }[]) => {
       if (tasks.length === 0) return;
       void Promise.all(
         tasks.map((task) => markReviewed({ threadId: task.threadId })),

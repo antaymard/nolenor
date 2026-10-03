@@ -230,6 +230,14 @@ export function useTitleNodeSizing({
       // after the canvas dims have rendered would re-measure against the
       // pre-hydration empty placeholder and persist a wrong size, then
       // re-measure once the real text arrives and persist again.
+      //
+      // Title nodes written by the agent are sized server-side from frozen
+      // font metrics (convex/lib/titleNodeSizing.ts): exact heights, widths
+      // 0–4px too wide, so trusting them here is fine. If that ever needs to
+      // be pixel-exact: have the server flag the node (e.g.
+      // `data.titleSizedBy: "server"`), measure here instead of trusting when
+      // the flag is set in auto mode, then persist and clear the flag. Await
+      // `document.fonts.ready` first, or the ghost measures the fallback font.
       lastMeasuredRef.current = {
         text: effectiveText,
         level,

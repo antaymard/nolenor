@@ -30,6 +30,11 @@ import {
 import { absolutePositionsById } from "../../lib/nodeGeometry";
 import { FRAME_CONTENT_PADDING } from "../../config/nodeConfig";
 import { NODE_COLORS } from "../../config/colorsConfig";
+import {
+  measureTitleNode,
+  normalizeTitleLevel,
+} from "../../lib/titleNodeSizing";
+import { parseTitleHeading } from "../../lib/titleHeading";
 
 // Tool compaction config
 export const createNodeToolConfig: ToolConfig = {
@@ -131,10 +136,14 @@ async function applyNodeDataTitle({
     }
 
     case "title": {
+      // « # Titre » → h1, « ## » → h2, « ### » → h3, sans préfixe → p : le
+      // même raccourci que la saisie dans le node.
+      const heading = parseTitleHeading(title);
       return {
         values: {
           ...defaultValues,
-          text: title,
+          text: heading?.text ?? title,
+          ...(heading && { level: heading.level }),
         },
         titleApplied: true,
       };
@@ -209,7 +218,7 @@ export default function createNodeTool({
         .string()
         .optional()
         .describe(
-          "Optional node data title. Applied to title-like fields depending on node type.",
+          'Optional node data title. Applied to title-like fields depending on node type. For a "title" node, prefix it with "# ", "## " or "### " to make it an h1, h2 or h3 heading (the prefix is removed); without a prefix it is plain text.',
         ),
       sourceNodes: z
         .array(
@@ -313,6 +322,18 @@ export default function createNodeTool({
           });
           initialValues = titled.values;
           titleApplied = titled.titleApplied;
+
+          // Un title prend la taille de son texte, pas celle du type : le
+          // client ne remesure pas un node qu'il découvre déjà dimensionné.
+          if (input.nodeType === "title") {
+            defaultDimensions = measureTitleNode({
+              text:
+                typeof initialValues.text === "string"
+                  ? initialValues.text
+                  : "",
+              level: normalizeTitleLevel(initialValues.level),
+            });
+          }
         }
 
         // ── Placement ──

@@ -3,16 +3,14 @@ import type { Block } from "@blocknote/core";
 import { cn } from "@/lib/utils";
 import type { Heading } from "@/lib/blocknoteOutline";
 import {
+  BLOCKNOTE_SEARCH_LIMIT,
   searchBlocknoteDoc,
-  type BlocknoteSearchHit,
 } from "@/lib/blocknoteSearch";
+import { SearchResultsList } from "./SearchResultsList";
 import { useWindowSearchQuery } from "../WindowSearchContext";
 
 /** Recalcul des résultats au plus une fois par pause de frappe dans le doc. */
 const DOC_CHANGE_DEBOUNCE_MS = 300;
-/** Contexte gardé de part et d'autre du match dans un extrait. */
-const SNIPPET_BEFORE = 30;
-const SNIPPET_AFTER = 80;
 
 /**
  * Renders a blocknote heading outline, registered by `BlocknoteWindow` as the
@@ -127,52 +125,12 @@ function BlocknoteSearchResults({
   );
 
   return (
-    <div className={cn("flex flex-col overflow-hidden", className)}>
-      <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {hits.length === 0
-          ? "No results"
-          : `${hits.length} result${hits.length > 1 ? "s" : ""}`}
-      </div>
-      <div className="flex-1 overflow-auto p-2">
-        {hits.length === 0 ? (
-          <div className="px-2 py-4 text-sm text-slate-400">
-            Nothing matches “{query}” in this document.
-          </div>
-        ) : (
-          <ul className="space-y-0.5">
-            {hits.map((hit) => (
-              <li key={hit.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectBlock(hit.id)}
-                  className={cn(
-                    "block w-full rounded px-2 py-1 text-left text-sm leading-snug text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900",
-                    hit.type === "heading" && "font-semibold text-slate-700",
-                  )}
-                >
-                  <Snippet hit={hit} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Snippet({ hit }: { hit: BlocknoteSearchHit }) {
-  const from = Math.max(0, hit.start - SNIPPET_BEFORE);
-  const to = Math.min(hit.text.length, hit.end + SNIPPET_AFTER);
-  return (
-    <span className="line-clamp-3">
-      {from > 0 && "…"}
-      {hit.text.slice(from, hit.start)}
-      <mark className="rounded-sm bg-yellow-200 text-slate-900">
-        {hit.text.slice(hit.start, hit.end)}
-      </mark>
-      {hit.text.slice(hit.end, to)}
-      {to < hit.text.length && "…"}
-    </span>
+    <SearchResultsList
+      results={hits}
+      query={query}
+      onSelect={(hit) => onSelectBlock(hit.blockId)}
+      truncated={hits.length >= BLOCKNOTE_SEARCH_LIMIT}
+      className={className}
+    />
   );
 }

@@ -104,12 +104,13 @@ function PdfWindow({
     setPlanTabContent(
       <PdfOutlinePanel
         entries={displayedOutline}
+        pages={pdfPages}
         onSelect={scrollToPage}
         className="h-full"
       />,
     );
     return () => setPlanTabContent(null);
-  }, [displayedOutline, scrollToPage, setPlanTabContent]);
+  }, [displayedOutline, pdfPages, scrollToPage, setPlanTabContent]);
 
   if (!nodeDataValues || !xyNode) return <WindowLoadingState />;
 

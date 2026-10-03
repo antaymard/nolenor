@@ -8,13 +8,6 @@ import type { NodeColor } from "@/../convex/config/colorsConfig";
  * l'accent — pour garder la même saturation et la même luminosité d'une
  * couleur à l'autre.
  *
- * Les frames ont leurs propres crans, un ton en dessous des nodes : bordure
- * 300, et fond 50 éclairci de blanc (60 % de teinte). Le mélange garde le fond
- * opaque — une opacité réduite laisserait passer le fond du canvas — tout en
- * allant plus pastel que le 50, le cran le plus clair de Tailwind. Une frame
- * est une grande surface : dans la couleur des nodes, elle criait et se
- * confondait avec eux.
- *
  * `solidBg` est le fond plein qui porte un texte blanc (tuile d'un canvas) :
  * 600, ou 700 pour les teintes claires dont le 600 manquerait de contraste.
  *
@@ -25,8 +18,8 @@ const colors = {
   red: {
     label: "Red",
     nodeBg: "bg-red-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-red-50)_60%,white)]",
-    frameBorder: "border-red-300",
+    frameBg: "bg-red-50",
+    frameBorder: "border-red-400",
     lightBg: "bg-red-100",
     nodeBorder: "border-red-600",
     accentBg: "bg-red-500",
@@ -38,8 +31,8 @@ const colors = {
   orange: {
     label: "Orange",
     nodeBg: "bg-orange-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-orange-50)_60%,white)]",
-    frameBorder: "border-orange-300",
+    frameBg: "bg-orange-50",
+    frameBorder: "border-orange-400",
     lightBg: "bg-orange-100",
     nodeBorder: "border-orange-600",
     accentBg: "bg-orange-500",
@@ -51,8 +44,8 @@ const colors = {
   yellow: {
     label: "Yellow",
     nodeBg: "bg-yellow-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-yellow-50)_60%,white)]",
-    frameBorder: "border-yellow-300",
+    frameBg: "bg-yellow-50",
+    frameBorder: "border-yellow-400",
     lightBg: "bg-yellow-100",
     nodeBorder: "border-yellow-600",
     accentBg: "bg-yellow-500",
@@ -64,8 +57,8 @@ const colors = {
   lime: {
     label: "Lime",
     nodeBg: "bg-lime-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-lime-50)_60%,white)]",
-    frameBorder: "border-lime-300",
+    frameBg: "bg-lime-50",
+    frameBorder: "border-lime-400",
     lightBg: "bg-lime-100",
     nodeBorder: "border-lime-600",
     accentBg: "bg-lime-500",
@@ -77,8 +70,8 @@ const colors = {
   green: {
     label: "Green",
     nodeBg: "bg-green-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-green-50)_60%,white)]",
-    frameBorder: "border-green-300",
+    frameBg: "bg-green-50",
+    frameBorder: "border-green-400",
     lightBg: "bg-green-100",
     nodeBorder: "border-green-600",
     accentBg: "bg-green-500",
@@ -90,8 +83,8 @@ const colors = {
   teal: {
     label: "Teal",
     nodeBg: "bg-teal-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-teal-50)_60%,white)]",
-    frameBorder: "border-teal-300",
+    frameBg: "bg-teal-50",
+    frameBorder: "border-teal-400",
     lightBg: "bg-teal-100",
     nodeBorder: "border-teal-600",
     accentBg: "bg-teal-500",
@@ -103,8 +96,8 @@ const colors = {
   sky: {
     label: "Sky",
     nodeBg: "bg-sky-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-sky-50)_60%,white)]",
-    frameBorder: "border-sky-300",
+    frameBg: "bg-sky-50",
+    frameBorder: "border-sky-400",
     lightBg: "bg-sky-100",
     nodeBorder: "border-sky-600",
     accentBg: "bg-sky-500",
@@ -116,8 +109,8 @@ const colors = {
   blue: {
     label: "Blue",
     nodeBg: "bg-blue-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-blue-50)_60%,white)]",
-    frameBorder: "border-blue-300",
+    frameBg: "bg-blue-50",
+    frameBorder: "border-blue-400",
     lightBg: "bg-blue-100",
     nodeBorder: "border-blue-600",
     accentBg: "bg-blue-500",
@@ -129,8 +122,8 @@ const colors = {
   purple: {
     label: "Purple",
     nodeBg: "bg-purple-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-purple-50)_60%,white)]",
-    frameBorder: "border-purple-300",
+    frameBg: "bg-purple-50",
+    frameBorder: "border-purple-400",
     lightBg: "bg-purple-100",
     nodeBorder: "border-purple-600",
     accentBg: "bg-purple-500",
@@ -142,8 +135,8 @@ const colors = {
   pink: {
     label: "Pink",
     nodeBg: "bg-pink-200",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-pink-50)_60%,white)]",
-    frameBorder: "border-pink-300",
+    frameBg: "bg-pink-50",
+    frameBorder: "border-pink-400",
     lightBg: "bg-pink-100",
     nodeBorder: "border-pink-600",
     accentBg: "bg-pink-500",
@@ -155,8 +148,8 @@ const colors = {
   default: {
     label: "Default",
     nodeBg: "bg-white",
-    frameBg: "bg-[color-mix(in_oklab,var(--color-slate-50)_60%,white)]",
-    frameBorder: "border-slate-300",
+    frameBg: "bg-slate-50",
+    frameBorder: "border-slate-400",
     lightBg: "bg-slate-50",
     nodeBorder: "border-slate-200",
     accentBg: "bg-slate-500",

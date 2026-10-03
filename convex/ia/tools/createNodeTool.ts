@@ -215,6 +215,12 @@ export default function createNodeTool({
         .describe(
           "Optional node data title. Applied to title-like fields depending on node type.",
         ),
+      titleLevel: z
+        .enum(["h1", "h2", "h3", "p"])
+        .optional()
+        .describe(
+          'Only for nodeType "title": heading level of the text. Default "p". Ignored for other node types.',
+        ),
       sourceNodes: z
         .array(
           z.union([
@@ -321,6 +327,9 @@ export default function createNodeTool({
           // Un title prend la taille de son texte, pas celle du type : le
           // client ne remesure pas un node qu'il découvre déjà dimensionné.
           if (input.nodeType === "title") {
+            if (input.titleLevel) {
+              initialValues = { ...initialValues, level: input.titleLevel };
+            }
             defaultDimensions = measureTitleNode({
               text:
                 typeof initialValues.text === "string"

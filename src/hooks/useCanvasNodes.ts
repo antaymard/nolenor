@@ -16,8 +16,13 @@ import { api } from "@/../convex/_generated/api";
 import {
   fromCanvasNodesToXyNodes,
 } from "@/lib/node-types-converter";
-import { applyNodePatchesToListQuery } from "@/lib/flowNodes";
+import {
+  applyEdgeDataPatchesToListQuery,
+  applyNodePatchesToListQuery,
+} from "@/lib/flowNodes";
+import { followEndpoints } from "@/lib/bendPointsFollow";
 import type { CanvasNode } from "@/types";
+import type { EdgeBendPoint, EdgeCustomData } from "@/types/domain";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { pendingAutoSizeIds } from "@/components/nodes/prebuilt-nodes/useTitleNodeSizing";
 import { toastError } from "@/components/utils/errorUtils";
@@ -130,7 +135,7 @@ export function useCanvasNodes(
   canvasNodes?: CanvasNode[],
 ) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const { getEdges, getNodes } = useReactFlow();
+  const { getEdges, getNodes, setEdges } = useReactFlow();
   const isCtrlHeld = useKeyHold("Control");
   const closeWindowsForNodeIds = useWindowsStore(
     (state) => state.closeWindowsForNodeIds,
@@ -145,6 +150,10 @@ export function useCanvasNodes(
   const dragPendingRef = useRef<Map<string, { x: number; y: number }>>(
     new Map(),
   );
+
+  // Bend points de chaque edge AVANT le geste en cours : `followBendPoints`
+  // repart toujours de là, le delta de drag étant cumulé depuis l'origine.
+  const bendOriginsRef = useRef<Map<string, EdgeBendPoint[]>>(new Map());
 
   // Position de chaque node AVANT le geste en cours, pour l'annulation.
   // Capturée à la première frame où il bouge, depuis `getNodes()` lu avant que
@@ -209,6 +218,120 @@ export function useCanvasNodes(
         applyNodePatchesToListQuery(localStore, canvasId, updates);
       }),
     [patchNodes, canvasId],
+  );
+
+  const patchEdges = useMutation(api.edges.patch);
+  const patchEdgesInConvex = useMemo(
+    () =>
+      patchEdges.withOptimisticUpdate((localStore, { updates }) => {
+        applyEdgeDataPatchesToListQuery(
+          localStore,
+          canvasId,
+          updates.map((update) => ({ id: update.edgeId, data: update.data })),
+        );
+      }),
+    [patchEdges, canvasId],
+  );
+
+  /**
+   * Fait suivre les bend points des edges dont une extrémité bouge.
+   *
+   * Pendant le geste (`persist: false`) : état local seulement, comme les
+   * positions. Au relâcher (`persist: true`) : une écriture serveur. Pas
+   * d'entrée d'historique — limite assumée, Ctrl+Z remet le node en place
+   * mais pas les points.
+   *
+   * Recalculé à chaque frame depuis `bendOriginsRef` (l'état d'avant le
+   * geste) : le delta est cumulé depuis l'origine, jamais appliqué deux fois.
+   */
+  const followBendPoints = useCallback(
+    (persist: boolean) => {
+      const pending = dragPendingRef.current;
+      const origins = dragOriginsRef.current;
+      const bendOrigins = bendOriginsRef.current;
+
+      const edgesWithBends = getEdges().filter(
+        (edge) =>
+          ((edge.data as EdgeCustomData | undefined)?.bendPoints?.length ?? 0) >
+          0,
+      );
+      if (edgesWithBends.length === 0 || pending.size === 0) {
+        if (persist) bendOrigins.clear();
+        return;
+      }
+
+      const nodesById = new Map(getNodes().map((node) => [node.id, node]));
+      const ownDelta = (id: string) => {
+        const next = pending.get(id);
+        const origin = origins.get(id);
+        if (!next || !origin) return { x: 0, y: 0 };
+        return { x: next.x - origin.x, y: next.y - origin.y };
+      };
+      // Les positions d'un node de frame sont relatives à la frame : déplacer
+      // la frame déplace le node dans le monde sans changer sa position.
+      const worldDelta = (id: string) => {
+        const own = ownDelta(id);
+        const parentId = nodesById.get(id)?.parentId;
+        if (!parentId) return own;
+        const parent = ownDelta(parentId);
+        return { x: own.x + parent.x, y: own.y + parent.y };
+      };
+
+      const nextByEdge = new Map<string, EdgeBendPoint[]>();
+      for (const edge of edgesWithBends) {
+        const sourceDelta = worldDelta(edge.source);
+        const targetDelta = worldDelta(edge.target);
+        const moved =
+          sourceDelta.x !== 0 ||
+          sourceDelta.y !== 0 ||
+          targetDelta.x !== 0 ||
+          targetDelta.y !== 0;
+        if (!moved && !bendOrigins.has(edge.id)) continue;
+
+        if (!bendOrigins.has(edge.id)) {
+          bendOrigins.set(
+            edge.id,
+            (edge.data as EdgeCustomData).bendPoints as EdgeBendPoint[],
+          );
+        }
+        nextByEdge.set(
+          edge.id,
+          followEndpoints(bendOrigins.get(edge.id)!, sourceDelta, targetDelta),
+        );
+      }
+
+      if (nextByEdge.size > 0) {
+        setEdges((current) =>
+          current.map((edge) => {
+            const bendPoints = nextByEdge.get(edge.id);
+            if (!bendPoints) return edge;
+            return {
+              ...edge,
+              data: { ...(edge.data ?? {}), bendPoints },
+            };
+          }),
+        );
+      }
+
+      if (persist) {
+        bendOrigins.clear();
+        if (nextByEdge.size > 0) {
+          void persistNodeChange(
+            () =>
+              patchEdgesInConvex({
+                updates: [...nextByEdge.entries()].map(
+                  ([edgeId, bendPoints]) => ({
+                    edgeId,
+                    data: { bendPoints },
+                  }),
+                ),
+              }),
+            "Could not save the edge points",
+          );
+        }
+      }
+    },
+    [getEdges, getNodes, setEdges, patchEdgesInConvex],
   );
 
   const persistLayoutUpdates = useCallback(
@@ -308,12 +431,15 @@ export function useCanvasNodes(
         );
       }
 
+      // Avant de vider les buffers : les deltas se lisent dedans.
+      followBendPoints(true);
+
       pending.clear();
       origins.clear();
       reparents.clear();
       return persistLayoutUpdates(updates, opts);
     },
-    [getNodes, persistLayoutUpdates],
+    [getNodes, persistLayoutUpdates, followBendPoints],
   );
 
   // Buffer pur, sans flush pendant le geste. Chaque écriture serveur en
@@ -857,6 +983,7 @@ export function useCanvasNodes(
           // En plein drag : buffer seulement, la persistance part au
           // relâcher dans la branche else du change `dragging: false`.
           bufferDragPositions(allPositionChanges);
+          followBendPoints(false);
         } else {
           for (const change of allPositionChanges) {
             if (change.position) {
@@ -882,6 +1009,7 @@ export function useCanvasNodes(
       closeWindowsForNodeIds,
       persistLayoutUpdates,
       bufferDragPositions,
+      followBendPoints,
       flushDragPositions,
       onNodesChange,
       getEdges,

@@ -4,6 +4,7 @@ import {
   type MentionInfoByNodeDataId,
 } from "./blockNoteMarkdown";
 import {parseStoredBlockNoteDocument} from "../../lib/blockNoteDocument";
+import { aliasBlockIds } from "../../lib/blockIdAliases";
 import { richTextToPlainText } from "../../lib/tableRichTextCell";
 
 type SelectOption = {
@@ -388,7 +389,9 @@ export async function makeNodeDataLLMFriendly(
       const doc = values.doc;
       const parsedDoc = parseStoredBlockNoteDocument(doc);
       if (parsedDoc) {
-        return await blockNoteDocumentToXml(parsedDoc, {
+        // Short `b_…` aliases instead of the stored uuids: fewer tokens,
+        // and the block tools accept them (see lib/blockIdAliases.ts).
+        return await blockNoteDocumentToXml(aliasBlockIds(parsedDoc), {
           mentions: options?.mentions,
         });
       }

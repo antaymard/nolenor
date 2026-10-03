@@ -53,6 +53,34 @@ export function generateColumnId(): string {
   return `${COLUMN_ID_PREFIX}${generateLlmId()}`;
 }
 
+// Blocs BlockNote : même convention que les colonnes, pour la même raison.
+// Ces ids ne sont pas stockés : ce sont des alias dérivés de l'id réel du bloc,
+// montrés à l'agent à la place de l'uuid (cf. convex/lib/blockIdAliases.ts).
+export const BLOCK_ID_ALIAS_PREFIX = "b_";
+
+// Nombre de llmIds distincts au format par défaut (lettre, 3 chiffres, lettre,
+// 3 chiffres, lettre) : 52³ × 1000² ≈ 1,4·10¹¹, sous 2^53.
+const DEFAULT_LLM_ID_SPACE = ALPHA_CHARS.length ** 3 * 1000 ** 2;
+
+/**
+ * llmId au format par défaut, déterministe : la même graine donne toujours le
+ * même id. `seed` est un entier positif quelconque (typiquement un hash).
+ */
+export function llmIdFromSeed(seed: number): string {
+  let n = Math.floor(Math.abs(seed)) % DEFAULT_LLM_ID_SPACE;
+  let value = "";
+  for (let i = 0; i < DEFAULT_CHUNK_COUNT; i++) {
+    if (i % 2 === 0) {
+      value += ALPHA_CHARS[n % ALPHA_CHARS.length];
+      n = Math.floor(n / ALPHA_CHARS.length);
+    } else {
+      value += String(n % 1000).padStart(3, "0");
+      n = Math.floor(n / 1000);
+    }
+  }
+  return value;
+}
+
 export function matchesLlmIdFormat(
   value: string,
   chunkCount: number = DEFAULT_CHUNK_COUNT,

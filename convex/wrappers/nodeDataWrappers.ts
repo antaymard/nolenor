@@ -1,4 +1,4 @@
-import { v, ConvexError } from "convex/values";
+import { v, ConvexError, type Infer } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
 import type { MutationCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
@@ -28,6 +28,10 @@ import {
   validateBlockNoteDocument,
   InvalidBlockNoteDocumentError,
 } from "../lib/blockNoteDocument";
+import {
+  resolveBlockIdsIn,
+  withBlockIdAliases,
+} from "../lib/blockIdAliases";
 
 /**
  * Rattache le node au thread qui vient de l'écrire, avec ce qui lui a été fait.
@@ -268,6 +272,86 @@ const blockNoteEditValidator = v.union(
   }),
 );
 
+type TargetedBlockNoteEdit = Exclude<
+  Infer<typeof blockNoteEditValidator>,
+  { kind: "replaceDocument" }
+>;
+
+/**
+ * Apply a block-addressed edit with the agent's ids read as aliases (real ids
+ * still accepted), filling `result` with the ids the agent will see next read.
+ */
+function applyTargetedEdit(
+  current: BlockNoteBlock[],
+  edit: TargetedBlockNoteEdit,
+  result: {
+    insertedBlockIds?: string[];
+    affectedBlockId?: string;
+    deletedCount?: number;
+  },
+): BlockNoteBlock[] {
+  const { tree, insertedIds, aliasOf } = withBlockIdAliases(
+    current,
+    (blocks, resolve): { tree: BlockNoteBlock[]; insertedIds?: string[] } => {
+      switch (edit.kind) {
+        case "insert": {
+          if (
+            (edit.position === "before" || edit.position === "after") &&
+            !edit.referenceBlockId
+          ) {
+            throw new ConvexError(
+              "referenceBlockId is required when position is before/after.",
+            );
+          }
+          const r = insertBlocks(
+            blocks,
+            edit.position,
+            edit.referenceBlockId && resolve(edit.referenceBlockId),
+            edit.blocks,
+          );
+          return { tree: r.tree, insertedIds: r.insertedIds };
+        }
+        case "replace":
+          return {
+            tree: replaceBlock(
+              blocks,
+              resolve(edit.blockId),
+              resolveBlockIdsIn(edit.block, resolve),
+            ),
+          };
+        case "delete": {
+          const r = deleteBlocks(blocks, edit.blockIds.map(resolve));
+          if (r.missing.length > 0) {
+            throw new ConvexError(
+              `Some block ids were not found: ${r.missing.join(", ")}. No deletion performed.`,
+            );
+          }
+          result.deletedCount = edit.blockIds.length;
+          return { tree: r.tree };
+        }
+        case "updateProps":
+          return {
+            tree: updateBlockProps(blocks, resolve(edit.blockId), edit.propsPatch),
+          };
+        case "patchText":
+          return {
+            tree: patchBlockText(
+              blocks,
+              resolve(edit.blockId),
+              edit.oldString,
+              edit.newString,
+            ),
+          };
+      }
+    },
+  );
+  if (insertedIds) result.insertedBlockIds = insertedIds.map(aliasOf);
+  if (edit.kind !== "insert" && edit.kind !== "delete") {
+    result.affectedBlockId = edit.blockId;
+  }
+  return tree;
+}
+
 export const editBlockNoteDocument = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),
@@ -326,73 +410,21 @@ export const editBlockNoteDocument = internalMutation({
       current = parsed;
     }
 
-    let tree: unknown;
     const result: {
       insertedBlockIds?: string[];
       affectedBlockId?: string;
       deletedCount?: number;
     } = {};
 
-    switch (args.edit.kind) {
-      case "insert": {
-        if (
-          (args.edit.position === "before" || args.edit.position === "after") &&
-          !args.edit.referenceBlockId
-        ) {
-          throw new ConvexError(
-            "referenceBlockId is required when position is before/after.",
-          );
-        }
-        const r = insertBlocks(
-          current,
-          args.edit.position,
-          args.edit.referenceBlockId,
-          args.edit.blocks,
-        );
-        tree = r.tree;
-        result.insertedBlockIds = r.insertedIds;
-        break;
-      }
-      case "replace": {
-        tree = replaceBlock(current, args.edit.blockId, args.edit.block);
-        result.affectedBlockId = args.edit.blockId;
-        break;
-      }
-      case "delete": {
-        const r = deleteBlocks(current, args.edit.blockIds);
-        if (r.missing.length > 0) {
-          throw new ConvexError(
-            `Some block ids were not found: ${r.missing.join(", ")}. No deletion performed.`,
-          );
-        }
-        tree = r.tree;
-        result.deletedCount = args.edit.blockIds.length;
-        break;
-      }
-      case "updateProps": {
-        tree = updateBlockProps(
-          current,
-          args.edit.blockId,
-          args.edit.propsPatch,
-        );
-        result.affectedBlockId = args.edit.blockId;
-        break;
-      }
-      case "patchText": {
-        tree = patchBlockText(
-          current,
-          args.edit.blockId,
-          args.edit.oldString,
-          args.edit.newString,
-        );
-        result.affectedBlockId = args.edit.blockId;
-        break;
-      }
-      case "replaceDocument": {
-        tree = normalizeReplaceDocumentBlocks(args.edit.blocks);
-        break;
-      }
-    }
+    // Full replacement: nothing to address, the ids are all fresh.
+    // Targeted edits: the agent addresses blocks by the short aliases
+    // read_nodes shows (see lib/blockIdAliases.ts), so the operation runs in
+    // alias space — "block not found" hints list aliases too — and the real
+    // ids are restored before storage.
+    const tree: unknown =
+      args.edit.kind === "replaceDocument"
+        ? normalizeReplaceDocumentBlocks(args.edit.blocks)
+        : applyTargetedEdit(current, args.edit, result);
 
     const serialized = stringifyBlockNoteDocumentForStorage(tree);
 

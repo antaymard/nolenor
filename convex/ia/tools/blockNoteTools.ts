@@ -214,7 +214,7 @@ const insertBlocksSchema = z
 function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
-      'Insert new block(s) into a blocknote node. `blocks` is one or more BlockNote XML v1 <block> elements — the <blocknote> wrapper is optional, so you can either copy blocks straight from read_nodes output or write bare <block> elements. Use position "start"/"end" or "before"/"after" a reference block id. Do not write id attributes: every inserted block gets a fresh server-assigned id, so re-read the node before addressing an inserted block by id.',
+      'Insert new block(s) into a blocknote node. `blocks` is one or more BlockNote XML v1 <block> elements — the <blocknote> wrapper is optional, so you can either copy blocks straight from read_nodes output or write bare <block> elements. Use position "start"/"end" or "before"/"after" a reference block id. Do not write id attributes: every inserted block gets a fresh server-assigned id, returned by this tool (top-level blocks, in order) and usable right away.',
     inputSchema: insertBlocksSchema,
     execute: (ctx, input): Promise<string> =>
       runBlockNoteEdit({
@@ -229,12 +229,11 @@ function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           referenceBlockId: input.referenceBlockId,
           blocks: await parseXmlBlocks(ctx, threadCtx.canvasId, input.blocks),
         }),
-        // The ids are deliberately NOT echoed back: a fresh nanoid per block is
-        // pure token cost on every insert, and an agent that needs to address
-        // one has to re-read the node anyway (the insert may have been
-        // reshaped by a concurrent edit).
+        // Block ids are short aliases (lib/blockIdAliases.ts), so echoing the
+        // top-level ones costs a few tokens and saves a re-read before the
+        // next edit addresses them.
         describeResult: ({ insertedBlockIds = [] }) =>
-          `Inserted ${insertedBlockIds.length} block(s).`,
+          `Inserted ${insertedBlockIds.length} block(s): ${insertedBlockIds.join(", ")}.`,
       }),
   });
 }

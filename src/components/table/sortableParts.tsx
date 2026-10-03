@@ -212,7 +212,13 @@ export function DraggableRow({
     position: "relative",
   };
   return (
-    <TableRow ref={setNodeRef} style={style} className="group/tablerow">
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      className="group/tablerow"
+      // Repère pour la recherche du panel latéral (scroll vers la ligne).
+      data-row-id={row.original.id}
+    >
       {children({ attributes, listeners, setActivatorNodeRef })}
     </TableRow>
   );

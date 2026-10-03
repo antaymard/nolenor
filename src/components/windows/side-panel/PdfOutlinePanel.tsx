@@ -1,19 +1,41 @@
+import { useDeferredValue, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { OutlineEntry } from "@/lib/pdfOutline";
+import { PDF_SEARCH_LIMIT, searchPdfPages } from "@/lib/pdfSearch";
+import { useWindowSearchQuery } from "../WindowSearchContext";
+import { SearchResultsList } from "./SearchResultsList";
+
+type PdfPageText = { order: number; page?: number; text: string };
 
 /**
  * Renders a PDF page/section outline, registered by `PdfWindow` as the window
- * side panel's Plan tab content.
+ * side panel's Plan tab content. With a search query, shows the matches in
+ * the pages' indexed text instead.
  */
 export function PdfOutlinePanel({
   entries,
+  pages,
   onSelect,
   className,
 }: {
   entries: OutlineEntry[];
+  /** Texte indexé des pages ; undefined pendant le chargement. */
+  pages: readonly PdfPageText[] | undefined;
   onSelect: (pageIndex: number) => void;
   className?: string;
 }) {
+  const query = useWindowSearchQuery().trim();
+  if (query) {
+    return (
+      <PdfSearchResults
+        query={query}
+        pages={pages}
+        onSelect={onSelect}
+        className={className}
+      />
+    );
+  }
+
   return (
     <div className={cn("flex flex-col overflow-hidden", className)}>
       <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -48,5 +70,43 @@ export function PdfOutlinePanel({
         )}
       </div>
     </div>
+  );
+}
+
+function PdfSearchResults({
+  query,
+  pages,
+  onSelect,
+  className,
+}: {
+  query: string;
+  pages: readonly PdfPageText[] | undefined;
+  onSelect: (pageIndex: number) => void;
+  className?: string;
+}) {
+  const deferredQuery = useDeferredValue(query);
+  const hits = useMemo(
+    () => (pages ? searchPdfPages(pages, deferredQuery) : []),
+    [pages, deferredQuery],
+  );
+
+  if (!pages || pages.length === 0) {
+    return (
+      <div className={cn("px-4 py-4 text-sm text-slate-400", className)}>
+        {pages
+          ? "This PDF's text isn't indexed yet, so it can't be searched."
+          : "Loading…"}
+      </div>
+    );
+  }
+
+  return (
+    <SearchResultsList
+      results={hits}
+      query={query}
+      onSelect={(hit) => onSelect(hit.pageIndex)}
+      truncated={hits.length >= PDF_SEARCH_LIMIT}
+      className={className}
+    />
   );
 }

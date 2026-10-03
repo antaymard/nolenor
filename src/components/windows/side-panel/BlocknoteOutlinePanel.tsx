@@ -1,19 +1,52 @@
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import type { Block } from "@blocknote/core";
 import { cn } from "@/lib/utils";
 import type { Heading } from "@/lib/blocknoteOutline";
+import {
+  BLOCKNOTE_SEARCH_LIMIT,
+  searchBlocknoteDoc,
+} from "@/lib/blocknoteSearch";
+import { SearchResultsList } from "./SearchResultsList";
+import { useWindowSearchQuery } from "../WindowSearchContext";
+
+/** Recalcul des résultats au plus une fois par pause de frappe dans le doc. */
+const DOC_CHANGE_DEBOUNCE_MS = 300;
 
 /**
  * Renders a blocknote heading outline, registered by `BlocknoteWindow` as the
- * window side panel's Plan tab content.
+ * window side panel's Plan tab content. With a search query, shows the blocks
+ * whose text matches instead.
  */
 export function BlocknoteOutlinePanel({
   headings,
   onSelect,
+  getDoc,
+  subscribeToDocChanges,
+  onSelectBlock,
   className,
 }: {
   headings: Heading[];
   onSelect: (heading: Heading) => void;
+  /** Lu à la demande : le doc ne transite pas par les props à chaque frappe. */
+  getDoc: () => Block[];
+  subscribeToDocChanges: (callback: () => void) => () => void;
+  onSelectBlock: (blockId: string) => void;
   className?: string;
 }) {
+  const query = useWindowSearchQuery().trim();
+
+  if (query) {
+    return (
+      <BlocknoteSearchResults
+        query={query}
+        getDoc={getDoc}
+        subscribeToDocChanges={subscribeToDocChanges}
+        onSelectBlock={onSelectBlock}
+        className={className}
+      />
+    );
+  }
+
   return (
     <div className={cn("flex flex-col overflow-hidden", className)}>
       <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -48,5 +81,56 @@ export function BlocknoteOutlinePanel({
         )}
       </div>
     </div>
+  );
+}
+
+function BlocknoteSearchResults({
+  query,
+  getDoc,
+  subscribeToDocChanges,
+  onSelectBlock,
+  className,
+}: {
+  query: string;
+  getDoc: () => Block[];
+  subscribeToDocChanges: (callback: () => void) => () => void;
+  onSelectBlock: (blockId: string) => void;
+  className?: string;
+}) {
+  // Monté seulement pendant une recherche : hors recherche, taper dans le doc
+  // ne coûte rien de plus.
+  const [docRevision, setDocRevision] = useState(0);
+  useEffect(() => {
+    let timeoutId: number | undefined;
+    const unsubscribe = subscribeToDocChanges(() => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(
+        () => setDocRevision((n) => n + 1),
+        DOC_CHANGE_DEBOUNCE_MS,
+      );
+    });
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+    };
+  }, [subscribeToDocChanges]);
+
+  // La saisie dans l'input reste fluide sur un gros doc : le parcours suit.
+  const deferredQuery = useDeferredValue(query);
+  const hits = useMemo(
+    () => searchBlocknoteDoc(getDoc(), deferredQuery),
+    // `docRevision` signale un doc modifié, que `getDoc` lit au moment du calcul.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getDoc, deferredQuery, docRevision],
+  );
+
+  return (
+    <SearchResultsList
+      results={hits}
+      query={query}
+      onSelect={(hit) => onSelectBlock(hit.blockId)}
+      truncated={hits.length >= BLOCKNOTE_SEARCH_LIMIT}
+      className={className}
+    />
   );
 }

@@ -13,6 +13,18 @@ type NodeVariant = {
   defaultHeight: number;
   resizable?: boolean;
   isDefault?: boolean;
+  /**
+   * Passer à cette variante ne réécrit pas `width`/`height` du node.
+   *
+   * Par défaut, appliquer une variante remet le node à ses dimensions par
+   * défaut. Une frame ne peut pas se le permettre : sa taille est celle du
+   * contenu qu'elle englobe, la ramener à un gabarit ferait déborder ses
+   * enfants. Ses variantes laissent donc la taille stockée intacte — la
+   * compacte est rendue à sa taille fixe sans y toucher (cf.
+   * `src/lib/frameVariant.ts`), et revenir à la dépliée retrouve la taille
+   * d'avant.
+   */
+  preservesStoredSize?: boolean;
 };
 
 /**
@@ -152,6 +164,14 @@ const FRAME_TITLE_LEVELS = ["h1", "h2", "h3"] as const;
  * plancher dépasse la taille — plus redimensionnable du tout.
  */
 const FRAME_CONTENT_PADDING = 24;
+
+/**
+ * La frame compacte : une carte de taille fixe, qui remplace la frame et son
+ * contenu sur le canvas. Ses enfants y restent rattachés, simplement masqués.
+ */
+const FRAME_COMPACT_VARIANT = "compact" as const;
+const FRAME_COMPACT_WIDTH = 280;
+const FRAME_COMPACT_HEIGHT = 64;
 
 const nodeDataConfig: Array<NodeDataConfigItem> = [
   {
@@ -852,6 +872,26 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     // servent qu'aux frames créées sans tracé (aucune aujourd'hui) — l'outil
     // rectangle impose les siennes.
     defaultDimensions: { width: 600, height: 400, resizable: true },
+    // Deux affichages d'une même frame. `defaultWidth`/`defaultHeight` ne
+    // servent pas à la dépliée (sa taille est celle de son contenu, d'où
+    // `preservesStoredSize`) ; ceux de la compacte sont sa taille de rendu.
+    variants: {
+      default: {
+        label: "Expanded",
+        defaultWidth: 600,
+        defaultHeight: 400,
+        resizable: true,
+        isDefault: true,
+        preservesStoredSize: true,
+      },
+      [FRAME_COMPACT_VARIANT]: {
+        label: "Compact",
+        defaultWidth: FRAME_COMPACT_WIDTH,
+        defaultHeight: FRAME_COMPACT_HEIGHT,
+        resizable: false,
+        preservesStoredSize: true,
+      },
+    },
     capabilities: {
       agent: {
         // Décrite, et pas créable PAR `create_node` : l'agent en trace bien,
@@ -968,6 +1008,9 @@ export {
   DEFAULT_FRAME_TITLE_LEVEL,
   FRAME_TITLE_LEVELS,
   FRAME_CONTENT_PADDING,
+  FRAME_COMPACT_VARIANT,
+  FRAME_COMPACT_WIDTH,
+  FRAME_COMPACT_HEIGHT,
   getDefaultNodeDataValues,
   getNodeCapabilities,
   isNodeTypeReadableByAgent,

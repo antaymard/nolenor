@@ -34,6 +34,7 @@ import {
 } from "@/lib/pendingCreatedNodes";
 import { recordUndo } from "@/stores/canvasHistoryStore";
 import { useFrameHoverStore } from "@/stores/frameHoverStore";
+import { isCompactFrame, isCompactXyFrame } from "@/lib/frameVariant";
 import {
   canJoinFrame,
   centerOf,
@@ -824,6 +825,10 @@ export function useCanvasNodes(
                 }
                 const sourceNode = canvasNodes.find((n) => n.id === change.id);
                 if (!sourceNode) return true;
+                // Une frame compacte est rendue à la taille de sa carte, pas à
+                // sa taille stockée (cf. `frameVariant`) : sa mesure ne dit
+                // rien de la frame, l'écrire écraserait la taille dépliée.
+                if (isCompactFrame(sourceNode)) return false;
                 const isMeaningful =
                   Math.abs(change.dimensions.width - sourceNode.width) >= 0.5 ||
                   Math.abs(change.dimensions.height - sourceNode.height) >= 0.5;
@@ -1035,7 +1040,11 @@ export function useCanvasNodes(
       // Sortie immédiate sur un canvas sans frame — c'est-à-dire sur presque
       // tous. Ce handler tourne à chaque frame du geste : il ne doit rien
       // coûter quand il n'a rien à faire.
-      const frames = current.filter((node) => node.type === "frame");
+      // Une frame compacte n'accueille rien : son contenu est masqué, un node
+      // déposé dessus disparaîtrait au relâcher.
+      const frames = current.filter(
+        (node) => node.type === "frame" && !isCompactXyFrame(node),
+      );
       if (frames.length === 0) return;
 
       const byId = new Map(current.map((node) => [node.id, node]));

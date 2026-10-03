@@ -3,18 +3,29 @@ import type { colorsEnum } from "@/types/domain";
 import type { CoordinateExtent, Node } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { NodeDisplayOptions } from "@/../convex/schemas/nodesSchema";
+import { FRAME_COMPACT_SIZE, isCompactFrame } from "@/lib/frameVariant";
 
 export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
   // `displayOptions` est extrait comme `color` et `variant` : laissé dans
   // `restData`, il repartirait dans le sac `data` au lieu de son champ.
-  const { nodeDataId, color, variant, displayOptions, ...restData } =
-    (xyNode.data ?? {}) as {
-      nodeDataId?: Id<"nodeDatas">;
-      color?: colorsEnum;
-      variant?: string;
-      displayOptions?: NodeDisplayOptions;
-      [key: string]: unknown;
-    };
+  // `hiddenByFrame` est dérivé au rendu (cf. `fromCanvasNodesToXyNodes`) :
+  // il ne repart ni dans `data`, ni en `hidden` — ce dernier ne dit que le
+  // masquage propre au node.
+  const {
+    nodeDataId,
+    color,
+    variant,
+    displayOptions,
+    hiddenByFrame,
+    ...restData
+  } = (xyNode.data ?? {}) as {
+    nodeDataId?: Id<"nodeDatas">;
+    color?: colorsEnum;
+    variant?: string;
+    displayOptions?: NodeDisplayOptions;
+    hiddenByFrame?: boolean;
+    [key: string]: unknown;
+  };
 
   return {
     id: xyNode.id,
@@ -24,7 +35,7 @@ export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
     width: xyNode.measured?.width ?? xyNode.width ?? 0,
     height: xyNode.measured?.height ?? xyNode.height ?? 0,
     ...(xyNode.draggable === false && { locked: true }),
-    ...(xyNode.hidden === true && { hidden: true }),
+    ...(xyNode.hidden === true && hiddenByFrame !== true && { hidden: true }),
     ...(xyNode.zIndex != null && { zIndex: xyNode.zIndex }),
     ...(color && { color }),
     ...(variant && { variant }),
@@ -94,5 +105,37 @@ export function fromCanvasNodesToXyNodes(canvasNodes: CanvasNode[]): Node[] {
     ...canvasNodes.filter((node) => !node.parentId),
     ...canvasNodes.filter((node) => node.parentId),
   ];
-  return parentsFirst.map(fromCanvasNodeToXyNode);
+  const compactFrameIds = new Set(
+    canvasNodes.filter(isCompactFrame).map((node) => node.id),
+  );
+  if (compactFrameIds.size === 0) {
+    return parentsFirst.map(fromCanvasNodeToXyNode);
+  }
+  return parentsFirst.map((canvasNode) => {
+    const xyNode = fromCanvasNodeToXyNode(canvasNode);
+    if (compactFrameIds.has(canvasNode.id)) return withCompactFrameSize(xyNode);
+    if (canvasNode.parentId && compactFrameIds.has(canvasNode.parentId)) {
+      return {
+        ...xyNode,
+        hidden: true,
+        data: { ...xyNode.data, hiddenByFrame: true },
+      };
+    }
+    return xyNode;
+  });
+}
+
+/**
+ * Une frame compacte se rend à la taille de sa carte, sa taille stockée
+ * restant celle de la frame dépliée (cf. `src/lib/frameVariant.ts`). `measured`
+ * suit, sinon React Flow garderait l'ancienne boîte pour la sélection et les
+ * edges jusqu'à la prochaine mesure.
+ */
+function withCompactFrameSize(xyNode: Node): Node {
+  return {
+    ...xyNode,
+    width: FRAME_COMPACT_SIZE.width,
+    height: FRAME_COMPACT_SIZE.height,
+    measured: { ...FRAME_COMPACT_SIZE },
+  };
 }

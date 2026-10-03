@@ -47,6 +47,9 @@ const WINDOW_SIZE_BY_TYPE: Partial<Record<NodeType, WindowSizePreset>> = {
   table: { widthRatio: 1 / 1.8, heightRatio: 0.9 },
   video: DOCUMENT_WINDOW_SIZE,
   audio: DOCUMENT_WINDOW_SIZE,
+  // Un morceau de canvas : large, pour que le contenu tienne sans zoomer
+  // jusqu'à l'illisible.
+  frame: { widthRatio: 0.7, heightRatio: 0.8 },
   // Fallback pour les custom nodes dont le template ne définit pas de
   // windowSize (la taille passe normalement par le payload openWindow).
   custom: DOCUMENT_WINDOW_SIZE,

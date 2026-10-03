@@ -47,6 +47,8 @@ hidden: true
 | **Alt+click** a block | Attach / detach it to Nolë |
 | **Alt+click** empty canvas | Attach that position for Nolë |
 | **Alt+click** a search result | Attach / detach it to Nolë |
+| Click a mention pill, a block pill in Nolë's reply or a search result | Go to that block on the canvas |
+| **Mod+click** the same | Open that block's window (go to if it has none) |
 
 ## Windows
 | Gesture | Action |
@@ -74,7 +76,8 @@ hidden: true
 
 ## Menus and lists
 - **Add a node** menu: ↑ ↓ ← → / Tab to move, **Enter** to create, **Esc** to close.
-- **Search** and **Command center**: ↑ ↓ to move, **Enter** to open, **Esc** to close.
+- **Search**: ↑ ↓ to move, **Enter** to go to the block, **Mod+Enter** to open its window, **Esc** to close.
+- **Command center**: ↑ ↓ to move, **Enter** to open, **Esc** to close.
 - **Tables**: in a text cell **Enter** saves, **Shift+Enter** adds a line. Bookmark and connection-label fields: **Enter** confirms, **Esc** cancels.
 
 ## Phone

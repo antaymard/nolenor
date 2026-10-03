@@ -28,7 +28,7 @@ Searches the **open canvas**: block titles, text in documents, table content, PD
 - **Titles only** switch (Keyword mode only).
 - **Type chips** filter by kind: Links, Images, Notes (documents), Values, Titles, PDF, Tables, Apps, Audio, Videos, Frames. **Show all** clears them.
 - Empty field: a **Recent** list. No exact hit: "No exact results — showing close matches."
-- ↑ / ↓ move through results, **Enter** or a click opens the block in a window (when that type has one). The **Locate on canvas** arrow (◎) centres the canvas on the block instead. **Alt+click** a result attaches/detaches it to Nolë (violet dashed ring). **Esc** closes.
+- ↑ / ↓ move through results, **Enter** or a click **goes to** the block (centres the canvas on it and selects it). **Ctrl/⌘+Enter** or **Ctrl/⌘+click** opens it in a window instead (blocks with no window just go to). **Alt+click** a result attaches/detaches it to Nolë (violet dashed ring). **Esc** closes. The footer of the search reminds these keys.
 
 ## Command center — Ctrl/⌘+P
 Also the **Search** button of the sidebar and the ⌘ button of the toolbar. Field "Go to a canvas…". It lists **Bookmarks** (of the open canvas), **Canvases** and **Shared with me**; the open canvas is tagged "Current". Type to filter (names and descriptions match), ↑ / ↓ then **Enter**. For now it only jumps to canvases and bookmarks, it is not a general command palette.
@@ -41,7 +41,9 @@ Also the **Search** button of the sidebar and the ⌘ button of the toolbar. Fie
 - Bookmarks belong to each person: collaborators do not see yours. They are per canvas, and also show up in the command center.
 
 ## Getting to a specific block
-Window header **Navigate to node**, a mention pill in a document, a block pill in Nolë's reply, a search result's **Locate on canvas**, a bookmark, or **Go to** on a connection's Source / Target (right-click a connection).
+Window header **Navigate to node**, a mention pill in a document, a block pill in Nolë's reply, a search result, a bookmark, or **Go to** on a connection's Source / Target (right-click a connection).
+
+One rule for mention pills, block pills in Nolë's chat and search results: **click / Enter = go to** the block on the canvas, **Ctrl/⌘+click / Ctrl/⌘+Enter = open its window** (like Ctrl/⌘+click opens a link in a new tab). A block without a window always just goes to. On a phone, tapping a block pill in the chat opens the block.
 
 ## Link to a view
 **Share → Link to this view → Copy** (the Share button exists for the canvas owner only) copies a URL that opens the canvas framed exactly as on screen (see `manual-sharing-and-permissions`).

@@ -45,7 +45,7 @@ Blue ring = selected block. **Violet dashed outline** = attached to Nolë (it wi
 
 - **Create a canvas**: sidebar **New canvas** (on phone: the button at the top of Home).
 - **Add a block**: **+** in the bottom toolbar, or right-click the empty canvas, or press T / D / I / A / L with the pointer on the canvas, or drop files, or paste.
-- **Open a block in a window**: double-click it, or select it and press Enter, or **Open** in its toolbar.
+- **Open a block in a window**: double-click it, or select it and press Enter, or **Open** in its toolbar. From a mention pill, a block pill in Nolë's reply or a search result: Ctrl/⌘+click (a plain click goes to the block on the canvas instead).
 - **Talk to Nolë**: **Nolë** button or N. Enter sends, Shift+Enter adds a line.
 - **Show Nolë a block**: Alt+click the block (attach), or type @ in the message. Nolë only works on the canvas that is open.
 - **Connect two blocks**: select a block, drag from one of its small side handles to another block.

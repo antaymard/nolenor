@@ -60,7 +60,10 @@ export function SearchResultsList<T extends SearchResult>({
                   )}
                 >
                   {result.label && (
-                    <span className="shrink-0 pt-px font-mono text-xs font-normal tabular-nums text-slate-400">
+                    <span
+                      className="max-w-24 shrink-0 truncate pt-px font-mono text-xs font-normal tabular-nums text-slate-400"
+                      title={result.label}
+                    >
                       {result.label}
                     </span>
                   )}

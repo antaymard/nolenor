@@ -4,6 +4,8 @@ import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
 import { TableMetadataPanel } from "@/components/windows/side-panel/TableMetadataPanel";
+import { revealElement } from "@/lib/revealElement";
+import toast from "react-hot-toast";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { Button } from "@/components/shadcn/button";
 import { TbDownload, TbUpload } from "react-icons/tb";
@@ -92,15 +94,30 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     setDirty(isDirty && !isLocked);
   }, [isDirty, isLocked, setDirty]);
 
+  // Résultat de recherche du panel : la ligne est repérée par son
+  // `data-row-id` (posé par `DraggableRow`). Absente du DOM, c'est que la
+  // recherche ou les filtres de la table la masquent.
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const revealRow = useCallback((rowId: string) => {
+    const row = Array.from(
+      tableContainerRef.current?.querySelectorAll<HTMLElement>(
+        "[data-row-id]",
+      ) ?? [],
+    ).find((el) => el.dataset.rowId === rowId);
+    if (row) revealElement(row);
+    else toast("This row is hidden by the table's search or filters.");
+  }, []);
+
   useEffect(() => {
     setPlanTabContent(
       <TableMetadataPanel
-        columnCount={localColumns.length}
-        rowCount={localRows.length}
+        columns={localColumns}
+        rows={localRows}
+        onSelectRow={revealRow}
       />,
     );
     return () => setPlanTabContent(null);
-  }, [localColumns.length, localRows.length, setPlanTabContent]);
+  }, [localColumns, localRows, revealRow, setPlanTabContent]);
 
   const handleSave = useCallback(async (): Promise<boolean> => {
     const columns = columnsRef.current;
@@ -462,7 +479,7 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
         onImport={handleImport}
       />
 
-      <div className="relative flex-1 min-h-0">
+      <div ref={tableContainerRef} className="relative flex-1 min-h-0">
         <Table
           columns={localColumns}
           rows={localRows}

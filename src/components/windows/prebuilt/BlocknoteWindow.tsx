@@ -17,6 +17,7 @@ import {
   headingsSignature,
   type Heading,
 } from "@/lib/blocknoteOutline";
+import { revealElement } from "@/lib/revealElement";
 import { BlocknoteOutlinePanel } from "@/components/windows/side-panel/BlocknoteOutlinePanel";
 import type { AppBlockNoteEditor } from "@/components/blocknote/schema";
 import {
@@ -175,20 +176,10 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     },
     [findBlockElement],
   );
-  // Résultat de recherche : centré plutôt qu'en haut (le match peut être au
-  // milieu d'un long bloc), avec un bref surlignage pour le repérer.
   const scrollToSearchHit = useCallback(
     (blockId: string) => {
       const target = findBlockElement(blockId);
-      if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-      target.animate(
-        [
-          { backgroundColor: "rgb(254 240 138 / 0.8)" },
-          { backgroundColor: "transparent" },
-        ],
-        { duration: 1500, easing: "ease-out" },
-      );
+      if (target) revealElement(target);
     },
     [findBlockElement],
   );

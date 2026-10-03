@@ -11,6 +11,8 @@ import {
 } from "@/lib/flowNodes";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
 import { toastError } from "@/components/utils/errorUtils";
+import { isCompactXyFrame } from "@/lib/frameVariant";
+import { useDeleteConfirmStore } from "@/stores/deleteConfirmStore";
 import {
   recordUndo,
   withUndoTransaction,
@@ -51,7 +53,7 @@ type DeleteOptions = {
  * persister ni laisser de trace à annuler.
  */
 export function useDeleteCanvasElements() {
-  const { deleteElements } = useReactFlow();
+  const { deleteElements, getNodes } = useReactFlow();
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
   });
@@ -76,6 +78,19 @@ export function useDeleteCanvasElements() {
       target: DeleteTarget,
       { label = "Delete", undoable = true }: DeleteOptions = {},
     ): Promise<{ deletedNodes: Node[]; deletedEdges: Edge[] }> => {
+      // Une frame compacte emporte un contenu que personne ne voit : on
+      // demande avant. Refusé, rien ne part — pas même les autres éléments
+      // de la sélection, le geste est annulé en bloc.
+      const hiddenNodeCount = countHiddenContent(getNodes(), target.nodes);
+      if (
+        hiddenNodeCount > 0 &&
+        !(await useDeleteConfirmStore
+          .getState()
+          .requestConfirmation(hiddenNodeCount))
+      ) {
+        return { deletedNodes: [], deletedEdges: [] };
+      }
+
       const { deletedNodes, deletedEdges } = await deleteElements(target);
 
       const nodeIds = deletedNodes.map((node) => node.id);
@@ -112,8 +127,27 @@ export function useDeleteCanvasElements() {
 
       return { deletedNodes, deletedEdges };
     },
-    [deleteElements, trashInConvex, canvasId],
+    [deleteElements, getNodes, trashInConvex, canvasId],
   );
 
   return { deleteCanvasElements };
+}
+
+/** Les enfants des frames compactes visées, qu'on ne voit pas partir. */
+function countHiddenContent(
+  nodes: Node[],
+  targets: { id: string }[] | undefined,
+): number {
+  if (!targets || targets.length === 0) return 0;
+  const targetIds = new Set(targets.map((node) => node.id));
+  const compactFrameIds = new Set(
+    nodes
+      .filter((node) => targetIds.has(node.id) && isCompactXyFrame(node))
+      .map((node) => node.id),
+  );
+  if (compactFrameIds.size === 0) return 0;
+  return nodes.filter(
+    (node) =>
+      node.parentId !== undefined && compactFrameIds.has(node.parentId),
+  ).length;
 }

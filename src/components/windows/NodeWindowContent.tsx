@@ -18,6 +18,7 @@ const AppWindow = lazy(() => import("./prebuilt/AppWindow"));
 const VideoWindow = lazy(() => import("./prebuilt/VideoWindow"));
 const AudioWindow = lazy(() => import("./prebuilt/AudioWindow"));
 const CustomWindow = lazy(() => import("./prebuilt/CustomWindow"));
+const FrameWindow = lazy(() => import("./prebuilt/FrameWindow"));
 
 type NodeWindowContentProps = Pick<
   OpenedWindow,
@@ -77,6 +78,8 @@ function NodeWindowBody({
       return <AudioWindow xyNodeId={xyNodeId} nodeDataId={nodeDataId} />;
     case "custom":
       return <CustomWindow nodeDataId={nodeDataId} />;
+    case "frame":
+      return <FrameWindow xyNodeId={xyNodeId} />;
     default:
       return (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

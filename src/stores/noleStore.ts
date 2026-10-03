@@ -1,7 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { LiveTranscriptionProvider } from "@/hooks/useLiveTranscription";
 import type { Canvas } from "@/types";
 import type { CanvasNode, ChatModelValues } from "@/types/convex";
 import { useShallow } from "zustand/react/shallow";
@@ -14,9 +13,6 @@ export type NoleModelSelection = {
   model: ChatModelValues;
 };
 
-/** Moteur de dictée par défaut, si l'utilisateur n'a rien choisi. */
-const DEFAULT_VOICE_PROVIDER: LiveTranscriptionProvider = "gladia";
-
 interface NoleStore {
   canvas: Omit<Canvas, "nodes" | "edges"> | null;
   panelLayout: NolePanelLayout;
@@ -24,11 +20,6 @@ interface NoleStore {
   // Vit ici, et non dans le hook, pour survivre au démontage du panel : celui-ci
   // est en rendu conditionnel, le réduire détruirait le choix de l'utilisateur.
   modelSelection: NoleModelSelection | null;
-  // Même raison d'être ici que `modelSelection` : le sélecteur vit dans le
-  // composer, réduire le panel ne doit pas rejouer le choix. Pas de threadKey en
-  // revanche — le moteur de dictée est un réglage d'utilisateur, pas une
-  // propriété de la conversation.
-  voiceProvider: LiveTranscriptionProvider;
   // Le brouillon du composer vit ici, et non dans `useNoleChat`, pour que la
   // frappe ne re-rende pas tout ce que ce hook alimente. Il est monté par cinq
   // surfaces, dont le provider de contexte mobile : un `useState` local y
@@ -50,7 +41,6 @@ interface NoleStore {
   setActiveThreadId: (id: string | null) => void;
   // null → aucun choix explicite, on retombe sur la résolution par défaut.
   setModelSelection: (selection: NoleModelSelection | null) => void;
-  setVoiceProvider: (provider: LiveTranscriptionProvider) => void;
   // Signature de `useState` : la dictée met à jour le brouillon en fonction du
   // texte déjà saisi (`prev => prev + transcription`).
   setUserInput: Dispatch<SetStateAction<string>>;
@@ -74,7 +64,6 @@ export const useNoleStore = create<NoleStore>()(
       panelLayout: "minimized",
       activeThreadId: null,
       modelSelection: null,
-      voiceProvider: DEFAULT_VOICE_PROVIDER,
       userInput: "",
       attachedNodes: [],
       attachedPosition: null,
@@ -93,10 +82,6 @@ export const useNoleStore = create<NoleStore>()(
 
       setModelSelection: (selection: NoleModelSelection | null) => {
         set({ modelSelection: selection });
-      },
-
-      setVoiceProvider: (provider: LiveTranscriptionProvider) => {
-        set({ voiceProvider: provider });
       },
 
       setUserInput: (value) => {

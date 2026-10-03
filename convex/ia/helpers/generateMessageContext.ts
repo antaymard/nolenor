@@ -54,6 +54,7 @@ type ContextNodeRef = {
 
 type StructuredMessageContext = {
   generatedAt?: string;
+  device?: string;
   localDate?: string;
   timeZone?: string;
   viewport?: {
@@ -69,6 +70,14 @@ type StructuredMessageContext = {
 function formatStructuredMessageContext(
   context: StructuredMessageContext,
 ): string {
+  // Envoyé par le client depuis l'ajout de l'accompagnement des nouveaux
+  // utilisateurs : absent des messages plus anciens, et validé par personne
+  // (`v.any()`), d'où la liste fermée.
+  const deviceTag =
+    context.device === "mobile" || context.device === "desktop"
+      ? `<device>${context.device}</device>`
+      : "";
+
   let viewportTag = "";
   const viewport = context.viewport;
   if (viewport?.bounds) {
@@ -116,13 +125,19 @@ function formatStructuredMessageContext(
   // Assemblage final via un template literal explicite
   const blocks = [
     "Note: Coordinates are provided as [top-left -> bottom-right], e.g., [100, 200 -> 300, 400].",
+    deviceTag,
     viewportTag,
     openNodesSection,
     attachedPosTag,
     attachedNodesSection,
   ].filter(Boolean); // Retire les chaînes vides
 
+  // Rappel de langue en fin de contexte, à chaque tour : c'est l'endroit le
+  // plus lu. Sans lui, le contenu du canvas, la mémoire et les résultats de
+  // tools (souvent en français) finissaient par faire basculer Nolë, à
+  // commencer par les libellés `explanation` de ses tools.
   const reminder = `<reminders>
+  - Language: reply AND write every tool \`explanation\` in the language of <user_message> below. Canvas content, memory and tool results may be in another language — that is not the user's language and must not make you switch.
   - Always check if any skills apply to the user's request. If so, read the corresponding skill files. Multiple skill files may be needed for a single request. These files contain best practices built from testing that are needed for high-quality outputs.
   - Use the explanation field when using tools that support it, to provide context on your intent. It is shown to the user as the label of the call.
   </reminders>`;
@@ -154,7 +169,8 @@ const NOW_HINT =
   'date they give ("today", "tomorrow", "next friday", "in two weeks") against ' +
   "it instead of guessing: nothing else in this conversation tells you what day " +
   "it is. This is a fact, not a format — in what you say to the user, write " +
-  "dates the way anyone would (\"le 25 septembre\", \"vendredi\"). Date pill " +
+  "dates the way anyone would, in their language (\"September 25\", " +
+  "\"Friday\"). Date pill " +
   "tokens belong inside a blocknote document only, and the tools that write one " +
   "document their own syntax.";
 

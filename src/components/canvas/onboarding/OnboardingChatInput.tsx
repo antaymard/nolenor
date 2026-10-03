@@ -15,7 +15,6 @@ import RichTextArea from "../nole-panel/RichTextArea";
 import SoundWaveAnimation from "../nole-panel/SoundWaveAnimation";
 import ComposerShell from "../nole-panel/chat-input/ComposerShell";
 import SendStopButton from "../nole-panel/chat-input/SendStopButton";
-import VoiceProviderSelect from "../nole-panel/chat-input/VoiceProviderSelect";
 
 /** Le champ héro s'ouvre sur quelques lignes et grandit jusqu'à dix. */
 const INPUT_MIN_ROWS = 3;
@@ -200,22 +199,13 @@ export default function OnboardingChatInput() {
 
           <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-2">
             <div className="flex min-w-0 items-center gap-1">
-              <VoiceProviderSelect disabled={chat.sttBusy}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  disabled={chat.sttBusy}
-                  title="Dictation engine"
-                  className="text-slate-500"
-                >
-                  <MicStatus
-                    isRecording={chat.isRecording}
-                    isTranscribing={chat.isTranscribing}
-                    level={chat.micLevel}
-                  />
-                </Button>
-              </VoiceProviderSelect>
+              <span className="px-2.5">
+                <MicStatus
+                  isRecording={chat.isRecording}
+                  isTranscribing={chat.isTranscribing}
+                  level={chat.micLevel}
+                />
+              </span>
               <Button
                 type="button"
                 variant="ghost"
@@ -262,11 +252,17 @@ export default function OnboardingChatInput() {
             Uploading — send available when done
           </p>
         ) : (
-          // Le raccourci Ctrl+Alt n'existe pas sur mobile : hint desktop only.
-          <p className="mt-2 hidden items-center justify-center gap-1.5 text-xs text-slate-400 md:flex">
-            <TbWaveSine size={12} />
-            Hold Ctrl+Alt to dictate
-          </p>
+          <>
+            {/* Le raccourci Ctrl+Alt n'existe pas sur mobile : chacun son hint. */}
+            <p className="mt-2 hidden items-center justify-center gap-1.5 text-xs text-slate-400 md:flex">
+              <TbWaveSine size={12} />
+              Hold Ctrl+Alt to dictate
+            </p>
+            <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-400 md:hidden">
+              <TbWaveSine size={12} />
+              Tap the mic to dictate, tap again to stop
+            </p>
+          </>
         )}
       </div>
     </div>
@@ -298,10 +294,12 @@ function MicStatus({
       </span>
     );
   }
+  // Au repos, desktop seulement : sur mobile ce ne serait qu'un second micro à
+  // côté du bouton de dictée, sans raccourci à afficher.
   return (
-    <span className="flex items-center gap-1 text-xs text-slate-500">
+    <span className="hidden items-center gap-1 text-xs text-slate-500 md:flex">
       <TbMicrophone size={14} className="shrink-0" />
-      <Kbd className="hidden md:inline-flex">Alt + Ctrl</Kbd>
+      <Kbd>Alt + Ctrl</Kbd>
     </span>
   );
 }

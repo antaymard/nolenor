@@ -167,20 +167,19 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 
   callbacks: {
     /**
-     * Provisionne les canvases de démarrage d'un compte qui vient d'être créé.
-     * `existingUserId === null` ⇒ une ligne `users` vient d'être insérée,
-     * donc c'est une inscription et non une connexion — vrai pour Google
-     * comme pour le mot de passe.
+     * Ce qui suit une inscription. `existingUserId === null` ⇒ une ligne
+     * `users` vient d'être insérée, donc c'est une inscription et non une
+     * connexion — vrai pour Google comme pour le mot de passe.
      *
-     * Planifié plutôt qu'exécuté ici, parce que ce callback tourne DANS la
-     * transaction d'inscription : une erreur de clonage y ferait échouer la
-     * création du compte, et la rattraper par un `try/catch` ne roulerait pas
-     * les écritures déjà faites en arrière — on committerait un canvas à
-     * moitié construit. Une transaction séparée échoue proprement : au pire
-     * le canvas manque et la home affiche son écran de bienvenue.
+     * Aucun canvas n'est semé : un compte neuf arrive sur la home, dont le
+     * `WelcomeBlock` l'invite à créer son premier canvas, qui s'ouvre vide —
+     * donc sur l'onboarding avec Nolë (`EmptyCanvasWithNole`). Le canvas de
+     * tuto cloné à l'inscription (`STARTER_CANVAS_IDS`) a été retiré : pensé
+     * desktop et vieilli, il était un mauvais premier contact.
      *
-     * La notification email admin suit la même logique (transaction séparée,
-     * jamais bloquante) : cf. `convex/adminNotifications.ts`.
+     * La notification email admin est planifiée plutôt qu'exécutée ici, parce
+     * que ce callback tourne DANS la transaction d'inscription : une erreur y
+     * ferait échouer la création du compte. Cf. `convex/adminNotifications.ts`.
      *
      * L'abonnement à la newsletter, lui, ne se décide pas ici mais dans
      * `scheduleNewsletterSubscription` : il ne dépend pas de « est-ce une
@@ -194,12 +193,6 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         // information : au moment où l'adresse sera vérifiée, quelques minutes
         // plus tard, plus rien ne distinguera ce compte d'un ancien.
         await ctx.db.patch(userId, { newsletterEligible: true });
-
-        await ctx.scheduler.runAfter(
-          0,
-          internal.onboarding.provisionForNewUser,
-          { userId },
-        );
 
         await ctx.scheduler.runAfter(
           0,

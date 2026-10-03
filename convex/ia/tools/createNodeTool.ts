@@ -15,7 +15,6 @@ import {
   nodeTypeZodValidator,
 } from "../../config/nodeConfig";
 import {
-  EDGE_LABEL_FIELD,
   EXPLANATION_FIELD,
   type NodeRect,
   type ToolConfig,
@@ -221,29 +220,18 @@ export default function createNodeTool({
           'Optional node data title. Applied to title-like fields depending on node type. For a "title" node, prefix it with "# ", "## " or "### " to make it an h1, h2 or h3 heading (the prefix is removed); without a prefix it is plain text.',
         ),
       sourceNodes: z
-        .array(
-          z.union([
-            z.string(),
-            z.object({
-              nodeId: z.string().describe("Existing source node ID."),
-              label: EDGE_LABEL_FIELD.optional(),
-            }),
-          ]),
-        )
+        .array(z.string())
         .optional()
         .describe(
-          "Optional list of existing nodes to connect FROM each source node TO the newly created node. Each entry is either a nodeId, or { nodeId, label } to label that connection. Unknown or invalid ids are skipped and reported in skippedSources. Its last valid entry is the default anchor for relative placement.",
+          "Optional list of existing node IDs to connect FROM each source node TO the newly created node. Unknown or invalid ids are skipped and reported in skippedSources. Its last valid entry is the default anchor for relative placement.",
         ),
     }),
     execute: async (ctx, input) => {
       try {
-        // `sourceNodes` accepte un id nu ou `{ nodeId, label }` : normalisé
-        // une fois ici, tout ce qui suit ne voit que la forme objet.
-        const sources = (input.sourceNodes ?? []).map((entry) =>
-          typeof entry === "string"
-            ? { nodeId: entry, label: null }
-            : { nodeId: entry.nodeId, label: entry.label?.trim() || null },
-        );
+        // Pas de label sur les connexions créées par l'agent : il en posait
+        // sur presque toutes, et le canvas devenait illisible. L'utilisateur
+        // les nomme lui-même s'il le souhaite (double-clic sur l'edge).
+        const sources = input.sourceNodes ?? [];
 
         // ── Custom nodes : défauts, dimensions et titre viennent du
         // template (values keyées par fieldId), pas de nodeConfig — le
@@ -474,7 +462,7 @@ export default function createNodeTool({
             // `sourceNodes` n'ancre pas en mode frame : une source est en
             // général dehors, et ancrer dessus viserait hors de la boîte.
             if (!anchor && !frameRect && sources.length > 0) {
-              for (const { nodeId: sourceNodeId } of sources) {
+              for (const sourceNodeId of sources) {
                 const found = nodeRectsById.get(sourceNodeId);
                 if (found) {
                   anchor = found;
@@ -593,7 +581,6 @@ export default function createNodeTool({
         const connectedSources: Array<{
           sourceNodeId: string;
           edgeId: string;
-          label?: string;
         }> = [];
         const skippedSources: Array<{ sourceNodeId: string; reason: string }> =
           [];
@@ -613,7 +600,7 @@ export default function createNodeTool({
                 ).nodes.map((node) => node.id),
               );
 
-          for (const { nodeId: sourceNodeId, label } of sources) {
+          for (const sourceNodeId of sources) {
             if (sourceNodeId === nodeId) {
               skippedSources.push({
                 sourceNodeId,
@@ -643,7 +630,6 @@ export default function createNodeTool({
                       canvasId,
                       source: sourceNodeId,
                       target: nodeId,
-                      ...(label && { data: { label } }),
                     },
                   ],
                 },
@@ -652,7 +638,6 @@ export default function createNodeTool({
               connectedSources.push({
                 sourceNodeId,
                 edgeId,
-                ...(label && { label }),
               });
             } catch (error) {
               skippedSources.push({

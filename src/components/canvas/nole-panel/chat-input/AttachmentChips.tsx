@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { TbPlus, TbX } from "react-icons/tb";
 import { HiMiniXMark } from "react-icons/hi2";
 import { LuMousePointerClick } from "react-icons/lu";
@@ -21,6 +22,11 @@ type AttachmentRowProps = AttachmentActions & {
   selectableNodes: readonly CanvasNode[];
   attachedNodes: readonly CanvasNode[];
   attachedPosition?: { x: number; y: number } | null;
+  /**
+   * Ligne affichée quand rien n'est attaché. Par défaut, le raccourci Alt +
+   * clic — qui n'existe pas au doigt : le composer mobile passe le sien.
+   */
+  emptyHint?: ReactNode;
 };
 
 /**
@@ -34,6 +40,7 @@ export function AttachmentRow({
   attachedPosition,
   addAttachments,
   removeAttachments,
+  emptyHint,
 }: AttachmentRowProps) {
   const hasAny =
     selectableNodes.length > 0 ||
@@ -42,7 +49,11 @@ export function AttachmentRow({
   if (!hasAny)
     return (
       <div className="flex items-center justify-start gap-1 px-2 pt-2 text-xs opacity-50 italic">
-        <Kbd>Alt + Clic</Kbd> on a node to attach as context
+        {emptyHint ?? (
+          <>
+            <Kbd>Alt + Clic</Kbd> on a node to attach as context
+          </>
+        )}
       </div>
     );
 

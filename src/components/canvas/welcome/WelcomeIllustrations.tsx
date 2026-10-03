@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { TbArrowRight, TbDeviceDesktop, TbDeviceMobile } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { colors } from "@/components/ui/styles";
 import {
@@ -288,6 +289,20 @@ export function ContextMenuIllustration({ touch }: { touch: boolean }) {
       </div>
 
       <ArrowPointer className="absolute top-[32px] left-[58px] animate-welcome-pointer-right" />
+    </Frame>
+  );
+}
+
+/**
+ * L'étape 0 sur mobile : un téléphone qui renvoie vers un écran d'ordinateur.
+ * Statique — c'est un message, pas un geste à apprendre.
+ */
+export function DesktopFirstIllustration() {
+  return (
+    <Frame className="flex items-center justify-center gap-5 text-slate-500">
+      <TbDeviceMobile className="size-11" strokeWidth={1.5} />
+      <TbArrowRight className="size-5 text-slate-400" />
+      <TbDeviceDesktop className="size-16 text-blue-500" strokeWidth={1.5} />
     </Frame>
   );
 }

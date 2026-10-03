@@ -108,10 +108,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   useEffect(() => {
     uploadRef.current = uploadToR2;
   }, [uploadToR2]);
-  const stableUpload = useCallback(
-    (file: File) => uploadRef.current(file),
-    [],
-  );
+  const stableUpload = useCallback((file: File) => uploadRef.current(file), []);
 
   const docSource = nodeDataValues?.doc;
 
@@ -132,8 +129,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     isCorrupted: boolean;
   }>(() => {
     const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
-      | PartialBlock[]
-      | null;
+      PartialBlock[] | null;
     const result = createSafeBlockNoteEditor(parsedBlocks, {
       uploadFile: stableUpload,
     });
@@ -165,24 +161,69 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     headingsSigRef.current = signature;
     setHeadings(next);
   }, []);
-  const scrollToHeading = useCallback((heading: Heading) => {
+  const findBlockElement = useCallback((blockId: string) => {
     const root = containerRef.current;
-    if (!root) return;
-    const target = Array.from(
-      root.querySelectorAll<HTMLElement>("[data-id]"),
-    ).find((el) => el.getAttribute("data-id") === heading.id);
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!root) return undefined;
+    return Array.from(root.querySelectorAll<HTMLElement>("[data-id]")).find(
+      (el) => el.getAttribute("data-id") === blockId,
+    );
   }, []);
+  const scrollToHeading = useCallback(
+    (heading: Heading) => {
+      findBlockElement(heading.id)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    },
+    [findBlockElement],
+  );
+  // Résultat de recherche : centré plutôt qu'en haut (le match peut être au
+  // milieu d'un long bloc), avec un bref surlignage pour le repérer.
+  const scrollToSearchHit = useCallback(
+    (blockId: string) => {
+      const target = findBlockElement(blockId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.animate(
+        [
+          { backgroundColor: "rgb(254 240 138 / 0.8)" },
+          { backgroundColor: "transparent" },
+        ],
+        { duration: 1500, easing: "ease-out" },
+      );
+    },
+    [findBlockElement],
+  );
+  // Stables : la recherche lit le doc à la demande et s'abonne elle-même aux
+  // changements, le Plan n'est pas republié à chaque frappe.
+  const getDoc = useCallback(
+    () => editor.document as unknown as Block[],
+    [editor],
+  );
+  const subscribeToDocChanges = useCallback(
+    (callback: () => void) => editor.onChange(callback),
+    [editor],
+  );
   useEffect(() => {
     setPlanTabContent(
       <BlocknoteOutlinePanel
         headings={headings}
         onSelect={scrollToHeading}
+        getDoc={getDoc}
+        subscribeToDocChanges={subscribeToDocChanges}
+        onSelectBlock={scrollToSearchHit}
         className="h-full"
       />,
     );
     return () => setPlanTabContent(null);
-  }, [headings, scrollToHeading, setPlanTabContent]);
+  }, [
+    headings,
+    scrollToHeading,
+    getDoc,
+    subscribeToDocChanges,
+    scrollToSearchHit,
+    setPlanTabContent,
+  ]);
 
   const handleSaveClick = useCallback(async (): Promise<boolean> => {
     const doc = latestDocRef.current ?? editor.document;
@@ -276,8 +317,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     hydrationFrameRef.current = requestAnimationFrame(() => {
       hydrationFrameRef.current = null;
       const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
-        | PartialBlock[]
-        | null;
+        PartialBlock[] | null;
       const replacement =
         parsedBlocks && parsedBlocks.length > 0
           ? parsedBlocks
@@ -337,10 +377,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
   // store resterait bloqué sur `richtext-editor`. `closeWindow` couvre la
   // fermeture par le bouton, pas les autres démontages.
   const releaseFocus = useCanvasStore((s) => s.releaseFocus);
-  useEffect(
-    () => () => releaseFocus("richtext-editor"),
-    [releaseFocus],
-  );
+  useEffect(() => () => releaseFocus("richtext-editor"), [releaseFocus]);
 
   if (!nodeDataValues) return <WindowLoadingState />;
 

@@ -12,17 +12,3 @@ export function useWindowSearchQuery() {
 }
 
 export { WindowSearchContext };
-
-/** Match insensible à la casse et aux accents ; une requête vide matche tout. */
-export function matchesSearchQuery(text: string, query: string): boolean {
-  const needle = normalize(query);
-  return needle === "" || normalize(text).includes(needle);
-}
-
-function normalize(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim();
-}

@@ -15,10 +15,13 @@ import { Kbd, KbdGroup } from "@/components/shadcn/kbd";
 import { cn } from "@/lib/utils";
 import { fromXyNodeToCanvasNode } from "@/lib/node-types-converter";
 import type { Id } from "@/types";
-import type { NodeType } from "@/types/domain";
 import { useParams } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
-import { useGoToNode } from "@/hooks/useGoToNode";
+import {
+  OPEN_MODIFIER_LABEL,
+  isOpenModifier,
+  useActivateNode,
+} from "@/hooks/useActivateNode";
 import {
   useCallback,
   useEffect,
@@ -27,13 +30,11 @@ import {
   useRef,
   type KeyboardEvent,
 } from "react";
-import { TbLocation, TbSearch, TbX } from "react-icons/tb";
+import { TbSearch, TbX } from "react-icons/tb";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
-import { useWindowsStore } from "@/stores/windowsStore";
-import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { useSearch, type SearchResult } from "@/components/search/useSearch";
 import {
@@ -53,7 +54,7 @@ export default function SearchModale() {
   const closeSearchModal = useCanvasStore((state) => state.closeSearchModal);
   const setSearchQuery = useCanvasStore((state) => state.setSearchQuery);
   const { getNode } = useReactFlow();
-  const openWindow = useWindowsStore((state) => state.openWindow);
+  const activateNode = useActivateNode();
   const addAttachments = useNoleStore((state) => state.addAttachments);
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
@@ -98,34 +99,21 @@ export default function SearchModale() {
       active.scrollIntoView({ block: "nearest" });
   }, [activeIndex, navigableCount]);
 
-  const handleOpenResult = useCallback(
-    (result: SearchResult) => {
-      if (!canNodeTypeBeOpenedInWindow(result.type)) return;
-      openWindow({
-        xyNodeId: result.nodeId,
-        nodeDataId: result.nodeDataId,
-        nodeType: result.type as NodeType,
-      });
+  // Default: go to the node. Cmd/Ctrl: open its window (falls back to go to
+  // when the node has none).
+  const handleActivate = useCallback(
+    (
+      params: {
+        nodeId: string;
+        nodeDataId: Id<"nodeDatas">;
+        nodeType: string;
+      },
+      open: boolean,
+    ) => {
+      activateNode(params, { open });
       closeSearchModal();
     },
-    [closeSearchModal, openWindow],
-  );
-
-  const handleOpenNode = useCallback(
-    (params: {
-      nodeId: string;
-      nodeDataId: Id<"nodeDatas">;
-      nodeType: string;
-    }) => {
-      if (!canNodeTypeBeOpenedInWindow(params.nodeType)) return;
-      openWindow({
-        xyNodeId: params.nodeId,
-        nodeDataId: params.nodeDataId,
-        nodeType: params.nodeType as NodeType,
-      });
-      closeSearchModal();
-    },
-    [closeSearchModal, openWindow],
+    [activateNode, closeSearchModal],
   );
 
   const handleToggleAttachment = useCallback(
@@ -146,17 +134,30 @@ export default function SearchModale() {
       move(-1);
     } else if (event.key === "Enter") {
       event.preventDefault();
+      const open = isOpenModifier(event);
       if (hasQuery) {
         const selected = results[activeIndex];
-        if (selected) handleOpenResult(selected);
+        if (selected) {
+          handleActivate(
+            {
+              nodeId: selected.nodeId,
+              nodeDataId: selected.nodeDataId,
+              nodeType: selected.type,
+            },
+            open,
+          );
+        }
       } else {
         const selected = recents?.[activeIndex];
         if (selected) {
-          handleOpenNode({
-            nodeId: selected.xyNodeId,
-            nodeDataId: selected.nodeData._id,
-            nodeType: selected.nodeData.type,
-          });
+          handleActivate(
+            {
+              nodeId: selected.xyNodeId,
+              nodeDataId: selected.nodeData._id,
+              nodeType: selected.nodeData.type,
+            },
+            open,
+          );
         }
       }
     }
@@ -309,7 +310,16 @@ export default function SearchModale() {
                     terms={terms}
                     active={idx === activeIndex}
                     onSelect={() => setActiveIndex(idx)}
-                    onOpen={() => handleOpenResult(result)}
+                    onActivate={(open) =>
+                      handleActivate(
+                        {
+                          nodeId: result.nodeId,
+                          nodeDataId: result.nodeDataId,
+                          nodeType: result.type,
+                        },
+                        open,
+                      )
+                    }
                     onToggleAttachment={() =>
                       handleToggleAttachment(result.nodeId)
                     }
@@ -334,7 +344,7 @@ export default function SearchModale() {
                   updatedAt={entry.nodeData.updatedAt}
                   active={idx === activeIndex}
                   onSelect={() => setActiveIndex(idx)}
-                  onOpen={handleOpenNode}
+                  onActivate={handleActivate}
                 />
               ))}
             </>
@@ -352,7 +362,11 @@ export default function SearchModale() {
           </span>
           <span className="flex items-center gap-1.5">
             <Kbd>↵</Kbd>
-            open
+            go to
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Kbd>{OPEN_MODIFIER_LABEL}</Kbd>+<Kbd>↵</Kbd>
+            open window
           </span>
           <span className="hidden items-center gap-1.5 sm:flex">
             <Kbd>Alt</Kbd>+click to attach to Nole
@@ -373,7 +387,7 @@ function ResultCard({
   terms,
   active,
   onSelect,
-  onOpen,
+  onActivate,
   onToggleAttachment,
 }: {
   optionId: string;
@@ -381,24 +395,16 @@ function ResultCard({
   terms: string[];
   active: boolean;
   onSelect: () => void;
-  onOpen: () => void;
+  onActivate: (open: boolean) => void;
   onToggleAttachment: () => void;
 }) {
   const fallbackTitle = useNodeDataTitle(result.nodeDataId);
   const nodeTitle = result.title ?? fallbackTitle;
-  const closeSearchModal = useCanvasStore((state) => state.closeSearchModal);
-  const goToNode = useGoToNode();
   const isAttachedToNole = useIsNodeAttached(result.nodeId);
-  const canOpenWindow = canNodeTypeBeOpenedInWindow(result.type);
   const sortedSnippets = useMemo(
     () => sortSnippets(result.snippets),
     [result.snippets],
   );
-
-  const handleGoToNode = () => {
-    goToNode(result.nodeId);
-    closeSearchModal();
-  };
 
   return (
     <div
@@ -419,7 +425,7 @@ function ResultCard({
           onToggleAttachment();
           return;
         }
-        if (canOpenWindow) onOpen();
+        onActivate(isOpenModifier(event));
       }}
       title={
         isAttachedToNole
@@ -427,23 +433,7 @@ function ResultCard({
           : "Alt+click to attach to Nole"
       }
     >
-      <div className="absolute top-3 right-3 flex items-center gap-1">
-        <Button
-          type="button"
-          size="icon"
-          className="h-7 w-7"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleGoToNode();
-          }}
-          aria-label="Locate on canvas"
-          title="Locate on canvas"
-        >
-          <TbLocation size={14} />
-        </Button>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 pr-16">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-[15px] font-bold tracking-tight">{nodeTitle}</p>
         <span className="rounded-lg bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
           {result.type}
@@ -479,7 +469,7 @@ function RecentRow({
   updatedAt,
   active,
   onSelect,
-  onOpen,
+  onActivate,
 }: {
   optionId: string;
   nodeId: string;
@@ -488,31 +478,31 @@ function RecentRow({
   updatedAt?: number;
   active: boolean;
   onSelect: () => void;
-  onOpen: (params: {
-    nodeId: string;
-    nodeDataId: Id<"nodeDatas">;
-    nodeType: string;
-  }) => void;
+  onActivate: (
+    params: {
+      nodeId: string;
+      nodeDataId: Id<"nodeDatas">;
+      nodeType: string;
+    },
+    open: boolean,
+  ) => void;
 }) {
   const title = useNodeDataTitle(nodeDataId);
   const Icon = getNodeIcon(nodeType);
-  const canOpen = canNodeTypeBeOpenedInWindow(nodeType);
 
   return (
     <div
       id={optionId}
       role="option"
       aria-selected={active}
-      aria-disabled={!canOpen || undefined}
       data-active={active ? "true" : undefined}
       onMouseEnter={onSelect}
-      onClick={() => {
-        if (canOpen) onOpen({ nodeId, nodeDataId, nodeType });
-      }}
+      onClick={(event) =>
+        onActivate({ nodeId, nodeDataId, nodeType }, isOpenModifier(event))
+      }
       className={cn(
-        "flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors",
+        "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors",
         active ? "bg-accent" : "hover:bg-accent/50",
-        canOpen ? "cursor-pointer" : "cursor-default opacity-50",
       )}
     >
       {Icon ? (

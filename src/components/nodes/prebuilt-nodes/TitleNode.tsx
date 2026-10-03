@@ -25,6 +25,7 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useTitleNodeSizing } from "./useTitleNodeSizing";
+import { parseTitleHeading } from "@/../convex/lib/titleHeading";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 
 type SizingMode = "auto" | "manual";
@@ -200,10 +201,10 @@ function TitleNode(xyNode: XyNodeProps) {
 
       // Markdown shortcut: "# ", "## ", "### " at the start of the line
       // bumps the level and rewrites the editor content in place.
-      const match = raw.match(/^(#{1,3}) (.*)$/);
-      if (match) {
-        const newLevel = `h${match[1].length}` as TitleLevel;
-        const stripped = match[2];
+      const heading = parseTitleHeading(raw);
+      if (heading) {
+        const newLevel: TitleLevel = heading.level;
+        const stripped = heading.text;
         if (nodeDataId && newLevel !== level) {
           updateNodeDataValues({
             nodeDataId,

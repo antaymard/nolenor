@@ -30,7 +30,7 @@ import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import BookmarkedBadge from "@/components/nodes/BookmarkedBadge";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
-import { colors } from "@/components/ui/styles";
+import { colors, resolveColor } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_FRAME_TITLE_LEVEL,
@@ -38,7 +38,7 @@ import {
   FRAME_TITLE_LEVELS,
   type FrameTitleLevel,
 } from "@/../convex/config/nodeConfig";
-import type { XyNodeProps, colorsEnum } from "@/types/domain";
+import type { XyNodeProps } from "@/types/domain";
 
 /** Plancher d'une frame vide : en dessous, la barre de titre ne tient plus. */
 const EMPTY_MIN_WIDTH = 160;
@@ -152,7 +152,8 @@ function FrameNode(xyNode: XyNodeProps) {
   const titleScale = useStore(zoomCompensationScaleSelector);
 
   const title = typeof values?.title === "string" ? values.title : "";
-  const nodeColor = colors[(xyNode.data?.color as colorsEnum) || "default"];
+  const nodeColor =
+    colors[resolveColor(xyNode.data?.color as string | undefined, true)];
 
   // Les frames tracées avant l'arrivée des niveaux n'ont pas de `level` :
   // elles prennent le même défaut que zod applique aux nouvelles.

@@ -13,7 +13,7 @@ import type { Node } from "@xyflow/react";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
 import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
 import { useNoleStore } from "@/stores/noleStore";
-import { colors, colorSwatchStyle } from "@/components/ui/styles";
+import { colors, colorSwatchStyle, resolveColor } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
@@ -115,8 +115,13 @@ export default function NodeContextMenu({
   const { openTemplateEditor } = useTemplateEditor();
   const copyIds = useCopyNodeIdsItems([xyNode.id]);
 
-  const availableColors = Object.entries(colors);
-  const currentColor = (xyNode.data.color as colorsEnum) || "default";
+  const availableColors = Object.entries(colors).filter(
+    ([key]) => key !== "default",
+  );
+  const currentColor = resolveColor(
+    xyNode.data.color as string | undefined,
+    xyNode.type === "frame",
+  );
 
   // Ce menu ne vise jamais que `xyNode` : un clic droit sur un node d'une
   // sélection de plusieurs ouvre `SelectionContextMenu`, qui agit sur tout le

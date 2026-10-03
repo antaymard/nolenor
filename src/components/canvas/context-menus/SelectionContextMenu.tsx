@@ -67,7 +67,9 @@ export default function SelectionContextMenu({
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
   const { updateNodeDataValues } = useUpdateNodeDataValues();
-  const availableColors = Object.entries(colors);
+  const availableColors = Object.entries(colors).filter(
+    ([key]) => key !== "default",
+  );
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const removeNoleAttachments = useNoleStore(
     (state) => state.removeAttachments,

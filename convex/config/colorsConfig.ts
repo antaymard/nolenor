@@ -6,7 +6,9 @@
  * valider (`canvases.color`) et pour publier la liste aux outils de Nolë.
  *
  * Rangée par teinte, du rouge au rose : c'est l'ordre des pastilles dans les
- * menus. Les neutres (`default`, `transparent`) ferment la marche.
+ * menus. Les neutres ferment la marche : `grey` et `white` sont des choix
+ * explicites ; `default` est la couleur « non choisie » — blanche pour un node,
+ * grise pour une frame (cf. `resolveColor` dans `src/components/ui/styles.ts`).
  */
 export const NODE_COLORS = [
   "red",
@@ -19,6 +21,8 @@ export const NODE_COLORS = [
   "blue",
   "purple",
   "pink",
+  "grey",
+  "white",
   "default",
   "transparent",
 ] as const;

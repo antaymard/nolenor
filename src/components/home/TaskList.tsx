@@ -189,7 +189,7 @@ export default function TaskList({
                 variant="outline"
                 size="sm"
                 onClick={() => revert(task.threadId)}
-                className="gap-1.5 bg-white"
+                className="gap-1.5 bg-surface"
                 aria-label={`Undo clear of ${task.title || "Nolë"}`}
               >
                 <TbArrowBackUp />

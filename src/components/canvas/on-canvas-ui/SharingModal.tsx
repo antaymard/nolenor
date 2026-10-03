@@ -46,7 +46,7 @@ export default function SharingModal() {
           Share
         </Button>
       </DialogTrigger>
-      <DialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md">
+      <DialogContent className="rounded-2xl border-surface/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-bold tracking-tight">Share canvas</DialogTitle>
         </DialogHeader>

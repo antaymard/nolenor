@@ -116,7 +116,7 @@ export default function LayoutAddButtons({
           size="icon"
           variant="outline"
           disabled={disabled}
-          className="h-6 w-6 bg-white/80"
+          className="h-6 w-6 bg-surface/80"
           title="Add a layout element"
         >
           <TbPlus size={13} />

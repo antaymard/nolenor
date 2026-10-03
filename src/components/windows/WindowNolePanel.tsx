@@ -51,7 +51,7 @@ export function NoleOverlay() {
     <div className="pointer-events-none absolute bottom-4 left-4 z-10">
       <div className="pointer-events-auto relative">
         {isChatOpen && (
-          <div className="absolute bottom-10 left-0 w-95 h-[calc(100dvh-8rem)] rounded border bg-white shadow-2xl/10 overflow-hidden [&>div]:shadow-none!">
+          <div className="absolute bottom-10 left-0 w-95 h-[calc(100dvh-8rem)] rounded border bg-surface shadow-2xl/10 overflow-hidden [&>div]:shadow-none!">
             <ChatContainer onClose={() => setIsChatOpen(false)} />
           </div>
         )}
@@ -73,7 +73,7 @@ export function NoleAside() {
   useIsolatedHotkey("N", () => setIsChatOpen((v) => !v));
 
   return (
-    <aside className="relative flex w-95 shrink-0 flex-col border-r bg-white [&>div]:shadow-none!">
+    <aside className="relative flex w-95 shrink-0 flex-col border-r bg-surface [&>div]:shadow-none!">
       {isChatOpen ? (
         <ChatContainer onClose={() => setIsChatOpen(false)} />
       ) : (

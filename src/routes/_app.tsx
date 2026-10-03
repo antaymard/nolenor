@@ -42,14 +42,14 @@ function RouteComponent() {
   // vide, qui clignoteraient l'un comme l'autre.
   if (isLoading || !isAuthenticated) {
     return (
-      <div className="flex h-dvh w-full items-center justify-center bg-white">
+      <div className="flex h-dvh w-full items-center justify-center bg-surface">
         <Spinner className="animate-appear size-6 text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full w-full bg-white">
+    <div className="flex h-full w-full bg-surface">
       <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-slate-50 md:block">
         <AppSidebar />
       </aside>

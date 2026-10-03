@@ -222,7 +222,7 @@ export default function CanvasFormModal({
     // Colonne à hauteur bornée : en-tête et pied fixes, seul le corps défile —
     // le bouton de validation reste visible quelle que soit la longueur du
     // formulaire (sections dépliées comprises).
-    <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-2xl sm:max-w-xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
+    <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-2xl sm:max-w-xl border-surface/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
       <form
         className="flex min-h-0 flex-1 flex-col"
         onSubmit={(e) => {

@@ -152,7 +152,7 @@ export default function FieldsPanel({
 
       <div className="flex flex-col">
         {draft.fields.length === 0 && (
-          <p className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-500 italic">
+          <p className="rounded-md border border-gray-200 bg-surface p-3 text-sm text-gray-500 italic">
             No fields yet.
           </p>
         )}
@@ -180,7 +180,7 @@ export default function FieldsPanel({
             <div
               key={field.id}
               className={cn(
-                "overflow-hidden border bg-white transition-colors border-slate-200 border-b-0 hover:bg-slate-100",
+                "overflow-hidden border bg-surface transition-colors border-slate-200 border-b-0 hover:bg-slate-100",
                 expanded
                   ? "rounded-md border-b my-5 bg-slate-100"
                   : cn(
@@ -247,7 +247,7 @@ export default function FieldsPanel({
               </div>
 
               {expanded && (
-                <div className="space-y-5 border-t border-slate-200 bg-white p-3">
+                <div className="space-y-5 border-t border-slate-200 bg-surface p-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Name</Label>
                     <Input

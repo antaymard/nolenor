@@ -24,6 +24,13 @@ export const DEFAULT_CANVAS_BACKGROUND: ResolvedCanvasBackground = {
 };
 
 /** Taille proposée quand on change de motif (lineWidth pour lines, dot/cross sinon). */
+/** Défauts en dark mode, pour les canvas sans fond choisi. Un fond choisi
+ *  explicitement est partagé avec tous les viewers et reste tel quel. */
+export const DARK_CANVAS_BACKGROUND_COLORS = {
+  bgColor: "oklch(0.17 0.042 265)",
+  patternColor: "oklch(0.4 0.09 260)",
+};
+
 export const VARIANT_DEFAULT_SIZE: Record<CanvasBackgroundVariant, number> = {
   lines: 0.3,
   dots: 1.5,
@@ -55,14 +62,18 @@ const BACKGROUND_VARIANT_MAP: Record<
 
 export function resolveCanvasBackground(
   background: CanvasBackground | undefined,
+  theme: "light" | "dark" = "light",
 ): ResolvedCanvasBackground {
+  const defaults =
+    theme === "dark"
+      ? { ...DEFAULT_CANVAS_BACKGROUND, ...DARK_CANVAS_BACKGROUND_COLORS }
+      : DEFAULT_CANVAS_BACKGROUND;
   return {
-    bgColor: background?.bgColor ?? DEFAULT_CANVAS_BACKGROUND.bgColor,
-    patternColor:
-      background?.patternColor ?? DEFAULT_CANVAS_BACKGROUND.patternColor,
-    variant: background?.variant ?? DEFAULT_CANVAS_BACKGROUND.variant,
-    gap: background?.gap ?? DEFAULT_CANVAS_BACKGROUND.gap,
-    size: background?.size ?? DEFAULT_CANVAS_BACKGROUND.size,
+    bgColor: background?.bgColor ?? defaults.bgColor,
+    patternColor: background?.patternColor ?? defaults.patternColor,
+    variant: background?.variant ?? defaults.variant,
+    gap: background?.gap ?? defaults.gap,
+    size: background?.size ?? defaults.size,
   };
 }
 

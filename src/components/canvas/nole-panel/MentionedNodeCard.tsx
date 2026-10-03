@@ -85,7 +85,7 @@ export function MentionedNodeCard({
       type="button"
       onClick={handleClick}
       className={cn(
-        "group flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors",
+        "group flex items-center gap-1.5 rounded border border-slate-200 bg-surface px-2 py-0.5 text-xs text-slate-700 transition-colors",
         inline
           ? "inline-flex align-middle mx-1 -translate-y-0.5"
           : "flex w-fit max-w-50",

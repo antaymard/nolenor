@@ -76,7 +76,7 @@ export default function EdgeBendHandle({
           width: 12,
           height: 12,
           borderRadius: 9999,
-          background: "#ffffff",
+          background: "var(--surface)",
           border: "2px solid #3b82f6",
           cursor: "grab",
           touchAction: "none",

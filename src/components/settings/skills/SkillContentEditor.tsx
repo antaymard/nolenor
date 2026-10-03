@@ -10,6 +10,7 @@ import { markdownToBlockNoteBlocks } from "@/lib/blockNoteMarkdownConverter";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
 import { insertLineExtension } from "@/components/blocknote/insertLineExtension";
+import { useResolvedTheme } from "@/lib/theme";
 
 // Éditeur du corps d'une skill.
 //
@@ -41,6 +42,7 @@ function SkillContentEditor({
   initialMarkdown,
   onChange,
 }: SkillContentEditorProps) {
+  const theme = useResolvedTheme();
   // `markdownToBlockNoteBlocks` passe par le convertisseur de l'app (schéma
   // étendu), mais le Markdown ne peut produire que des blocs par défaut : le
   // résultat est donc valide pour l'éditeur par défaut construit ici.
@@ -60,7 +62,7 @@ function SkillContentEditor({
     <BlockNoteErrorBoundary resetKey={initialMarkdown}>
       <BlockNoteView
         editor={editor}
-        theme="light"
+        theme={theme}
         onChange={handleChange}
         slashMenu={false}
         sideMenu={false}

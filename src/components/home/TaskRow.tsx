@@ -86,7 +86,7 @@ export default function TaskRow({ task, canvas, onClear }: TaskRowProps) {
   return (
     <li
       className={cn(
-        "flex items-center gap-3 rounded-xl border bg-white py-2.5 pr-2.5 pl-3 transition-shadow hover:shadow-sm",
+        "flex items-center gap-3 rounded-xl border bg-surface py-2.5 pr-2.5 pl-3 transition-shadow hover:shadow-sm",
         RUN_STATUS_BORDER[status],
       )}
     >

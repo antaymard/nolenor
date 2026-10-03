@@ -91,7 +91,7 @@ export default function CreateApiTokenDialog() {
           New token
         </Button>
       </DialogTrigger>
-      <DialogContent className={createdToken ? "rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-2xl" : "rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]"}>
+      <DialogContent className={createdToken ? "rounded-2xl border-surface/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-2xl" : "rounded-2xl border-surface/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]"}>
         {createdToken ? (
           <>
             <DialogHeader>

@@ -64,7 +64,7 @@ export function RowRecordDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] gap-0 overflow-hidden rounded-2xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] gap-0 overflow-hidden rounded-2xl border-surface/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-2xl">
         <DialogHeader className="flex-row items-center gap-2 border-b border-slate-200/70 px-4 py-3">
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-base">

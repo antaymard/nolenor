@@ -66,7 +66,7 @@ function RouteComponent() {
 
   if (isMobile && isAuthenticated) {
     return (
-      <div className="bg-white">
+      <div className="bg-surface">
         <Suspense
           fallback={
             <div className="flex h-screen items-center justify-center">
@@ -89,7 +89,7 @@ function RouteComponent() {
   );
 
   return (
-    <div className="bg-white">
+    <div className="bg-surface">
       <ReactFlowProvider key={canvasId}>
         {isAuthenticated ? (
           <CanvasSidebar canvasId={canvasId}>{canvasContent}</CanvasSidebar>

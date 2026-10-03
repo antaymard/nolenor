@@ -24,7 +24,7 @@ export default function SkillsList({
 
   return (
     <div className="space-y-1">
-      <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-surface overflow-hidden">
         {skills.map((skill) => (
           <button
             key={skill._id}

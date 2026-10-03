@@ -110,7 +110,7 @@ export default function AssociatedThreadsViewer({
       </div>
 
       {/* Infos du thread sélectionné */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto rounded-xl border bg-white p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto rounded-xl border bg-surface p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-col gap-1">
             <h3 className="truncate text-base font-medium text-slate-800">

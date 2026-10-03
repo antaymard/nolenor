@@ -40,7 +40,7 @@ export default function OptionDescriptorsForm({
   }
 
   return (
-    <div data-slot="option-descriptors-form" className="space-y-2 bg-white">
+    <div data-slot="option-descriptors-form" className="space-y-2 bg-surface">
       {title && (
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
           {title}

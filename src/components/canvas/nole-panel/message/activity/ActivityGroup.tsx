@@ -140,7 +140,7 @@ function SummaryHeader({
         {icons.map((Icon, i) => (
           <span
             key={i}
-            className="flex size-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 ring-2 ring-white"
+            className="flex size-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 ring-2 ring-surface"
           >
             <Icon size={11} />
           </span>

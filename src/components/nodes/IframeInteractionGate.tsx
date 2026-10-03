@@ -172,7 +172,7 @@ export default function IframeInteractionGate({
           {label && (
             <button
               type="button"
-              className="absolute bottom-2 right-2 select-none rounded bg-slate-900/75 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity duration-150 group-hover/gate:opacity-100 focus-visible:opacity-100"
+              className="absolute bottom-2 right-2 select-none rounded bg-slate-900/75 dark:bg-black/75 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity duration-150 group-hover/gate:opacity-100 focus-visible:opacity-100"
               // Ne doit ni démarrer un drag de node ni ouvrir la fenêtre.
               onPointerDown={(event) => event.stopPropagation()}
               onDoubleClick={(event) => event.stopPropagation()}

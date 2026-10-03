@@ -54,7 +54,7 @@ export default function TemplatesList({
   return (
     <div className="space-y-3">
       {active.length > 0 && (
-        <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-surface overflow-hidden">
           {active.map((template) => (
             <TemplateRow
               key={template._id}
@@ -69,7 +69,7 @@ export default function TemplatesList({
           <h4 className="text-xs font-semibold text-slate-400 uppercase mb-1 px-1">
             Archived
           </h4>
-          <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white overflow-hidden opacity-70">
+          <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-surface overflow-hidden opacity-70">
             {archived.map((template) => (
               <TemplateRow
                 key={template._id}

@@ -174,7 +174,7 @@ export default function SearchModale() {
     >
       <DialogContent
         showCloseButton={false}
-        className="flex h-[85vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:h-[75vh] sm:max-w-3xl md:max-w-4xl"
+        className="flex h-[85vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-surface/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:h-[75vh] sm:max-w-3xl md:max-w-4xl"
       >
         <DialogTitle className="sr-only">Search</DialogTitle>
         <DialogDescription className="sr-only">

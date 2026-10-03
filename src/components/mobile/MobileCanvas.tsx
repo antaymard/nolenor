@@ -118,7 +118,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
   // (requis par `ChatContainer` via `useNoleChat` → `useReactFlow`).
   if (showOnboarding) {
     return (
-      <div className="flex h-dvh w-screen flex-col overflow-hidden bg-white">
+      <div className="flex h-dvh w-screen flex-col overflow-hidden bg-surface">
         <MobileTopBar
           canvasName={canvas.name}
           onOpenCanvasSwitcher={() => setSwitcherOpen(true)}
@@ -140,7 +140,7 @@ function MobileCanvasShell({ canvasId }: { canvasId: Id<"canvases"> }) {
   return (
     <MobileShellContext.Provider value={shellValue}>
       <MobileNoleProvider>
-        <div className="flex h-dvh w-screen flex-col overflow-hidden bg-white">
+        <div className="flex h-dvh w-screen flex-col overflow-hidden bg-surface">
           <MobileTopBar
             canvasName={canvas.name}
             onOpenCanvasSwitcher={() => setSwitcherOpen(true)}

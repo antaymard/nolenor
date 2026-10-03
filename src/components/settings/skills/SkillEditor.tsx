@@ -221,7 +221,7 @@ export default function SkillEditor({
       {/* Content Field */}
       <div className="flex flex-col gap-1.5 flex-1 min-h-0">
         <label className="font-semibold text-slate-700">Content</label>
-        <div className="flex-1 min-h-[300px] overflow-y-auto rounded-xl border bg-white py-2">
+        <div className="flex-1 min-h-[300px] overflow-y-auto rounded-xl border bg-surface py-2">
           {/* Remonté à chaque changement de skill : l'éditeur n'est pas
               contrôlé, il ne lit son contenu initial qu'au montage. On attend
               que `hydratedFor` ait rattrapé la skill courante pour ne pas

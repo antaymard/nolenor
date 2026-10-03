@@ -48,7 +48,7 @@ export function WindowSidePanel({
   const [tab, setTab] = useState<SidePanelTab>("plan");
 
   return (
-    <aside className={cn("flex w-85 shrink-0 flex-col border-l bg-white", className)}>
+    <aside className={cn("flex w-85 shrink-0 flex-col border-l bg-surface", className)}>
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as SidePanelTab)}
@@ -72,7 +72,7 @@ export function WindowSidePanel({
         </div>
 
         <TabsContent value="plan" className="flex min-h-0 flex-col overflow-auto">
-          <div className="sticky top-0 z-10 border-b bg-white p-2">
+          <div className="sticky top-0 z-10 border-b bg-surface p-2">
             <input
               type="text"
               disabled

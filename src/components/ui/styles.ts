@@ -160,10 +160,10 @@ const colors = {
   },
   white: {
     label: "White",
-    nodeBg: "bg-white",
-    frameBg: "bg-white",
+    nodeBg: "bg-surface",
+    frameBg: "bg-surface",
     frameBorder: "border-slate-300",
-    lightBg: "bg-white",
+    lightBg: "bg-surface",
     nodeBorder: "border-slate-200",
     accentBg: "bg-slate-300",
     solidBg: "bg-slate-500",
@@ -173,7 +173,7 @@ const colors = {
   },
   default: {
     label: "Default",
-    nodeBg: "bg-white",
+    nodeBg: "bg-surface",
     frameBg: "bg-slate-50",
     frameBorder: "border-slate-400",
     lightBg: "bg-slate-50",

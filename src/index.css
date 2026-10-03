@@ -333,6 +333,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-brand: var(--brand);
+  --color-surface: var(--surface);
   --color-highlight: var(--highlight);
 }
 
@@ -371,6 +372,8 @@
   --sidebar-ring: oklch(0.704 0.04 256.788);
   --highlight: oklch(0.852 0.199 91.936);
   --brand: oklch(0.471 0.075 276.514); /* #505785 */
+  /* Fond des cartes, nodes et panneaux (ex-`bg-white`). */
+  --surface: oklch(1 0 0);
 }
 
 .dark {
@@ -407,13 +410,44 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
   --highlight: oklch(0.852 0.199 91.936);
   --brand: oklch(0.707 0.075 276.514);
+  --surface: oklch(0.208 0.042 265.755);
+  --color-text: oklch(0.869 0.022 252.894);
+
+  /* Dark mode « à moindre coût » : l'app code ses gris en dur (`text-slate-500`,
+     `border-slate-200`, `bg-gray-50`…). Plutôt que d'ajouter un `dark:` sur
+     chaque classe, on inverse les échelles slate et gray : les fonds clairs
+     deviennent sombres et les textes foncés deviennent clairs. Les valeurs
+     ne sont pas un miroir exact — les clairs (50–200) sont posés juste
+     au-dessus de `--background` / `--surface` pour rester des fonds discrets. */
+  --color-slate-50: oklch(0.17 0.042 265);
+  --color-slate-100: oklch(0.245 0.042 263);
+  --color-slate-200: oklch(0.3 0.041 260);
+  --color-slate-300: oklch(0.38 0.044 257.3);
+  --color-slate-400: oklch(0.55 0.046 257.4);
+  --color-slate-500: oklch(0.66 0.042 256.8);
+  --color-slate-600: oklch(0.76 0.03 254);
+  --color-slate-700: oklch(0.84 0.022 252.9);
+  --color-slate-800: oklch(0.9 0.013 255.5);
+  --color-slate-900: oklch(0.95 0.007 247.9);
+  --color-slate-950: oklch(0.984 0.003 247.858);
+  --color-gray-50: var(--color-slate-50);
+  --color-gray-100: var(--color-slate-100);
+  --color-gray-200: var(--color-slate-200);
+  --color-gray-300: var(--color-slate-300);
+  --color-gray-400: var(--color-slate-400);
+  --color-gray-500: var(--color-slate-500);
+  --color-gray-600: var(--color-slate-600);
+  --color-gray-700: var(--color-slate-700);
+  --color-gray-800: var(--color-slate-800);
+  --color-gray-900: var(--color-slate-900);
+  --color-gray-950: var(--color-slate-950);
 }
 
 /* Chrome flottant Nolënor — matériau Apple : translucide, blur + saturation,
    contenu scrollé dessous. Poids léger pour chips/toolbars, jamais empilé
    sur un autre translucide. */
 .canvas-ui-container {
-  @apply flex items-center gap-1 rounded-xl border p-1 py-0 text-text shadow-md bg-white;
+  @apply flex items-center gap-1 rounded-xl border p-1 py-0 text-text shadow-md bg-surface;
 }
 .dark .canvas-ui-container {
   background: color-mix(in oklch, oklch(0.208 0.042 265.755) 72%, transparent);

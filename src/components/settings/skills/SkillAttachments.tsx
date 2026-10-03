@@ -111,7 +111,7 @@ export default function SkillAttachments({
       {attachments.length === 0 ? (
         <p className="text-sm text-slate-500 italic">No attachments.</p>
       ) : (
-        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-surface">
           {attachments.map((attachment) => (
             <li
               key={attachment._id}
@@ -184,7 +184,7 @@ export default function SkillAttachments({
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
               placeholder="Paste the attachment content here…"
-              className="w-full font-mono border rounded-md px-3 py-2 bg-white min-h-40"
+              className="w-full font-mono border rounded-md px-3 py-2 bg-surface min-h-40"
             />
           </div>
 

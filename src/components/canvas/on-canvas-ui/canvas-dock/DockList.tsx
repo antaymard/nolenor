@@ -26,7 +26,7 @@ export default function DockList({
   children: ReactNode;
 }) {
   return (
-    <div className="flex max-h-96 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
+    <div className="flex max-h-96 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-surface shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
       <div className="flex h-9 shrink-0 items-center gap-1 border-b border-slate-200 px-3">
         <p className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight text-slate-700">
           {title}

@@ -73,7 +73,7 @@ function MiniNode({
         className,
       )}
     >
-      <div className="flex h-full flex-col gap-[3px] rounded-[4px] bg-white/80 p-[4px]">
+      <div className="flex h-full flex-col gap-[3px] rounded-[4px] bg-surface/80 p-[4px]">
         {children}
       </div>
     </div>
@@ -123,7 +123,7 @@ function MouseGlyph({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "flex h-8 w-5 justify-center rounded-full border-2 border-slate-500 bg-white pt-[4px] shadow-sm",
+        "flex h-8 w-5 justify-center rounded-full border-2 border-slate-500 bg-surface pt-[4px] shadow-sm",
         className,
       )}
     >
@@ -195,7 +195,7 @@ export function OpenNodeIllustration({ touch }: { touch: boolean }) {
       {/* La window qui s'ouvre par-dessus, dans le vocabulaire de `node-appear`.
           Posée en recouvrement du node plutôt qu'à l'autre bout du cadre : la
           vignette garde une composition tenue pendant toute la boucle. */}
-      <div className="absolute top-[48px] left-[74px] w-[112px] animate-welcome-window overflow-hidden rounded-lg border border-slate-300 bg-white shadow-lg">
+      <div className="absolute top-[48px] left-[74px] w-[112px] animate-welcome-window overflow-hidden rounded-lg border border-slate-300 bg-surface shadow-lg">
         <div className="flex items-center gap-[3px] border-b border-slate-200 bg-slate-50 px-[6px] py-[4px]">
           <span className="size-[5px] rounded-full bg-slate-300" />
           <span className="size-[5px] rounded-full bg-slate-300" />
@@ -254,7 +254,7 @@ export function ContextMenuIllustration({ touch }: { touch: boolean }) {
 
         {/* La barre du bas : au doigt, c'est le seul chemin pour ajouter,
             dupliquer ou supprimer (cf. MobileCanvasToolbar). */}
-        <div className="absolute bottom-[14px] left-1/2 flex -translate-x-1/2 items-center gap-[6px] rounded-full border border-slate-200 bg-white px-[8px] py-[5px] shadow-md">
+        <div className="absolute bottom-[14px] left-1/2 flex -translate-x-1/2 items-center gap-[6px] rounded-full border border-slate-200 bg-surface px-[8px] py-[5px] shadow-md">
           <span className="relative flex size-[15px] items-center justify-center rounded-full">
             <span className="absolute inset-0 animate-welcome-row rounded-full bg-slate-100" />
             <span className="relative text-[12px] leading-none font-medium text-slate-600">
@@ -281,7 +281,7 @@ export function ContextMenuIllustration({ touch }: { touch: boolean }) {
         <Bar className="w-1/2" />
       </MiniNode>
 
-      <div className="absolute top-[34px] left-[62px] w-[86px] animate-welcome-menu rounded-lg border border-slate-200 bg-white py-[4px] shadow-lg">
+      <div className="absolute top-[34px] left-[62px] w-[86px] animate-welcome-menu rounded-lg border border-slate-200 bg-surface py-[4px] shadow-lg">
         <MenuRow width="w-[38px]" />
         <MenuRow width="w-[30px]" highlighted />
         <MenuRow width="w-[42px]" />

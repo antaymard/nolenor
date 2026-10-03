@@ -207,7 +207,7 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
       </AlertDialog>
       {/* Un node ouvert recouvre tout, top bar et bottom nav comprises : on en
           sort par le bouton retour du header ou par le geste OS. */}
-      <div className="fixed inset-0 z-50 bg-white animate-in slide-in-from-bottom duration-200">
+      <div className="fixed inset-0 z-50 bg-surface animate-in slide-in-from-bottom duration-200">
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-2 border-b px-2 py-2 shrink-0">
             <ConfirmableButton

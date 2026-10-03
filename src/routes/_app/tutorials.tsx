@@ -94,7 +94,7 @@ function TutorialsPage() {
         {UPCOMING.map((tutorial) => (
           <div
             key={tutorial.title}
-            className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+            className="overflow-hidden rounded-2xl border border-slate-200 bg-surface"
           >
             <div
               className={cn("flex h-28 items-center justify-center", tutorial.tint)}
@@ -102,7 +102,7 @@ function TutorialsPage() {
             >
               <span
                 className={cn(
-                  "flex size-10 items-center justify-center rounded-full bg-white shadow-sm",
+                  "flex size-10 items-center justify-center rounded-full bg-surface shadow-sm",
                   tutorial.icon,
                 )}
               >

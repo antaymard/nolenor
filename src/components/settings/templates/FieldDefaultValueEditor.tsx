@@ -33,7 +33,7 @@ export default function FieldDefaultValueEditor({
       <p className="text-[10px] opacity-50">
         Pre-filled when a node of this type is created. Leave empty for none.
       </p>
-      <div className="rounded-md border border-gray-200 bg-white p-2">
+      <div className="rounded-md border border-gray-200 bg-surface p-2">
         <FieldHost
           field={field}
           value={field.default}

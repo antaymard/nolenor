@@ -187,7 +187,7 @@ export function CanvasIdentityField({
             disabled={disabled}
             onClick={() => onChange({ ...value, color: undefined })}
             className={cn(
-              "size-6 rounded-full border border-dashed border-slate-400 bg-white disabled:opacity-50",
+              "size-6 rounded-full border border-dashed border-slate-400 bg-surface disabled:opacity-50",
               value.color === undefined && "ring-2 ring-slate-900 ring-offset-2",
             )}
           />

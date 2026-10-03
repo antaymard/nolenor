@@ -63,7 +63,10 @@ export default function EdgeContextMenu({
   const goToNode = useGoToNode();
 
   const edgeData = (xyEdge.data ?? {}) as EdgeCustomData;
-  const availableColors = Object.entries(colors);
+  // Les arêtes gardent `default` ; `grey` et `white` sont des choix de nodes.
+  const availableColors = Object.entries(colors).filter(
+    ([key]) => key !== "grey" && key !== "white",
+  );
   const currentColor = (edgeData.color as colorsEnum) ?? "default";
   const currentStrokeWidth = edgeData.strokeWidth ?? "thin";
   const currentStrokeStyle = edgeData.strokeStyle ?? "solid";

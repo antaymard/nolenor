@@ -145,6 +145,32 @@ const colors = {
     hoverBg: "hover:bg-pink-100",
     hex: "#ec4899",
   },
+  grey: {
+    label: "Grey",
+    nodeBg: "bg-slate-200",
+    frameBg: "bg-slate-50",
+    frameBorder: "border-slate-400",
+    lightBg: "bg-slate-100",
+    nodeBorder: "border-slate-600",
+    accentBg: "bg-slate-500",
+    solidBg: "bg-slate-600",
+    textColor: "text-slate-600",
+    hoverBg: "hover:bg-slate-100",
+    hex: "#64748b",
+  },
+  white: {
+    label: "White",
+    nodeBg: "bg-white",
+    frameBg: "bg-white",
+    frameBorder: "border-slate-300",
+    lightBg: "bg-white",
+    nodeBorder: "border-slate-200",
+    accentBg: "bg-slate-300",
+    solidBg: "bg-slate-500",
+    textColor: "text-slate-600",
+    hoverBg: "hover:bg-slate-100",
+    hex: "#e2e8f0",
+  },
   default: {
     label: "Default",
     nodeBg: "bg-white",
@@ -189,6 +215,20 @@ const colors = {
 >;
 
 /**
+ * La couleur réellement appliquée : `default` (ou vide) est blanc pour un node
+ * et gris pour une frame ; `grey` et `white` sont toujours ce qu'ils disent.
+ */
+function resolveColor(
+  color: string | undefined,
+  isFrame = false,
+): keyof typeof colors {
+  if (color && color !== "default" && color in colors) {
+    return color as keyof typeof colors;
+  }
+  return isFrame ? "grey" : "white";
+}
+
+/**
  * Style d'une pastille de couleur dans les sélecteurs. `transparent` y prend
  * un damier — la convention des éditeurs d'image — sans quoi sa pastille,
  * transparente sur le fond blanc du menu, ressemble trait pour trait à celle
@@ -203,4 +243,4 @@ function colorSwatchStyle(color: string): CSSProperties | undefined {
   };
 }
 
-export { colors, colorSwatchStyle };
+export { colors, colorSwatchStyle, resolveColor };

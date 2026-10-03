@@ -1,5 +1,9 @@
 import { cn } from "@/lib/utils";
 import type { Heading } from "@/lib/blocknoteOutline";
+import {
+  matchesSearchQuery,
+  useWindowSearchQuery,
+} from "../WindowSearchContext";
 
 /**
  * Renders a blocknote heading outline, registered by `BlocknoteWindow` as the
@@ -14,19 +18,25 @@ export function BlocknoteOutlinePanel({
   onSelect: (heading: Heading) => void;
   className?: string;
 }) {
+  const query = useWindowSearchQuery();
+  const visibleHeadings = headings.filter((heading) =>
+    matchesSearchQuery(heading.title, query),
+  );
   return (
     <div className={cn("flex flex-col overflow-hidden", className)}>
       <div className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
         Outline
       </div>
       <div className="flex-1 overflow-auto p-2">
-        {headings.length === 0 ? (
+        {visibleHeadings.length === 0 ? (
           <div className="px-2 py-4 text-sm text-slate-400">
-            Add headings to generate the outline.
+            {headings.length === 0
+              ? "Add headings to generate the outline."
+              : "No matching headings."}
           </div>
         ) : (
           <ul className="space-y-0.5">
-            {headings.map((heading) => (
+            {visibleHeadings.map((heading) => (
               <li key={heading.id}>
                 <button
                   type="button"

@@ -247,7 +247,7 @@ function TableView({ usage }: { usage: AiUsage }) {
   return (
     <div className="-mx-3 max-h-80 overflow-auto px-3 sm:mx-0 sm:px-0">
       <table className="w-full min-w-[26rem] text-sm tabular-nums">
-        <thead className="sticky top-0 bg-white text-xs text-[#52514e]">
+        <thead className="sticky top-0 bg-surface text-xs text-[#52514e] dark:text-muted-foreground">
           <tr className="border-b border-slate-200">
             <th className="py-2 pr-2 text-left font-medium">Day (UTC)</th>
             <th className="py-2 pr-2 text-right font-medium">Cost</th>
@@ -258,10 +258,10 @@ function TableView({ usage }: { usage: AiUsage }) {
         <tbody>
           {rows.map((day) => (
             <tr key={day.day} className="border-b border-slate-100 last:border-0">
-              <td className="py-1.5 pr-2 text-[#0b0b0b]">
+              <td className="py-1.5 pr-2 text-[#0b0b0b] dark:text-foreground">
                 {formatDayLong(day.day)}
               </td>
-              <td className="py-1.5 pr-2 text-right text-[#0b0b0b]">
+              <td className="py-1.5 pr-2 text-right text-[#0b0b0b] dark:text-foreground">
                 {day.eventsMissingCostCount > 0 ? (
                   <span className="inline-flex items-center gap-1">
                     <TbAlertTriangle
@@ -275,10 +275,10 @@ function TableView({ usage }: { usage: AiUsage }) {
                   formatCostCompact(day.costUsd)
                 )}
               </td>
-              <td className="py-1.5 pr-2 text-right text-[#52514e]">
+              <td className="py-1.5 pr-2 text-right text-[#52514e] dark:text-muted-foreground">
                 {formatTokens(day.totalTokens)}
               </td>
-              <td className="py-1.5 text-right text-[#52514e]">
+              <td className="py-1.5 text-right text-[#52514e] dark:text-muted-foreground">
                 {day.eventsCount.toLocaleString("en-US")}
               </td>
             </tr>
@@ -293,15 +293,15 @@ export default function AiUsageChart({ usage }: { usage: AiUsage }) {
   const [view, setView] = useState<"chart" | "table">("chart");
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+    <div className="rounded-xl border border-slate-200 bg-surface p-3 sm:p-4">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-[#0b0b0b]">
+        <h2 className="text-sm font-semibold text-[#0b0b0b] dark:text-foreground">
           Cost per {usage.granularity === "month" ? "month" : "day"}
         </h2>
         <button
           type="button"
           onClick={() => setView(view === "chart" ? "table" : "chart")}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2 py-1 text-xs text-[#52514e] hover:bg-slate-100"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2 py-1 text-xs text-[#52514e] dark:text-muted-foreground hover:bg-slate-100"
         >
           {view === "chart" ? (
             <>

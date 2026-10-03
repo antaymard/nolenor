@@ -153,7 +153,7 @@ export default function LayoutTree({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-md border border-gray-200 bg-white">
+    <div className="rounded-md border border-gray-200 bg-surface">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

@@ -42,6 +42,7 @@ import { useInitialViewportFromUrl } from "@/hooks/useInitialViewportFromUrl";
 import { useRegisterCanvasNavigator } from "@/hooks/useGoToBookmark";
 import { useSyncBookmarkedNodes } from "@/hooks/useCanvasBookmarks";
 import { cn } from "@/lib/utils";
+import { useResolvedTheme } from "@/lib/theme";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
   resolveCanvasBackground,
@@ -638,9 +639,10 @@ export default function CanvasFlow({
 
   // Fond partagé : stocké sur le doc canvas, défauts front si absent
   // (nouveaux canvas + anciens sans champ). `none` => pas de motif.
+  const theme = useResolvedTheme();
   const resolvedBackground = useMemo(
-    () => resolveCanvasBackground(background),
-    [background],
+    () => resolveCanvasBackground(background, theme),
+    [background, theme],
   );
   const backgroundVariant = toReactFlowVariant(resolvedBackground.variant);
 
@@ -649,6 +651,7 @@ export default function CanvasFlow({
       {isDraggingOver && <CanvasDropOverlay />}
       <ReactFlow
         onInit={onFlowInit}
+        colorMode={theme}
         // Le canvas reste invisible le temps qu'un cadrage venu de l'URL
         // soit posé, sinon la première frame se peint au `defaultViewport`
         // puis saute à la cible (cf. `useInitialViewportFromUrl`).

@@ -315,7 +315,7 @@ function CanvasListItem({
     <div
       className={cn(
         "group animate-appear-up flex items-center gap-1 rounded-lg pr-1 transition-colors",
-        active ? "bg-white shadow-sm" : "hover:bg-slate-200/60",
+        active ? "bg-surface shadow-sm" : "hover:bg-slate-200/60",
       )}
       style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
     >

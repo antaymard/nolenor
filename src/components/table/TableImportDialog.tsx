@@ -261,7 +261,7 @@ export function TableImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-4 rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-4 rounded-2xl border-surface/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TbFileSpreadsheet />

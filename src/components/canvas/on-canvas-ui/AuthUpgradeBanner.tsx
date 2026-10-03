@@ -3,7 +3,7 @@ import { Button } from "@/components/shadcn/button";
 
 export default function AuthUpgradeBanner() {
   return (
-    <div className="pointer-events-auto flex min-w-88 max-w-3xl items-center justify-between gap-4 rounded-2xl border border-stone-300 bg-white/95 px-5 py-4 shadow-lg backdrop-blur">
+    <div className="pointer-events-auto flex min-w-88 max-w-3xl items-center justify-between gap-4 rounded-2xl border border-stone-300 bg-surface/95 px-5 py-4 shadow-lg backdrop-blur">
       <div className="flex flex-col gap-1 text-left">
         <span className="text-sm font-semibold text-stone-900">
           Viewing a public canvas

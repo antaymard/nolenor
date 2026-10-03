@@ -223,7 +223,7 @@ export default function TemplatePreview({
               onChange={(e) =>
                 onChangeDimensions({ width: Number(e.target.value) || 60 })
               }
-              className="h-5 w-16 bg-white/60 shadow-none pt-1.5"
+              className="h-5 w-16 bg-surface/60 shadow-none pt-1.5"
             />
             <span className="text-xs">×</span>
             <Input
@@ -233,7 +233,7 @@ export default function TemplatePreview({
               onChange={(e) =>
                 onChangeDimensions({ height: Number(e.target.value) || 33 })
               }
-              className="h-5 w-16 bg-white/60 shadow-none pt-1.5"
+              className="h-5 w-16 bg-surface/60 shadow-none pt-1.5"
             />
             <Label className="shrink-0 text-xs">Resizable</Label>
             <Switch
@@ -262,7 +262,7 @@ export default function TemplatePreview({
           <div className="relative">
             <div
               className={cn(
-                "overflow-hidden rounded-md border bg-white border-slate-200",
+                "overflow-hidden rounded-md border bg-surface border-slate-200",
               )}
               style={{
                 width: draft.defaultDimensions.width,
@@ -334,7 +334,7 @@ export default function TemplatePreview({
               />
             </div>
             <div
-              className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
+              className="overflow-hidden rounded-lg border border-slate-200 bg-surface shadow-md"
               style={{ zoom }}
             >
               <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">

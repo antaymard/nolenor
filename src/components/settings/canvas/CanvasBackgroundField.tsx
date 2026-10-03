@@ -57,8 +57,8 @@ export default function CanvasBackgroundField({
       <div
         className={
           compact
-            ? "space-y-3 rounded-xl border border-slate-200 bg-white p-3"
-            : "space-y-4 rounded-xl border border-slate-200 bg-white p-4"
+            ? "space-y-3 rounded-xl border border-slate-200 bg-surface p-3"
+            : "space-y-4 rounded-xl border border-slate-200 bg-surface p-4"
         }
       >
         <div className="space-y-2">
@@ -86,7 +86,7 @@ export default function CanvasBackgroundField({
               disabled={disabled}
               onChange={(event) => set({ bgColor: event.target.value })}
               aria-label="Custom background color"
-              className="h-7 w-10 cursor-pointer rounded border border-slate-300 bg-white p-0.5 disabled:opacity-50"
+              className="h-7 w-10 cursor-pointer rounded border border-slate-300 bg-surface p-0.5 disabled:opacity-50"
             />
           </div>
         </div>
@@ -133,7 +133,7 @@ export default function CanvasBackgroundField({
                     set({ patternColor: event.target.value })
                   }
                   aria-label="Custom pattern color"
-                  className="h-7 w-10 cursor-pointer rounded border border-slate-300 bg-white p-0.5 disabled:opacity-50"
+                  className="h-7 w-10 cursor-pointer rounded border border-slate-300 bg-surface p-0.5 disabled:opacity-50"
                 />
                 <span className="text-xs text-slate-500">
                   {value.patternColor}

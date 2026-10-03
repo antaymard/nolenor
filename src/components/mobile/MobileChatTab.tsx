@@ -39,7 +39,7 @@ export default function MobileChatTab({
   }
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="flex h-full flex-col bg-surface">
       {/* Header de conversation : le switcher de canvas vit en top bar, ici on
           ne parle que de threads. */}
       <div className="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">

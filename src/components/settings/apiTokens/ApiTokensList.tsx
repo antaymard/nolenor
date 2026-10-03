@@ -54,7 +54,7 @@ export default function ApiTokensList({ tokens }: { tokens: ApiToken[] }) {
             <TableHead></TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody className="bg-white">
+        <TableBody className="bg-surface">
           {tokens.map((token) => {
             const isRevoked = token.revokedAt !== undefined;
             return (

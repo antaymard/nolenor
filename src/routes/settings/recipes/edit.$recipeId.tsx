@@ -19,6 +19,7 @@ import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
 import { insertLineExtension } from "@/components/blocknote/insertLineExtension";
 import { guardDevOnlySettingsRoute } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
+import { useResolvedTheme } from "@/lib/theme";
 
 // Monte les menus flottants de BlockNote sur document.body plutôt que dans
 // .bn-container par défaut, pour éviter qu'ils soient clippés par un ancêtre
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/settings/recipes/edit/$recipeId")({
 });
 
 function RouteComponent() {
+  const theme = useResolvedTheme();
   const upsertRecipe = useMutation(api.recipes.upsert);
   const navigate = useNavigate();
   const { recipeId } = Route.useParams();
@@ -117,7 +119,7 @@ function RouteComponent() {
             onSubmit: ({ value }: { value: string }) =>
               !value.trim() ? "Title cannot be empty" : undefined,
           }}
-          inputClassName="bg-white"
+          inputClassName="bg-surface"
         />
         {editor ? (
           <form.Field
@@ -137,7 +139,7 @@ function RouteComponent() {
                 <div className="flex flex-col gap-1.5 mt-4">
                   <label className="text-sm font-medium">Content</label>
                   <BlockNoteView
-                    theme="light"
+                    theme={theme}
                     editor={editor}
                     className={cn(
                       hasError && "border border-destructive",

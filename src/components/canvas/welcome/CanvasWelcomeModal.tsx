@@ -206,7 +206,7 @@ export default function CanvasWelcomeModal() {
         // Colonne flex à hauteur bornée, et c'est le CONTENU qui défile, pas la
         // modale : le bouton est la seule sortie, il ne doit jamais partir sous
         // la ligne de flottaison.
-        className="flex max-h-[90vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md"
+        className="flex max-h-[90vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-surface/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md"
       >
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="text-xl font-bold tracking-tight">Welcome to Nolënor</DialogTitle>

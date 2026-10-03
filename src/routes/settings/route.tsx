@@ -159,7 +159,7 @@ function RouteComponent() {
   // Le même shell que la home (cf. routes/_app.tsx) : sidebar grise à gauche,
   // page blanche à droite, barre du haut sur mobile.
   return (
-    <div className="flex h-dvh w-full bg-white">
+    <div className="flex h-dvh w-full bg-surface">
       <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-slate-50 md:block">
         {renderSettingsSidebar()}
       </aside>

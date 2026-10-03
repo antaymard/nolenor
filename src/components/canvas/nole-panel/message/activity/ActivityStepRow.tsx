@@ -40,7 +40,7 @@ export const ActivityStepRow = memo(function ActivityStepRow({
         <span
           aria-hidden
           className={cn(
-            "absolute top-[10.5px] -left-[17px] size-[5px] rounded-full ring-2 ring-white",
+            "absolute top-[10.5px] -left-[17px] size-[5px] rounded-full ring-2 ring-surface",
             isError
               ? "bg-red-400"
               : isRunning

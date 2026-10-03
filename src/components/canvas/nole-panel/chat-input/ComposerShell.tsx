@@ -1,6 +1,7 @@
 import { BorderBeam } from "border-beam";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useResolvedTheme } from "@/lib/theme";
 
 /** Rayon du composer. Partagé entre la surface et le halo pour que les deux
  *  arrondis coïncident : le wrapper du beam recadre son contenu. */
@@ -27,11 +28,12 @@ export default function ComposerShell({
   hasDirtyWindows,
   className,
 }: ComposerShellProps) {
+  const theme = useResolvedTheme();
   return (
     <BorderBeam
       size="pulse-inner"
       colorVariant="ocean"
-      theme="light"
+      theme={theme}
       active={isPulsing}
       // Halo volontairement sobre : la teinte reste dans le bleu de la marque
       // au lieu de balayer tout le spectre.
@@ -46,7 +48,7 @@ export default function ComposerShell({
       <div
         style={{ borderRadius: COMPOSER_RADIUS_PX }}
         className={cn(
-          "flex flex-col bg-white transition-[box-shadow,border-color] duration-200 ease-out",
+          "flex flex-col bg-surface transition-[box-shadow,border-color] duration-200 ease-out",
           hasDirtyWindows
             ? "border border-red-300"
             : "border border-slate-200 focus-within:border-slate-400 focus-within:shadow-[0_2px_8px_rgba(15,23,42,0.08)]",

@@ -20,7 +20,7 @@ export default function MobileBottomNav({
     <nav
       role="tablist"
       aria-label="Navigation principale"
-      className="flex shrink-0 border-t bg-white"
+      className="flex shrink-0 border-t bg-surface"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {TABS.map(({ id, label, Icon }) => {

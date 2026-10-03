@@ -7,9 +7,9 @@ import { TbUpload } from "react-icons/tb";
  */
 export default function CanvasDropOverlay() {
   return (
-    <div className="animate-appear pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
+    <div className="animate-appear pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-surface/40 backdrop-blur-[1px]">
       <div className="absolute inset-3 rounded-2xl border-2 border-dashed border-slate-400" />
-      <div className="flex items-center gap-3 rounded-full bg-white px-5 py-3 shadow-lg ring-1 ring-slate-200">
+      <div className="flex items-center gap-3 rounded-full bg-surface px-5 py-3 shadow-lg ring-1 ring-slate-200">
         <TbUpload size={20} className="text-slate-500" />
         <span className="text-sm font-medium text-slate-700">
           Déposez pour créer un node

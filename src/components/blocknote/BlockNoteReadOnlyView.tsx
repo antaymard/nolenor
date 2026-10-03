@@ -7,6 +7,7 @@ import type { AppBlockNoteEditor } from "./schema";
 import { createSafeBlockNoteEditor } from "./safeCreateEditor";
 import { BlockNoteErrorBoundary } from "./BlockNoteErrorBoundary";
 import { cn } from "@/lib/utils";
+import { useResolvedTheme } from "@/lib/theme";
 
 /**
  * Un VRAI BlockNote, en lecture seule.
@@ -44,6 +45,7 @@ function BlockNoteReadOnlyViewImpl({
   blocks,
   className,
 }: BlockNoteReadOnlyViewProps) {
+  const theme = useResolvedTheme();
   // Créé une fois avec le contenu initial, comme dans `BlocknoteWindow` : le
   // premier paint est déjà le bon. `createSafeBlockNoteEditor` encaisse un
   // document stocké que le schéma ProseMirror refuse et rend un éditeur vide
@@ -79,7 +81,7 @@ function BlockNoteReadOnlyViewImpl({
     <BlockNoteErrorBoundary resetKey={editor}>
       <BlockNoteView
         editor={editor}
-        theme="light"
+        theme={theme}
         editable={false}
         slashMenu={false}
         sideMenu={false}

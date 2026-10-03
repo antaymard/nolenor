@@ -18,7 +18,7 @@ export default function CorruptedDocumentBanner({
   onContinue,
 }: CorruptedDocumentBannerProps) {
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 p-6">
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/90 p-6">
       <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-center">
         <TbAlertTriangle className="size-6 text-amber-600" />
         <div className="flex flex-col gap-1">

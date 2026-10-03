@@ -24,6 +24,7 @@ import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBou
 import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
+import { useResolvedTheme } from "@/lib/theme";
 
 // Éditeur BlockNote au niveau CHAMP, sans couplage à un nodeData.
 //
@@ -72,6 +73,7 @@ function BlockNoteFieldEditor({
   onDirtyChange,
   className,
 }: BlockNoteFieldEditorProps) {
+  const theme = useResolvedTheme();
   const hydrationFrameRef = useRef<number | null>(null);
   const skipNextChangeRef = useRef(false);
   const [isEditorReady, setIsEditorReady] = useState(true);
@@ -212,7 +214,7 @@ function BlockNoteFieldEditor({
       <BlockNoteErrorBoundary resetKey={value}>
         <BlockNoteView
           editor={editor}
-          theme="light"
+          theme={theme}
           onChange={handleChange}
           className={cn("nodrag", className)}
           slashMenu={false}
@@ -242,7 +244,7 @@ function BlockNoteFieldEditor({
         </BlockNoteView>
       </BlockNoteErrorBoundary>
       {!isEditorReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/65">
+        <div className="absolute inset-0 flex items-center justify-center bg-surface/65">
           <EditorLoading />
         </div>
       )}

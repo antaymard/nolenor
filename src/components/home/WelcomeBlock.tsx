@@ -8,7 +8,7 @@ import { CANVAS_COVER_DOTS_STYLE } from "@/lib/canvasCover";
  */
 export default function WelcomeBlock() {
   return (
-    <div className="animate-appear-up flex overflow-hidden rounded-2xl border border-slate-200 bg-white max-md:flex-col">
+    <div className="animate-appear-up flex overflow-hidden rounded-2xl border border-slate-200 bg-surface max-md:flex-col">
       <div className="flex flex-1 flex-col gap-4 p-8 md:p-10">
         <div className="flex flex-col gap-2">
           <h2 className="text-2xl font-bold text-slate-900">

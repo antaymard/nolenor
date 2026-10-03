@@ -72,7 +72,7 @@ export function CanvasTaskBadge({
     <span
       title={appearance.description}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200",
         className,
       )}
     >
@@ -148,7 +148,7 @@ export default function WorkspaceCard({
   return (
     <div
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-[box-shadow,transform,border-color] hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
+        "group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-surface transition-[box-shadow,transform,border-color] hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
         className,
       )}
       style={style}

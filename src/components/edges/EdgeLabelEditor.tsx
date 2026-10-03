@@ -71,7 +71,7 @@ export default function EdgeLabelEditor({
         fontWeight: 400,
         fontFamily: "var(--font-sans)",
         color,
-        background: "#ffffff",
+        background: "var(--surface)",
         border: `1px solid ${borderColor ?? color}`,
         borderRadius: 10,
         padding: "2px 6px",

@@ -55,7 +55,8 @@ export const EXPLANATION_FIELD = z
       "Write a noun phrase, not a sentence: no first person, no verb tense — it " +
       "is displayed both while the call runs and afterwards as a summary of what " +
       "was done. Name the action and its target, under 60 characters, in the " +
-      "user's language. Good: \"Adding a paragraph after the intro\", " +
+      "language of the user's latest message (not the language of the canvas " +
+      "content). Good: \"Adding a paragraph after the intro\", " +
       "\"Searching for 2024 sources\", \"Reading the 3 selected nodes\". " +
       "Bad: \"I will insert a new paragraph after the introduction.\"",
   );

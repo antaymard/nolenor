@@ -397,7 +397,7 @@ export async function makeNodeDataLLMFriendly(
 
     case "value": {
       const val = values.value;
-      if (!val) return "(aucune valeur)";
+      if (!val) return "(no value)";
       const parts: string[] = [];
       if (val.label) parts.push(`**${val.label}** :`);
       parts.push(String(val.value));
@@ -407,7 +407,7 @@ export async function makeNodeDataLLMFriendly(
 
     case "link": {
       const link = values.link;
-      if (!link) return "(aucun lien)";
+      if (!link) return "(no link)";
       return `[${link.pageTitle || link.href}](${link.href})`;
     }
 
@@ -417,17 +417,17 @@ export async function makeNodeDataLLMFriendly(
       // l'agent doit voir pour l'itérer plutôt que de l'écraser à l'aveugle.
       const prompt =
         typeof values.imagePrompt === "string" && values.imagePrompt.length > 0
-          ? `Prompt de génération : ${values.imagePrompt}`
+          ? `Generation prompt: ${values.imagePrompt}`
           : undefined;
       // Seul `false` est rendu : l'inclusion est le défaut, le silence vaut
       // pour le cas nominal et l'agent n'a qu'à écrire `false` pour bloquer.
       const refs =
         values.imageIncludeReferences === false
-          ? "Références d'entrée : exclues de la prochaine génération."
+          ? "Input references: excluded from the next generation."
           : undefined;
       const rendered =
         !images || images.length === 0
-          ? "(aucune image)"
+          ? "(no image)"
           : images.map((img) => `![image](${img.url})`).join("\n");
       return [rendered, prompt, refs].filter(Boolean).join("\n\n");
     }
@@ -460,7 +460,7 @@ export async function makeNodeDataLLMFriendly(
       const files = values.files as
         | Array<{ url: string; filename: string; mimeType?: string }>
         | undefined;
-      if (!files || files.length === 0) return "(aucun fichier)";
+      if (!files || files.length === 0) return "(no file)";
       return files
         .map(
           (f) =>
@@ -482,7 +482,7 @@ export async function makeNodeDataLLMFriendly(
           }
         | null
         | undefined;
-      if (!audio?.url) return "(aucun fichier audio)";
+      if (!audio?.url) return "(no audio file)";
 
       // Never JSON.stringify the raw values here: they carry a `peaks` array
       // that would flood every read_nodes call with kilobytes of noise.
@@ -510,7 +510,7 @@ export async function makeNodeDataLLMFriendly(
       if (end <= start) return head;
 
       return `${head} · loop ${formatSeconds(start)}→${formatSeconds(end)} (${
-        loop?.enabled ? "activée" : "inactive"
+        loop?.enabled ? "enabled" : "disabled"
       })`;
     }
 
@@ -527,7 +527,7 @@ export async function makeNodeDataLLMFriendly(
           }
         | null
         | undefined;
-      if (!video?.url) return "(aucun fichier vidéo)";
+      if (!video?.url) return "(no video file)";
 
       // Never fall through to the default branch: it JSON.stringifies the raw
       // values, poster object included.

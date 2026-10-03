@@ -10,6 +10,7 @@ export default defineConfig([
     'dist',
     'dev-dist',
     'convex/_generated',
+    'convex/**/_generated',
     'src/routeTree.gen.ts',
   ]),
   {

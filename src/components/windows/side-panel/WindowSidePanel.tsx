@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import { TbListDetails, TbLink, TbHistory } from "react-icons/tb";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { TbListDetails, TbLink, TbHistory, TbX } from "react-icons/tb";
 import type { Id } from "@/../convex/_generated/dataModel";
 import {
   Tabs,
@@ -35,6 +35,10 @@ export function WindowSidePanel({
   planTabContent,
   previewVersionId,
   onSelectVersion,
+  searchQuery,
+  onSearchQueryChange,
+  searchFocusPending,
+  onSearchFocusConsumed,
   className,
 }: {
   nodeDataId: Id<"nodeDatas">;
@@ -43,12 +47,33 @@ export function WindowSidePanel({
   planTabContent: ReactNode | null;
   previewVersionId: Id<"nodeDataVersions"> | null;
   onSelectVersion: (versionId: Id<"nodeDataVersions">) => void;
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+  /** `Mod+F` demandé : focus l'input (Plan) puis `onSearchFocusConsumed`. */
+  searchFocusPending: boolean;
+  onSearchFocusConsumed: () => void;
   className?: string;
 }) {
   const [tab, setTab] = useState<SidePanelTab>("plan");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // `Mod+F` : revenir sur le Plan, puis focus l'input une fois monté (l'effet
+  // se relance quand `tab` change, après le commit qui monte `TabsContent`).
+  useEffect(() => {
+    if (!searchFocusPending) return;
+    if (tab !== "plan") {
+      setTab("plan");
+      return;
+    }
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+    onSearchFocusConsumed();
+  }, [searchFocusPending, tab, onSearchFocusConsumed]);
 
   return (
-    <aside className={cn("flex w-85 shrink-0 flex-col border-l bg-white", className)}>
+    <aside
+      className={cn("flex w-85 shrink-0 flex-col border-l bg-white", className)}
+    >
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as SidePanelTab)}
@@ -71,15 +96,42 @@ export function WindowSidePanel({
           </TabsList>
         </div>
 
-        <TabsContent value="plan" className="flex min-h-0 flex-col overflow-auto">
+        <TabsContent
+          value="plan"
+          className="flex min-h-0 flex-col overflow-auto"
+        >
           <div className="sticky top-0 z-10 border-b bg-white p-2">
-            <input
-              type="text"
-              disabled
-              placeholder="Search in this node"
-              aria-label="Search in this node"
-              className="w-full rounded-lg border bg-slate-50 px-2 py-1.5 text-sm text-slate-400 placeholder:text-slate-400"
-            />
+            <div className="relative">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => onSearchQueryChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Escape") return;
+                  // Un premier Échap vide, le suivant rend le focus.
+                  if (searchQuery) onSearchQueryChange("");
+                  else e.currentTarget.blur();
+                  e.stopPropagation();
+                }}
+                placeholder="Search in this node"
+                aria-label="Search in this node"
+                className="w-full rounded-lg border bg-slate-50 py-1.5 pl-2 pr-7 text-sm text-slate-700 placeholder:text-slate-400"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSearchQueryChange("");
+                    searchInputRef.current?.focus();
+                  }}
+                  aria-label="Clear search"
+                  className="absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                >
+                  <TbX size={12} />
+                </button>
+              )}
+            </div>
           </div>
           <div className="min-h-0 flex-1">
             {planTabContent ?? defaultPlanTabContent()}

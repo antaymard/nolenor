@@ -1,16 +1,15 @@
 import type { Block } from "@blocknote/core";
 import { extractInlineText } from "@/../convex/lib/blockNoteDocument";
 import { findSearchMatch } from "@/lib/searchMatch";
+import type { SearchResult } from "@/components/windows/side-panel/SearchResultsList";
 
-export type BlocknoteSearchHit = {
+export type BlocknoteSearchHit = SearchResult & {
   /** Id du bloc, pour `scrollIntoView` via `[data-id]`. */
-  id: string;
-  type: string;
-  text: string;
-  /** Bornes du premier match dans `text`. */
-  start: number;
-  end: number;
+  blockId: string;
 };
+
+/** Plafond du nombre de résultats : borne le coût sur un gros doc. */
+export const BLOCKNOTE_SEARCH_LIMIT = 200;
 
 type SearchCandidate = {
   id?: string;
@@ -22,25 +21,30 @@ type SearchCandidate = {
 /**
  * Blocs dont le texte contient `query`, dans l'ordre du document, en
  * descendant dans `children` (toggles, colonnes, listes imbriquées) comme
- * `extractHeadings`. Un hit par bloc ; `limit` borne le coût sur un gros doc.
+ * `extractHeadings`. Un hit par bloc, sur sa première occurrence.
  */
 export function searchBlocknoteDoc(
   doc: Block[] | undefined,
   query: string,
-  limit = 200,
 ): BlocknoteSearchHit[] {
   const hits: BlocknoteSearchHit[] = [];
   const visit = (blocks: unknown) => {
     if (!Array.isArray(blocks)) return;
     for (const raw of blocks) {
-      if (hits.length >= limit) return;
+      if (hits.length >= BLOCKNOTE_SEARCH_LIMIT) return;
       const block = raw as SearchCandidate | null;
       if (!block || typeof block !== "object") continue;
       if (block.id) {
         const text = extractInlineText(block.content);
         const match = findSearchMatch(text, query);
         if (match) {
-          hits.push({ id: block.id, type: block.type ?? "", text, ...match });
+          hits.push({
+            key: block.id,
+            blockId: block.id,
+            text,
+            ...match,
+            emphasis: block.type === "heading",
+          });
         }
       }
       visit(block.children);

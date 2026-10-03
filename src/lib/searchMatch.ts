@@ -1,7 +1,4 @@
-/** Match insensible à la casse et aux accents ; une requête vide matche tout. */
-export function matchesSearchQuery(text: string, query: string): boolean {
-  return normalizeQuery(query) === "" || findSearchMatch(text, query) !== null;
-}
+export type SearchMatch = { start: number; end: number };
 
 /**
  * Première occurrence de `query` dans `text`, insensible à la casse et aux
@@ -11,9 +8,18 @@ export function matchesSearchQuery(text: string, query: string): boolean {
 export function findSearchMatch(
   text: string,
   query: string,
-): { start: number; end: number } | null {
+): SearchMatch | null {
+  return findSearchMatches(text, query, 1)[0] ?? null;
+}
+
+/** Occurrences successives (sans chevauchement) de `query`, au plus `limit`. */
+export function findSearchMatches(
+  text: string,
+  query: string,
+  limit = Infinity,
+): SearchMatch[] {
   const needle = normalizeQuery(query);
-  if (needle === "") return null;
+  if (needle === "" || limit <= 0) return [];
   // Normalisation caractère par caractère : un caractère peut perdre ses
   // diacritiques (longueur variable), `origin` ramène chaque caractère
   // normalisé à sa position dans `text`.
@@ -24,14 +30,18 @@ export function findSearchMatch(
     normalized += folded;
     for (let j = 0; j < folded.length; j++) origin.push(i);
   }
-  const index = normalized.indexOf(needle);
-  if (index < 0) return null;
-  let end = origin[index + needle.length - 1] + 1;
-  // Accents combinants (texte décomposé) qui suivent le match : ils ne
-  // produisent rien une fois normalisés, mais appartiennent au dernier
-  // caractère surligné.
-  while (end < text.length && foldChar(text[end]) === "") end++;
-  return { start: origin[index], end };
+  const matches: SearchMatch[] = [];
+  let index = normalized.indexOf(needle);
+  while (index >= 0 && matches.length < limit) {
+    let end = origin[index + needle.length - 1] + 1;
+    // Accents combinants (texte décomposé) qui suivent le match : ils ne
+    // produisent rien une fois normalisés, mais appartiennent au dernier
+    // caractère surligné.
+    while (end < text.length && foldChar(text[end]) === "") end++;
+    matches.push({ start: origin[index], end });
+    index = normalized.indexOf(needle, index + needle.length);
+  }
+  return matches;
 }
 
 function normalizeQuery(query: string) {

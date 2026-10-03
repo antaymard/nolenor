@@ -208,6 +208,7 @@ function AudioWindow({ xyNodeId, nodeDataId }: AudioWindowProps) {
         }
         chapters={transcript?.chapters}
         overview={transcript?.overview}
+        transcript={transcript}
         onSeek={seek}
       />,
     );

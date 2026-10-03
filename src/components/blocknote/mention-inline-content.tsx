@@ -1,11 +1,14 @@
-import { useCallback } from "react";
+import { useCallback, type MouseEvent } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { createReactInlineContentSpec } from "@blocknote/react";
 
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { useWindowsStore } from "@/stores/windowsStore";
-import { useGoToNode } from "@/hooks/useGoToNode";
+import {
+  OPEN_MODIFIER_LABEL,
+  isOpenModifier,
+  useActivateNode,
+} from "@/hooks/useActivateNode";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { cn } from "@/lib/utils";
@@ -80,13 +83,12 @@ export function MentionPillView({
 }
 
 /**
- * Interactive editable-editor rendering: clicking opens the mentioned node's
- * window, falling back to navigating to it on the canvas when that node has
- * no window to open (a `title`/`link`/`value` node, or a custom node whose
- * template has no windowLayout). `openWindow` owns that decision and reports
- * it back, so this handler never has to know the rule.
+ * Interactive editable-editor rendering: clicking goes to the mentioned node
+ * on the canvas; Cmd/Ctrl+click opens its window instead (still a go to when
+ * that node has no window — a `title`/`link`/`value` node, or a custom node
+ * whose template has no windowLayout). `useActivateNode` owns that rule.
  *
- * `useReactFlow`/`useGoToNode` require a `ReactFlowProvider` ancestor; this
+ * `useReactFlow`/`useActivateNode` require a `ReactFlowProvider` ancestor; this
  * component only ever mounts inside BlocknoteWindow, which is always rendered
  * within the canvas route's provider, and the existing BlockNoteErrorBoundary
  * around every editor is the safety net if a pasted document ever displaced
@@ -100,24 +102,25 @@ function InteractiveMentionPill({
   title?: string;
 }) {
   const { id, nodeData, label, Icon } = useMentionPillData(nodeDataId);
-  const openWindow = useWindowsStore((s) => s.openWindow);
-  const goToNode = useGoToNode();
+  const activateNode = useActivateNode();
   const { getNodes } = useReactFlow();
 
-  const handleClick = useCallback(() => {
-    if (!id || !nodeData) return;
-    const xyNode = getNodes().find(
-      (n) => (n.data as { nodeDataId?: string } | undefined)?.nodeDataId === id,
-    );
-    if (!xyNode) return;
+  const handleClick = useCallback(
+    (event: MouseEvent) => {
+      if (!id || !nodeData) return;
+      const xyNode = getNodes().find(
+        (n) =>
+          (n.data as { nodeDataId?: string } | undefined)?.nodeDataId === id,
+      );
+      if (!xyNode) return;
 
-    const opened = openWindow({
-      xyNodeId: xyNode.id,
-      nodeDataId: id,
-      nodeType: nodeData.type,
-    });
-    if (!opened) goToNode(xyNode.id);
-  }, [id, nodeData, getNodes, openWindow, goToNode]);
+      activateNode(
+        { nodeId: xyNode.id, nodeDataId: id, nodeType: nodeData.type },
+        { open: isOpenModifier(event) },
+      );
+    },
+    [id, nodeData, getNodes, activateNode],
+  );
 
   if (!nodeData) {
     return (
@@ -135,7 +138,7 @@ function InteractiveMentionPill({
       type="button"
       onClick={handleClick}
       className={cn(pillClassName, "cursor-pointer hover:bg-muted/70")}
-      title={label}
+      title={`${label} — click to go to, ${OPEN_MODIFIER_LABEL}+click to open`}
     >
       {Icon ? <Icon size={12} className="shrink-0" /> : null}
       <span className="truncate">{label}</span>

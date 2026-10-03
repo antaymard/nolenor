@@ -1,11 +1,14 @@
 import { useMemo } from "react";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { useGoToNode } from "@/hooks/useGoToNode";
+import {
+  OPEN_MODIFIER_LABEL,
+  isOpenModifier,
+  useActivateNode,
+} from "@/hooks/useActivateNode";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { getNodeDataTitle } from "@/components/utils/nodeDataDisplayUtils";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useWindowsStore } from "@/stores/windowsStore";
 import { useNodeDataIdOf } from "@/lib/nodeIdentity";
 import type { DeltaTarget } from "@/lib/canvasViewportFraming";
 import TargetDeltaIndicator from "../navigation/TargetDeltaIndicator";
@@ -27,9 +30,8 @@ export function MentionedNodeCard({
 }: MentionedNodeCardProps) {
   const nodeDataId = useNodeDataIdOf(nodeId);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
-  const goToNode = useGoToNode();
+  const activateNode = useActivateNode();
   const isMobile = useIsMobile();
-  const openWindow = useWindowsStore((state) => state.openWindow);
 
   const nodeData = nodeDataId ? nodeDatas.get(nodeDataId) : undefined;
   // Objet stable : un littéral inline recréerait le sélecteur à chaque render.
@@ -66,18 +68,16 @@ export function MentionedNodeCard({
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isMobile) {
-      // `openWindow` ne fait rien si ce node n'a pas de window.
-      if (nodeDataId) {
-        openWindow({
-          xyNodeId: nodeId,
-          nodeDataId,
-          nodeType: nodeData.type,
-        });
-      }
-      return;
-    }
-    goToNode(nodeId, { duration: 800, maxZoom: 1.2 });
+    if (!nodeDataId) return;
+    // Mobile : pas de modificateur, on ouvre la window (go to si le node n'en
+    // a pas). Desktop : go to, Cmd/Ctrl+clic ouvre la window.
+    activateNode(
+      { nodeId, nodeDataId, nodeType: nodeData.type },
+      {
+        open: isMobile || isOpenModifier(e),
+        goToOptions: { duration: 800, maxZoom: 1.2 },
+      },
+    );
   };
 
   return (
@@ -91,7 +91,7 @@ export function MentionedNodeCard({
           : "flex w-fit max-w-50",
         "hover:border-slate-300 hover:bg-slate-50 cursor-pointer",
       )}
-      title={title || "Node"}
+      title={`${title || "Node"} — click to go to, ${OPEN_MODIFIER_LABEL}+click to open`}
     >
       <Icon size={12} className="shrink-0 text-slate-500" />
       <span className="truncate max-w-37.5 font-medium">

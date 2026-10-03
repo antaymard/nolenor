@@ -42,7 +42,7 @@ hidden: true
 **Model** (bottom-left of the box) lists the available models with a price indicator; a picture icon means it can look at images. The choice is per conversation, and the last one used is remembered. It cannot change while Nolë is answering. Costs show under **AI usage** (`manual-account-settings-and-data`).
 
 ## Reading Nolë's answers
-- While it works, one live line shows the current step ("Thinking…", "Search canvas", "Create node"…) and a step count. When it finishes, the steps fold into a summary ("Read 3 nodes, edited 2") with **pills** of the blocks it created or changed. Click the summary to see each step (input and output). Click a pill to open or jump to that block.
+- While it works, one live line shows the current step ("Thinking…", "Search canvas", "Create node"…) and a step count. When it finishes, the steps fold into a summary ("Read 3 nodes, edited 2") with **pills** of the blocks it created or changed. Click the summary to see each step (input and output). Click a pill to go to that block on the canvas; **Ctrl/⌘+click** opens it in a window (on a phone, a tap opens it).
 - Indicators: "Nolë is thinking...", "Waiting for response...", then "Done". On failure: "La réponse a échoué." with **Réessayer**: it puts your last message back in the box, press Enter to resend.
 - Nolë prefers to put results into blocks rather than long chat text: look at the canvas, and use the dock / pills to find what changed.
 

@@ -20,7 +20,7 @@ hidden: true
 - **Appearance** (right-click): **Preview** (content) or **Title** (just the document's name as a band).
 - **In the editor**:
   - Type **/** for the block menu (headings, lists, tables, images…). Two extras: **Callout** ("Insert a colored callout with an icon") and **Date** ("Insert a date pill").
-  - Type **@** to mention another block of the same canvas: a pill with its icon and title is inserted; clicking the pill opens that block (or jumps to it). The other block's **Links** tab lists its **Backlinks**.
+  - Type **@** to mention another block of the same canvas: a pill with its icon and title is inserted; clicking the pill goes to that block on the canvas, and **Ctrl/⌘+click** opens it in a window. The other block's **Links** tab lists its **Backlinks**.
   - Select text for the formatting toolbar; the handle to the left of a line lets you drag that paragraph elsewhere and opens its small menu.
   - **Ctrl/⌘+Enter** inserts an empty line below the current one, **Shift+Ctrl/⌘+Enter** above (handy to escape a list or table).
   - **Panel → Plan** shows the **Outline** built from your headings ("Add headings to generate the outline." when there are none).

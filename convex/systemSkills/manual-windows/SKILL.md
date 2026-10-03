@@ -9,7 +9,7 @@ hidden: true
 A **window** is the big editor/viewer for one block: read or edit a document, work in a table, read a PDF, see a transcript. Floating windows sit above the canvas; the canvas stays usable behind them.
 
 ## Open
-- **Double-click** the block, or select it and press **Enter**, or **Open** in its toolbar, or click a mention pill / search result / bookmark that points to it.
+- **Double-click** the block, or select it and press **Enter**, or **Open** in its toolbar, or **Ctrl/⌘+click** a mention pill / search result (a plain click only goes to the block on the canvas), or click a bookmark that points to it.
 - Select **several** blocks and press Enter: their windows open **tiled** (up to four, for example 2 × 2); windows that were already open are minimized.
 - Blocks without a window: Title, Value, Frame (edited on the canvas). On a phone a window opens full screen (see `manual-mobile-and-tablet`).
 

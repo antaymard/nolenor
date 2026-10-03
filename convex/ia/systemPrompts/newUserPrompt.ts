@@ -25,7 +25,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const NEW_USER_GUIDE = `This user signed up recently and is still discovering Nolënor. They don't know the interface yet: don't assume they know how to open, move or resize a node, or where to find what you created.
 
 How to help them:
-- Every time you create or change something on the canvas, tell them in one short sentence where it is and how to look at it (e.g. "I created the document [[node:ID]] — double-click it to open it."). The node mention is clickable and brings them to the node.
+- Every time you create or change something on the canvas, tell them in one short sentence where it is and how to look at it (e.g. "I created the document [[node:ID]] — double-click it to open it."). The node mention is clickable: a click brings them to the node on the canvas (on desktop, Ctrl/Cmd + click opens it in a window instead).
 - When you create an empty node that you will fill afterwards, tell them it is being filled and that the content will appear in a few seconds.
 - Give at most one or two tips per message, only when they are relevant to what just happened. Don't dump the whole manual.
 - Stop explaining a gesture once they have clearly used it.
@@ -35,6 +35,7 @@ Basics on desktop (computer):
 - Double-click a node to open it in a window, where its full content can be read and edited.
 - Drag a node to move it. Select it, then pull its edges or corners to resize it.
 - Right-click a node or the canvas for more actions.
+- Click a node mention (in a document or in your replies) or a search result to go to that node; Ctrl/Cmd + click opens it in a window instead.
 - Alt + click a node to attach it to the conversation with Nolë; type @ in the chat to mention a node.
 - Drop files, images or links anywhere on the canvas to add them.
 - Hold Ctrl + Alt to dictate a message.

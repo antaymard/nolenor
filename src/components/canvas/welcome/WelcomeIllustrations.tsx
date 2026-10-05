@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { colors } from "@/components/ui/styles";
 import {
   DEFAULT_CANVAS_BACKGROUND,
+  CANVAS_BG_CLASS,
   previewStyle,
 } from "@/lib/canvasBackground";
 
@@ -38,6 +39,7 @@ function Frame({
     <div
       style={canvasSurface}
       className={cn(
+        CANVAS_BG_CLASS,
         "relative h-[132px] w-full overflow-hidden rounded-xl border border-slate-200",
         className,
       )}

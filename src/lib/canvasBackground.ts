@@ -24,13 +24,6 @@ export const DEFAULT_CANVAS_BACKGROUND: ResolvedCanvasBackground = {
 };
 
 /** Taille proposée quand on change de motif (lineWidth pour lines, dot/cross sinon). */
-/** Défauts en dark mode, pour les canvas sans fond choisi. Un fond choisi
- *  explicitement est partagé avec tous les viewers et reste tel quel. */
-export const DARK_CANVAS_BACKGROUND_COLORS = {
-  bgColor: "oklch(0.17 0.042 265)",
-  patternColor: "oklch(0.4 0.09 260)",
-};
-
 export const VARIANT_DEFAULT_SIZE: Record<CanvasBackgroundVariant, number> = {
   lines: 0.3,
   dots: 1.5,
@@ -60,20 +53,38 @@ const BACKGROUND_VARIANT_MAP: Record<
   cross: BackgroundVariant.Cross,
 };
 
+/**
+ * Classe à poser sur tout élément qui peint un fond de canvas. Elle dérive
+ * `--canvas-bg-display` / `--canvas-pattern-display` des couleurs stockées
+ * (`--canvas-bg` / `--canvas-pattern`, posées en inline style) : identiques en
+ * clair, assombries en dark mode (cf. `.canvas-bg` dans index.css). La base
+ * garde la couleur choisie, seul l'affichage s'adapte au thème.
+ */
+export const CANVAS_BG_CLASS = "canvas-bg";
+
+/** Variables CSS à poser sur l'élément `.canvas-bg`. */
+export function canvasBackgroundVars(
+  draft: Pick<ResolvedCanvasBackground, "bgColor" | "patternColor">,
+): CSSProperties {
+  return {
+    "--canvas-bg": draft.bgColor,
+    "--canvas-pattern": draft.patternColor,
+  } as CSSProperties;
+}
+
+const BG = "var(--canvas-bg-display)";
+const PATTERN = "var(--canvas-pattern-display)";
+
 export function resolveCanvasBackground(
   background: CanvasBackground | undefined,
-  theme: "light" | "dark" = "light",
 ): ResolvedCanvasBackground {
-  const defaults =
-    theme === "dark"
-      ? { ...DEFAULT_CANVAS_BACKGROUND, ...DARK_CANVAS_BACKGROUND_COLORS }
-      : DEFAULT_CANVAS_BACKGROUND;
   return {
-    bgColor: background?.bgColor ?? defaults.bgColor,
-    patternColor: background?.patternColor ?? defaults.patternColor,
-    variant: background?.variant ?? defaults.variant,
-    gap: background?.gap ?? defaults.gap,
-    size: background?.size ?? defaults.size,
+    bgColor: background?.bgColor ?? DEFAULT_CANVAS_BACKGROUND.bgColor,
+    patternColor:
+      background?.patternColor ?? DEFAULT_CANVAS_BACKGROUND.patternColor,
+    variant: background?.variant ?? DEFAULT_CANVAS_BACKGROUND.variant,
+    gap: background?.gap ?? DEFAULT_CANVAS_BACKGROUND.gap,
+    size: background?.size ?? DEFAULT_CANVAS_BACKGROUND.size,
   };
 }
 
@@ -102,32 +113,36 @@ export function sanitizeCanvasBackgroundForSave(
   };
 }
 
-/** Style CSS de la preview (settings + modale). */
+/** Style CSS de la preview (settings + modale). À poser avec `CANVAS_BG_CLASS`. */
 export function previewStyle(draft: ResolvedCanvasBackground): CSSProperties {
+  const vars = canvasBackgroundVars(draft);
   const px = `${draft.gap}px`;
   if (draft.variant === "none") {
-    return { backgroundColor: draft.bgColor };
+    return { ...vars, backgroundColor: BG };
   }
   if (draft.variant === "dots") {
     const r = clampBackgroundNumber(draft.size, 0.5, 8);
     return {
-      backgroundColor: draft.bgColor,
-      backgroundImage: `radial-gradient(circle, ${draft.patternColor} ${r}px, transparent ${r + 0.6}px)`,
+      ...vars,
+      backgroundColor: BG,
+      backgroundImage: `radial-gradient(circle, ${PATTERN} ${r}px, transparent ${r + 0.6}px)`,
       backgroundSize: `${px} ${px}`,
     };
   }
   if (draft.variant === "cross") {
     const w = clampBackgroundNumber(draft.size, 0.5, 12);
     return {
-      backgroundColor: draft.bgColor,
-      backgroundImage: `linear-gradient(${draft.patternColor} 0 ${w}px, transparent ${w}px), linear-gradient(90deg, ${draft.patternColor} 0 ${w}px, transparent ${w}px)`,
+      ...vars,
+      backgroundColor: BG,
+      backgroundImage: `linear-gradient(${PATTERN} 0 ${w}px, transparent ${w}px), linear-gradient(90deg, ${PATTERN} 0 ${w}px, transparent ${w}px)`,
       backgroundSize: `${px} ${px}`,
       backgroundPosition: "center",
     };
   }
   return {
-    backgroundColor: draft.bgColor,
-    backgroundImage: `linear-gradient(${draft.patternColor} 1px, transparent 1px), linear-gradient(90deg, ${draft.patternColor} 1px, transparent 1px)`,
+    ...vars,
+    backgroundColor: BG,
+    backgroundImage: `linear-gradient(${PATTERN} 1px, transparent 1px), linear-gradient(90deg, ${PATTERN} 1px, transparent 1px)`,
     backgroundSize: `${px} ${px}`,
   };
 }

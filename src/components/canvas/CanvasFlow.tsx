@@ -45,6 +45,8 @@ import { cn } from "@/lib/utils";
 import { useResolvedTheme } from "@/lib/theme";
 import { useCanvasStore } from "@/stores/canvasStore";
 import {
+  CANVAS_BG_CLASS,
+  canvasBackgroundVars,
   resolveCanvasBackground,
   toReactFlowVariant,
   type CanvasBackground,
@@ -639,11 +641,18 @@ export default function CanvasFlow({
 
   // Fond partagé : stocké sur le doc canvas, défauts front si absent
   // (nouveaux canvas + anciens sans champ). `none` => pas de motif.
-  const theme = useResolvedTheme();
   const resolvedBackground = useMemo(
-    () => resolveCanvasBackground(background, theme),
-    [background, theme],
+    () => resolveCanvasBackground(background),
+    [background],
   );
+  // Couleurs stockées → variables CSS ; `.canvas-bg` en dérive les couleurs
+  // affichées, assombries en dark mode sans toucher à la base.
+  const backgroundVars = useMemo(
+    () => canvasBackgroundVars(resolvedBackground),
+    [resolvedBackground],
+  );
+  // Ne pilote plus que les défauts de React Flow (contrôles, sélection…).
+  const theme = useResolvedTheme();
   const backgroundVariant = toReactFlowVariant(resolvedBackground.variant);
 
   return (
@@ -652,6 +661,7 @@ export default function CanvasFlow({
       <ReactFlow
         onInit={onFlowInit}
         colorMode={theme}
+        style={backgroundVars}
         // Le canvas reste invisible le temps qu'un cadrage venu de l'URL
         // soit posé, sinon la première frame se peint au `defaultViewport`
         // puis saute à la cible (cf. `useInitialViewportFromUrl`).
@@ -661,6 +671,7 @@ export default function CanvasFlow({
         // l'override `.react-flow__pane { cursor: default !important }`
         // d'index.css lui retire partout ailleurs.
         className={cn(
+          CANVAS_BG_CLASS,
           isUrlViewportPending && "opacity-0",
           isHandTool && "canvas-hand-tool",
         )}
@@ -765,8 +776,8 @@ export default function CanvasFlow({
         {backgroundVariant ? (
           <Background
             variant={backgroundVariant}
-            color={resolvedBackground.patternColor}
-            bgColor={resolvedBackground.bgColor}
+            color="var(--canvas-pattern-display)"
+            bgColor="var(--canvas-bg-display)"
             gap={resolvedBackground.gap}
             size={
               resolvedBackground.variant === "lines"
@@ -782,7 +793,7 @@ export default function CanvasFlow({
         ) : (
           <div
             className="absolute inset-0"
-            style={{ backgroundColor: resolvedBackground.bgColor }}
+            style={{ backgroundColor: "var(--canvas-bg-display)" }}
           />
         )}
         {/* Avant `children` : la surface de tracé couvre le canvas mais doit

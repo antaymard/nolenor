@@ -2,6 +2,7 @@ import { useId } from "react";
 import {
   CANVAS_BG_PRESETS,
   VARIANT_DEFAULT_SIZE,
+  CANVAS_BG_CLASS,
   previewStyle,
   type CanvasBackgroundVariant,
   type ResolvedCanvasBackground,
@@ -191,8 +192,8 @@ export default function CanvasBackgroundField({
         <div
           className={
             compact
-              ? "h-24 rounded-xl border border-slate-200"
-              : "h-44 rounded-xl border border-slate-200"
+              ? `${CANVAS_BG_CLASS} h-24 rounded-xl border border-slate-200`
+              : `${CANVAS_BG_CLASS} h-44 rounded-xl border border-slate-200`
           }
           style={previewStyle(value)}
           aria-label="Background preview"

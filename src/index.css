@@ -443,6 +443,38 @@
   --color-gray-950: var(--color-slate-950);
 }
 
+/* Fond de canvas (cf. CANVAS_BG_CLASS dans lib/canvasBackground.ts).
+   La base stocke la couleur choisie ; l'affichage la dérive ici. En dark :
+   - min(l, k - l) « replie » la luminosité : les couleurs claires deviennent
+     sombres (fond par défaut L≈0.98 → ≈0.19), celles déjà sombres restent
+     sombres — un canvas mis exprès en #0f172a ne s'éclaire pas ;
+   - le chroma est doublé mais plafonné, sinon les pastels deviennent tous
+     gris une fois sombres (et un chroma libre fait dériver les quasi-gris) ;
+   - 30 % du bleu nuit de l'app, mélangé en oklab (pas en oklch, dont
+     l'interpolation de teinte colore le blanc), raccorde le canvas au chrome.
+   Calibré à l'œil sur CANVAS_BG_PRESETS. */
+.canvas-bg {
+  --canvas-bg-display: var(--canvas-bg);
+  --canvas-pattern-display: var(--canvas-pattern);
+}
+.dark .canvas-bg {
+  --canvas-bg-display: color-mix(
+    in oklab,
+    oklch(from var(--canvas-bg) min(l, 1.17 - l) min(c * 2, 0.035) h),
+    oklch(0.2 0.045 265) 30%
+  );
+  --canvas-pattern-display: oklch(
+    from var(--canvas-pattern) min(l, 1.1 - l) c h
+  );
+}
+/* Navigateurs sans syntaxe de couleur relative : fond sombre fixe. */
+@supports not (color: oklch(from red l c h)) {
+  .dark .canvas-bg {
+    --canvas-bg-display: oklch(0.17 0.042 265);
+    --canvas-pattern-display: oklch(0.4 0.09 260);
+  }
+}
+
 /* Chrome flottant Nolënor — matériau Apple : translucide, blur + saturation,
    contenu scrollé dessous. Poids léger pour chips/toolbars, jamais empilé
    sur un autre translucide. */

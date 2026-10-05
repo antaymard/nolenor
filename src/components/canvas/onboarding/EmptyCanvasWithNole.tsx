@@ -3,6 +3,7 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { Button } from "@/components/shadcn/button";
 import {
   DEFAULT_CANVAS_BACKGROUND,
+  CANVAS_BG_CLASS,
   previewStyle,
 } from "@/lib/canvasBackground";
 import { useOnboardingIngestStore } from "@/stores/onboardingIngestStore";
@@ -41,7 +42,7 @@ export default function EmptyCanvasWithNole(_: EmptyCanvasWithNoleProps) {
   return (
     <div
       style={ONBOARDING_BACKGROUND_STYLE}
-      className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-2 py-2 md:items-center md:justify-center md:gap-6 md:px-25 md:py-20"
+      className={`${CANVAS_BG_CLASS} flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-2 py-2 md:items-center md:justify-center md:gap-6 md:px-25 md:py-20`}
     >
       <div className="relative mx-auto grid w-full flex-1 grid-cols-1 gap-6 rounded-[18px] border border-slate-300 bg-surface p-4 shadow-[0_3px_12px_rgba(15,23,42,0.12)] md:gap-0 md:grid-cols-[2fr_1fr] md:p-5">
         <div className="flex min-w-0 flex-col items-center justify-center text-center">

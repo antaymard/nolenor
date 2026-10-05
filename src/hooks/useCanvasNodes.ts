@@ -134,6 +134,17 @@ function collectDescendants(
 export function useCanvasNodes(
   canvasId: Id<"canvases">,
   canvasNodes?: CanvasNode[],
+  {
+    embedded = false,
+  }: {
+    /**
+     * Instance secondaire, montée sous un autre `ReactFlowProvider` que le
+     * canvas (cf. `FrameWindow`) : elle ne touche pas aux registres globaux
+     * du canvas — créations en attente, survol de frame — qui appartiennent
+     * à l'instance principale.
+     */
+    embedded?: boolean;
+  } = {},
 ) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const { getEdges, getNodes, setEdges } = useReactFlow();
@@ -462,12 +473,13 @@ export function useCanvasNodes(
 
   // Aucun pending ne doit fuiter d'un canvas à l'autre.
   useEffect(() => {
-    clearPendingCreations();
     dragPendingRef.current.clear();
     dragOriginsRef.current.clear();
     pendingReparentRef.current.clear();
+    if (embedded) return;
+    clearPendingCreations();
     useFrameHoverStore.getState().setHoveredFrameId(null);
-  }, [canvasId]);
+  }, [canvasId, embedded]);
 
   // Sync Convex -> React Flow nodes while preserving drag/resize state
   // and selection.
@@ -476,10 +488,14 @@ export function useCanvasNodes(
       // Snapshot hors updater (pur) : l'updater `setNodes` doit rester sans
       // effet de bord (double-invoke en StrictMode). La consommation du
       // pending se fait après, une fois la sélection appliquée.
+      // Une instance embarquée ne consomme pas les créations en attente :
+      // c'est le canvas qui doit les retrouver et les sélectionner.
       const pendingSelectedIds = new Set(
-        canvasNodes
-          .filter((n) => isNodePendingCreation(n.id))
-          .map((n) => n.id),
+        embedded
+          ? []
+          : canvasNodes
+              .filter((n) => isNodePendingCreation(n.id))
+              .map((n) => n.id),
       );
 
       setNodes((currentNodes: Node[]) => {
@@ -563,7 +579,7 @@ export function useCanvasNodes(
 
       for (const id of pendingSelectedIds) consumePendingCreation(id);
     }
-  }, [canvasNodes, setNodes]);
+  }, [canvasNodes, setNodes, embedded]);
 
   const handleNodeChange = useCallback(
     (incomingChanges: NodeChange[]) => {

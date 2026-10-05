@@ -100,6 +100,11 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
           multiSelectionKeyCode={null}
           // Le double-clic ouvre le node, comme sur le canvas.
           zoomOnDoubleClick={false}
+          // Indispensable au double-clic : un node ni sélectionnable ni
+          // draggable, et sans handler de clic, est rendu en
+          // `pointer-events: none` par React Flow (`NodeWrapper`). Le
+          // double-clic n'atteignait alors jamais le node.
+          onNodeClick={keepNodesInteractive}
         >
           <Background
             variant={BackgroundVariant.Dots}
@@ -133,6 +138,8 @@ function toStandaloneNode(node: Node): Node {
     data,
   };
 }
+
+function keepNodesInteractive() {}
 
 function toReadOnlyEdge(edge: Edge): Edge {
   return { ...edge, selected: false, selectable: false };

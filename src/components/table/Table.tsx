@@ -287,10 +287,59 @@ export function Table({
     [columnsById],
   );
 
+  /*
+   * Un clic qui referme un éditeur ne doit pas en ouvrir un autre. Le popover
+   * se ferme dès le `pointerdown` extérieur (DismissableLayer de Radix), mais
+   * le `click` qui suit atterrit ensuite sur une cellule — une autre, ou celle
+   * du trigger — et `openCell` rouvrait aussitôt. On retient donc qu'un
+   * éditeur s'est fermé PENDANT le geste en cours, et `openCell` /
+   * `createRowAndEdit` l'ignorent jusqu'à la fin du geste. Il faut recliquer
+   * pour ouvrir.
+   *
+   * Le geste court du `pointerdown` jusqu'au tick qui suit le `pointerup` : le
+   * `click` part juste après le `pointerup`, et certaines fermetures (choix
+   * d'une date, clic sur le trigger ouvert) arrivent pendant ce `click`. Les
+   * écouteurs sont en capture sur `document`, donc posés avant ceux de Radix
+   * et de React. Une fermeture au clavier (Échap) n'est dans aucun geste et ne
+   * bloque rien.
+   */
+  const pointerGestureActiveRef = useRef(false);
+  const closedDuringGestureRef = useRef(false);
+  useEffect(() => {
+    let endTimer: ReturnType<typeof setTimeout> | undefined;
+    const onPointerDown = () => {
+      clearTimeout(endTimer);
+      pointerGestureActiveRef.current = true;
+      closedDuringGestureRef.current = false;
+    };
+    const onPointerEnd = () => {
+      clearTimeout(endTimer);
+      endTimer = setTimeout(() => {
+        pointerGestureActiveRef.current = false;
+        closedDuringGestureRef.current = false;
+      }, 0);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointerup", onPointerEnd, true);
+    document.addEventListener("pointercancel", onPointerEnd, true);
+    return () => {
+      clearTimeout(endTimer);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointerup", onPointerEnd, true);
+      document.removeEventListener("pointercancel", onPointerEnd, true);
+    };
+  }, []);
+
+  const closeEditingCell = useCallback(() => {
+    if (pointerGestureActiveRef.current) closedDuringGestureRef.current = true;
+    setEditingCell(null);
+  }, []);
+
   const openCell = useCallback(
     (rowId: string, colId: string) => {
       const col = columnsById.get(colId);
       if (!col || readOnly) return;
+      if (closedDuringGestureRef.current) return;
       if (col.type === "checkbox") return;
       // Un select sans option n'a rien à proposer : on envoie d'abord définir
       // les options plutôt que d'ouvrir une liste vide.
@@ -318,6 +367,7 @@ export function Table({
   /** Matérialise la ligne fantôme et ouvre l'éditeur de la cellule cliquée. */
   const createRowAndEdit = useCallback(
     (columnId: string) => {
+      if (closedDuringGestureRef.current) return;
       const newRowId = onAddRow?.();
       if (!newRowId) return;
       setGlobalFilter("");
@@ -382,9 +432,7 @@ export function Table({
                 // n'appellent jamais ce `onClick`.
                 onClick={() => openCell(row.original.id, col.id)}
                 onChange={(val) => onCellChange?.(row.original.id, col.id, val)}
-                onBlur={() => {
-                  setEditingCell(null);
-                }}
+                onBlur={closeEditingCell}
               />
             );
           },
@@ -423,6 +471,7 @@ export function Table({
       readOnly,
       rowHeight,
       openCell,
+      closeEditingCell,
       onCellChange,
       onAddColumn,
       onDeleteRow,

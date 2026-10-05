@@ -86,7 +86,7 @@ function Snippet({ result }: { result: SearchResult }) {
     <span className="line-clamp-3 min-w-0 flex-1">
       {from > 0 && "…"}
       {text.slice(from, start)}
-      <mark className="rounded-sm bg-yellow-200 text-slate-900">
+      <mark className="rounded-sm bg-yellow-200 text-yellow-950 dark:bg-yellow-400/30 dark:text-yellow-100">
         {text.slice(start, end)}
       </mark>
       {text.slice(end, to)}

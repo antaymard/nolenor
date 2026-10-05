@@ -109,7 +109,7 @@ function HighlightedText({
         return (
           <Fragment key={match.start}>
             {before}
-            <mark className="rounded-sm bg-yellow-200 text-slate-900">
+            <mark className="rounded-sm bg-yellow-200 text-yellow-950 dark:bg-yellow-400/30 dark:text-yellow-100">
               {text.slice(match.start, match.end)}
             </mark>
           </Fragment>

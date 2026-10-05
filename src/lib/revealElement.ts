@@ -7,7 +7,8 @@ export function revealElement(element: HTMLElement): void {
   element.scrollIntoView({ behavior: "smooth", block: "center" });
   element.animate(
     [
-      { backgroundColor: "rgb(254 240 138 / 0.8)" },
+      // yellow-400 translucide : lisible sur fond clair comme sombre.
+      { backgroundColor: "rgb(250 204 21 / 0.35)" },
       { backgroundColor: "transparent" },
     ],
     { duration: 1500, easing: "ease-out" },

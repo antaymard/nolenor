@@ -33,4 +33,10 @@ export const OPENABLE_PREBUILT_NODE_TYPES: ReadonlySet<string> = new Set([
   "video",
   // La window porte le transcript (lecteur + texte horodaté cliquable).
   "audio",
+  // La window montre le contenu de la frame tel qu'il serait sur le canvas
+  // (cf. `FrameWindow`) — c'est le seul moyen de le voir quand la frame est
+  // compacte. Seule la compacte s'ouvre au double-clic (cf. `FrameNode`) ;
+  // les gestes « ouvrir » explicites (Entrée, ⌘/Ctrl-clic) valent pour les
+  // deux variantes.
+  "frame",
 ]);

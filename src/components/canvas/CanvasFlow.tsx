@@ -29,6 +29,7 @@ import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import { useFrameDrawTool } from "@/hooks/useFrameDrawTool";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import FrameDrawOverlay from "./FrameDrawOverlay";
+import CompactFrameDeleteDialog from "./CompactFrameDeleteDialog";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
 import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
@@ -658,6 +659,7 @@ export default function CanvasFlow({
   return (
     <>
       {isDraggingOver && <CanvasDropOverlay />}
+      <CompactFrameDeleteDialog />
       <ReactFlow
         onInit={onFlowInit}
         colorMode={theme}

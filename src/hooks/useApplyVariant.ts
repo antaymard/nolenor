@@ -22,7 +22,14 @@ export function useApplyVariant() {
     async ({ changes }: AppearanceVariantEntry) => {
       if (changes.length === 0) return;
 
-      changes.forEach(({ nodeId, variant }) => {
+      // Les variantes qui gardent la taille stockée (celles d'une frame, cf.
+      // `preservesStoredSize`) ne changent que la clé : pas de dimensions à
+      // poser, ni localement ni en base.
+      const resized = changes.filter(
+        ({ variant }) => variant.preservesStoredSize !== true,
+      );
+
+      resized.forEach(({ nodeId, variant }) => {
         updateNode(nodeId, {
           width: variant.defaultWidth,
           height: variant.defaultHeight,
@@ -37,9 +44,11 @@ export function useApplyVariant() {
         })),
       );
 
+      if (resized.length === 0) return;
+
       try {
         await patchNodes({
-          updates: changes.map(({ nodeId, variant }) => ({
+          updates: resized.map(({ nodeId, variant }) => ({
             nodeId,
             props: {
               width: variant.defaultWidth,
@@ -48,7 +57,7 @@ export function useApplyVariant() {
           })),
         });
       } finally {
-        changes.forEach(({ nodeId }) =>
+        resized.forEach(({ nodeId }) =>
           updateNode(nodeId, { resizing: false }),
         );
       }

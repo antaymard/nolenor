@@ -16,11 +16,13 @@ import {
   type ReactFlowState,
 } from "@xyflow/react";
 import { LuHeading1, LuHeading2, LuHeading3 } from "react-icons/lu";
+import { TbFrame, TbMaximize, TbPencil } from "react-icons/tb";
 import { areNodePropsEqual } from "../areNodePropsEqual";
 import { zoomCompensationScaleSelector } from "@/lib/zoomCompensation";
 import NodeHandles from "../NodeHandles";
 import CanvasNodeToolbar from "../toolbar/CanvasNodeToolbar";
 import { NodeToolbarLabel } from "../toolbar/NodeToolbarLabel";
+import { NodeToolbarButton } from "../toolbar/NodeToolbarButton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
@@ -28,6 +30,9 @@ import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import { useIsFrameHovered } from "@/stores/frameHoverStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
+import { useWindowsStore } from "@/stores/windowsStore";
+import { isCompactFrame } from "@/lib/frameVariant";
+import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import BookmarkedBadge from "@/components/nodes/BookmarkedBadge";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { colors, resolveColor } from "@/components/ui/styles";
@@ -141,6 +146,11 @@ function boundedBy(min: number, current: number) {
  * node. Conséquence assumée : un drag qui part de l'intérieur d'une frame la
  * déplace au lieu de lasso-sélectionner son contenu — pour ça, partir du
  * dehors. C'est le comportement de Figma, le fond d'une frame lui appartient.
+ *
+ * Deux variantes. La dépliée est la frame ci-dessus. La compacte est une carte
+ * de taille fixe, titre et résumé du contenu, qui masque ses enfants (cf.
+ * `src/lib/frameVariant.ts`) : le double-clic l'ouvre en window plutôt que de
+ * la déplier — la déplier reste un choix de variante.
  */
 function FrameNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
@@ -150,6 +160,12 @@ function FrameNode(xyNode: XyNodeProps) {
   // Le titre garde sa taille à l'écran quand on dézoome. Les poignées de
   // resize juste à côté suivent la même règle (cf. `zoomCompensation`).
   const titleScale = useStore(zoomCompensationScaleSelector);
+
+  const isCompact = isCompactFrame({
+    type: "frame",
+    variant: xyNode.data?.variant as string | undefined,
+  });
+  const openWindow = useWindowsStore((state) => state.openWindow);
 
   const title = typeof values?.title === "string" ? values.title : "";
   const nodeColor =
@@ -186,6 +202,31 @@ function FrameNode(xyNode: XyNodeProps) {
     useNodeEditorStore.getState().setEditingNodeId(null);
     setStartInEditMode(true);
   }, [shouldAutoEdit]);
+
+  // Le crayon de la toolbar : seule porte vers le renommage d'une frame
+  // compacte, dont le double-clic ouvre la window. Le compteur sert de `key` :
+  // `InlineEditableText` n'ouvre l'édition qu'une fois par montage, chaque
+  // demande le remonte donc. `isRenaming` retombe à la fin de l'édition, pour
+  // qu'un remontage ultérieur (changement de variante) ne la rouvre pas.
+  const [renameRequest, setRenameRequest] = useState(0);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const requestRename = useCallback(() => {
+    setRenameRequest((count) => count + 1);
+    setIsRenaming(true);
+  }, []);
+  const endRename = useCallback(() => setIsRenaming(false), []);
+
+  const handleOpenWindow = useCallback(() => {
+    if (!nodeDataId) return;
+    openWindow({ xyNodeId: xyNode.id, nodeDataId, nodeType: "frame" });
+  }, [nodeDataId, openWindow, xyNode.id]);
+
+  const handleCompactDoubleClick = useCallback(() => {
+    // Un double-clic dans le champ du titre sélectionne un mot, il n'ouvre
+    // rien.
+    if (isRenaming) return;
+    handleOpenWindow();
+  }, [isRenaming, handleOpenWindow]);
 
   const rename = useCallback(
     (nextTitle: string) => {
@@ -285,14 +326,86 @@ function FrameNode(xyNode: XyNodeProps) {
 
   const isSelected = xyNode.selected;
   useEffect(() => {
-    if (isSelected) measureContent();
-  }, [isSelected, measureContent]);
+    // Compacte : pas de poignées, donc pas de bornes à mesurer.
+    if (isSelected && !isCompact) measureContent();
+  }, [isSelected, isCompact, measureContent]);
+
+  const renameButton = (
+    <NodeToolbarButton label="Rename" onClick={requestRename}>
+      <TbPencil />
+    </NodeToolbarButton>
+  );
+
+  if (isCompact) {
+    return (
+      <>
+        {/* Au-dessus, comme les autres nodes : la carte porte son titre en
+            elle, le bord haut est libre. */}
+        <CanvasNodeToolbar xyNode={xyNode} position={Position.Top}>
+          <NodeToolbarButton
+            label="Open"
+            title="Open in a window"
+            disabled={!nodeDataId}
+            onClick={handleOpenWindow}
+          >
+            <TbMaximize />
+          </NodeToolbarButton>
+          {renameButton}
+        </CanvasNodeToolbar>
+
+        <NodeHandles showSourceHandles={xyNode.selected} nodeId={xyNode.id} />
+
+        <div
+          className={cn(
+            "relative flex h-full w-full items-center gap-2.5 rounded-xl border-2 px-3",
+            "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
+            "transition-[background-color,border-color,box-shadow] duration-100",
+            nodeColor.frameBorder,
+            nodeColor.frameBg,
+            // Transparente, la carte ne serait plus qu'un texte flottant : un
+            // pointillé garde sa forme de conteneur.
+            nodeColor === colors.transparent &&
+              "border-dashed border-slate-300 bg-white/70",
+            xyNode.selected
+              ? "ring-2 ring-blue-500/70"
+              : "hover:ring-1 hover:ring-blue-400/60",
+            isAttachedToNole &&
+              "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[16px] after:border-2 after:border-dashed after:border-violet-500/90",
+          )}
+          onDoubleClick={handleCompactDoubleClick}
+        >
+          {isBookmarked && <BookmarkedBadge />}
+          <TbFrame size={18} className={cn("shrink-0", nodeColor.textColor)} />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            {/* Désactivé hors renommage : son double-clic ne s'arrête plus
+                là, il remonte à la carte et ouvre la window. */}
+            <InlineEditableText
+              key={renameRequest}
+              value={title}
+              onSave={rename}
+              onEditEnd={endRename}
+              disabled={!isRenaming}
+              startInEditMode={isRenaming}
+              singleLine
+              placeholder="Untitled frame"
+              // Même typo que les titres des autres nodes (cf. `NodeHeader`) :
+              // corps de texte en `font-medium`, couleur du texte de la carte.
+              className="font-medium"
+              inputClassName="font-medium"
+            />
+            <CompactFrameSummary frameId={xyNode.id} />
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       {/* Sous la frame et non au-dessus, à l'inverse des autres nodes : son
           bord haut porte déjà le titre. */}
       <CanvasNodeToolbar xyNode={xyNode} position={Position.Bottom}>
+        {renameButton}
         <NodeToolbarLabel>Title size</NodeToolbarLabel>
         <ToggleGroup
           type="single"
@@ -362,9 +475,11 @@ function FrameNode(xyNode: XyNodeProps) {
               comme quand il vivait dans le node (où `nodrag` empêchait que le
               pointerdown qui ouvre l'édition démarre un drag). */}
           <InlineEditableText
+            key={renameRequest}
             value={title}
             onSave={rename}
-            startInEditMode={startInEditMode}
+            onEditEnd={endRename}
+            startInEditMode={startInEditMode || isRenaming}
             singleLine
             placeholder="Untitled frame"
             className={cn(
@@ -410,6 +525,63 @@ function FrameNode(xyNode: XyNodeProps) {
         {isBookmarked && <BookmarkedBadge />}
       </div>
     </>
+  );
+}
+
+/** Au-delà, les types restants se résument au total. */
+const MAX_SUMMARY_TYPES = 4;
+
+/**
+ * Le contenu d'une frame compacte en une ligne : le total, puis les types les
+ * plus représentés.
+ *
+ * Composant à part et monté par la seule carte compacte : la souscription au
+ * store tourne à chaque changement de nodes, une frame dépliée n'a pas à la
+ * payer. Le sélecteur rend une chaîne, comparée par valeur — la carte ne
+ * re-rend que si le décompte change, pas à chaque drag ailleurs sur le
+ * canvas.
+ */
+function CompactFrameSummary({ frameId }: { frameId: string }) {
+  const summaryKey = useStore((state: ReactFlowState) => {
+    const counts = new Map<string, number>();
+    for (const node of state.nodes) {
+      if (node.parentId !== frameId || !node.type) continue;
+      counts.set(node.type, (counts.get(node.type) ?? 0) + 1);
+    }
+    return [...counts]
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => `${type}:${count}`)
+      .join(",");
+  });
+
+  const entries = summaryKey
+    ? summaryKey.split(",").map((entry) => {
+        const [type, count] = entry.split(":");
+        return { type, count: Number(count) };
+      })
+    : [];
+  const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+
+  return (
+    <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+      <span className="shrink-0">
+        {total === 0 ? "Empty" : `${total} ${total === 1 ? "node" : "nodes"}`}
+      </span>
+      {entries.slice(0, MAX_SUMMARY_TYPES).map(({ type, count }) => {
+        const Icon = getNodeIcon(type);
+        if (!Icon) return null;
+        return (
+          <span
+            key={type}
+            className="flex shrink-0 items-center gap-0.5"
+            title={`${count} ${type}`}
+          >
+            <Icon className="size-3.5" />
+            {count}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 

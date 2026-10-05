@@ -14,6 +14,8 @@ import { shallow } from "zustand/shallow";
 import { nodeTypes } from "@/components/nodes/nodeTypes";
 import { edgeTypes } from "@/components/edges/edgeTypes";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "@/lib/canvasViewportFraming";
+import { colors, resolveColor } from "@/components/ui/styles";
+import { cn } from "@/lib/utils";
 
 const FIT_VIEW_OPTIONS = { padding: 0.1 };
 
@@ -40,6 +42,13 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
     shallow,
   );
   const edges = useStore((state: ReactFlowState) => state.edges, shallow);
+  // Habillée aux couleurs de la frame — même fond que sur le canvas, points
+  // dans sa teinte : on retrouve dans la window le cadre qu'on vient d'ouvrir.
+  const frameColor = useStore(
+    (state: ReactFlowState) =>
+      state.nodeLookup.get(xyNodeId)?.data?.color as string | undefined,
+  );
+  const palette = colors[resolveColor(frameColor, true)];
 
   const flowNodes = useMemo(() => children.map(toStandaloneNode), [children]);
   const flowEdges = useMemo(() => {
@@ -51,7 +60,12 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
 
   if (flowNodes.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      <div
+        className={cn(
+          "flex h-full items-center justify-center text-sm text-muted-foreground",
+          palette.frameBg,
+        )}
+      >
         This frame is empty
       </div>
     );
@@ -59,7 +73,7 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
 
   return (
     <ReactFlowProvider>
-      <div className="h-full w-full">
+      <div className={cn("h-full w-full", palette.frameBg)}>
         <ReactFlow
           nodes={flowNodes}
           edges={flowEdges}
@@ -87,7 +101,12 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
           // Le double-clic ouvre le node, comme sur le canvas.
           zoomOnDoubleClick={false}
         >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={20}
+            size={1}
+            color={palette.hex}
+          />
         </ReactFlow>
       </div>
     </ReactFlowProvider>

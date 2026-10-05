@@ -43,6 +43,13 @@ export type TableFormatOptions = {
   maxRowLimit?: number;
   maxChars?: number;
   includeColumnLegend?: boolean;
+  /**
+   * Rendu déjà calculé d'une cellule `richtext` (Markdown, cf.
+   * `renderRichTextCellsAsMarkdown` côté read_nodes). `undefined` → repli sur
+   * le texte brut, ce que gardent l'index de recherche et les appelants
+   * synchrones.
+   */
+  renderRichTextCell?: (rowId: string, columnId: string) => string | undefined;
 };
 
 export type TableTruncationReason =
@@ -298,8 +305,12 @@ export function formatTableMarkdown(
   const buildBodyRow = (row: TableRow): string => {
     const cells = columns.map((col) => {
       const rawValue = row.cells?.[col.id];
+      const rendered =
+        col.type === "richtext"
+          ? options?.renderRichTextCell?.(row.id, col.id)
+          : undefined;
       return escapeMarkdownTableCell(
-        stringifyTableCellValue(rawValue, col, nodeInfoById),
+        rendered ?? stringifyTableCellValue(rawValue, col, nodeInfoById),
       );
     });
     const rowId = escapeMarkdownTableCell(row.id ?? "");

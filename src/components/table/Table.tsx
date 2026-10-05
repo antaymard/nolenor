@@ -70,6 +70,7 @@ import { countLossyCells } from "./coerce";
 import { cellText } from "./cellText";
 import { applyFilters, type FilterConjunction, type TableFilter } from "./filters";
 import { compareRowsByColumn, type TableSort } from "./sorting";
+import type { RegisterCellFlush } from "./cellDraft";
 import {
   DEFAULT_ROW_HEIGHT,
   type CellValue,
@@ -87,6 +88,18 @@ export interface TableProps {
   readOnly?: boolean;
   rowHeight?: RowHeight;
   onCellChange?: (rowId: string, colId: string, value: CellValue) => void;
+  /**
+   * Une saisie texte / rich text est en attente dans la cellule ouverte, pas
+   * encore publiée par `onCellChange` (cf. `cellDraft.ts`). Sert à passer la
+   * fenêtre dirty.
+   */
+  onCellDraft?: () => void;
+  /**
+   * Renseigné par la table : publie via `onCellChange` le brouillon de la
+   * cellule ouverte, sans la fermer. À appeler avant de lire les lignes pour
+   * sauvegarder.
+   */
+  flushEditsRef?: React.RefObject<(() => void) | null>;
   /** Renvoie l'id de la ligne créée, pour enchaîner sur l'édition d'une cellule. */
   onAddRow?: () => string | undefined;
   onDeleteRow?: (rowId: string) => void;
@@ -144,6 +157,8 @@ export function Table({
   readOnly = false,
   rowHeight = DEFAULT_ROW_HEIGHT,
   onCellChange,
+  onCellDraft,
+  flushEditsRef,
   onAddRow,
   onDeleteRow,
   onAddColumn,
@@ -287,10 +302,76 @@ export function Table({
     [columnsById],
   );
 
+  /*
+   * Un clic qui referme un éditeur ne doit pas en ouvrir un autre. Le popover
+   * se ferme dès le `pointerdown` extérieur (DismissableLayer de Radix), mais
+   * le `click` qui suit atterrit ensuite sur une cellule — une autre, ou celle
+   * du trigger — et `openCell` rouvrait aussitôt. On retient donc qu'un
+   * éditeur s'est fermé PENDANT le geste en cours, et `openCell` /
+   * `createRowAndEdit` l'ignorent jusqu'à la fin du geste. Il faut recliquer
+   * pour ouvrir.
+   *
+   * Le geste court du `pointerdown` jusqu'au tick qui suit le `pointerup` : le
+   * `click` part juste après le `pointerup`, et certaines fermetures (choix
+   * d'une date, clic sur le trigger ouvert) arrivent pendant ce `click`. Les
+   * écouteurs sont en capture sur `document`, donc posés avant ceux de Radix
+   * et de React. Une fermeture au clavier (Échap) n'est dans aucun geste et ne
+   * bloque rien.
+   */
+  const pointerGestureActiveRef = useRef(false);
+  const closedDuringGestureRef = useRef(false);
+  useEffect(() => {
+    let endTimer: ReturnType<typeof setTimeout> | undefined;
+    const onPointerDown = () => {
+      clearTimeout(endTimer);
+      pointerGestureActiveRef.current = true;
+      closedDuringGestureRef.current = false;
+    };
+    const onPointerEnd = () => {
+      clearTimeout(endTimer);
+      endTimer = setTimeout(() => {
+        pointerGestureActiveRef.current = false;
+        closedDuringGestureRef.current = false;
+      }, 0);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointerup", onPointerEnd, true);
+    document.addEventListener("pointercancel", onPointerEnd, true);
+    return () => {
+      clearTimeout(endTimer);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointerup", onPointerEnd, true);
+      document.removeEventListener("pointercancel", onPointerEnd, true);
+    };
+  }, []);
+
+  // Le flush du brouillon de la cellule ouverte (une seule à la fois), exposé
+  // au parent via `flushEditsRef`.
+  const cellFlushRef = useRef<(() => void) | null>(null);
+  const registerCellFlush = useCallback<RegisterCellFlush>((flush) => {
+    cellFlushRef.current = flush;
+    return () => {
+      if (cellFlushRef.current === flush) cellFlushRef.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!flushEditsRef) return;
+    flushEditsRef.current = () => cellFlushRef.current?.();
+    return () => {
+      flushEditsRef.current = null;
+    };
+  }, [flushEditsRef]);
+
+  const closeEditingCell = useCallback(() => {
+    if (pointerGestureActiveRef.current) closedDuringGestureRef.current = true;
+    setEditingCell(null);
+  }, []);
+
   const openCell = useCallback(
     (rowId: string, colId: string) => {
       const col = columnsById.get(colId);
       if (!col || readOnly) return;
+      if (closedDuringGestureRef.current) return;
       if (col.type === "checkbox") return;
       // Un select sans option n'a rien à proposer : on envoie d'abord définir
       // les options plutôt que d'ouvrir une liste vide.
@@ -318,6 +399,7 @@ export function Table({
   /** Matérialise la ligne fantôme et ouvre l'éditeur de la cellule cliquée. */
   const createRowAndEdit = useCallback(
     (columnId: string) => {
+      if (closedDuringGestureRef.current) return;
       const newRowId = onAddRow?.();
       if (!newRowId) return;
       setGlobalFilter("");
@@ -382,9 +464,9 @@ export function Table({
                 // n'appellent jamais ce `onClick`.
                 onClick={() => openCell(row.original.id, col.id)}
                 onChange={(val) => onCellChange?.(row.original.id, col.id, val)}
-                onBlur={() => {
-                  setEditingCell(null);
-                }}
+                onBlur={closeEditingCell}
+                onDraft={onCellDraft}
+                registerFlush={registerCellFlush}
               />
             );
           },
@@ -423,6 +505,9 @@ export function Table({
       readOnly,
       rowHeight,
       openCell,
+      closeEditingCell,
+      onCellDraft,
+      registerCellFlush,
       onCellChange,
       onAddColumn,
       onDeleteRow,

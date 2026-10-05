@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { Block } from "@blocknote/core";
 import BlockNoteFieldEditor from "@/components/blocknote/BlockNoteFieldEditor";
 import { BlockNoteStatic } from "@/components/blocknote/BlockNoteStatic";
@@ -10,6 +10,7 @@ import {
 import { stringifyBlockNoteDocumentForStorage } from "@/../convex/lib/blockNoteDocument";
 import { cn } from "@/lib/utils";
 import { parseRichTextCell } from "./richText";
+import { useCellDraftFlush, type RegisterCellFlush } from "./cellDraft";
 import { maxHeightForRowHeight, type RowHeight } from "./types";
 
 export interface RichTextCellEditorProps {
@@ -19,6 +20,9 @@ export interface RichTextCellEditorProps {
   onClick: () => void;
   onChange: (value: string) => void;
   onBlur: () => void;
+  /** Cf. `cellDraft.ts`. */
+  onDraft?: () => void;
+  registerFlush?: RegisterCellFlush;
 }
 
 /**
@@ -36,6 +40,34 @@ function isBlockNoteFloatingUi(target: EventTarget | null): boolean {
     target.closest(
       ".bn-toolbar, .bn-suggestion-menu, .bn-grid-suggestion-menu, .bn-side-menu, .bn-table-handle-menu, .bn-menu-dropdown",
     ) !== null
+  );
+}
+
+/**
+ * L'éditeur reçoit la valeur de la cellule figée à l'ouverture. Une
+ * sauvegarde sans fermer publie le brouillon (cf. `cellDraft.ts`), donc
+ * change `value` : passée telle quelle, `BlockNoteFieldEditor` y verrait une
+ * poussée distante et ré-hydraterait le document, curseur perdu. Le contenu
+ * du popover est démonté à la fermeture, donc chaque ouverture repart de la
+ * valeur à jour.
+ */
+function SessionEditor({
+  value,
+  onDocChange,
+  onDirtyChange,
+}: {
+  value: unknown;
+  onDocChange: (doc: Block[]) => void;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
+  const [sessionValue] = useState(value);
+  return (
+    <BlockNoteFieldEditor
+      value={sessionValue}
+      onDocChange={onDocChange}
+      onDirtyChange={onDirtyChange}
+      className="min-h-24 text-sm"
+    />
   );
 }
 
@@ -58,25 +90,31 @@ export function RichTextCellEditor({
   onClick,
   onChange,
   onBlur,
+  onDraft,
+  registerFlush,
 }: RichTextCellEditorProps) {
   // Mémoïsé : sans ça le `memo` de BlockNoteStatic ne prend jamais, puisqu'il
   // reçoit un tableau neuf à chaque rendu.
   const doc = useMemo(() => parseRichTextCell(value), [value]);
   const pendingRef = useRef<string | null>(null);
 
-  const handleDocChange = useCallback((blocks: Block[]) => {
-    // Sérialisé ici, comme dans RichTextEditor : un document structurellement
-    // invalide n'est pas publié plutôt que d'être rejeté plus tard par le
-    // serveur en ayant marqué la fenêtre dirty pour rien.
-    try {
-      pendingRef.current = stringifyBlockNoteDocumentForStorage(blocks);
-    } catch (error) {
-      console.error(
-        "[RichTextCellEditor] invalid document, not published:",
-        error,
-      );
-    }
-  }, []);
+  const handleDocChange = useCallback(
+    (blocks: Block[]) => {
+      // Sérialisé ici, comme dans RichTextEditor : un document structurellement
+      // invalide n'est pas publié plutôt que d'être rejeté plus tard par le
+      // serveur en ayant marqué la fenêtre dirty pour rien.
+      try {
+        pendingRef.current = stringifyBlockNoteDocumentForStorage(blocks);
+        onDraft?.();
+      } catch (error) {
+        console.error(
+          "[RichTextCellEditor] invalid document, not published:",
+          error,
+        );
+      }
+    },
+    [onDraft],
+  );
 
   const noopDirty = useCallback(() => {}, []);
 
@@ -93,6 +131,14 @@ export function RichTextCellEditor({
     }
     onBlur();
   }, [onChange, onBlur]);
+
+  // Sauvegarde sans fermer : publie le document en attente, l'éditeur reste
+  // ouvert.
+  useCellDraftFlush(registerFlush, isEditing, () => {
+    if (pendingRef.current === null) return;
+    onChange(pendingRef.current);
+    pendingRef.current = null;
+  });
 
   const preview = (
     <div
@@ -142,11 +188,10 @@ export function RichTextCellEditor({
         }}
       >
         <div className="max-h-[50vh] overflow-y-auto py-1">
-          <BlockNoteFieldEditor
+          <SessionEditor
             value={value}
             onDocChange={handleDocChange}
             onDirtyChange={noopDirty}
-            className="min-h-24 text-sm"
           />
         </div>
       </PopoverContent>

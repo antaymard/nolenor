@@ -9,6 +9,8 @@ import {
   normalizeCellValueForColumn,
   type TableColumn,
 } from "../helpers/tableCellValidation";
+import { parseRichTextCell } from "../../lib/tableRichTextCell";
+import { richTextCellFromMarkdown } from "../helpers/tableRichTextMarkdown";
 import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
 import {
   TableWriteConflictError,
@@ -64,7 +66,10 @@ export default function tableUpdateRowsTool({
     description:
       "Update one or multiple existing rows in a table node from the current canvas. " +
       "For select columns, value can be an option id, label, or array of those (when isMulti=true). " +
-      'For node columns, value can be a nodeId string or { "nodeId": "..." } object.',
+      'For node columns, value can be a nodeId string or { "nodeId": "..." } object. ' +
+      "For richtext columns, value is Markdown (headings, lists, bold, links…) with the same tokens as blocknote documents: " +
+      "`[[node:<nodeId>]]` to mention a canvas node, `[[date:YYYY-MM-DD]]`, `[[pill:COLOR|Text]]`. " +
+      "It replaces the whole cell; read_nodes returns the current content in that form, with line breaks shown as <br>.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),
@@ -203,8 +208,30 @@ export default function tableUpdateRowsTool({
                 );
               }
 
+              // Rich text : Markdown (avec jetons de mention, date, pill),
+              // comme `set_node_data` sur un node blocknote. Un document déjà
+              // sérialisé passe tel quel par `normalizeCellValueForColumn`.
+              let cellValue = rawValue;
+              if (
+                matchedColumn.type === "richtext" &&
+                typeof rawValue === "string" &&
+                !parseRichTextCell(rawValue)
+              ) {
+                const encoded = await richTextCellFromMarkdown(
+                  ctx,
+                  canvasId as Id<"canvases">,
+                  rawValue,
+                );
+                if (!encoded.ok) {
+                  return toolError(
+                    `Column "${matchedColumn.name}": ${encoded.error}`,
+                  );
+                }
+                cellValue = encoded.value;
+              }
+
               const normalized = normalizeCellValueForColumn({
-                rawValue,
+                rawValue: cellValue,
                 column: matchedColumn,
                 ctx: { knownCanvasNodeIds },
               });

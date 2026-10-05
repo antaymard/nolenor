@@ -10,6 +10,8 @@ import {
   normalizeCellValueForColumn,
   type TableColumn,
 } from "../helpers/tableCellValidation";
+import { parseRichTextCell } from "../../lib/tableRichTextCell";
+import { richTextCellFromMarkdown } from "../helpers/tableRichTextMarkdown";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import {
   TableWriteConflictError,
@@ -61,7 +63,9 @@ export default function tableInsertRowsTool({
   const { canvasId } = threadCtx;
 
   return createTool({
-    description: "Insert one or multiple rows in a table node.",
+    description:
+      "Insert one or multiple rows in a table node. " +
+      "richtext cells take Markdown (headings, lists, bold, links…) and the same tokens as blocknote documents: `[[node:<nodeId>]]` to mention a canvas node, `[[date:YYYY-MM-DD]]`, `[[pill:COLOR|Text]]`. read_nodes returns them in that form, with line breaks shown as <br>.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),
@@ -190,8 +194,30 @@ export default function tableInsertRowsTool({
                 );
               }
 
+              // Rich text : Markdown (avec jetons de mention, date, pill),
+              // comme `set_node_data` sur un node blocknote. Un document déjà
+              // sérialisé passe tel quel par `normalizeCellValueForColumn`.
+              let cellValue = rawValue;
+              if (
+                matchedColumn.type === "richtext" &&
+                typeof rawValue === "string" &&
+                !parseRichTextCell(rawValue)
+              ) {
+                const encoded = await richTextCellFromMarkdown(
+                  ctx,
+                  canvasId as Id<"canvases">,
+                  rawValue,
+                );
+                if (!encoded.ok) {
+                  return toolError(
+                    `Column "${matchedColumn.name}": ${encoded.error}`,
+                  );
+                }
+                cellValue = encoded.value;
+              }
+
               const normalized = normalizeCellValueForColumn({
-                rawValue,
+                rawValue: cellValue,
                 column: matchedColumn,
                 ctx: { knownCanvasNodeIds },
               });

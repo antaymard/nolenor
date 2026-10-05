@@ -653,6 +653,91 @@ export async function blocksToMarkdown(blocks: BlockNoteBlock[]): Promise<string
   );
 }
 
+// ── Table rich text cells (read_nodes) ──────────────────────────────────────
+//
+// A table `richtext` cell holds a full BlockNote document. The agent reads it
+// as Markdown, with the same round-trip tokens as the XML codec (`[[node:…]]`,
+// `[[date:…]]`, `[[pill:…]]`), so what it reads it can write back through
+// `markdownToBlockNoteBlocks`. Every cell of a read goes through ONE headless
+// session: the jsdom swap and its lock are paid once, not per cell.
+
+export async function blockNoteDocumentsToMarkdown(
+  docs: BlockNoteBlock[][],
+  options?: { mentions?: MentionInfoByNodeDataId },
+): Promise<string[]> {
+  if (docs.length === 0) return [];
+  const opts: SerializeOptions = { mode: "token", mentions: options?.mentions };
+  return withHeadlessEditor((editor) =>
+    docs.map((blocks) => {
+      try {
+        return editor
+          .blocksToMarkdownLossy(
+            blocks.map((block) => sanitizeBlockForHeadless(block, opts)),
+          )
+          .trim();
+      } catch {
+        return "";
+      }
+    }),
+  );
+}
+
+// ── Line breaks ─────────────────────────────────────────────────────────────
+//
+// BlockNote's Markdown parser turns a single line break (soft or hard) into a
+// line break inside the same block — but the newline that follows the `<br>`
+// in its intermediate HTML survives as a space, so every new line started
+// with a stray " " (`"ligne 1\n ligne 2"`). Dropped here, on every parse
+// path. Code blocks keep their text untouched: their indentation is content.
+
+function dropSpaceAfterLineBreaks(content: unknown[]): unknown[] {
+  let afterBreak = false;
+  const out: unknown[] = [];
+  for (const node of content) {
+    if (!isPlainObject(node)) {
+      afterBreak = false;
+      out.push(node);
+      continue;
+    }
+    if (Array.isArray(node.content)) {
+      // A link: its own text runs, then whatever follows it.
+      const inner = dropSpaceAfterLineBreaks(node.content);
+      out.push({ ...node, content: inner });
+      const last = inner[inner.length - 1];
+      afterBreak =
+        isPlainObject(last) &&
+        typeof last.text === "string" &&
+        last.text.endsWith("\n");
+      continue;
+    }
+    if (node.type !== "text" || typeof node.text !== "string") {
+      afterBreak = false;
+      out.push(node);
+      continue;
+    }
+    let text = node.text.replace(/\n /g, "\n");
+    if (afterBreak && text.startsWith(" ")) text = text.slice(1);
+    afterBreak = text.endsWith("\n");
+    if (text.length === 0) continue;
+    out.push(text === node.text ? node : { ...node, text });
+  }
+  return out;
+}
+
+function dropSpaceAfterLineBreaksInBlocks<T>(blocks: T[]): T[] {
+  return blocks.map((block) => {
+    if (!isPlainObject(block)) return block;
+    const out: Record<string, unknown> = { ...block };
+    if (block.type !== "codeBlock" && Array.isArray(block.content)) {
+      out.content = dropSpaceAfterLineBreaks(block.content);
+    }
+    if (Array.isArray(block.children)) {
+      out.children = dropSpaceAfterLineBreaksInBlocks(block.children);
+    }
+    return out as T;
+  });
+}
+
 // ── Markdown → blocks (used by set_node_data full replace) ──────────────────
 //
 // Plain Markdown in, native BlockNote block array out. Intentionally lossy:
@@ -677,8 +762,10 @@ export async function markdownToBlockNoteBlocks(
     // text behind.
     toWireSafe(
       expandPillTokensInBlocks(
-        (editor.tryParseMarkdownToBlocks(markdown) ??
-          []) as BlockNoteBlockWithOptionalId[],
+        dropSpaceAfterLineBreaksInBlocks(
+          (editor.tryParseMarkdownToBlocks(markdown) ??
+            []) as BlockNoteBlockWithOptionalId[],
+        ),
         options?.mentions,
       ),
     ),
@@ -1214,14 +1301,16 @@ function parseMarkdownBlockContent(
       `block content produced ${blocks.length} blocks (${types}). Use one <block> element per block.`,
     );
   }
-  const content = (blocks[0] as { content?: unknown }).content;
+  const block = blocks[0] as { type?: string; content?: unknown };
+  const content = block.content;
   // BlockNote's own Markdown parser emits the fully structured `tableContent`
   // (header row, per-cell props), so a pipe table needs no conversion here.
   if (isTableContent(content)) return { kind: "table", content };
+  const inline = (content ?? []) as unknown[];
   return {
     kind: "inline",
     content: expandPillTokens(
-      (content ?? []) as unknown[],
+      block.type === "codeBlock" ? inline : dropSpaceAfterLineBreaks(inline),
       opts.mentions,
     ) as unknown[],
   };

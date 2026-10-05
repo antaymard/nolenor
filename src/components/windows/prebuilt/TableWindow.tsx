@@ -102,7 +102,14 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     return () => setPlanTabContent(null);
   }, [localColumns.length, localRows.length, setPlanTabContent]);
 
+  // Publie le brouillon de la cellule ouverte (cf. `Table.flushEditsRef`) :
+  // sauvegarder sans fermer l'éditeur ne doit pas perdre la saisie.
+  const flushEditsRef = useRef<(() => void) | null>(null);
+
   const handleSave = useCallback(async (): Promise<boolean> => {
+    // Synchrone : `updateCell` met `rowsRef` à jour sans attendre le rendu,
+    // donc la lecture juste en dessous voit déjà le brouillon.
+    flushEditsRef.current?.();
     const columns = columnsRef.current;
     const rows = rowsRef.current;
     const title = titleRef.current;
@@ -250,13 +257,16 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
 
   const updateCell = useCallback(
     (rowId: string, colId: string, value: CellValue) => {
-      setLocalRows((rows) =>
-        rows.map((row) =>
-          row.id === rowId
-            ? { ...row, cells: { ...row.cells, [colId]: value } }
-            : row,
-        ),
+      // `rowsRef` est mis à jour tout de suite, sans attendre le rendu : la
+      // sauvegarde publie le brouillon de la cellule ouverte puis lit
+      // `rowsRef` dans la foulée (cf. `handleSave`).
+      const next = rowsRef.current.map((row) =>
+        row.id === rowId
+          ? { ...row, cells: { ...row.cells, [colId]: value } }
+          : row,
       );
+      rowsRef.current = next;
+      setLocalRows(next);
       markDirty();
     },
     [markDirty],
@@ -475,6 +485,8 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
           sorting={localSorting}
           onSortingChange={updateSorting}
           onCellChange={updateCell}
+          onCellDraft={markDirty}
+          flushEditsRef={flushEditsRef}
           onAddRow={addRow}
           onDeleteRow={deleteRow}
           onAddColumn={addColumn}

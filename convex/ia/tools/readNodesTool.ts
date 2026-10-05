@@ -7,7 +7,15 @@ import {
   collectMentionedNodeDataIds,
   parseStoredBlockNoteDocument,
 } from "../../lib/blockNoteDocument";
-import type { MentionInfo } from "../helpers/blockNoteMarkdown";
+import type {
+  MentionInfo,
+  MentionInfoByNodeDataId,
+} from "../helpers/blockNoteMarkdown";
+import {
+  collectTableRichTextMentions,
+  renderRichTextCellsAsMarkdown,
+  richTextCellKey,
+} from "../helpers/tableRichTextMarkdown";
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import {
   formatTableMarkdown,
@@ -302,20 +310,21 @@ function renderTableColumnsBlock(columns: TableColumnLite[]): string {
   return `<tableColumns>\n${columnXml.join("\n")}\n</tableColumns>`;
 }
 
-function buildTableNodeBody(opts: {
+async function buildTableNodeBody(opts: {
   tableValue: unknown;
   rowSlice: TableRowSliceInput | undefined;
   nodeInfoById: Map<string, { type: string; title: string }>;
-}): {
+  mentions: MentionInfoByNodeDataId;
+}): Promise<{
   body: string;
   totalRows: number;
   displayedCount: number;
   truncated: boolean;
-} {
+}> {
   const tableValue = (opts.tableValue ?? {}) as TableValueLite;
   const columns = Array.isArray(tableValue.columns) ? tableValue.columns : [];
 
-  const result = formatTableMarkdown(opts.tableValue, {
+  const formatOptions = {
     rowSlice: opts.rowSlice
       ? {
           offset: opts.rowSlice.offset,
@@ -328,7 +337,34 @@ function buildTableNodeBody(opts: {
     maxRowLimit: TABLE_MAX_ROW_LIMIT,
     maxChars: TABLE_MAX_CHARS,
     includeColumnLegend: false,
-  });
+  };
+
+  // Les cellules rich text sortent en Markdown, avec les jetons que les tools
+  // d'écriture acceptent. La conversion est asynchrone (BlockNote headless) et
+  // ne vaut que pour les lignes affichées : un premier passage, en texte brut,
+  // dit lesquelles ; le second les rend. Le Markdown étant au moins aussi long
+  // que le texte brut, le second passage ne peut afficher que ces lignes-là ou
+  // moins (troncature au nombre de caractères).
+  let result = formatTableMarkdown(opts.tableValue, formatOptions);
+  if (columns.some((col) => col.type === "richtext")) {
+    // Un échec de jsdom ne doit pas faire échouer tout read_nodes : la table
+    // reste lisible, en texte brut.
+    const renderedCells = await renderRichTextCellsAsMarkdown(
+      opts.tableValue,
+      result.displayedRowIds,
+      opts.mentions,
+    ).catch((error: unknown) => {
+      console.error("[read_nodes] rich text cells rendering failed:", error);
+      return new Map<string, string>();
+    });
+    if (renderedCells.size > 0) {
+      result = formatTableMarkdown(opts.tableValue, {
+        ...formatOptions,
+        renderRichTextCell: (rowId, columnId) =>
+          renderedCells.get(richTextCellKey(rowId, columnId)),
+      });
+    }
+  }
 
   const columnsBlock = renderTableColumnsBlock(columns);
   const rowsBlock = `<tableRows>\n${result.markdown}\n</tableRows>`;
@@ -769,6 +805,11 @@ export default function readNodesTool({
                 const rows = Array.isArray(tableValue.rows)
                   ? tableValue.rows
                   : [];
+                // Les mentions des cellules rich text rejoignent la même
+                // passe de résolution que celles des documents blocknote.
+                for (const id of collectTableRichTextMentions(tableValue)) {
+                  mentionedNodeDataIds.add(id);
+                }
                 for (const row of rows) {
                   for (const colId of nodeColumnIds) {
                     const cell = row.cells?.[colId];
@@ -1082,10 +1123,11 @@ export default function readNodesTool({
 
             if (node.type === "table") {
               const rowSlice = tableRowsByNodeId.get(nodeId);
-              const result = buildTableNodeBody({
+              const result = await buildTableNodeBody({
                 tableValue: nodeData.values.table,
                 rowSlice,
                 nodeInfoById: nodeDataByNodeId,
+                mentions: mentionInfoByNodeDataId,
               });
               tableBody = result.body;
               tableTotalRows = result.totalRows;

@@ -97,7 +97,9 @@ const selectOptionInputSchema = z.object({
 // recolle des morceaux de deux UUID ; un id fourni par l'agent est ignoré.
 const columnInputSchema = z.object({
   name: z.string().min(1).describe("Column display name."),
-  type: columnTypeSchema.describe("Column type."),
+  type: columnTypeSchema.describe(
+    "Column type. text = short single-line value (name, label, code); richtext = long or multi-paragraph prose (notes, description, summary, comments).",
+  ),
   options: z
     .array(selectOptionInputSchema)
     .optional()
@@ -314,7 +316,10 @@ export default function tableUpdateSchemaTool({
   return createTool({
     description:
       `Update table schema (columns) on a table node. Supports types: ${listColumnTypesForPrompt()}. ` +
-      "select takes options + isMulti; node references a canvas node; richtext takes plain text (line breaks become paragraphs). " +
+      "select takes options + isMulti; node references a canvas node; richtext holds formatted text, written as Markdown. " +
+      // Sans consigne, le modèle prenait toujours `text` : la liste des types
+      // ne disait pas quand préférer `richtext`.
+      "Choosing text vs richtext: use text for short single-line values (names, labels, codes, short answers); use richtext for long or multi-paragraph content (notes, descriptions, summaries, comments), which the user can then format in the app. " +
       "Operations: set (only when schema is empty), add_column, update_column (rename / change select options or isMulti), delete_column.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,

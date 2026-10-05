@@ -13,7 +13,9 @@ import type { api } from "@/../convex/_generated/api";
 import { formatTime } from "@/hooks/useMediaPlayback";
 import { findActiveIndex, type PlaybackClock } from "@/lib/transcriptPlayback";
 import { cn } from "@/lib/utils";
+import { useWindowSearchQuery } from "../WindowSearchContext";
 import { SectionLabel } from "./SectionLabel";
+import { TranscriptSearchResults } from "./TranscriptSearchResults";
 
 type Transcript = NonNullable<
   FunctionReturnType<typeof api.ia.transcription.getTranscript>
@@ -44,6 +46,8 @@ const FOLLOW_PAUSE_AFTER_USER_SCROLL_MS = 5_000;
  *
  * Playback comes from `clock`, not props: the window hosting the element
  * must not re-render on every `timeupdate`.
+ *
+ * With a search query, the matching chapters and lines replace the sections.
  */
 export function MediaTranscriptPanel({
   transcript,
@@ -61,6 +65,7 @@ export function MediaTranscriptPanel({
   /** Above the transcript: re-transcribe action, running notice. */
   header?: ReactNode;
 }) {
+  const query = useWindowSearchQuery().trim();
   if (transcript === undefined) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-slate-400">
@@ -69,6 +74,16 @@ export function MediaTranscriptPanel({
     );
   }
   if (transcript === null) return <>{emptyState}</>;
+  if (query) {
+    return (
+      <TranscriptSearchResults
+        transcript={transcript}
+        query={query}
+        onSeek={onSeek}
+        className="h-full"
+      />
+    );
+  }
   return (
     <TranscriptSections
       // A new file or a new transcript starts from a clean open/closed state.

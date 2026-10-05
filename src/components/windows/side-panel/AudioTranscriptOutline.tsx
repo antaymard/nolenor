@@ -1,6 +1,9 @@
 import { formatTime } from "@/hooks/useMediaPlayback";
+import type { SearchableTranscript } from "@/lib/transcriptSearch";
+import { useWindowSearchQuery } from "../WindowSearchContext";
 import { PlanTabPlaceholder } from "./PlanTabPlaceholder";
 import { SectionLabel } from "./SectionLabel";
+import { TranscriptSearchResults } from "./TranscriptSearchResults";
 
 export interface AudioTranscriptChapter {
   startSec: number;
@@ -13,19 +16,25 @@ export interface AudioTranscriptChapter {
  * Plan tab of the audio window: the overview of the recording, then its
  * chapters, each jumping the window's player to where the chapter starts.
  * Chapters come from the step that follows a transcription, cut by topic.
+ * With a search query, the matching chapters and lines replace the outline.
  */
 export function AudioTranscriptOutline({
   hasTranscript,
   chapters,
   overview,
+  transcript,
   onSeek,
 }: {
   /** undefined while loading. */
   hasTranscript: boolean | undefined;
   chapters?: AudioTranscriptChapter[];
   overview?: string;
+  /** What the search box looks through. */
+  transcript?: SearchableTranscript | null;
   onSeek: (seconds: number) => void;
 }) {
+  const query = useWindowSearchQuery().trim();
+
   if (hasTranscript === undefined) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-slate-400">
@@ -37,6 +46,17 @@ export function AudioTranscriptOutline({
   if (!hasTranscript) {
     return (
       <PlanTabPlaceholder message="No transcript yet. Transcribe this audio to get an outline." />
+    );
+  }
+
+  if (query && transcript) {
+    return (
+      <TranscriptSearchResults
+        transcript={transcript}
+        query={query}
+        onSeek={onSeek}
+        className="h-full"
+      />
     );
   }
 

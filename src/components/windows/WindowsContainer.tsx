@@ -8,6 +8,22 @@ import {
   getWindowSaveHandler,
   useHasWindowSaveHandler,
 } from "./windowSaveRegistry";
+import {
+  getWindowSearchHandler,
+  useHasWindowSearchHandler,
+} from "./windowSearchRegistry";
+
+/** Plein écran d'abord, sinon `zIndex` max hors minimisées. */
+function getTopmostVisibleWindow() {
+  const state = useWindowsStore.getState();
+  const visible = state.openedWindows.filter(
+    (w) => w.windowState !== "minimized",
+  );
+  if (visible.length === 0) return undefined;
+  const highest = visible.reduce((a, b) => (b.zIndex > a.zIndex ? b : a));
+  if (state.fullscreenNodeId === null) return highest;
+  return visible.find((w) => w.xyNodeId === state.fullscreenNodeId) ?? highest;
+}
 
 export default function WindowsContainer() {
   const openedWindows = useWindowsStore((s) => s.openedWindows);
@@ -32,19 +48,23 @@ export default function WindowsContainer() {
   useHotkey(
     "Mod+S",
     () => {
-      const state = useWindowsStore.getState();
-      const visible = state.openedWindows.filter(
-        (w) => w.windowState !== "minimized",
-      );
-      if (visible.length === 0) return;
-      const topmost =
-        state.fullscreenNodeId !== null
-          ? (visible.find((w) => w.xyNodeId === state.fullscreenNodeId) ??
-            visible.reduce((a, b) => (b.zIndex > a.zIndex ? b : a)))
-          : visible.reduce((a, b) => (b.zIndex > a.zIndex ? b : a));
-      getWindowSaveHandler(topmost.xyNodeId)?.();
+      const topmost = getTopmostVisibleWindow();
+      if (topmost) getWindowSaveHandler(topmost.xyNodeId)?.();
     },
     { preventDefault: true, enabled: hasSaveHandler },
+  );
+
+  // `Mod+F` : même résolution de la fenêtre au premier plan ; ouvre son panel
+  // latéral si besoin et focus l'input de recherche. Sans fenêtre à chercher
+  // dedans, `enabled` laisse la recherche du browser tranquille.
+  const hasSearchHandler = useHasWindowSearchHandler();
+  useHotkey(
+    "Mod+F",
+    () => {
+      const topmost = getTopmostVisibleWindow();
+      if (topmost) getWindowSearchHandler(topmost.xyNodeId)?.();
+    },
+    { preventDefault: true, enabled: hasSearchHandler },
   );
 
   const handleSnapPreviewChange = useCallback(

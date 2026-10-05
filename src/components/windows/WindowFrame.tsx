@@ -36,6 +36,8 @@ import { useNodeWindowIdentity } from "./useNodeWindowIdentity";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { useWindowFrameState } from "./useWindowFrameState";
 import { WindowFrameContext } from "./WindowFrameContext";
+import { WindowSearchContext } from "./WindowSearchContext";
+import { useRegisterWindowSearchHandler } from "./windowSearchRegistry";
 import { WindowSidePanelTrigger } from "./side-panel/WindowSidePanelTrigger";
 import { WindowSidePanel } from "./side-panel/WindowSidePanel";
 import { VersionPreviewBanner } from "./side-panel/VersionPreviewBanner";
@@ -202,6 +204,23 @@ function WindowFrame({
     handledSidePanelRequestRef.current = sidePanelOpenRequest;
     if (!sidePanelOpen) toggleSidePanel();
   }, [sidePanelOpen, sidePanelOpenRequest, toggleSidePanel]);
+
+  // ── Search (input du panel, `Mod+F`) ────────────────────────────────────
+  // La requête vit ici pour survivre à la fermeture du panel ; les bodies la
+  // lisent via `useWindowSearchQuery` (le Plan est rendu dans le panel, sous
+  // le Provider qui l'entoure). `searchFocusPending` est consommé par le panel
+  // une fois l'input focus : il peut ne pas être monté au moment du raccourci.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocusPending, setSearchFocusPending] = useState(false);
+  const openSearch = useCallback(() => {
+    if (!sidePanelOpen) toggleSidePanel();
+    setSearchFocusPending(true);
+  }, [sidePanelOpen, toggleSidePanel]);
+  const consumeSearchFocus = useCallback(
+    () => setSearchFocusPending(false),
+    [],
+  );
+  useRegisterWindowSearchHandler(xyNodeId, openSearch);
 
   // ── Version preview (in place, no dialog) ───────────────────────────────
   const [previewVersionId, setPreviewVersionId] =
@@ -880,14 +899,20 @@ function WindowFrame({
               </div>
               {isFullscreen && !isReadingType && <NoleOverlay />}
               {sidePanelOpen && (
-                <WindowSidePanel
-                  nodeDataId={nodeDataId}
-                  xyNodeId={xyNodeId}
-                  canvasId={canvasId}
-                  planTabContent={planTabContent}
-                  previewVersionId={previewVersionId}
-                  onSelectVersion={handleSelectVersion}
-                />
+                <WindowSearchContext.Provider value={searchQuery}>
+                  <WindowSidePanel
+                    nodeDataId={nodeDataId}
+                    xyNodeId={xyNodeId}
+                    canvasId={canvasId}
+                    planTabContent={planTabContent}
+                    previewVersionId={previewVersionId}
+                    onSelectVersion={handleSelectVersion}
+                    searchQuery={searchQuery}
+                    onSearchQueryChange={setSearchQuery}
+                    searchFocusPending={searchFocusPending}
+                    onSearchFocusConsumed={consumeSearchFocus}
+                  />
+                </WindowSearchContext.Provider>
               )}
             </div>
           </div>

@@ -16,6 +16,11 @@ import {
   getCustomSlashMenuItems,
   groupSuggestionItems,
 } from "@/components/blocknote/registry";
+import {
+  getNodeMentionSuggestionItems,
+  type NodeMentionItem,
+} from "@/components/blocknote/nodeMentionSuggestions";
+import { NodeMentionMenu } from "@/components/blocknote/NodeMentionMenu";
 import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
 import { useBlockNoteUpload } from "@/components/blocknote/useBlockNoteUpload";
 import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
@@ -237,6 +242,18 @@ function BlockNoteFieldEditor({
                 ]),
                 query,
               )
+            }
+          />
+          {/* Mentions `@` vers les nodes du canvas, comme dans
+              BlocknoteWindow (cf. le commentaire du même contrôleur là-bas
+              pour le générique explicite et `NodeMentionMenu`). */}
+          <SuggestionMenuController<
+            (query: string) => Promise<NodeMentionItem[]>
+          >
+            triggerCharacter="@"
+            suggestionMenuComponent={NodeMentionMenu}
+            getItems={async (query) =>
+              getNodeMentionSuggestionItems(editor, query)
             }
           />
         </BlockNoteView>

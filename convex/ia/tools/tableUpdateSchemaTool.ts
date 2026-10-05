@@ -316,7 +316,7 @@ export default function tableUpdateSchemaTool({
   return createTool({
     description:
       `Update table schema (columns) on a table node. Supports types: ${listColumnTypesForPrompt()}. ` +
-      "select takes options + isMulti; node references a canvas node; richtext takes plain text (line breaks become paragraphs). " +
+      "select takes options + isMulti; node references a canvas node; richtext holds formatted text, written as Markdown. " +
       // Sans consigne, le modèle prenait toujours `text` : la liste des types
       // ne disait pas quand préférer `richtext`.
       "Choosing text vs richtext: use text for short single-line values (names, labels, codes, short answers); use richtext for long or multi-paragraph content (notes, descriptions, summaries, comments), which the user can then format in the app. " +

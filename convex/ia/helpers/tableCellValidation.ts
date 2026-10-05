@@ -219,10 +219,10 @@ export function normalizeCellValueForColumn({
 
   switch (column.type) {
     case "richtext": {
-      // L'agent écrit du texte : on le convertit en document (un paragraphe par
-      // ligne) plutôt que de lui demander de fabriquer des blocs BlockNote à la
-      // main. Un document déjà sérialisé est accepté tel quel, pour que
-      // relire-puis-réécrire une cellule ne la dégrade pas.
+      // Les tools de table convertissent d'abord le Markdown de l'agent en
+      // document (cf. `richTextCellFromMarkdown`), qui arrive donc ici déjà
+      // sérialisé et passe tel quel. Le repli texte brut (un paragraphe par
+      // ligne) ne sert qu'aux appelants sans cette conversion.
       if (typeof rawValue === "string") {
         if (parseRichTextCell(rawValue)) {
           return { ok: true, value: rawValue };
@@ -235,7 +235,7 @@ export function normalizeCellValueForColumn({
       return {
         ok: false,
         error: toolError(
-          `Invalid value for column "${column.name}" (type richtext). Expected a text string (line breaks become paragraphs).`,
+          `Invalid value for column "${column.name}" (type richtext). Expected a Markdown string.`,
         ),
       };
     }

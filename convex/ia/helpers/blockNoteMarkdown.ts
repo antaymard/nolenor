@@ -653,6 +653,35 @@ export async function blocksToMarkdown(blocks: BlockNoteBlock[]): Promise<string
   );
 }
 
+// ── Table rich text cells (read_nodes) ──────────────────────────────────────
+//
+// A table `richtext` cell holds a full BlockNote document. The agent reads it
+// as Markdown, with the same round-trip tokens as the XML codec (`[[node:…]]`,
+// `[[date:…]]`, `[[pill:…]]`), so what it reads it can write back through
+// `markdownToBlockNoteBlocks`. Every cell of a read goes through ONE headless
+// session: the jsdom swap and its lock are paid once, not per cell.
+
+export async function blockNoteDocumentsToMarkdown(
+  docs: BlockNoteBlock[][],
+  options?: { mentions?: MentionInfoByNodeDataId },
+): Promise<string[]> {
+  if (docs.length === 0) return [];
+  const opts: SerializeOptions = { mode: "token", mentions: options?.mentions };
+  return withHeadlessEditor((editor) =>
+    docs.map((blocks) => {
+      try {
+        return editor
+          .blocksToMarkdownLossy(
+            blocks.map((block) => sanitizeBlockForHeadless(block, opts)),
+          )
+          .trim();
+      } catch {
+        return "";
+      }
+    }),
+  );
+}
+
 // ── Markdown → blocks (used by set_node_data full replace) ──────────────────
 //
 // Plain Markdown in, native BlockNote block array out. Intentionally lossy:

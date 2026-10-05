@@ -375,7 +375,7 @@ function FrameNode(xyNode: XyNodeProps) {
           onDoubleClick={handleCompactDoubleClick}
         >
           {isBookmarked && <BookmarkedBadge />}
-          <TbFrame className={cn("size-5 shrink-0", nodeColor.textColor)} />
+          <TbFrame size={18} className={cn("shrink-0", nodeColor.textColor)} />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             {/* Désactivé hors renommage : son double-clic ne s'arrête plus
                 là, il remonte à la carte et ouvre la window. */}
@@ -388,11 +388,10 @@ function FrameNode(xyNode: XyNodeProps) {
               startInEditMode={isRenaming}
               singleLine
               placeholder="Untitled frame"
-              className={cn(
-                "text-sm leading-tight font-semibold",
-                nodeColor.textColor,
-              )}
-              inputClassName="text-sm font-semibold"
+              // Même typo que les titres des autres nodes (cf. `NodeHeader`) :
+              // corps de texte en `font-medium`, couleur du texte de la carte.
+              className="font-medium"
+              inputClassName="font-medium"
             />
             <CompactFrameSummary frameId={xyNode.id} />
           </div>

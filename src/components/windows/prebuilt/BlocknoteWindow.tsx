@@ -37,6 +37,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { cn } from "@/lib/utils";
 import WindowLoadingState from "@/components/windows/WindowLoadingState";
+import { useResolvedTheme } from "@/lib/theme";
 
 interface BlocknoteWindowProps {
   nodeDataId: Id<"nodeDatas">;
@@ -81,6 +82,7 @@ function EditorLoading() {
 }
 
 function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
+  const theme = useResolvedTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const latestDocRef = useRef<Block[] | null>(null);
   const hydrationFrameRef = useRef<number | null>(null);
@@ -358,7 +360,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
       <BlockNoteErrorBoundary resetKey={docSource}>
         <BlockNoteView
           editor={editor}
-          theme="light"
+          theme={theme}
           onChange={handleChange}
           className={cn("nodrag h-full")}
           slashMenu={false}
@@ -412,7 +414,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
         </BlockNoteView>
       </BlockNoteErrorBoundary>
       {!isEditorReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/65">
+        <div className="absolute inset-0 flex items-center justify-center bg-surface/65">
           <EditorLoading />
         </div>
       )}

@@ -3,14 +3,23 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import toast from "react-hot-toast";
-import { TbLogout } from "react-icons/tb";
+import { TbDeviceDesktop, TbLogout, TbMoon, TbSun } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import PageHeader from "@/components/app-shell/PageHeader";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/shadcn/toggle-group";
 import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import DeleteAccountDialog from "@/components/settings/account/DeleteAccountDialog";
 import { toastError } from "@/components/utils/errorUtils";
+import {
+  setThemePreference,
+  useThemePreference,
+  type ThemePreference,
+} from "@/lib/theme";
 
 export const Route = createFileRoute("/settings/account")({
   component: RouteComponent,
@@ -102,6 +111,38 @@ function NameField({
   );
 }
 
+// Préférence locale au navigateur pour l'instant (localStorage), d'où sa
+// place hors du bloc des infos de compte.
+function ThemeField() {
+  const preference = useThemePreference();
+  return (
+    <ToggleGroup
+      type="single"
+      value={preference}
+      onValueChange={(value) => {
+        // Radix renvoie "" quand on reclique l'item actif : on l'ignore.
+        if (value) setThemePreference(value as ThemePreference);
+      }}
+      variant="outline"
+      size="sm"
+      aria-label="Theme"
+    >
+      <ToggleGroupItem value="light" className="px-3">
+        <TbSun />
+        Light
+      </ToggleGroupItem>
+      <ToggleGroupItem value="dark" className="px-3">
+        <TbMoon />
+        Dark
+      </ToggleGroupItem>
+      <ToggleGroupItem value="system" className="px-3">
+        <TbDeviceDesktop />
+        System
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
 function RouteComponent() {
   const me = useQuery(api.users.me);
   const { signOut } = useAuthActions();
@@ -125,7 +166,7 @@ function RouteComponent() {
         subtitle="Your name is what Nolë calls you — it is handed to the assistant with every conversation. The rest comes from the provider you signed in with."
       />
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-surface">
         {me === undefined ? (
           <p className="px-4 py-3 text-sm text-slate-500 italic">Loading…</p>
         ) : me === null ? (
@@ -150,6 +191,12 @@ function RouteComponent() {
             </Row>
           </>
         )}
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-surface">
+        <Row label="Theme">
+          <ThemeField />
+        </Row>
       </div>
 
       <div className="mt-6">

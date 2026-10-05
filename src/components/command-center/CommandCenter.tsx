@@ -141,7 +141,7 @@ export default function CommandCenter() {
     >
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[70vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-white/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-xl"
+        className="flex max-h-[70vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-surface/40 p-0 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-xl"
       >
         <DialogTitle className="sr-only">Command center</DialogTitle>
         <DialogDescription className="sr-only">

@@ -39,7 +39,7 @@ const pastelClassName: Record<PillColor, string> = {
   purple: "bg-purple-100 text-purple-700",
   pink: "bg-pink-100 text-pink-700",
   grey: "bg-slate-200 text-slate-700",
-  white: "bg-white text-slate-700 ring-1 ring-slate-200",
+  white: "bg-surface text-slate-700 ring-1 ring-slate-200",
   default: "bg-slate-100 text-slate-700",
 };
 

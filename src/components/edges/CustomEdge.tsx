@@ -349,7 +349,7 @@ function EdgeOverlay({
               fontSize: `${labelFontSize}px`,
               fontWeight: 400,
               color: labelColor,
-              background: "#ffffff",
+              background: "var(--surface)",
               padding: "1px 8px",
               borderRadius: 10,
               border: `1px solid ${hex}`,

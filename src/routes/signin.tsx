@@ -31,13 +31,13 @@ export const Route = createFileRoute("/signin")({
 });
 
 const INPUT_CLASSNAME =
-  "bg-white border-gray-200 text-gray-900 placeholder:text-gray-300 h-11 focus-visible:ring-0 focus-visible:border-gray-300";
+  "bg-surface border-gray-200 text-gray-900 placeholder:text-gray-300 h-11 focus-visible:ring-0 focus-visible:border-gray-300";
 
 const OTP_SLOT_CLASSNAME =
-  "h-12 w-12 bg-white border-gray-200 text-2xl font-semibold text-gray-900 shadow-none data-[active=true]:border-gray-400 data-[active=true]:ring-0";
+  "h-12 w-12 bg-surface border-gray-200 text-2xl font-semibold text-gray-900 shadow-none data-[active=true]:border-gray-400 data-[active=true]:ring-0";
 
 const SPINNER_CLASSNAME =
-  "h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin";
+  "h-4 w-4 border-2 border-surface/30 border-t-white rounded-full animate-spin";
 
 /**
  * Les deux étapes de code portent l'adresse parce qu'elles doivent la reposter :
@@ -289,7 +289,7 @@ function RouteComponent() {
         : "Create an account";
 
   return (
-    <div className="min-h-screen w-screen bg-[#f7f7f8] flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen w-screen bg-[#f7f7f8] dark:bg-background flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-[360px] flex flex-col items-center gap-8">
         {/* Logo */}
         <img
@@ -423,7 +423,7 @@ function RouteComponent() {
               variant="outline"
               onClick={handleGoogle}
               disabled={isBusy}
-              className="h-11 w-full bg-white border-gray-200 text-gray-700 font-medium shadow-none hover:bg-gray-50 hover:text-gray-900 animate-appear-up"
+              className="h-11 w-full bg-surface border-gray-200 text-gray-700 font-medium shadow-none hover:bg-gray-50 hover:text-gray-900 animate-appear-up"
               style={{ animationDelay: "160ms" }}
             >
               {isGoogleRedirecting ? (

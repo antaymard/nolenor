@@ -7,4 +7,4 @@ export const NAV_ITEM_CLASS =
   "flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200/60";
 
 export const NAV_ITEM_ACTIVE_CLASS =
-  "bg-white font-bold text-brand shadow-sm hover:bg-white";
+  "bg-surface font-bold text-brand shadow-sm hover:bg-surface";

@@ -403,7 +403,7 @@ function ImageNode(xyNode: XyNodeProps) {
                   key={i}
                   className={cn(
                     "nodrag pointer-events-auto w-1.5 h-1.5 rounded-full transition-colors",
-                    i === safeIndex ? "bg-white" : "bg-white/40",
+                    i === safeIndex ? "bg-surface" : "bg-surface/40",
                   )}
                   onClick={(e) => {
                     e.stopPropagation();

@@ -95,7 +95,7 @@ export default function AppSidebar({
             onNavigate?.();
             openCommandCenter();
           }}
-          className="flex h-10 items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+          className="flex h-10 items-center gap-2.5 rounded-lg border border-slate-200 bg-surface px-3 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
         >
           <TbSearch className="size-4 shrink-0" />
           <span className="flex-1 text-left">Search</span>

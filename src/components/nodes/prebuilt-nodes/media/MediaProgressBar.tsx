@@ -140,7 +140,7 @@ function MediaProgressBar({
         }}
         className={cn(
           "pointer-events-none absolute inset-y-0 left-0 w-0 rounded-full",
-          isLight ? "bg-white/90" : "bg-blue-500/70",
+          isLight ? "bg-surface/90" : "bg-blue-500/70",
         )}
       />
 
@@ -150,7 +150,7 @@ function MediaProgressBar({
         }}
         className={cn(
           "pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-0.5 -translate-x-1/2 rounded-full",
-          isLight ? "bg-white" : "bg-blue-700",
+          isLight ? "bg-surface" : "bg-blue-700",
         )}
       />
 
@@ -160,7 +160,7 @@ function MediaProgressBar({
         ref={ghostRef}
         className={cn(
           "pointer-events-none absolute -top-0.5 -bottom-0.5 left-0 w-px -translate-x-1/2",
-          isLight ? "bg-white/70" : "bg-black/40",
+          isLight ? "bg-surface/70" : "bg-black/40",
           isHovering && duration > 0 ? "opacity-100" : "opacity-0",
         )}
       />

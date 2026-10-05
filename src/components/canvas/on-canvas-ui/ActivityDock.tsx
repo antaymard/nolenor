@@ -92,7 +92,7 @@ export default function ActivityDock({
             <button
               type="button"
               aria-label={`${overflow.length} tâches de plus`}
-              className="flex h-[46px] shrink-0 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+              className="flex h-[46px] shrink-0 items-center rounded-xl border border-slate-200 bg-surface px-3 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
             >
               +{overflow.length}
             </button>

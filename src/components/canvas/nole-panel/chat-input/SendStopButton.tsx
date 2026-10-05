@@ -53,7 +53,7 @@ export default function SendStopButton({
             onClick={() => void onStop()}
             aria-label="Stop"
             className={cn(
-              "size-8 rounded-full border border-slate-300 bg-white text-slate-600",
+              "size-8 rounded-full border border-slate-300 bg-surface text-slate-600",
               "hover:bg-slate-100 hover:text-slate-900",
               className,
             )}

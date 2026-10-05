@@ -29,7 +29,7 @@ export default function WorkspaceRow({
   return (
     <li
       className={cn(
-        "group relative flex h-14 items-center gap-3 border-b border-slate-100 bg-white px-4 transition-colors last:border-b-0 hover:bg-slate-50",
+        "group relative flex h-14 items-center gap-3 border-b border-slate-100 bg-surface px-4 transition-colors last:border-b-0 hover:bg-slate-50",
         className,
       )}
       style={style}

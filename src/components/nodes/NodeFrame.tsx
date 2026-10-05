@@ -158,7 +158,7 @@ function NodeFrame({
           showTitle && "flex flex-col",
           xyNode.data.color === "transparent"
             ? "bg-transparent"
-            : "bg-white/80",
+            : "bg-surface/80",
         )}
       >
         {needsPointerShieldWhileMoving && (isResizing || xyNode.dragging) && (

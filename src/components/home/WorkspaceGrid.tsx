@@ -197,7 +197,7 @@ export default function WorkspaceGrid({
           if (!open) setCanvasToDelete(null);
         }}
       >
-        <AlertDialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
+        <AlertDialogContent className="rounded-2xl border-surface/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete canvas?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -251,7 +251,7 @@ function SegmentButton({
       className={cn(
         "flex h-7 items-center justify-center rounded-md px-2.5 text-xs font-semibold transition-colors",
         active
-          ? "bg-white text-slate-900 shadow-sm"
+          ? "bg-surface text-slate-900 shadow-sm"
           : "text-slate-500 hover:text-slate-700",
         className,
       )}

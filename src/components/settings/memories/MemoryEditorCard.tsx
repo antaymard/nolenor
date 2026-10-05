@@ -89,7 +89,7 @@ export default function MemoryEditorCard({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-surface p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-bold">{title}</h2>
         <span

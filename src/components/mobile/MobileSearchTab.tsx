@@ -75,7 +75,7 @@ export default function MobileSearchTab({
   };
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="flex h-full flex-col bg-surface">
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <TbSearch className="shrink-0 text-muted-foreground" />
         <Input

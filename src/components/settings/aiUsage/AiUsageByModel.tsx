@@ -21,13 +21,13 @@ export default function AiUsageByModel({ usage }: { usage: AiUsage }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
-      <h2 className="mb-3 text-sm font-semibold text-[#0b0b0b]">By model</h2>
+    <div className="rounded-xl border border-slate-200 bg-surface p-3 sm:p-4">
+      <h2 className="mb-3 text-sm font-semibold text-[#0b0b0b] dark:text-foreground">By model</h2>
       {/* Cinq colonnes chiffrées ne tiennent pas sur un téléphone : le tableau
           défile plutôt que d'écraser ses colonnes. */}
       <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
         <table className="w-full min-w-[32rem] text-sm">
-          <thead className="text-xs text-[#52514e]">
+          <thead className="text-xs text-[#52514e] dark:text-muted-foreground">
             <tr className="border-b border-slate-200">
               <th className="py-2 pr-2 text-left font-medium">Model</th>
               <th className="py-2 pr-2 text-right font-medium">Cost</th>
@@ -63,7 +63,7 @@ export default function AiUsageByModel({ usage }: { usage: AiUsage }) {
                         style={{ backgroundColor: SERIES }}
                         aria-hidden
                       />
-                      <span className="text-[#0b0b0b]">
+                      <span className="text-[#0b0b0b] dark:text-foreground">
                         {getModelLabel(row.model, modelOptions)}
                       </span>
                       {row.eventsMissingCostCount > 0 ? (
@@ -75,16 +75,16 @@ export default function AiUsageByModel({ usage }: { usage: AiUsage }) {
                       ) : null}
                     </span>
                   </td>
-                  <td className="py-2 pr-2 text-right text-[#0b0b0b]">
+                  <td className="py-2 pr-2 text-right text-[#0b0b0b] dark:text-foreground">
                     {formatCostCompact(row.costUsd)}
                   </td>
-                  <td className="py-2 pr-2 text-right text-[#52514e]">
+                  <td className="py-2 pr-2 text-right text-[#52514e] dark:text-muted-foreground">
                     {formatTokens(row.inputTokens)}
                   </td>
-                  <td className="py-2 pr-2 text-right text-[#52514e]">
+                  <td className="py-2 pr-2 text-right text-[#52514e] dark:text-muted-foreground">
                     {formatTokens(row.outputTokens)}
                   </td>
-                  <td className="py-2 text-right text-[#52514e]">
+                  <td className="py-2 text-right text-[#52514e] dark:text-muted-foreground">
                     {row.eventsCount.toLocaleString("en-US")}
                   </td>
                 </tr>

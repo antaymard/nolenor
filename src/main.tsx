@@ -17,6 +17,8 @@ import { initAnalytics } from "./lib/analytics";
 import { installGlobalErrorHandlers } from "./lib/globalErrorHandlers";
 import { installAppUpdateHandlers } from "./lib/appUpdate";
 import { installBrowserZoomGuard } from "./lib/browserZoomGuard";
+// Effet de bord à l'import : pose la classe `.dark` et écoute le système.
+import "./lib/theme";
 
 // Avant tout le reste : une erreur au montage doit déjà être capturée.
 initAnalytics();

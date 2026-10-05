@@ -127,7 +127,7 @@ export default function RichTextArea({
       // `blocknote-overrides.css`) : sans elle, un node au titre très long
       // étirait tout le dropdown. Les titres sont tronqués à la place.
       customSuggestionsContainer={(children) => (
-        <div className="w-80 max-w-[calc(100vw-20px)] overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+        <div className="w-80 max-w-[calc(100vw-20px)] overflow-hidden rounded-xl border border-slate-200 bg-surface p-1 shadow-xl">
           {children}
         </div>
       )}

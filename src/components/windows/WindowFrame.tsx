@@ -608,9 +608,9 @@ function WindowFrame({
         >
           <div
             className={cn(
-              "relative flex h-full w-full flex-col overflow-hidden bg-white",
+              "relative flex h-full w-full flex-col overflow-hidden bg-surface",
               !isFullscreen &&
-                "rounded-2xl border border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]",
+                "rounded-2xl border border-surface/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)]",
             )}
           >
             {/* ── Resize handles (fenêtré seulement) ───────────────────── */}
@@ -683,7 +683,7 @@ function WindowFrame({
               className={cn(
                 // `cursor-grab` aussi en plein écran : tirer le header vers le
                 // bas remet la window en flottant.
-                "flex h-10 cursor-grab select-none items-center gap-2 border-b border-slate-200/70 bg-white/60 py-0 pl-3 pr-1 hover:cursor-grab active:cursor-grabbing",
+                "flex h-10 cursor-grab select-none items-center gap-2 border-b border-slate-200/70 bg-surface/60 py-0 pl-3 pr-1 hover:cursor-grab active:cursor-grabbing",
                 !isFullscreen && "rounded-t-2xl",
               )}
               onMouseDown={handleHeaderMouseDown}

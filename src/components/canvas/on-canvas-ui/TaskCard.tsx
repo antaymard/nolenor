@@ -14,6 +14,7 @@ import {
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
 import TaskNodePills from "./TaskNodePills";
+import { useResolvedTheme } from "@/lib/theme";
 
 /** Rayon du bloc, partagé avec le halo pour que les deux arrondis coïncident. */
 const CARD_RADIUS_PX = 15;
@@ -41,6 +42,7 @@ export default function TaskCard({
   /** Le dock seul : accuser réception sans ouvrir. */
   onReview?: (threadId: string) => void;
 }) {
+  const theme = useResolvedTheme();
   const status = useResolvedRunStatus(thread);
   const isRunning = status === "running";
   const duration = useRunDuration(thread, isRunning);
@@ -64,7 +66,7 @@ export default function TaskCard({
       style={{ borderRadius: CARD_RADIUS_PX }}
       className={cn(
         "group flex w-[272px] cursor-pointer items-center gap-2 border px-2.5 py-1.5",
-        "min-h-[46px] bg-white text-left text-slate-700 ",
+        "min-h-[46px] bg-surface text-left text-slate-700 ",
         // Le halo, quand il est là, rogne l'ombre d'un enfant : elle passe sur
         // son wrapper (cf. `ComposerShell`), pas ici.
         !isRunning && "shadow-sm",
@@ -120,7 +122,7 @@ export default function TaskCard({
         <BorderBeam
           size="pulse-inner"
           colorVariant="ocean"
-          theme="light"
+          theme={theme}
           active
           strength={0.7}
           hueRange={12}

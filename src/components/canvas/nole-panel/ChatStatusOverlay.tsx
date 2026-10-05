@@ -70,7 +70,7 @@ function ThinkingIndicator({
   label: string;
 }) {
   return (
-    <StatusPill className="border-slate-200 bg-white/85 text-slate-500">
+    <StatusPill className="border-slate-200 bg-surface/85 text-slate-500">
       {/* Le texte à côté porte déjà l'information : l'orbe est décorative. */}
       <ThinkingOrb state={state} size={20} aria-hidden />
       <span>{label}</span>

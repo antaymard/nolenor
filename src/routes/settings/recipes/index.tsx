@@ -96,7 +96,7 @@ function RouteComponent() {
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="bg-white">{renderRecipesTable()}</TableBody>
+            <TableBody className="bg-surface">{renderRecipesTable()}</TableBody>
           </Table>
           {recipes.length === 0 && (
             <div className="ml-2 mt-2 flex items-center gap-2">

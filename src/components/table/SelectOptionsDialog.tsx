@@ -167,7 +167,7 @@ export function SelectOptionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl border-white/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md">
+      <DialogContent className="rounded-2xl border-surface/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Edit options — {columnName}</DialogTitle>
           <DialogDescription>

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/shadcn/textarea";
 import { Kbd } from "@/components/shadcn/kbd";
 import { cn } from "@/lib/utils";
 import { ROW_HEIGHT_CONFIG, type RowHeight } from "./types";
+import { useCellDraftFlush, type RegisterCellFlush } from "./cellDraft";
 
 export interface TextCellEditorProps {
   value: string;
@@ -16,6 +17,9 @@ export interface TextCellEditorProps {
   onClick: () => void;
   onChange: (value: string) => void;
   onBlur: () => void;
+  /** Cf. `cellDraft.ts`. */
+  onDraft?: () => void;
+  registerFlush?: RegisterCellFlush;
 }
 
 /**
@@ -35,6 +39,8 @@ export function TextCellEditor({
   onClick,
   onChange,
   onBlur,
+  onDraft,
+  registerFlush,
 }: TextCellEditorProps) {
   const [draft, setDraft] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,6 +69,10 @@ export function TextCellEditor({
   const commit = () => {
     if (draft !== value) onChange(draft);
   };
+
+  // Sauvegarde sans fermer : on publie le brouillon tel quel, l'éditeur reste
+  // ouvert. Échap annulera ensuite jusqu'à cette valeur publiée.
+  useCellDraftFlush(registerFlush, isEditing, commit);
 
   return (
     <Popover
@@ -117,7 +127,10 @@ export function TextCellEditor({
           // (la forme arbitraire `[field-sizing:fixed]` ne l'était pas et les
           // deux classes coexistaient).
           className="field-sizing-fixed max-h-[40vh] min-h-9 resize-none border-0 py-2 text-sm shadow-none focus-visible:ring-0"
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            onDraft?.();
+          }}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               cancelledRef.current = true;

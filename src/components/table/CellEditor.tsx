@@ -16,6 +16,7 @@ import { RichTextCellEditor } from "./RichTextCellEditor";
 import { SelectCellEditor } from "./SelectCellEditor";
 import { TextCellEditor } from "./TextCellEditor";
 import { DEFAULT_ROW_HEIGHT } from "./types";
+import type { RegisterCellFlush } from "./cellDraft";
 import type {
   ColumnType,
   CellValue,
@@ -37,6 +38,9 @@ export interface CellEditorProps {
   options?: SelectOption[];
   isMulti?: boolean;
   rowHeight?: RowHeight;
+  /** Brouillons texte / rich text, cf. `cellDraft.ts`. */
+  onDraft?: () => void;
+  registerFlush?: RegisterCellFlush;
 }
 
 export function CellEditor({
@@ -50,6 +54,8 @@ export function CellEditor({
   options,
   isMulti,
   rowHeight = DEFAULT_ROW_HEIGHT,
+  onDraft,
+  registerFlush,
 }: CellEditorProps) {
   if (readOnly) {
     if (type === "checkbox") {
@@ -146,6 +152,8 @@ export function CellEditor({
         onClick={onClick}
         onChange={onChange}
         onBlur={onBlur}
+        onDraft={onDraft}
+        registerFlush={registerFlush}
       />
     );
   }
@@ -211,6 +219,8 @@ export function CellEditor({
       onClick={onClick}
       onChange={onChange}
       onBlur={onBlur}
+      onDraft={onDraft}
+      registerFlush={registerFlush}
     />
   );
 }

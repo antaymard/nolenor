@@ -70,6 +70,7 @@ import { countLossyCells } from "./coerce";
 import { cellText } from "./cellText";
 import { applyFilters, type FilterConjunction, type TableFilter } from "./filters";
 import { compareRowsByColumn, type TableSort } from "./sorting";
+import type { RegisterCellFlush } from "./cellDraft";
 import {
   DEFAULT_ROW_HEIGHT,
   type CellValue,
@@ -87,6 +88,18 @@ export interface TableProps {
   readOnly?: boolean;
   rowHeight?: RowHeight;
   onCellChange?: (rowId: string, colId: string, value: CellValue) => void;
+  /**
+   * Une saisie texte / rich text est en attente dans la cellule ouverte, pas
+   * encore publiée par `onCellChange` (cf. `cellDraft.ts`). Sert à passer la
+   * fenêtre dirty.
+   */
+  onCellDraft?: () => void;
+  /**
+   * Renseigné par la table : publie via `onCellChange` le brouillon de la
+   * cellule ouverte, sans la fermer. À appeler avant de lire les lignes pour
+   * sauvegarder.
+   */
+  flushEditsRef?: React.RefObject<(() => void) | null>;
   /** Renvoie l'id de la ligne créée, pour enchaîner sur l'édition d'une cellule. */
   onAddRow?: () => string | undefined;
   onDeleteRow?: (rowId: string) => void;
@@ -144,6 +157,8 @@ export function Table({
   readOnly = false,
   rowHeight = DEFAULT_ROW_HEIGHT,
   onCellChange,
+  onCellDraft,
+  flushEditsRef,
   onAddRow,
   onDeleteRow,
   onAddColumn,
@@ -330,6 +345,23 @@ export function Table({
     };
   }, []);
 
+  // Le flush du brouillon de la cellule ouverte (une seule à la fois), exposé
+  // au parent via `flushEditsRef`.
+  const cellFlushRef = useRef<(() => void) | null>(null);
+  const registerCellFlush = useCallback<RegisterCellFlush>((flush) => {
+    cellFlushRef.current = flush;
+    return () => {
+      if (cellFlushRef.current === flush) cellFlushRef.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!flushEditsRef) return;
+    flushEditsRef.current = () => cellFlushRef.current?.();
+    return () => {
+      flushEditsRef.current = null;
+    };
+  }, [flushEditsRef]);
+
   const closeEditingCell = useCallback(() => {
     if (pointerGestureActiveRef.current) closedDuringGestureRef.current = true;
     setEditingCell(null);
@@ -433,6 +465,8 @@ export function Table({
                 onClick={() => openCell(row.original.id, col.id)}
                 onChange={(val) => onCellChange?.(row.original.id, col.id, val)}
                 onBlur={closeEditingCell}
+                onDraft={onCellDraft}
+                registerFlush={registerCellFlush}
               />
             );
           },
@@ -472,6 +506,8 @@ export function Table({
       rowHeight,
       openCell,
       closeEditingCell,
+      onCellDraft,
+      registerCellFlush,
       onCellChange,
       onAddColumn,
       onDeleteRow,

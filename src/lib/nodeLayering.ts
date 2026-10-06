@@ -1,5 +1,7 @@
 import type { Node } from "@xyflow/react";
 import { frameZIndexBelow } from "@/../convex/lib/nodeLayering";
+import { FRAME_COMPACT_VARIANT } from "@/../convex/config/nodeConfig";
+import { isCompactXyFrame } from "@/lib/frameVariant";
 
 /**
  * Gestion du plan (z-index) des nodes du canvas.
@@ -112,8 +114,8 @@ export function computeLayerUpdates(
   // devant les autres frames. Sans ça, avancer une frame la ferait passer
   // devant son propre contenu — et la commande ne sert de toute façon qu'à
   // départager des frames qui se chevauchent.
-  const frames = nodes.filter(isFrame);
-  const regular = nodes.filter((node) => !isFrame(node));
+  const frames = nodes.filter(isBackgroundFrame);
+  const regular = nodes.filter((node) => !isBackgroundFrame(node));
 
   return [
     ...reorderBand(frames, isMoving, command, -frames.length),
@@ -121,9 +123,15 @@ export function computeLayerUpdates(
   ];
 }
 
-/** Un node de la bande basse : les conteneurs, toujours derrière le reste. */
-function isFrame(node: Node): boolean {
-  return node.type === "frame";
+/**
+ * Un node de la bande basse : les frames dépliées, toujours derrière le reste.
+ *
+ * Une frame compacte n'en est pas : c'est une carte qui masque son contenu,
+ * elle se comporte comme un node ordinaire — bande des nodes, au-dessus des
+ * edges.
+ */
+function isBackgroundFrame(node: Node): boolean {
+  return node.type === "frame" && !isCompactXyFrame(node);
 }
 
 /**
@@ -191,4 +199,32 @@ export function nextTopZIndex(nodes: Node[]): number {
  */
 export function nextFrameZIndex(nodes: Node[]): number {
   return frameZIndexBelow(nodes);
+}
+
+/**
+ * Les `zIndex` à écrire quand des frames changent de variante, et donc de
+ * bande : compactée, une frame monte au premier plan des nodes comme un node
+ * fraîchement créé ; dépliée, elle redescend sous toutes les frames, comme une
+ * frame fraîchement tracée.
+ *
+ * Rend une entrée par frame qui change de bande, rien pour les autres nodes.
+ */
+export function zIndexesForVariantChange(
+  nodes: Node[],
+  changes: ReadonlyArray<{ nodeId: string; variantKey: string }>,
+): Map<string, number> {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const result = new Map<string, number>();
+  let top = nextTopZIndex(nodes);
+  let bottom = nextFrameZIndex(nodes);
+
+  for (const { nodeId, variantKey } of changes) {
+    const node = byId.get(nodeId);
+    if (!node || node.type !== "frame") continue;
+    const wasCompact = isCompactXyFrame(node);
+    const willBeCompact = variantKey === FRAME_COMPACT_VARIANT;
+    if (wasCompact === willBeCompact) continue;
+    result.set(nodeId, willBeCompact ? top++ : bottom--);
+  }
+  return result;
 }

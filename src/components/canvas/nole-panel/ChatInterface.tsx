@@ -42,7 +42,7 @@ const ChatInterface = memo(function ChatInterface({
   // Le flux ne sert plus qu'au détail affiché ici — orbe, échec, relance.
   // L'état grossier du tour, celui qui pilote le composer et se lit depuis les
   // autres surfaces, vient du serveur (cf. `useNoleChat`).
-  const activity = useAssistantActivity(messages);
+  const activity = useAssistantActivity(messages, isRunActive);
   const { lastUserText } = activity;
 
   const handleRetry = useCallback(() => {

@@ -126,6 +126,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
         onSend={handleSend}
         isSending={chat.isSending}
         isAssistantResponding={chat.isAssistantResponding}
+        isAwaitingAnswer={chat.runStatus === "waiting"}
         isCancelling={chat.isCancelling}
         onStopAssistantResponse={chat.stopAssistantResponse}
         modelOptions={chat.modelOptions}

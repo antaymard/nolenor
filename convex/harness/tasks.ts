@@ -966,14 +966,20 @@ async function askUser(
   return { wait: true };
 }
 
+/** Les options choisies, question par question (carte `ask_user`). */
+export type QuestionSelection = { question: string; selected: string[] };
+
 /**
  * Répond à la question en attente du thread, s'il y en a une : le run
- * reprend, la réponse devient le résultat d'`ask_user`. Rend `false` sinon.
+ * reprend, la réponse devient le résultat d'`ask_user` — `{ answers }` pour
+ * des options choisies, `{ answer }` pour un texte libre, `{ declined: true }`
+ * quand `answer` est `null` (l'utilisateur refuse de répondre). Rend `false`
+ * s'il n'y avait pas de question.
  */
 export async function answerPendingQuestion(
   ctx: MutationCtx,
   threadId: string,
-  answer: string,
+  answer: string | QuestionSelection[] | null,
 ): Promise<boolean> {
   const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
   const taskId = row?.run?.awaitingTaskId;
@@ -989,7 +995,15 @@ export async function answerPendingQuestion(
   });
   return resolveWaitingTool(ctx, taskId, {
     status: "completed",
-    output: answer.trim() || "(empty answer)",
+    output: {
+      type: "json",
+      value:
+        answer === null
+          ? { declined: true }
+          : typeof answer === "string"
+            ? { answer: answer.trim() || "(empty answer)" }
+            : { answers: answer },
+    },
   });
 }
 
@@ -1001,7 +1015,11 @@ export async function answerPendingQuestion(
 export async function resolveWaitingTool(
   ctx: MutationCtx,
   taskId: Id<"agentTasks">,
-  outcome: { status: "completed" | "failed"; output: string },
+  outcome: {
+    status: "completed" | "failed";
+    /** Du texte, ou une sortie de tool complète (ex. JSON). */
+    output: string | ToolResultOutput;
+  },
 ): Promise<boolean> {
   const task = await ctx.db.get("agentTasks", taskId);
   if (
@@ -1011,10 +1029,16 @@ export async function resolveWaitingTool(
   ) {
     return false;
   }
+  const output: ToolResultOutput =
+    typeof outcome.output === "string"
+      ? { type: "text", value: outcome.output }
+      : outcome.output;
   await finishTool(ctx, task, {
     status: outcome.status,
-    output: { type: "text", value: outcome.output },
-    ...(outcome.status === "failed" ? { error: outcome.output } : {}),
+    output,
+    ...(outcome.status === "failed" && typeof outcome.output === "string"
+      ? { error: outcome.output }
+      : {}),
   });
   return true;
 }

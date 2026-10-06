@@ -115,9 +115,20 @@ export const listQueuedSubmissions = query({
   },
 });
 
-/** Répond à la question en attente du thread (bouton de la carte `ask_user`). */
+/**
+ * Répond aux questions en attente du thread, depuis la carte `ask_user` : les
+ * options choisies par question, ou `null` pour refuser d'y répondre.
+ */
 export const answerQuestion = mutation({
-  args: { threadId: v.string(), answer: v.string() },
+  args: {
+    threadId: v.string(),
+    answer: v.union(
+      v.null(),
+      v.array(
+        v.object({ question: v.string(), selected: v.array(v.string()) }),
+      ),
+    ),
+  },
   handler: async (ctx, { threadId, answer }) => {
     const userId = await requireAuth(ctx);
     const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });

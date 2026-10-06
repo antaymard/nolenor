@@ -1553,7 +1553,17 @@ describe("phase 5a — sous-agents", () => {
 
 describe("phase 5b — ask_user", () => {
   const question = () =>
-    call("ask_user", { question: "Which one?", options: ["A", "B"] });
+    call("ask_user", {
+      questions: [
+        {
+          question: "Which one?",
+          options: [
+            { label: "A", description: "The first one" },
+            { label: "B" },
+          ],
+        },
+      ],
+    });
 
   test("le run attend sans rien consommer, le message suivant y répond", async () => {
     const t = setup();
@@ -1603,7 +1613,7 @@ describe("phase 5b — ask_user", () => {
         .withIdentity({ subject: `${stranger}|session` })
         .mutation(api.harness.ingress.answerQuestion, {
           threadId: seed.threadId,
-          answer: "B",
+          answer: [{ question: "Which one?", selected: ["B"] }],
         }),
     ).toEqual({ answered: false });
 
@@ -1611,11 +1621,33 @@ describe("phase 5b — ask_user", () => {
     expect(
       await asUser.mutation(api.harness.ingress.answerQuestion, {
         threadId: seed.threadId,
-        answer: "A",
+        answer: [{ question: "Which one?", selected: ["A"] }],
       }),
     ).toEqual({ answered: true });
     await drain(t);
-    expect(promptText(1)).toContain('"A"');
+    // Le modèle reçoit une réponse structurée.
+    expect(promptText(1)).toContain(
+      '"answers":[{"question":"Which one?","selected":["A"]}]',
+    );
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("refus : le modèle reçoit { declined: true } et le run reprend", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[question()], [text("Ok, I'll pick myself")]]);
+    await send(t, seed, "Pick for me");
+    await drain(t);
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    expect(
+      await asUser.mutation(api.harness.ingress.answerQuestion, {
+        threadId: seed.threadId,
+        answer: null,
+      }),
+    ).toEqual({ answered: true });
+    await drain(t);
+    expect(promptText(1)).toContain('"declined":true');
     expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
   });
 
@@ -1642,7 +1674,7 @@ describe("phase 5b — ask_user", () => {
     const t = setup();
     const seed = await seedThread(t);
     setModel([
-      [question(), call("ask_user", { question: "And this?" })],
+      [question(), call("ask_user", { questions: [{ question: "And this?" }] })],
       [text("Ok")],
     ]);
     await send(t, seed, "Ask me");

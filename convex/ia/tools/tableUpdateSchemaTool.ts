@@ -18,6 +18,7 @@ import {
 // Tool compaction config
 export const tableUpdateSchemaToolConfig: ToolConfig = {
   name: "table_update_schema",
+  deferred: true,
   authorized_agents: [toolAgentNames.nole, toolAgentNames.worker],
   mcp: { access: "write" },
 };

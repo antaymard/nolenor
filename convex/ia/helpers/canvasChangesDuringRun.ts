@@ -2,8 +2,7 @@ import { v } from "convex/values";
 import { internalQuery } from "../../_generated/server";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import * as NodeModels from "../../models/nodeModels";
-import * as ThreadMetadataModels from "../../models/threadMetadataModels";
-import { agentTaskKinds } from "../../schemas/agentTasksSchema";
+import { runWrites } from "../../harness/runWrites";
 
 /** Au-delà, on compte sans lister : le modèle a `list_nodes` pour le détail. */
 const MAX_LISTED = 20;
@@ -15,9 +14,8 @@ const MAX_SCANNED = 200;
  * collaborateur.
  *
  * Source provisoire : `nodeDatas.updatedAt`, qui ne dit pas QUI a écrit. Les
- * écritures du run sont donc retirées par recoupement — nodes visés par ses
- * tool calls, nodes que le thread a touchés depuis le début du run. À
- * remplacer par une table de modifications avec leur acteur, quand elle
+ * écritures du run sont retirées par recoupement (cf. harness/runWrites.ts).
+ * À remplacer par une table de modifications avec leur acteur, quand elle
  * existera : seule cette query changera.
  */
 export const canvasChangesDuringRun = internalQuery({
@@ -52,42 +50,15 @@ export const canvasChangesDuringRun = internalQuery({
     if (changed.length === 0) return { nodes: [], more: 0 };
 
     // Ce que le run a écrit lui-même.
-    const ownNodeIds = new Set<string>();
-    const tools = await ctx.db
-      .query("agentTasks")
-      .withIndex("by_runMessageId_and_kind", (q) =>
-        q.eq("runMessageId", args.runMessageId).eq("kind", agentTaskKinds.tool),
-      )
-      .take(500);
-    for (const tool of tools) {
-      if (tool.replay === "safe") continue; // une lecture n'écrit rien
-      for (const id of targetNodeIds(tool.input)) ownNodeIds.add(id);
-    }
-    const [firstGeneration] = await ctx.db
-      .query("agentTasks")
-      .withIndex("by_runMessageId_and_kind", (q) =>
-        q
-          .eq("runMessageId", args.runMessageId)
-          .eq("kind", agentTaskKinds.generation),
-      )
-      .take(1);
-    const runStartedAt = firstGeneration?._creationTime ?? args.since;
-    const thread = await ThreadMetadataModels.findByThreadId(ctx, {
-      threadId: args.threadId,
-    });
-    const ownNodeDataIds = new Set<string>(
-      (thread?.touchedNodes ?? [])
-        .filter((touch) => touch.at >= runStartedAt)
-        .map((touch) => touch.nodeDataId),
-    );
+    const own = await runWrites(ctx, args);
 
     const nodes = [];
     for (const nodeData of changed) {
-      if (ownNodeDataIds.has(nodeData._id)) continue;
+      if (own.nodeDataIds.has(nodeData._id)) continue;
       const node = await NodeModels.getNodeByNodeDataId(ctx, {
         nodeDataId: nodeData._id,
       });
-      if (!node || node.status === "trashed" || ownNodeIds.has(node.id)) {
+      if (!node || node.status === "trashed" || own.nodeIds.has(node.id)) {
         continue;
       }
       nodes.push({
@@ -103,12 +74,3 @@ export const canvasChangesDuringRun = internalQuery({
     };
   },
 });
-
-function targetNodeIds(input: unknown): string[] {
-  if (typeof input !== "object" || input === null) return [];
-  const { nodeIds, nodeId } = input as { nodeIds?: unknown; nodeId?: unknown };
-  if (Array.isArray(nodeIds)) {
-    return nodeIds.filter((id): id is string => typeof id === "string");
-  }
-  return typeof nodeId === "string" ? [nodeId] : [];
-}

@@ -73,6 +73,11 @@ export interface Profile {
    * envoyé au modèle en `<system_update>`. Le system prompt et le message
    * d'ouverture restent figés : c'est ce qui garde le cache.
    */
+  /**
+   * Tools que le modèle ne voit qu'après les avoir chargés (`load_tools`).
+   * `tools()` les rend quand même : c'est elle qui les exécute.
+   */
+  deferredTools?: readonly string[];
   stepContext?(
     ctx: ActionCtx,
     run: RunInfo,

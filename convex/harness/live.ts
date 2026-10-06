@@ -1,32 +1,28 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
+import * as NodeModels from "../models/nodeModels";
 import {
   agentTaskKinds,
   agentTaskStatuses,
+  liveAgentTaskStatuses,
 } from "../schemas/agentTasksSchema";
+import { runWrites, targetNodeIds } from "./runWrites";
 
 /**
  * Lectures de la harness pour l'UI et le diagnostic.
  */
 
 const LIVE_LIMIT = 50;
-
-/** Les nodes visés par un appel, lus dans ses arguments (`nodeIds` ou `nodeId`). */
-function targetNodeIds(input: unknown): string[] {
-  if (typeof input !== "object" || input === null) return [];
-  const { nodeIds, nodeId } = input as { nodeIds?: unknown; nodeId?: unknown };
-  if (Array.isArray(nodeIds)) {
-    return nodeIds.filter((id): id is string => typeof id === "string");
-  }
-  return typeof nodeId === "string" ? [nodeId] : [];
-}
+/** Runs suivis par canvas pour le halo « écrit par Nolë ». */
+const ACTIVE_RUNS_LIMIT = 5;
 
 /**
- * Les tool calls en cours sur un canvas, pour les mettre en évidence en live :
- * quel thread, quel tool, sur quels nodes.
+ * L'activité de Nolë sur un canvas, pour la montrer en live :
+ * - `calls` : les tool calls en cours — quel thread, quel tool, quels nodes ;
+ * - `written` : les nodes que les runs en cours ont déjà écrits ou créés.
  */
-export const listLiveToolCalls = query({
+export const listLiveActivity = query({
   args: { canvasId: v.id("canvases") },
   handler: async (ctx, { canvasId }) => {
     const userId = await requireAuth(ctx);
@@ -34,11 +30,12 @@ export const listLiveToolCalls = query({
     try {
       await requireCanvasAccess(ctx, canvasId, userId, "viewer");
     } catch {
-      return [];
+      return { calls: [], written: [] };
     }
 
     const calls = [];
-    for (const status of [agentTaskStatuses.pending, agentTaskStatuses.running]) {
+    const runs = new Map<string, { threadId: string; runMessageId: string }>();
+    for (const status of liveAgentTaskStatuses) {
       const tasks = await ctx.db
         .query("agentTasks")
         .withIndex("by_canvasId_and_status", (q) =>
@@ -46,7 +43,14 @@ export const listLiveToolCalls = query({
         )
         .take(LIVE_LIMIT);
       for (const task of tasks) {
-        if (task.kind !== agentTaskKinds.tool || !task.toolName) continue;
+        if (task.kind === agentTaskKinds.generation) {
+          runs.set(task.runMessageId, {
+            threadId: task.threadId,
+            runMessageId: task.runMessageId,
+          });
+          continue;
+        }
+        if (status === agentTaskStatuses.waiting || !task.toolName) continue;
         calls.push({
           taskId: task._id,
           threadId: task.threadId,
@@ -59,7 +63,22 @@ export const listLiveToolCalls = query({
         });
       }
     }
-    return calls;
+
+    const written = [];
+    for (const run of [...runs.values()].slice(0, ACTIVE_RUNS_LIMIT)) {
+      const writes = await runWrites(ctx, run);
+      const nodeIds = new Set(writes.nodeIds);
+      for (const nodeDataId of writes.nodeDataIds) {
+        const node = await NodeModels.getNodeByNodeDataId(ctx, { nodeDataId });
+        if (node && node.canvasId === canvasId && node.status !== "trashed") {
+          nodeIds.add(node.id);
+        }
+      }
+      for (const nodeId of nodeIds) {
+        written.push({ threadId: run.threadId, nodeId });
+      }
+    }
+    return { calls, written };
   },
 });
 

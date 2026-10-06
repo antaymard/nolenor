@@ -2,7 +2,8 @@ import { create } from "zustand";
 
 /**
  * Ce que Nolë fait en ce moment sur les nodes du canvas ouvert : lecture ou
- * écriture, et l'étiquette du tool call.
+ * écriture en cours (avec l'étiquette du tool call), ou déjà écrit par le run
+ * en cours (`written`, jusqu'à la fin du run).
  *
  * Même patron que `bookmarkedNodesStore` : alimenté en un point unique
  * (`useSyncNoleLiveActivity`, appelé par `CanvasFlow`), lu node par node par
@@ -10,7 +11,7 @@ import { create } from "zustand";
  * re-rend que les nodes qu'il vise.
  */
 export type NoleNodeActivity = {
-  access: "read" | "write";
+  access: "read" | "write" | "written";
   label: string | null;
 };
 

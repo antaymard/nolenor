@@ -149,6 +149,10 @@ export const noleProfile: Profile = {
     return replayByTool.get(toolName) ?? "unsafe";
   },
 
+  deferredTools: agentToolRegistry
+    .filter((registration) => registration.config.deferred)
+    .map((registration) => registration.config.name),
+
   // Au premier step, le message d'ouverture porte déjà les changements depuis
   // le message précédent : le delta ne commence qu'au deuxième.
   async stepContext(ctx, run, window) {

@@ -7,35 +7,44 @@ import {
   type NoleNodeActivity,
 } from "@/stores/noleLiveStore";
 
+const RANK: Record<NoleNodeActivity["access"], number> = {
+  write: 2,
+  read: 1,
+  written: 0,
+};
+
 /**
- * Alimente `noleLiveStore` à partir des tool calls en cours sur le canvas (cf.
- * convex/harness/live.ts). Une écriture l'emporte sur une lecture quand deux
- * tools visent le même node.
+ * Alimente `noleLiveStore` à partir de l'activité des runs sur le canvas (cf.
+ * convex/harness/live.ts). Le plus fort l'emporte sur un même node : écriture
+ * en cours, puis lecture en cours, puis « déjà écrit ».
  */
 export function useSyncNoleLiveActivity(
   canvasId: Id<"canvases"> | undefined,
 ): void {
   const { isAuthenticated } = useConvexAuth();
-  const calls = useQuery(
-    api.harness.live.listLiveToolCalls,
+  const activity = useQuery(
+    api.harness.live.listLiveActivity,
     canvasId && isAuthenticated ? { canvasId } : "skip",
   );
   const setActivities = useNoleLiveStore((state) => state.setActivities);
 
   useEffect(() => {
     const byNodeId = new Map<string, NoleNodeActivity>();
-    for (const call of calls ?? []) {
+    const offer = (nodeId: string, next: NoleNodeActivity) => {
+      const existing = byNodeId.get(nodeId);
+      if (existing && RANK[existing.access] >= RANK[next.access]) return;
+      byNodeId.set(nodeId, next);
+    };
+    for (const call of activity?.calls ?? []) {
       for (const nodeId of call.nodeIds) {
-        const existing = byNodeId.get(nodeId);
-        if (existing?.access === "write") continue;
-        byNodeId.set(nodeId, {
-          access: call.access,
-          label: call.explanation,
-        });
+        offer(nodeId, { access: call.access, label: call.explanation });
       }
     }
+    for (const { nodeId } of activity?.written ?? []) {
+      offer(nodeId, { access: "written", label: null });
+    }
     setActivities(byNodeId);
-  }, [calls, setActivities]);
+  }, [activity, setActivities]);
 
   // Le canvas change : on vide sans attendre la nouvelle réponse — les ids de
   // nodes ne sont uniques que par canvas.

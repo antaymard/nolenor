@@ -23,6 +23,8 @@ import {
   recordAttachments,
   withdrawQueued,
 } from "./ingress";
+import { LOAD_TOOLS, loadTools } from "./deferredTools";
+import { getProfile } from "./profiles";
 import { saveToolResult, type ToolResultOutput } from "./transcript";
 
 /**
@@ -510,6 +512,7 @@ export const claimGeneration = internalMutation({
         ...(model !== undefined ? { model } : {}),
       },
       promptMessageId,
+      loadedTools: current.run.loadedTools ?? [],
       // L'entrée ne sert qu'à calculer les prompts du run, une fois.
       input: prompts ? null : (task.input ?? null),
       prompts: prompts
@@ -687,7 +690,13 @@ export const completeGeneration = internalMutation({
       status: agentTaskStatuses.waiting,
     });
     const toolTaskIds: Id<"agentTasks">[] = [];
+    const kernelTasks: { taskId: Id<"agentTasks">; result: string }[] = [];
     for (const call of args.toolCalls) {
+      // `load_tools` est résolu ici même : c'est l'état du run qui change.
+      const kernelResult =
+        call.toolName === LOAD_TOOLS
+          ? await applyLoadTools(ctx, task, current, call.input)
+          : null;
       const toolTaskId = await ctx.db.insert("agentTasks", {
         kind: agentTaskKinds.tool,
         profile: task.profile,
@@ -705,14 +714,45 @@ export const completeGeneration = internalMutation({
         explanation: readExplanation(call.input),
         replay: call.replay,
       });
-      toolTaskIds.push(toolTaskId);
+      if (kernelResult === null) toolTaskIds.push(toolTaskId);
+      else kernelTasks.push({ taskId: toolTaskId, result: kernelResult });
     }
     // Une seule action pour tout le round (cf. tool.runRound).
-    await ctx.scheduler.runAfter(0, internal.harness.tool.runRound, {
-      taskIds: toolTaskIds,
-    });
+    if (toolTaskIds.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.harness.tool.runRound, {
+        taskIds: toolTaskIds,
+      });
+    }
+    // Les tools du kernel finissent dans la transaction ; si le round n'a
+    // qu'eux, la génération suivante est créée ici même.
+    for (const kernelTask of kernelTasks) {
+      const toolTask = await ctx.db.get("agentTasks", kernelTask.taskId);
+      if (!toolTask) continue;
+      await finishTool(ctx, toolTask, {
+        status: agentTaskStatuses.completed,
+        output: { type: "text", value: kernelTask.result },
+      });
+    }
   },
 });
+
+/** Ajoute au run les tools demandés ; rend ce que le modèle lira. */
+async function applyLoadTools(
+  ctx: MutationCtx,
+  generation: Task,
+  current: CurrentRun,
+  input: unknown,
+): Promise<string> {
+  const deferred = getProfile(generation.profile).deferredTools ?? [];
+  const { loaded, result } = loadTools(
+    input,
+    deferred,
+    current.run.loadedTools ?? [],
+  );
+  current.run = { ...current.run, loadedTools: loaded };
+  await ctx.db.patch("threadMetadata", current.row._id, { run: current.run });
+  return result;
+}
 
 export const failGeneration = internalMutation({
   args: {

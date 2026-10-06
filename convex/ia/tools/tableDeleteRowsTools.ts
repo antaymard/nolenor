@@ -12,6 +12,7 @@ import {
 // Tool compaction config
 export const tableDeleteRowsToolConfig: ToolConfig = {
   name: "table_delete_rows",
+  deferred: true,
   authorized_agents: [toolAgentNames.nole, toolAgentNames.worker],
   mcp: { access: "write" },
 };

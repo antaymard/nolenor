@@ -21,6 +21,7 @@ const MIN_GROUPED_NODES = 2;
 
 export const groupNodesToolConfig: ToolConfig = {
   name: "group_nodes",
+  deferred: true,
   authorized_agents: [toolAgentNames.nole, toolAgentNames.worker],
   mcp: { access: "write" },
 };

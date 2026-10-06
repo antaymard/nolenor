@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { stepCountIs, type ToolSet } from "ai";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { visibleTools } from "./deferredTools";
 import { isRetryableGenerationError } from "./errors";
 import { getProfile } from "./profiles";
 import { resolveSystemUpdate } from "./systemUpdate";
@@ -93,7 +94,9 @@ export const run = internalAction({
         {
           promptMessageId: claim.promptMessageId,
           system: prompts.systemPrompt,
-          tools: describeOnly(tools),
+          tools: describeOnly(
+            visibleTools(tools, profile.deferredTools ?? [], claim.loadedTools),
+          ),
           stopWhen: stepCountIs(1),
           // Une erreur envoyée par le provider DANS le stream ne fait rien
           // lever : sans ce relais, la génération finirait « réussie » et

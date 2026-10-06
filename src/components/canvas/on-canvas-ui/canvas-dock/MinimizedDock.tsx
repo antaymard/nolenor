@@ -90,9 +90,8 @@ function MinimizedPill({ window: openedWindow }: { window: OpenedWindow }) {
 /**
  * Les windows minimisées, en pastilles à gauche du bouton des repères.
  *
- * Le pendant de `ActivityDock` en bas à gauche : là-bas les tâches partent du
- * bouton Nolë vers la droite, ici les windows partent du bord droit vers le
- * centre (`flex-row-reverse` : la première est collée au bouton). Autant que
+ * Les windows partent du bord droit vers le centre (`flex-row-reverse` : la
+ * première est collée au bouton). Autant que
  * la place en laisse (`useDockCapacity`), le reste derrière un « +N ». Pas de
  * réordonnancement : leur ordre
  * n'est stocké nulle part.
@@ -118,7 +117,7 @@ export default function MinimizedDock() {
   );
 
   // Autant de pastilles que la place jusqu'à `CanvasToolbar` en laisse, le
-  // reste derrière un « +N », comme dans `ActivityDock`.
+  // reste derrière un « +N ».
   const { ref, visibleCount } = useDockCapacity<HTMLDivElement>({
     side: "end",
     total: minimized.length,

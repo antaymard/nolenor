@@ -25,6 +25,7 @@ const INPUT_MAX_ROWS = 7;
 
 export default function MobileChatInput() {
   const {
+    runStatus,
     sendCurrentMessage,
     isSending,
     isAssistantResponding,
@@ -92,6 +93,9 @@ export default function MobileChatInput() {
             minRows={INPUT_MIN_ROWS}
             maxRows={INPUT_MAX_ROWS}
             submitOnEnter={false}
+            {...(runStatus === "waiting"
+              ? { placeholder: "Type your answer to Nolë's question…" }
+              : {})}
           />
         </div>
 

@@ -17,6 +17,8 @@ import type { CanvasNode } from "@/types";
 import type { ChatModelOption, ChatModelValues } from "@/types/convex";
 
 /** Le champ s'ouvre sur une ligne et grandit jusqu'à dix, puis scrolle. */
+/** Quand Nolë attend une réponse, le champ du chat y répond (cf. QuestionCard). */
+const ANSWER_PLACEHOLDER = "Type your answer to Nolë's question…";
 const INPUT_MIN_ROWS = 1;
 const INPUT_MAX_ROWS = 10;
 
@@ -24,6 +26,8 @@ type ChatInputProps = {
   onSend: () => void;
   isSending: boolean;
   isAssistantResponding: boolean;
+  /** Nolë attend une réponse (`ask_user`) : le message tapé y répond. */
+  isAwaitingAnswer?: boolean;
   isCancelling: boolean;
   onStopAssistantResponse: () => void | Promise<void>;
   modelOptions: readonly ChatModelOption[] | undefined;
@@ -48,6 +52,7 @@ export default function ChatInput({
   onSend,
   isSending,
   isAssistantResponding,
+  isAwaitingAnswer = false,
   isCancelling,
   onStopAssistantResponse,
   modelOptions,
@@ -96,6 +101,7 @@ export default function ChatInput({
             onSubmit={onSend}
             minRows={INPUT_MIN_ROWS}
             maxRows={INPUT_MAX_ROWS}
+            {...(isAwaitingAnswer ? { placeholder: ANSWER_PLACEHOLDER } : {})}
           />
         </div>
 

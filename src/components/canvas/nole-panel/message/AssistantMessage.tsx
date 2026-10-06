@@ -66,9 +66,8 @@ export function AssistantMessage({
             <QuestionCard
               key={block.key}
               threadId={threadId}
-              question={block.question}
-              options={block.options}
-              answer={block.answer}
+              questions={block.questions}
+              result={block.result}
               canAnswer={isAwaitingAnswer}
             />
           ) : (

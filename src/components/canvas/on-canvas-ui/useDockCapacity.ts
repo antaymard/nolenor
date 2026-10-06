@@ -33,7 +33,8 @@ function fitCount(
 
 /**
  * Le nombre d'éléments qu'un dock latéral peut montrer avant de passer le
- * reste derrière un « +N » — `ActivityDock` à gauche, `MinimizedDock` à droite.
+ * reste derrière un « +N » — aujourd'hui `MinimizedDock`, à droite. Les
+ * tâches de Nolë, qui occupaient la gauche, vivent sous l'omnibar.
  *
  * La place se mesure entre le bord FIXE de la rangée et la toolbar du centre :
  * - `start` (gauche) : la rangée part de son bord gauche, collé au bouton

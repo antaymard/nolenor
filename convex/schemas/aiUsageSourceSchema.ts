@@ -18,6 +18,8 @@ const aiUsageSources = {
   threadTitle: "threadTitle",
   imageGeneration: "imageGeneration",
   transcription: "transcription",
+  // L'aiguillage des demandes de l'omnibar (Jev, cf. ia/router/jevRouter.ts).
+  router: "router",
 } as const;
 
 const vAiUsageSource = v.union(
@@ -26,6 +28,7 @@ const vAiUsageSource = v.union(
   v.literal(aiUsageSources.threadTitle),
   v.literal(aiUsageSources.imageGeneration),
   v.literal(aiUsageSources.transcription),
+  v.literal(aiUsageSources.router),
 );
 
 type AiUsageSource = typeof vAiUsageSource.type;

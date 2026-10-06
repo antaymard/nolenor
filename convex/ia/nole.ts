@@ -2,6 +2,10 @@ import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
+import {
+  dispatchRequest,
+  redispatchAsNew as redispatchAsNewRequest,
+} from "../harness/dispatch";
 import { setRunModel, submitToThread } from "../harness/tasks";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
@@ -69,6 +73,62 @@ export const saveMessage = mutation({
       : { messageId: result.messageId, queued: false, answered: false };
   },
 });
+
+/**
+ * Point d'entrée public sans thread : l'omnibar. La demande est aiguillée
+ * vers le thread qui la concerne — en cours, en attente d'une réponse, ou au
+ * repos — ou vers un nouveau thread (cf. harness/dispatch.ts). `forceNew` :
+ * l'utilisateur veut une nouvelle tâche, sans aiguillage.
+ */
+export const submit = mutation({
+  args: {
+    canvasId: v.id("canvases"),
+    prompt: v.string(),
+    metadata: vMetadata,
+    forceNew: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { canvasId, prompt, metadata, forceNew }) => {
+    const authUserId = await requireAuth(ctx);
+    await enforceRateLimit(ctx, "noleMessage", authUserId);
+    await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
+
+    const attachments = readAttachments(metadata);
+    const dispatchId = await dispatchRequest(ctx, {
+      canvasId,
+      userId: authUserId,
+      profile: noleProfile,
+      prompt,
+      content: noleMessageContent(prompt, metadata),
+      input: { userPrompt: prompt, metadata } satisfies NoleRunInput,
+      model: metadata?.model,
+      attachments,
+      nodeIds: requestNodeIds(prompt, attachments),
+      forceNew,
+    });
+    return { dispatchId };
+  },
+});
+
+/** « Start a new task instead », depuis la ligne « Added to … » de l'omnibar. */
+export const redispatchAsNew = mutation({
+  args: { dispatchId: v.id("dispatches") },
+  handler: async (ctx, { dispatchId }) => {
+    const authUserId = await requireAuth(ctx);
+    return { redirected: await redispatchAsNewRequest(ctx, dispatchId, authUserId) };
+  },
+});
+
+/** Les nodes joints au message, puis ceux mentionnés dans son texte. */
+function requestNodeIds(
+  prompt: string,
+  attachments: ReturnType<typeof readAttachments>,
+): string[] {
+  const ids = new Set(attachments?.nodes?.map((node) => node.id) ?? []);
+  for (const match of prompt.matchAll(/\[\[node:([A-Za-z0-9]+)/g)) {
+    ids.add(match[1]);
+  }
+  return [...ids];
+}
 
 /**
  * Change le modèle du run en cours, depuis le sélecteur : la génération

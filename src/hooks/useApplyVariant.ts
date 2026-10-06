@@ -4,6 +4,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import type { AppearanceVariantEntry } from "@/lib/nodeAppearance";
+import { zIndexesForVariantChange } from "@/lib/nodeLayering";
 
 /**
  * Applique une variante à un ou plusieurs nodes : la variante elle-même, puis
@@ -14,7 +15,7 @@ import type { AppearanceVariantEntry } from "@/lib/nodeAppearance";
  * qui la ramènerait sinon à l'ancienne jusqu'au retour serveur.
  */
 export function useApplyVariant() {
-  const { updateNode } = useReactFlow();
+  const { updateNode, getNodes } = useReactFlow();
   const { updateCanvasNodes } = useUpdateCanvasNode();
   const patchNodes = useMutation(api.nodes.patch);
 
@@ -37,11 +38,22 @@ export function useApplyVariant() {
         });
       });
 
+      // Une frame qui passe en compacte (ou en revient) change de bande de
+      // plan (cf. `nodeLayering`) : son `zIndex` part dans la même écriture
+      // que sa variante, pour qu'un seul undo défasse les deux.
+      const zIndexes = zIndexesForVariantChange(getNodes(), changes);
+
       void updateCanvasNodes(
-        changes.map(({ nodeId, variantKey }) => ({
-          nodeId,
-          props: { variant: variantKey },
-        })),
+        changes.map(({ nodeId, variantKey }) => {
+          const zIndex = zIndexes.get(nodeId);
+          return {
+            nodeId,
+            props: {
+              variant: variantKey,
+              ...(zIndex !== undefined && { zIndex }),
+            },
+          };
+        }),
       );
 
       if (resized.length === 0) return;
@@ -62,6 +74,6 @@ export function useApplyVariant() {
         );
       }
     },
-    [updateNode, updateCanvasNodes, patchNodes],
+    [updateNode, getNodes, updateCanvasNodes, patchNodes],
   );
 }

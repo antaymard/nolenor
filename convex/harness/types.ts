@@ -1,7 +1,7 @@
 import type { Agent } from "@convex-dev/agent";
 import type { ToolSet } from "ai";
 import type { Id } from "../_generated/dataModel";
-import type { ActionCtx } from "../_generated/server";
+import type { ActionCtx, MutationCtx } from "../_generated/server";
 import type { ToolReplay } from "../schemas/agentTasksSchema";
 
 /** Ce qu'une tâche sait du run qu'elle sert. */
@@ -89,6 +89,44 @@ export interface Profile {
   subagents?: { profile: string };
   /** Peut poser une question à l'utilisateur et l'attendre (`ask_user`). */
   askUser?: boolean;
+  /** Aiguille les demandes envoyées sans thread (cf. harness/dispatch.ts). */
+  router?: Router;
+  /**
+   * Un thread vient d'être ouvert par l'aiguillage, son premier message
+   * envoyé (ex. lui donner un titre, ce que fait le client après un envoi
+   * direct).
+   */
+  threadCreated?(ctx: MutationCtx, threadId: string): Promise<void>;
+}
+
+/** Un thread vers lequel une demande pourrait partir. */
+export type DispatchCandidate = {
+  threadId: string;
+  title: string | null;
+  /** `running` : il travaille ; `waiting` : il attend une réponse. */
+  status: "running" | "waiting" | "idle";
+  /** Les questions en attente, quand `waiting`. */
+  pendingQuestion?: string;
+  /** Les dernières demandes de l'utilisateur, les plus récentes d'abord. */
+  recentRequests: string[];
+  /** Les nodes que le thread a créés ou modifiés. */
+  touchedNodeIds: string[];
+  /** Le résumé de compaction, s'il en a un (tronqué). */
+  summary?: string;
+  lastActivityAt: number;
+};
+
+/**
+ * Choisit, pour une demande, le thread qui la traite, ou aucun (nouveau
+ * thread). La harness n'interprète que `threadId` et `confidence` ; le choix
+ * des signaux et du modèle (Jev, un LLM…) est celui de l'implémentation.
+ */
+export interface Router {
+  route(
+    ctx: ActionCtx,
+    request: { prompt: string; nodeIds: string[]; userId: Id<"users"> },
+    candidates: DispatchCandidate[],
+  ): Promise<{ threadId: string | null; confidence?: number }>;
 }
 
 /**

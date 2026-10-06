@@ -1,4 +1,11 @@
-import { action, mutation, query, type QueryCtx } from "./_generated/server";
+import {
+  action,
+  internalAction,
+  mutation,
+  query,
+  type ActionCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import { components, internal } from "./_generated/api";
@@ -616,33 +623,52 @@ export const updateThreadTitle = action({
       throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
     }
 
-    // `usageSource` explicite : c'est le seul usage de `createBaseAgent` qui
-    // appelle réellement un LLM, et sa consommation était jusqu'ici invisible.
-    const basicAgent = createBaseAgent({
-      usageSource: aiUsageSources.threadTitle,
-    });
-    const { thread } = await basicAgent.continueThread(ctx, { threadId });
-
-    if (onlyIfUntitled) {
-      const metadata = await thread.getMetadata();
-      if (metadata.title && metadata.title.trim().length > 0) {
-        return;
-      }
-    }
-
-    const {
-      object: { title },
-    } = await thread.generateObject(
-      {
-        schema: z.object({
-          title: z.string().describe("The new title for the thread"),
-        }),
-        prompt:
-          "Generate a title for this thread. Short and based on the content of the thread. It should be concise and descriptive, and allow the user to understand the topic of the thread at a glance.",
-      },
-      { storageOptions: { saveMessages: "none" } },
-    );
-
-    await thread.updateMetadata({ title });
+    await generateTitle(ctx, threadId, onlyIfUntitled ?? false);
   },
 });
+
+/**
+ * Titre d'un thread ouvert par l'aiguillage (cf. harness/dispatch.ts) : pas de
+ * client pour le demander, comme le fait `useNoleChat` après un envoi.
+ */
+export const generateThreadTitle = internalAction({
+  args: { threadId: v.string() },
+  handler: async (ctx, { threadId }) => {
+    await generateTitle(ctx, threadId, true);
+  },
+});
+
+async function generateTitle(
+  ctx: ActionCtx,
+  threadId: string,
+  onlyIfUntitled: boolean,
+) {
+  // `usageSource` explicite : c'est le seul usage de `createBaseAgent` qui
+  // appelle réellement un LLM, et sa consommation était jusqu'ici invisible.
+  const basicAgent = createBaseAgent({
+    usageSource: aiUsageSources.threadTitle,
+  });
+  const { thread } = await basicAgent.continueThread(ctx, { threadId });
+
+  if (onlyIfUntitled) {
+    const metadata = await thread.getMetadata();
+    if (metadata.title && metadata.title.trim().length > 0) {
+      return;
+    }
+  }
+
+  const {
+    object: { title },
+  } = await thread.generateObject(
+    {
+      schema: z.object({
+        title: z.string().describe("The new title for the thread"),
+      }),
+      prompt:
+        "Generate a title for this thread. Short and based on the content of the thread. It should be concise and descriptive, and allow the user to understand the topic of the thread at a glance.",
+    },
+    { storageOptions: { saveMessages: "none" } },
+  );
+
+  await thread.updateMetadata({ title });
+}

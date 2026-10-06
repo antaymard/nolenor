@@ -10,6 +10,7 @@ import type { NoleMessageMetadata } from "../nole";
 import { generateNoleSystemPrompt } from "../systemPrompts/noleSystemPrompt";
 import { getToolsForAgent } from "../tools";
 import { createUsageHandler } from "../usage";
+import { jevRouter } from "../router/jevRouter";
 import {
   canvasCompaction,
   canvasStepContext,
@@ -133,4 +134,10 @@ export const noleProfile: Profile = {
   stepContext: canvasStepContext,
   subagents: { profile: "worker" },
   askUser: true,
+  router: jevRouter,
+  async threadCreated(ctx, threadId) {
+    await ctx.scheduler.runAfter(0, internal.threads.generateThreadTitle, {
+      threadId,
+    });
+  },
 };

@@ -2,7 +2,8 @@
 // Harness : kernel (phase 1), messages pendant un run (phase 2), retry et
 // changement de modèle (phase 3a), deltas `<system_update>` (phase 3b),
 // tools différés et halo des nodes écrits (phase 3c), compaction (phase 4),
-// sous-agents (phase 5a), questions à l'utilisateur (phase 5b).
+// sous-agents (phase 5a), questions à l'utilisateur (phase 5b), aiguillage
+// threadless (phase 7a).
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -24,13 +25,22 @@ import type { LanguageModelV3Content, LanguageModelV3Prompt } from "@ai-sdk/prov
 import { APICallError, tool } from "ai";
 import { z } from "zod";
 import { api, components, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { modules } from "../test.setup";
 import { registerProfile } from "./profiles";
 import { isRetryableGenerationError } from "./errors";
 import { abortRun, setRunModel, startRun, submitToThread } from "./tasks";
 import { assembleRunContext, findCut } from "./transcript";
-import type { ContextSection, Memory, Profile, StepWindow } from "./types";
+import { dispatchRequest } from "./dispatch";
+import { jevRouter } from "../ia/router/jevRouter";
+import type {
+  ContextSection,
+  DispatchCandidate,
+  Memory,
+  Profile,
+  StepWindow,
+} from "./types";
 
 
 
@@ -52,6 +62,13 @@ let writeExecutions = 0;
 let stepSections: (window: StepWindow) => ContextSection[] = () => [];
 let recalled: (window: StepWindow) => Memory[] = () => [];
 let stepContextCalls = 0;
+// Le routeur du profil de test : ce qu'il a vu, et ce qu'il décide.
+let routerCalls: { prompt: string; candidates: DispatchCandidate[] }[] = [];
+let routeTo: (
+  candidates: DispatchCandidate[],
+) => { threadId: string | null; confidence?: number } = () => ({
+  threadId: null,
+});
 // Seuil de compaction du profil de test, en part de sa fenêtre (1 = jamais
 // atteint par les 3 tokens en entrée du modèle factice).
 let compactionRatio = 1;
@@ -200,6 +217,12 @@ registerProfile({
   ...testProfile("test", 25),
   subagents: { profile: "test-worker" },
   askUser: true,
+  router: {
+    async route(_ctx, request, candidates) {
+      routerCalls.push({ prompt: request.prompt, candidates });
+      return routeTo(candidates);
+    },
+  },
 });
 // Le sous-agent : son brief tient lieu de prompt.
 registerProfile({
@@ -388,6 +411,8 @@ beforeEach(() => {
   stepSections = () => [];
   recalled = () => [];
   stepContextCalls = 0;
+  routerCalls = [];
+  routeTo = () => ({ threadId: null });
   compactionRatio = 1;
 });
 afterEach(() => {
@@ -1682,5 +1707,262 @@ describe("phase 5b — ask_user", () => {
     expect(await submitAny(t, seed, "A")).toEqual({ answered: true });
     await drain(t);
     expect(promptText(1)).toContain("Only one question at a time");
+  });
+});
+
+describe("phase 7a — aiguillage threadless", () => {
+  async function dispatch(
+    t: T,
+    seed: Awaited<ReturnType<typeof seedThread>>,
+    prompt: string,
+    options: { nodeIds?: string[]; forceNew?: boolean } = {},
+  ) {
+    return t.run(async (ctx) =>
+      dispatchRequest(ctx, {
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        profile: { name: "test" },
+        prompt,
+        content: `<ctx/>\n<user_message>\n${prompt}\n</user_message>`,
+        input: { userPrompt: prompt },
+        nodeIds: options.nodeIds ?? [],
+        forceNew: options.forceNew,
+      }),
+    );
+  }
+
+  async function dispatchRow(t: T, dispatchId: Id<"dispatches">) {
+    return t.run((ctx) => ctx.db.get("dispatches", dispatchId));
+  }
+
+  async function threadsOf(t: T, userId: Id<"users">) {
+    return t.run(async (ctx) =>
+      (await ctx.db.query("threadMetadata").collect()).filter(
+        (row) => row.userId === userId,
+      ),
+    );
+  }
+
+  /** Un canvas sans thread : seulement l'utilisateur et le canvas. */
+  async function seedCanvas(t: T) {
+    return t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", {});
+      const canvasId = await ctx.db.insert("canvases", {
+        creatorId: userId,
+        name: "Canvas",
+        updatedAt: Date.now(),
+      });
+      return { userId, canvasId, threadId: "" };
+    });
+  }
+
+  test("aucun thread : nouveau thread, sans appeler le routeur", async () => {
+    const t = setup();
+    const seed = await seedCanvas(t);
+    setModel([[text("Done")]]);
+    const dispatchId = await dispatch(t, seed, "Make a plan");
+    await drain(t);
+
+    const row = await dispatchRow(t, dispatchId);
+    expect(row).toMatchObject({
+      status: "routed",
+      decision: { kind: "new", reason: "no_candidates" },
+    });
+    expect(routerCalls).toHaveLength(0);
+    const [thread] = await threadsOf(t, seed.userId);
+    expect(thread).toMatchObject({ threadId: row?.threadId, runStatus: "idle" });
+    expect(promptText(0)).toContain("Make a plan");
+  });
+
+  test("thread au repos choisi : la conversation reprend avec son contexte", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[text("First answer")], [text("Second answer")]]);
+    await send(t, seed, "Pricing ideas");
+    await drain(t);
+
+    routeTo = (candidates) => ({ threadId: candidates[0].threadId, confidence: 0.9 });
+    const dispatchId = await dispatch(t, seed, "Add a freemium tier");
+    await drain(t);
+
+    expect(routerCalls[0].candidates[0]).toMatchObject({
+      threadId: seed.threadId,
+      status: "idle",
+      recentRequests: ["Pricing ideas"],
+    });
+    expect(await dispatchRow(t, dispatchId)).toMatchObject({
+      threadId: seed.threadId,
+      decision: { kind: "continue", reason: "router", confidence: 0.9 },
+    });
+    // Le nouveau run voit la conversation précédente.
+    expect(promptText(1)).toContain("First answer");
+    expect(await threadsOf(t, seed.userId)).toHaveLength(1);
+  });
+
+  test("thread en cours choisi : la demande y entre comme un steer", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("Done")]]);
+    await send(t, seed, "Long task");
+    await runOneLayer(t); // le run travaille
+
+    routeTo = (candidates) => ({ threadId: candidates[0].threadId, confidence: 0.8 });
+    const dispatchId = await dispatch(t, seed, "Use the table instead");
+    await drain(t);
+
+    expect(routerCalls[0].candidates[0].status).toBe("running");
+    expect((await dispatchRow(t, dispatchId))?.decision?.kind).toBe("steer");
+    expect(promptText(1)).toContain("Use the table instead");
+  });
+
+  test("thread qui attend une réponse : la demande y répond", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([
+      [call("ask_user", { questions: [{ question: "Which format?" }] })],
+      [text("Ok, a table")],
+    ]);
+    await send(t, seed, "Organize this");
+    await drain(t);
+
+    routeTo = (candidates) => ({ threadId: candidates[0].threadId, confidence: 0.95 });
+    const dispatchId = await dispatch(t, seed, "A table please");
+    await drain(t);
+
+    expect(routerCalls[0].candidates[0]).toMatchObject({
+      status: "waiting",
+      pendingQuestion: "Which format?",
+    });
+    expect((await dispatchRow(t, dispatchId))?.decision?.kind).toBe("answer");
+    expect(promptText(1)).toContain("A table please");
+  });
+
+  test("confiance basse, routeur en panne, nouvelle tâche demandée : nouveau thread", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[text("Done")]]);
+
+    routeTo = (candidates) => ({ threadId: candidates[0].threadId, confidence: 0.3 });
+    const low = await dispatch(t, seed, "Something");
+    await drain(t);
+    expect((await dispatchRow(t, low))?.decision).toMatchObject({
+      kind: "new",
+      reason: "low_confidence",
+      confidence: 0.3,
+    });
+
+    routeTo = () => {
+      throw new Error("Jev is down");
+    };
+    const broken = await dispatch(t, seed, "Something else");
+    await drain(t);
+    expect((await dispatchRow(t, broken))?.decision).toMatchObject({
+      kind: "new",
+      reason: "router_error",
+    });
+
+    const calls = routerCalls.length;
+    const forced = await dispatch(t, seed, "Separate task", { forceNew: true });
+    await drain(t);
+    expect(routerCalls).toHaveLength(calls);
+    expect((await dispatchRow(t, forced))?.decision).toMatchObject({
+      kind: "new",
+      reason: "forced_new",
+    });
+    // Le thread d'origine et trois nouveaux.
+    expect(await threadsOf(t, seed.userId)).toHaveLength(4);
+  });
+
+  test("filet : une seule finalisation, même si le routeur répond après", async () => {
+    const t = setup();
+    const seed = await seedCanvas(t);
+    setModel([[text("Done")]]);
+    const dispatchId = await dispatch(t, seed, "Hello");
+    await drain(t);
+    const routed = await dispatchRow(t, dispatchId);
+    // Le filet planifié à 30 s passe ensuite : sans effet.
+    vi.advanceTimersByTime(31_000);
+    await drain(t);
+    expect(await dispatchRow(t, dispatchId)).toMatchObject({
+      threadId: routed?.threadId,
+    });
+    expect(await threadsOf(t, seed.userId)).toHaveLength(1);
+  });
+
+  test("Jev : une question choice par thread candidat, usage compté", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    const requests: { url: string; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      requests.push({ url, body: JSON.parse(String(init.body)) });
+      return new Response(
+        JSON.stringify({
+          model: "typesafe/jev-1.13-20260917",
+          answers: {
+            thread: {
+              type: "choice",
+              choice: "T2",
+              confidence: 0.81,
+              probabilities: { T1: 0.1, T2: 0.85, new: 0.05 },
+            },
+          },
+          usage: { cost: 0.00002, input_tokens: 480, output_tokens: 70 },
+        }),
+        { status: 200 },
+      );
+    });
+    try {
+      const candidates: DispatchCandidate[] = [
+        {
+          threadId: "thread-a",
+          title: "Pricing",
+          status: "idle",
+          recentRequests: ["Pricing ideas"],
+          touchedNodeIds: [],
+          lastActivityAt: 1,
+        },
+        {
+          threadId: "thread-b",
+          title: null,
+          status: "waiting",
+          pendingQuestion: "Which format?",
+          recentRequests: ["Organize the roadmap"],
+          touchedNodeIds: ["N1"],
+          lastActivityAt: 2,
+        },
+      ];
+      const decision = await t.action((ctx) =>
+        jevRouter.route(
+          ctx,
+          { prompt: "A table", nodeIds: ["N1"], userId: seed.userId },
+          candidates,
+        ),
+      );
+      expect(decision).toEqual({ threadId: "thread-b", confidence: 0.81 });
+
+      const [request] = requests;
+      expect(request.url).toBe("https://openrouter.ai/api/alpha/decisions");
+      expect(request.body).toMatchObject({
+        model: "typesafe/jev-1.13",
+        state: {
+          request: "A table",
+          threads: [
+            { id: "T1", title: "Pricing", status: "idle" },
+            { id: "T2", status: "waiting", pending_question: "Which format?" },
+          ],
+        },
+        questions: { thread: { type: "choice" } },
+      });
+      const criteria = (
+        request.body.questions as { thread: { criteria: Record<string, string> } }
+      ).thread.criteria;
+      expect(Object.keys(criteria)).toEqual(["T1", "T2", "new"]);
+      expect(criteria.T2).toContain("Organize the roadmap");
+
+      const usage = await t.run((ctx) => ctx.db.query("aiUsageEvents").collect());
+      expect(usage).toMatchObject([{ source: "router", costUsd: 0.00002 }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -17,6 +17,7 @@ import { recipesValidor } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
 import { agentTaskValidator } from "./schemas/agentTasksSchema";
 import { compactionsValidator } from "./schemas/compactionsSchema";
+import { dispatchesValidator } from "./schemas/dispatchesSchema";
 import { runPromptsValidator } from "./schemas/runPromptsSchema";
 import { submissionsValidator } from "./schemas/submissionsSchema";
 import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
@@ -246,6 +247,12 @@ const schema = defineSchema({
   submissions: defineTable(submissionsValidator).index(
     "by_threadId_and_status",
     ["threadId", "status"],
+  ),
+  // Demandes envoyées sans thread (omnibar) et leur aiguillage (cf.
+  // harness/dispatch.ts).
+  dispatches: defineTable(dispatchesValidator).index(
+    "by_canvasId_and_userId",
+    ["canvasId", "userId"],
   ),
   // Résumés de la partie ancienne d'un thread (cf. harness/compaction.ts).
   compactions: defineTable(compactionsValidator).index("by_threadId", [

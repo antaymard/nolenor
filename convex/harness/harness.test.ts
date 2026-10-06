@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
-// Harness : kernel (phase 1) et messages pendant un run (phase 2).
+// Harness : kernel (phase 1), messages pendant un run (phase 2), retry et
+// changement de modèle (phase 3a).
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -12,18 +13,20 @@ import {
   createThread,
   listMessages,
   mockModel,
+  toUIMessages,
   saveMessage,
   saveMessages,
   type MessageDoc,
 } from "@convex-dev/agent";
 import type { LanguageModelV3Content, LanguageModelV3Prompt } from "@ai-sdk/provider";
-import { tool } from "ai";
+import { APICallError, tool } from "ai";
 import { z } from "zod";
 import { api, components, internal } from "../_generated/api";
 import schema from "../schema";
 import { modules } from "../test.setup";
 import { registerProfile } from "./profiles";
-import { abortRun, startRun, submitToThread } from "./tasks";
+import { isRetryableGenerationError } from "./errors";
+import { abortRun, setRunModel, startRun, submitToThread } from "./tasks";
 import { assembleRunContext } from "./transcript";
 import type { Profile } from "./types";
 
@@ -43,10 +46,20 @@ let writeExecutions = 0;
  * l'AI SDK v6 ne lit plus : on le réécrit au format LanguageModelV3, celui que
  * renvoie OpenRouter (3 tokens en entrée, 10 en sortie par appel).
  */
-function setModel(steps: LanguageModelV3Content[][]) {
+function setModel(
+  steps: LanguageModelV3Content[][],
+  /** Appels (par rang) qui échouent en plein stream, avec leur erreur. */
+  failures: Record<number, string> = {},
+) {
   const mock = mockModel({ contentSteps: steps }) as RecordingModel;
   const doStream = mock.doStream.bind(mock);
+  let calls = 0;
   mock.doStream = async (options) => {
+    const failure = failures[calls++];
+    if (failure !== undefined) {
+      mock.doStreamCalls.push(options);
+      return { stream: failingStream(failure) };
+    }
     const result = await doStream(options);
     const stream = result.stream.pipeThrough(
       new TransformStream({
@@ -68,6 +81,19 @@ function setModel(steps: LanguageModelV3Content[][]) {
     return { ...result, stream };
   };
   model = mock;
+}
+
+/** Un stream qui commence à répondre, puis reçoit une erreur du provider. */
+function failingStream(error: string) {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue({ type: "stream-start", warnings: [] });
+      controller.enqueue({ type: "text-start", id: "t" });
+      controller.enqueue({ type: "text-delta", id: "t", delta: "Partial " });
+      controller.enqueue({ type: "error", error: { message: error } });
+      controller.close();
+    },
+  });
 }
 
 function testProfile(name: string, maxGenerationsPerRun: number): Profile {
@@ -189,6 +215,7 @@ async function submit(
   t: T,
   seed: Awaited<ReturnType<typeof seedThread>>,
   prompt: string,
+  model?: string,
 ) {
   return t.run(async (ctx) =>
     submitToThread(ctx, {
@@ -199,6 +226,7 @@ async function submit(
       prompt,
       content: `<ctx/>\n<user_message>\n${prompt}\n</user_message>`,
       input: { userPrompt: prompt },
+      model,
     }),
   );
 }
@@ -758,5 +786,130 @@ describe("phase 2 — messages pendant un run", () => {
     expect(promptText(1)).not.toContain("Never mind");
     const [submission] = await submissions(t, seed.threadId);
     expect(submission.status).toBe("withdrawn");
+  });
+});
+
+describe("phase 3a — retry et changement de modèle", () => {
+  async function generations(t: T, runMessageId: string) {
+    return (await tasksOf(t, runMessageId))
+      .filter((task) => task.kind === "generation")
+      .sort((a, b) => (a.step ?? 0) - (b.step ?? 0));
+  }
+
+  test("erreur passagère en plein stream : rejouée après backoff, le run aboutit", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[text("All done")]], { 0: "Provider returned 502 Bad Gateway" });
+    const runMessageId = await send(t, seed, "Hello");
+
+    await runOneLayer(t);
+    const [waiting] = await generations(t, runMessageId);
+    expect(waiting).toMatchObject({ status: "pending", attempt: 1 });
+    expect(waiting.error).toContain("502");
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("running");
+
+    vi.advanceTimersByTime(2000);
+    await drain(t);
+
+    const [generation] = await generations(t, runMessageId);
+    expect(generation).toMatchObject({ status: "completed", attempt: 2 });
+    expect(model.doStreamCalls).toHaveLength(2);
+    // La tentative ratée n'entre pas dans le contexte de la suivante.
+    expect(promptText(1)).not.toContain("Partial");
+    const docs = await transcript(t, seed.threadId);
+    const ui = toUIMessages(docs);
+    const last = ui[ui.length - 1];
+    expect(last).toMatchObject({ role: "assistant", status: "success" });
+    expect(last.text).toBe("All done");
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("erreur non passagère : échec immédiat, sans retry", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[text("Never")]], { 0: "This model's maximum context length is exceeded" });
+    await send(t, seed, "Hello");
+    await drain(t);
+
+    expect(model.doStreamCalls).toHaveLength(1);
+    const row = await threadRow(t, seed.threadId);
+    expect(row?.runStatus).toBe("error");
+    expect(row?.run).toBeUndefined();
+  });
+
+  test("erreur passagère répétée : abandon après 3 tentatives", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[text("Never")]], {
+      0: "429 rate limit",
+      1: "429 rate limit",
+      2: "429 rate limit",
+    });
+    const runMessageId = await send(t, seed, "Hello");
+    await runOneLayer(t);
+    vi.advanceTimersByTime(2000);
+    await runOneLayer(t);
+    vi.advanceTimersByTime(8000);
+    await drain(t);
+
+    expect(model.doStreamCalls).toHaveLength(3);
+    const [generation] = await generations(t, runMessageId);
+    expect(generation).toMatchObject({ status: "failed", attempt: 3 });
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("error");
+  });
+
+  test("modèle changé pendant le run : pris à la génération suivante", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("Done")]]);
+    const result = await submit(t, seed, "First", "model-a");
+    if (result.queued) throw new Error("expected a run start");
+    await runOneLayer(t);
+
+    expect(
+      await t.run((ctx) => setRunModel(ctx, seed.threadId, "model-b")),
+    ).toBe(true);
+    await drain(t);
+
+    const [first, second] = await generations(t, result.messageId);
+    expect(first.model).toBe("model-a");
+    expect(second.model).toBe("model-b");
+    // Au repos, rien à changer : le modèle part avec le prochain message.
+    expect(
+      await t.run((ctx) => setRunModel(ctx, seed.threadId, "model-c")),
+    ).toBe(false);
+  });
+
+  test("un steer porte son modèle : la génération qui le place le prend", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("Done")]]);
+    const result = await submit(t, seed, "First", "model-a");
+    if (result.queued) throw new Error("expected a run start");
+    await runOneLayer(t);
+    await submit(t, seed, "Switch", "model-b");
+    await drain(t);
+
+    const [, second] = await generations(t, result.messageId);
+    expect(second.model).toBe("model-b");
+  });
+
+  test("classement des erreurs", () => {
+    const apiError = (statusCode: number) =>
+      new APICallError({
+        message: "failed",
+        url: "https://openrouter.ai",
+        requestBodyValues: {},
+        statusCode,
+      });
+    expect(isRetryableGenerationError(apiError(429))).toBe(true);
+    expect(isRetryableGenerationError(apiError(503))).toBe(true);
+    expect(isRetryableGenerationError(apiError(400))).toBe(false);
+    expect(isRetryableGenerationError(apiError(401))).toBe(false);
+    expect(isRetryableGenerationError(new Error("fetch failed"))).toBe(true);
+    expect(
+      isRetryableGenerationError({ error: { code: 502, message: "Upstream error" } }),
+    ).toBe(true);
+    expect(isRetryableGenerationError(new Error("Invalid tool schema"))).toBe(false);
   });
 });

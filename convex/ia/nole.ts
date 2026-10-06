@@ -2,7 +2,8 @@ import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
-import { submitToThread } from "../harness/tasks";
+import { setRunModel, submitToThread } from "../harness/tasks";
+import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
   noleMessageContent,
   noleProfile,
@@ -63,6 +64,21 @@ export const saveMessage = mutation({
     return result.queued
       ? { messageId: null, queued: true }
       : { messageId: result.messageId, queued: false };
+  },
+});
+
+/**
+ * Change le modèle du run en cours, depuis le sélecteur : la génération
+ * suivante le prend. Au repos, rien à faire ici — le modèle part avec le
+ * prochain message.
+ */
+export const setCurrentRunModel = mutation({
+  args: { threadId: v.string(), model: vChatModelValues },
+  handler: async (ctx, { threadId, model }) => {
+    const authUserId = await requireAuth(ctx);
+    const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+    if (!row || row.userId !== authUserId) return { updated: false };
+    return { updated: await setRunModel(ctx, threadId, model) };
   },
 });
 

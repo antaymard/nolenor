@@ -105,7 +105,7 @@ export default function ChatInput({
               modelOptions={modelOptions}
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
-              disabled={isSending || isAssistantResponding}
+              disabled={isSending}
             />
             <span className="px-2.5" title="Hold Alt + Ctrl to dictate">
               <MicStatus

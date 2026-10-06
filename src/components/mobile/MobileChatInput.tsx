@@ -101,7 +101,7 @@ export default function MobileChatInput() {
               modelOptions={modelOptions}
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
-              disabled={isSending || isAssistantResponding}
+              disabled={isSending}
             />
             <Button
               type="button"

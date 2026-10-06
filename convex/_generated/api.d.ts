@@ -31,6 +31,7 @@ import type * as config_uploadsConfig from "../config/uploadsConfig.js";
 import type * as crons from "../crons.js";
 import type * as dataExport from "../dataExport.js";
 import type * as edges from "../edges.js";
+import type * as harness_errors from "../harness/errors.js";
 import type * as harness_generation from "../harness/generation.js";
 import type * as harness_ingress from "../harness/ingress.js";
 import type * as harness_live from "../harness/live.js";
@@ -260,6 +261,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   dataExport: typeof dataExport;
   edges: typeof edges;
+  "harness/errors": typeof harness_errors;
   "harness/generation": typeof harness_generation;
   "harness/ingress": typeof harness_ingress;
   "harness/live": typeof harness_live;

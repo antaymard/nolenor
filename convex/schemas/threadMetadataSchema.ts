@@ -114,6 +114,9 @@ const threadRunValidator = v.object({
   generationTaskId: v.id("agentTasks"),
   runToken: v.number(),
   maxGenerations: v.number(),
+  // Le modèle des générations à venir. Lu à chaque claim : un changement de
+  // modèle pendant le run (sélecteur, steer) prend effet au step suivant.
+  model: v.optional(v.string()),
 });
 
 const threadMetadataValidator = v.object({

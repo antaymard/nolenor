@@ -173,6 +173,7 @@ async function endRun(
         detail: error instanceof Error ? error.message : String(error),
       });
     }
+    await maybeCompactAfterRun(ctx, current);
   }
   await ThreadMetadataModels.markRunEnded(ctx, {
     threadId: current.row.threadId,
@@ -189,6 +190,131 @@ async function endRun(
   } else {
     await startNextRunFromQueue(ctx, current);
   }
+}
+
+// ── Compaction ─────────────────────────────────────────────────────────────
+
+/** Le nombre de tokens en entrée d'un appel modèle, lu dans son usage. */
+function inputTokensOf(usage: Record<string, unknown> | undefined): number {
+  const value = usage?.inputTokens;
+  return typeof value === "number" ? value : 0;
+}
+
+/**
+ * Fin de run : si le dernier appel modèle a dépassé le seuil du profil, la
+ * partie ancienne du thread est résumée en fond. Vérifié ici seulement, et
+ * pas entre deux steps : compacter casse le cache, autant le faire une fois
+ * le run fini (cf. Pi). Le run suivant ne l'attend pas.
+ */
+async function maybeCompactAfterRun(ctx: MutationCtx, current: CurrentRun) {
+  const generations = await ctx.db
+    .query("agentTasks")
+    .withIndex("by_runMessageId_and_kind", (q) =>
+      q
+        .eq("runMessageId", current.run.startMessageId)
+        .eq("kind", agentTaskKinds.generation),
+    )
+    .take(500);
+  const last = generations
+    .filter((generation) => generation.responseMessageId)
+    .sort((a, b) => (b.step ?? 0) - (a.step ?? 0))[0];
+  if (!last) return;
+
+  const settings = getProfile(last.profile).compaction;
+  if (!settings) return;
+  const tokens = inputTokensOf(last.usage);
+  const window = settings.contextWindow(runInfoOf(last));
+  if (tokens < window * settings.thresholdRatio) return;
+  if (await hasLiveCompaction(ctx, last)) return;
+
+  await insertCompaction(ctx, last, {
+    mode: "inCache",
+    tokensBefore: tokens,
+    promptMessageId: current.run.promptMessageId,
+    loadedTools: current.run.loadedTools ?? [],
+  });
+}
+
+function runInfoOf(task: Task) {
+  return {
+    threadId: task.threadId,
+    userId: task.userId,
+    canvasId: task.canvasId,
+    runMessageId: task.runMessageId,
+    ...(task.model !== undefined ? { model: task.model } : {}),
+  };
+}
+
+async function hasLiveCompaction(ctx: MutationCtx, task: Task) {
+  for (const status of [agentTaskStatuses.pending, agentTaskStatuses.running]) {
+    const live = await ctx.db
+      .query("agentTasks")
+      .withIndex("by_canvasId_and_status", (q) =>
+        q.eq("canvasId", task.canvasId).eq("status", status),
+      )
+      .take(100);
+    if (
+      live.some(
+        (other) =>
+          other.kind === agentTaskKinds.compaction &&
+          other.threadId === task.threadId,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+type CompactionInput = {
+  mode: "inCache" | "serialized";
+  tokensBefore: number;
+  /** Jusqu'où lire le thread : le contexte de la génération qui a déclenché. */
+  promptMessageId: string;
+  loadedTools: string[];
+};
+
+async function insertCompaction(
+  ctx: MutationCtx,
+  from: Task,
+  input: CompactionInput,
+  ownerTaskId?: Id<"agentTasks">,
+) {
+  const taskId = await ctx.db.insert("agentTasks", {
+    kind: agentTaskKinds.compaction,
+    profile: from.profile,
+    threadId: from.threadId,
+    canvasId: from.canvasId,
+    userId: from.userId,
+    runMessageId: from.runMessageId,
+    ...(ownerTaskId ? { ownerTaskId } : {}),
+    status: agentTaskStatuses.pending,
+    attempt: 0,
+    leaseExpiresAt: Date.now() + LEASE_MS,
+    model: from.model,
+    agentName: from.agentName,
+    input,
+  });
+  await ctx.scheduler.runAfter(0, internal.harness.compaction.run, { taskId });
+  return taskId;
+}
+
+/** La dernière compaction du thread, telle que l'assemblage la lit. */
+async function latestCompaction(ctx: MutationCtx, threadId: string) {
+  const row = await ctx.db
+    .query("compactions")
+    .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
+    .order("desc")
+    .first();
+  return row
+    ? {
+        firstKeptMessageId: row.firstKeptMessageId,
+        order: row.firstKeptOrder,
+        stepOrder: row.firstKeptStepOrder,
+        summary: row.summary,
+        userMessages: row.userMessages,
+      }
+    : null;
 }
 
 async function startNextRunFromQueue(ctx: MutationCtx, previous: CurrentRun) {
@@ -236,7 +362,11 @@ async function placeQueuedSteers(
 /** Marque `aborted` toutes les tâches vivantes d'un run. */
 async function abortRunTasks(ctx: MutationCtx, runMessageId: string) {
   const now = Date.now();
-  for (const kind of [agentTaskKinds.generation, agentTaskKinds.tool]) {
+  for (const kind of [
+    agentTaskKinds.generation,
+    agentTaskKinds.tool,
+    agentTaskKinds.compaction,
+  ]) {
     const tasks = await ctx.db
       .query("agentTasks")
       .withIndex("by_runMessageId_and_kind", (q) =>
@@ -245,6 +375,8 @@ async function abortRunTasks(ctx: MutationCtx, runMessageId: string) {
       .take(500);
     for (const task of tasks) {
       if (!liveAgentTaskStatuses.includes(task.status)) continue;
+      // Une compaction de fin de run sert le thread, pas le run : elle vit.
+      if (kind === agentTaskKinds.compaction && !task.ownerTaskId) continue;
       await ctx.db.patch("agentTasks", task._id, {
         status: agentTaskStatuses.aborted,
         endedAt: now,
@@ -558,6 +690,7 @@ async function runContextState(ctx: MutationCtx, task: Task, now: number) {
     window: { step, since: previous?.startedAt ?? null, until: now },
     updates,
     seenMemoryIds,
+    compaction: await latestCompaction(ctx, task.threadId),
     // Déjà calculé par une tentative précédente : rejoué tel quel.
     systemUpdate: task.systemUpdate ?? null,
   };
@@ -762,6 +895,8 @@ export const failGeneration = internalMutation({
     // Erreur passagère (429, 5xx, réseau, coupure du stream) : la génération
     // est rejouée tant qu'il lui reste des tentatives.
     retryable: v.optional(v.boolean()),
+    // Contexte trop long pour le modèle : compacter, puis rejouer.
+    overflow: v.optional(v.boolean()),
     error: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -771,6 +906,9 @@ export const failGeneration = internalMutation({
       task.status !== agentTaskStatuses.running ||
       task.attempt !== args.attempt
     ) {
+      return;
+    }
+    if (args.overflow && !args.aborted && (await compactOnOverflow(ctx, task))) {
       return;
     }
     if (args.retryable && !args.aborted && task.attempt < MAX_ATTEMPTS) {
@@ -786,6 +924,40 @@ export const failGeneration = internalMutation({
     });
   },
 });
+
+/**
+ * Débordement en plein run : la génération attend une compaction, qui la
+ * relance. Une seule par génération — si le contexte déborde encore, c'est
+ * un échec. Rend `false` quand la compaction n'est pas possible.
+ */
+async function compactOnOverflow(ctx: MutationCtx, task: Task) {
+  const profile = getProfile(task.profile);
+  if (!profile.compaction) return false;
+  const current = await currentRun(ctx, task);
+  if (!current || current.run.generationTaskId !== task._id) return false;
+  const already = await ctx.db
+    .query("agentTasks")
+    .withIndex("by_ownerTaskId", (q) => q.eq("ownerTaskId", task._id))
+    .first();
+  if (already) return false;
+
+  await ctx.db.patch("agentTasks", task._id, {
+    status: agentTaskStatuses.waiting,
+    leaseExpiresAt: undefined,
+  });
+  await insertCompaction(
+    ctx,
+    task,
+    {
+      mode: "serialized",
+      tokensBefore: profile.compaction.contextWindow(runInfoOf(task)),
+      promptMessageId: task.promptMessageId ?? task.runMessageId,
+      loadedTools: current.run.loadedTools ?? [],
+    },
+    task._id,
+  );
+  return true;
+}
 
 /**
  * Rejoue la génération après un backoff. Même tâche, même position dans le
@@ -826,6 +998,196 @@ async function failGenerationTask(
       : threadRunStatuses.error,
     outcome.error,
   );
+}
+
+// ── Compaction (cf. harness/compaction.ts) ─────────────────────────────────
+
+export const claimCompaction = internalMutation({
+  args: { taskId: v.id("agentTasks") },
+  handler: async (ctx, { taskId }) => {
+    const task = await ctx.db.get("agentTasks", taskId);
+    if (
+      !task ||
+      task.kind !== agentTaskKinds.compaction ||
+      task.status !== agentTaskStatuses.pending
+    ) {
+      return null;
+    }
+    // Sur débordement : seulement si la génération l'attend toujours.
+    if (task.ownerTaskId) {
+      const owner = await ctx.db.get("agentTasks", task.ownerTaskId);
+      if (!owner || owner.status !== agentTaskStatuses.waiting) {
+        await ctx.db.patch("agentTasks", taskId, {
+          status: agentTaskStatuses.aborted,
+          endedAt: Date.now(),
+          leaseExpiresAt: undefined,
+        });
+        return null;
+      }
+    }
+
+    const now = Date.now();
+    const attempt = task.attempt + 1;
+    await ctx.db.patch("agentTasks", taskId, {
+      status: agentTaskStatuses.running,
+      attempt,
+      startedAt: task.startedAt ?? now,
+      leaseExpiresAt: now + LEASE_MS,
+    });
+
+    const input = task.input as CompactionInput;
+    const prompts = await ctx.db
+      .query("runPrompts")
+      .withIndex("by_messageId", (q) => q.eq("messageId", task.runMessageId))
+      .unique();
+    // Les deltas du run, pour renvoyer au modèle exactement le contexte de sa
+    // dernière génération (le cache sert alors le résumé).
+    const generations = await ctx.db
+      .query("agentTasks")
+      .withIndex("by_runMessageId_and_kind", (q) =>
+        q
+          .eq("runMessageId", task.runMessageId)
+          .eq("kind", agentTaskKinds.generation),
+      )
+      .take(500);
+    const updates = generations.flatMap((generation) =>
+      generation.systemUpdate && generation.responseMessageId
+        ? [
+            {
+              beforeMessageId: generation.responseMessageId,
+              content: generation.systemUpdate,
+            },
+          ]
+        : [],
+    );
+
+    return {
+      taskId,
+      attempt,
+      profile: task.profile,
+      run: runInfoOf(task),
+      mode: input.mode,
+      tokensBefore: input.tokensBefore,
+      promptMessageId: input.promptMessageId,
+      loadedTools: input.loadedTools,
+      updates,
+      prompts: prompts
+        ? { systemPrompt: prompts.systemPrompt, llmPrompt: prompts.llmPrompt }
+        : null,
+      compaction: await latestCompaction(ctx, task.threadId),
+    };
+  },
+});
+
+export const completeCompaction = internalMutation({
+  args: {
+    taskId: v.id("agentTasks"),
+    attempt: v.number(),
+    // `null` : rien d'assez ancien à résumer.
+    result: v.union(
+      v.null(),
+      v.object({
+        firstKeptMessageId: v.string(),
+        firstKeptOrder: v.number(),
+        firstKeptStepOrder: v.number(),
+        summary: v.string(),
+        userMessages: v.array(v.string()),
+        tokensBefore: v.number(),
+        mode: v.union(v.literal("inCache"), v.literal("serialized")),
+        model: v.optional(v.string()),
+      }),
+    ),
+  },
+  handler: async (ctx, { taskId, attempt, result }) => {
+    const task = await ctx.db.get("agentTasks", taskId);
+    if (
+      !task ||
+      task.status !== agentTaskStatuses.running ||
+      task.attempt !== attempt
+    ) {
+      return;
+    }
+    if (result) {
+      await ctx.db.insert("compactions", {
+        threadId: task.threadId,
+        runMessageId: task.runMessageId,
+        ...result,
+      });
+    }
+    await ctx.db.patch("agentTasks", taskId, {
+      status: agentTaskStatuses.completed,
+      endedAt: Date.now(),
+      leaseExpiresAt: undefined,
+    });
+    if (!task.ownerTaskId) return;
+
+    const owner = await ctx.db.get("agentTasks", task.ownerTaskId);
+    if (!owner || owner.status !== agentTaskStatuses.waiting) return;
+    if (!result) {
+      // Rien à résumer : la génération déborderait à nouveau.
+      await failGenerationTask(ctx, owner, {
+        status: agentTaskStatuses.failed,
+        error: "Context too long, and nothing old enough to summarize.",
+      });
+      return;
+    }
+    await ctx.db.patch("agentTasks", owner._id, {
+      status: agentTaskStatuses.pending,
+      leaseExpiresAt: Date.now() + LEASE_MS,
+    });
+    await ctx.scheduler.runAfter(0, internal.harness.generation.run, {
+      taskId: owner._id,
+    });
+  },
+});
+
+export const failCompaction = internalMutation({
+  args: {
+    taskId: v.id("agentTasks"),
+    attempt: v.number(),
+    retryable: v.boolean(),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get("agentTasks", args.taskId);
+    if (
+      !task ||
+      task.status !== agentTaskStatuses.running ||
+      task.attempt !== args.attempt
+    ) {
+      return;
+    }
+    if (args.retryable && task.attempt < MAX_ATTEMPTS) {
+      const delay = RETRY_BASE_MS * 4 ** (task.attempt - 1);
+      await ctx.db.patch("agentTasks", task._id, {
+        status: agentTaskStatuses.pending,
+        error: args.error,
+        leaseExpiresAt: Date.now() + delay + LEASE_MS,
+      });
+      await ctx.scheduler.runAfter(delay, internal.harness.compaction.run, {
+        taskId: task._id,
+      });
+      return;
+    }
+    await failCompactionTask(ctx, task, args.error);
+  },
+});
+
+/** Une compaction ratée ne casse rien, sauf la génération qui l'attendait. */
+async function failCompactionTask(ctx: MutationCtx, task: Task, error: string) {
+  await ctx.db.patch("agentTasks", task._id, {
+    status: agentTaskStatuses.failed,
+    error,
+    endedAt: Date.now(),
+    leaseExpiresAt: undefined,
+  });
+  if (!task.ownerTaskId) return;
+  const owner = await ctx.db.get("agentTasks", task.ownerTaskId);
+  if (!owner || owner.status !== agentTaskStatuses.waiting) return;
+  await failGenerationTask(ctx, owner, {
+    status: agentTaskStatuses.failed,
+    error: `Context too long; summarizing it failed: ${error}`,
+  });
 }
 
 // ── Tool ───────────────────────────────────────────────────────────────────
@@ -1051,7 +1413,9 @@ export const recoverExpired = internalMutation({
           0,
           task.kind === agentTaskKinds.generation
             ? internal.harness.generation.run
-            : internal.harness.tool.run,
+            : task.kind === agentTaskKinds.compaction
+              ? internal.harness.compaction.run
+              : internal.harness.tool.run,
           { taskId: task._id },
         );
       }
@@ -1061,6 +1425,10 @@ export const recoverExpired = internalMutation({
 
 async function giveUp(ctx: MutationCtx, task: Task) {
   const error = "Interrupted too many times.";
+  if (task.kind === agentTaskKinds.compaction) {
+    await failCompactionTask(ctx, task, error);
+    return;
+  }
   if (task.kind === agentTaskKinds.generation) {
     await failGenerationTask(ctx, task, {
       status: agentTaskStatuses.failed,

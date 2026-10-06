@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 // Harness : kernel (phase 1), messages pendant un run (phase 2), retry et
 // changement de modèle (phase 3a), deltas `<system_update>` (phase 3b),
-// tools différés et halo des nodes écrits (phase 3c).
+// tools différés et halo des nodes écrits (phase 3c), compaction (phase 4).
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -28,13 +28,19 @@ import { modules } from "../test.setup";
 import { registerProfile } from "./profiles";
 import { isRetryableGenerationError } from "./errors";
 import { abortRun, setRunModel, startRun, submitToThread } from "./tasks";
-import { assembleRunContext } from "./transcript";
+import { assembleRunContext, findCut } from "./transcript";
 import type { ContextSection, Memory, Profile, StepWindow } from "./types";
 
 
 
 type RecordingModel = ReturnType<typeof mockModel> & {
   doStreamCalls: { prompt: LanguageModelV3Prompt }[];
+  doGenerateCalls: { prompt: LanguageModelV3Prompt; toolChoice?: unknown }[];
+};
+
+const V3_USAGE = {
+  inputTokens: { total: 3, noCache: 3, cacheRead: 0, cacheWrite: 0 },
+  outputTokens: { total: 10, text: 10, reasoning: 0 },
 };
 
 // ── Profil de test ─────────────────────────────────────────────────────────
@@ -45,6 +51,9 @@ let writeExecutions = 0;
 let stepSections: (window: StepWindow) => ContextSection[] = () => [];
 let recalled: (window: StepWindow) => Memory[] = () => [];
 let stepContextCalls = 0;
+// Seuil de compaction du profil de test, en part de sa fenêtre (1 = jamais
+// atteint par les 3 tokens en entrée du modèle factice).
+let compactionRatio = 1;
 
 /**
  * Le mockModel du composant émet son usage dans l'ancien format plat, que
@@ -70,21 +79,18 @@ function setModel(
       new TransformStream({
         transform(part, controller) {
           controller.enqueue(
-            part.type === "finish"
-              ? {
-                  ...part,
-                  usage: {
-                    inputTokens: { total: 3, noCache: 3, cacheRead: 0, cacheWrite: 0 },
-                    outputTokens: { total: 10, text: 10, reasoning: 0 },
-                  },
-                }
-              : part,
+            part.type === "finish" ? { ...part, usage: V3_USAGE } : part,
           );
         },
       }),
     );
     return { ...result, stream };
   };
+  const doGenerate = mock.doGenerate.bind(mock);
+  mock.doGenerate = async (options) => ({
+    ...(await doGenerate(options)),
+    usage: V3_USAGE,
+  });
   model = mock;
 }
 
@@ -156,6 +162,16 @@ function testProfile(name: string, maxGenerationsPerRun: number): Profile {
     memory: {
       async recall(_ctx, _run, window) {
         return recalled(window);
+      },
+    },
+    compaction: {
+      contextWindow: () => 1_000_000,
+      get thresholdRatio() {
+        return compactionRatio;
+      },
+      instructions: "SUMMARY FORMAT",
+      async trackedState() {
+        return "<nodes>tracked</nodes>";
       },
     },
   };
@@ -324,6 +340,7 @@ beforeEach(() => {
   stepSections = () => [];
   recalled = () => [];
   stepContextCalls = 0;
+  compactionRatio = 1;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -626,16 +643,17 @@ describe("phase 1 — kernel", () => {
         promptMessageId: runMessageId,
         runMessageId,
         llmPrompt: "LLM PROMPT",
+        maxTokens: 0,
       }),
     );
-    // Le run entier (1 + 140 messages), aucun historique au-delà.
+    // Budget épuisé : le run entier (1 + 140 messages), aucun historique.
     expect(context).toHaveLength(141);
     expect(context[0]).toMatchObject({ role: "user", content: "LLM PROMPT" });
     expect(context[1].role).toBe("assistant");
     expect(context[140].role).toBe("tool");
   });
 
-  test("run court : la fenêtre reste celle de la lib (100 messages)", async () => {
+  test("historique : entier sans budget, coupé par le budget, le run toujours gardé", async () => {
     const t = setup();
     const seed = await seedThread(t);
     const runMessageId = await t.run(async (ctx) => {
@@ -652,16 +670,21 @@ describe("phase 1 — kernel", () => {
         })
       ).messageId;
     });
-    const context = await t.action(async (ctx) =>
-      assembleRunContext(ctx, {
-        threadId: seed.threadId,
-        promptMessageId: runMessageId,
-        runMessageId,
-        llmPrompt: "LLM PROMPT",
-      }),
-    );
-    expect(context).toHaveLength(100);
-    expect(context[99]).toMatchObject({ role: "user", content: "LLM PROMPT" });
+    const assemble = (maxTokens?: number) =>
+      t.action(async (ctx) =>
+        assembleRunContext(ctx, {
+          threadId: seed.threadId,
+          promptMessageId: runMessageId,
+          runMessageId,
+          llmPrompt: "LLM PROMPT",
+          maxTokens,
+        }),
+      );
+    const full = await assemble();
+    expect(full).toHaveLength(151);
+    expect(full[0]).toMatchObject({ role: "user", content: "old 0" });
+    const bounded = await assemble(0);
+    expect(bounded).toEqual([{ role: "user", content: "LLM PROMPT" }]);
   });
 });
 
@@ -1240,5 +1263,132 @@ describe("phase 3c — tools différés et nodes écrits", () => {
       "created",
       "patched",
     ]);
+  });
+});
+
+describe("phase 4 — compaction", () => {
+  /** Un historique ancien assez gros pour qu'une coupe existe (~24k tokens). */
+  async function seedOldHistory(t: T, seed: Awaited<ReturnType<typeof seedThread>>) {
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 8; i++) {
+        await saveMessage(ctx, components.agent, {
+          threadId: seed.threadId,
+          prompt: `old-${i} ${"x".repeat(12_000)}`,
+        });
+      }
+    });
+  }
+
+  async function compactions(t: T, threadId: string) {
+    return t.run(async (ctx) =>
+      ctx.db
+        .query("compactions")
+        .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
+        .collect(),
+    );
+  }
+
+  test("fin de run au-delà du seuil : résumé in-cache, le run suivant repart du résumé", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    await seedOldHistory(t, seed);
+    compactionRatio = 0.000001; // 3 tokens en entrée suffisent
+    setModel([[text("Done")], [text("THE SUMMARY")], [text("After")]]);
+
+    await send(t, seed, "Now");
+    await drain(t);
+
+    const [row] = await compactions(t, seed.threadId);
+    expect(row).toMatchObject({ mode: "inCache", tokensBefore: 3 });
+    expect(row.summary).toContain("THE SUMMARY");
+    expect(row.summary).toContain("<nodes>tracked</nodes>");
+    expect(row.summary).toContain("- old-0 ");
+    expect(row.userMessages.length).toBeGreaterThan(0);
+
+    // Le résumé reçoit le contexte exact de la dernière génération (même
+    // préfixe : servi depuis le cache), plus la consigne, sans tools.
+    const [summaryCall] = model.doGenerateCalls;
+    const lastGeneration = model.doStreamCalls[0].prompt;
+    expect(JSON.stringify(summaryCall.prompt.slice(0, lastGeneration.length))).toBe(
+      JSON.stringify(lastGeneration),
+    );
+    expect(JSON.stringify(summaryCall.prompt)).toContain("<compaction_request>");
+    expect(summaryCall.toolChoice).toEqual({ type: "none" });
+    // Rien n'est écrit dans le thread.
+    expect(JSON.stringify(await transcript(t, seed.threadId))).not.toContain(
+      "THE SUMMARY",
+    );
+
+    compactionRatio = 1;
+    await send(t, seed, "Next");
+    await drain(t);
+    const next = promptText(1);
+    expect(next).toContain("<conversation_summary>");
+    expect(next).toContain("THE SUMMARY");
+    // Résumé (le début des messages, recopié) à la place du message entier.
+    expect(next).not.toContain(`old-0 ${"x".repeat(1000)}`);
+    expect(next).toContain(`old-7 ${"x".repeat(1000)}`);
+    expect(next).toContain("Next");
+  });
+
+  test("débordement en plein run : résumé sérialisé, puis la génération est rejouée", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    await seedOldHistory(t, seed);
+    setModel([[text("THE SUMMARY")], [text("Done")]], {
+      0: "This model's maximum context length is 1000 tokens",
+    });
+
+    const runMessageId = await send(t, seed, "Now");
+    await drain(t);
+
+    const [row] = await compactions(t, seed.threadId);
+    expect(row.mode).toBe("serialized");
+    const summaryPrompt = JSON.stringify(model.doGenerateCalls[0].prompt);
+    expect(summaryPrompt).toContain("context summarization assistant");
+    expect(summaryPrompt).toContain("[User]: old-0");
+    // Rejouée sur le contexte compacté : résumé, puis la demande et la suite.
+    const retried = promptText(1);
+    expect(retried).toContain("<conversation_summary>");
+    expect(retried).toContain("<canvas_context/>");
+    expect(retried).not.toContain(`old-0 ${"x".repeat(1000)}`);
+
+    const generation = (await tasksOf(t, runMessageId)).find(
+      (task) => task.kind === "generation",
+    );
+    expect(generation).toMatchObject({ status: "completed", attempt: 2 });
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("thread court : seuil atteint mais rien d'assez ancien, pas de compaction", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    compactionRatio = 0.000001;
+    setModel([[text("Done")]]);
+    await send(t, seed, "Hello");
+    await drain(t);
+
+    expect(await compactions(t, seed.threadId)).toEqual([]);
+    expect(model.doGenerateCalls).toHaveLength(0);
+  });
+
+  test("point de coupe : jamais sur un résultat de tool", () => {
+    const doc = (id: string, role: "user" | "assistant" | "tool", size: number) =>
+      ({
+        _id: id,
+        order: 0,
+        stepOrder: 0,
+        message: { role, content: "x".repeat(size) },
+      }) as unknown as MessageDoc;
+    const docs = [
+      doc("a", "user", 40_000),
+      doc("b", "assistant", 400),
+      doc("c", "tool", 80_000),
+      doc("d", "assistant", 400),
+    ];
+    // Les ~20k derniers tokens commencent sur le résultat `c` : la coupe
+    // remonte à son appel.
+    expect(findCut(docs, 20_000)?._id).toBe("b");
+    expect(findCut(docs.slice(1), 20_000)).toBeNull();
   });
 });

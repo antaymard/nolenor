@@ -31,6 +31,7 @@ import type * as config_uploadsConfig from "../config/uploadsConfig.js";
 import type * as crons from "../crons.js";
 import type * as dataExport from "../dataExport.js";
 import type * as edges from "../edges.js";
+import type * as harness_compaction from "../harness/compaction.js";
 import type * as harness_deferredTools from "../harness/deferredTools.js";
 import type * as harness_errors from "../harness/errors.js";
 import type * as harness_generation from "../harness/generation.js";
@@ -67,6 +68,7 @@ import type * as ia_helpers_pdfChunkFormatters from "../ia/helpers/pdfChunkForma
 import type * as ia_helpers_resolveNodeMentionTokens from "../ia/helpers/resolveNodeMentionTokens.js";
 import type * as ia_helpers_tableCellValidation from "../ia/helpers/tableCellValidation.js";
 import type * as ia_helpers_tableWrite from "../ia/helpers/tableWrite.js";
+import type * as ia_helpers_threadNodeDigest from "../ia/helpers/threadNodeDigest.js";
 import type * as ia_helpers_transcriptFormatters from "../ia/helpers/transcriptFormatters.js";
 import type * as ia_helpers_transcriptSummaryPrompt from "../ia/helpers/transcriptSummaryPrompt.js";
 import type * as ia_imageGeneration from "../ia/imageGeneration.js";
@@ -183,6 +185,7 @@ import type * as schemas_apiTokensSchema from "../schemas/apiTokensSchema.js";
 import type * as schemas_canvasBookmarksSchema from "../schemas/canvasBookmarksSchema.js";
 import type * as schemas_canvasOpsSchema from "../schemas/canvasOpsSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
+import type * as schemas_compactionsSchema from "../schemas/compactionsSchema.js";
 import type * as schemas_edgesSchema from "../schemas/edgesSchema.js";
 import type * as schemas_fieldTypeSchema from "../schemas/fieldTypeSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
@@ -258,6 +261,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   dataExport: typeof dataExport;
   edges: typeof edges;
+  "harness/compaction": typeof harness_compaction;
   "harness/deferredTools": typeof harness_deferredTools;
   "harness/errors": typeof harness_errors;
   "harness/generation": typeof harness_generation;
@@ -294,6 +298,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/resolveNodeMentionTokens": typeof ia_helpers_resolveNodeMentionTokens;
   "ia/helpers/tableCellValidation": typeof ia_helpers_tableCellValidation;
   "ia/helpers/tableWrite": typeof ia_helpers_tableWrite;
+  "ia/helpers/threadNodeDigest": typeof ia_helpers_threadNodeDigest;
   "ia/helpers/transcriptFormatters": typeof ia_helpers_transcriptFormatters;
   "ia/helpers/transcriptSummaryPrompt": typeof ia_helpers_transcriptSummaryPrompt;
   "ia/imageGeneration": typeof ia_imageGeneration;
@@ -410,6 +415,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/canvasBookmarksSchema": typeof schemas_canvasBookmarksSchema;
   "schemas/canvasOpsSchema": typeof schemas_canvasOpsSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
+  "schemas/compactionsSchema": typeof schemas_compactionsSchema;
   "schemas/edgesSchema": typeof schemas_edgesSchema;
   "schemas/fieldTypeSchema": typeof schemas_fieldTypeSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;

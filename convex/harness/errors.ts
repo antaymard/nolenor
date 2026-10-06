@@ -18,6 +18,20 @@ export function isRetryableGenerationError(error: unknown): boolean {
 }
 
 /**
+ * Le contexte dépasse la fenêtre du modèle : ni rejouable tel quel, ni
+ * définitif — la harness compacte, puis rejoue (cf. tasks.failGeneration).
+ */
+export function isContextOverflowError(error: unknown): boolean {
+  if (RetryError.isInstance(error)) {
+    return isContextOverflowError(error.lastError);
+  }
+  return OVERFLOW_PATTERN.test(describe(error));
+}
+
+const OVERFLOW_PATTERN =
+  /context.?length|context.?window|maximum context|too many tokens|prompt is too long|input is too long|reduce the length|context_length_exceeded/i;
+
+/**
  * Les erreurs passagères qui n'arrivent pas en `APICallError` : coupures
  * réseau, et erreurs que le provider envoie DANS le stream (OpenRouter y met
  * le code HTTP de l'amont).
@@ -30,6 +44,17 @@ function describe(error: unknown): string {
   if (typeof error === "string") return error;
   try {
     return JSON.stringify(error) ?? "";
+  } catch {
+    return String(error);
+  }
+}
+
+/** Le message d'une erreur, quelle que soit sa forme (stream, provider). */
+export function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error) ?? String(error);
   } catch {
     return String(error);
   }

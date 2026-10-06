@@ -17,6 +17,10 @@ import { v, type Infer } from "convex/values";
 const agentTaskKinds = {
   generation: "generation",
   tool: "tool",
+  // Résumé de la partie ancienne du thread (cf. harness/compaction.ts). En fin
+  // de run, sans propriétaire ; sur débordement, possédée par la génération
+  // qu'elle débloque.
+  compaction: "compaction",
 } as const;
 
 const agentTaskStatuses = {
@@ -47,6 +51,7 @@ const agentTaskValidator = v.object({
   kind: v.union(
     v.literal(agentTaskKinds.generation),
     v.literal(agentTaskKinds.tool),
+    v.literal(agentTaskKinds.compaction),
   ),
   // Profil d'agent qui exécute la tâche (cf. harness/profiles.ts).
   profile: v.string(),
@@ -56,7 +61,7 @@ const agentTaskValidator = v.object({
   // Le message qui a ouvert le run : identifiant du run, clé de `runPrompts`.
   runMessageId: v.string(),
   // Absent pour une génération (possédée par son thread) ; la génération
-  // propriétaire pour un tool.
+  // propriétaire pour un tool, ou pour une compaction sur débordement.
   ownerTaskId: v.optional(v.id("agentTasks")),
 
   status: vAgentTaskStatus,

@@ -1,10 +1,14 @@
 import { v } from "convex/values";
-import { stepCountIs, type ToolSet } from "ai";
+import { stepCountIs } from "ai";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
-import { visibleTools } from "./deferredTools";
-import { isRetryableGenerationError } from "./errors";
-import { getProfile } from "./profiles";
+import { modelTools } from "./deferredTools";
+import {
+  errorText,
+  isContextOverflowError,
+  isRetryableGenerationError,
+} from "./errors";
+import { getProfile, historyBudget } from "./profiles";
 import { resolveSystemUpdate } from "./systemUpdate";
 import { assembleRunContext } from "./transcript";
 
@@ -24,26 +28,6 @@ function isExpectedAbortedStreamError(error: unknown): boolean {
     message.includes("stream") &&
     message.includes("aborted") &&
     (message.includes("trying to finish") || message.includes("finish"))
-  );
-}
-
-function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  try {
-    return JSON.stringify(error) ?? String(error);
-  } catch {
-    return String(error);
-  }
-}
-
-/** Ce que voit le modèle d'un tool : sa description et son schéma. */
-function describeOnly(tools: ToolSet): ToolSet {
-  return Object.fromEntries(
-    Object.entries(tools).map(([name, tool]) => [
-      name,
-      { ...tool, execute: undefined },
-    ]),
   );
 }
 
@@ -94,8 +78,10 @@ export const run = internalAction({
         {
           promptMessageId: claim.promptMessageId,
           system: prompts.systemPrompt,
-          tools: describeOnly(
-            visibleTools(tools, profile.deferredTools ?? [], claim.loadedTools),
+          tools: modelTools(
+            tools,
+            profile.deferredTools ?? [],
+            claim.loadedTools,
           ),
           stopWhen: stepCountIs(1),
           // Une erreur envoyée par le provider DANS le stream ne fait rien
@@ -115,6 +101,8 @@ export const run = internalAction({
               promptMessageId: claim.promptMessageId,
               runMessageId: run.runMessageId,
               llmPrompt: prompts.llmPrompt,
+              compaction: claim.compaction,
+              maxTokens: historyBudget(profile, run),
               updates: [
                 ...claim.updates,
                 ...(systemUpdate
@@ -183,16 +171,20 @@ export const run = internalAction({
       // Une coupure demandée par l'utilisateur n'est pas un échec : ni rouge,
       // ni « réessayer ».
       const aborted = isExpectedAbortedStreamError(error);
-      const retryable = !aborted && isRetryableGenerationError(error);
+      const overflow = !aborted && isContextOverflowError(error);
+      const retryable =
+        !aborted && !overflow && isRetryableGenerationError(error);
       await ctx.runMutation(internal.harness.tasks.failGeneration, {
         taskId,
         attempt,
         aborted,
         retryable,
+        overflow,
         error: aborted ? undefined : errorText(error),
       });
-      // Rejouée : la tâche suit son cours, l'action n'a pas échoué.
-      if (!aborted && !retryable) throw error;
+      // Rejouée ou compactée : la tâche suit son cours, l'action n'a pas
+      // échoué.
+      if (!aborted && !retryable && !overflow) throw error;
     }
     return null;
   },

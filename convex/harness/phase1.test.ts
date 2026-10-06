@@ -325,6 +325,15 @@ describe("phase 1 — kernel", () => {
     expect(promptText(1)).toContain("echo:a");
     expect(promptText(1)).toContain("echo:b");
     expect(model.doStreamCalls).toHaveLength(2);
+
+    // Une seule action pour les deux tools du round.
+    const scheduled = await t.run(async (ctx) =>
+      ctx.db.system.query("_scheduled_functions").collect(),
+    );
+    const toolActions = scheduled.filter((job) => job.name.startsWith("harness/tool"));
+    expect(toolActions.map((job) => job.name)).toEqual(["harness/tool:runRound"]);
+    expect(toolActions[0].args[0]).toMatchObject({ taskIds: expect.any(Array) });
+    expect((toolActions[0].args[0] as { taskIds: string[] }).taskIds).toHaveLength(2);
   });
 
   test("un tool qui lève : le modèle voit l'erreur et le run continue", async () => {

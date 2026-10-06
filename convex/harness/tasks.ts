@@ -460,6 +460,7 @@ export const completeGeneration = internalMutation({
       ...recorded,
       status: agentTaskStatuses.waiting,
     });
+    const toolTaskIds: Id<"agentTasks">[] = [];
     for (const call of args.toolCalls) {
       const toolTaskId = await ctx.db.insert("agentTasks", {
         kind: agentTaskKinds.tool,
@@ -478,10 +479,12 @@ export const completeGeneration = internalMutation({
         explanation: readExplanation(call.input),
         replay: call.replay,
       });
-      await ctx.scheduler.runAfter(0, internal.harness.tool.run, {
-        taskId: toolTaskId,
-      });
+      toolTaskIds.push(toolTaskId);
     }
+    // Une seule action pour tout le round (cf. tool.runRound).
+    await ctx.scheduler.runAfter(0, internal.harness.tool.runRound, {
+      taskIds: toolTaskIds,
+    });
   },
 });
 

@@ -24,6 +24,8 @@ import {
   withdrawQueued,
 } from "./ingress";
 import { LOAD_TOOLS, loadTools } from "./deferredTools";
+import { KERNEL_TOOL_NAMES, RUN_SUBAGENT } from "./kernelTools";
+import { onSubagentRunEnded, spawnSubagent } from "./subagents";
 import { getProfile } from "./profiles";
 import { saveToolResult, type ToolResultOutput } from "./transcript";
 
@@ -54,7 +56,10 @@ const RECOVERY_BATCH = 20;
 
 type Task = Doc<"agentTasks">;
 type ThreadRow = Doc<"threadMetadata">;
-type CurrentRun = { row: ThreadRow; run: NonNullable<ThreadRow["run"]> };
+export type CurrentRun = {
+  row: ThreadRow;
+  run: NonNullable<ThreadRow["run"]>;
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -182,6 +187,10 @@ async function endRun(
     errorMessage,
   });
   await ctx.db.patch("threadMetadata", current.row._id, { run: undefined });
+  // Run d'un sous-agent : son résultat revient au parent.
+  if (current.run.parent) {
+    await onSubagentRunEnded(ctx, current, status, errorMessage);
+  }
 
   // Les messages arrivés trop tard pour ce run : un stop les retire, sinon le
   // premier ouvre le run suivant (les autres y seront placés en steer).
@@ -382,6 +391,9 @@ async function abortRunTasks(ctx: MutationCtx, runMessageId: string) {
         endedAt: now,
         leaseExpiresAt: undefined,
       });
+      // Un sous-agent de premier plan s'arrête avec son parent. Celui
+      // d'arrière-plan a déjà rendu la main : son tool n'est plus vivant.
+      if (task.childThreadId) await abortRun(ctx, task.childThreadId);
     }
   }
 }
@@ -430,6 +442,8 @@ export async function startRun(
     profile: { name: string; agentName: string; maxGenerationsPerRun: number };
     model?: string;
     input: unknown;
+    /** Run d'un sous-agent : le tool call qui l'a lancé. */
+    parent?: NonNullable<ThreadRow["run"]>["parent"];
   },
 ): Promise<Id<"agentTasks">> {
   let row = await ThreadMetadataModels.findByThreadId(ctx, {
@@ -477,6 +491,7 @@ export async function startRun(
       runToken,
       maxGenerations: args.profile.maxGenerationsPerRun,
       ...(args.model !== undefined ? { model: args.model } : {}),
+      ...(args.parent ? { parent: args.parent } : {}),
     },
   });
   return generationTaskId;
@@ -825,11 +840,6 @@ export const completeGeneration = internalMutation({
     const toolTaskIds: Id<"agentTasks">[] = [];
     const kernelTasks: { taskId: Id<"agentTasks">; result: string }[] = [];
     for (const call of args.toolCalls) {
-      // `load_tools` est résolu ici même : c'est l'état du run qui change.
-      const kernelResult =
-        call.toolName === LOAD_TOOLS
-          ? await applyLoadTools(ctx, task, current, call.input)
-          : null;
       const toolTaskId = await ctx.db.insert("agentTasks", {
         kind: agentTaskKinds.tool,
         profile: task.profile,
@@ -847,8 +857,27 @@ export const completeGeneration = internalMutation({
         explanation: readExplanation(call.input),
         replay: call.replay,
       });
-      if (kernelResult === null) toolTaskIds.push(toolTaskId);
-      else kernelTasks.push({ taskId: toolTaskId, result: kernelResult });
+      if (!KERNEL_TOOL_NAMES.includes(call.toolName)) {
+        toolTaskIds.push(toolTaskId);
+        continue;
+      }
+      // Tool du kernel : résolu ici même, ou mis en attente d'un événement.
+      const outcome = await startKernelTool(ctx, {
+        generation: task,
+        toolTaskId,
+        toolName: call.toolName,
+        current,
+        input: call.input,
+      });
+      if ("done" in outcome) {
+        kernelTasks.push({ taskId: toolTaskId, result: outcome.done });
+      } else {
+        await ctx.db.patch("agentTasks", toolTaskId, {
+          status: agentTaskStatuses.waiting,
+          startedAt: now,
+          leaseExpiresAt: undefined,
+        });
+      }
     }
     // Une seule action pour tout le round (cf. tool.runRound).
     if (toolTaskIds.length > 0) {
@@ -868,6 +897,64 @@ export const completeGeneration = internalMutation({
     }
   },
 });
+
+export type KernelToolStart = {
+  generation: Task;
+  toolTaskId: Id<"agentTasks">;
+  toolName: string;
+  current: CurrentRun;
+  input: unknown;
+};
+
+/** `done` : le résultat, tout de suite. `wait` : un événement le donnera. */
+export type KernelToolOutcome = { done: string } | { wait: true };
+
+async function startKernelTool(
+  ctx: MutationCtx,
+  start: KernelToolStart,
+): Promise<KernelToolOutcome> {
+  switch (start.toolName) {
+    case LOAD_TOOLS:
+      return {
+        done: await applyLoadTools(
+          ctx,
+          start.generation,
+          start.current,
+          start.input,
+        ),
+      };
+    case RUN_SUBAGENT:
+      return spawnSubagent(ctx, start);
+    default:
+      return { done: `Unknown tool ${start.toolName}.` };
+  }
+}
+
+/**
+ * Écrit le résultat d'un tool resté `waiting` (cf. kernelTools.ts) : fin d'un
+ * sous-agent, réponse de l'utilisateur. Sans effet si le tool n'attend plus
+ * (run abandonné entre-temps). Comme tout tool, le dernier du round enchaîne.
+ */
+export async function resolveWaitingTool(
+  ctx: MutationCtx,
+  taskId: Id<"agentTasks">,
+  outcome: { status: "completed" | "failed"; output: string },
+): Promise<boolean> {
+  const task = await ctx.db.get("agentTasks", taskId);
+  if (
+    !task ||
+    task.kind !== agentTaskKinds.tool ||
+    task.status !== agentTaskStatuses.waiting
+  ) {
+    return false;
+  }
+  await finishTool(ctx, task, {
+    status: outcome.status,
+    output: { type: "text", value: outcome.output },
+    ...(outcome.status === "failed" ? { error: outcome.output } : {}),
+  });
+  return true;
+}
 
 /** Ajoute au run les tools demandés ; rend ce que le modèle lira. */
 async function applyLoadTools(

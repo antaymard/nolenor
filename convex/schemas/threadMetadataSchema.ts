@@ -120,6 +120,18 @@ const threadRunValidator = v.object({
   // Tools différés chargés par le modèle (`load_tools`) : décrits à toutes
   // les générations suivantes du run.
   loadedTools: v.optional(v.array(v.string())),
+  // Run d'un sous-agent : le tool call du parent qui l'a lancé. À la fin du
+  // run, son résultat y est écrit (premier plan) ou renvoyé au thread parent
+  // en followUp (arrière-plan).
+  parent: v.optional(
+    v.object({
+      taskId: v.id("agentTasks"),
+      threadId: v.string(),
+      profile: v.string(),
+      background: v.boolean(),
+      model: v.optional(v.string()),
+    }),
+  ),
 });
 
 const threadMetadataValidator = v.object({

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { stepCountIs } from "ai";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
-import { modelTools } from "./deferredTools";
+import { runModelTools } from "./kernelTools";
 import {
   errorText,
   isContextOverflowError,
@@ -69,7 +69,6 @@ export const run = internalAction({
       });
 
       const agent = profile.agent(run);
-      const tools = profile.tools(run);
 
       let streamError: unknown;
       const result = await agent.streamText(
@@ -78,11 +77,7 @@ export const run = internalAction({
         {
           promptMessageId: claim.promptMessageId,
           system: prompts.systemPrompt,
-          tools: modelTools(
-            tools,
-            profile.deferredTools ?? [],
-            claim.loadedTools,
-          ),
+          tools: runModelTools(profile, run, claim.loadedTools),
           stopWhen: stepCountIs(1),
           // Une erreur envoyée par le provider DANS le stream ne fait rien
           // lever : sans ce relais, la génération finirait « réussie » et

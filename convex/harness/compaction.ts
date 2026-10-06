@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
-import { modelTools } from "./deferredTools";
+import { runModelTools } from "./kernelTools";
 import { errorText, isRetryableGenerationError } from "./errors";
 import { getProfile, historyBudget } from "./profiles";
 import {
@@ -152,11 +152,7 @@ export const run = internalAction({
               thread,
               {
                 system: prompts.systemPrompt,
-                tools: modelTools(
-                  profile.tools(claim.run),
-                  profile.deferredTools ?? [],
-                  claim.loadedTools,
-                ),
+                tools: runModelTools(profile, claim.run, claim.loadedTools),
                 toolChoice: "none",
                 prompt: compactionRequest(settings.instructions),
               },

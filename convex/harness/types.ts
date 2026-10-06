@@ -85,6 +85,10 @@ export interface Profile {
   ): Promise<ContextSection[]>;
   memory?: MemoryProvider;
   compaction?: CompactionSettings;
+  /** Le profil des sous-agents que ce profil peut lancer (`run_subAgent`). */
+  subagents?: { profile: string };
+  /** Peut poser une question à l'utilisateur et l'attendre (`ask_user`). */
+  askUser?: boolean;
 }
 
 /**

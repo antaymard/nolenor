@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 // Harness : kernel (phase 1), messages pendant un run (phase 2), retry et
 // changement de modèle (phase 3a), deltas `<system_update>` (phase 3b),
-// tools différés et halo des nodes écrits (phase 3c), compaction (phase 4).
+// tools différés et halo des nodes écrits (phase 3c), compaction (phase 4),
+// sous-agents (phase 5a).
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -75,16 +76,7 @@ function setModel(
       return { stream: failingStream(failure) };
     }
     const result = await doStream(options);
-    const stream = result.stream.pipeThrough(
-      new TransformStream({
-        transform(part, controller) {
-          controller.enqueue(
-            part.type === "finish" ? { ...part, usage: V3_USAGE } : part,
-          );
-        },
-      }),
-    );
-    return { ...result, stream };
+    return { ...result, stream: result.stream.pipeThrough(withV3Usage()) };
   };
   const doGenerate = mock.doGenerate.bind(mock);
   mock.doGenerate = async (options) => ({
@@ -92,6 +84,33 @@ function setModel(
     usage: V3_USAGE,
   });
   model = mock;
+}
+
+function withV3Usage() {
+  return new TransformStream({
+    transform(part, controller) {
+      controller.enqueue(
+        part.type === "finish" ? { ...part, usage: V3_USAGE } : part,
+      );
+    },
+  });
+}
+
+/**
+ * Un modèle qui répond selon son prompt : quand plusieurs runs tournent en
+ * parallèle (parent et sous-agent), l'ordre des appels n'est pas fixé.
+ */
+function setResponder(respond: (prompt: string) => LanguageModelV3Content[]) {
+  setModel([[text("unused")]]);
+  const base = model;
+  base.doStream = async (options) => {
+    base.doStreamCalls.push(options);
+    const once = mockModel({
+      contentSteps: [respond(JSON.stringify(options.prompt))],
+    });
+    const result = await once.doStream(options);
+    return { ...result, stream: result.stream.pipeThrough(withV3Usage()) };
+  };
 }
 
 /** Un stream qui commence à répondre, puis reçoit une erreur du provider. */
@@ -177,7 +196,20 @@ function testProfile(name: string, maxGenerationsPerRun: number): Profile {
   };
 }
 
-registerProfile(testProfile("test", 25));
+registerProfile({
+  ...testProfile("test", 25),
+  subagents: { profile: "test-worker" },
+});
+// Le sous-agent : son brief tient lieu de prompt.
+registerProfile({
+  ...testProfile("test-worker", 10),
+  async prepareRun(_ctx, _run, input) {
+    return {
+      systemPrompt: "WORKER SYSTEM PROMPT",
+      llmPrompt: (input as { brief: string }).brief,
+    };
+  },
+});
 registerProfile(testProfile("test-max2", 2));
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1390,5 +1422,115 @@ describe("phase 4 — compaction", () => {
     // remonte à son appel.
     expect(findCut(docs, 20_000)?._id).toBe("b");
     expect(findCut(docs.slice(1), 20_000)).toBeNull();
+  });
+});
+
+describe("phase 5a — sous-agents", () => {
+  async function childThreadOf(t: T, parentThreadId: string) {
+    return t.run(async (ctx) =>
+      (await ctx.db.query("threadMetadata").collect()).find(
+        (row) => row.masterThreadId === parentThreadId,
+      ),
+    );
+  }
+
+  test("premier plan : le parent attend, le rapport devient le résultat du tool", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setResponder((prompt) =>
+      prompt.includes("WORKER SYSTEM PROMPT")
+        ? [text("Child report")]
+        : prompt.includes("Child report")
+          ? [text("Parent done")]
+          : [call("run_subAgent", { instructions: "Summarize the docs" })],
+    );
+
+    const runMessageId = await send(t, seed, "Delegate this");
+    await drain(t);
+
+    expect(roles(await transcript(t, seed.threadId))).toEqual([
+      "user:text",
+      "assistant:tool-call",
+      "tool:tool-result",
+      "assistant:text",
+    ]);
+    const child = await childThreadOf(t, seed.threadId);
+    expect(child).toMatchObject({ runStatus: "idle", canvasId: seed.canvasId });
+    expect(child?.run).toBeUndefined();
+    const childMessages = await transcript(t, child!.threadId);
+    expect(childMessages[0].text).toBe("Summarize the docs");
+
+    const spawn = (await tasksOf(t, runMessageId)).find(
+      (task) => task.toolName === "run_subAgent",
+    );
+    expect(spawn).toMatchObject({
+      status: "completed",
+      childThreadId: child!.threadId,
+    });
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("arrière-plan : le parent continue, le rapport revient en followUp", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setResponder((prompt) =>
+      prompt.includes("WORKER SYSTEM PROMPT")
+        ? [text("Child report")]
+        : prompt.includes("subagent_result")
+          ? [text("It found the answer")]
+          : prompt.includes("Started in the background")
+            ? [text("Working on it in the background")]
+            : [call("run_subAgent", { instructions: "Long job", background: true })],
+    );
+
+    await send(t, seed, "Do the long job");
+    await drain(t);
+
+    const docs = await transcript(t, seed.threadId);
+    const followUp = docs.find(
+      (doc) => doc.message?.role === "user" && doc.text?.includes("<subagent_result"),
+    );
+    expect(followUp?.text).toContain("Child report");
+    expect(docs[docs.length - 1].text).toBe("It found the answer");
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+    expect((await childThreadOf(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("arrêt du parent : le sous-agent de premier plan s'arrête aussi", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setResponder((prompt) =>
+      prompt.includes("WORKER SYSTEM PROMPT")
+        ? [text("Child report")]
+        : [call("run_subAgent", { instructions: "Slow job" })],
+    );
+    const runMessageId = await send(t, seed, "Delegate");
+    await runOneLayer(t); // génération du parent : le sous-agent est lancé
+
+    expect(await t.run((ctx) => abortRun(ctx, seed.threadId))).toBe(true);
+    await drain(t);
+
+    const child = await childThreadOf(t, seed.threadId);
+    expect(child?.runStatus).toBe("aborted");
+    const spawn = (await tasksOf(t, runMessageId)).find(
+      (task) => task.toolName === "run_subAgent",
+    );
+    expect(spawn?.status).toBe("aborted");
+    // Le sous-agent n'a jamais appelé le modèle.
+    expect(model.doStreamCalls).toHaveLength(1);
+  });
+
+  test("canvas invalide : le modèle reçoit l'erreur, rien n'est lancé", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([
+      [call("run_subAgent", { instructions: "Job", canvasId: "not-a-canvas" })],
+      [text("Sorry")],
+    ]);
+    await send(t, seed, "Delegate");
+    await drain(t);
+
+    expect(promptText(1)).toContain("is not a valid canvas id");
+    expect(await childThreadOf(t, seed.threadId)).toBeFalsy();
   });
 });

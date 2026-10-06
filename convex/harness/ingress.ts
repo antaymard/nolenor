@@ -78,8 +78,10 @@ export async function recordAttachments(
   });
 }
 
+/** Retire les messages de l'utilisateur en file ; ceux de l'app attendent. */
 export async function withdrawQueued(ctx: MutationCtx, threadId: string) {
   for (const submission of await listQueued(ctx, threadId)) {
+    if (submission.origin) continue;
     await ctx.db.patch("submissions", submission._id, {
       status: submissionStatuses.withdrawn,
     });
@@ -101,11 +103,14 @@ export const listQueuedSubmissions = query({
         q.eq("threadId", threadId).eq("status", submissionStatuses.queued),
       )
       .take(PLACE_BATCH);
-    return queued.map((submission) => ({
-      _id: submission._id,
-      _creationTime: submission._creationTime,
-      prompt: submission.prompt,
-    }));
+    // Les messages de l'app (rapports de sous-agents) n'ont pas de bulle.
+    return queued
+      .filter((submission) => !submission.origin)
+      .map((submission) => ({
+        _id: submission._id,
+        _creationTime: submission._creationTime,
+        prompt: submission.prompt,
+      }));
   },
 });
 

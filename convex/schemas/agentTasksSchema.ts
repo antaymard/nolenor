@@ -26,6 +26,9 @@ const agentTaskKinds = {
 const agentTaskStatuses = {
   pending: "pending",
   running: "running",
+  // Une génération qui attend ses tools ; un tool qui attend une réponse
+  // venue d'ailleurs (fin d'un sous-agent, réponse de l'utilisateur) — sans
+  // lease ni action en cours (cf. harness/kernelTools.ts).
   waiting: "waiting",
   completed: "completed",
   failed: "failed",
@@ -113,6 +116,9 @@ const agentTaskValidator = v.object({
   explanation: v.optional(v.string()),
   replay: v.optional(vToolReplay),
   resultMessageId: v.optional(v.string()),
+  // Tool résolu ailleurs (cf. harness/kernelTools.ts) : le thread du
+  // sous-agent qu'il a lancé.
+  childThreadId: v.optional(v.string()),
 });
 
 type AgentTaskStatus = Infer<typeof vAgentTaskStatus>;

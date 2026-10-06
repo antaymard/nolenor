@@ -1,23 +1,22 @@
 import { Agent } from "@convex-dev/agent";
 import { components, internal } from "../../_generated/api";
-import type { Profile, RunInfo } from "../../harness/types";
-import { escapeXmlAttribute } from "../../lib/xml";
+import type { Profile } from "../../harness/types";
 import { aiUsageSources } from "../../schemas/aiUsageSourceSchema";
 import { threadAgentNames } from "../../schemas/threadMetadataSchema";
-import {
-  chatModelOptions,
-  chatModelValues,
-  defaultChatModelValue,
-  getChatModel,
-  isModelMultimodal,
-  type ChatModelValues,
-} from "../agents";
+import { isModelMultimodal } from "../agents";
 import { toolAgentNames } from "../agentConfig";
 import { generateMessageContext } from "../helpers/generateMessageContext";
 import type { NoleMessageMetadata } from "../nole";
 import { generateNoleSystemPrompt } from "../systemPrompts/noleSystemPrompt";
-import { agentToolRegistry, getToolsForAgent } from "../tools";
+import { getToolsForAgent } from "../tools";
 import { createUsageHandler } from "../usage";
+import {
+  canvasCompaction,
+  canvasStepContext,
+  deferredToolNames,
+  languageModel,
+  toolReplay,
+} from "./shared";
 
 /** Ce que `nole.saveMessage` confie à la première génération d'un run. */
 export type NoleRunInput = {
@@ -34,17 +33,6 @@ function readRunInput(input: unknown): NoleRunInput {
     throw new Error("Nolë run input is missing its userPrompt.");
   }
   return input as NoleRunInput;
-}
-
-/** Un modèle stocké sur une tâche peut avoir été retiré de la liste depuis. */
-function resolveModel(model: string | undefined): ChatModelValues {
-  return (chatModelValues as readonly string[]).includes(model ?? "")
-    ? (model as ChatModelValues)
-    : defaultChatModelValue;
-}
-
-function languageModel(run: RunInfo) {
-  return getChatModel(resolveModel(run.model));
 }
 
 /**
@@ -65,36 +53,6 @@ export function noleMessageContent(
     ? `${generatedMessageContext}\n\n<user_message>\n${userPrompt}\n</user_message>`
     : userPrompt;
 }
-
-/** Fenêtre par défaut d'un modèle absent du catalogue. */
-const DEFAULT_CONTEXT_WINDOW = 128_000;
-
-/** Le format du résumé de compaction (cf. Pi), avec des nodes à la place des fichiers. */
-const COMPACTION_INSTRUCTIONS = `Use exactly these sections, in the language the user writes in:
-
-## Goal
-What the user is trying to achieve, in their terms.
-## Constraints & Preferences
-Requirements, tone, formats, things to avoid — anything the user asked for that still applies.
-## Progress
-- Done: what was completed (cite node ids, e.g. "created table Q12ab (Roadmap)").
-- In progress: what was being worked on when the context was summarized.
-- Blocked: what failed or is waiting on the user.
-## Key Decisions
-Each decision with its rationale.
-## Next Steps
-What remains to do, in order.
-## Critical Context
-Facts, ids, values and findings you would need to continue without re-reading everything.
-
-Be specific and dense. Do not list every node you touched: the app appends that list itself.`;
-
-const replayByTool = new Map(
-  agentToolRegistry.map((registration) => [
-    registration.config.name,
-    registration.config.replay ?? "unsafe",
-  ]),
-);
 
 /**
  * Nolë, l'agent du panel. Reprend à l'identique ce que faisait
@@ -169,63 +127,9 @@ export const noleProfile: Profile = {
     });
   },
 
-  replay(toolName) {
-    return replayByTool.get(toolName) ?? "unsafe";
-  },
-
-  deferredTools: agentToolRegistry
-    .filter((registration) => registration.config.deferred)
-    .map((registration) => registration.config.name),
-
-  compaction: {
-    contextWindow(run) {
-      const model = resolveModel(run.model);
-      return (
-        chatModelOptions.find((option) => option.value === model)?.maxContext ??
-        DEFAULT_CONTEXT_WINDOW
-      );
-    },
-    // ~400k pour les modèles actuels : au-delà, le coût de relecture de
-    // chaque step et la dégradation du « milieu » commencent à compter.
-    thresholdRatio: 0.4,
-    instructions: COMPACTION_INSTRUCTIONS,
-    async trackedState(ctx, run) {
-      return ctx.runQuery(internal.ia.helpers.threadNodeDigest.threadNodeDigest, {
-        threadId: run.threadId,
-      });
-    },
-  },
-
-  // Au premier step, le message d'ouverture porte déjà les changements depuis
-  // le message précédent : le delta ne commence qu'au deuxième.
-  async stepContext(ctx, run, window) {
-    if (window.since === null) return [];
-    const changes = await ctx.runQuery(
-      internal.ia.helpers.canvasChangesDuringRun.canvasChangesDuringRun,
-      {
-        canvasId: run.canvasId,
-        threadId: run.threadId,
-        runMessageId: run.runMessageId,
-        since: window.since,
-        until: window.until,
-      },
-    );
-    if (changes.nodes.length === 0) return [];
-    const lines = changes.nodes.map(
-      (node) =>
-        `<node id="${node.id}" type="${node.type}" title="${escapeXmlAttribute(node.title)}"${node.frameId ? ` frameId="${node.frameId}"` : ""}/>`,
-    );
-    if (changes.more > 0) {
-      lines.push(`… and ${changes.more} more (use list_nodes for the rest).`);
-    }
-    return [
-      {
-        tag: "canvas_changes",
-        content: [
-          "Modified on the canvas by someone else since your previous step (not by you). They may or may not matter for the task; re-read a node before relying on what you read earlier.",
-          ...lines,
-        ].join("\n"),
-      },
-    ];
-  },
+  replay: toolReplay,
+  deferredTools: deferredToolNames,
+  compaction: canvasCompaction,
+  stepContext: canvasStepContext,
+  subagents: { profile: "worker" },
 };

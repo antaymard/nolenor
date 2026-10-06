@@ -130,10 +130,16 @@ export function fromCanvasNodesToXyNodes(canvasNodes: CanvasNode[]): Node[] {
  * restant celle de la frame dépliée (cf. `src/lib/frameVariant.ts`). `measured`
  * suit, sinon React Flow garderait l'ancienne boîte pour la sélection et les
  * edges jusqu'à la prochaine mesure.
+ *
+ * Elle se peint aussi comme un node ordinaire, au-dessus des edges : une frame
+ * compactée avant que la variante ne fasse changer de bande (ou par l'agent)
+ * garde son `zIndex` négatif de frame dépliée, ramené ici dans la bande des
+ * nodes (cf. `nodeLayering`).
  */
 function withCompactFrameSize(xyNode: Node): Node {
   return {
     ...xyNode,
+    ...((xyNode.zIndex ?? 0) < 0 && { zIndex: 0 }),
     width: FRAME_COMPACT_SIZE.width,
     height: FRAME_COMPACT_SIZE.height,
     measured: { ...FRAME_COMPACT_SIZE },

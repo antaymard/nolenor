@@ -25,6 +25,7 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useUpdateCanvasNode } from "@/hooks/useUpdateCanvasNode";
 import { useTitleNodeSizing } from "./useTitleNodeSizing";
+import { TITLE_HEADING_CLASSNAMES } from "./titleLevelStyles";
 import { parseTitleHeading } from "@/../convex/lib/titleHeading";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 
@@ -37,9 +38,9 @@ const LEVELS: Array<{
   icon: React.ReactNode;
   className: string;
 }> = [
-  { value: "h1", icon: <LuHeading1 />, className: "text-3xl font-semibold" },
-  { value: "h2", icon: <LuHeading2 />, className: "text-2xl font-semibold" },
-  { value: "h3", icon: <LuHeading3 />, className: "text-lg font-semibold" },
+  { value: "h1", icon: <LuHeading1 />, className: TITLE_HEADING_CLASSNAMES.h1 },
+  { value: "h2", icon: <LuHeading2 />, className: TITLE_HEADING_CLASSNAMES.h2 },
+  { value: "h3", icon: <LuHeading3 />, className: TITLE_HEADING_CLASSNAMES.h3 },
   { value: "p", icon: <BiParagraph />, className: "text-base font-normal" },
 ];
 

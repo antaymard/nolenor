@@ -2,8 +2,10 @@ import { v } from "convex/values";
 import { stepCountIs, type ToolSet } from "ai";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { visibleTools } from "./deferredTools";
 import { isRetryableGenerationError } from "./errors";
 import { getProfile } from "./profiles";
+import { resolveSystemUpdate } from "./systemUpdate";
 import { assembleRunContext } from "./transcript";
 
 /**
@@ -74,6 +76,14 @@ export const run = internalAction({
           ...(await profile.prepareRun(ctx, run, claim.input)),
         }));
 
+      const systemUpdate = await resolveSystemUpdate(ctx, profile, run, {
+        taskId,
+        attempt,
+        window: claim.window,
+        seenMemoryIds: claim.seenMemoryIds,
+        systemUpdate: claim.systemUpdate,
+      });
+
       const agent = profile.agent(run);
       const tools = profile.tools(run);
 
@@ -84,7 +94,9 @@ export const run = internalAction({
         {
           promptMessageId: claim.promptMessageId,
           system: prompts.systemPrompt,
-          tools: describeOnly(tools),
+          tools: describeOnly(
+            visibleTools(tools, profile.deferredTools ?? [], claim.loadedTools),
+          ),
           stopWhen: stepCountIs(1),
           // Une erreur envoyée par le provider DANS le stream ne fait rien
           // lever : sans ce relais, la génération finirait « réussie » et
@@ -103,6 +115,12 @@ export const run = internalAction({
               promptMessageId: claim.promptMessageId,
               runMessageId: run.runMessageId,
               llmPrompt: prompts.llmPrompt,
+              updates: [
+                ...claim.updates,
+                ...(systemUpdate
+                  ? [{ beforeMessageId: null, content: systemUpdate }]
+                  : []),
+              ],
             }),
           saveStreamDeltas: {
             // Le découpage reste au mot : c'est lui qui donne le rendu « à la

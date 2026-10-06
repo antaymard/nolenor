@@ -44,6 +44,13 @@ export async function assembleRunContext(
     promptMessageId: string;
     runMessageId: string;
     llmPrompt: string;
+    /**
+     * Les `<system_update>` du run : chacun juste avant la réponse de sa
+     * génération (`beforeMessageId`), celui du step en cours (`null`) à la
+     * fin. Ceux des runs précédents ne sont jamais passés : ils n'existent
+     * plus pour le modèle.
+     */
+    updates?: { beforeMessageId: string | null; content: string }[];
   },
 ): Promise<ModelMessage[]> {
   const newestFirst: MessageDoc[] = [];
@@ -77,7 +84,41 @@ export async function assembleRunContext(
         ? { ...doc, message: { role: "user" as const, content: run.llmPrompt } }
         : doc,
     );
-  return docsToModelMessages(filterOutOrphanedToolMessages(window));
+  return withUpdates(filterOutOrphanedToolMessages(window), run.updates ?? []);
+}
+
+/**
+ * Intercale les deltas dans le contexte. Un delta est un message `user` du
+ * contexte seulement, jamais du transcript : un message `user` sauvé ouvrirait
+ * un nouvel order, et l'UI devrait le cacher.
+ */
+function withUpdates(
+  docs: MessageDoc[],
+  updates: { beforeMessageId: string | null; content: string }[],
+): ModelMessage[] {
+  const before = new Map<string, string>();
+  const atEnd: string[] = [];
+  for (const update of updates) {
+    if (update.beforeMessageId === null) atEnd.push(update.content);
+    else before.set(update.beforeMessageId, update.content);
+  }
+
+  const out: ModelMessage[] = [];
+  let segment: MessageDoc[] = [];
+  for (const doc of docs) {
+    const update = before.get(doc._id);
+    if (update !== undefined) {
+      out.push(...docsToModelMessages(segment), asUpdate(update));
+      segment = [];
+    }
+    segment.push(doc);
+  }
+  out.push(...docsToModelMessages(segment), ...atEnd.map(asUpdate));
+  return out;
+}
+
+function asUpdate(content: string): ModelMessage {
+  return { role: "user", content };
 }
 
 export type ToolResultOutput = ToolResultPart["output"];

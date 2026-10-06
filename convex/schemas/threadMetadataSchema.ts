@@ -117,6 +117,9 @@ const threadRunValidator = v.object({
   // Le modèle des générations à venir. Lu à chaque claim : un changement de
   // modèle pendant le run (sélecteur, steer) prend effet au step suivant.
   model: v.optional(v.string()),
+  // Tools différés chargés par le modèle (`load_tools`) : décrits à toutes
+  // les générations suivantes du run.
+  loadedTools: v.optional(v.array(v.string())),
 });
 
 const threadMetadataValidator = v.object({

@@ -15,6 +15,28 @@ export type RunInfo = {
   model?: string;
 };
 
+/** Une section d'un `<system_update>` : `<tag>content</tag>`. */
+export type ContextSection = { tag: string; content: string };
+
+/** La fenêtre d'un step : ce qui a changé entre `since` et `until`. */
+export type StepWindow = {
+  step: number;
+  /** Début de la génération précédente ; `null` au premier step. */
+  since: number | null;
+  until: number;
+};
+
+export type Memory = { id: string; content: string; score?: number };
+
+/**
+ * Une mémoire, vue par la harness : elle rend les souvenirs pertinents pour
+ * un step. La harness ne réinjecte jamais un souvenir déjà vu dans le run, et
+ * logue ce qu'elle injecte (`agentTasks.memories`).
+ */
+export interface MemoryProvider {
+  recall(ctx: ActionCtx, run: RunInfo, window: StepWindow): Promise<Memory[]>;
+}
+
 /** Ce que le modèle voit pour un run, figé à son ouverture (cf. runPrompts). */
 export type RunPrompts = {
   systemPrompt: string;
@@ -46,4 +68,20 @@ export interface Profile {
   tools(run: RunInfo): ToolSet;
   /** Un tool interrompu peut-il être relancé sans risque ? */
   replay(toolName: string): ToolReplay;
+  /**
+   * Ce qui a changé pendant la fenêtre du step (hors effets du run lui-même),
+   * envoyé au modèle en `<system_update>`. Le system prompt et le message
+   * d'ouverture restent figés : c'est ce qui garde le cache.
+   */
+  /**
+   * Tools que le modèle ne voit qu'après les avoir chargés (`load_tools`).
+   * `tools()` les rend quand même : c'est elle qui les exécute.
+   */
+  deferredTools?: readonly string[];
+  stepContext?(
+    ctx: ActionCtx,
+    run: RunInfo,
+    window: StepWindow,
+  ): Promise<ContextSection[]>;
+  memory?: MemoryProvider;
 }

@@ -131,6 +131,8 @@ function NodeFrame({
           "before:border-violet-400/60 before:shadow-[0_0_12px_rgba(139,92,246,0.25)]",
         noleActivity?.access === "write" &&
           "before:animate-pulse before:border-violet-600 before:shadow-[0_0_16px_rgba(124,58,237,0.45)]",
+        // Déjà écrit par le run en cours : un repère discret, jusqu'à sa fin.
+        noleActivity?.access === "written" && "before:border-violet-500/40",
         !canDrag && "nodrag",
         xyNode.selected
           ? cn(

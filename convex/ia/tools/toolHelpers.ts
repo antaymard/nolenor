@@ -106,6 +106,12 @@ export interface ToolConfig {
    * harness/tool.ts).
    */
   replay?: "safe" | "unsafe";
+  /**
+   * Tool rare : absent de ce que voit le modèle tant qu'il ne l'a pas chargé
+   * avec `load_tools` (cf. harness/deferredTools.ts). Chaque tool décrit coûte
+   * son schéma à chaque appel modèle, utilisé ou non.
+   */
+  deferred?: boolean;
 }
 
 // ── Error shaping ───────────────────────────────────────────────────────────

@@ -23,6 +23,8 @@ import {
   recordAttachments,
   withdrawQueued,
 } from "./ingress";
+import { LOAD_TOOLS, loadTools } from "./deferredTools";
+import { getProfile } from "./profiles";
 import { saveToolResult, type ToolResultOutput } from "./transcript";
 
 /**
@@ -497,6 +499,7 @@ export const claimGeneration = internalMutation({
       .unique();
 
     return {
+      ...(await runContextState(ctx, task, now)),
       taskId,
       attempt,
       profile: task.profile,
@@ -509,12 +512,79 @@ export const claimGeneration = internalMutation({
         ...(model !== undefined ? { model } : {}),
       },
       promptMessageId,
+      loadedTools: current.run.loadedTools ?? [],
       // L'entrée ne sert qu'à calculer les prompts du run, une fois.
       input: prompts ? null : (task.input ?? null),
       prompts: prompts
         ? { systemPrompt: prompts.systemPrompt, llmPrompt: prompts.llmPrompt }
         : null,
     };
+  },
+});
+
+/**
+ * Ce que la génération doit savoir des précédentes de son run : les deltas
+ * déjà envoyés (et où les replacer), les souvenirs déjà injectés, et le début
+ * de sa fenêtre — le début de la génération précédente.
+ */
+async function runContextState(ctx: MutationCtx, task: Task, now: number) {
+  const generations = await ctx.db
+    .query("agentTasks")
+    .withIndex("by_runMessageId_and_kind", (q) =>
+      q
+        .eq("runMessageId", task.runMessageId)
+        .eq("kind", agentTaskKinds.generation),
+    )
+    .take(500);
+  const step = task.step ?? 1;
+  const previous = generations.find((g) => (g.step ?? 1) === step - 1);
+
+  const updates: { beforeMessageId: string; content: string }[] = [];
+  const seenMemoryIds: string[] = [];
+  for (const generation of generations) {
+    // Une génération sans réponse n'a rien fait voir au modèle.
+    if (generation._id === task._id || !generation.responseMessageId) continue;
+    if (generation.systemUpdate) {
+      updates.push({
+        beforeMessageId: generation.responseMessageId,
+        content: generation.systemUpdate,
+      });
+    }
+    for (const memory of generation.memories ?? []) {
+      seenMemoryIds.push(memory.id);
+    }
+  }
+  return {
+    window: { step, since: previous?.startedAt ?? null, until: now },
+    updates,
+    seenMemoryIds,
+    // Déjà calculé par une tentative précédente : rejoué tel quel.
+    systemUpdate: task.systemUpdate ?? null,
+  };
+}
+
+/**
+ * Le delta du step, écrit une fois : une génération rejouée relit le même, et
+ * le modèle n'a jamais vu une information qui disparaît ensuite.
+ */
+export const saveSystemUpdate = internalMutation({
+  args: {
+    taskId: v.id("agentTasks"),
+    attempt: v.number(),
+    systemUpdate: v.string(),
+    memories: v.array(
+      v.object({ id: v.string(), score: v.optional(v.number()) }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get("agentTasks", args.taskId);
+    if (!task || task.attempt !== args.attempt) return null;
+    if (task.systemUpdate !== undefined) return task.systemUpdate;
+    await ctx.db.patch("agentTasks", args.taskId, {
+      systemUpdate: args.systemUpdate,
+      ...(args.memories.length > 0 ? { memories: args.memories } : {}),
+    });
+    return args.systemUpdate;
   },
 });
 
@@ -620,7 +690,13 @@ export const completeGeneration = internalMutation({
       status: agentTaskStatuses.waiting,
     });
     const toolTaskIds: Id<"agentTasks">[] = [];
+    const kernelTasks: { taskId: Id<"agentTasks">; result: string }[] = [];
     for (const call of args.toolCalls) {
+      // `load_tools` est résolu ici même : c'est l'état du run qui change.
+      const kernelResult =
+        call.toolName === LOAD_TOOLS
+          ? await applyLoadTools(ctx, task, current, call.input)
+          : null;
       const toolTaskId = await ctx.db.insert("agentTasks", {
         kind: agentTaskKinds.tool,
         profile: task.profile,
@@ -638,14 +714,45 @@ export const completeGeneration = internalMutation({
         explanation: readExplanation(call.input),
         replay: call.replay,
       });
-      toolTaskIds.push(toolTaskId);
+      if (kernelResult === null) toolTaskIds.push(toolTaskId);
+      else kernelTasks.push({ taskId: toolTaskId, result: kernelResult });
     }
     // Une seule action pour tout le round (cf. tool.runRound).
-    await ctx.scheduler.runAfter(0, internal.harness.tool.runRound, {
-      taskIds: toolTaskIds,
-    });
+    if (toolTaskIds.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.harness.tool.runRound, {
+        taskIds: toolTaskIds,
+      });
+    }
+    // Les tools du kernel finissent dans la transaction ; si le round n'a
+    // qu'eux, la génération suivante est créée ici même.
+    for (const kernelTask of kernelTasks) {
+      const toolTask = await ctx.db.get("agentTasks", kernelTask.taskId);
+      if (!toolTask) continue;
+      await finishTool(ctx, toolTask, {
+        status: agentTaskStatuses.completed,
+        output: { type: "text", value: kernelTask.result },
+      });
+    }
   },
 });
+
+/** Ajoute au run les tools demandés ; rend ce que le modèle lira. */
+async function applyLoadTools(
+  ctx: MutationCtx,
+  generation: Task,
+  current: CurrentRun,
+  input: unknown,
+): Promise<string> {
+  const deferred = getProfile(generation.profile).deferredTools ?? [];
+  const { loaded, result } = loadTools(
+    input,
+    deferred,
+    current.run.loadedTools ?? [],
+  );
+  current.run = { ...current.run, loadedTools: loaded };
+  await ctx.db.patch("threadMetadata", current.row._id, { run: current.run });
+  return result;
+}
 
 export const failGeneration = internalMutation({
   args: {

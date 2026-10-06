@@ -1,6 +1,7 @@
 import { Agent } from "@convex-dev/agent";
 import { components, internal } from "../../_generated/api";
 import type { Profile, RunInfo } from "../../harness/types";
+import { escapeXmlAttribute } from "../../lib/xml";
 import { aiUsageSources } from "../../schemas/aiUsageSourceSchema";
 import { threadAgentNames } from "../../schemas/threadMetadataSchema";
 import {
@@ -146,5 +147,42 @@ export const noleProfile: Profile = {
 
   replay(toolName) {
     return replayByTool.get(toolName) ?? "unsafe";
+  },
+
+  deferredTools: agentToolRegistry
+    .filter((registration) => registration.config.deferred)
+    .map((registration) => registration.config.name),
+
+  // Au premier step, le message d'ouverture porte déjà les changements depuis
+  // le message précédent : le delta ne commence qu'au deuxième.
+  async stepContext(ctx, run, window) {
+    if (window.since === null) return [];
+    const changes = await ctx.runQuery(
+      internal.ia.helpers.canvasChangesDuringRun.canvasChangesDuringRun,
+      {
+        canvasId: run.canvasId,
+        threadId: run.threadId,
+        runMessageId: run.runMessageId,
+        since: window.since,
+        until: window.until,
+      },
+    );
+    if (changes.nodes.length === 0) return [];
+    const lines = changes.nodes.map(
+      (node) =>
+        `<node id="${node.id}" type="${node.type}" title="${escapeXmlAttribute(node.title)}"${node.frameId ? ` frameId="${node.frameId}"` : ""}/>`,
+    );
+    if (changes.more > 0) {
+      lines.push(`… and ${changes.more} more (use list_nodes for the rest).`);
+    }
+    return [
+      {
+        tag: "canvas_changes",
+        content: [
+          "Modified on the canvas by someone else since your previous step (not by you). They may or may not matter for the task; re-read a node before relying on what you read earlier.",
+          ...lines,
+        ].join("\n"),
+      },
+    ];
   },
 };

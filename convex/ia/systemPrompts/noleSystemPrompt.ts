@@ -149,6 +149,10 @@ ${nodeTypesPresentation}
   </instructions>
 </tool_use_instructions>
 
+<system_updates>
+Between your steps, the app may add a <system_update> message. It is not written by the user: it tells you what changed since your previous step — for instance nodes someone else modified on the canvas while you were working. Take it into account (re-read a changed node before relying on it), but don't reply to it and never mention the tag itself.
+</system_updates>
+
 <output_formatting>
 1. Use text responses to follow up, confirm, keep the user informed, or provide simple answers, in mostly short responses, with little to no formatting in a old-chat style.
 2. Prefer creating nodes to answer, rather than relying on complex and heavily formatted text responses.

@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 // Harness : kernel (phase 1), messages pendant un run (phase 2), retry et
-// changement de modèle (phase 3a).
+// changement de modèle (phase 3a), deltas `<system_update>` (phase 3b),
+// tools différés et halo des nodes écrits (phase 3c).
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -28,7 +29,7 @@ import { registerProfile } from "./profiles";
 import { isRetryableGenerationError } from "./errors";
 import { abortRun, setRunModel, startRun, submitToThread } from "./tasks";
 import { assembleRunContext } from "./transcript";
-import type { Profile } from "./types";
+import type { ContextSection, Memory, Profile, StepWindow } from "./types";
 
 
 
@@ -40,6 +41,10 @@ type RecordingModel = ReturnType<typeof mockModel> & {
 
 let model: RecordingModel;
 let writeExecutions = 0;
+// Ce que le profil de test rend comme delta et comme souvenirs, par step.
+let stepSections: (window: StepWindow) => ContextSection[] = () => [];
+let recalled: (window: StepWindow) => Memory[] = () => [];
+let stepContextCalls = 0;
 
 /**
  * Le mockModel du composant émet son usage dans l'ancien format plat, que
@@ -125,6 +130,11 @@ function testProfile(name: string, maxGenerationsPerRun: number): Profile {
             throw new Error("Kaboom");
           },
         }),
+        rare: tool({
+          description: "A rarely needed tool. Does rare things.",
+          inputSchema: z.object({ explanation: z.string() }),
+          execute: async () => "rare done",
+        }),
         write: tool({
           description: "Side effect",
           inputSchema: z.object({ explanation: z.string() }),
@@ -137,6 +147,16 @@ function testProfile(name: string, maxGenerationsPerRun: number): Profile {
     },
     replay(toolName) {
       return toolName === "echo" ? "safe" : "unsafe";
+    },
+    deferredTools: ["rare"],
+    async stepContext(_ctx, _run, window) {
+      stepContextCalls++;
+      return stepSections(window);
+    },
+    memory: {
+      async recall(_ctx, _run, window) {
+        return recalled(window);
+      },
     },
   };
 }
@@ -301,6 +321,9 @@ const promptText = (i: number) => JSON.stringify(model.doStreamCalls[i].prompt);
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   writeExecutions = 0;
+  stepSections = () => [];
+  recalled = () => [];
+  stepContextCalls = 0;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -911,5 +934,311 @@ describe("phase 3a — retry et changement de modèle", () => {
       isRetryableGenerationError({ error: { code: 502, message: "Upstream error" } }),
     ).toBe(true);
     expect(isRetryableGenerationError(new Error("Invalid tool schema"))).toBe(false);
+  });
+});
+
+describe("phase 3b — deltas <system_update>", () => {
+  const countOf = (haystack: string, needle: string) =>
+    haystack.split(needle).length - 1;
+
+  test("placé avant la réponse de son step, puis oublié au run suivant", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([
+      [call("echo", { text: "a" })],
+      [call("echo", { text: "b" })],
+      [text("Done")],
+      [text("Second run")],
+    ]);
+    stepSections = (window) =>
+      window.since === null
+        ? []
+        : [{ tag: "canvas_changes", content: `change-${window.step}` }];
+
+    const runMessageId = await send(t, seed, "First");
+    await drain(t);
+
+    // Step 1 : rien (le message d'ouverture porte déjà le contexte).
+    expect(promptText(0)).not.toContain("system_update");
+    // Step 2 : le delta en queue, après le résultat du round.
+    const second = promptText(1);
+    expect(second.indexOf("change-2")).toBeGreaterThan(second.indexOf("echo:a"));
+    // Step 3 : le delta du step 2 reste à sa place, le nouveau en queue.
+    const third = promptText(2);
+    expect(third.indexOf("change-2")).toBeLessThan(third.indexOf("echo:b"));
+    expect(third.indexOf("change-3")).toBeGreaterThan(third.indexOf("echo:b"));
+    expect(countOf(third, "<system_update>")).toBe(2);
+
+    const step2 = (await tasksOf(t, runMessageId)).find(
+      (task) => task.kind === "generation" && task.step === 2,
+    );
+    expect(step2?.systemUpdate).toContain("<canvas_changes>");
+    // Rien dans le transcript : l'UI n'a rien à filtrer.
+    expect(JSON.stringify(await transcript(t, seed.threadId))).not.toContain(
+      "system_update",
+    );
+
+    // Run suivant : les deltas du précédent n'existent plus pour le modèle.
+    await send(t, seed, "Again");
+    await drain(t);
+    expect(promptText(3)).not.toContain("change-");
+  });
+
+  test("mémoire : jamais deux fois le même souvenir dans un run, injections loguées", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("Done")]]);
+    recalled = (window) =>
+      window.step === 1
+        ? [
+            { id: "m1", content: "memory-one", score: 0.9 },
+            { id: "m2", content: "memory-two", score: 0.7 },
+          ]
+        : [
+            { id: "m2", content: "memory-two", score: 0.8 },
+            { id: "m3", content: "memory-three" },
+          ];
+
+    const runMessageId = await send(t, seed, "First");
+    await drain(t);
+
+    expect(promptText(0)).toContain("memory-one");
+    const second = promptText(1);
+    expect(countOf(second, "memory-two")).toBe(1);
+    expect(second.indexOf("memory-three")).toBeGreaterThan(second.indexOf("echo:a"));
+
+    const generations = (await tasksOf(t, runMessageId))
+      .filter((task) => task.kind === "generation")
+      .sort((a, b) => (a.step ?? 0) - (b.step ?? 0));
+    expect(generations.map((g) => g.memories)).toEqual([
+      [
+        { id: "m1", score: 0.9 },
+        { id: "m2", score: 0.7 },
+      ],
+      [{ id: "m3" }],
+    ]);
+  });
+
+  test("génération rejouée : le même delta, calculé une seule fois", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("Done")]], {
+      1: "503 Service Unavailable",
+    });
+    stepSections = (window) =>
+      window.since === null
+        ? []
+        : [{ tag: "canvas_changes", content: `computed-${stepContextCalls}` }];
+
+    await send(t, seed, "First");
+    await runOneLayer(t); // step 1
+    await runOneLayer(t); // round de tools → step 2 planifié
+    await runOneLayer(t); // step 2, tentative 1 : échoue
+    vi.advanceTimersByTime(2000);
+    await drain(t);
+
+    expect(model.doStreamCalls).toHaveLength(3);
+    expect(stepContextCalls).toBe(2);
+    expect(promptText(1)).toContain("computed-2");
+    expect(promptText(2)).toContain("computed-2");
+  });
+
+  test("changements du canvas pendant le run : ceux des autres, pas ceux du run", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    const runMessageId = "run-message";
+    const at = 1_000_000;
+    await t.run(async (ctx) => {
+      const node = async (id: string, updatedAt: number) => {
+        const nodeDataId = await ctx.db.insert("nodeDatas", {
+          canvasId: seed.canvasId,
+          type: "title",
+          updatedAt,
+          values: { text: id },
+        });
+        await ctx.db.insert("nodes", {
+          id,
+          nodeDataId,
+          canvasId: seed.canvasId,
+          type: "title",
+          position: { x: 0, y: 0 },
+          width: 100,
+          height: 40,
+        });
+        return nodeDataId;
+      };
+      await node("before", at - 10);
+      await node("byUser", at + 10);
+      await node("writtenByRun", at + 20);
+      const created = await node("createdByRun", at + 30);
+      await node("after", at + 500);
+
+      const base = {
+        profile: "test",
+        threadId: seed.threadId,
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        runMessageId,
+        status: "completed" as const,
+        attempt: 1,
+      };
+      const generationId = await ctx.db.insert("agentTasks", {
+        ...base,
+        kind: "generation",
+        step: 1,
+      });
+      await ctx.db.insert("agentTasks", {
+        ...base,
+        kind: "tool",
+        ownerTaskId: generationId,
+        toolName: "write",
+        replay: "unsafe",
+        input: { nodeId: "writtenByRun" },
+      });
+      const row = await ctx.db
+        .query("threadMetadata")
+        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
+        .unique();
+      await ctx.db.patch("threadMetadata", row!._id, {
+        touchedNodes: [
+          { nodeDataId: created, kind: "created", at: Date.now() + 1000 },
+        ],
+      });
+    });
+
+    const changes = await t.query(
+      internal.ia.helpers.canvasChangesDuringRun.canvasChangesDuringRun,
+      {
+        canvasId: seed.canvasId,
+        threadId: seed.threadId,
+        runMessageId,
+        since: at,
+        until: at + 100,
+      },
+    );
+    expect(changes.nodes.map((node) => node.id)).toEqual(["byUser"]);
+  });
+});
+
+describe("phase 3c — tools différés et nodes écrits", () => {
+  const toolNames = (i: number) =>
+    ((model.doStreamCalls[i] as { tools?: { name: string }[] }).tools ?? []).map(
+      (t) => t.name,
+    );
+
+  test("load_tools : résolu sans action, le tool est décrit pour le reste du run", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([
+      [call("load_tools", { names: ["rare", "nope"] })],
+      [call("rare")],
+      [text("Done")],
+    ]);
+    const runMessageId = await send(t, seed, "Use the rare tool");
+    await runOneLayer(t); // step 1 : load_tools
+    // Résolu dans la transaction : le step 2 est déjà planifié, sans round.
+    const tasks = await tasksOf(t, runMessageId);
+    expect(tasks.find((task) => task.toolName === "load_tools")?.status).toBe(
+      "completed",
+    );
+    expect(tasks.filter((task) => task.kind === "generation")).toHaveLength(2);
+    await drain(t);
+
+    expect(toolNames(0)).toContain("load_tools");
+    expect(toolNames(0)).not.toContain("rare");
+    expect(JSON.stringify(model.doStreamCalls[0])).toContain(
+      "rare: A rarely needed tool.",
+    );
+    // Le modèle lit ce qui a été chargé, et ce qui ne pouvait pas l'être.
+    const second = promptText(1);
+    expect(second).toContain("Loaded: rare");
+    expect(second).toContain("Not loadable: nope");
+    expect(toolNames(1)).toContain("rare");
+    expect(toolNames(1)).not.toContain("load_tools");
+    expect(promptText(2)).toContain("rare done");
+    expect((await threadRow(t, seed.threadId))?.run).toBeUndefined();
+  });
+
+  test("listLiveActivity : les nodes écrits par le run en cours", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    const runMessageId = "run-message";
+    await t.run(async (ctx) => {
+      const node = async (id: string) => {
+        const nodeDataId = await ctx.db.insert("nodeDatas", {
+          canvasId: seed.canvasId,
+          type: "title",
+          updatedAt: Date.now(),
+          values: { text: id },
+        });
+        await ctx.db.insert("nodes", {
+          id,
+          nodeDataId,
+          canvasId: seed.canvasId,
+          type: "title",
+          position: { x: 0, y: 0 },
+          width: 100,
+          height: 40,
+        });
+        return nodeDataId;
+      };
+      await node("untouched");
+      await node("patched");
+      const created = await node("created");
+      const base = {
+        profile: "test",
+        threadId: seed.threadId,
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        runMessageId,
+        attempt: 1,
+      };
+      const generationId = await ctx.db.insert("agentTasks", {
+        ...base,
+        kind: "generation",
+        status: "waiting",
+        step: 1,
+      });
+      await ctx.db.insert("agentTasks", {
+        ...base,
+        kind: "tool",
+        status: "completed",
+        ownerTaskId: generationId,
+        toolName: "write",
+        replay: "unsafe",
+        input: { nodeId: "patched" },
+      });
+      await ctx.db.insert("agentTasks", {
+        ...base,
+        kind: "tool",
+        status: "running",
+        ownerTaskId: generationId,
+        toolName: "echo",
+        explanation: "Reading",
+        replay: "safe",
+        input: { nodeIds: ["untouched"] },
+      });
+      const row = await ctx.db
+        .query("threadMetadata")
+        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
+        .unique();
+      await ctx.db.patch("threadMetadata", row!._id, {
+        touchedNodes: [
+          { nodeDataId: created, kind: "created", at: Date.now() + 1000 },
+        ],
+      });
+    });
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const activity = await asUser.query(api.harness.live.listLiveActivity, {
+      canvasId: seed.canvasId,
+    });
+    expect(activity.calls).toMatchObject([
+      { toolName: "echo", access: "read", nodeIds: ["untouched"] },
+    ]);
+    expect(activity.written.map((w) => w.nodeId).sort()).toEqual([
+      "created",
+      "patched",
+    ]);
   });
 });

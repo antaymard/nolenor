@@ -11,6 +11,7 @@ import {
 
 export const patchAppNodeCodeToolConfig: ToolConfig = {
   name: "patch_app_node_code",
+  deferred: true,
   authorized_agents: [
     toolAgentNames.nole,
     toolAgentNames.worker,

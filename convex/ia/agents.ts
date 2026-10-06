@@ -524,7 +524,7 @@ export function isModelMultimodal(model: LanguageModelV3): boolean {
 
 const defaultModels = {
   nole: getChatModel(defaultChatModelValue),
-  worker: getChatModel("z-ai/glm-5.3-flash"),
+  worker: getChatModel("deepseek/deepseek-v4.1-flash"),
   // Hors de `chatModelOptions` (donc pas proposé à l'utilisateur), mais il
   // passe par le même helper : c'est ce qui évite que la génération de titre
   // reparte silencieusement sans coût.

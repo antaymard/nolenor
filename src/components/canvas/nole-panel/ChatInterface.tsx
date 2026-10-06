@@ -20,12 +20,15 @@ type ChatInterfaceProps = {
    * `streaming` mais `pending`, alors que l'agent travaille toujours.
    */
   isRunActive?: boolean;
+  /** Le tour attend une réponse de l'utilisateur (`ask_user`). */
+  isAwaitingAnswer?: boolean;
 };
 
 const ChatInterface = memo(function ChatInterface({
   threadId,
   onRetry,
   isRunActive = false,
+  isAwaitingAnswer = false,
 }: ChatInterfaceProps) {
   const {
     results: messages,
@@ -62,7 +65,11 @@ const ChatInterface = memo(function ChatInterface({
   // Le flux ne sert plus qu'au détail affiché ici — orbe, échec, relance.
   // L'état grossier du tour, celui qui pilote le composer et se lit depuis les
   // autres surfaces, vient du serveur (cf. `useNoleChat`).
-  const activity = useAssistantActivity(messages, isRunActive);
+  const activity = useAssistantActivity(
+    messages,
+    isRunActive,
+    isAwaitingAnswer,
+  );
   const { lastUserText } = activity;
 
   const handleRetry = useCallback(() => {
@@ -96,6 +103,10 @@ const ChatInterface = memo(function ChatInterface({
                   // Seul le dernier message peut être celui du tour en cours :
                   // les autres reçoivent un `false` stable et ne re-rendent pas.
                   isRunActive={isRunActive && index === messages.length - 1}
+                  isAwaitingAnswer={
+                    isAwaitingAnswer && index === messages.length - 1
+                  }
+                  threadId={threadId}
                   metadata={getMetadata(m)}
                   modelOptions={modelOptions}
                 />

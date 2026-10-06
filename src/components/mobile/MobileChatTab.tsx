@@ -75,6 +75,7 @@ export default function MobileChatTab({
             threadId={threadId}
             onRetry={handleRetry}
             isRunActive={runStatus === "running"}
+            isAwaitingAnswer={runStatus === "waiting"}
           />
         ) : (
           <EmptyThreadSuggestions onSelect={setUserInput} />

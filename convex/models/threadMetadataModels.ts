@@ -179,6 +179,37 @@ export async function markRunStarted(
   return runStartedAt;
 }
 
+/** Le run attend une réponse de l'utilisateur (`ask_user`). */
+export async function markRunWaiting(
+  ctx: MutationCtx,
+  { threadId, runToken }: { threadId: string; runToken: number },
+): Promise<void> {
+  const threadRow = await findByThreadId(ctx, { threadId });
+  if (!threadRow || threadRow.runStartedAt !== runToken) return;
+  await ctx.db.patch("threadMetadata", threadRow._id, {
+    runStatus: threadRunStatuses.waiting,
+  });
+}
+
+/**
+ * Le run repart après la réponse de l'utilisateur. Nouveau `runStartedAt`,
+ * donc nouveau jeton : la péremption d'un `running` se compte depuis la
+ * reprise, pas depuis la question posée il y a des heures.
+ */
+export async function markRunResumed(
+  ctx: MutationCtx,
+  { threadId, runToken }: { threadId: string; runToken: number },
+): Promise<number | null> {
+  const threadRow = await findByThreadId(ctx, { threadId });
+  if (!threadRow || threadRow.runStartedAt !== runToken) return null;
+  const resumedAt = Date.now();
+  await ctx.db.patch("threadMetadata", threadRow._id, {
+    runStatus: threadRunStatuses.running,
+    runStartedAt: resumedAt,
+  });
+  return resumedAt;
+}
+
 /**
  * Sort le thread de `running`.
  *
@@ -306,6 +337,8 @@ export async function markReviewed(
 ): Promise<void> {
   const threadRow = await findByThreadId(ctx, { threadId });
   if (!threadRow) return;
+  // Une question attend sa réponse : rien à acquitter.
+  if (threadRow.runStatus === threadRunStatuses.waiting) return;
 
   if (threadRow.runStatus === threadRunStatuses.running) {
     const startedAt = threadRow.runStartedAt;

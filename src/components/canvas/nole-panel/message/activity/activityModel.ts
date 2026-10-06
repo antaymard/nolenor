@@ -48,9 +48,48 @@ export type ReasoningStep = {
 
 export type ActivityStep = ToolStep | ReasoningStep;
 
+export type QuestionBlock = {
+  kind: "question";
+  key: string;
+  question: string;
+  options: string[];
+  /** `null` tant que l'utilisateur n'a pas répondu. */
+  answer: string | null;
+};
+
 export type MessageBlock =
   | { kind: "text"; key: string; part: TextPartType }
-  | { kind: "activity"; key: string; steps: ActivityStep[] };
+  | { kind: "activity"; key: string; steps: ActivityStep[] }
+  | QuestionBlock;
+
+/** Le tool du kernel par lequel Nolë pose une question (cf. convex/harness/kernelTools.ts). */
+const ASK_USER = "ask_user";
+
+function toQuestionBlock(part: Part, index: number): QuestionBlock {
+  const record = part as unknown as Record<string, unknown>;
+  const input = isRecord(record.input) ? record.input : {};
+  const output = record.output;
+  const answer =
+    record.state !== "output-available"
+      ? null
+      : typeof output === "string"
+        ? output
+        : isRecord(output) && typeof output.value === "string"
+          ? output.value
+          : "";
+  return {
+    kind: "question",
+    key:
+      typeof record.toolCallId === "string"
+        ? record.toolCallId
+        : `question-${index}`,
+    question: typeof input.question === "string" ? input.question : "",
+    options: Array.isArray(input.options)
+      ? input.options.filter((option): option is string => typeof option === "string")
+      : [],
+    answer,
+  };
+}
 
 function isToolPart(part: Part): boolean {
   return part.type.startsWith("tool-") || part.type === "dynamic-tool";
@@ -154,6 +193,13 @@ export function groupMessageParts(
         },
         index,
       );
+      return;
+    }
+
+    if (isToolPart(part) && readToolName(part) === ASK_USER) {
+      // Une question coupe la suite d'activité : c'est une carte à part.
+      current = null;
+      blocks.push(toQuestionBlock(part, index));
       return;
     }
 

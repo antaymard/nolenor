@@ -7,6 +7,7 @@ import { requireAuth } from "../lib/auth";
 import * as MessageMetadataModels from "../models/messageMetadataModels";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import { submissionStatuses } from "../schemas/submissionsSchema";
+import { answerPendingQuestion } from "./tasks";
 
 /**
  * Les messages qui arrivent pendant qu'un run travaille (cf.
@@ -111,6 +112,17 @@ export const listQueuedSubmissions = query({
         _creationTime: submission._creationTime,
         prompt: submission.prompt,
       }));
+  },
+});
+
+/** Répond à la question en attente du thread (bouton de la carte `ask_user`). */
+export const answerQuestion = mutation({
+  args: { threadId: v.string(), answer: v.string() },
+  handler: async (ctx, { threadId, answer }) => {
+    const userId = await requireAuth(ctx);
+    const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+    if (!row || row.userId !== userId) return { answered: false };
+    return { answered: await answerPendingQuestion(ctx, threadId, answer) };
   },
 });
 

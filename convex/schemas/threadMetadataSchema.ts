@@ -29,6 +29,9 @@ const threadAgentNames = {
  */
 const threadRunStatuses = {
   running: "running",
+  // Le run attend une réponse de l'utilisateur (`ask_user`) : ni en cours, ni
+  // fini, et jamais périmé — une question peut attendre des heures.
+  waiting: "waiting",
   idle: "idle",
   error: "error",
   aborted: "aborted",
@@ -36,6 +39,7 @@ const threadRunStatuses = {
 
 const threadRunStatusValidator = v.union(
   v.literal(threadRunStatuses.running),
+  v.literal(threadRunStatuses.waiting),
   v.literal(threadRunStatuses.idle),
   v.literal(threadRunStatuses.error),
   v.literal(threadRunStatuses.aborted),
@@ -120,6 +124,9 @@ const threadRunValidator = v.object({
   // Tools différés chargés par le modèle (`load_tools`) : décrits à toutes
   // les générations suivantes du run.
   loadedTools: v.optional(v.array(v.string())),
+  // La question (`ask_user`) qui attend la réponse de l'utilisateur : son
+  // prochain message y répond au lieu de partir en file.
+  awaitingTaskId: v.optional(v.id("agentTasks")),
   // Run d'un sous-agent : le tool call du parent qui l'a lancé. À la fin du
   // run, son résultat y est écrit (premier plan) ou renvoyé au thread parent
   // en followUp (arrière-plan).
@@ -186,7 +193,7 @@ type ThreadNodeTouch = Infer<typeof threadNodeTouchValidator>;
 type ThreadNodeTouchKind = Infer<typeof threadNodeTouchKindValidator>;
 
 /** États terminaux : ce qu'un tour peut valoir une fois `running` quitté. */
-type ThreadRunEndStatus = Exclude<ThreadRunStatus, "running">;
+type ThreadRunEndStatus = Exclude<ThreadRunStatus, "running" | "waiting">;
 
 /** `lastRunError` est affiché tel quel : on ne stocke pas une stack entière. */
 const RUN_ERROR_MAX_LENGTH = 300;

@@ -2,7 +2,7 @@
 // Harness : kernel (phase 1), messages pendant un run (phase 2), retry et
 // changement de modèle (phase 3a), deltas `<system_update>` (phase 3b),
 // tools différés et halo des nodes écrits (phase 3c), compaction (phase 4),
-// sous-agents (phase 5a).
+// sous-agents (phase 5a), questions à l'utilisateur (phase 5b).
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -199,6 +199,7 @@ function testProfile(name: string, maxGenerationsPerRun: number): Profile {
 registerProfile({
   ...testProfile("test", 25),
   subagents: { profile: "test-worker" },
+  askUser: true,
 });
 // Le sous-agent : son brief tient lieu de prompt.
 registerProfile({
@@ -278,8 +279,11 @@ async function send(
   });
 }
 
-/** Comme `nole.saveMessage` : ouvre un run, ou part en file si un run tourne. */
-async function submit(
+/**
+ * Comme `nole.saveMessage` : ouvre un run, part en file si un run tourne, ou
+ * répond à la question en attente (`submitAny`).
+ */
+async function submitAny(
   t: T,
   seed: Awaited<ReturnType<typeof seedThread>>,
   prompt: string,
@@ -297,6 +301,18 @@ async function submit(
       model,
     }),
   );
+}
+
+/** `submitAny`, pour un thread sans question en attente. */
+async function submit(
+  t: T,
+  seed: Awaited<ReturnType<typeof seedThread>>,
+  prompt: string,
+  model?: string,
+) {
+  const result = await submitAny(t, seed, prompt, model);
+  if ("answered" in result) throw new Error("Unexpected answer to a question.");
+  return result;
 }
 
 async function submissions(t: T, threadId: string) {
@@ -1532,5 +1548,107 @@ describe("phase 5a — sous-agents", () => {
 
     expect(promptText(1)).toContain("is not a valid canvas id");
     expect(await childThreadOf(t, seed.threadId)).toBeFalsy();
+  });
+});
+
+describe("phase 5b — ask_user", () => {
+  const question = () =>
+    call("ask_user", { question: "Which one?", options: ["A", "B"] });
+
+  test("le run attend sans rien consommer, le message suivant y répond", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[question()], [text("Going with B")]]);
+    const runMessageId = await send(t, seed, "Pick for me");
+    await drain(t);
+
+    const waiting = await threadRow(t, seed.threadId);
+    expect(waiting?.runStatus).toBe("waiting");
+    const ask = (await tasksOf(t, runMessageId)).find(
+      (task) => task.toolName === "ask_user",
+    );
+    expect(ask).toMatchObject({ status: "waiting" });
+    expect(waiting?.run?.awaitingTaskId).toBe(ask?._id);
+    // Ni lease ni reprise : une question peut attendre des heures.
+    vi.advanceTimersByTime(60 * 60 * 1000);
+    await t.mutation(internal.harness.tasks.recoverExpired, {});
+    expect(model.doStreamCalls).toHaveLength(1);
+
+    expect(await submitAny(t, seed, "B please")).toEqual({ answered: true });
+    await drain(t);
+
+    expect(promptText(1)).toContain("B please");
+    // La réponse est le résultat du tool, pas un message de plus.
+    expect(roles(await transcript(t, seed.threadId))).toEqual([
+      "user:text",
+      "assistant:tool-call",
+      "tool:tool-result",
+      "assistant:text",
+    ]);
+    const done = await threadRow(t, seed.threadId);
+    expect(done?.runStatus).toBe("idle");
+    expect(done?.run).toBeUndefined();
+  });
+
+  test("bouton de la carte : answerQuestion, réservé au propriétaire du thread", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[question()], [text("Going with A")]]);
+    await send(t, seed, "Pick for me");
+    await drain(t);
+
+    const stranger = await t.run((ctx) => ctx.db.insert("users", {}));
+    expect(
+      await t
+        .withIdentity({ subject: `${stranger}|session` })
+        .mutation(api.harness.ingress.answerQuestion, {
+          threadId: seed.threadId,
+          answer: "B",
+        }),
+    ).toEqual({ answered: false });
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    expect(
+      await asUser.mutation(api.harness.ingress.answerQuestion, {
+        threadId: seed.threadId,
+        answer: "A",
+      }),
+    ).toEqual({ answered: true });
+    await drain(t);
+    expect(promptText(1)).toContain('"A"');
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("stop pendant l'attente : le run s'arrête, la question aussi", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[question()]]);
+    const runMessageId = await send(t, seed, "Pick for me");
+    await drain(t);
+
+    expect(await t.run((ctx) => abortRun(ctx, seed.threadId))).toBe(true);
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("aborted");
+    const ask = (await tasksOf(t, runMessageId)).find(
+      (task) => task.toolName === "ask_user",
+    );
+    expect(ask?.status).toBe("aborted");
+    // Plus de question en attente : le message suivant ouvre un run.
+    setModel([[text("Hello")]]);
+    const next = await submitAny(t, seed, "Never mind");
+    expect(next).toMatchObject({ queued: false });
+  });
+
+  test("deux questions dans le même step : la seconde est refusée", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([
+      [question(), call("ask_user", { question: "And this?" })],
+      [text("Ok")],
+    ]);
+    await send(t, seed, "Ask me");
+    await drain(t);
+    expect(await submitAny(t, seed, "A")).toEqual({ answered: true });
+    await drain(t);
+    expect(promptText(1)).toContain("Only one question at a time");
   });
 });

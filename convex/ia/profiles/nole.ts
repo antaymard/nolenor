@@ -132,4 +132,5 @@ export const noleProfile: Profile = {
   compaction: canvasCompaction,
   stepContext: canvasStepContext,
   subagents: { profile: "worker" },
+  askUser: true,
 };

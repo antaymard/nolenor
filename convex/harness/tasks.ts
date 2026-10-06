@@ -24,7 +24,7 @@ import {
   withdrawQueued,
 } from "./ingress";
 import { LOAD_TOOLS, loadTools } from "./deferredTools";
-import { KERNEL_TOOL_NAMES, RUN_SUBAGENT } from "./kernelTools";
+import { ASK_USER, KERNEL_TOOL_NAMES, RUN_SUBAGENT } from "./kernelTools";
 import { onSubagentRunEnded, spawnSubagent } from "./subagents";
 import { getProfile } from "./profiles";
 import { saveToolResult, type ToolResultOutput } from "./transcript";
@@ -523,10 +523,18 @@ export async function submitToThread(
 ): Promise<
   | { queued: false; messageId: string }
   | { queued: true; submissionId: Id<"submissions"> }
+  | { answered: true }
 > {
   const row = await ThreadMetadataModels.findByThreadId(ctx, {
     threadId: args.threadId,
   });
+  // Une question attend : le message y répond.
+  if (
+    row?.run?.awaitingTaskId &&
+    (await answerPendingQuestion(ctx, args.threadId, args.prompt))
+  ) {
+    return { answered: true };
+  }
   if (row?.run) {
     const submissionId = await ctx.db.insert("submissions", {
       threadId: args.threadId,
@@ -925,9 +933,64 @@ async function startKernelTool(
       };
     case RUN_SUBAGENT:
       return spawnSubagent(ctx, start);
+    case ASK_USER:
+      return askUser(ctx, start);
     default:
       return { done: `Unknown tool ${start.toolName}.` };
   }
+}
+
+/**
+ * `ask_user` : le run attend la réponse de l'utilisateur, sans rien
+ * consommer. Le thread passe `waiting` ; un bouton de la carte ou son
+ * prochain message y répond (cf. `answerPendingQuestion`).
+ */
+async function askUser(
+  ctx: MutationCtx,
+  { generation, toolTaskId, current }: KernelToolStart,
+): Promise<KernelToolOutcome> {
+  if (!getProfile(generation.profile).askUser) {
+    return { done: "You cannot ask the user questions here." };
+  }
+  if (current.run.awaitingTaskId) {
+    return {
+      done: "Only one question at a time: this one was not asked. Wait for the answer to the first.",
+    };
+  }
+  current.run = { ...current.run, awaitingTaskId: toolTaskId };
+  await ctx.db.patch("threadMetadata", current.row._id, { run: current.run });
+  await ThreadMetadataModels.markRunWaiting(ctx, {
+    threadId: current.row.threadId,
+    runToken: current.run.runToken,
+  });
+  return { wait: true };
+}
+
+/**
+ * Répond à la question en attente du thread, s'il y en a une : le run
+ * reprend, la réponse devient le résultat d'`ask_user`. Rend `false` sinon.
+ */
+export async function answerPendingQuestion(
+  ctx: MutationCtx,
+  threadId: string,
+  answer: string,
+): Promise<boolean> {
+  const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+  const taskId = row?.run?.awaitingTaskId;
+  if (!row?.run || !taskId) return false;
+  const runToken =
+    (await ThreadMetadataModels.markRunResumed(ctx, {
+      threadId,
+      runToken: row.run.runToken,
+    })) ?? row.run.runToken;
+  // Avant de résoudre : la génération suivante relit le run.
+  await ctx.db.patch("threadMetadata", row._id, {
+    run: { ...row.run, awaitingTaskId: undefined, runToken },
+  });
+  return resolveWaitingTool(ctx, taskId, {
+    status: "completed",
+    output: answer.trim() || "(empty answer)",
+  });
 }
 
 /**

@@ -81,12 +81,12 @@ export default function SendStopButton({
       onClick={onSend}
       aria-label={
         isAssistantResponding
-          ? "Envoyer — ajouté après l'étape en cours"
-          : "Envoyer le message"
+          ? "Send — added after the current step"
+          : "Send message"
       }
       title={
         isAssistantResponding
-          ? "Ajouté à la réponse en cours, après l'étape actuelle"
+          ? "Added to the current response, after the current step"
           : undefined
       }
       className={cn(

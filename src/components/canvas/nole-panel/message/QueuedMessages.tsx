@@ -45,8 +45,8 @@ function QueuedBubble({
         <button
           type="button"
           onClick={onWithdraw}
-          aria-label="Retirer ce message"
-          title="Retirer ce message"
+          aria-label="Remove this message"
+          title="Remove this message"
           className="absolute -top-2 -left-2 hidden size-5 items-center justify-center rounded-full border border-slate-200 bg-surface text-slate-500 shadow-sm group-hover:flex hover:text-slate-900"
         >
           <TbX size={12} />
@@ -54,7 +54,7 @@ function QueuedBubble({
       </div>
       <span className="flex items-center gap-1 text-[11px] text-slate-400">
         <TbClockHour4 size={12} />
-        En file — ajouté après l'étape en cours
+        Queued — added after the current step
       </span>
     </div>
   );

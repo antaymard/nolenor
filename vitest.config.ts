@@ -7,5 +7,8 @@ export default defineConfig({
     environment: "edge-runtime",
     include: ["convex/**/*.test.ts"],
     server: { deps: { inline: ["convex-test", "@convex-dev/agent"] } },
+    // Des modules de tools instancient leur client dès l'import ; aucune
+    // requête réelle n'est faite en test.
+    env: { PARALLEL_API_KEY: "test", OPENROUTER_API_KEY: "test" },
   },
 });

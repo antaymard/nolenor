@@ -34,8 +34,9 @@ import { jsonSchema, stepCountIs, tool, type ModelMessage } from "ai";
 import type { LanguageModelV3Prompt } from "@ai-sdk/provider";
 import { components } from "../_generated/api";
 import schema from "../schema";
+import { modules } from "../test.setup";
 
-const modules = import.meta.glob("../**/*.ts");
+
 
 /** Le mock enregistre chaque appel ; son type public ne l'expose pas. */
 type RecordingModel = ReturnType<typeof mockModel> & {

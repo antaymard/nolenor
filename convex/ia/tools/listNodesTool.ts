@@ -17,6 +17,8 @@ import {
 
 export const listNodesToolConfig: ToolConfig = {
   name: "list_nodes",
+  // Lecture seule : relancer un appel interrompu ne peut rien dupliquer.
+  replay: "safe",
   authorized_agents: [
     toolAgentNames.nole,
     toolAgentNames.worker,

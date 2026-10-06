@@ -6,6 +6,8 @@ import { internal } from "../../_generated/api";
 
 export const listUserCanvasesToolConfig: ToolConfig = {
   name: "list_user_canvases",
+  // Lecture seule : relancer un appel interrompu ne peut rien dupliquer.
+  replay: "safe",
   authorized_agents: [
     toolAgentNames.nole,
   ],

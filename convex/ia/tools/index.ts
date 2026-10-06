@@ -213,11 +213,17 @@ export function getToolsForAgent({
   threadCtx,
   extraTools = {},
   isMultimodal = false,
+  trackActivity = true,
 }: {
   agentName: ToolAgentName;
   threadCtx: ThreadCtx;
   extraTools?: ToolSet;
   isMultimodal?: boolean;
+  /**
+   * `false` pour la harness, qui trace l'activité elle-même au démarrage de la
+   * tâche tool (cf. harness/tasks.ts `claimTool`).
+   */
+  trackActivity?: boolean;
 }): ToolSet {
   const resolvedTools: ToolSet = {};
 
@@ -241,6 +247,7 @@ export function getToolsForAgent({
   // Les `extraTools` passent par la même enveloppe : ce qui porte une
   // `explanation` est tracé, le reste traverse sans rien payer.
   const tools: ToolSet = { ...resolvedTools, ...extraTools };
+  if (!trackActivity) return tools;
   return Object.fromEntries(
     Object.entries(tools).map(([name, tool]) => [
       name,

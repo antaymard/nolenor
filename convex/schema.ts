@@ -15,6 +15,8 @@ import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
 import { recipesValidor } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
+import { agentTaskValidator } from "./schemas/agentTasksSchema";
+import { runPromptsValidator } from "./schemas/runPromptsSchema";
 import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
 import { aiUsageDailyValidator } from "./schemas/aiUsageDailySchema";
 import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
@@ -219,6 +221,23 @@ const schema = defineSchema({
       "agentName",
     ])
     .index("by_masterThreadId", ["masterThreadId"]),
+
+  // ============================================================================
+  // HARNESS (boucle agentique durable, cf. convex/harness)
+  // ============================================================================
+  agentTasks: defineTable(agentTaskValidator)
+    // Les tools d'une génération : décider si le round est terminé.
+    .index("by_ownerTaskId", ["ownerTaskId"])
+    // Le cron de reprise : tâches dont le lease a expiré.
+    .index("by_status_and_leaseExpiresAt", ["status", "leaseExpiresAt"])
+    // Abort d'un run et somme de son usage.
+    .index("by_runMessageId_and_kind", ["runMessageId", "kind"])
+    // Live sur le canvas : tâches en cours d'un canvas.
+    .index("by_canvasId_and_status", ["canvasId", "status"])
+    .index("by_toolCallId", ["toolCallId"]),
+  runPrompts: defineTable(runPromptsValidator)
+    .index("by_messageId", ["messageId"])
+    .index("by_threadId", ["threadId"]),
 
   // ============================================================================
   // AI USAGE (ledger append-only + rollup journalier dénormalisé)

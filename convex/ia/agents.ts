@@ -530,7 +530,6 @@ export function isModelMultimodal(model: LanguageModelV3): boolean {
 }
 
 const defaultModels = {
-  nole: getChatModel(defaultChatModelValue),
   worker: getChatModel("z-ai/glm-5.3-flash"),
   // Hors de `chatModelOptions` (donc pas proposé à l'utilisateur), mais il
   // passe par le même helper : c'est ce qui évite que la génération de titre
@@ -559,29 +558,8 @@ export function createBaseAgent({
 }
 export const baseAgent = createBaseAgent();
 
-export function createNoleAgent({
-  model,
-  threadCtx,
-  extraTools = {},
-}: {
-  model?: LanguageModelV3;
-  threadCtx: ThreadCtx;
-  extraTools?: ToolSet;
-}) {
-  const languageModel = model ?? defaultModels.nole;
-  return new Agent(components.agent, {
-    name: "Nolë",
-    stopWhen: stepCountIs(25),
-    languageModel,
-    tools: getToolsForAgent({
-      agentName: toolAgentNames.nole,
-      threadCtx,
-      extraTools,
-      isMultimodal: isModelMultimodal(languageModel),
-    }),
-    usageHandler: createUsageHandler(aiUsageSources.nole),
-  });
-}
+// `createNoleAgent` vivait ici : Nolë est désormais un profil de la harness
+// (cf. ia/profiles/nole.ts), qui construit son agent lui-même.
 
 // `createCloneAgent` et `createSupervisorAgent` vivaient ici. Aucun appelant, et
 // tous deux étaient des points d'entrée LLM sans `usageHandler` : les garder,

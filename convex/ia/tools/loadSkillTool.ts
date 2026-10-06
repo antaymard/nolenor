@@ -7,6 +7,8 @@ import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 export const loadSkillToolConfig: ToolConfig = {
   name: "load_skill",
+  // Lecture seule : relancer un appel interrompu ne peut rien dupliquer.
+  replay: "safe",
   authorized_agents: [toolAgentNames.nole],
 };
 

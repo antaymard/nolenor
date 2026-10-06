@@ -543,6 +543,8 @@ function buildImageNodeBody(
 
 export const readNodesToolConfig: ToolConfig = {
   name: "read_nodes",
+  // Lecture seule : relancer un appel interrompu ne peut rien dupliquer.
+  replay: "safe",
   authorized_agents: [
     toolAgentNames.nole,
     toolAgentNames.worker,

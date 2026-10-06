@@ -15,6 +15,7 @@ import z from "zod";
 import { createBaseAgent } from "./ia/agents";
 import errors from "./config/errorsConfig";
 import { threadAgentNames } from "./schemas/threadMetadataSchema";
+import { abortRun } from "./harness/tasks";
 import { aiUsageSources } from "./schemas/aiUsageSourceSchema";
 import {
   findByThreadId,
@@ -465,38 +466,43 @@ export const abortStream = mutation({
       throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
     }
 
+    // 1) Le run de la harness : ses tâches s'arrêtent (une génération qui
+    // attend ses tools n'enchaînera plus), le thread passe `aborted`. C'est ce
+    // qui coupe le travail même quand rien ne streame — pendant un tool.
+    const runAborted = await abortRun(ctx, threadId);
+
+    // 2) Le stream en cours, s'il y en a un : coupé net.
     const activeStreams = await ctx.runQuery(components.agent.streams.list, {
       threadId,
       statuses: ["streaming"],
     });
-
-    if (activeStreams.length === 0) {
-      return { aborted: false };
+    let streamAborted = false;
+    if (activeStreams.length > 0) {
+      const currentStream = activeStreams.reduce((latest, stream) =>
+        stream.order > latest.order ? stream : latest,
+      );
+      streamAborted = await ctx.runMutation(
+        components.agent.streams.abortByOrder,
+        {
+          threadId,
+          order: currentStream.order,
+          reason: "Cancelled by user",
+        },
+      );
     }
 
-    const currentStream = activeStreams.reduce((latest, stream) =>
-      stream.order > latest.order ? stream : latest,
-    );
-
-    const aborted = await ctx.runMutation(
-      components.agent.streams.abortByOrder,
-      {
-        threadId,
-        order: currentStream.order,
-        reason: "Cancelled by user",
-      },
-    );
-
-    // Sans jeton de run : l'utilisateur coupe le tour courant, quel qu'il
-    // soit. L'action de streaming écrira le même statut en sortant, mais elle
-    // peut mettre un instant à s'en apercevoir — et l'UI, elle, répond au clic.
-    if (aborted) {
+    const aborted = runAborted || streamAborted;
+    // Un stream sans run (thread d'avant la harness) : le statut est écrit ici,
+    // sans jeton — l'utilisateur coupe le tour courant, quel qu'il soit.
+    if (streamAborted && !runAborted) {
       await markRunEnded(ctx, {
         threadId,
         status: threadRunStatuses.aborted,
       });
+    }
+    if (aborted) {
       // Appuyer sur stop est déjà un accusé de réception : la tâche ne doit pas
-      // resurgir au dock pour se faire relire. Après `markRunEnded`, et pas
+      // resurgir au dock pour se faire relire. Après la fin du run, et pas
       // avant : `markReviewed` refuse un thread encore `running`.
       await markReviewed(ctx, { threadId });
     }

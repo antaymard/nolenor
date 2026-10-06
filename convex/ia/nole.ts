@@ -2,7 +2,8 @@ import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { baseAgent, chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
-import { internal } from "../_generated/api";
+import { startRun } from "../harness/tasks";
+import { noleProfile, type NoleRunInput } from "./profiles/nole";
 import * as MessageMetadataModels from "../models/messageMetadataModels";
 import { enforceRateLimit } from "../lib/rateLimits";
 
@@ -90,27 +91,17 @@ export const saveMessage = mutation({
       });
     }
 
-    // 3) Ouvrir le tour : dater l'interaction — c'est cette date qui décide, à
-    // la réouverture du panel, si la conversation du canvas est reprise — et
-    // passer le thread en `running`. Écrit ici, dans la transaction du message,
-    // pour que toutes les surfaces voient le thread travailler dès l'envoi,
-    // sans attendre que l'action planifiée démarre.
-    const runToken = await ctx.runMutation(
-      internal.wrappers.threadMetadataWrappers.markRunStarted,
-      { threadId },
-    );
-
-    // 4) Schedule the response generation in background.
-    void ctx.scheduler.runAfter(0, internal.ia.noleCompletion.streamResponse, {
-      authUserId: authUserId,
+    // 3) Ouvrir le run : statut `running` dans cette transaction (toutes les
+    // surfaces voient le thread travailler dès l'envoi), première génération
+    // planifiée. Cf. convex/harness.
+    await startRun(ctx, {
       threadId,
-      promptMessageId: messageId,
-      userPrompt: prompt,
-      metadata,
+      userId: authUserId,
       canvasId,
-      // Le tour que l'action devra conclure. Sans ce jeton, sa fin remettrait
-      // le thread au repos même si un envoi ultérieur l'a relancé entre-temps.
-      ...(runToken !== null ? { runToken } : {}),
+      startMessageId: messageId,
+      profile: noleProfile,
+      model: metadata?.model,
+      input: { userPrompt: prompt, metadata } satisfies NoleRunInput,
     });
 
     return { messageId };

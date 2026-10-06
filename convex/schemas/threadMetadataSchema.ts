@@ -92,6 +92,27 @@ const threadLastActivityValidator = v.object({
   at: v.number(),
 });
 
+/**
+ * Le run d'agent en cours sur un thread (cf. convex/harness).
+ *
+ * - `startMessageId` : le message qui l'a ouvert, son identifiant ;
+ * - `promptMessageId` : la position où les réponses sont sauvées. Égal au
+ *   précédent tant qu'aucun steer n'a été placé ;
+ * - `generationTaskId` : la génération courante, la seule autorisée à
+ *   enchaîner ;
+ * - `runToken` : le `runStartedAt` posé par `markRunStarted`, rendu à
+ *   `markRunEnded` en fin de run ;
+ * - `maxGenerations` : plafond du profil, recopié pour que les mutations n'aient
+ *   pas à charger le profil.
+ */
+const threadRunValidator = v.object({
+  startMessageId: v.string(),
+  promptMessageId: v.string(),
+  generationTaskId: v.id("agentTasks"),
+  runToken: v.number(),
+  maxGenerations: v.number(),
+});
+
 const threadMetadataValidator = v.object({
   threadId: v.string(),
   userId: v.id("users"),
@@ -131,6 +152,11 @@ const threadMetadataValidator = v.object({
   // tâche du dock d'activité ; `markRunStarted` l'efface pour qu'un thread
   // relancé y revienne.
   reviewedAt: v.optional(v.number()),
+  // Le run en cours de la harness, présent exactement tant qu'il travaille.
+  // C'est la référence que toutes les tâches confrontent avant d'écrire : un
+  // run abandonné (abort, nouveau message) ne fait plus rien dès qu'il n'est
+  // plus celui-ci.
+  run: v.optional(threadRunValidator),
 });
 
 type ThreadRunStatus = Infer<typeof threadRunStatusValidator>;
@@ -175,6 +201,7 @@ export {
   threadNodeTouchKinds,
   threadNodeTouchValidator,
   threadLastActivityValidator,
+  threadRunValidator,
   ACTIVITY_TEXT_MAX_LENGTH,
   RUN_ERROR_MAX_LENGTH,
   RUN_STALE_MS,

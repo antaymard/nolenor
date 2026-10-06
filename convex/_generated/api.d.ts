@@ -33,6 +33,7 @@ import type * as dataExport from "../dataExport.js";
 import type * as edges from "../edges.js";
 import type * as harness_compaction from "../harness/compaction.js";
 import type * as harness_deferredTools from "../harness/deferredTools.js";
+import type * as harness_dispatch from "../harness/dispatch.js";
 import type * as harness_errors from "../harness/errors.js";
 import type * as harness_generation from "../harness/generation.js";
 import type * as harness_ingress from "../harness/ingress.js";
@@ -81,6 +82,7 @@ import type * as ia_profiles_index from "../ia/profiles/index.js";
 import type * as ia_profiles_nole from "../ia/profiles/nole.js";
 import type * as ia_profiles_shared from "../ia/profiles/shared.js";
 import type * as ia_profiles_worker from "../ia/profiles/worker.js";
+import type * as ia_router_jevRouter from "../ia/router/jevRouter.js";
 import type * as ia_systemPrompts_newUserPrompt from "../ia/systemPrompts/newUserPrompt.js";
 import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/noleSystemPrompt.js";
 import type * as ia_systemPrompts_systemParts from "../ia/systemPrompts/systemParts.js";
@@ -194,6 +196,7 @@ import type * as schemas_canvasBookmarksSchema from "../schemas/canvasBookmarksS
 import type * as schemas_canvasOpsSchema from "../schemas/canvasOpsSchema.js";
 import type * as schemas_canvasesSchema from "../schemas/canvasesSchema.js";
 import type * as schemas_compactionsSchema from "../schemas/compactionsSchema.js";
+import type * as schemas_dispatchesSchema from "../schemas/dispatchesSchema.js";
 import type * as schemas_edgesSchema from "../schemas/edgesSchema.js";
 import type * as schemas_fieldTypeSchema from "../schemas/fieldTypeSchema.js";
 import type * as schemas_memoriesSchema from "../schemas/memoriesSchema.js";
@@ -271,6 +274,7 @@ declare const fullApi: ApiFromModules<{
   edges: typeof edges;
   "harness/compaction": typeof harness_compaction;
   "harness/deferredTools": typeof harness_deferredTools;
+  "harness/dispatch": typeof harness_dispatch;
   "harness/errors": typeof harness_errors;
   "harness/generation": typeof harness_generation;
   "harness/ingress": typeof harness_ingress;
@@ -319,6 +323,7 @@ declare const fullApi: ApiFromModules<{
   "ia/profiles/nole": typeof ia_profiles_nole;
   "ia/profiles/shared": typeof ia_profiles_shared;
   "ia/profiles/worker": typeof ia_profiles_worker;
+  "ia/router/jevRouter": typeof ia_router_jevRouter;
   "ia/systemPrompts/newUserPrompt": typeof ia_systemPrompts_newUserPrompt;
   "ia/systemPrompts/noleSystemPrompt": typeof ia_systemPrompts_noleSystemPrompt;
   "ia/systemPrompts/systemParts": typeof ia_systemPrompts_systemParts;
@@ -432,6 +437,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/canvasOpsSchema": typeof schemas_canvasOpsSchema;
   "schemas/canvasesSchema": typeof schemas_canvasesSchema;
   "schemas/compactionsSchema": typeof schemas_compactionsSchema;
+  "schemas/dispatchesSchema": typeof schemas_dispatchesSchema;
   "schemas/edgesSchema": typeof schemas_edgesSchema;
   "schemas/fieldTypeSchema": typeof schemas_fieldTypeSchema;
   "schemas/memoriesSchema": typeof schemas_memoriesSchema;

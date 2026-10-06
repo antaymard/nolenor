@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { BorderBeam } from "border-beam";
 import { ThinkingOrb } from "thinking-orbs";
 import { X } from "lucide-react";
@@ -19,6 +19,13 @@ import {
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
 import TaskNodePills from "./TaskNodePills";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/components/shadcn/popover";
+import { QuestionCard } from "@/components/canvas/nole-panel/message/QuestionCard";
+import { readAskedQuestions } from "@/components/canvas/nole-panel/message/activity/activityModel";
 import { useResolvedTheme } from "@/lib/theme";
 
 /** Rayon du bloc, partagé avec le halo pour que les deux arrondis coïncident. */
@@ -55,6 +62,27 @@ export default function TaskCard({
   const nodes = thread.touchedNodes;
   const title = thread.title || "Nolë";
   const activity = thread.lastActivity?.text;
+
+  const questions =
+    status === "waiting" && thread.pendingQuestions
+      ? readAskedQuestions(thread.pendingQuestions)
+      : [];
+  const [questionOpen, setQuestionOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Le survol passe de la carte à la question sans la refermer : un court
+  // délai avant de fermer, annulé dès qu'on entre dans l'une ou l'autre.
+  const questionHover =
+    questions.length > 0
+      ? {
+          onMouseEnter: () => {
+            if (closeTimer.current) clearTimeout(closeTimer.current);
+            setQuestionOpen(true);
+          },
+          onMouseLeave: () => {
+            closeTimer.current = setTimeout(() => setQuestionOpen(false), 200);
+          },
+        }
+      : {};
 
   const card = (
     <div
@@ -116,11 +144,14 @@ export default function TaskCard({
     </div>
   );
 
-  return (
+  const body = (
     // L'animation d'entrée vit ici, à l'extérieur du halo conditionnel : sans
     // ça elle se rejouerait à l'instant où la tâche se conclut et où le bloc
     // change d'enveloppe.
-    <div className="animate-in fade-in slide-in-from-bottom-2 shrink-0 duration-200">
+    <div
+      className="animate-in fade-in slide-in-from-bottom-2 shrink-0 duration-200"
+      {...questionHover}
+    >
       {isRunning ? (
         // Réglages repris tels quels de `ComposerShell` — c'est le même halo
         // que celui de l'input, pas une variante. Enveloppe conditionnelle et
@@ -142,6 +173,32 @@ export default function TaskCard({
         card
       )}
     </div>
+  );
+
+  if (questions.length === 0) return body;
+
+  // Nolë attend une réponse : la question s'ouvre au survol, et on y répond
+  // sans ouvrir la conversation.
+  return (
+    <Popover open={questionOpen}>
+      <PopoverAnchor asChild>{body}</PopoverAnchor>
+      <PopoverContent
+        side="bottom"
+        align="center"
+        sideOffset={6}
+        className="w-[380px] border-0 bg-transparent p-0 shadow-none"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onEscapeKeyDown={() => setQuestionOpen(false)}
+        {...questionHover}
+      >
+        <QuestionCard
+          threadId={thread.threadId}
+          questions={questions}
+          result={null}
+          canAnswer
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 

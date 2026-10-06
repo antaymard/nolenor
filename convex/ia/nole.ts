@@ -2,7 +2,10 @@ import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
-import { dispatchRequest } from "../harness/dispatch";
+import {
+  dispatchRequest,
+  redispatchAsNew as redispatchAsNewRequest,
+} from "../harness/dispatch";
 import { setRunModel, submitToThread } from "../harness/tasks";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
@@ -103,6 +106,15 @@ export const submit = mutation({
       forceNew,
     });
     return { dispatchId };
+  },
+});
+
+/** « Start a new task instead », depuis la ligne « Added to … » de l'omnibar. */
+export const redispatchAsNew = mutation({
+  args: { dispatchId: v.id("dispatches") },
+  handler: async (ctx, { dispatchId }) => {
+    const authUserId = await requireAuth(ctx);
+    return { redirected: await redispatchAsNewRequest(ctx, dispatchId, authUserId) };
   },
 });
 

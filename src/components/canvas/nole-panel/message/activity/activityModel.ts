@@ -140,6 +140,11 @@ function readQuestionResult(output: unknown): QuestionResult {
   return { kind: "text", answer: "" };
 }
 
+/** Les questions d'`ask_user`, lues dans l'entrée du tool (ou ses restes). */
+export function readAskedQuestions(questions: readonly unknown[]): AskedQuestion[] {
+  return questions.flatMap((question) => readQuestion(question) ?? []);
+}
+
 function toQuestionBlock(part: Part, index: number): QuestionBlock {
   const record = part as unknown as Record<string, unknown>;
   const input = isRecord(record.input) ? record.input : {};

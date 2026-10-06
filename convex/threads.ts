@@ -290,10 +290,13 @@ export const listPendingThreads = query({
       // le tour comme après : le titre du thread ne dit que le sujet, pas où
       // en est le travail.
       lastActivity: v.union(threadLastActivityValidator, v.null()),
+      // Les questions d'`ask_user` quand le thread attend une réponse : la
+      // carte du dock les montre, et on y répond sur place.
+      pendingQuestions: v.union(v.array(v.any()), v.null()),
     }),
   ),
-  handler: async (ctx, { canvasId }) =>
-    loadNoleThreads(ctx, {
+  handler: async (ctx, { canvasId }) => {
+    const threads = await loadNoleThreads(ctx, {
       canvasId,
       filter: isDockCandidate,
       project: (metadata, title) => ({
@@ -305,9 +308,29 @@ export const listPendingThreads = query({
         reviewedAt: metadata.reviewedAt ?? null,
         touchedNodes: metadata.touchedNodes ?? [],
         lastActivity: metadata.lastActivity ?? null,
+        awaitingTaskId: metadata.run?.awaitingTaskId ?? null,
       }),
-    }),
+    });
+    return Promise.all(
+      threads.map(async ({ awaitingTaskId, ...thread }) => ({
+        ...thread,
+        pendingQuestions: awaitingTaskId
+          ? await readPendingQuestions(ctx, awaitingTaskId)
+          : null,
+      })),
+    );
+  },
 });
+
+async function readPendingQuestions(
+  ctx: QueryCtx,
+  taskId: Id<"agentTasks">,
+): Promise<unknown[] | null> {
+  const task = await ctx.db.get("agentTasks", taskId);
+  const questions = (task?.input as { questions?: unknown } | undefined)
+    ?.questions;
+  return Array.isArray(questions) ? questions : null;
+}
 
 /**
  * Les tâches en attente de revue, tous canvas confondus : ce que la home

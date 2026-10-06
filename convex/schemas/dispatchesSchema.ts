@@ -56,6 +56,12 @@ const dispatchesValidator = v.object({
   forceNew: v.optional(v.boolean()),
   threadId: v.optional(v.string()),
   decision: v.optional(dispatchDecisionValidator),
+  routedAt: v.optional(v.number()),
+  // Steer encore en file : de quoi le retirer si l'utilisateur préfère une
+  // nouvelle tâche (cf. ia/nole.redispatchAsNew).
+  submissionId: v.optional(v.id("submissions")),
+  // Remplacée par une nouvelle demande, envoyée en nouvelle tâche.
+  redirected: v.optional(v.boolean()),
   error: v.optional(v.string()),
 });
 

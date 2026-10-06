@@ -10,9 +10,12 @@ import {
   internalAction,
   internalMutation,
   internalQuery,
+  query,
   type MutationCtx,
   type QueryCtx,
 } from "../_generated/server";
+import { requireAuth } from "../lib/auth";
+import { submissionStatuses } from "../schemas/submissionsSchema";
 import * as NodeModels from "../models/nodeModels";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import { dispatchStatuses } from "../schemas/dispatchesSchema";
@@ -52,6 +55,7 @@ const RECENT_REQUESTS = 3;
 const REQUEST_CHARS = 300;
 const TOUCHED_NODES = 15;
 const SUMMARY_CHARS = 600;
+const RECENT_DISPATCHES = 5;
 
 const vReason = v.union(
   v.literal("router"),
@@ -60,6 +64,94 @@ const vReason = v.union(
   v.literal("router_error"),
   v.literal("forced_new"),
 );
+
+/**
+ * Les dernières demandes de l'omnibar sur ce canvas : celles en cours
+ * d'aiguillage, et où sont parties les autres. Le client décide, à l'heure du
+ * rendu, combien de temps il montre un « Added to … ».
+ */
+export const listRecentDispatches = query({
+  args: { canvasId: v.id("canvases") },
+  handler: async (ctx, { canvasId }) => {
+    const userId = await requireAuth(ctx);
+    const rows = await ctx.db
+      .query("dispatches")
+      .withIndex("by_canvasId_and_userId", (q) =>
+        q.eq("canvasId", canvasId).eq("userId", userId),
+      )
+      .order("desc")
+      .take(RECENT_DISPATCHES);
+    return Promise.all(
+      rows.map(async (row) => {
+        const thread = row.threadId
+          ? await getThreadMetadata(ctx, components.agent, {
+              threadId: row.threadId,
+            }).catch(() => null)
+          : null;
+        return {
+          _id: row._id,
+          _creationTime: row._creationTime,
+          status: row.status,
+          prompt: row.prompt,
+          threadId: row.threadId ?? null,
+          threadTitle: thread?.title?.trim() || null,
+          kind: row.decision?.kind ?? null,
+          routedAt: row.routedAt ?? null,
+          // Seul un steer encore en file se défait sans perte.
+          canRedirect:
+            row.decision?.kind === "steer" &&
+            row.submissionId !== undefined &&
+            !row.redirected,
+          redirected: row.redirected === true,
+        };
+      }),
+    );
+  },
+});
+
+/**
+ * « Start a new task instead » : la demande, partie en steer dans un thread
+ * qui travaille, est retirée de sa file et renvoyée en nouvelle tâche. Rien
+ * à défaire tant qu'elle n'a pas été placée.
+ */
+export async function redispatchAsNew(
+  ctx: MutationCtx,
+  dispatchId: Id<"dispatches">,
+  userId: Id<"users">,
+): Promise<boolean> {
+  const dispatch = await ctx.db.get("dispatches", dispatchId);
+  if (
+    !dispatch ||
+    dispatch.userId !== userId ||
+    dispatch.redirected ||
+    !dispatch.submissionId
+  ) {
+    return false;
+  }
+  const submission = await ctx.db.get("submissions", dispatch.submissionId);
+  if (!submission || submission.status !== submissionStatuses.queued) {
+    return false;
+  }
+  await ctx.db.patch("submissions", submission._id, {
+    status: submissionStatuses.withdrawn,
+  });
+  await ctx.db.patch("dispatches", dispatch._id, { redirected: true });
+  await dispatchRequest(ctx, {
+    canvasId: dispatch.canvasId,
+    userId: dispatch.userId,
+    profile: { name: dispatch.profile },
+    prompt: dispatch.prompt,
+    content: dispatch.content,
+    input: dispatch.input,
+    ...(dispatch.model !== undefined ? { model: dispatch.model } : {}),
+    ...(dispatch.attachments !== undefined
+      ? { attachments: dispatch.attachments }
+      : {}),
+    nodeIds: dispatch.nodeIds,
+    forceNew: true,
+  });
+  return true;
+}
 
 /** Le point d'entrée d'une demande sans thread. */
 export async function dispatchRequest(
@@ -350,7 +442,7 @@ export const finalize = internalMutation({
       });
     }
 
-    await submitToThread(ctx, {
+    const submitted = await submitToThread(ctx, {
       threadId,
       userId: dispatch.userId,
       canvasId: dispatch.canvasId,
@@ -367,6 +459,10 @@ export const finalize = internalMutation({
 
     await ctx.db.patch("dispatches", dispatch._id, {
       status: dispatchStatuses.routed,
+      routedAt: Date.now(),
+      ...("submissionId" in submitted
+        ? { submissionId: submitted.submissionId }
+        : {}),
       threadId,
       decision: {
         kind,

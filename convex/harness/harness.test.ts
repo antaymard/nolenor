@@ -1873,6 +1873,66 @@ describe("phase 7a — aiguillage threadless", () => {
     expect(await threadsOf(t, seed.userId)).toHaveLength(4);
   });
 
+  test("« Start a new task instead » : le steer en file est retiré, la demande repart seule", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[text("On it")]]);
+    // L'état laissé par un aiguillage en steer : la demande attend sa place
+    // dans le run du thread choisi.
+    const dispatchId = await t.run(async (ctx) => {
+      const submissionId = await ctx.db.insert("submissions", {
+        threadId: seed.threadId,
+        userId: seed.userId,
+        canvasId: seed.canvasId,
+        status: "queued",
+        prompt: "Unrelated thing",
+        content: "Unrelated thing",
+        input: { userPrompt: "Unrelated thing" },
+      });
+      return ctx.db.insert("dispatches", {
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        profile: "test",
+        status: "routed",
+        prompt: "Unrelated thing",
+        content: "Unrelated thing",
+        input: { userPrompt: "Unrelated thing" },
+        nodeIds: [],
+        threadId: seed.threadId,
+        decision: { kind: "steer", reason: "router", confidence: 0.9 },
+        routedAt: Date.now(),
+        submissionId,
+      });
+    });
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const [notice] = await asUser.query(api.harness.dispatch.listRecentDispatches, {
+      canvasId: seed.canvasId,
+    });
+    expect(notice).toMatchObject({ kind: "steer", canRedirect: true });
+    expect(
+      await asUser.mutation(api.ia.nole.redispatchAsNew, { dispatchId }),
+    ).toEqual({ redirected: true });
+    // Une seule fois.
+    expect(
+      await asUser.mutation(api.ia.nole.redispatchAsNew, { dispatchId }),
+    ).toEqual({ redirected: false });
+    await drain(t);
+
+    const [submission] = await submissions(t, seed.threadId);
+    expect(submission.status).toBe("withdrawn");
+    expect(routerCalls).toHaveLength(0);
+    const threads = await threadsOf(t, seed.userId);
+    expect(threads).toHaveLength(2);
+    expect(promptText(0)).toContain("Unrelated thing");
+    const [latest, original] = await asUser.query(
+      api.harness.dispatch.listRecentDispatches,
+      { canvasId: seed.canvasId },
+    );
+    expect(latest).toMatchObject({ kind: "new", redirected: false });
+    expect(original).toMatchObject({ redirected: true, canRedirect: false });
+  });
+
   test("filet : une seule finalisation, même si le routeur répond après", async () => {
     const t = setup();
     const seed = await seedCanvas(t);

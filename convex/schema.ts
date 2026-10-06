@@ -16,6 +16,7 @@ import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
 import { recipesValidor } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
 import { agentTaskValidator } from "./schemas/agentTasksSchema";
+import { compactionsValidator } from "./schemas/compactionsSchema";
 import { runPromptsValidator } from "./schemas/runPromptsSchema";
 import { submissionsValidator } from "./schemas/submissionsSchema";
 import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
@@ -246,6 +247,10 @@ const schema = defineSchema({
     "by_threadId_and_status",
     ["threadId", "status"],
   ),
+  // Résumés de la partie ancienne d'un thread (cf. harness/compaction.ts).
+  compactions: defineTable(compactionsValidator).index("by_threadId", [
+    "threadId",
+  ]),
 
   // ============================================================================
   // AI USAGE (ledger append-only + rollup journalier dénormalisé)

@@ -21,6 +21,24 @@ function summary(description: string | undefined): string {
 }
 
 /**
+ * Les tools tels que le modèle les reçoit : visibles (cf. `visibleTools`), et
+ * sans leur `execute` — le step s'arrête sur les tool calls, que la harness
+ * exécute dans leurs propres tâches.
+ */
+export function modelTools(
+  tools: ToolSet,
+  deferred: readonly string[],
+  loaded: readonly string[],
+): ToolSet {
+  return Object.fromEntries(
+    Object.entries(visibleTools(tools, deferred, loaded)).map(([name, tool]) => [
+      name,
+      { ...tool, execute: undefined },
+    ]),
+  );
+}
+
+/**
  * Ce que le modèle voit : les tools non différés, ceux déjà chargés, et
  * `load_tools` tant qu'il reste quelque chose à charger.
  */

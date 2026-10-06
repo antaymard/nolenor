@@ -31,6 +31,8 @@ export type AssistantActivity = {
 export function useAssistantActivity(
   messages: readonly UIMessage[],
   isRunActive = false,
+  /** Le tour attend une réponse (`ask_user`) : il n'est pas fini. */
+  isAwaitingAnswer = false,
 ): AssistantActivity {
   const lastMessage = messages[messages.length - 1];
   const isAssistantLast = !!lastMessage && lastMessage.role === "assistant";
@@ -48,7 +50,7 @@ export function useAssistantActivity(
     isThinking,
     showThinking: isThinking || isWaiting,
     isFailed,
-    showDone,
+    showDone: showDone && !isAwaitingAnswer,
     lastUserText: findLastUserText(messages),
   };
 }

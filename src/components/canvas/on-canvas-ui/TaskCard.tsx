@@ -2,7 +2,12 @@ import type { ReactNode } from "react";
 import { BorderBeam } from "border-beam";
 import { ThinkingOrb } from "thinking-orbs";
 import { X } from "lucide-react";
-import { TbAlertCircle, TbAlertTriangle, TbCheck } from "react-icons/tb";
+import {
+  TbAlertCircle,
+  TbAlertTriangle,
+  TbCheck,
+  TbMessageQuestion,
+} from "react-icons/tb";
 import {
   useResolvedRunStatus,
   useRunDuration,
@@ -103,7 +108,9 @@ export default function TaskCard({
         // Un tour en cours n'est pas revuable : il n'est pas fini, et le serveur
         // refuserait de toute façon.
         onReview={
-          onReview && !isRunning ? () => onReview(thread.threadId) : undefined
+          onReview && !isRunning && status !== "waiting"
+            ? () => onReview(thread.threadId)
+            : undefined
         }
       />
     </div>
@@ -153,7 +160,9 @@ function TaskStatusIndicator({ status }: { status: ResolvedRunStatus }) {
 
   return (
     <IndicatorSlot>
-      {status === "error" ? (
+      {status === "waiting" ? (
+        <TbMessageQuestion size={16} className="text-violet-600" />
+      ) : status === "error" ? (
         <TbAlertCircle size={16} className="text-red-500" />
       ) : status === "stale" || status === "aborted" ? (
         <TbAlertTriangle size={15} className="text-amber-500" />

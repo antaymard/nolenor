@@ -61,9 +61,12 @@ export const saveMessage = mutation({
       attachments: readAttachments(metadata),
     });
 
+    if ("answered" in result) {
+      return { messageId: null, queued: false, answered: true };
+    }
     return result.queued
-      ? { messageId: null, queued: true }
-      : { messageId: result.messageId, queued: false };
+      ? { messageId: null, queued: true, answered: false }
+      : { messageId: result.messageId, queued: false, answered: false };
   },
 });
 

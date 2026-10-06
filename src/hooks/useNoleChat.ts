@@ -184,10 +184,13 @@ export function useNoleChat() {
       // que l'UI ne retombe pas sur le défaut dans la foulée.
       adoptDraftSelection(activeThreadId);
       // Pendant un run, le serveur met le message en file : il rejoint le run
-      // au step suivant (steer). La décision finale reste au serveur.
-      const send = isAssistantResponding
-        ? sendMessageDuringRun
-        : sendMessageWhenIdle;
+      // au step suivant (steer). Quand Nolë attend une réponse, le message y
+      // répond et ne s'affiche pas comme un message de plus. Dans les deux
+      // cas, pas d'insertion optimiste ; la décision finale reste au serveur.
+      const send =
+        isAssistantResponding || runStatus === "waiting"
+          ? sendMessageDuringRun
+          : sendMessageWhenIdle;
       await send({
         threadId: activeThreadId,
         prompt,
@@ -216,6 +219,7 @@ export function useNoleChat() {
     canvasId,
     isSending,
     isAssistantResponding,
+    runStatus,
     hasDirtyWindows,
     speech.sttBusy,
     reactFlow,

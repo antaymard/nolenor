@@ -10,6 +10,7 @@ import { groupMessageParts } from "./activity/activityModel";
 import { ErrorInline } from "./ErrorInline";
 import { AssistantMessageFooter } from "./AssistantMessageFooter";
 import { getMessageErrorText } from "./messageParsing";
+import { QuestionCard } from "./QuestionCard";
 
 /** An assistant message: text parts interleaved with collapsed activity blocks
  * (tool calls + reasoning), plus a processing spinner, error banner and hover
@@ -19,10 +20,15 @@ export function AssistantMessage({
   metadata,
   modelOptions,
   isRunActive = false,
+  isAwaitingAnswer = false,
+  threadId,
 }: {
   message: UIMessage;
   /** Dernier message d'un tour que le serveur dit encore en cours. */
   isRunActive?: boolean;
+  /** Dernier message d'un tour qui attend la réponse de l'utilisateur. */
+  isAwaitingAnswer?: boolean;
+  threadId?: string;
   metadata?: Doc<"messageMetadata">;
   modelOptions?: readonly ChatModelOption[];
 }) {
@@ -56,6 +62,15 @@ export function AssistantMessage({
         {blocks.map((block, index) =>
           block.kind === "text" ? (
             <TextPart key={block.key} part={block.part} />
+          ) : block.kind === "question" ? (
+            <QuestionCard
+              key={block.key}
+              threadId={threadId}
+              question={block.question}
+              options={block.options}
+              answer={block.answer}
+              canAnswer={isAwaitingAnswer}
+            />
           ) : (
             <ActivityGroup
               key={block.key}

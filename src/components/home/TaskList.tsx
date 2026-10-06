@@ -114,12 +114,14 @@ export default function TaskList({
     canvases.has(task.canvasId),
   );
 
-  // Tout ce qui ne tourne plus. Pas les tours en cours, que le serveur refuse
-  // d'accuser : les compter promettrait un effet qui n'aurait pas lieu.
+  // Tout ce qui ne tourne plus. Pas les tours en cours ni les questions en
+  // attente, que le serveur refuse d'accuser : les compter promettrait un
+  // effet qui n'aurait pas lieu.
   const now = Date.now();
-  const clearable = listed.filter(
-    (task) => resolveRunStatus(task, now) !== "running",
-  );
+  const clearable = listed.filter((task) => {
+    const status = resolveRunStatus(task, now);
+    return status !== "running" && status !== "waiting";
+  });
 
   // Sur la home, la section reste montée tant qu'un revert est possible :
   // acquitter la dernière tâche ne doit pas faire disparaître son Undo.

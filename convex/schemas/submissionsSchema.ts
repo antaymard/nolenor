@@ -10,7 +10,10 @@ import { v } from "convex/values";
  * le round de tools en cours — ou, si le run se termine avant, comme premier
  * message du run suivant.
  *
- * L'UI affiche les submissions `queued` comme des bulles « en file ».
+ * L'UI affiche les submissions `queued` de l'utilisateur comme des bulles
+ * « en file ». Celles de l'app (`origin`, ex. le rapport d'un sous-agent
+ * d'arrière-plan) ne s'affichent pas en file et survivent à un stop : un
+ * rapport n'est jamais perdu, il attend le run suivant.
  */
 const submissionStatuses = {
   queued: "queued",
@@ -48,6 +51,9 @@ const submissionsValidator = v.object({
   ),
   // Le message créé au placement.
   messageId: v.optional(v.string()),
+  // Absent : envoyé par l'utilisateur. `subagent` : rapport d'un sous-agent
+  // d'arrière-plan (cf. harness/subagents.ts).
+  origin: v.optional(v.literal("subagent")),
 });
 
 export { submissionsValidator, submissionStatuses };

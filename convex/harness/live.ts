@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import * as NodeModels from "../models/nodeModels";
+import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
   agentTaskKinds,
   agentTaskStatuses,
@@ -79,6 +80,28 @@ export const listLiveActivity = query({
       }
     }
     return { calls, written };
+  },
+});
+
+/**
+ * Les points de coupe des compactions d'un thread : le chat y place un
+ * séparateur « résumé au-dessus ». La position seule, pas le résumé.
+ */
+export const listCompactionPoints = query({
+  args: { threadId: v.string() },
+  handler: async (ctx, { threadId }) => {
+    const userId = await requireAuth(ctx);
+    const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+    if (!row || row.userId !== userId) return [];
+    const rows = await ctx.db
+      .query("compactions")
+      .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
+      .take(50);
+    return rows.map((compaction) => ({
+      _id: compaction._id,
+      order: compaction.firstKeptOrder,
+      stepOrder: compaction.firstKeptStepOrder,
+    }));
   },
 });
 

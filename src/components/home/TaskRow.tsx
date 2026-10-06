@@ -7,6 +7,7 @@ import {
   TbClock,
   TbLayoutGrid,
   TbLoader2,
+  TbMessageQuestion,
 } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
  */
 function TaskStatusIcon({ status }: { status: ResolvedRunStatus }) {
   if (status === "running") return <TbLoader2 className="animate-spin" />;
+  if (status === "waiting") return <TbMessageQuestion />;
   if (status === "error") return <TbAlertCircle />;
   if (status === "stale" || status === "aborted") return <TbAlertTriangle />;
   return <TbCheck />;
@@ -45,6 +47,7 @@ function TaskStatusIcon({ status }: { status: ResolvedRunStatus }) {
 function taskDetail(task: HomePendingThread, status: ResolvedRunStatus) {
   if (status === "error" && task.lastRunError) return task.lastRunError;
   if (status === "stale") return RUN_STATUS_APPEARANCE.stale.description;
+  if (status === "waiting") return RUN_STATUS_APPEARANCE.waiting.description;
   if (task.lastActivity?.text) return task.lastActivity.text;
   if (status === "running") return "Nolë is working on it…";
   return getDockStatusAppearance(status).description;
@@ -161,12 +164,23 @@ export default function TaskRow({ task, canvas, onClear }: TaskRowProps) {
           variant="outline"
           size="icon-sm"
           onClick={() => onClear(task)}
-          // Le serveur refuse d'accuser réception d'un tour en cours : il n'est
-          // pas fini. Autant le dire que de laisser un clic sans effet.
-          disabled={isRunning}
-          title={isRunning ? "Still running" : "Mark as reviewed"}
+          // Le serveur refuse d'accuser réception d'un tour en cours ou d'une
+          // question en attente : ni l'un ni l'autre n'est fini. Autant le dire
+          // que de laisser un clic sans effet.
+          disabled={isRunning || status === "waiting"}
+          title={
+            isRunning
+              ? "Still running"
+              : status === "waiting"
+                ? "Waiting for your answer"
+                : "Mark as reviewed"
+          }
           aria-label={
-            isRunning ? `${title} is still running` : `Mark ${title} as reviewed`
+            isRunning
+              ? `${title} is still running`
+              : status === "waiting"
+                ? `${title} is waiting for your answer`
+                : `Mark ${title} as reviewed`
           }
           className="hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
         >

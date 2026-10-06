@@ -11,3 +11,17 @@ export function extractUserMessageForDisplay(text: string): string {
   );
   return match ? match[1].trim() : text;
 }
+
+/**
+ * Le rapport d'un sous-agent d'arrière-plan, que l'app poste dans le fil (cf.
+ * convex/harness/subagents.ts). `null` pour un message de l'utilisateur.
+ */
+export function parseSubagentResult(
+  text: string,
+): { task: string; status: string; report: string } | null {
+  const match =
+    /^<subagent_result task="([^"]*)" status="([^"]*)">\n[^\n]*\n\n([\s\S]*)\n<\/subagent_result>\s*$/.exec(
+      text,
+    );
+  return match ? { task: match[1], status: match[2], report: match[3].trim() } : null;
+}

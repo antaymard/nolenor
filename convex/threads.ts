@@ -248,6 +248,7 @@ export const listCanvasThreads = query({
  */
 function isDockCandidate(metadata: Doc<"threadMetadata">): boolean {
   if (metadata.runStatus === threadRunStatuses.running) return true;
+  if (metadata.runStatus === threadRunStatuses.waiting) return true;
   if (metadata.runEndedAt === undefined) return false;
   return metadata.reviewedAt === undefined;
 }

@@ -84,4 +84,28 @@ export interface Profile {
     window: StepWindow,
   ): Promise<ContextSection[]>;
   memory?: MemoryProvider;
+  compaction?: CompactionSettings;
+  /** Le profil des sous-agents que ce profil peut lancer (`run_subAgent`). */
+  subagents?: { profile: string };
+  /** Peut poser une question à l'utilisateur et l'attendre (`ask_user`). */
+  askUser?: boolean;
+}
+
+/**
+ * Compaction (cf. harness/compaction.ts) : quand le contexte dépasse le seuil
+ * en fin de run, ou déborde en plein run, sa partie ancienne est remplacée
+ * par un résumé.
+ */
+export interface CompactionSettings {
+  /** Fenêtre de contexte du modèle du run, en tokens. */
+  contextWindow(run: RunInfo): number;
+  /** Part de la fenêtre au-delà de laquelle on compacte en fin de run. */
+  thresholdRatio: number;
+  /** Le format du résumé, ajouté à la consigne du kernel. */
+  instructions: string;
+  /**
+   * État que la harness calcule elle-même plutôt que de le confier au résumé
+   * (ex. nodes lus, créés, modifiés). Ajouté tel quel au résumé.
+   */
+  trackedState?(ctx: ActionCtx, run: RunInfo): Promise<string>;
 }

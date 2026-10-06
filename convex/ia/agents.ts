@@ -16,11 +16,11 @@ import {
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "Ling 3.1 Flashh",
-    value: "inclusionai/ling-3.1-flash",
-    price: "0_0",
-    isMultimodal: false,
-    maxContext: 262000,
+    label: "Mistral Large 4",
+    value: "mistralai/mistral-large-4-0",
+    price: "0.68_2.09",
+    isMultimodal: true,
+    maxContext: 524000,
   },
   {
     label: "Deepseek V4.1 flash",

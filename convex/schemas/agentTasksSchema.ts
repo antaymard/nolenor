@@ -88,6 +88,16 @@ const agentTaskValidator = v.object({
   responseProvider: v.optional(v.string()),
   // Nom d'agent porté par les messages du run (affichage, attribution).
   agentName: v.optional(v.string()),
+  // Ce qui a changé depuis le step précédent, tel que le modèle l'a reçu
+  // (`<system_update>…`). Absent si rien n'a changé. Placé dans le contexte
+  // juste avant la réponse de cette génération, et seulement pendant son run
+  // (cf. transcript.ts) : au run suivant, il n'existe plus pour le modèle.
+  systemUpdate: v.optional(v.string()),
+  // Souvenirs injectés par ce step : jamais deux fois dans un run, et la base
+  // de l'évaluation de la mémoire.
+  memories: v.optional(
+    v.array(v.object({ id: v.string(), score: v.optional(v.number()) })),
+  ),
 
   // ── generation (step 1) et tool : entrée ──
   input: v.optional(v.any()),

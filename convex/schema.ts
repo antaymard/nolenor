@@ -105,6 +105,8 @@ const schema = defineSchema({
 
   nodeDatas: defineTable(nodeDatasValidator)
     .index("by_canvasId", ["canvasId"])
+    // Les changements d'un canvas depuis un instant (cf. harness, deltas).
+    .index("by_canvasId_and_updatedAt", ["canvasId", "updatedAt"])
     .index("by_templateId", ["templateId"]),
 
   // Templates de custom nodes définis par l'utilisateur : champs typés +

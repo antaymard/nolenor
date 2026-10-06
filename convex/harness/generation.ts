@@ -4,6 +4,7 @@ import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { isRetryableGenerationError } from "./errors";
 import { getProfile } from "./profiles";
+import { resolveSystemUpdate } from "./systemUpdate";
 import { assembleRunContext } from "./transcript";
 
 /**
@@ -74,6 +75,14 @@ export const run = internalAction({
           ...(await profile.prepareRun(ctx, run, claim.input)),
         }));
 
+      const systemUpdate = await resolveSystemUpdate(ctx, profile, run, {
+        taskId,
+        attempt,
+        window: claim.window,
+        seenMemoryIds: claim.seenMemoryIds,
+        systemUpdate: claim.systemUpdate,
+      });
+
       const agent = profile.agent(run);
       const tools = profile.tools(run);
 
@@ -103,6 +112,12 @@ export const run = internalAction({
               promptMessageId: claim.promptMessageId,
               runMessageId: run.runMessageId,
               llmPrompt: prompts.llmPrompt,
+              updates: [
+                ...claim.updates,
+                ...(systemUpdate
+                  ? [{ beforeMessageId: null, content: systemUpdate }]
+                  : []),
+              ],
             }),
           saveStreamDeltas: {
             // Le découpage reste au mot : c'est lui qui donne le rendu « à la

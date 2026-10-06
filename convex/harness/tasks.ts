@@ -497,6 +497,7 @@ export const claimGeneration = internalMutation({
       .unique();
 
     return {
+      ...(await runContextState(ctx, task, now)),
       taskId,
       attempt,
       profile: task.profile,
@@ -515,6 +516,72 @@ export const claimGeneration = internalMutation({
         ? { systemPrompt: prompts.systemPrompt, llmPrompt: prompts.llmPrompt }
         : null,
     };
+  },
+});
+
+/**
+ * Ce que la génération doit savoir des précédentes de son run : les deltas
+ * déjà envoyés (et où les replacer), les souvenirs déjà injectés, et le début
+ * de sa fenêtre — le début de la génération précédente.
+ */
+async function runContextState(ctx: MutationCtx, task: Task, now: number) {
+  const generations = await ctx.db
+    .query("agentTasks")
+    .withIndex("by_runMessageId_and_kind", (q) =>
+      q
+        .eq("runMessageId", task.runMessageId)
+        .eq("kind", agentTaskKinds.generation),
+    )
+    .take(500);
+  const step = task.step ?? 1;
+  const previous = generations.find((g) => (g.step ?? 1) === step - 1);
+
+  const updates: { beforeMessageId: string; content: string }[] = [];
+  const seenMemoryIds: string[] = [];
+  for (const generation of generations) {
+    // Une génération sans réponse n'a rien fait voir au modèle.
+    if (generation._id === task._id || !generation.responseMessageId) continue;
+    if (generation.systemUpdate) {
+      updates.push({
+        beforeMessageId: generation.responseMessageId,
+        content: generation.systemUpdate,
+      });
+    }
+    for (const memory of generation.memories ?? []) {
+      seenMemoryIds.push(memory.id);
+    }
+  }
+  return {
+    window: { step, since: previous?.startedAt ?? null, until: now },
+    updates,
+    seenMemoryIds,
+    // Déjà calculé par une tentative précédente : rejoué tel quel.
+    systemUpdate: task.systemUpdate ?? null,
+  };
+}
+
+/**
+ * Le delta du step, écrit une fois : une génération rejouée relit le même, et
+ * le modèle n'a jamais vu une information qui disparaît ensuite.
+ */
+export const saveSystemUpdate = internalMutation({
+  args: {
+    taskId: v.id("agentTasks"),
+    attempt: v.number(),
+    systemUpdate: v.string(),
+    memories: v.array(
+      v.object({ id: v.string(), score: v.optional(v.number()) }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get("agentTasks", args.taskId);
+    if (!task || task.attempt !== args.attempt) return null;
+    if (task.systemUpdate !== undefined) return task.systemUpdate;
+    await ctx.db.patch("agentTasks", args.taskId, {
+      systemUpdate: args.systemUpdate,
+      ...(args.memories.length > 0 ? { memories: args.memories } : {}),
+    });
+    return args.systemUpdate;
   },
 });
 

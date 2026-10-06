@@ -18,6 +18,9 @@ import { zoomCompensationScaleSelector } from "@/lib/zoomCompensation";
  * comme le titre des frames. Elle grandit depuis son centre, autour de la
  * boîte réelle, que les edges continuent de viser.
  *
+ * Passe aussi le node au premier plan (classe `zoom-compensated`, cf.
+ * index.css) : il grossit par-dessus ses voisins, il ne doit pas passer dessous.
+ *
  * Composant à part pour que seuls les nodes qui ont l'option s'abonnent au
  * zoom. Les handles et le resizer restent hors de l'échelle : React Flow les
  * mesure, une mesure sous `scale` fausserait les edges.
@@ -26,7 +29,7 @@ function ZoomCompensated({ children }: { children: React.ReactNode }) {
   const scale = useStore(zoomCompensationScaleSelector);
   return (
     <div
-      className="h-full"
+      className="zoom-compensated h-full"
       style={{ scale: String(scale), transformOrigin: "center" }}
     >
       {children}

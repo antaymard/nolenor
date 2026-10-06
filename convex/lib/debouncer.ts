@@ -93,11 +93,14 @@ export class Debouncer<Fn extends Target> {
   // peut pas traverser les requêtes).
   private functionHandle: string | undefined;
 
-  constructor(
-    private readonly component: ComponentApi,
-    private readonly fn: Fn,
-    private readonly config: DebouncerConfig,
-  ) {
+  private readonly component: ComponentApi;
+  private readonly fn: Fn;
+  private readonly config: DebouncerConfig;
+
+  constructor(component: ComponentApi, fn: Fn, config: DebouncerConfig) {
+    this.component = component;
+    this.fn = fn;
+    this.config = config;
     assertDurations(config);
     this.functionName = getFunctionName(fn);
     this.namespace = config.namespace ?? this.functionName;

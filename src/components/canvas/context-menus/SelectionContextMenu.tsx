@@ -22,7 +22,15 @@ import {
   TbStack2,
   TbUnlink,
 } from "react-icons/tb";
-import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
+import {
+  getNodeCapabilities,
+  nodeDataConfig,
+} from "@/../convex/config/nodeConfig";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/shadcn/tooltip";
 import { MAX_SELECTION_NODE_IDS } from "@/../convex/schemas/canvasBookmarksSchema";
 import { fromXyNodesToCanvasNodes } from "@/lib/node-types-converter";
 import { useNoleStore } from "@/stores/noleStore";
@@ -88,6 +96,16 @@ export default function SelectionContextMenu({
   const canMergeImages = imageNodes.length >= 2;
 
   const elementsArray = Array.isArray(elements) ? elements : [];
+
+  // Détail de la sélection par type, du plus nombreux au moins nombreux,
+  // pour la pastille de compte de l'en-tête.
+  const countsByType = Object.entries(
+    elementsArray.reduce<Record<string, number>>((acc, node) => {
+      const type = node.type ?? "unknown";
+      acc[type] = (acc[type] ?? 0) + 1;
+      return acc;
+    }, {}),
+  ).sort(([, a], [, b]) => b - a);
 
   // Ce que le repère de sélection visera, borné au même plafond que le serveur
   // (`normalizeTarget`) : le compte annoncé par le menu est
@@ -180,8 +198,28 @@ export default function SelectionContextMenu({
 
   return (
     <>
-      <DropdownMenuLabel className="whitespace-nowrap">
+      <DropdownMenuLabel className="flex items-center justify-between gap-3 whitespace-nowrap">
         Selection actions
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground cursor-default">
+              {elementsArray.length}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <ul className="flex flex-col gap-0.5">
+              {countsByType.map(([type, count]) => (
+                <li key={type} className="flex justify-between gap-4">
+                  <span>
+                    {nodeDataConfig.find((config) => config.type === type)
+                      ?.label ?? type}
+                  </span>
+                  <span className="tabular-nums">{count}</span>
+                </li>
+              ))}
+            </ul>
+          </TooltipContent>
+        </Tooltip>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
 

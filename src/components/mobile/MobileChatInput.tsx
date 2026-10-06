@@ -67,8 +67,9 @@ export default function MobileChatInput() {
 
   // Voir ChatInput : le blocage « fenêtres modifiées » laisse le bouton actif
   // pour que le clic déclenche le toast explicatif.
-  const canSend =
-    hasUserInput && !isAssistantResponding && !isSending && !sttBusy;
+  // Pendant une réponse, envoyer reste possible : le message part en file et
+  // rejoint le run au step suivant (cf. convex/harness).
+  const canSend = hasUserInput && !isSending && !sttBusy;
 
   return (
     <div className="shrink-0 p-2 pt-0">

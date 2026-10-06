@@ -7,6 +7,7 @@ import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useThreadMessageMetadata } from "@/hooks/useThreadMessageMetadata";
 import { useAssistantActivity } from "@/hooks/useAssistantActivity";
 import { Message } from "./message/Message";
+import { QueuedMessages } from "./message/QueuedMessages";
 import ChatStatusOverlay from "./ChatStatusOverlay";
 
 type ChatInterfaceProps = {
@@ -79,6 +80,7 @@ const ChatInterface = memo(function ChatInterface({
                 modelOptions={modelOptions}
               />
             ))}
+            <QueuedMessages threadId={threadId} />
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center text-sm text-slate-400">

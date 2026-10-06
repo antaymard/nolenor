@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type SendStopButtonProps = {
-  /** Le message peut réellement partir (texte saisi, rien en cours). */
+  /** Le message peut réellement partir (texte saisi, pas d'envoi en cours). */
   canSend: boolean;
   onSend: () => void;
   isSending: boolean;
@@ -27,9 +27,12 @@ type SendStopButtonProps = {
 };
 
 /**
- * Contrôle unique du composer, réduit à une icône ronde : envoyer tant que
- * l'assistant se tait, arrêter dès qu'il répond. Les deux états se relaient au
- * même endroit pour que le pouce (ou le curseur) n'ait jamais à se déplacer.
+ * Contrôle unique du composer, réduit à une icône ronde : envoyer, ou arrêter
+ * l'assistant qui répond. Les deux états se relaient au même endroit pour que
+ * le pouce (ou le curseur) n'ait jamais à se déplacer.
+ *
+ * Pendant une réponse, un texte saisi l'emporte : le message part en file et
+ * rejoint le run au step suivant. Sans texte, le bouton arrête le run.
  */
 export default function SendStopButton({
   canSend,
@@ -41,7 +44,7 @@ export default function SendStopButton({
   hasDirtyWindows,
   className,
 }: SendStopButtonProps) {
-  if (isAssistantResponding) {
+  if (isAssistantResponding && !canSend) {
     return (
       <Tooltip delayDuration={400}>
         <TooltipTrigger asChild>
@@ -76,7 +79,16 @@ export default function SendStopButton({
       size="icon-sm"
       disabled={!canSend}
       onClick={onSend}
-      aria-label="Envoyer le message"
+      aria-label={
+        isAssistantResponding
+          ? "Envoyer — ajouté après l'étape en cours"
+          : "Envoyer le message"
+      }
+      title={
+        isAssistantResponding
+          ? "Ajouté à la réponse en cours, après l'étape actuelle"
+          : undefined
+      }
       className={cn(
         "size-8 rounded-full transition-all",
         // Rien à envoyer : le bouton s'efface au lieu de sauter hors du flux,

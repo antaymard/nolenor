@@ -99,9 +99,14 @@ export function useNoleChat() {
   const [isSending, setIsSending] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const sendMessage = useMutation(api.ia.nole.saveMessage).withOptimisticUpdate(
-    optimisticallySendMessage(api.threads.listMessages),
-  );
+  // Deux variantes de la même mutation. Au repos, le message apparaît tout de
+  // suite dans le fil (mise à jour optimiste). Pendant un run, il part en file
+  // côté serveur et s'affiche en bulle « en file » (cf. `QueuedMessages`) :
+  // l'insérer de façon optimiste dans le fil le ferait clignoter.
+  const sendMessageWhenIdle = useMutation(
+    api.ia.nole.saveMessage,
+  ).withOptimisticUpdate(optimisticallySendMessage(api.threads.listMessages));
+  const sendMessageDuringRun = useMutation(api.ia.nole.saveMessage);
   const abortStream = useMutation(api.threads.abortStream);
   const updateThreadTitle = useAction(api.threads.updateThreadTitle);
   const threadInfo = useQuery(
@@ -137,7 +142,6 @@ export function useNoleChat() {
       !canvasId ||
       !userInput.trim() ||
       isSending ||
-      isAssistantResponding ||
       hasDirtyWindows ||
       speech.sttBusy
     ) {
@@ -179,7 +183,12 @@ export function useNoleChat() {
       // avant l'await) ; on rattache le choix au thread qui vient de naître pour
       // que l'UI ne retombe pas sur le défaut dans la foulée.
       adoptDraftSelection(activeThreadId);
-      await sendMessage({
+      // Pendant un run, le serveur met le message en file : il rejoint le run
+      // au step suivant (steer). La décision finale reste au serveur.
+      const send = isAssistantResponding
+        ? sendMessageDuringRun
+        : sendMessageWhenIdle;
+      await send({
         threadId: activeThreadId,
         prompt,
         metadata: { messageContext, model: selectedModel },
@@ -216,7 +225,8 @@ export function useNoleChat() {
     overrideThreadId,
     ensureThread,
     adoptDraftSelection,
-    sendMessage,
+    sendMessageWhenIdle,
+    sendMessageDuringRun,
     selectedModel,
     resetAttachments,
     updateThreadTitle,

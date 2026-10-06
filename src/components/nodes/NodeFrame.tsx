@@ -7,6 +7,7 @@ import NodeHandles from "./NodeHandles";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
+import { useNoleNodeActivity } from "@/stores/noleLiveStore";
 import BookmarkedBadge from "./BookmarkedBadge";
 import { NodeTitleHeader } from "./NodeHeader";
 import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
@@ -69,6 +70,7 @@ function NodeFrame({
   const openWindow = useWindowsStore((state) => state.openWindow);
   const isAttachedToNole = useIsNodeAttached(xyNode.id);
   const isBookmarked = useIsNodeBookmarked(xyNode.id);
+  const noleActivity = useNoleNodeActivity(xyNode.id);
   const nodeType = xyNode.type;
 
   // `openWindow` tranche lui-même si ce node a une window (type prébuilt
@@ -121,6 +123,14 @@ function NodeFrame({
         !isTransparent && "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
         isAttachedToNole &&
           "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
+        // Halo live : un tool de Nolë tourne sur ce node. `before:` pour ne
+        // pas entrer en conflit avec l'outline du node attaché (`after:`).
+        noleActivity &&
+          "before:pointer-events-none before:absolute before:-inset-1.5 before:rounded-[20px] before:border-2",
+        noleActivity?.access === "read" &&
+          "before:border-violet-400/60 before:shadow-[0_0_12px_rgba(139,92,246,0.25)]",
+        noleActivity?.access === "write" &&
+          "before:animate-pulse before:border-violet-600 before:shadow-[0_0_16px_rgba(124,58,237,0.45)]",
         !canDrag && "nodrag",
         xyNode.selected
           ? cn(
@@ -138,6 +148,12 @@ function NodeFrame({
           qui porte `overflow-hidden` : elle déborde volontairement du coin
           (cf. `BookmarkedBadge`). */}
       {isBookmarked && <BookmarkedBadge />}
+
+      {noleActivity?.label && (
+        <div className="pointer-events-none absolute -top-7 left-1 z-20 max-w-full truncate rounded-full bg-violet-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-sm">
+          {noleActivity.label}
+        </div>
+      )}
 
       {/* `content-visibility: auto` : le navigateur saute le layout et le
           paint du contenu tant que le node est hors écran, ce qui borne le

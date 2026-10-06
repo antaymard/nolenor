@@ -73,8 +73,9 @@ export default function ChatInput({
   // `hasDirtyWindows` n'entre volontairement pas dans `canSend` : le bouton
   // reste cliquable pour que le clic déclenche le toast qui explique le blocage,
   // signalé au passage par l'icône d'alerte et le badge.
-  const canSend =
-    hasUserInput && !isAssistantResponding && !isSending && !sttBusy;
+  // Pendant une réponse, envoyer reste possible : le message part en file et
+  // rejoint le run au step suivant (cf. convex/harness).
+  const canSend = hasUserInput && !isSending && !sttBusy;
 
   return (
     <div className="p-2 pt-0">

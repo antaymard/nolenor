@@ -29,10 +29,12 @@ export function AssistantMessage({
   // `streaming` ne couvre que les tokens en vol. Pendant qu'un tool s'exécute,
   // ou entre deux étapes, le message est `pending` : sans le statut serveur, le
   // bloc d'activité passerait en résumé, et le tool en cours en « stopped ».
-  const isProcessing =
-    message.status === "streaming" ||
-    (isRunActive && message.status !== "failed");
-  const isFailed = message.status === "failed";
+  //
+  // Un message `failed` dans un tour encore en cours est une tentative que le
+  // serveur va rejouer (cf. convex/harness/errors.ts) : pas d'erreur tant que
+  // le tour n'est pas fini.
+  const isProcessing = message.status === "streaming" || isRunActive;
+  const isFailed = message.status === "failed" && !isRunActive;
   const messageError = getMessageErrorText(message);
 
   const blocks = useMemo(

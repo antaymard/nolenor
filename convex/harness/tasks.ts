@@ -42,6 +42,12 @@ import { saveToolResult, type ToolResultOutput } from "./transcript";
 const LEASE_MS = 10.5 * 60 * 1000;
 /** Au-delà, une tâche reprise trop souvent est abandonnée en erreur. */
 const MAX_ATTEMPTS = 3;
+/**
+ * Attente avant de rejouer une génération sur erreur passagère : 2 s, puis
+ * 8 s. Assez pour laisser passer un 429 ou un provider qui redémarre, assez
+ * court pour que l'utilisateur ne croie pas le run mort.
+ */
+const RETRY_BASE_MS = 2000;
 const RECOVERY_BATCH = 20;
 
 type Task = Doc<"agentTasks">;
@@ -212,13 +218,15 @@ async function placeQueuedSteers(
   current: CurrentRun,
 ): Promise<string | null> {
   let lastMessageId: string | null = null;
+  let model = current.run.model;
   for (const submission of await listQueued(ctx, current.row.threadId)) {
     lastMessageId = await placeSubmission(ctx, submission, "steer");
+    // Un message porte le modèle choisi au moment de l'envoi.
+    if (submission.model !== undefined) model = submission.model;
   }
   if (lastMessageId) {
-    await ctx.db.patch("threadMetadata", current.row._id, {
-      run: { ...current.run, promptMessageId: lastMessageId },
-    });
+    current.run = { ...current.run, promptMessageId: lastMessageId, model };
+    await ctx.db.patch("threadMetadata", current.row._id, { run: current.run });
   }
   return lastMessageId;
 }
@@ -334,6 +342,7 @@ export async function startRun(
       generationTaskId,
       runToken,
       maxGenerations: args.profile.maxGenerationsPerRun,
+      ...(args.model !== undefined ? { model: args.model } : {}),
     },
   });
   return generationTaskId;
@@ -408,6 +417,23 @@ export async function submitToThread(
 }
 
 /**
+ * Change le modèle du run en cours : la prochaine génération le prend (celle
+ * qui streame déjà finit avec l'ancien). Rend `false` s'il n'y a aucun run.
+ */
+export async function setRunModel(
+  ctx: MutationCtx,
+  threadId: string,
+  model: string,
+): Promise<boolean> {
+  const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+  if (!row?.run) return false;
+  await ctx.db.patch("threadMetadata", row._id, {
+    run: { ...row.run, model },
+  });
+  return true;
+}
+
+/**
  * Abandonne le run en cours d'un thread : tâches marquées `aborted`, thread
  * `aborted`. Une génération qui streame encore est coupée à part, par
  * l'abort du stream (cf. threads.abortStream). Rend `false` s'il n'y avait
@@ -451,6 +477,8 @@ export const claimGeneration = internalMutation({
     const placed = await placeQueuedSteers(ctx, current);
     const promptMessageId =
       placed ?? task.promptMessageId ?? task.runMessageId;
+    // Le modèle du run à cet instant, pas celui de la création de la tâche.
+    const model = current.run.model ?? task.model;
 
     const now = Date.now();
     const attempt = task.attempt + 1;
@@ -460,6 +488,7 @@ export const claimGeneration = internalMutation({
       startedAt: task.startedAt ?? now,
       leaseExpiresAt: now + LEASE_MS,
       promptMessageId,
+      model,
     });
 
     const prompts = await ctx.db
@@ -477,7 +506,7 @@ export const claimGeneration = internalMutation({
         userId: task.userId,
         canvasId: task.canvasId,
         runMessageId: task.runMessageId,
-        ...(task.model !== undefined ? { model: task.model } : {}),
+        ...(model !== undefined ? { model } : {}),
       },
       promptMessageId,
       // L'entrée ne sert qu'à calculer les prompts du run, une fois.
@@ -623,6 +652,9 @@ export const failGeneration = internalMutation({
     taskId: v.id("agentTasks"),
     attempt: v.number(),
     aborted: v.boolean(),
+    // Erreur passagère (429, 5xx, réseau, coupure du stream) : la génération
+    // est rejouée tant qu'il lui reste des tentatives.
+    retryable: v.optional(v.boolean()),
     error: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -634,12 +666,37 @@ export const failGeneration = internalMutation({
     ) {
       return;
     }
+    if (args.retryable && !args.aborted && task.attempt < MAX_ATTEMPTS) {
+      const current = await currentRun(ctx, task);
+      if (current && current.run.generationTaskId === task._id) {
+        await retryGeneration(ctx, task, args.error);
+        return;
+      }
+    }
     await failGenerationTask(ctx, task, {
       status: args.aborted ? agentTaskStatuses.aborted : agentTaskStatuses.failed,
       error: args.error,
     });
   },
 });
+
+/**
+ * Rejoue la génération après un backoff. Même tâche, même position dans le
+ * transcript : la lib marque `failed` les messages de la tentative ratée, que
+ * le contexte ignore.
+ */
+async function retryGeneration(ctx: MutationCtx, task: Task, error?: string) {
+  const delay = RETRY_BASE_MS * 4 ** (task.attempt - 1);
+  await ctx.db.patch("agentTasks", task._id, {
+    status: agentTaskStatuses.pending,
+    error,
+    // Le cron ne la reprend pas pendant l'attente.
+    leaseExpiresAt: Date.now() + delay + LEASE_MS,
+  });
+  await ctx.scheduler.runAfter(delay, internal.harness.generation.run, {
+    taskId: task._id,
+  });
+}
 
 async function failGenerationTask(
   ctx: MutationCtx,
@@ -846,7 +903,7 @@ async function advanceRun(
     runMessageId: generation.runMessageId,
     step: step + 1,
     promptMessageId: current.run.promptMessageId,
-    model: generation.model,
+    model: current.run.model ?? generation.model,
     agentName: generation.agentName,
     input: undefined,
   });

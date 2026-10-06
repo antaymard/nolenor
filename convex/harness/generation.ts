@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { stepCountIs, type ToolSet } from "ai";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { isRetryableGenerationError } from "./errors";
 import { getProfile } from "./profiles";
 import { assembleRunContext } from "./transcript";
 
@@ -22,6 +23,16 @@ function isExpectedAbortedStreamError(error: unknown): boolean {
     message.includes("aborted") &&
     (message.includes("trying to finish") || message.includes("finish"))
   );
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error) ?? String(error);
+  } catch {
+    return String(error);
+  }
 }
 
 /** Ce que voit le modèle d'un tool : sa description et son schéma. */
@@ -75,6 +86,12 @@ export const run = internalAction({
           system: prompts.systemPrompt,
           tools: describeOnly(tools),
           stopWhen: stepCountIs(1),
+          // Une erreur envoyée par le provider DANS le stream ne fait rien
+          // lever : sans ce relais, la génération finirait « réussie » et
+          // vide, et le run se clôturerait sans un mot.
+          onError: ({ error }) => {
+            streamError ??= error;
+          },
         },
         {
           // Le contexte est assemblé par la harness (cf. transcript.ts) : la
@@ -101,7 +118,7 @@ export const run = internalAction({
       );
       await result.consumeStream({
         onError: (error) => {
-          streamError = error;
+          streamError ??= error;
         },
       });
       if (streamError) throw streamError;
@@ -148,17 +165,16 @@ export const run = internalAction({
       // Une coupure demandée par l'utilisateur n'est pas un échec : ni rouge,
       // ni « réessayer ».
       const aborted = isExpectedAbortedStreamError(error);
+      const retryable = !aborted && isRetryableGenerationError(error);
       await ctx.runMutation(internal.harness.tasks.failGeneration, {
         taskId,
         attempt,
         aborted,
-        error: aborted
-          ? undefined
-          : error instanceof Error
-            ? error.message
-            : String(error),
+        retryable,
+        error: aborted ? undefined : errorText(error),
       });
-      if (!aborted) throw error;
+      // Rejouée : la tâche suit son cours, l'action n'a pas échoué.
+      if (!aborted && !retryable) throw error;
     }
     return null;
   },

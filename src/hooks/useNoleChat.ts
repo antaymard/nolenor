@@ -252,6 +252,21 @@ export function useNoleChat() {
     }
   }, [threadId, isAssistantResponding, isCancelling, abortStream]);
 
+  // Pendant un run, le choix vaut aussi pour le run en cours : le serveur le
+  // prend à la génération suivante. Au repos, il part avec le prochain message.
+  const setCurrentRunModel = useMutation(api.ia.nole.setCurrentRunModel);
+  const selectModel = useCallback(
+    (model: ChatModelValues) => {
+      setSelectedModel(model);
+      if (threadId && isAssistantResponding) {
+        void setCurrentRunModel({ threadId, model }).catch((error) => {
+          console.error("Failed to switch the running model:", error);
+        });
+      }
+    },
+    [setSelectedModel, threadId, isAssistantResponding, setCurrentRunModel],
+  );
+
   // Rien n'est écrit en base : on remet une conversation vierge, le thread sera
   // créé au premier message.
   const startNewThread = useCallback(() => {
@@ -298,7 +313,7 @@ export function useNoleChat() {
     // model
     modelOptions,
     selectedModel,
-    setSelectedModel,
+    setSelectedModel: selectModel,
     // attachments
     attachedNodes,
     attachedPosition,

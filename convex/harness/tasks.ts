@@ -1,5 +1,6 @@
+import { saveMessage } from "@convex-dev/agent";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
+import { components, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import * as MessageMetadataModels from "../models/messageMetadataModels";
@@ -16,6 +17,12 @@ import {
   threadRunStatuses,
   type ThreadRunEndStatus,
 } from "../schemas/threadMetadataSchema";
+import {
+  listQueued,
+  placeSubmission,
+  recordAttachments,
+  withdrawQueued,
+} from "./ingress";
 import { saveToolResult, type ToolResultOutput } from "./transcript";
 
 /**
@@ -166,6 +173,54 @@ async function endRun(
     errorMessage,
   });
   await ctx.db.patch("threadMetadata", current.row._id, { run: undefined });
+
+  // Les messages arrivés trop tard pour ce run : un stop les retire, sinon le
+  // premier ouvre le run suivant (les autres y seront placés en steer).
+  if (status === threadRunStatuses.aborted) {
+    await withdrawQueued(ctx, current.row.threadId);
+  } else {
+    await startNextRunFromQueue(ctx, current);
+  }
+}
+
+async function startNextRunFromQueue(ctx: MutationCtx, previous: CurrentRun) {
+  const [next] = await listQueued(ctx, previous.row.threadId);
+  if (!next) return;
+  const startMessageId = await placeSubmission(ctx, next, "runStart");
+  await startRun(ctx, {
+    threadId: next.threadId,
+    userId: next.userId,
+    canvasId: next.canvasId,
+    startMessageId,
+    profile: {
+      name: previous.run.profile,
+      agentName: previous.row.agentName,
+      maxGenerationsPerRun: previous.run.maxGenerations,
+    },
+    model: next.model,
+    input: next.input,
+  });
+}
+
+/**
+ * Place les messages en file dans le run courant, au début d'une génération :
+ * après le round de tools précédent, avant l'appel modèle. Rend la nouvelle
+ * position de sauvegarde du run, ou `null` s'il n'y avait rien.
+ */
+async function placeQueuedSteers(
+  ctx: MutationCtx,
+  current: CurrentRun,
+): Promise<string | null> {
+  let lastMessageId: string | null = null;
+  for (const submission of await listQueued(ctx, current.row.threadId)) {
+    lastMessageId = await placeSubmission(ctx, submission, "steer");
+  }
+  if (lastMessageId) {
+    await ctx.db.patch("threadMetadata", current.row._id, {
+      run: { ...current.run, promptMessageId: lastMessageId },
+    });
+  }
+  return lastMessageId;
 }
 
 /** Marque `aborted` toutes les tâches vivantes d'un run. */
@@ -273,6 +328,7 @@ export async function startRun(
 
   await ctx.db.patch("threadMetadata", row._id, {
     run: {
+      profile: args.profile.name,
       startMessageId: args.startMessageId,
       promptMessageId: args.startMessageId,
       generationTaskId,
@@ -281,6 +337,74 @@ export async function startRun(
     },
   });
   return generationTaskId;
+}
+
+/**
+ * Le point d'entrée d'un message utilisateur. Thread au repos : le message est
+ * sauvé et ouvre un run. Run en cours : il part en file (steer), placé au
+ * début de la prochaine génération — ou, si le run se termine avant, il
+ * ouvre le suivant. La décision est prise ici, dans la transaction, et non par
+ * le client, qui peut croire le thread au repos alors qu'il ne l'est plus.
+ */
+export async function submitToThread(
+  ctx: MutationCtx,
+  args: {
+    threadId: string;
+    userId: Id<"users">;
+    canvasId: Id<"canvases">;
+    profile: { name: string; agentName: string; maxGenerationsPerRun: number };
+    /** Ce que l'utilisateur a tapé. */
+    prompt: string;
+    /** Le texte et son contexte, tel que le modèle le verra s'il est placé en steer. */
+    content: string;
+    /** L'entrée de la première génération, s'il ouvre un run. */
+    input: unknown;
+    model?: string;
+    attachments?: Doc<"submissions">["attachments"];
+  },
+): Promise<
+  | { queued: false; messageId: string }
+  | { queued: true; submissionId: Id<"submissions"> }
+> {
+  const row = await ThreadMetadataModels.findByThreadId(ctx, {
+    threadId: args.threadId,
+  });
+  if (row?.run) {
+    const submissionId = await ctx.db.insert("submissions", {
+      threadId: args.threadId,
+      userId: args.userId,
+      canvasId: args.canvasId,
+      status: "queued",
+      prompt: args.prompt,
+      content: args.content,
+      input: args.input,
+      model: args.model,
+      attachments: args.attachments,
+    });
+    return { queued: true, submissionId };
+  }
+
+  const { messageId } = await saveMessage(ctx, components.agent, {
+    threadId: args.threadId,
+    userId: args.userId,
+    prompt: args.prompt,
+  });
+  await recordAttachments(ctx, {
+    messageId,
+    threadId: args.threadId,
+    userId: args.userId,
+    attachments: args.attachments,
+  });
+  await startRun(ctx, {
+    threadId: args.threadId,
+    userId: args.userId,
+    canvasId: args.canvasId,
+    startMessageId: messageId,
+    profile: args.profile,
+    model: args.model,
+    input: args.input,
+  });
+  return { queued: false, messageId };
 }
 
 /**
@@ -323,6 +447,11 @@ export const claimGeneration = internalMutation({
       return null;
     }
 
+    // Les messages arrivés pendant le round précédent rejoignent le run ici.
+    const placed = await placeQueuedSteers(ctx, current);
+    const promptMessageId =
+      placed ?? task.promptMessageId ?? task.runMessageId;
+
     const now = Date.now();
     const attempt = task.attempt + 1;
     await ctx.db.patch("agentTasks", taskId, {
@@ -330,6 +459,7 @@ export const claimGeneration = internalMutation({
       attempt,
       startedAt: task.startedAt ?? now,
       leaseExpiresAt: now + LEASE_MS,
+      promptMessageId,
     });
 
     const prompts = await ctx.db
@@ -349,7 +479,7 @@ export const claimGeneration = internalMutation({
         runMessageId: task.runMessageId,
         ...(task.model !== undefined ? { model: task.model } : {}),
       },
-      promptMessageId: task.promptMessageId ?? task.runMessageId,
+      promptMessageId,
       // L'entrée ne sert qu'à calculer les prompts du run, une fois.
       input: prompts ? null : (task.input ?? null),
       prompts: prompts

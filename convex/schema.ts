@@ -17,6 +17,7 @@ import { recipesValidor } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
 import { agentTaskValidator } from "./schemas/agentTasksSchema";
 import { runPromptsValidator } from "./schemas/runPromptsSchema";
+import { submissionsValidator } from "./schemas/submissionsSchema";
 import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
 import { aiUsageDailyValidator } from "./schemas/aiUsageDailySchema";
 import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
@@ -238,6 +239,11 @@ const schema = defineSchema({
   runPrompts: defineTable(runPromptsValidator)
     .index("by_messageId", ["messageId"])
     .index("by_threadId", ["threadId"]),
+  // Messages envoyés pendant un run, en attente de placement.
+  submissions: defineTable(submissionsValidator).index(
+    "by_threadId_and_status",
+    ["threadId", "status"],
+  ),
 
   // ============================================================================
   // AI USAGE (ledger append-only + rollup journalier dénormalisé)

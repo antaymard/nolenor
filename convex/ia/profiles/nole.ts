@@ -45,6 +45,25 @@ function languageModel(run: RunInfo) {
   return getChatModel(resolveModel(run.model));
 }
 
+/**
+ * Ce que le modèle voit d'un message : son contexte (pièces jointes, vue du
+ * canvas, modifications depuis le message précédent), puis le message. L'UI
+ * n'affiche que le contenu de `<user_message>`.
+ */
+export function noleMessageContent(
+  userPrompt: string,
+  metadata: NoleMessageMetadata | undefined,
+  canvasChangesSinceLastMessage = "",
+): string {
+  const generatedMessageContext = generateMessageContext({
+    metadata,
+    canvasChangesSinceLastMessage,
+  });
+  return generatedMessageContext
+    ? `${generatedMessageContext}\n\n<user_message>\n${userPrompt}\n</user_message>`
+    : userPrompt;
+}
+
 const replayByTool = new Map(
   agentToolRegistry.map((registration) => [
     registration.config.name,
@@ -98,16 +117,14 @@ export const noleProfile: Profile = {
         )
       : "";
 
-    const generatedMessageContext = generateMessageContext({
-      metadata,
-      canvasChangesSinceLastMessage,
-    });
-
-    const llmPrompt = generatedMessageContext
-      ? `${generatedMessageContext}\n\n<user_message>\n${userPrompt}\n</user_message>`
-      : userPrompt;
-
-    return { systemPrompt, llmPrompt };
+    return {
+      systemPrompt,
+      llmPrompt: noleMessageContent(
+        userPrompt,
+        metadata,
+        canvasChangesSinceLastMessage,
+      ),
+    };
   },
 
   agent(run) {

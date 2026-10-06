@@ -1,10 +1,13 @@
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
-import { baseAgent, chatModelOptions, vChatModelValues } from "./agents";
+import { chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
-import { startRun } from "../harness/tasks";
-import { noleProfile, type NoleRunInput } from "./profiles/nole";
-import * as MessageMetadataModels from "../models/messageMetadataModels";
+import { submitToThread } from "../harness/tasks";
+import {
+  noleMessageContent,
+  noleProfile,
+  type NoleRunInput,
+} from "./profiles/nole";
 import { enforceRateLimit } from "../lib/rateLimits";
 
 export const vMetadata = v.optional(
@@ -23,7 +26,7 @@ export const listChatModels = query({
   },
 });
 
-// Public entrypoint: persist user message, then schedule async streaming.
+// Point d'entrée public : un message de l'utilisateur à Nolë.
 export const saveMessage = mutation({
   args: {
     threadId: v.string(),
@@ -43,67 +46,61 @@ export const saveMessage = mutation({
     // user could point the agent at any canvas id they know.
     await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
 
-    // 1) Persist the user message first so it exists in thread history.
-    const { messageId } = await baseAgent.saveMessage(ctx, {
-      threadId,
-      prompt,
-    });
-
-    // 2) Persist user-side metadata (attachments) extracted from messageContext.
-    const messageContext = metadata?.messageContext;
-    if (
-      messageContext &&
-      typeof messageContext === "object" &&
-      !Array.isArray(messageContext)
-    ) {
-      const mc = messageContext as Record<string, unknown>;
-      const attachedNodesRaw = Array.isArray(mc.attachedNodes)
-        ? (mc.attachedNodes as Array<Record<string, unknown>>)
-        : [];
-      const nodes = attachedNodesRaw
-        .filter(
-          (n) =>
-            typeof n.id === "string" &&
-            typeof n.type === "string" &&
-            typeof n.title === "string",
-        )
-        .map((n) => ({
-          id: n.id as string,
-          type: n.type as string,
-          title: n.title as string,
-        }));
-      const position =
-        mc.attachedPosition &&
-        typeof mc.attachedPosition === "object" &&
-        typeof (mc.attachedPosition as Record<string, unknown>).x ===
-          "number" &&
-        typeof (mc.attachedPosition as Record<string, unknown>).y === "number"
-          ? {
-              x: (mc.attachedPosition as { x: number }).x,
-              y: (mc.attachedPosition as { y: number }).y,
-            }
-          : undefined;
-      await MessageMetadataModels.recordUserAttachments(ctx, {
-        messageId: messageId,
-        threadId,
-        userId: authUserId,
-        attachments: { nodes, position },
-      });
-    }
-
-    // 3) Ouvrir le run : statut `running` dans cette transaction (toutes les
-    // surfaces voient le thread travailler dès l'envoi), première génération
-    // planifiée. Cf. convex/harness.
-    await startRun(ctx, {
+    // Le message part par la harness : il ouvre un run si le thread est au
+    // repos, sinon il attend sa place dans le run en cours (steer).
+    const result = await submitToThread(ctx, {
       threadId,
       userId: authUserId,
       canvasId,
-      startMessageId: messageId,
       profile: noleProfile,
-      model: metadata?.model,
+      prompt,
+      content: noleMessageContent(prompt, metadata),
       input: { userPrompt: prompt, metadata } satisfies NoleRunInput,
+      model: metadata?.model,
+      attachments: readAttachments(metadata),
     });
 
-    return { messageId };
+    return result.queued
+      ? { messageId: null, queued: true }
+      : { messageId: result.messageId, queued: false };
   },
 });
+
+/** Les pièces jointes d'un message, extraites de son `messageContext`. */
+function readAttachments(metadata: NoleMessageMetadata) {
+  const messageContext = metadata?.messageContext;
+  if (
+    !messageContext ||
+    typeof messageContext !== "object" ||
+    Array.isArray(messageContext)
+  ) {
+    return undefined;
+  }
+  const mc = messageContext as Record<string, unknown>;
+  const attachedNodesRaw = Array.isArray(mc.attachedNodes)
+    ? (mc.attachedNodes as Array<Record<string, unknown>>)
+    : [];
+  const nodes = attachedNodesRaw
+    .filter(
+      (n) =>
+        typeof n.id === "string" &&
+        typeof n.type === "string" &&
+        typeof n.title === "string",
+    )
+    .map((n) => ({
+      id: n.id as string,
+      type: n.type as string,
+      title: n.title as string,
+    }));
+  const position =
+    mc.attachedPosition &&
+    typeof mc.attachedPosition === "object" &&
+    typeof (mc.attachedPosition as Record<string, unknown>).x === "number" &&
+    typeof (mc.attachedPosition as Record<string, unknown>).y === "number"
+      ? {
+          x: (mc.attachedPosition as { x: number }).x,
+          y: (mc.attachedPosition as { y: number }).y,
+        }
+      : undefined;
+  return { nodes, position };
+}

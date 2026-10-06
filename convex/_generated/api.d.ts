@@ -32,6 +32,7 @@ import type * as crons from "../crons.js";
 import type * as dataExport from "../dataExport.js";
 import type * as edges from "../edges.js";
 import type * as harness_generation from "../harness/generation.js";
+import type * as harness_ingress from "../harness/ingress.js";
 import type * as harness_live from "../harness/live.js";
 import type * as harness_profiles from "../harness/profiles.js";
 import type * as harness_tasks from "../harness/tasks.js";
@@ -193,6 +194,7 @@ import type * as schemas_searchableChunksSchema from "../schemas/searchableChunk
 import type * as schemas_sharesSchema from "../schemas/sharesSchema.js";
 import type * as schemas_skillAttachmentsSchema from "../schemas/skillAttachmentsSchema.js";
 import type * as schemas_skillsSchema from "../schemas/skillsSchema.js";
+import type * as schemas_submissionsSchema from "../schemas/submissionsSchema.js";
 import type * as schemas_threadMetadataSchema from "../schemas/threadMetadataSchema.js";
 import type * as schemas_wishlistEmailsSchema from "../schemas/wishlistEmailsSchema.js";
 import type * as searchable_chunkBuilder from "../searchable/chunkBuilder.js";
@@ -252,6 +254,7 @@ declare const fullApi: ApiFromModules<{
   dataExport: typeof dataExport;
   edges: typeof edges;
   "harness/generation": typeof harness_generation;
+  "harness/ingress": typeof harness_ingress;
   "harness/live": typeof harness_live;
   "harness/profiles": typeof harness_profiles;
   "harness/tasks": typeof harness_tasks;
@@ -413,6 +416,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/sharesSchema": typeof schemas_sharesSchema;
   "schemas/skillAttachmentsSchema": typeof schemas_skillAttachmentsSchema;
   "schemas/skillsSchema": typeof schemas_skillsSchema;
+  "schemas/submissionsSchema": typeof schemas_submissionsSchema;
   "schemas/threadMetadataSchema": typeof schemas_threadMetadataSchema;
   "schemas/wishlistEmailsSchema": typeof schemas_wishlistEmailsSchema;
   "searchable/chunkBuilder": typeof searchable_chunkBuilder;

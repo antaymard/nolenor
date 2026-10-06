@@ -30,7 +30,12 @@ export const listLiveToolCalls = query({
   args: { canvasId: v.id("canvases") },
   handler: async (ctx, { canvasId }) => {
     const userId = await requireAuth(ctx);
-    await requireCanvasAccess(ctx, canvasId, userId, "viewer");
+    // Monté pour tout canvas ouvert : sans accès, rien à montrer, pas d'erreur.
+    try {
+      await requireCanvasAccess(ctx, canvasId, userId, "viewer");
+    } catch {
+      return [];
+    }
 
     const calls = [];
     for (const status of [agentTaskStatuses.pending, agentTaskStatuses.running]) {
@@ -48,6 +53,8 @@ export const listLiveToolCalls = query({
           toolName: task.toolName,
           explanation: task.explanation ?? null,
           status: task.status,
+          // Un tool rejouable sans risque est un tool sans effet : une lecture.
+          access: task.replay === "safe" ? ("read" as const) : ("write" as const),
           nodeIds: targetNodeIds(task.input),
         });
       }

@@ -103,9 +103,12 @@ const threadLastActivityValidator = v.object({
  * - `runToken` : le `runStartedAt` posé par `markRunStarted`, rendu à
  *   `markRunEnded` en fin de run ;
  * - `maxGenerations` : plafond du profil, recopié pour que les mutations n'aient
- *   pas à charger le profil.
+ *   pas à charger le profil ;
+ * - `profile` : le profil du run, pour ouvrir le suivant à partir des messages
+ *   arrivés pendant celui-ci.
  */
 const threadRunValidator = v.object({
+  profile: v.string(),
   startMessageId: v.string(),
   promptMessageId: v.string(),
   generationTaskId: v.id("agentTasks"),

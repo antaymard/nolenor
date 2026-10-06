@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-// Phase 1 — kernel de la harness : générations et tools en tâches durables.
+// Harness : kernel (phase 1) et messages pendant un run (phase 2).
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -19,11 +19,11 @@ import {
 import type { LanguageModelV3Content, LanguageModelV3Prompt } from "@ai-sdk/provider";
 import { tool } from "ai";
 import { z } from "zod";
-import { components, internal } from "../_generated/api";
+import { api, components, internal } from "../_generated/api";
 import schema from "../schema";
 import { modules } from "../test.setup";
 import { registerProfile } from "./profiles";
-import { abortRun, startRun } from "./tasks";
+import { abortRun, startRun, submitToThread } from "./tasks";
 import { assembleRunContext } from "./transcript";
 import type { Profile } from "./types";
 
@@ -182,6 +182,34 @@ async function send(
     });
     return messageId;
   });
+}
+
+/** Comme `nole.saveMessage` : ouvre un run, ou part en file si un run tourne. */
+async function submit(
+  t: T,
+  seed: Awaited<ReturnType<typeof seedThread>>,
+  prompt: string,
+) {
+  return t.run(async (ctx) =>
+    submitToThread(ctx, {
+      threadId: seed.threadId,
+      userId: seed.userId,
+      canvasId: seed.canvasId,
+      profile: { name: "test", agentName: "Tester", maxGenerationsPerRun: 25 },
+      prompt,
+      content: `<ctx/>\n<user_message>\n${prompt}\n</user_message>`,
+      input: { userPrompt: prompt },
+    }),
+  );
+}
+
+async function submissions(t: T, threadId: string) {
+  return t.run(async (ctx) =>
+    ctx.db
+      .query("submissions")
+      .filter((q) => q.eq(q.field("threadId"), threadId))
+      .collect(),
+  );
 }
 
 /**
@@ -583,5 +611,152 @@ describe("phase 1 — kernel", () => {
     );
     expect(context).toHaveLength(100);
     expect(context[99]).toMatchObject({ role: "user", content: "LLM PROMPT" });
+  });
+});
+
+describe("phase 2 — messages pendant un run", () => {
+  test("thread au repos : le message ouvre un run", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[text("Hi")]]);
+    const result = await submit(t, seed, "Hello");
+    expect(result.queued).toBe(false);
+    await drain(t);
+    expect(roles(await transcript(t, seed.threadId))).toEqual([
+      "user:text",
+      "assistant:text",
+    ]);
+    expect(await submissions(t, seed.threadId)).toHaveLength(0);
+  });
+
+  test("steer pendant les tools : placé au step suivant, vu par le modèle", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("Took the steer")]]);
+    await submit(t, seed, "First");
+    await runOneLayer(t); // génération 1 ; le round de tools est planifié
+
+    const steer = await submit(t, seed, "Use the table instead");
+    expect(steer.queued).toBe(true);
+    await drain(t);
+
+    const docs = await transcript(t, seed.threadId);
+    expect(roles(docs)).toEqual([
+      "user:text",
+      "assistant:tool-call",
+      "tool:tool-result",
+      "user:text",
+      "assistant:text",
+    ]);
+    // Le steer ouvre un nouvel order ; la réponse est sauvée dans le sien.
+    expect(docs[3].order).toBe(docs[0].order + 1);
+    expect(docs[4].order).toBe(docs[3].order);
+    // Le modèle voit le tool result PUIS le steer, avec son contexte.
+    const seen = promptText(1);
+    expect(seen.indexOf("echo:a")).toBeLessThan(seen.indexOf("Use the table instead"));
+    expect(seen).toContain("<ctx/>");
+    // Toujours le contexte d'ouverture du run.
+    expect(seen).toContain("<canvas_context/>");
+
+    const [submission] = await submissions(t, seed.threadId);
+    expect(submission).toMatchObject({ status: "placed", messageId: docs[3]._id });
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("plusieurs steers : placés ensemble, dans l'ordre", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("ok")]]);
+    await submit(t, seed, "First");
+    await runOneLayer(t);
+    await submit(t, seed, "Steer one");
+    await submit(t, seed, "Steer two");
+    await drain(t);
+
+    const seen = promptText(1);
+    expect(seen.indexOf("Steer one")).toBeLessThan(seen.indexOf("Steer two"));
+    expect(model.doStreamCalls).toHaveLength(2);
+  });
+
+  test("steer arrivé trop tard (réponse finale) : il ouvre le run suivant", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[text("Answer to the follow-up")]]);
+    const first = await submit(t, seed, "First");
+    if (first.queued) throw new Error("expected a run");
+
+    // La génération 1 démarre (claim), puis un message arrive pendant qu'elle
+    // écrit sa réponse finale.
+    const generation = (await tasksOf(t, first.messageId))[0];
+    const claim = await t.mutation(internal.harness.tasks.claimGeneration, {
+      taskId: generation._id,
+    });
+    const late = await submit(t, seed, "One more thing");
+    expect(late.queued).toBe(true);
+    await t.mutation(internal.harness.tasks.completeGeneration, {
+      taskId: generation._id,
+      attempt: claim!.attempt,
+      toolCalls: [],
+      invalidToolCalls: 0,
+    });
+    await drain(t);
+
+    const [submission] = await submissions(t, seed.threadId);
+    expect(submission.status).toBe("placed");
+    // Un second run, ouvert par le message en file (texte brut, contexte via
+    // le llmPrompt de ce run).
+    const secondRun = await tasksOf(t, submission.messageId!);
+    expect(secondRun.map((x) => [x.kind, x.status])).toEqual([
+      ["generation", "completed"],
+    ]);
+    expect(promptText(0)).toContain("<canvas_context/>");
+    expect(promptText(0)).toContain("One more thing");
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("stop : les messages en file sont retirés", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("write")], [text("never")]]);
+    await submit(t, seed, "First");
+    await runOneLayer(t);
+    await submit(t, seed, "Queued");
+
+    await t.run(async (ctx) => {
+      await abortRun(ctx, seed.threadId);
+    });
+    await drain(t);
+
+    const [submission] = await submissions(t, seed.threadId);
+    expect(submission.status).toBe("withdrawn");
+    expect(model.doStreamCalls).toHaveLength(1);
+    expect((await threadRow(t, seed.threadId))?.run).toBeUndefined();
+  });
+
+  test("retrait par l'utilisateur avant placement : jamais vu par le modèle", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("ok")]]);
+    await submit(t, seed, "First");
+    await runOneLayer(t);
+    const queued = await submit(t, seed, "Never mind");
+    if (!queued.queued) throw new Error("expected a queued submission");
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    expect(
+      await asUser.query(api.harness.ingress.listQueuedSubmissions, {
+        threadId: seed.threadId,
+      }),
+    ).toMatchObject([{ prompt: "Never mind" }]);
+    expect(
+      await asUser.mutation(api.harness.ingress.withdrawSubmission, {
+        submissionId: queued.submissionId,
+      }),
+    ).toEqual({ withdrawn: true });
+    await drain(t);
+
+    expect(promptText(1)).not.toContain("Never mind");
+    const [submission] = await submissions(t, seed.threadId);
+    expect(submission.status).toBe("withdrawn");
   });
 });

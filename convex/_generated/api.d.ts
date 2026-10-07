@@ -41,6 +41,7 @@ import type * as harness_kernelTools from "../harness/kernelTools.js";
 import type * as harness_live from "../harness/live.js";
 import type * as harness_profiles from "../harness/profiles.js";
 import type * as harness_purge from "../harness/purge.js";
+import type * as harness_retention from "../harness/retention.js";
 import type * as harness_runHistory from "../harness/runHistory.js";
 import type * as harness_subagents from "../harness/subagents.js";
 import type * as harness_systemUpdate from "../harness/systemUpdate.js";
@@ -288,6 +289,7 @@ declare const fullApi: ApiFromModules<{
   "harness/live": typeof harness_live;
   "harness/profiles": typeof harness_profiles;
   "harness/purge": typeof harness_purge;
+  "harness/retention": typeof harness_retention;
   "harness/runHistory": typeof harness_runHistory;
   "harness/subagents": typeof harness_subagents;
   "harness/systemUpdate": typeof harness_systemUpdate;

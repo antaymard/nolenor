@@ -5,8 +5,8 @@ import { v } from "convex/values";
  *
  * Une ligne par run, écrite une fois par la première génération, jamais
  * patchée. Toutes les générations du run la relisent : le prompt reste stable
- * d'un step à l'autre (le cache du fournisseur reste chaud), et le replay
- * retrouve plus tard le system prompt tel qu'il était.
+ * d'un step à l'autre (le cache du fournisseur reste chaud). Purgée 30 jours
+ * après (cf. harness/retention.ts).
  *
  * À part de `threadMetadata` et de `messageMetadata`, que des queries clientes
  * renvoient en entier : quelques Ko de prompt n'ont rien à faire dans le

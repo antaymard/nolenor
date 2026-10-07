@@ -2631,3 +2631,60 @@ describe("suppression et accès", () => {
     expect(roles(await transcript(t, seed.threadId))).toEqual([]);
   });
 });
+
+describe("rétention", () => {
+  test("purge les données d'exécution expirées, garde le run en cours et l'historique", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([
+      [text("Done")],
+      [call("ask_user", { questions: [{ question: "Which one?" }] })],
+    ]);
+    const ended = await send(t, seed, "First");
+    await drain(t);
+    const waiting = await send(t, seed, "Second");
+    await drain(t);
+
+    await t.run(async (ctx) => {
+      const base = {
+        threadId: seed.threadId,
+        userId: seed.userId,
+        canvasId: seed.canvasId,
+        prompt: "Later",
+        content: "Later",
+        input: {},
+      };
+      await ctx.db.insert("submissions", { ...base, status: "placed" });
+      await ctx.db.insert("submissions", { ...base, status: "queued" });
+      const dispatch = {
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        profile: "test",
+        prompt: "Later",
+        content: "Later",
+        input: {},
+        nodeIds: [],
+      };
+      await ctx.db.insert("dispatches", { ...dispatch, status: "routed" });
+      await ctx.db.insert("dispatches", { ...dispatch, status: "routing" });
+    });
+
+    vi.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
+    await t.mutation(internal.harness.retention.purgeExpired, {});
+    await drain(t);
+
+    const left = await t.run(async (ctx) => ({
+      tasks: await ctx.db.query("agentTasks").collect(),
+      prompts: await ctx.db.query("runPrompts").collect(),
+      runs: await ctx.db.query("runs").collect(),
+      submissions: await ctx.db.query("submissions").collect(),
+      dispatches: await ctx.db.query("dispatches").collect(),
+    }));
+    expect(left.tasks.some((task) => task.runMessageId === ended)).toBe(false);
+    expect(left.tasks.some((task) => task.runMessageId === waiting)).toBe(true);
+    expect(left.prompts.map((prompt) => prompt.messageId)).toEqual([waiting]);
+    expect(left.runs).toHaveLength(2);
+    expect(left.submissions.map((row) => row.status)).toEqual(["queued"]);
+    expect(left.dispatches.map((row) => row.status)).toEqual(["routing"]);
+  });
+});

@@ -62,7 +62,8 @@ export const listLiveActivity = query({
           explanation: task.explanation ?? null,
           status: task.status,
           // Un tool rejouable sans risque est un tool sans effet : une lecture.
-          access: task.replay === "safe" ? ("read" as const) : ("write" as const),
+          access:
+            task.replay === "safe" ? ("read" as const) : ("write" as const),
           nodeIds: targetNodeIds(task.input),
         });
       }
@@ -75,6 +76,7 @@ export const listLiveActivity = query({
         threadId: string;
         nodeId: string;
         access: "read" | "write";
+        toolName: string | null;
         label: string | null;
         endedAt: number;
       }
@@ -91,6 +93,7 @@ export const listLiveActivity = query({
             threadId: run.threadId,
             nodeId,
             access: tool.replay === "safe" ? "read" : "write",
+            toolName: tool.toolName ?? null,
             label: tool.explanation ?? null,
             endedAt,
           });

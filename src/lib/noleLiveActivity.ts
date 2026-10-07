@@ -7,11 +7,17 @@ import type { NoleNodeActivity } from "@/stores/noleLiveStore";
 export type LiveActivitySnapshot = {
   calls: {
     access: "read" | "write";
+    toolName: string;
     explanation: string | null;
     nodeIds: string[];
   }[];
   written: { nodeId: string }[];
-  done: { nodeId: string; access: "read" | "write"; label: string | null }[];
+  done: {
+    nodeId: string;
+    access: "read" | "write";
+    toolName: string | null;
+    label: string | null;
+  }[];
 };
 
 /** Un halo live reste au moins ce temps, même si l'appel est plus court. */
@@ -46,20 +52,30 @@ export function activitiesFromSnapshot(
   };
   if (!snapshot) return byNodeId;
 
-  const lastLabel = new Map<string, string | null>();
-  for (const done of snapshot.done) lastLabel.set(done.nodeId, done.label);
+  const lastDone = new Map<string, LiveActivitySnapshot["done"][number]>();
+  for (const done of snapshot.done) lastDone.set(done.nodeId, done);
 
   for (const call of snapshot.calls) {
     for (const nodeId of call.nodeIds) {
-      offer(nodeId, { access: call.access, label: call.explanation });
+      offer(nodeId, {
+        access: call.access,
+        toolName: call.toolName,
+        label: call.explanation,
+      });
     }
   }
   for (const { nodeId } of snapshot.written) {
-    offer(nodeId, { access: "written", label: lastLabel.get(nodeId) ?? null });
+    const done = lastDone.get(nodeId);
+    offer(nodeId, {
+      access: "written",
+      toolName: done?.toolName ?? null,
+      label: done?.label ?? null,
+    });
   }
   for (const done of snapshot.done) {
     offer(done.nodeId, {
       access: done.access === "write" ? "written" : "seen",
+      toolName: done.toolName,
       label: done.label,
     });
   }
@@ -76,7 +92,9 @@ export type HeldActivity = {
 };
 
 function sameShown(a: NoleNodeActivity, b: NoleNodeActivity): boolean {
-  return a.access === b.access && a.label === b.label;
+  return (
+    a.access === b.access && a.label === b.label && a.toolName === b.toolName
+  );
 }
 
 /**

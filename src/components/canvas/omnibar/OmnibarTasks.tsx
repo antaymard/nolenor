@@ -20,7 +20,7 @@ const MAX_COMPACT_VISIBLE = 3;
  *
  * Ce qui demande une lecture ou une action (réponse, question, échec) passe
  * en tête, en pleine largeur ; le reste — en cours, ou fini avec un résultat
- * sur le canvas — en rangée de cartes compactes dessous. Une boîte de
+ * sur le canvas — en pile de cartes compactes dessous. Une boîte de
  * réception, pas un flux : une tâche y reste jusqu'à ce qu'on l'écarte ou
  * qu'on ouvre sa conversation.
  */
@@ -71,7 +71,7 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
     <div className="flex w-full flex-col items-start gap-2">
       {prominent.map(card)}
       {compact.length > 0 && (
-        <div className="flex flex-wrap items-end justify-start gap-2">
+        <div className="flex flex-col items-start gap-2">
           {visible.map(card)}
           {overflow.length > 0 && (
             <Popover open={overflowOpen} onOpenChange={setOverflowOpen}>
@@ -79,7 +79,7 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
                 <button
                   type="button"
                   aria-label={`${overflow.length} more tasks`}
-                  className="flex h-[46px] shrink-0 items-center rounded-xl border border-slate-200 bg-surface px-3 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+                  className="flex shrink-0 items-center rounded-xl border border-slate-200 bg-surface px-3 py-1 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
                 >
                   +{overflow.length}
                 </button>

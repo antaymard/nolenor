@@ -3,15 +3,8 @@ import { Agent } from "@convex-dev/agent";
 import { openrouter } from "@openrouter/ai-sdk-provider";
 import { v } from "convex/values";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
-import type { ToolSet } from "ai";
-import { stepCountIs } from "ai";
-import { toolAgentNames, type ThreadCtx } from "./agentConfig";
-import { getToolsForAgent } from "./tools";
 import { createUsageHandler } from "./usage";
-import {
-  aiUsageSources,
-  type AiUsageSource,
-} from "../schemas/aiUsageSourceSchema";
+import { type AiUsageSource } from "../schemas/aiUsageSourceSchema";
 
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
@@ -523,8 +516,6 @@ export function isModelMultimodal(model: LanguageModelV3): boolean {
 }
 
 const defaultModels = {
-  nole: getChatModel(defaultChatModelValue),
-  worker: getChatModel("deepseek/deepseek-v4.1-flash"),
   // Hors de `chatModelOptions` (donc pas proposé à l'utilisateur), mais il
   // passe par le même helper : c'est ce qui évite que la génération de titre
   // reparte silencieusement sans coût.
@@ -535,7 +526,7 @@ const defaultModels = {
 
 /**
  * Agent minimal pour les opérations utilitaires. Attention : il sert à la fois
- * à des appels sans LLM (`saveMessage`, cf. ia/nole.ts et ia/worker.ts) et à un
+ * à des appels sans LLM (`saveMessage`) et à un
  * vrai appel LLM (la génération de titre, cf. threads.ts). D'où `usageSource`
  * explicite plutôt qu'une valeur par défaut : marquer les `saveMessage` comme
  * de la consommation IA serait un mensonge dans le ledger.
@@ -552,55 +543,13 @@ export function createBaseAgent({
 }
 export const baseAgent = createBaseAgent();
 
-export function createNoleAgent({
-  model,
-  threadCtx,
-  extraTools = {},
-}: {
-  model?: LanguageModelV3;
-  threadCtx: ThreadCtx;
-  extraTools?: ToolSet;
-}) {
-  const languageModel = model ?? defaultModels.nole;
-  return new Agent(components.agent, {
-    name: "Nolë",
-    stopWhen: stepCountIs(25),
-    languageModel,
-    tools: getToolsForAgent({
-      agentName: toolAgentNames.nole,
-      threadCtx,
-      extraTools,
-      isMultimodal: isModelMultimodal(languageModel),
-    }),
-    usageHandler: createUsageHandler(aiUsageSources.nole),
-  });
-}
+// `createNoleAgent` vivait ici : Nolë est désormais un profil de la harness
+// (cf. ia/profiles/nole.ts), qui construit son agent lui-même.
 
 // `createCloneAgent` et `createSupervisorAgent` vivaient ici. Aucun appelant, et
 // tous deux étaient des points d'entrée LLM sans `usageHandler` : les garder,
 // c'était préparer le prochain chemin de dépense non compté. Leurs entrées dans
 // `toolAgentNames` et les `authorized_agents` qui les citaient ont suivi.
 
-export function createWorkerAgent({
-  threadCtx,
-  extraTools = {},
-  model,
-}: {
-  threadCtx: ThreadCtx;
-  extraTools?: ToolSet;
-  model?: LanguageModelV3;
-}) {
-  const languageModel = model ?? defaultModels.worker;
-  return new Agent(components.agent, {
-    name: "Worker",
-    stopWhen: stepCountIs(15),
-    languageModel,
-    tools: getToolsForAgent({
-      agentName: toolAgentNames.worker,
-      threadCtx,
-      extraTools,
-      isMultimodal: isModelMultimodal(languageModel),
-    }),
-    usageHandler: createUsageHandler(aiUsageSources.worker),
-  });
-}
+// `createWorkerAgent` vivait ici : le worker est désormais un profil de la
+// harness (cf. ia/profiles/worker.ts), lancé par `run_subAgent`.

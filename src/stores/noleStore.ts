@@ -7,6 +7,22 @@ import { useShallow } from "zustand/react/shallow";
 
 export type NolePanelLayout = "minimized" | "expanded";
 
+/**
+ * Les deux composers de Nolë et leur brouillon : celui du panel (la
+ * conversation ouverte) et celui de l'omnibar (une demande sans conversation).
+ */
+export type NoleDraft = "panel" | "omnibar";
+
+export const NOLE_DRAFT_FIELD = {
+  panel: "userInput",
+  omnibar: "omnibarInput",
+} as const satisfies Record<NoleDraft, keyof NoleStore>;
+
+const NOLE_DRAFT_SETTER = {
+  panel: "setUserInput",
+  omnibar: "setOmnibarInput",
+} as const satisfies Record<NoleDraft, keyof NoleStore>;
+
 /** Choix de modèle explicite, rattaché à une conversation. */
 export type NoleModelSelection = {
   threadKey: string;
@@ -31,6 +47,13 @@ interface NoleStore {
   // `useCallback` changeait d'identité à chaque frappe et la propageait à tous
   // ses consommateurs — aucune mémoïsation en aval n'y résistait.
   userInput: string;
+  // Le brouillon de l'omnibar, distinct de celui du panel : une demande sans
+  // conversation n'est pas un message de la conversation ouverte. Dans le
+  // store pour la même raison que la dictée ci-dessous, qui l'écrit aussi.
+  omnibarInput: string;
+  // Le modèle choisi dans l'omnibar ; `null` = le défaut du profil. Pas de
+  // thread auquel le rattacher : c'est le serveur qui le choisira.
+  omnibarModel: ChatModelValues | null;
   attachedNodes: CanvasNode[];
   attachedPosition: { x: number; y: number } | null;
 
@@ -44,6 +67,8 @@ interface NoleStore {
   // Signature de `useState` : la dictée met à jour le brouillon en fonction du
   // texte déjà saisi (`prev => prev + transcription`).
   setUserInput: Dispatch<SetStateAction<string>>;
+  setOmnibarInput: Dispatch<SetStateAction<string>>;
+  setOmnibarModel: (model: ChatModelValues | null) => void;
   addAttachments: (
     attachments: { nodes?: CanvasNode[]; position?: { x: number; y: number } },
     removeIfPresent?: boolean,
@@ -65,6 +90,8 @@ export const useNoleStore = create<NoleStore>()(
       activeThreadId: null,
       modelSelection: null,
       userInput: "",
+      omnibarInput: "",
+      omnibarModel: null,
       attachedNodes: [],
       attachedPosition: null,
 
@@ -88,6 +115,17 @@ export const useNoleStore = create<NoleStore>()(
         set((state) => ({
           userInput: typeof value === "function" ? value(state.userInput) : value,
         }));
+      },
+
+      setOmnibarInput: (value) => {
+        set((state) => ({
+          omnibarInput:
+            typeof value === "function" ? value(state.omnibarInput) : value,
+        }));
+      },
+
+      setOmnibarModel: (model) => {
+        set({ omnibarModel: model });
       },
 
       togglePanelLayout: () => {
@@ -168,8 +206,19 @@ export const useIsNodeAttached = (nodeId: string): boolean => {
  * pour rafraîchir l'état de son bouton d'envoi. Seul `RichTextArea`, qui affiche
  * réellement le texte, s'abonne à `userInput`.
  */
-export const useHasUserInput = (): boolean => {
-  return useNoleStore((state) => state.userInput.trim().length > 0);
+export const useHasUserInput = (draft: NoleDraft = "panel"): boolean => {
+  return useNoleStore(
+    (state) => state[NOLE_DRAFT_FIELD[draft]].trim().length > 0,
+  );
+};
+
+/** Le brouillon d'un composer, et son setter. */
+export const useNoleDraft = (
+  draft: NoleDraft,
+): [string, Dispatch<SetStateAction<string>>] => {
+  const value = useNoleStore((state) => state[NOLE_DRAFT_FIELD[draft]]);
+  const setValue = useNoleStore((state) => state[NOLE_DRAFT_SETTER[draft]]);
+  return [value, setValue];
 };
 
 export const useIsNolePanelExpanded = (): boolean => {

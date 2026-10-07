@@ -7,6 +7,8 @@ import { toolAgentNames } from "../agentConfig";
 
 export const openWebPageToolConfig: ToolConfig = {
   name: "open_webpage",
+  // Lecture seule : relancer un appel interrompu ne peut rien dupliquer.
+  replay: "safe",
   authorized_agents: [
     toolAgentNames.nole,
     toolAgentNames.worker,

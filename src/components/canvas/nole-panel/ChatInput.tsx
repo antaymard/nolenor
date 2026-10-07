@@ -1,22 +1,16 @@
-import { TbCloudExclamation, TbMicrophone } from "react-icons/tb";
-import { ThinkingOrb } from "thinking-orbs";
 import RichTextArea from "./RichTextArea";
-import SoundWaveAnimation from "./SoundWaveAnimation";
 import { AttachmentRow } from "./chat-input/AttachmentChips";
 import ComposerShell from "./chat-input/ComposerShell";
+import { DirtyWindowsBadge, MicStatus } from "./chat-input/ComposerStatus";
 import ModelSelect from "./chat-input/ModelSelect";
 import SendStopButton from "./chat-input/SendStopButton";
-import { Kbd } from "@/components/shadcn/kbd";
 import { useHasUserInput } from "@/stores/noleStore";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/shadcn/tooltip";
 import type { CanvasNode } from "@/types";
 import type { ChatModelOption, ChatModelValues } from "@/types/convex";
 
 /** Le champ s'ouvre sur une ligne et grandit jusqu'à dix, puis scrolle. */
+/** Quand Nolë attend une réponse, le champ du chat y répond (cf. QuestionCard). */
+const ANSWER_PLACEHOLDER = "Type your answer to Nolë's question…";
 const INPUT_MIN_ROWS = 1;
 const INPUT_MAX_ROWS = 10;
 
@@ -24,6 +18,8 @@ type ChatInputProps = {
   onSend: () => void;
   isSending: boolean;
   isAssistantResponding: boolean;
+  /** Nolë attend une réponse (`ask_user`) : le message tapé y répond. */
+  isAwaitingAnswer?: boolean;
   isCancelling: boolean;
   onStopAssistantResponse: () => void | Promise<void>;
   modelOptions: readonly ChatModelOption[] | undefined;
@@ -48,6 +44,7 @@ export default function ChatInput({
   onSend,
   isSending,
   isAssistantResponding,
+  isAwaitingAnswer = false,
   isCancelling,
   onStopAssistantResponse,
   modelOptions,
@@ -73,8 +70,9 @@ export default function ChatInput({
   // `hasDirtyWindows` n'entre volontairement pas dans `canSend` : le bouton
   // reste cliquable pour que le clic déclenche le toast qui explique le blocage,
   // signalé au passage par l'icône d'alerte et le badge.
-  const canSend =
-    hasUserInput && !isAssistantResponding && !isSending && !sttBusy;
+  // Pendant une réponse, envoyer reste possible : le message part en file et
+  // rejoint le run au step suivant (cf. convex/harness).
+  const canSend = hasUserInput && !isSending && !sttBusy;
 
   return (
     <div className="p-2 pt-0">
@@ -95,6 +93,7 @@ export default function ChatInput({
             onSubmit={onSend}
             minRows={INPUT_MIN_ROWS}
             maxRows={INPUT_MAX_ROWS}
+            {...(isAwaitingAnswer ? { placeholder: ANSWER_PLACEHOLDER } : {})}
           />
         </div>
 
@@ -104,7 +103,7 @@ export default function ChatInput({
               modelOptions={modelOptions}
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
-              disabled={isSending || isAssistantResponding}
+              disabled={isSending}
             />
             <span className="px-2.5" title="Hold Alt + Ctrl to dictate">
               <MicStatus
@@ -132,54 +131,5 @@ export default function ChatInput({
         </div>
       </ComposerShell>
     </div>
-  );
-}
-
-function MicStatus({
-  isRecording,
-  isTranscribing,
-  level,
-}: {
-  isRecording: boolean;
-  isTranscribing: boolean;
-  level: number;
-}) {
-  if (isRecording) {
-    return (
-      <span className="flex items-center gap-1.5 text-xs text-red-500">
-        <SoundWaveAnimation level={level} />
-        <span>Listening...</span>
-      </span>
-    );
-  }
-  if (isTranscribing) {
-    return (
-      <span className="flex items-center gap-1.5 text-xs text-slate-500">
-        <ThinkingOrb state="listening" size={20} />
-        <span>Transcription…</span>
-      </span>
-    );
-  }
-  return (
-    <span className="flex items-center gap-1 text-xs text-slate-500">
-      <TbMicrophone size={14} className="shrink-0" />
-      <Kbd>Alt + Ctrl</Kbd>
-    </span>
-  );
-}
-
-function DirtyWindowsBadge({ count }: { count: number }) {
-  return (
-    <Tooltip delayDuration={0}>
-      <TooltipTrigger asChild>
-        <span className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-500">
-          <TbCloudExclamation size={14} className="stroke-2" />
-          {count}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="text-sm">
-        Please save or close the modified windows before sending your message.
-      </TooltipContent>
-    </Tooltip>
   );
 }

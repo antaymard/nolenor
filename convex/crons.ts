@@ -41,4 +41,14 @@ crons.daily(
   {},
 );
 
+// Harness : reprise des tâches d'agent dont l'action est morte (lease expiré).
+// Une action planifiée ne s'exécute qu'une fois ; sans ce cron, un run
+// interrompu resterait bloqué en `running`.
+crons.interval(
+  "recover expired agent tasks",
+  { minutes: 1 },
+  internal.harness.tasks.recoverExpired,
+  {},
+);
+
 export default crons;

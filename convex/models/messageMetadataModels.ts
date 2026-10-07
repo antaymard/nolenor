@@ -65,7 +65,7 @@ export async function findLastAssistantByThreadId(
     .first();
 }
 
-async function findByMessageId(
+export async function findByMessageId(
   ctx: QueryCtx,
   { messageId }: { messageId: string },
 ): Promise<MessageMetadata | null> {

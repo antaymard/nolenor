@@ -42,6 +42,7 @@ import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "@/lib/canvasViewportFraming";
 import { useInitialViewportFromUrl } from "@/hooks/useInitialViewportFromUrl";
 import { useRegisterCanvasNavigator } from "@/hooks/useGoToBookmark";
 import { useSyncBookmarkedNodes } from "@/hooks/useCanvasBookmarks";
+import { useSyncNoleLiveActivity } from "@/hooks/useSyncNoleLiveActivity";
 import { cn } from "@/lib/utils";
 import { useResolvedTheme } from "@/lib/theme";
 import { useCanvasStore } from "@/stores/canvasStore";
@@ -122,6 +123,8 @@ export default function CanvasFlow({
   // Alimente la pastille de repère des nodes. Seule souscription aux
   // bookmarks qui reste ouverte en permanence — cf. `useSyncBookmarkedNodes`.
   useSyncBookmarkedNodes(canvasId);
+  // Les nodes que Nolë lit ou modifie en ce moment (cf. NodeFrame).
+  useSyncNoleLiveActivity(canvasId);
 
   // Handle paste events (images, URLs, nodes copiés via Ctrl+C)
   useCanvasPasteHandler({ canEdit });

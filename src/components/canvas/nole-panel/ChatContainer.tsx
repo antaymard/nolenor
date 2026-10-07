@@ -114,6 +114,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
             threadId={threadId}
             onRetry={handleRetry}
             isRunActive={chat.runStatus === "running"}
+            isAwaitingAnswer={chat.runStatus === "waiting"}
           />
         ) : (
           <EmptyThreadSuggestions onSelect={setUserInput} />
@@ -125,6 +126,7 @@ export default function ChatContainer({ onClose }: ChatContainerProps) {
         onSend={handleSend}
         isSending={chat.isSending}
         isAssistantResponding={chat.isAssistantResponding}
+        isAwaitingAnswer={chat.runStatus === "waiting"}
         isCancelling={chat.isCancelling}
         onStopAssistantResponse={chat.stopAssistantResponse}
         modelOptions={chat.modelOptions}

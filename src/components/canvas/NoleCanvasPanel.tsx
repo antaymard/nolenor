@@ -1,8 +1,6 @@
-import NoleIcon from "@/assets/svg-components/NoleIcon";
+import type { ReactNode } from "react";
 import ChatContainer from "@/components/canvas/nole-panel/ChatContainer";
 import { useNoleStore } from "@/stores/noleStore";
-import { Button } from "../shadcn/button";
-import { Kbd } from "../shadcn/kbd";
 import { useIsolatedHotkey } from "@/hooks/useIsolatedHotkey";
 import {
   ResizableHandle,
@@ -10,7 +8,12 @@ import {
   ResizablePanelGroup,
 } from "../shadcn/resizable";
 
-export default function NoleCanvasPanel() {
+/**
+ * La conversation Nolë du canvas, flottant au-dessus de l'omnibar (`children`),
+ * qui tient le coin bas-gauche à la place de l'ancien bouton. `N` l'ouvre et
+ * la ferme.
+ */
+export default function NoleCanvasPanel({ children }: { children: ReactNode }) {
   const layout = useNoleStore((state) => state.panelLayout);
   const setPanelLayout = useNoleStore((state) => state.setPanelLayout);
   const togglePanelLayout = useNoleStore((state) => state.togglePanelLayout);
@@ -20,9 +23,11 @@ export default function NoleCanvasPanel() {
   return (
     <div className="relative">
       {layout === "expanded" && (
-        // `bottom-12.5` : le bouton fait h-10 comme la toolbar, la conversation
-        // le recouvrirait sinon. Pas de `canvas-ui-container` ici : c'est
-        // `ChatContainer` qui porte déjà le matériau (blur + ombre).
+        // `bottom-12.5` : l'island compacte fait h-10 comme la toolbar, la
+        // conversation la recouvrirait sinon (l'omnibar reste compacte et
+        // masque ses tâches tant que le panel est ouvert). Pas de
+        // `canvas-ui-container` ici : c'est `ChatContainer` qui porte déjà le
+        // matériau (blur + ombre).
         //
         // Le resize : le groupe mesure 38rem mais la conversation n'en occupe
         // par défaut que 380px (`w-95` d'origine) ; le second panel est un
@@ -59,17 +64,7 @@ export default function NoleCanvasPanel() {
           </ResizablePanelGroup>
         </div>
       )}
-      <div className="canvas-ui-container animate-appear-up px-0!">
-        {/* `h-10` : aligné sur CanvasToolbar et le dock, même rangée visuelle. */}
-        <Button
-          variant="ghost"
-          className="h-10 rounded-lg px-3 font-bold tracking-tight"
-          onClick={() => togglePanelLayout()}
-        >
-          <NoleIcon size={16} /> Nolë
-          <Kbd>N</Kbd>
-        </Button>
-      </div>
+      {children}
     </div>
   );
 }

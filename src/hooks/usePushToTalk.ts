@@ -5,6 +5,11 @@ type UsePushToTalkOptions = {
   onStart: () => void;
   /** Stop recording when the chord is released or the window blurs. */
   onStop: () => void;
+  /**
+   * Un seul composer écoute le raccourci à la fois : l'omnibar le cède au
+   * panel quand celui-ci est ouvert, sinon les deux dicteraient ensemble.
+   */
+  enabled?: boolean;
 };
 
 /**
@@ -13,11 +18,17 @@ type UsePushToTalkOptions = {
  * Tracks the set of currently-held keys so the recording starts once the chord
  * is complete and stops as soon as either key is released (or focus is lost).
  */
-export function usePushToTalk({ onStart, onStop }: UsePushToTalkOptions) {
+export function usePushToTalk({
+  onStart,
+  onStop,
+  enabled = true,
+}: UsePushToTalkOptions) {
   const heldKeys = useRef<Set<string>>(new Set());
   const isActive = useRef(false);
 
   useEffect(() => {
+    if (!enabled) return;
+    const held = heldKeys.current;
     const isChordHeld = () =>
       heldKeys.current.has("Control") && heldKeys.current.has("Alt");
 
@@ -50,6 +61,10 @@ export function usePushToTalk({ onStart, onStop }: UsePushToTalkOptions) {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleBlur);
+      // Désactivé en plein appui (le panel s'ouvre) : la dictée ne doit pas
+      // rester ouverte sans personne pour la clore.
+      held.clear();
+      stop();
     };
-  }, [onStart, onStop]);
+  }, [onStart, onStop, enabled]);
 }

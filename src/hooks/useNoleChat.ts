@@ -99,9 +99,14 @@ export function useNoleChat() {
   const [isSending, setIsSending] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const sendMessage = useMutation(api.ia.nole.saveMessage).withOptimisticUpdate(
-    optimisticallySendMessage(api.threads.listMessages),
-  );
+  // Deux variantes de la même mutation. Au repos, le message apparaît tout de
+  // suite dans le fil (mise à jour optimiste). Pendant un run, il part en file
+  // côté serveur et s'affiche en bulle « en file » (cf. `QueuedMessages`) :
+  // l'insérer de façon optimiste dans le fil le ferait clignoter.
+  const sendMessageWhenIdle = useMutation(
+    api.ia.nole.saveMessage,
+  ).withOptimisticUpdate(optimisticallySendMessage(api.threads.listMessages));
+  const sendMessageDuringRun = useMutation(api.ia.nole.saveMessage);
   const abortStream = useMutation(api.threads.abortStream);
   const updateThreadTitle = useAction(api.threads.updateThreadTitle);
   const threadInfo = useQuery(
@@ -137,7 +142,6 @@ export function useNoleChat() {
       !canvasId ||
       !userInput.trim() ||
       isSending ||
-      isAssistantResponding ||
       hasDirtyWindows ||
       speech.sttBusy
     ) {
@@ -179,7 +183,15 @@ export function useNoleChat() {
       // avant l'await) ; on rattache le choix au thread qui vient de naître pour
       // que l'UI ne retombe pas sur le défaut dans la foulée.
       adoptDraftSelection(activeThreadId);
-      await sendMessage({
+      // Pendant un run, le serveur met le message en file : il rejoint le run
+      // au step suivant (steer). Quand Nolë attend une réponse, le message y
+      // répond et ne s'affiche pas comme un message de plus. Dans les deux
+      // cas, pas d'insertion optimiste ; la décision finale reste au serveur.
+      const send =
+        isAssistantResponding || runStatus === "waiting"
+          ? sendMessageDuringRun
+          : sendMessageWhenIdle;
+      await send({
         threadId: activeThreadId,
         prompt,
         metadata: { messageContext, model: selectedModel },
@@ -207,6 +219,7 @@ export function useNoleChat() {
     canvasId,
     isSending,
     isAssistantResponding,
+    runStatus,
     hasDirtyWindows,
     speech.sttBusy,
     reactFlow,
@@ -216,7 +229,8 @@ export function useNoleChat() {
     overrideThreadId,
     ensureThread,
     adoptDraftSelection,
-    sendMessage,
+    sendMessageWhenIdle,
+    sendMessageDuringRun,
     selectedModel,
     resetAttachments,
     updateThreadTitle,
@@ -241,6 +255,21 @@ export function useNoleChat() {
       setIsCancelling(false);
     }
   }, [threadId, isAssistantResponding, isCancelling, abortStream]);
+
+  // Pendant un run, le choix vaut aussi pour le run en cours : le serveur le
+  // prend à la génération suivante. Au repos, il part avec le prochain message.
+  const setCurrentRunModel = useMutation(api.ia.nole.setCurrentRunModel);
+  const selectModel = useCallback(
+    (model: ChatModelValues) => {
+      setSelectedModel(model);
+      if (threadId && isAssistantResponding) {
+        void setCurrentRunModel({ threadId, model }).catch((error) => {
+          console.error("Failed to switch the running model:", error);
+        });
+      }
+    },
+    [setSelectedModel, threadId, isAssistantResponding, setCurrentRunModel],
+  );
 
   // Rien n'est écrit en base : on remet une conversation vierge, le thread sera
   // créé au premier message.
@@ -288,7 +317,7 @@ export function useNoleChat() {
     // model
     modelOptions,
     selectedModel,
-    setSelectedModel,
+    setSelectedModel: selectModel,
     // attachments
     attachedNodes,
     attachedPosition,

@@ -98,6 +98,20 @@ export interface ToolConfig {
    * chaque exécution.
    */
   mcp?: { access: "read" | "write" };
+  /**
+   * Un appel interrompu (action morte en cours d'exécution) peut-il être
+   * relancé tel quel ? `safe` seulement pour un tool sans effet de bord :
+   * lecture, recherche. Absent = `unsafe` : la harness rend au modèle un
+   * résultat « interrompu » plutôt que de risquer un doublon (cf.
+   * harness/tool.ts).
+   */
+  replay?: "safe" | "unsafe";
+  /**
+   * Tool rare : absent de ce que voit le modèle tant qu'il ne l'a pas chargé
+   * avec `load_tools` (cf. harness/deferredTools.ts). Chaque tool décrit coûte
+   * son schéma à chaque appel modèle, utilisé ou non.
+   */
+  deferred?: boolean;
 }
 
 // ── Error shaping ───────────────────────────────────────────────────────────
@@ -117,7 +131,7 @@ const CONVEX_ARGUMENT_DUMP = / in original object [\s\S]*$/;
 /** Generous enough for the longest useful message (BlockNotFoundError's id list). */
 const MAX_TOOL_ERROR_CHARS = 1000;
 
-function compactErrorMessage(message: string): string {
+export function compactErrorMessage(message: string): string {
   const compacted = message.replace(CONVEX_ARGUMENT_DUMP, ").");
   return compacted.length > MAX_TOOL_ERROR_CHARS
     ? `${compacted.slice(0, MAX_TOOL_ERROR_CHARS)}… [truncated]`

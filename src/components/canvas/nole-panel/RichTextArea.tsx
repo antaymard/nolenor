@@ -2,7 +2,7 @@
 // canvas (dropdown de suggestions, pill sur la mention insérée).
 
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { useNoleStore } from "@/stores/noleStore";
+import { useNoleDraft, type NoleDraft } from "@/stores/noleStore";
 import { useMemo } from "react";
 import { MentionsInput, Mention } from "react-mentions";
 import {
@@ -43,6 +43,8 @@ interface RichTextAreaProps {
   /** Sur mobile, la touche "Entrée" du clavier virtuel sert à insérer un saut
    *  de ligne, pas à envoyer : l'envoi passe uniquement par le bouton dédié. */
   submitOnEnter?: boolean;
+  /** Le brouillon édité : celui du panel par défaut. */
+  draft?: NoleDraft;
 }
 
 /**
@@ -62,12 +64,12 @@ export default function RichTextArea({
   placeholder = "Ask Nolë, @ to mention a node",
   autoFocus = true,
   submitOnEnter = true,
+  draft = "panel",
 }: RichTextAreaProps) {
   // Le brouillon est lu ici et pas plus haut : c'est le seul composant qui a
   // besoin du texte lui-même, donc le seul qui doive re-rendre à chaque
   // caractère. Le reste du composer se contente de `useHasUserInput`.
-  const value = useNoleStore((state) => state.userInput);
-  const onChange = useNoleStore((state) => state.setUserInput);
+  const [value, onChange] = useNoleDraft(draft);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
   // `useNodeIdsByDataId` et non `useNodes()` : ce dernier rend un tableau neuf
   // à chaque frame de drag, alors que ce hook-ci compare son résultat par

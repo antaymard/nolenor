@@ -18,20 +18,31 @@ export type AssistantActivity = {
   lastUserText: string | undefined;
 };
 
-/** Derives the assistant's activity state from the streamed message list. */
+/**
+ * Derives the assistant's activity state from the streamed message list and
+ * the server-side run status.
+ *
+ * Le statut du dernier message ne suffit plus : chaque appel modèle d'un run a
+ * son propre stream (cf. convex/harness). Entre deux appels — pendant que les
+ * tools tournent — le dernier message est déjà `success` alors que le run
+ * continue. C'est `isRunActive` (le `runStatus` du thread) qui dit si Nolë
+ * travaille encore.
+ */
 export function useAssistantActivity(
   messages: readonly UIMessage[],
+  isRunActive = false,
+  /** Le tour attend une réponse (`ask_user`) : il n'est pas fini. */
+  isAwaitingAnswer = false,
 ): AssistantActivity {
   const lastMessage = messages[messages.length - 1];
+  const isAssistantLast = !!lastMessage && lastMessage.role === "assistant";
   const isThinking =
-    !!lastMessage &&
-    lastMessage.role === "assistant" &&
-    lastMessage.status === "streaming";
+    isAssistantLast && (lastMessage.status === "streaming" || isRunActive);
   const isWaiting = !!lastMessage && lastMessage.role === "user" && !isThinking;
+  // Un step interrompu puis relancé laisse un message `failed` en cours de
+  // run : seul un run terminé peut afficher un échec.
   const isFailed =
-    !!lastMessage &&
-    lastMessage.role === "assistant" &&
-    lastMessage.status === "failed";
+    isAssistantLast && !isRunActive && lastMessage.status === "failed";
 
   const showDone = useDoneFlash(isThinking, lastMessage?.status);
 
@@ -39,7 +50,7 @@ export function useAssistantActivity(
     isThinking,
     showThinking: isThinking || isWaiting,
     isFailed,
-    showDone,
+    showDone: showDone && !isAwaitingAnswer,
     lastUserText: findLastUserText(messages),
   };
 }

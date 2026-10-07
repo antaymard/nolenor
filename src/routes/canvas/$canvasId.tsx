@@ -12,7 +12,7 @@ import CanvasFlow from "@/components/canvas/CanvasFlow";
 import { useCanvasBootstrap } from "@/hooks/useCanvasBootstrap";
 import { Spinner } from "@/components/shadcn/spinner";
 import NoleCanvasPanel from "@/components/canvas/NoleCanvasPanel";
-import ActivityDock from "@/components/canvas/on-canvas-ui/ActivityDock";
+import Omnibar from "@/components/canvas/omnibar/Omnibar";
 import CanvasDock from "@/components/canvas/on-canvas-ui/canvas-dock/CanvasDock";
 import MinimizedDock from "@/components/canvas/on-canvas-ui/canvas-dock/MinimizedDock";
 import CanvasToolbar from "@/components/canvas/on-canvas-ui/CanvasToolbar";
@@ -208,14 +208,13 @@ function CanvasContent({
         {isAuthenticated ? (
           <>
             <Panel position="bottom-left">
-              {/* Le bouton Nolë reste à l'extrême gauche ; le dock le prolonge
-                  horizontalement. La conversation étendue est un `absolute`
-                  ancré dans `NoleCanvasPanel` : elle flotte au-dessus du bouton
-                  sans jamais descendre sur la rangée du dock. */}
-              <div className="flex items-center gap-2">
-                <NoleCanvasPanel />
-                <ActivityDock canvasId={canvasId} />
-              </div>
+              {/* L'omnibar (demander sans choisir de conversation, et les
+                  tâches de Nolë empilées au-dessus) tient le coin. La
+                  conversation étendue est un `absolute` ancré dans
+                  `NoleCanvasPanel` : elle flotte au-dessus de l'island. */}
+              <NoleCanvasPanel>
+                <Omnibar canvasId={canvasId} />
+              </NoleCanvasPanel>
             </Panel>
             {/* Le miroir du coin gauche : le bouton des repères reste à
                 l'extrême droite, les windows minimisées le prolongent vers le

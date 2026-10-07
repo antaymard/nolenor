@@ -1,4 +1,11 @@
-import { action, mutation, query, type QueryCtx } from "./_generated/server";
+import {
+  action,
+  internalAction,
+  mutation,
+  query,
+  type ActionCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import { components, internal } from "./_generated/api";
@@ -15,6 +22,8 @@ import z from "zod";
 import { createBaseAgent } from "./ia/agents";
 import errors from "./config/errorsConfig";
 import { threadAgentNames } from "./schemas/threadMetadataSchema";
+import { abortRun } from "./harness/tasks";
+import * as RunModels from "./models/runModels";
 import { aiUsageSources } from "./schemas/aiUsageSourceSchema";
 import {
   findByThreadId,
@@ -22,12 +31,10 @@ import {
   listNoleThreadsByUser,
   listNoleThreadsByUserAndCanvas,
   markReviewed,
-  markRunEnded,
   unmarkReviewed,
 } from "./models/threadMetadataModels";
 import {
   threadLastActivityValidator,
-  threadNodeTouchValidator,
   threadRunStatuses,
   threadRunStatusValidator,
 } from "./schemas/threadMetadataSchema";
@@ -247,58 +254,10 @@ export const listCanvasThreads = query({
  */
 function isDockCandidate(metadata: Doc<"threadMetadata">): boolean {
   if (metadata.runStatus === threadRunStatuses.running) return true;
+  if (metadata.runStatus === threadRunStatuses.waiting) return true;
   if (metadata.runEndedAt === undefined) return false;
   return metadata.reviewedAt === undefined;
 }
-
-/**
- * Les tâches que le dock d'activité affiche : ce qui tourne, et ce qui attend
- * d'être relu.
- *
- * Query distincte de `listCanvasThreads`, et non trois champs de plus : le dock
- * est monté en permanence sur le canvas alors que le sélecteur ne vit qu'avec
- * le panneau ouvert. Comme `addUsage` patche la ligne du thread une fois par
- * step LLM, une query montée en permanence se réévalue une vingtaine de fois
- * par tour — d'où le filtre avant l'hydratation, qui ramène en pratique zéro à
- * trois lignes au lieu de trente.
- */
-export const listPendingThreads = query({
-  args: {
-    canvasId: v.id("canvases"),
-  },
-  returns: v.array(
-    v.object({
-      threadId: v.string(),
-      title: v.union(v.string(), v.null()),
-      // Bruts, comme pour `listCanvasThreads` : c'est le client qui résout la
-      // péremption et l'admission finale.
-      runStatus: v.union(threadRunStatusValidator, v.null()),
-      runStartedAt: v.union(v.number(), v.null()),
-      runEndedAt: v.union(v.number(), v.null()),
-      reviewedAt: v.union(v.number(), v.null()),
-      touchedNodes: v.array(threadNodeTouchValidator),
-      // Ce que l'agent a formulé en dernier. Le libellé des pastilles, pendant
-      // le tour comme après : le titre du thread ne dit que le sujet, pas où
-      // en est le travail.
-      lastActivity: v.union(threadLastActivityValidator, v.null()),
-    }),
-  ),
-  handler: async (ctx, { canvasId }) =>
-    loadNoleThreads(ctx, {
-      canvasId,
-      filter: isDockCandidate,
-      project: (metadata, title) => ({
-        threadId: metadata.threadId,
-        title,
-        runStatus: metadata.runStatus ?? null,
-        runStartedAt: metadata.runStartedAt ?? null,
-        runEndedAt: metadata.runEndedAt ?? null,
-        reviewedAt: metadata.reviewedAt ?? null,
-        touchedNodes: metadata.touchedNodes ?? [],
-        lastActivity: metadata.lastActivity ?? null,
-      }),
-    }),
-});
 
 /**
  * Les tâches en attente de revue, tous canvas confondus : ce que la home
@@ -325,7 +284,7 @@ export const listPendingThreadsForUser = query({
       // Ce qui rattache la tâche à sa carte : la home groupe là-dessus.
       canvasId: v.id("canvases"),
       title: v.union(v.string(), v.null()),
-      // Bruts, comme pour `listPendingThreads` : c'est le client qui résout la
+      // Bruts, comme pour `listCanvasThreads` : c'est le client qui résout la
       // péremption et l'admission finale.
       runStatus: v.union(threadRunStatusValidator, v.null()),
       runStartedAt: v.union(v.number(), v.null()),
@@ -465,38 +424,35 @@ export const abortStream = mutation({
       throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
     }
 
+    // 1) Le run de la harness : ses tâches s'arrêtent (une génération qui
+    // attend ses tools n'enchaînera plus), le thread passe `aborted`. C'est ce
+    // qui coupe le travail même quand rien ne streame — pendant un tool.
+    const runAborted = await abortRun(ctx, threadId);
+
+    // 2) Le stream en cours, s'il y en a un : coupé net.
     const activeStreams = await ctx.runQuery(components.agent.streams.list, {
       threadId,
       statuses: ["streaming"],
     });
-
-    if (activeStreams.length === 0) {
-      return { aborted: false };
+    let streamAborted = false;
+    if (activeStreams.length > 0) {
+      const currentStream = activeStreams.reduce((latest, stream) =>
+        stream.order > latest.order ? stream : latest,
+      );
+      streamAborted = await ctx.runMutation(
+        components.agent.streams.abortByOrder,
+        {
+          threadId,
+          order: currentStream.order,
+          reason: "Cancelled by user",
+        },
+      );
     }
 
-    const currentStream = activeStreams.reduce((latest, stream) =>
-      stream.order > latest.order ? stream : latest,
-    );
-
-    const aborted = await ctx.runMutation(
-      components.agent.streams.abortByOrder,
-      {
-        threadId,
-        order: currentStream.order,
-        reason: "Cancelled by user",
-      },
-    );
-
-    // Sans jeton de run : l'utilisateur coupe le tour courant, quel qu'il
-    // soit. L'action de streaming écrira le même statut en sortant, mais elle
-    // peut mettre un instant à s'en apercevoir — et l'UI, elle, répond au clic.
+    const aborted = runAborted || streamAborted;
     if (aborted) {
-      await markRunEnded(ctx, {
-        threadId,
-        status: threadRunStatuses.aborted,
-      });
       // Appuyer sur stop est déjà un accusé de réception : la tâche ne doit pas
-      // resurgir au dock pour se faire relire. Après `markRunEnded`, et pas
+      // resurgir au dock pour se faire relire. Après la fin du run, et pas
       // avant : `markReviewed` refuse un thread encore `running`.
       await markReviewed(ctx, { threadId });
     }
@@ -532,6 +488,8 @@ export const markThreadReviewed = mutation({
     }
 
     await markReviewed(ctx, { threadId });
+    // Ouvrir la conversation, c'est en relire toutes les tâches finies.
+    await RunModels.markThreadReviewed(ctx, threadId);
     return null;
   },
 });
@@ -580,6 +538,14 @@ export const deleteThread = action({
       throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
     }
 
+    // Ce que l'app garde du thread hors du composant (runs, tâches, metadata
+    // des messages…) et ses sous-agents, par lots. Son run s'arrête au passage.
+    while (
+      await ctx.runMutation(internal.harness.purge.purgeThread, { threadId })
+    ) {
+      // Un lot par transaction.
+    }
+
     await ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {
       threadId,
     });
@@ -609,33 +575,52 @@ export const updateThreadTitle = action({
       throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
     }
 
-    // `usageSource` explicite : c'est le seul usage de `createBaseAgent` qui
-    // appelle réellement un LLM, et sa consommation était jusqu'ici invisible.
-    const basicAgent = createBaseAgent({
-      usageSource: aiUsageSources.threadTitle,
-    });
-    const { thread } = await basicAgent.continueThread(ctx, { threadId });
-
-    if (onlyIfUntitled) {
-      const metadata = await thread.getMetadata();
-      if (metadata.title && metadata.title.trim().length > 0) {
-        return;
-      }
-    }
-
-    const {
-      object: { title },
-    } = await thread.generateObject(
-      {
-        schema: z.object({
-          title: z.string().describe("The new title for the thread"),
-        }),
-        prompt:
-          "Generate a title for this thread. Short and based on the content of the thread. It should be concise and descriptive, and allow the user to understand the topic of the thread at a glance.",
-      },
-      { storageOptions: { saveMessages: "none" } },
-    );
-
-    await thread.updateMetadata({ title });
+    await generateTitle(ctx, threadId, onlyIfUntitled ?? false);
   },
 });
+
+/**
+ * Titre d'un thread ouvert par l'aiguillage (cf. harness/dispatch.ts) : pas de
+ * client pour le demander, comme le fait `useNoleChat` après un envoi.
+ */
+export const generateThreadTitle = internalAction({
+  args: { threadId: v.string() },
+  handler: async (ctx, { threadId }) => {
+    await generateTitle(ctx, threadId, true);
+  },
+});
+
+async function generateTitle(
+  ctx: ActionCtx,
+  threadId: string,
+  onlyIfUntitled: boolean,
+) {
+  // `usageSource` explicite : c'est le seul usage de `createBaseAgent` qui
+  // appelle réellement un LLM, et sa consommation était jusqu'ici invisible.
+  const basicAgent = createBaseAgent({
+    usageSource: aiUsageSources.threadTitle,
+  });
+  const { thread } = await basicAgent.continueThread(ctx, { threadId });
+
+  if (onlyIfUntitled) {
+    const metadata = await thread.getMetadata();
+    if (metadata.title && metadata.title.trim().length > 0) {
+      return;
+    }
+  }
+
+  const {
+    object: { title },
+  } = await thread.generateObject(
+    {
+      schema: z.object({
+        title: z.string().describe("The new title for the thread"),
+      }),
+      prompt:
+        "Generate a title for this thread. Short and based on the content of the thread. It should be concise and descriptive, and allow the user to understand the topic of the thread at a glance.",
+    },
+    { storageOptions: { saveMessages: "none" } },
+  );
+
+  await thread.updateMetadata({ title });
+}

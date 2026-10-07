@@ -86,16 +86,18 @@ type RunQueryCtx = {
 };
 
 export class Debouncer<Fn extends Target> {
+  // Champs déclarés explicitement, et non en propriétés de paramètres du
+  // constructeur : l'app type-checke ce fichier (via `_generated/api.d.ts`)
+  // avec `erasableSyntaxOnly`, qui les refuse.
+  private readonly component: ComponentApi;
+  private readonly fn: Fn;
+  private readonly config: DebouncerConfig;
   private readonly namespace: string;
   private readonly functionName: string;
   // Le handle ne dépend que du chemin de la fonction : on le garde pour les
   // appels suivants dans le même isolate (string, jamais une Promise, qui ne
   // peut pas traverser les requêtes).
   private functionHandle: string | undefined;
-
-  private readonly component: ComponentApi;
-  private readonly fn: Fn;
-  private readonly config: DebouncerConfig;
 
   constructor(component: ComponentApi, fn: Fn, config: DebouncerConfig) {
     this.component = component;

@@ -21,6 +21,7 @@ import {
 // Tool compaction config
 export const tableUpdateRowsToolConfig: ToolConfig = {
   name: "table_update_rows",
+  deferred: true,
   authorized_agents: [toolAgentNames.nole, toolAgentNames.worker],
   mcp: { access: "write" },
 };

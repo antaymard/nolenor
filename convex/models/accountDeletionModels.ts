@@ -2,6 +2,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { components, internal } from "../_generated/api";
 import { rateLimiter, USER_KEYED_RATE_LIMITS } from "../lib/rateLimits";
+import { purgeThreadStep } from "../harness/purge";
 import * as CanvasBookmarkModels from "./canvasBookmarkModels";
 import * as CanvasModels from "./canvasModels";
 import * as SkillModels from "./skillModels";
@@ -212,25 +213,29 @@ export async function purgeUserDataStep(
   }
 
   // ── Conversations ───────────────────────────────────────────────────────
-  // Un thread à la fois : ses métadonnées de messages peuvent être
-  // nombreuses. La ligne `threadMetadata` n'est supprimée qu'une fois son
-  // thread vidé — tant qu'elle est là, le passage suivant retombe dessus et
-  // reprend où il s'était arrêté.
+  // Un thread à la fois : ses runs, tâches et métadonnées de messages peuvent
+  // être nombreux (cf. harness/purge.ts). La ligne `threadMetadata` n'est
+  // supprimée qu'une fois son thread vidé — tant qu'elle est là, le passage
+  // suivant retombe dessus et reprend où il s'était arrêté.
   const thread = await ctx.db
     .query("threadMetadata")
     .withIndex("by_userId_and_agentName", (q) => q.eq("userId", userId))
     .first();
   if (thread) {
-    const messages = await ctx.db
-      .query("messageMetadata")
-      .withIndex("by_threadId", (q) => q.eq("threadId", thread.threadId))
-      .take(PURGE_BATCH_SIZE);
-    for (const message of messages) {
-      await ctx.db.delete(message._id);
-    }
-    if (messages.length === PURGE_BATCH_SIZE) return true;
-
+    if (await purgeThreadStep(ctx, thread.threadId)) return true;
     await ctx.db.delete(thread._id);
+    return true;
+  }
+
+  // Les demandes de l'omnibar qui n'ont pas abouti à un thread.
+  const dispatches = await ctx.db
+    .query("dispatches")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(PURGE_BATCH_SIZE);
+  if (dispatches.length > 0) {
+    for (const dispatch of dispatches) {
+      await ctx.db.delete(dispatch._id);
+    }
     return true;
   }
 

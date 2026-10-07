@@ -9,6 +9,8 @@ import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 
 export const viewImageToolConfig: ToolConfig = {
   name: "view_image",
+  // Lecture seule : relancer un appel interrompu ne peut rien dupliquer.
+  replay: "safe",
   authorized_agents: [
     toolAgentNames.nole,
     toolAgentNames.worker,

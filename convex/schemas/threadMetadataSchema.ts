@@ -29,6 +29,9 @@ const threadAgentNames = {
  */
 const threadRunStatuses = {
   running: "running",
+  // Le run attend une réponse de l'utilisateur (`ask_user`) : ni en cours, ni
+  // fini, et jamais périmé — une question peut attendre des heures.
+  waiting: "waiting",
   idle: "idle",
   error: "error",
   aborted: "aborted",
@@ -36,6 +39,7 @@ const threadRunStatuses = {
 
 const threadRunStatusValidator = v.union(
   v.literal(threadRunStatuses.running),
+  v.literal(threadRunStatuses.waiting),
   v.literal(threadRunStatuses.idle),
   v.literal(threadRunStatuses.error),
   v.literal(threadRunStatuses.aborted),
@@ -92,6 +96,51 @@ const threadLastActivityValidator = v.object({
   at: v.number(),
 });
 
+/**
+ * Le run d'agent en cours sur un thread (cf. convex/harness).
+ *
+ * - `startMessageId` : le message qui l'a ouvert, son identifiant ;
+ * - `promptMessageId` : la position où les réponses sont sauvées. Égal au
+ *   précédent tant qu'aucun steer n'a été placé ;
+ * - `generationTaskId` : la génération courante, la seule autorisée à
+ *   enchaîner ;
+ * - `runToken` : le `runStartedAt` posé par `markRunStarted`, rendu à
+ *   `markRunEnded` en fin de run ;
+ * - `maxGenerations` : plafond du profil, recopié pour que les mutations n'aient
+ *   pas à charger le profil ;
+ * - `profile` : le profil du run, pour ouvrir le suivant à partir des messages
+ *   arrivés pendant celui-ci.
+ */
+const threadRunValidator = v.object({
+  profile: v.string(),
+  startMessageId: v.string(),
+  promptMessageId: v.string(),
+  generationTaskId: v.id("agentTasks"),
+  runToken: v.number(),
+  maxGenerations: v.number(),
+  // Le modèle des générations à venir. Lu à chaque claim : un changement de
+  // modèle pendant le run (sélecteur, steer) prend effet au step suivant.
+  model: v.optional(v.string()),
+  // Tools différés chargés par le modèle (`load_tools`) : décrits à toutes
+  // les générations suivantes du run.
+  loadedTools: v.optional(v.array(v.string())),
+  // La question (`ask_user`) qui attend la réponse de l'utilisateur : son
+  // prochain message y répond au lieu de partir en file.
+  awaitingTaskId: v.optional(v.id("agentTasks")),
+  // Run d'un sous-agent : le tool call du parent qui l'a lancé. À la fin du
+  // run, son résultat y est écrit (premier plan) ou renvoyé au thread parent
+  // en followUp (arrière-plan).
+  parent: v.optional(
+    v.object({
+      taskId: v.id("agentTasks"),
+      threadId: v.string(),
+      profile: v.string(),
+      background: v.boolean(),
+      model: v.optional(v.string()),
+    }),
+  ),
+});
+
 const threadMetadataValidator = v.object({
   threadId: v.string(),
   userId: v.id("users"),
@@ -115,7 +164,7 @@ const threadMetadataValidator = v.object({
   agentName: v.string(),
   lastMessageTime: v.optional(v.number()),
   // Nombre de messages envoyés par l'utilisateur sur ce thread, incrémenté par
-  // `threadMetadataWrappers.markRunStarted`. À ne pas confondre avec le nombre
+  // `threadMetadataModels.markRunStarted`. À ne pas confondre avec le nombre
   // de steps LLM, qui vit dans `aiUsageDaily.eventsCount`.
   roundsNb: v.optional(v.number()),
   // Absent = jamais lancé, donc `idle` : aucune migration à faire.
@@ -131,6 +180,11 @@ const threadMetadataValidator = v.object({
   // tâche du dock d'activité ; `markRunStarted` l'efface pour qu'un thread
   // relancé y revienne.
   reviewedAt: v.optional(v.number()),
+  // Le run en cours de la harness, présent exactement tant qu'il travaille.
+  // C'est la référence que toutes les tâches confrontent avant d'écrire : un
+  // run abandonné (abort, nouveau message) ne fait plus rien dès qu'il n'est
+  // plus celui-ci.
+  run: v.optional(threadRunValidator),
 });
 
 type ThreadRunStatus = Infer<typeof threadRunStatusValidator>;
@@ -139,7 +193,7 @@ type ThreadNodeTouch = Infer<typeof threadNodeTouchValidator>;
 type ThreadNodeTouchKind = Infer<typeof threadNodeTouchKindValidator>;
 
 /** États terminaux : ce qu'un tour peut valoir une fois `running` quitté. */
-type ThreadRunEndStatus = Exclude<ThreadRunStatus, "running">;
+type ThreadRunEndStatus = Exclude<ThreadRunStatus, "running" | "waiting">;
 
 /** `lastRunError` est affiché tel quel : on ne stocke pas une stack entière. */
 const RUN_ERROR_MAX_LENGTH = 300;
@@ -175,6 +229,7 @@ export {
   threadNodeTouchKinds,
   threadNodeTouchValidator,
   threadLastActivityValidator,
+  threadRunValidator,
   ACTIVITY_TEXT_MAX_LENGTH,
   RUN_ERROR_MAX_LENGTH,
   RUN_STALE_MS,

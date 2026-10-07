@@ -10,6 +10,7 @@ import { groupMessageParts } from "./activity/activityModel";
 import { ErrorInline } from "./ErrorInline";
 import { AssistantMessageFooter } from "./AssistantMessageFooter";
 import { getMessageErrorText } from "./messageParsing";
+import { QuestionCard } from "./QuestionCard";
 
 /** An assistant message: text parts interleaved with collapsed activity blocks
  * (tool calls + reasoning), plus a processing spinner, error banner and hover
@@ -19,20 +20,27 @@ export function AssistantMessage({
   metadata,
   modelOptions,
   isRunActive = false,
+  isAwaitingAnswer = false,
+  threadId,
 }: {
   message: UIMessage;
   /** Dernier message d'un tour que le serveur dit encore en cours. */
   isRunActive?: boolean;
+  /** Dernier message d'un tour qui attend la réponse de l'utilisateur. */
+  isAwaitingAnswer?: boolean;
+  threadId?: string;
   metadata?: Doc<"messageMetadata">;
   modelOptions?: readonly ChatModelOption[];
 }) {
   // `streaming` ne couvre que les tokens en vol. Pendant qu'un tool s'exécute,
   // ou entre deux étapes, le message est `pending` : sans le statut serveur, le
   // bloc d'activité passerait en résumé, et le tool en cours en « stopped ».
-  const isProcessing =
-    message.status === "streaming" ||
-    (isRunActive && message.status !== "failed");
-  const isFailed = message.status === "failed";
+  //
+  // Un message `failed` dans un tour encore en cours est une tentative que le
+  // serveur va rejouer (cf. convex/harness/errors.ts) : pas d'erreur tant que
+  // le tour n'est pas fini.
+  const isProcessing = message.status === "streaming" || isRunActive;
+  const isFailed = message.status === "failed" && !isRunActive;
   const messageError = getMessageErrorText(message);
 
   const blocks = useMemo(
@@ -54,6 +62,14 @@ export function AssistantMessage({
         {blocks.map((block, index) =>
           block.kind === "text" ? (
             <TextPart key={block.key} part={block.part} />
+          ) : block.kind === "question" ? (
+            <QuestionCard
+              key={block.key}
+              threadId={threadId}
+              questions={block.questions}
+              result={block.result}
+              canAnswer={isAwaitingAnswer}
+            />
           ) : (
             <ActivityGroup
               key={block.key}

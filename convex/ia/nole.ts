@@ -1,9 +1,22 @@
+import { getThreadMetadata } from "@convex-dev/agent";
 import { v } from "convex/values";
-import { mutation, query } from "../_generated/server";
-import { baseAgent, chatModelOptions, vChatModelValues } from "./agents";
+import { components } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import { mutation, query, type MutationCtx } from "../_generated/server";
+import errors from "../config/errorsConfig";
+import { chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
-import { internal } from "../_generated/api";
-import * as MessageMetadataModels from "../models/messageMetadataModels";
+import {
+  dispatchRequest,
+  redispatchAsNew as redispatchAsNewRequest,
+} from "../harness/dispatch";
+import { setRunModel, submitToThread } from "../harness/tasks";
+import * as ThreadMetadataModels from "../models/threadMetadataModels";
+import {
+  noleMessageContent,
+  noleProfile,
+  type NoleRunInput,
+} from "./profiles/nole";
 import { enforceRateLimit } from "../lib/rateLimits";
 
 export const vMetadata = v.optional(
@@ -22,7 +35,7 @@ export const listChatModels = query({
   },
 });
 
-// Public entrypoint: persist user message, then schedule async streaming.
+// Point d'entrée public : un message de l'utilisateur à Nolë.
 export const saveMessage = mutation({
   args: {
     threadId: v.string(),
@@ -41,78 +54,159 @@ export const saveMessage = mutation({
     // access up front (matching the worker path). Without this, an authenticated
     // user could point the agent at any canvas id they know.
     await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
+    await requireOwnThread(ctx, threadId, authUserId, canvasId);
 
-    // 1) Persist the user message first so it exists in thread history.
-    const { messageId } = await baseAgent.saveMessage(ctx, {
+    // Le message part par la harness : il ouvre un run si le thread est au
+    // repos, sinon il attend sa place dans le run en cours (steer).
+    const result = await submitToThread(ctx, {
       threadId,
-      prompt,
-    });
-
-    // 2) Persist user-side metadata (attachments) extracted from messageContext.
-    const messageContext = metadata?.messageContext;
-    if (
-      messageContext &&
-      typeof messageContext === "object" &&
-      !Array.isArray(messageContext)
-    ) {
-      const mc = messageContext as Record<string, unknown>;
-      const attachedNodesRaw = Array.isArray(mc.attachedNodes)
-        ? (mc.attachedNodes as Array<Record<string, unknown>>)
-        : [];
-      const nodes = attachedNodesRaw
-        .filter(
-          (n) =>
-            typeof n.id === "string" &&
-            typeof n.type === "string" &&
-            typeof n.title === "string",
-        )
-        .map((n) => ({
-          id: n.id as string,
-          type: n.type as string,
-          title: n.title as string,
-        }));
-      const position =
-        mc.attachedPosition &&
-        typeof mc.attachedPosition === "object" &&
-        typeof (mc.attachedPosition as Record<string, unknown>).x ===
-          "number" &&
-        typeof (mc.attachedPosition as Record<string, unknown>).y === "number"
-          ? {
-              x: (mc.attachedPosition as { x: number }).x,
-              y: (mc.attachedPosition as { y: number }).y,
-            }
-          : undefined;
-      await MessageMetadataModels.recordUserAttachments(ctx, {
-        messageId: messageId,
-        threadId,
-        userId: authUserId,
-        attachments: { nodes, position },
-      });
-    }
-
-    // 3) Ouvrir le tour : dater l'interaction — c'est cette date qui décide, à
-    // la réouverture du panel, si la conversation du canvas est reprise — et
-    // passer le thread en `running`. Écrit ici, dans la transaction du message,
-    // pour que toutes les surfaces voient le thread travailler dès l'envoi,
-    // sans attendre que l'action planifiée démarre.
-    const runToken = await ctx.runMutation(
-      internal.wrappers.threadMetadataWrappers.markRunStarted,
-      { threadId },
-    );
-
-    // 4) Schedule the response generation in background.
-    void ctx.scheduler.runAfter(0, internal.ia.noleCompletion.streamResponse, {
-      authUserId: authUserId,
-      threadId,
-      promptMessageId: messageId,
-      userPrompt: prompt,
-      metadata,
+      userId: authUserId,
       canvasId,
-      // Le tour que l'action devra conclure. Sans ce jeton, sa fin remettrait
-      // le thread au repos même si un envoi ultérieur l'a relancé entre-temps.
-      ...(runToken !== null ? { runToken } : {}),
+      profile: noleProfile,
+      prompt,
+      content: noleMessageContent(prompt, metadata),
+      input: { userPrompt: prompt, metadata } satisfies NoleRunInput,
+      model: metadata?.model,
+      attachments: readAttachments(metadata),
     });
 
-    return { messageId };
+    if ("answered" in result) {
+      return { messageId: null, queued: false, answered: true };
+    }
+    return result.queued
+      ? { messageId: null, queued: true, answered: false }
+      : { messageId: result.messageId, queued: false, answered: false };
   },
 });
+
+/**
+ * Point d'entrée public sans thread : l'omnibar. La demande est aiguillée
+ * vers le thread qui la concerne — en cours, en attente d'une réponse, ou au
+ * repos — ou vers un nouveau thread (cf. harness/dispatch.ts). `forceNew` :
+ * l'utilisateur veut une nouvelle tâche, sans aiguillage.
+ */
+/**
+ * Le thread est celui de l'utilisateur, sur ce canvas : un message y ouvre un
+ * run, le steere ou répond à sa question. Un thread sans ligne de metadata
+ * (antérieur à la table) se vérifie sur le composant agent.
+ */
+async function requireOwnThread(
+  ctx: MutationCtx,
+  threadId: string,
+  userId: Id<"users">,
+  canvasId: Id<"canvases">,
+) {
+  const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+  const allowed = row
+    ? row.userId === userId && row.canvasId === canvasId
+    : (
+        await getThreadMetadata(ctx, components.agent, { threadId }).catch(
+          () => null,
+        )
+      )?.userId === userId;
+  if (!allowed) throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
+}
+
+export const submit = mutation({
+  args: {
+    canvasId: v.id("canvases"),
+    prompt: v.string(),
+    metadata: vMetadata,
+    forceNew: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { canvasId, prompt, metadata, forceNew }) => {
+    const authUserId = await requireAuth(ctx);
+    await enforceRateLimit(ctx, "noleMessage", authUserId);
+    await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
+
+    const attachments = readAttachments(metadata);
+    const dispatchId = await dispatchRequest(ctx, {
+      canvasId,
+      userId: authUserId,
+      profile: noleProfile,
+      prompt,
+      content: noleMessageContent(prompt, metadata),
+      input: { userPrompt: prompt, metadata } satisfies NoleRunInput,
+      model: metadata?.model,
+      attachments,
+      nodeIds: requestNodeIds(prompt, attachments),
+      forceNew,
+    });
+    return { dispatchId };
+  },
+});
+
+/** « Start a new task instead », depuis la ligne « Added to … » de l'omnibar. */
+export const redispatchAsNew = mutation({
+  args: { dispatchId: v.id("dispatches") },
+  handler: async (ctx, { dispatchId }) => {
+    const authUserId = await requireAuth(ctx);
+    return { redirected: await redispatchAsNewRequest(ctx, dispatchId, authUserId) };
+  },
+});
+
+/** Les nodes joints au message, puis ceux mentionnés dans son texte. */
+function requestNodeIds(
+  prompt: string,
+  attachments: ReturnType<typeof readAttachments>,
+): string[] {
+  const ids = new Set(attachments?.nodes?.map((node) => node.id) ?? []);
+  for (const match of prompt.matchAll(/\[\[node:([A-Za-z0-9]+)/g)) {
+    ids.add(match[1]);
+  }
+  return [...ids];
+}
+
+/**
+ * Change le modèle du run en cours, depuis le sélecteur : la génération
+ * suivante le prend. Au repos, rien à faire ici — le modèle part avec le
+ * prochain message.
+ */
+export const setCurrentRunModel = mutation({
+  args: { threadId: v.string(), model: vChatModelValues },
+  handler: async (ctx, { threadId, model }) => {
+    const authUserId = await requireAuth(ctx);
+    const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+    if (!row || row.userId !== authUserId) return { updated: false };
+    return { updated: await setRunModel(ctx, threadId, model) };
+  },
+});
+
+/** Les pièces jointes d'un message, extraites de son `messageContext`. */
+function readAttachments(metadata: NoleMessageMetadata) {
+  const messageContext = metadata?.messageContext;
+  if (
+    !messageContext ||
+    typeof messageContext !== "object" ||
+    Array.isArray(messageContext)
+  ) {
+    return undefined;
+  }
+  const mc = messageContext as Record<string, unknown>;
+  const attachedNodesRaw = Array.isArray(mc.attachedNodes)
+    ? (mc.attachedNodes as Array<Record<string, unknown>>)
+    : [];
+  const nodes = attachedNodesRaw
+    .filter(
+      (n) =>
+        typeof n.id === "string" &&
+        typeof n.type === "string" &&
+        typeof n.title === "string",
+    )
+    .map((n) => ({
+      id: n.id as string,
+      type: n.type as string,
+      title: n.title as string,
+    }));
+  const position =
+    mc.attachedPosition &&
+    typeof mc.attachedPosition === "object" &&
+    typeof (mc.attachedPosition as Record<string, unknown>).x === "number" &&
+    typeof (mc.attachedPosition as Record<string, unknown>).y === "number"
+      ? {
+          x: (mc.attachedPosition as { x: number }).x,
+          y: (mc.attachedPosition as { y: number }).y,
+        }
+      : undefined;
+  return { nodes, position };
+}

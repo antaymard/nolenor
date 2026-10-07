@@ -48,9 +48,123 @@ export type ReasoningStep = {
 
 export type ActivityStep = ToolStep | ReasoningStep;
 
+export type AskedQuestion = {
+  question: string;
+  header?: string;
+  options: { label: string; description?: string }[];
+  multiSelect: boolean;
+};
+
+/** Ce que l'utilisateur a répondu, tel que le modèle l'a reçu. */
+export type QuestionResult =
+  | { kind: "answers"; answers: { question: string; selected: string[] }[] }
+  | { kind: "text"; answer: string }
+  | { kind: "declined" };
+
+export type QuestionBlock = {
+  kind: "question";
+  key: string;
+  questions: AskedQuestion[];
+  /** `null` tant que l'utilisateur n'a pas répondu. */
+  result: QuestionResult | null;
+};
+
 export type MessageBlock =
   | { kind: "text"; key: string; part: TextPartType }
-  | { kind: "activity"; key: string; steps: ActivityStep[] };
+  | { kind: "activity"; key: string; steps: ActivityStep[] }
+  | QuestionBlock;
+
+/** Le tool du kernel par lequel Nolë pose une question (cf. convex/harness/kernelTools.ts). */
+const ASK_USER = "ask_user";
+
+function readOptions(value: unknown): AskedQuestion["options"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((option) => {
+    if (typeof option === "string") return [{ label: option }];
+    if (isRecord(option) && typeof option.label === "string") {
+      return [
+        {
+          label: option.label,
+          ...(typeof option.description === "string"
+            ? { description: option.description }
+            : {}),
+        },
+      ];
+    }
+    return [];
+  });
+}
+
+function readQuestion(value: unknown): AskedQuestion | null {
+  if (!isRecord(value) || typeof value.question !== "string") return null;
+  return {
+    question: value.question,
+    ...(typeof value.header === "string" ? { header: value.header } : {}),
+    options: readOptions(value.options),
+    multiSelect: value.multiSelect === true,
+  };
+}
+
+function readQuestionResult(output: unknown): QuestionResult {
+  // Sortie JSON du tool, avec ou sans son enveloppe `{ type, value }`.
+  const value =
+    isRecord(output) && "value" in output && "type" in output
+      ? output.value
+      : output;
+  if (typeof value === "string") return { kind: "text", answer: value };
+  if (isRecord(value)) {
+    if (value.declined === true) return { kind: "declined" };
+    if (typeof value.answer === "string") {
+      return { kind: "text", answer: value.answer };
+    }
+    if (Array.isArray(value.answers)) {
+      return {
+        kind: "answers",
+        answers: value.answers.flatMap((answer) =>
+          isRecord(answer) && typeof answer.question === "string"
+            ? [
+                {
+                  question: answer.question,
+                  selected: Array.isArray(answer.selected)
+                    ? answer.selected.filter(
+                        (label): label is string => typeof label === "string",
+                      )
+                    : [],
+                },
+              ]
+            : [],
+        ),
+      };
+    }
+  }
+  return { kind: "text", answer: "" };
+}
+
+/** Les questions d'`ask_user`, lues dans l'entrée du tool (ou ses restes). */
+export function readAskedQuestions(questions: readonly unknown[]): AskedQuestion[] {
+  return questions.flatMap((question) => readQuestion(question) ?? []);
+}
+
+function toQuestionBlock(part: Part, index: number): QuestionBlock {
+  const record = part as unknown as Record<string, unknown>;
+  const input = isRecord(record.input) ? record.input : {};
+  // Une question seule (première version du tool) ou une liste.
+  const questions = (
+    Array.isArray(input.questions) ? input.questions : [input]
+  ).flatMap((question) => readQuestion(question) ?? []);
+  return {
+    kind: "question",
+    key:
+      typeof record.toolCallId === "string"
+        ? record.toolCallId
+        : `question-${index}`,
+    questions,
+    result:
+      record.state === "output-available"
+        ? readQuestionResult(record.output)
+        : null,
+  };
+}
 
 function isToolPart(part: Part): boolean {
   return part.type.startsWith("tool-") || part.type === "dynamic-tool";
@@ -154,6 +268,13 @@ export function groupMessageParts(
         },
         index,
       );
+      return;
+    }
+
+    if (isToolPart(part) && readToolName(part) === ASK_USER) {
+      // Une question coupe la suite d'activité : c'est une carte à part.
+      current = null;
+      blocks.push(toQuestionBlock(part, index));
       return;
     }
 

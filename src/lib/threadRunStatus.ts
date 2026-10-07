@@ -76,6 +76,14 @@ export const RUN_STATUS_APPEARANCE: Record<
     className: "border-violet-200 bg-violet-50 text-violet-700",
     dotClassName: "bg-violet-500",
   },
+  // Le violet de Nolë, sans pulsation : le travail est suspendu, et c'est à
+  // l'utilisateur de le relancer.
+  waiting: {
+    label: "Needs your answer",
+    description: "Nolë asked you a question and is waiting for your answer.",
+    className: "border-violet-300 bg-white text-violet-700",
+    dotClassName: "bg-violet-500",
+  },
   aborted: {
     label: "Interrupted",
     description: "The response was interrupted.",
@@ -111,6 +119,7 @@ export const RUN_STATUS_APPEARANCE: Record<
  */
 export const RUN_STATUS_BORDER: Record<ResolvedRunStatus, string> = {
   running: "border-violet-200",
+  waiting: "border-violet-400",
   idle: "border-emerald-200",
   error: "border-red-200",
   aborted: "border-amber-200",
@@ -154,8 +163,9 @@ export function isPendingReview(
   now: number = Date.now(),
 ): boolean {
   const resolved = resolveRunStatus(fields, now);
-  // Un tour en cours ne se revoit pas : il n'est pas fini.
-  if (resolved === "running") return true;
+  // Un tour en cours ne se revoit pas : il n'est pas fini. Une question qui
+  // attend sa réponse non plus.
+  if (resolved === "running" || resolved === "waiting") return true;
   // Un `running` qu'on a cessé de croire n'aura jamais son `runEndedAt` ; il
   // reste pourtant à revoir, c'est même la tâche qui appelle le plus l'œil.
   if (resolved === "stale") return fields.reviewedAt == null;
@@ -193,9 +203,12 @@ export function getDockStatusAppearance(
     : RUN_STATUS_APPEARANCE[status];
 }
 
-/** Une tâche telle que le dock d'activité la reçoit. */
-export type PendingThread = FunctionReturnType<
-  typeof api.threads.listPendingThreads
+/**
+ * Une tâche telle que le dock la reçoit : un run, avec la demande qui l'a
+ * ouvert (cf. convex/runs.ts). Le thread n'en est que le contexte.
+ */
+export type PendingTask = FunctionReturnType<
+  typeof api.runs.listPendingRuns
 >[number];
 
 /**
@@ -218,6 +231,9 @@ export type HomePendingThread = FunctionReturnType<
  */
 const RUN_STATUS_URGENCY: Record<ResolvedRunStatus, number> = {
   error: 4,
+  // Une question bloque le travail jusqu'à la réponse : aussi pressant qu'un
+  // tour qui n'a pas abouti.
+  waiting: 3,
   stale: 3,
   aborted: 3,
   running: 2,

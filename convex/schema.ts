@@ -15,6 +15,12 @@ import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
 import { recipesValidor } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
+import { agentTaskValidator } from "./schemas/agentTasksSchema";
+import { compactionsValidator } from "./schemas/compactionsSchema";
+import { dispatchesValidator } from "./schemas/dispatchesSchema";
+import { runPromptsValidator } from "./schemas/runPromptsSchema";
+import { runsValidator } from "./schemas/runsSchema";
+import { submissionsValidator } from "./schemas/submissionsSchema";
 import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
 import { aiUsageDailyValidator } from "./schemas/aiUsageDailySchema";
 import { r2ObjectsValidator } from "./schemas/r2ObjectsSchema";
@@ -102,6 +108,8 @@ const schema = defineSchema({
 
   nodeDatas: defineTable(nodeDatasValidator)
     .index("by_canvasId", ["canvasId"])
+    // Les changements d'un canvas depuis un instant (cf. harness, deltas).
+    .index("by_canvasId_and_updatedAt", ["canvasId", "updatedAt"])
     .index("by_templateId", ["templateId"]),
 
   // Templates de custom nodes définis par l'utilisateur : champs typés +
@@ -219,6 +227,43 @@ const schema = defineSchema({
       "agentName",
     ])
     .index("by_masterThreadId", ["masterThreadId"]),
+
+  // ============================================================================
+  // HARNESS (boucle agentique durable, cf. convex/harness)
+  // ============================================================================
+  agentTasks: defineTable(agentTaskValidator)
+    // Les tools d'une génération : décider si le round est terminé.
+    .index("by_ownerTaskId", ["ownerTaskId"])
+    // Le cron de reprise : tâches dont le lease a expiré.
+    .index("by_status_and_leaseExpiresAt", ["status", "leaseExpiresAt"])
+    // Abort d'un run et somme de son usage.
+    .index("by_runMessageId_and_kind", ["runMessageId", "kind"])
+    // Live sur le canvas : tâches en cours d'un canvas.
+    .index("by_canvasId_and_status", ["canvasId", "status"]),
+  runPrompts: defineTable(runPromptsValidator)
+    .index("by_messageId", ["messageId"])
+    .index("by_threadId", ["threadId"]),
+  // Messages envoyés pendant un run, en attente de placement.
+  submissions: defineTable(submissionsValidator).index(
+    "by_threadId_and_status",
+    ["threadId", "status"],
+  ),
+  // Les runs vus comme des tâches : ce que montre le dock (cf. runsSchema).
+  runs: defineTable(runsValidator)
+    .index("by_runMessageId", ["runMessageId"])
+    .index("by_threadId", ["threadId"])
+    .index("by_canvasId_and_userId", ["canvasId", "userId"]),
+  // Demandes envoyées sans thread (omnibar) et leur aiguillage (cf.
+  // harness/dispatch.ts).
+  dispatches: defineTable(dispatchesValidator)
+    .index("by_canvasId_and_userId", ["canvasId", "userId"])
+    // Suppression d'un thread, d'un compte (cf. harness/purge.ts).
+    .index("by_threadId", ["threadId"])
+    .index("by_userId", ["userId"]),
+  // Résumés de la partie ancienne d'un thread (cf. harness/compaction.ts).
+  compactions: defineTable(compactionsValidator).index("by_threadId", [
+    "threadId",
+  ]),
 
   // ============================================================================
   // AI USAGE (ledger append-only + rollup journalier dénormalisé)

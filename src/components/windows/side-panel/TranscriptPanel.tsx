@@ -1,7 +1,15 @@
-import { Fragment, useDeferredValue, useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { TbFileText } from "react-icons/tb";
-import { findSearchMatches, type SearchMatch } from "@/lib/searchMatch";
-import { useWindowSearchQuery } from "../WindowSearchContext";
+import {
+  findPreparedMatches,
+  memoizeSearchIndex,
+  prepareSearchText,
+  type SearchMatch,
+} from "@/lib/searchMatch";
+import {
+  useDebouncedSearchQuery,
+  useWindowSearchQuery,
+} from "../WindowSearchContext";
 import { SectionLabel } from "./SectionLabel";
 
 export interface TranscriptChunk {
@@ -10,6 +18,11 @@ export interface TranscriptChunk {
   text: string;
   imageUrl?: string;
 }
+
+const getChunksSearchIndex = memoizeSearchIndex(
+  (chunks: TranscriptChunk[]) =>
+    chunks.map((chunk) => ({ chunk, prepared: prepareSearchText(chunk.text) })),
+);
 
 /**
  * Read-only transcript generated at index time (`searchableChunks`) — used by
@@ -28,15 +41,15 @@ export function TranscriptPanel({
   chunks: TranscriptChunk[] | undefined;
   emptyMessage?: string;
 }) {
-  const query = useDeferredValue(useWindowSearchQuery().trim());
-  const visibleChunks = useMemo(
-    () =>
-      (chunks ?? []).flatMap((chunk) => {
-        const matches = query ? findSearchMatches(chunk.text, query) : [];
-        return !query || matches.length > 0 ? [{ chunk, matches }] : [];
-      }),
-    [chunks, query],
-  );
+  const query = useDebouncedSearchQuery(useWindowSearchQuery().trim());
+  const visibleChunks = useMemo(() => {
+    if (!chunks) return [];
+    if (!query) return chunks.map((chunk) => ({ chunk, matches: [] }));
+    return getChunksSearchIndex(chunks).flatMap(({ chunk, prepared }) => {
+      const matches = findPreparedMatches(prepared, query);
+      return matches.length > 0 ? [{ chunk, matches }] : [];
+    });
+  }, [chunks, query]);
   const matchCount = visibleChunks.reduce(
     (total, { matches }) => total + matches.length,
     0,

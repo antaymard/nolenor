@@ -1,9 +1,10 @@
-import { useDeferredValue, useMemo } from "react";
+import { useMemo } from "react";
 import {
   searchTranscript,
   TRANSCRIPT_SEARCH_LIMIT,
   type SearchableTranscript,
 } from "@/lib/transcriptSearch";
+import { useDebouncedSearchQuery } from "../WindowSearchContext";
 import { SearchResultsList } from "./SearchResultsList";
 
 /**
@@ -21,16 +22,16 @@ export function TranscriptSearchResults({
   onSeek: (seconds: number) => void;
   className?: string;
 }) {
-  const deferredQuery = useDeferredValue(query);
+  const debouncedQuery = useDebouncedSearchQuery(query);
   const hits = useMemo(
-    () => searchTranscript(transcript, deferredQuery),
-    [transcript, deferredQuery],
+    () => searchTranscript(transcript, debouncedQuery),
+    [transcript, debouncedQuery],
   );
 
   return (
     <SearchResultsList
       results={hits}
-      query={query}
+      query={debouncedQuery}
       onSelect={(hit) => onSeek(hit.seconds)}
       truncated={hits.length >= TRANSCRIPT_SEARCH_LIMIT}
       className={className}

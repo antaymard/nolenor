@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { useNoleStore } from "@/stores/noleStore";
+import {
+  NOLE_DRAFT_FIELD,
+  useNoleStore,
+  type NoleDraft,
+} from "@/stores/noleStore";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { useNoleLiveTranscription } from "@/hooks/useNoleLiveTranscription";
 
@@ -35,18 +39,8 @@ const LIVE_COOLDOWN_MS = 60_000;
  * `startSTT` / `stopSTT` ont une identité STABLE (le statut live évolue en cours
  * de session, mais on ne veut pas re-binder `usePushToTalk` en plein appui).
  */
-/**
- * Le brouillon que la dictée écrit : le composer du panel, ou l'omnibar. Les
- * deux vivent dans le store Nolë.
- */
-export type NoleSpeechTarget = "panel" | "omnibar";
-
-const DRAFT_FIELD = {
-  panel: "userInput",
-  omnibar: "omnibarInput",
-} as const;
-
-export function useNoleSpeechInput(target: NoleSpeechTarget = "panel") {
+/** `target` : le brouillon que la dictée écrit (cf. `NoleDraft`). */
+export function useNoleSpeechInput(target: NoleDraft = "panel") {
   // Le brouillon vit dans le store Nolë : la dictée l'écrit ici, et le lit à
   // l'appui sur le micro (cf. `startSTT`). Le passer en argument depuis
   // `useNoleChat` n'apporterait rien — l'action zustand a déjà une identité
@@ -141,7 +135,7 @@ export function useNoleSpeechInput(target: NoleSpeechTarget = "panel") {
       // `startSTT` stable, ce qu'exige `usePushToTalk` — il ne doit pas se
       // re-binder en plein appui.
       baseRef.current =
-        useNoleStore.getState()[DRAFT_FIELD[targetRef.current]];
+        useNoleStore.getState()[NOLE_DRAFT_FIELD[targetRef.current]];
       await liveStartRef.current();
     } else {
       await batchStartRef.current();

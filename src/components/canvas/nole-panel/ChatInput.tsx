@@ -1,18 +1,10 @@
-import { TbCloudExclamation, TbMicrophone } from "react-icons/tb";
-import { ThinkingOrb } from "thinking-orbs";
 import RichTextArea from "./RichTextArea";
-import SoundWaveAnimation from "./SoundWaveAnimation";
 import { AttachmentRow } from "./chat-input/AttachmentChips";
 import ComposerShell from "./chat-input/ComposerShell";
+import { DirtyWindowsBadge, MicStatus } from "./chat-input/ComposerStatus";
 import ModelSelect from "./chat-input/ModelSelect";
 import SendStopButton from "./chat-input/SendStopButton";
-import { Kbd } from "@/components/shadcn/kbd";
 import { useHasUserInput } from "@/stores/noleStore";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/shadcn/tooltip";
 import type { CanvasNode } from "@/types";
 import type { ChatModelOption, ChatModelValues } from "@/types/convex";
 
@@ -139,54 +131,5 @@ export default function ChatInput({
         </div>
       </ComposerShell>
     </div>
-  );
-}
-
-function MicStatus({
-  isRecording,
-  isTranscribing,
-  level,
-}: {
-  isRecording: boolean;
-  isTranscribing: boolean;
-  level: number;
-}) {
-  if (isRecording) {
-    return (
-      <span className="flex items-center gap-1.5 text-xs text-red-500">
-        <SoundWaveAnimation level={level} />
-        <span>Listening...</span>
-      </span>
-    );
-  }
-  if (isTranscribing) {
-    return (
-      <span className="flex items-center gap-1.5 text-xs text-slate-500">
-        <ThinkingOrb state="listening" size={20} />
-        <span>Transcription…</span>
-      </span>
-    );
-  }
-  return (
-    <span className="flex items-center gap-1 text-xs text-slate-500">
-      <TbMicrophone size={14} className="shrink-0" />
-      <Kbd>Alt + Ctrl</Kbd>
-    </span>
-  );
-}
-
-function DirtyWindowsBadge({ count }: { count: number }) {
-  return (
-    <Tooltip delayDuration={0}>
-      <TooltipTrigger asChild>
-        <span className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-500">
-          <TbCloudExclamation size={14} className="stroke-2" />
-          {count}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="text-sm">
-        Please save or close the modified windows before sending your message.
-      </TooltipContent>
-    </Tooltip>
   );
 }

@@ -1,15 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { useReactFlow } from "@xyflow/react";
 import toast from "react-hot-toast";
-import { TbArrowUp, TbMicrophone, TbSparkles } from "react-icons/tb";
-import { ThinkingOrb } from "thinking-orbs";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { CanvasNode } from "@/types";
 import NoleIcon from "@/assets/svg-components/NoleIcon";
-import { Kbd } from "@/components/shadcn/kbd";
-import SoundWaveAnimation from "@/components/canvas/nole-panel/SoundWaveAnimation";
+import { MicStatus } from "@/components/canvas/nole-panel/chat-input/ComposerStatus";
 import { useNoleSpeechInput } from "@/hooks/useNoleSpeechInput";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
 import { cn } from "@/lib/utils";
@@ -19,11 +16,9 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { generateMessageContext } from "@/components/canvas/nole-panel/messageContextGenerator";
+import OmnibarComposer from "./OmnibarComposer";
 import OmnibarFeed from "./OmnibarFeed";
 import OmnibarTasks from "./OmnibarTasks";
-
-const MAX_ROWS = 4;
-const LINE_HEIGHT_PX = 20;
 
 /**
  * L'omnibar : demander quelque chose à Nolë sans choisir de conversation.
@@ -31,10 +26,14 @@ const LINE_HEIGHT_PX = 20;
  * une nouvelle (cf. convex/harness/dispatch.ts). Sous la barre : où est
  * partie la dernière demande, et les tâches en cours.
  *
- * Façon Dynamic Island : au repos, une pilule de la hauteur du bouton Nolë
- * (h-10), qui dit seulement qui est là et comment lui parler. Un clic la
- * déploie en composer ; la dictée aussi, puisqu'il faut voir le texte arriver.
- * Elle se replie quand on la quitte sans rien y laisser.
+ * Façon Dynamic Island, deux états :
+ * - compact : une pilule de la hauteur du bouton Nolë (h-10), qui dit qui est
+ *   là et comment lui parler ;
+ * - expanded : le composer, iso avec celui du panel (cf. OmnibarComposer).
+ *   Un clic l'ouvre, Échap la replie.
+ *
+ * La dictée se fait en compact (la pilule montre l'écoute) ; une fois la
+ * transcription rendue, l'island s'ouvre sur le texte, à relire avant envoi.
  *
  * La dictée (Ctrl+Alt maintenus) marche sans focus, tant que le panel est
  * fermé : ouvert, c'est son composer qui l'écoute.
@@ -42,17 +41,11 @@ const LINE_HEIGHT_PX = 20;
  * Le composer du panel reste, pour viser une conversation précise.
  */
 export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
-  const text = useNoleStore((state) => state.omnibarInput);
-  const setText = useNoleStore((state) => state.setOmnibarInput);
   const [sending, setSending] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const islandRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const submit = useMutation(api.ia.nole.submit);
   const reactFlow = useReactFlow();
-  const attachedNodes = useNoleStore((state) => state.attachedNodes);
-  const attachedPosition = useNoleStore((state) => state.attachedPosition);
-  const resetAttachments = useNoleStore((state) => state.resetAttachments);
   const isPanelOpen = useNoleStore((state) => state.panelLayout === "expanded");
 
   const speech = useNoleSpeechInput("omnibar");
@@ -61,43 +54,46 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
     onStop: speech.stopSTT,
     enabled: !isPanelOpen,
   });
-  // Pendant la dictée, l'island reste ouverte : le texte arrive dedans.
-  const isExpanded = isOpen || speech.sttBusy;
 
-  const open = () => {
-    setIsOpen(true);
-    requestAnimationFrame(() => textareaRef.current?.focus());
+  const collapse = () => {
+    setIsExpanded(false);
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && islandRef.current?.contains(active)) {
+      active.blur();
+    }
   };
 
-  // Un clic ailleurs replie l'island, sauf s'il y reste un brouillon ou une
-  // dictée : on ne cache pas ce qui est en cours.
+  // Fin d'une dictée : l'island s'ouvre sur le texte transcrit, curseur à la
+  // fin. Rien de reconnu, elle reste compacte (la dictée l'a déjà signalé).
+  const wasBusyRef = useRef(false);
   useEffect(() => {
-    if (!isOpen) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      if (islandRef.current?.contains(event.target as Node)) return;
-      const state = useNoleStore.getState();
-      if (state.omnibarInput.trim() || speech.sttBusy) return;
-      setIsOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [isOpen, speech.sttBusy]);
-
-  const resize = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, MAX_ROWS * LINE_HEIGHT_PX)}px`;
-  };
-
-  // La dictée écrit le brouillon sans passer par `onChange`.
-  useLayoutEffect(() => {
-    if (isExpanded) resize();
-  }, [text, isExpanded]);
+    const wasBusy = wasBusyRef.current;
+    wasBusyRef.current = speech.sttBusy;
+    if (!wasBusy || speech.sttBusy) return;
+    if (!useNoleStore.getState().omnibarInput.trim()) return;
+    setIsExpanded(true);
+    requestAnimationFrame(() => {
+      const el = islandRef.current?.querySelector("textarea");
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  }, [speech.sttBusy]);
 
   const send = async () => {
-    const prompt = text.trim();
-    if (!prompt || sending) return;
+    const state = useNoleStore.getState();
+    const prompt = state.omnibarInput.trim();
+    if (!prompt || sending || speech.sttBusy) return;
+
+    // Même blocage que le panel : le contexte décrirait des nodes dont le
+    // contenu n'est pas encore enregistré.
+    if (useWindowsStore.getState().dirtyNodeIds.length > 0) {
+      toast.error(
+        "Please save or close the modified windows before sending your request.",
+        { position: "top-center", duration: 5000 },
+      );
+      return;
+    }
 
     // Le même contexte qu'un message du panel : vue, nodes ouverts, pièces
     // jointes. Lu à l'envoi.
@@ -107,8 +103,8 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
       openedNodeIds: useWindowsStore
         .getState()
         .openedWindows.map((w) => w.xyNodeId),
-      attachedNodes,
-      attachedPosition,
+      attachedNodes: state.attachedNodes,
+      attachedPosition: state.attachedPosition,
       viewport: reactFlow.getViewport(),
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
@@ -120,15 +116,26 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
         ),
     });
 
-    setText("");
-    requestAnimationFrame(resize);
+    // Envoyée, la demande quitte l'island : elle repart en compact, et la
+    // suite se lit dessous (feed, tâches).
+    state.setOmnibarInput("");
+    collapse();
     setSending(true);
     try {
-      await submit({ canvasId, prompt, metadata: { messageContext } });
-      resetAttachments();
+      await submit({
+        canvasId,
+        prompt,
+        metadata: {
+          messageContext,
+          ...(state.omnibarModel ? { model: state.omnibarModel } : {}),
+        },
+      });
+      state.resetAttachments();
     } catch (error) {
       console.error("Failed to send the request:", error);
-      setText(prompt);
+      // Rouverte sur le texte, pour réessayer.
+      state.setOmnibarInput(prompt);
+      setIsExpanded(true);
       toast.error("Couldn't send your request. Please try again.", {
         position: "top-center",
       });
@@ -137,12 +144,18 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
     }
   };
 
-  const canSend = text.trim().length > 0 && !sending;
-
   return (
     <div className="flex flex-col items-center gap-2">
       <div
         ref={islandRef}
+        onKeyDown={(event) => {
+          // Échap ferme d'abord le menu des mentions : react-mentions arrête
+          // alors la propagation, et l'island ne le voit pas.
+          if (event.key === "Escape" && isExpanded) {
+            event.preventDefault();
+            collapse();
+          }
+        }}
         className={cn(
           "canvas-ui-container overflow-hidden p-0! [interpolate-size:allow-keywords]",
           "transition-[width,border-radius,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
@@ -152,73 +165,29 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
         )}
       >
         {isExpanded ? (
-          <div className="flex w-full items-end gap-2 px-3 py-2">
-            <span className="mb-1 flex shrink-0 items-center">
-              {speech.isRecording ? (
-                <SoundWaveAnimation level={speech.micLevel} className="text-red-500" />
-              ) : speech.isTranscribing ? (
-                <ThinkingOrb state="listening" size={20} />
-              ) : (
-                <TbSparkles size={18} className="text-violet-500" />
-              )}
-            </span>
-            <textarea
-              ref={textareaRef}
-              value={text}
-              rows={1}
-              onChange={(event) => {
-                setText(event.target.value);
-                resize();
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  setIsOpen(false);
-                  textareaRef.current?.blur();
-                  return;
-                }
-                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                  event.preventDefault();
-                  void send();
-                }
-              }}
-              placeholder={
-                speech.isRecording
-                  ? "Listening…"
-                  : "Ask Nolë anything — it picks the right task"
-              }
-              aria-label="Ask Nolë"
-              className="max-h-20 min-h-[20px] flex-1 resize-none bg-transparent text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400"
-            />
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={!canSend}
-              aria-label="Send to Nolë"
-              className={cn(
-                "flex size-7 shrink-0 items-center justify-center rounded-full transition-colors",
-                canSend
-                  ? "bg-violet-600 text-white hover:bg-violet-700"
-                  : "bg-slate-100 text-slate-400",
-              )}
-            >
-              <TbArrowUp size={16} />
-            </button>
-          </div>
+          <OmnibarComposer
+            onSend={() => void send()}
+            isSending={sending}
+            isRecording={speech.isRecording}
+            isTranscribing={speech.isTranscribing}
+            sttBusy={speech.sttBusy}
+            micLevel={speech.micLevel}
+          />
         ) : (
           <button
             type="button"
-            onClick={open}
+            onClick={() => setIsExpanded(true)}
             aria-label="Ask Nolë"
             className="flex h-full items-center gap-3 pr-2 pl-3.5 whitespace-nowrap"
           >
             <span className="flex items-center gap-1.5 text-sm font-bold tracking-tight">
               <NoleIcon size={16} /> Nolë
             </span>
-            <span className="flex items-center gap-1 text-xs text-slate-500">
-              <TbMicrophone size={14} className="shrink-0" />
-              <Kbd>Alt + Ctrl</Kbd>
-            </span>
+            <MicStatus
+              isRecording={speech.isRecording}
+              isTranscribing={speech.isTranscribing}
+              level={speech.micLevel}
+            />
           </button>
         )}
       </div>

@@ -2,7 +2,7 @@
 // canvas (dropdown de suggestions, pill sur la mention insérée).
 
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { useNoleStore } from "@/stores/noleStore";
+import { useNoleDraft, type NoleDraft } from "@/stores/noleStore";
 import { useMemo } from "react";
 import { MentionsInput, Mention } from "react-mentions";
 import {
@@ -43,6 +43,13 @@ interface RichTextAreaProps {
   /** Sur mobile, la touche "Entrée" du clavier virtuel sert à insérer un saut
    *  de ligne, pas à envoyer : l'envoi passe uniquement par le bouton dédié. */
   submitOnEnter?: boolean;
+  /** Le brouillon édité : celui du panel par défaut. */
+  draft?: NoleDraft;
+  /**
+   * Côté d'ouverture du menu des mentions : au-dessus pour un composer ancré
+   * en bas (panel, mobile), en dessous pour l'omnibar, en haut de l'écran.
+   */
+  suggestionsPlacement?: "above" | "below";
 }
 
 /**
@@ -62,12 +69,13 @@ export default function RichTextArea({
   placeholder = "Ask Nolë, @ to mention a node",
   autoFocus = true,
   submitOnEnter = true,
+  draft = "panel",
+  suggestionsPlacement = "above",
 }: RichTextAreaProps) {
   // Le brouillon est lu ici et pas plus haut : c'est le seul composant qui a
   // besoin du texte lui-même, donc le seul qui doive re-rendre à chaque
   // caractère. Le reste du composer se contente de `useHasUserInput`.
-  const value = useNoleStore((state) => state.userInput);
-  const onChange = useNoleStore((state) => state.setUserInput);
+  const [value, onChange] = useNoleDraft(draft);
   const nodeDatas = useNodeDataStore((state) => state.nodeDatas);
   // `useNodeIdsByDataId` et non `useNodes()` : ce dernier rend un tableau neuf
   // à chaque frame de drag, alors que ce hook-ci compare son résultat par
@@ -93,13 +101,13 @@ export default function RichTextArea({
   }, [nodeIdsByDataId, nodeDatas]);
 
   const style = useMemo(
-    () => buildStyle(minRows, maxRows),
-    [minRows, maxRows],
+    () => buildStyle(minRows, maxRows, suggestionsPlacement),
+    [minRows, maxRows, suggestionsPlacement],
   );
 
   // Le dropdown est sorti en portail : le composer vit dans des conteneurs qui
   // rognent (panneau du canvas, wrapper du pulse en `overflow: hidden`), et le
-  // champ est ancré en bas — les suggestions doivent s'ouvrir vers le haut.
+  // côté d'ouverture dépend de l'ancrage du composer (`suggestionsPlacement`).
   const portalHost = typeof document !== "undefined" ? document.body : undefined;
 
   return (
@@ -109,7 +117,7 @@ export default function RichTextArea({
       value={value}
       placeholder={placeholder}
       suggestionsPortalHost={portalHost}
-      forceSuggestionsAboveCursor
+      forceSuggestionsAboveCursor={suggestionsPlacement === "above"}
       a11ySuggestionsListLabel="Nodes du canvas à mentionner"
       onKeyDown={(e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
@@ -169,7 +177,11 @@ export default function RichTextArea({
  * pour que le texte réellement affiché (le textarea) se superpose au pixel près
  * aux pastilles de mention peintes par le highlighter.
  */
-function buildStyle(minRows: number, maxRows: number) {
+function buildStyle(
+  minRows: number,
+  maxRows: number,
+  suggestionsPlacement: "above" | "below",
+) {
   const minHeight = minRows * LINE_HEIGHT_PX;
   const maxHeight = maxRows * LINE_HEIGHT_PX;
   const shared = {
@@ -205,7 +217,8 @@ function buildStyle(minRows: number, maxRows: number) {
       // react-mentions colle le menu à la ligne du curseur (et annule toute
       // marge dans son calcul) : un translate lui rend de l'air sans fausser
       // le positionnement.
-      transform: "translateY(-6px)",
+      transform:
+        suggestionsPlacement === "above" ? "translateY(-6px)" : "translateY(6px)",
     },
   } as const;
 }

@@ -1,7 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { internal } from "../_generated/api";
+import { components, internal } from "../_generated/api";
 import * as SearchableChunkModels from "./searchableChunkModels";
 import * as NodeDataVersionModels from "./nodeDataVersionModels";
 import * as R2ObjectModels from "./r2ObjectModels";
@@ -153,6 +153,14 @@ export async function deleteNodeDataWithCascade(
   // Delete searchable chunks
   await SearchableChunkModels.deleteByNodeDataId(ctx, { nodeDataId });
 
+  // Le doc collaboratif d'un blocknote (no-op s'il n'a jamais été ouvert en
+  // sync : le composant ne trouve rien à supprimer).
+  if (nodeData.type === "blocknote") {
+    await ctx.runMutation(components.prosemirrorSync.lib.deleteDocument, {
+      id: nodeDataId,
+    });
+  }
+
   // Delete the nodeData itself
   await ctx.db.delete(nodeDataId);
 
@@ -175,11 +183,16 @@ export async function updateValues(
     // dans un validateur d'arguments public — seul du code serveur peut le
     // positionner.
     skipValidation = false,
+    // Le `doc` vient du doc collaboratif (cf. blocknoteSync.ts) : il n'y a
+    // rien à y renvoyer. Toute autre écriture du `doc` d'un blocknote
+    // (agent, restore, MCP, ancienne window) y est poussée.
+    fromSync = false,
   }: {
     _id: Id<"nodeDatas">;
     values: Record<string, unknown>;
     actor: NodeDataVersionActor;
     skipValidation?: boolean;
+    fromSync?: boolean;
   },
 ): Promise<boolean> {
   console.log(`🔄 Updating values for nodeData ${_id}`);
@@ -328,6 +341,24 @@ export async function updateValues(
       updatedKeys: changedKeys,
     },
   );
+
+  // Un blocknote ouvert en édition collaborative a un doc ProseMirror vivant
+  // dans le composant prosemirror-sync : sans cette poussée, l'écriture
+  // serait écrasée par la prochaine publication d'un éditeur ouvert. Rien à
+  // faire tant que personne ne l'a ouvert en sync (il naît de `values.doc`).
+  if (existing.type === "blocknote" && "doc" in changedValues && !fromSync) {
+    const syncVersion = await ctx.runQuery(
+      components.prosemirrorSync.lib.latestVersion,
+      { id: _id },
+    );
+    if (syncVersion !== null) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.blocknoteSyncNode.pushDocToSync,
+        { nodeDataId: _id },
+      );
+    }
+  }
 
   return true;
 }

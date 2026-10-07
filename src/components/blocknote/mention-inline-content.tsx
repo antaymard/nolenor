@@ -12,6 +12,7 @@ import {
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { NODE_TYPE_ICON_MAP } from "@/components/nodes/prebuilt-nodes/nodeIconMap";
 import { cn } from "@/lib/utils";
+import { mentionInlineContentConfig } from "@/../convex/lib/blockNoteCustomSchema";
 
 /**
  * Node-mention pill (`@` in the editor, see nodeMentionSuggestions.tsx).
@@ -147,14 +148,7 @@ function InteractiveMentionPill({
 }
 
 export const nodeMentionInlineContentSpec = createReactInlineContentSpec(
-  {
-    type: "mention",
-    propSchema: {
-      nodeDataId: { default: "" },
-      title: { default: "" },
-    },
-    content: "none",
-  },
+  mentionInlineContentConfig,
   {
     render: (props) => (
       <InteractiveMentionPill

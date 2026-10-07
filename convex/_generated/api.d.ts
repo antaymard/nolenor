@@ -15,6 +15,8 @@ import type * as adminNotifications from "../adminNotifications.js";
 import type * as aiUsage from "../aiUsage.js";
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
+import type * as blocknoteSync from "../blocknoteSync.js";
+import type * as blocknoteSyncNode from "../blocknoteSyncNode.js";
 import type * as canvasBookmarks from "../canvasBookmarks.js";
 import type * as canvasOps from "../canvasOps.js";
 import type * as canvases from "../canvases.js";
@@ -263,6 +265,8 @@ declare const fullApi: ApiFromModules<{
   aiUsage: typeof aiUsage;
   apiTokens: typeof apiTokens;
   auth: typeof auth;
+  blocknoteSync: typeof blocknoteSync;
+  blocknoteSyncNode: typeof blocknoteSyncNode;
   canvasBookmarks: typeof canvasBookmarks;
   canvasOps: typeof canvasOps;
   canvases: typeof canvases;
@@ -529,4 +533,5 @@ export declare const components: {
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   debouncer: import("../components/debouncer/_generated/component.js").ComponentApi<"debouncer">;
   presence: import("@convex-dev/presence/_generated/component.js").ComponentApi<"presence">;
+  prosemirrorSync: import("@convex-dev/prosemirror-sync/_generated/component.js").ComponentApi<"prosemirrorSync">;
 };

@@ -1710,6 +1710,13 @@
   dependencies:
     "@convex-dev/batch-worker" "^0.2.0"
 
+"@convex-dev/prosemirror-sync@^0.2.7":
+  version "0.2.7"
+  resolved "https://registry.yarnpkg.com/@convex-dev/prosemirror-sync/-/prosemirror-sync-0.2.7.tgz#8607ec96f39c450e12095868cb6ca071b1ce9da1"
+  integrity sha512-8oSihJ6WA+YtNuhaqJcB8ubcDTIi9o9pdwqDj/5lJKNiNVCp0k5wtVBML0BorJj713/hHqqTOteemjVGrUUnvg==
+  dependencies:
+    prosemirror-collab "^1.3.1"
+
 "@convex-dev/rate-limiter@^0.3.2":
   version "0.3.2"
   resolved "https://registry.yarnpkg.com/@convex-dev/rate-limiter/-/rate-limiter-0.3.2.tgz#3ad760bc3e3264f6b401a86fc1fd3e45f6a6935c"
@@ -4424,7 +4431,7 @@
   resolved "https://registry.npmjs.org/@tanstack/virtual-file-routes/-/virtual-file-routes-1.141.0.tgz"
   integrity sha512-CJrWtr6L9TVzEImm9S7dQINx+xJcYP/aDkIi6gnaWtIgbZs1pnzsE0yJc2noqXZ+yAOqLx3TBGpBEs9tS0P9/A==
 
-"@tiptap/core@^3.13.0":
+"@tiptap/core@3.29.0", "@tiptap/core@^3.13.0":
   version "3.29.0"
   resolved "https://registry.npmjs.org/@tiptap/core/-/core-3.29.0.tgz"
   integrity sha512-A/lrhKpOYtl0V5pmPS00Zps8pgBe1qDOoD9fzsumDSZ3HP8W398C959Jgru75PNFokAya9COPD3iaKP3NWF25g==
@@ -4486,7 +4493,7 @@
   resolved "https://registry.npmjs.org/@tiptap/extensions/-/extensions-3.29.0.tgz"
   integrity sha512-ltlrm8dDHIgeNj3cOLEdLFMPPVy3TYvWA8ftrrJ44C/L01MBmgFB1f/vkPFYYnAasb2BYyVG6HxAGcTQHo5jHw==
 
-"@tiptap/pm@^3.13.0":
+"@tiptap/pm@3.29.0", "@tiptap/pm@^3.13.0":
   version "3.29.0"
   resolved "https://registry.npmjs.org/@tiptap/pm/-/pm-3.29.0.tgz"
   integrity sha512-4rr3HiZ8kbSNINuWXqKQJLv9fFMypCBN5gOwxoU+D4lEYVblkoM60fA1SlrI2BZVlZQmw2U38XKl5XMtUr55XQ==
@@ -8398,6 +8405,13 @@ prosemirror-changeset@^2.4.1:
   integrity sha512-96WBLhOaYhJ+kPhLg3uW359Tz6I/MfcrQfL4EGv4SrcqKEMC1gmoGrXHecPE8eOwTVCJ4IwgfzM8fFad25wNfw==
   dependencies:
     prosemirror-transform "^1.0.0"
+
+prosemirror-collab@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/prosemirror-collab/-/prosemirror-collab-1.3.1.tgz#0e8c91e76e009b53457eb3b3051fb68dad029a33"
+  integrity sha512-4SnynYR9TTYaQVXd/ieUvsVV4PDMBzrq2xPUWutHivDuOshZXqQ5rGbZM84HEaXKbLdItse7weMGOUdDVcLKEQ==
+  dependencies:
+    prosemirror-state "^1.0.0"
 
 prosemirror-commands@^1.7.1:
   version "1.7.1"

@@ -5,9 +5,7 @@ import {
   normalizePillProps,
   sanitizePillText,
   PILL_COLORS,
-  PILL_DEFAULT_COLOR,
   PILL_DEFAULT_TEXT,
-  PILL_DEFAULT_VARIANT,
   PILL_TEXT_MAX,
   type PillColor,
   type PillProps,
@@ -21,6 +19,7 @@ import {
 } from "@/components/shadcn/popover";
 import { colors } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
+import { pillInlineContentConfig } from "@/../convex/lib/blockNoteCustomSchema";
 
 /**
  * Pastel: soft fill + text in the solid shade of the hue (like the nodes).
@@ -176,15 +175,7 @@ function EditablePill({
  * writes it as `[[pill:<color>[:solid]|<text>]]` (convex/lib/colorPill.ts).
  */
 export const pillInlineContentSpec = createReactInlineContentSpec(
-  {
-    type: "pill",
-    propSchema: {
-      text: { default: PILL_DEFAULT_TEXT },
-      color: { default: PILL_DEFAULT_COLOR as string },
-      variant: { default: PILL_DEFAULT_VARIANT as string },
-    },
-    content: "none",
-  },
+  pillInlineContentConfig,
   {
     render: (props) => (
       <EditablePill

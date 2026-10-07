@@ -16,6 +16,12 @@ import { redirect } from "@tanstack/react-router";
 export const SHOW_DEV_ONLY_SETTINGS = import.meta.env.DEV;
 
 /**
+ * SPIKE — édition collaborative des nodes blocknote (BlocknoteSyncWindow,
+ * convex/blocknoteSync.ts). Développement local uniquement.
+ */
+export const ENABLE_BLOCKNOTE_SYNC = import.meta.env.DEV;
+
+/**
  * Garde `beforeLoad` pour les routes concernées : en production, l'URL saisie
  * à la main renvoie sur Account plutôt que d'afficher une page qui n'a plus
  * d'entrée dans la sidebar.

@@ -74,12 +74,21 @@ function getEditor(): Promise<HeadlessBlockNoteEditor> {
 }
 
 /**
+ * Load a package listed in `convex.json` `externalPackages` at runtime, from
+ * node_modules, without esbuild seeing it (cf. `hiddenImport`). Only for
+ * "use node" actions.
+ */
+export function importExternal<T>(specifier: string): Promise<T> {
+  return hiddenImport(specifier) as Promise<T>;
+}
+
+/**
  * Run `fn` with the jsdom globals installed, one caller at a time. The previous
  * `document`/`window` are always restored and the lock always released, even if
  * `fn` throws.
  */
-export async function withHeadlessEditor<T>(
-  fn: (editor: HeadlessBlockNoteEditor, dom: DomGlobals) => T | Promise<T>,
+export async function withHeadlessDom<T>(
+  fn: (dom: DomGlobals) => T | Promise<T>,
 ): Promise<T> {
   const previous = jsdomLock;
   let release!: () => void;
@@ -95,10 +104,17 @@ export async function withHeadlessEditor<T>(
     const dom = await getDom();
     g.document = dom.document;
     g.window = dom.window;
-    return await fn(await getEditor(), dom);
+    return await fn(dom);
   } finally {
     g.document = savedDoc;
     g.window = savedWin;
     release();
   }
+}
+
+/** `withHeadlessDom` with the default-schema markdown editor. */
+export async function withHeadlessEditor<T>(
+  fn: (editor: HeadlessBlockNoteEditor, dom: DomGlobals) => T | Promise<T>,
+): Promise<T> {
+  return withHeadlessDom(async (dom) => fn(await getEditor(), dom));
 }

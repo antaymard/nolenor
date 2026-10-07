@@ -1,4 +1,5 @@
 import type { Doc, Id } from "../_generated/dataModel";
+import * as RunModels from "./runModels";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import {
   ACTIVITY_TEXT_MAX_LENGTH,
@@ -293,6 +294,10 @@ export async function recordNodeTouch(
     kind: ThreadNodeTouchKind;
   },
 ): Promise<void> {
+  // Le run en cours garde aussi sa trace : la tâche ne montre que ce
+  // qu'elle-même a touché.
+  await RunModels.recordNodeTouch(ctx, { threadId, nodeDataId, kind });
+
   const threadRow = await findByThreadId(ctx, { threadId });
   if (!threadRow) return;
 
@@ -393,6 +398,7 @@ export async function recordActivity(
 ): Promise<void> {
   const trimmed = text.trim().slice(0, ACTIVITY_TEXT_MAX_LENGTH);
   if (!trimmed) return;
+  await RunModels.recordActivity(ctx, threadId, trimmed);
 
   const threadRow = await findByThreadId(ctx, { threadId });
   if (!threadRow) return;

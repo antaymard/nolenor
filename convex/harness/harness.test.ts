@@ -3,7 +3,7 @@
 // changement de modèle (phase 3a), deltas `<system_update>` (phase 3b),
 // tools différés et halo des nodes écrits (phase 3c), compaction (phase 4),
 // sous-agents (phase 5a), questions à l'utilisateur (phase 5b), aiguillage
-// threadless (phase 7a).
+// threadless (phase 7a), tâches = runs (phase 7c).
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -29,6 +29,7 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { modules } from "../test.setup";
 import { registerProfile } from "./profiles";
+import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import { isRetryableGenerationError } from "./errors";
 import { abortRun, setRunModel, startRun, submitToThread } from "./tasks";
 import { assembleRunContext, findCut } from "./transcript";
@@ -2024,5 +2025,140 @@ describe("phase 7a — aiguillage threadless", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("phase 7c — une tâche = un run", () => {
+  async function runRows(t: T, threadId: string) {
+    return t.run(async (ctx) =>
+      (await ctx.db.query("runs").collect())
+        .filter((run) => run.threadId === threadId)
+        .sort((a, b) => a.startedAt - b.startedAt),
+    );
+  }
+
+  /** Comme `submit`, mais en tant que Nolë : le dock ne montre que Nolë. */
+  async function seedNoleThread(t: T) {
+    const seed = await seedThread(t);
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("threadMetadata")
+        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
+        .unique();
+      await ctx.db.patch("threadMetadata", row!._id, { agentName: "Nolë" });
+    });
+    return seed;
+  }
+
+  async function sendAsNole(
+    t: T,
+    seed: Awaited<ReturnType<typeof seedThread>>,
+    prompt: string,
+  ) {
+    return t.run(async (ctx) =>
+      submitToThread(ctx, {
+        threadId: seed.threadId,
+        userId: seed.userId,
+        canvasId: seed.canvasId,
+        profile: { name: "test", agentName: "Nolë", maxGenerationsPerRun: 25 },
+        prompt,
+        content: prompt,
+        input: { userPrompt: prompt },
+      }),
+    );
+  }
+
+  test("deux demandes sur le même thread : deux tâches, chacune avec ses nodes", async () => {
+    const t = setup();
+    const seed = await seedNoleThread(t);
+    const nodeData = await t.run((ctx) =>
+      ctx.db.insert("nodeDatas", {
+        canvasId: seed.canvasId,
+        type: "title",
+        updatedAt: Date.now(),
+        values: {},
+      }),
+    );
+    setModel([[call("echo", { text: "a" })], [text("Done")]]);
+
+    await sendAsNole(t, seed, "Pricing roadmap");
+    await runOneLayer(t); // le run travaille : un node est écrit
+    await t.run((ctx) =>
+      ThreadMetadataModels.recordNodeTouch(ctx, {
+        threadId: seed.threadId,
+        nodeDataId: nodeData,
+        kind: "created",
+      }),
+    );
+    await drain(t);
+    await sendAsNole(t, seed, "Add a freemium tier");
+    await drain(t);
+
+    const [first, second] = await runRows(t, seed.threadId);
+    expect(first).toMatchObject({
+      request: "Pricing roadmap",
+      status: "idle",
+      touchedNodes: [{ nodeDataId: nodeData, kind: "created" }],
+    });
+    expect(second).toMatchObject({ request: "Add a freemium tier", status: "idle" });
+    expect(second.touchedNodes ?? []).toEqual([]);
+
+    // Le premier résultat, non relu, garde sa carte.
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const pending = await asUser.query(api.runs.listPendingRuns, {
+      canvasId: seed.canvasId,
+    });
+    expect(pending.map((task) => task.request)).toEqual([
+      "Add a freemium tier",
+      "Pricing roadmap",
+    ]);
+  });
+
+  test("revue par tâche ; le thread sort de la home quand tout est relu", async () => {
+    const t = setup();
+    const seed = await seedNoleThread(t);
+    setModel([[text("Done")]]);
+    await sendAsNole(t, seed, "One");
+    await drain(t);
+    await sendAsNole(t, seed, "Two");
+    await drain(t);
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const [two, one] = await asUser.query(api.runs.listPendingRuns, {
+      canvasId: seed.canvasId,
+    });
+    await asUser.mutation(api.runs.markRunReviewed, { runId: one.runId });
+    expect((await threadRow(t, seed.threadId))?.reviewedAt).toBeUndefined();
+    await asUser.mutation(api.runs.markRunReviewed, { runId: two.runId });
+    expect((await threadRow(t, seed.threadId))?.reviewedAt).toBeDefined();
+    expect(
+      await asUser.query(api.runs.listPendingRuns, { canvasId: seed.canvasId }),
+    ).toEqual([]);
+  });
+
+  test("en cours, en attente, arrêtée : la tâche suit le run", async () => {
+    const t = setup();
+    const seed = await seedNoleThread(t);
+    setModel([[call("ask_user", { questions: [{ question: "Which one?" }] })]]);
+    await sendAsNole(t, seed, "Pick");
+    await drain(t);
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const [waiting] = await asUser.query(api.runs.listPendingRuns, {
+      canvasId: seed.canvasId,
+    });
+    expect(waiting).toMatchObject({
+      runStatus: "waiting",
+      pendingQuestions: [{ question: "Which one?" }],
+    });
+    // Une question en attente ne s'écarte pas.
+    await asUser.mutation(api.runs.markRunReviewed, { runId: waiting.runId });
+    expect((await runRows(t, seed.threadId))[0].reviewedAt).toBeUndefined();
+
+    await t.run((ctx) => abortRun(ctx, seed.threadId));
+    expect((await runRows(t, seed.threadId))[0]).toMatchObject({
+      status: "aborted",
+    });
+    expect((await runRows(t, seed.threadId))[0].endedAt).toBeDefined();
   });
 });

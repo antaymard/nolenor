@@ -14,7 +14,7 @@ import {
 } from "@/hooks/useThreadRunStatus";
 import {
   RUN_STATUS_BORDER,
-  type PendingThread,
+  type PendingTask,
   type ResolvedRunStatus,
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
@@ -45,22 +45,25 @@ const CARD_RADIUS_PX = 15;
  * celle qu'on regarde dedans.
  */
 export default function TaskCard({
-  thread,
+  task: thread,
   onOpen,
   onReview,
 }: {
-  thread: PendingThread;
+  task: PendingTask;
+  /** Ouvre la conversation de la tâche. */
   onOpen: (threadId: string) => void;
   /** Le dock seul : accuser réception sans ouvrir. */
-  onReview?: (threadId: string) => void;
+  onReview?: (task: PendingTask) => void;
 }) {
   const theme = useResolvedTheme();
   const status = useResolvedRunStatus(thread);
   const isRunning = status === "running";
   const duration = useRunDuration(thread, isRunning);
 
+  // Les nodes de CETTE tâche, pas ceux de tout le thread.
   const nodes = thread.touchedNodes;
-  const title = thread.title || "Nolë";
+  // La carte dit ce que tu as demandé ; le thread n'est que son sujet.
+  const label = thread.request || thread.title || "Nolë";
   const activity = thread.lastActivity?.text;
 
   const questions =
@@ -114,17 +117,20 @@ export default function TaskCard({
     >
       <TaskStatusIndicator status={status} />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {nodes.length > 0 ? (
+      <div
+        className="flex min-w-0 flex-1 flex-col gap-0.5"
+        title={thread.title ? `In “${thread.title}”` : undefined}
+      >
+        <span className="truncate text-xs font-medium text-slate-800">
+          {label}
+        </span>
+        {/* Pendant le run, ce que fait Nolë ; ensuite, ce qu'il a touché. */}
+        {!isRunning && nodes.length > 0 ? (
           <TaskNodePills touchedNodes={nodes} />
-        ) : (
-          <span className="truncate text-xs font-medium text-slate-800">
-            {title}
-          </span>
-        )}
+        ) : null}
         {/* Rien à dire tant qu'aucun tool n'a parlé : la ligne disparaît plutôt
             que d'afficher un vide, et `min-h` tient la hauteur du bloc. */}
-        {activity ? (
+        {activity && (isRunning || nodes.length === 0) ? (
           <span className="truncate text-[11px] text-slate-500">
             {activity}
           </span>
@@ -137,7 +143,7 @@ export default function TaskCard({
         // refuserait de toute façon.
         onReview={
           onReview && !isRunning && status !== "waiting"
-            ? () => onReview(thread.threadId)
+            ? () => onReview(thread)
             : undefined
         }
       />

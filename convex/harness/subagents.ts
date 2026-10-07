@@ -10,6 +10,7 @@ import {
 } from "../schemas/threadMetadataSchema";
 import { getProfile } from "./profiles";
 import {
+  BACKGROUND_REPORT_REQUEST,
   resolveWaitingTool,
   startRun,
   type CurrentRun,
@@ -98,6 +99,7 @@ export async function spawnSubagent(
     profile: childProfile,
     model: generation.model,
     input: { brief },
+    request: brief,
     parent: {
       taskId: start.toolTaskId,
       threadId: generation.threadId,
@@ -215,5 +217,6 @@ async function deliverFollowUp(
     profile,
     model: args.model,
     input,
+    request: BACKGROUND_REPORT_REQUEST,
   });
 }

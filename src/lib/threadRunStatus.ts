@@ -203,9 +203,17 @@ export function getDockStatusAppearance(
     : RUN_STATUS_APPEARANCE[status];
 }
 
-/** Une tâche telle que le dock d'activité la reçoit. */
+/** Un thread tel que `threads.listPendingThreads` le renvoie. */
 export type PendingThread = FunctionReturnType<
   typeof api.threads.listPendingThreads
+>[number];
+
+/**
+ * Une tâche telle que le dock la reçoit : un run, avec la demande qui l'a
+ * ouvert (cf. convex/runs.ts). Le thread n'en est que le contexte.
+ */
+export type PendingTask = FunctionReturnType<
+  typeof api.runs.listPendingRuns
 >[number];
 
 /**

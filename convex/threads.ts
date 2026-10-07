@@ -23,6 +23,7 @@ import { createBaseAgent } from "./ia/agents";
 import errors from "./config/errorsConfig";
 import { threadAgentNames } from "./schemas/threadMetadataSchema";
 import { abortRun } from "./harness/tasks";
+import * as RunModels from "./models/runModels";
 import { aiUsageSources } from "./schemas/aiUsageSourceSchema";
 import {
   findByThreadId,
@@ -569,6 +570,8 @@ export const markThreadReviewed = mutation({
     }
 
     await markReviewed(ctx, { threadId });
+    // Ouvrir la conversation, c'est en relire toutes les tâches finies.
+    await RunModels.markThreadReviewed(ctx, threadId);
     return null;
   },
 });

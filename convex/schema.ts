@@ -19,6 +19,7 @@ import { agentTaskValidator } from "./schemas/agentTasksSchema";
 import { compactionsValidator } from "./schemas/compactionsSchema";
 import { dispatchesValidator } from "./schemas/dispatchesSchema";
 import { runPromptsValidator } from "./schemas/runPromptsSchema";
+import { runsValidator } from "./schemas/runsSchema";
 import { submissionsValidator } from "./schemas/submissionsSchema";
 import { aiUsageEventsValidator } from "./schemas/aiUsageEventsSchema";
 import { aiUsageDailyValidator } from "./schemas/aiUsageDailySchema";
@@ -248,6 +249,11 @@ const schema = defineSchema({
     "by_threadId_and_status",
     ["threadId", "status"],
   ),
+  // Les runs vus comme des tâches : ce que montre le dock (cf. runsSchema).
+  runs: defineTable(runsValidator)
+    .index("by_runMessageId", ["runMessageId"])
+    .index("by_threadId", ["threadId"])
+    .index("by_canvasId_and_userId", ["canvasId", "userId"]),
   // Demandes envoyées sans thread (omnibar) et leur aiguillage (cf.
   // harness/dispatch.ts).
   dispatches: defineTable(dispatchesValidator).index(

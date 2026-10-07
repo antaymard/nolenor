@@ -170,6 +170,7 @@ import type * as models_nodeDataVersionModels from "../models/nodeDataVersionMod
 import type * as models_nodeModels from "../models/nodeModels.js";
 import type * as models_nodeTemplateModels from "../models/nodeTemplateModels.js";
 import type * as models_r2ObjectModels from "../models/r2ObjectModels.js";
+import type * as models_runModels from "../models/runModels.js";
 import type * as models_searchableChunkModels from "../models/searchableChunkModels.js";
 import type * as models_skillModels from "../models/skillModels.js";
 import type * as models_threadMetadataModels from "../models/threadMetadataModels.js";
@@ -179,6 +180,7 @@ import type * as nodeDatas from "../nodeDatas.js";
 import type * as nodeTemplates from "../nodeTemplates.js";
 import type * as nodes from "../nodes.js";
 import type * as recipes from "../recipes.js";
+import type * as runs from "../runs.js";
 import type * as schemas_agentTasksSchema from "../schemas/agentTasksSchema.js";
 import type * as schemas_aiUsageDailySchema from "../schemas/aiUsageDailySchema.js";
 import type * as schemas_aiUsageEventsSchema from "../schemas/aiUsageEventsSchema.js";
@@ -202,6 +204,7 @@ import type * as schemas_nodesSchema from "../schemas/nodesSchema.js";
 import type * as schemas_r2ObjectsSchema from "../schemas/r2ObjectsSchema.js";
 import type * as schemas_recipesSchema from "../schemas/recipesSchema.js";
 import type * as schemas_runPromptsSchema from "../schemas/runPromptsSchema.js";
+import type * as schemas_runsSchema from "../schemas/runsSchema.js";
 import type * as schemas_searchableChunksSchema from "../schemas/searchableChunksSchema.js";
 import type * as schemas_sharesSchema from "../schemas/sharesSchema.js";
 import type * as schemas_skillAttachmentsSchema from "../schemas/skillAttachmentsSchema.js";
@@ -404,6 +407,7 @@ declare const fullApi: ApiFromModules<{
   "models/nodeModels": typeof models_nodeModels;
   "models/nodeTemplateModels": typeof models_nodeTemplateModels;
   "models/r2ObjectModels": typeof models_r2ObjectModels;
+  "models/runModels": typeof models_runModels;
   "models/searchableChunkModels": typeof models_searchableChunkModels;
   "models/skillModels": typeof models_skillModels;
   "models/threadMetadataModels": typeof models_threadMetadataModels;
@@ -413,6 +417,7 @@ declare const fullApi: ApiFromModules<{
   nodeTemplates: typeof nodeTemplates;
   nodes: typeof nodes;
   recipes: typeof recipes;
+  runs: typeof runs;
   "schemas/agentTasksSchema": typeof schemas_agentTasksSchema;
   "schemas/aiUsageDailySchema": typeof schemas_aiUsageDailySchema;
   "schemas/aiUsageEventsSchema": typeof schemas_aiUsageEventsSchema;
@@ -436,6 +441,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/r2ObjectsSchema": typeof schemas_r2ObjectsSchema;
   "schemas/recipesSchema": typeof schemas_recipesSchema;
   "schemas/runPromptsSchema": typeof schemas_runPromptsSchema;
+  "schemas/runsSchema": typeof schemas_runsSchema;
   "schemas/searchableChunksSchema": typeof schemas_searchableChunksSchema;
   "schemas/sharesSchema": typeof schemas_sharesSchema;
   "schemas/skillAttachmentsSchema": typeof schemas_skillAttachmentsSchema;

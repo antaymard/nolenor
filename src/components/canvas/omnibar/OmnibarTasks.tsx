@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import {
@@ -7,11 +7,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
-import {
-  useMarkThreadReviewed,
-  useOpenNoleThread,
-} from "@/hooks/useOpenNoleThread";
-import { isPendingReview } from "@/lib/threadRunStatus";
+import { useOpenNoleThread } from "@/hooks/useOpenNoleThread";
+import { isPendingReview, type PendingTask } from "@/lib/threadRunStatus";
 import TaskCard from "@/components/canvas/on-canvas-ui/TaskCard";
 
 /** Au-delà, le reste passe derrière un « +N ». */
@@ -21,17 +18,24 @@ const MAX_VISIBLE = 3;
  * Les tâches de Nolë sous l'omnibar : ce qui tourne, ce qui attend une
  * réponse, et ce qui est fini sans avoir été relu. C'est une boîte de
  * réception, pas un flux : une tâche y reste jusqu'à ce qu'on l'ait vue.
+ *
+ * Une tâche est un run, pas un thread (cf. convex/runs.ts) : deux demandes
+ * aiguillées vers le même sujet font deux cartes tant qu'elles ne sont pas
+ * relues.
  */
 export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> }) {
   const open = useOpenNoleThread();
-  const markReviewed = useMarkThreadReviewed();
+  const markRunReviewed = useMutation(api.runs.markRunReviewed);
+  const markReviewed = (task: PendingTask) => {
+    void markRunReviewed({ runId: task.runId }).catch(() => {});
+  };
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const threads = useQuery(api.threads.listPendingThreads, { canvasId });
+  const tasks = useQuery(api.runs.listPendingRuns, { canvasId });
 
   // Le serveur filtre grossièrement (il ne lit pas l'horloge) ; la décision
   // finale se prend ici, à l'heure du rendu.
-  const pending = (threads ?? []).filter((thread) =>
-    isPendingReview(thread, Date.now()),
+  const pending = (tasks ?? []).filter((task) =>
+    isPendingReview(task, Date.now()),
   );
   if (pending.length === 0) return null;
 
@@ -44,10 +48,10 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
 
   return (
     <div className="flex flex-wrap items-start justify-center gap-2">
-      {visible.map((thread) => (
+      {visible.map((task) => (
         <TaskCard
-          key={thread.threadId}
-          thread={thread}
+          key={task.runId}
+          task={task}
           onOpen={openThread}
           onReview={markReviewed}
         />
@@ -65,10 +69,10 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
           </PopoverTrigger>
           <PopoverContent side="bottom" align="center" className="w-auto p-2">
             <div className="flex flex-col items-start gap-2">
-              {overflow.map((thread) => (
+              {overflow.map((task) => (
                 <TaskCard
-                  key={thread.threadId}
-                  thread={thread}
+                  key={task.runId}
+                  task={task}
                   onOpen={openThread}
                   onReview={markReviewed}
                 />

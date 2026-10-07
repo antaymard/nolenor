@@ -4,6 +4,7 @@ import { components, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import * as MessageMetadataModels from "../models/messageMetadataModels";
+import * as RunModels from "../models/runModels";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
   agentTaskKinds,
@@ -186,6 +187,7 @@ async function endRun(
     runToken: current.run.runToken,
     errorMessage,
   });
+  await RunModels.endRun(ctx, current.run.startMessageId, status, errorMessage);
   await ctx.db.patch("threadMetadata", current.row._id, { run: undefined });
   // Run d'un sous-agent : son résultat revient au parent.
   if (current.run.parent) {
@@ -200,6 +202,9 @@ async function endRun(
     await startNextRunFromQueue(ctx, current);
   }
 }
+
+/** Le libellé d'une tâche ouverte par le rapport d'un sous-agent. */
+export const BACKGROUND_REPORT_REQUEST = "Report from a background task";
 
 // ── Compaction ─────────────────────────────────────────────────────────────
 
@@ -342,6 +347,7 @@ async function startNextRunFromQueue(ctx: MutationCtx, previous: CurrentRun) {
     },
     model: next.model,
     input: next.input,
+    request: next.origin ? BACKGROUND_REPORT_REQUEST : next.prompt,
   });
 }
 
@@ -444,6 +450,8 @@ export async function startRun(
     input: unknown;
     /** Run d'un sous-agent : le tool call qui l'a lancé. */
     parent?: NonNullable<ThreadRow["run"]>["parent"];
+    /** Ce que l'utilisateur a demandé : le libellé de la tâche (cf. runs). */
+    request?: string;
   },
 ): Promise<Id<"agentTasks">> {
   let row = await ThreadMetadataModels.findByThreadId(ctx, {
@@ -461,13 +469,24 @@ export async function startRun(
     });
     row = (await ctx.db.get("threadMetadata", id))!;
   }
-  if (row.run) await abortRunTasks(ctx, row.run.startMessageId);
+  if (row.run) {
+    await abortRunTasks(ctx, row.run.startMessageId);
+    await RunModels.endRun(ctx, row.run.startMessageId, threadRunStatuses.aborted);
+  }
 
   // Écrit ici, dans la transaction du message, pour que toutes les surfaces
   // voient le thread travailler dès l'envoi.
   const runToken = (await ThreadMetadataModels.markRunStarted(ctx, {
     threadId: args.threadId,
   }))!;
+  await RunModels.createRun(ctx, {
+    threadId: args.threadId,
+    runMessageId: args.startMessageId,
+    canvasId: args.canvasId,
+    userId: args.userId,
+    agentName: args.profile.agentName,
+    request: args.request ?? "",
+  });
 
   const generationTaskId = await insertGeneration(ctx, {
     profile: args.profile.name,
@@ -569,6 +588,7 @@ export async function submitToThread(
     profile: args.profile,
     model: args.model,
     input: args.input,
+    request: args.prompt,
   });
   return { queued: false, messageId };
 }
@@ -963,6 +983,7 @@ async function askUser(
     threadId: current.row.threadId,
     runToken: current.run.runToken,
   });
+  await RunModels.setRunStatus(ctx, current.run.startMessageId, "waiting");
   return { wait: true };
 }
 
@@ -993,6 +1014,7 @@ export async function answerPendingQuestion(
   await ctx.db.patch("threadMetadata", row._id, {
     run: { ...row.run, awaitingTaskId: undefined, runToken },
   });
+  await RunModels.setRunStatus(ctx, row.run.startMessageId, "running");
   return resolveWaitingTool(ctx, taskId, {
     status: "completed",
     output: {

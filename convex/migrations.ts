@@ -569,16 +569,17 @@ export const purgeOldWorkerTranscripts = internalMutation({
   },
 });
 
-// ── Contenu de tool des vieux messages ──────────────────────────────────────
-// Depuis harness/retention.ts, les messages perdent leur contenu de tool
-// quand leurs tâches expirent (30 jours). Celui-ci rattrape les messages plus
-// anciens, ceux d'avant la harness compris : un `trimThreadMessages` planifié
-// par thread, qui avance page par page.
+// ── Allègement des vieux messages ───────────────────────────────────────────
+// Depuis harness/retention.ts, les messages sont allégés (contenu de tool,
+// métadonnées du raisonnement, cf. harness/messageTrim.ts) quand leurs tâches
+// expirent (30 jours). Celui-ci rattrape les messages plus anciens, ceux
+// d'avant la harness compris : un `trimThreadMessages` planifié par thread,
+// qui avance page par page.
 //
-// Lancer avec : `npx convex run migrations:trimOldToolMessages '{}'`.
+// Lancer avec : `npx convex run migrations:trimOldMessages '{}'`.
 // Idempotent : un message déjà allégé n'est pas réécrit.
 
-export const trimOldToolMessages = internalMutation({
+export const trimOldMessages = internalMutation({
   args: { cursor: v.optional(v.string()) },
   returns: v.object({ done: v.boolean(), scheduled: v.number() }),
   // Annotation explicite : la mutation se re-schedule elle-même via `internal`
@@ -594,12 +595,12 @@ export const trimOldToolMessages = internalMutation({
         { threadId: row.threadId },
       );
     }
-    console.log("[migrations] trimOldToolMessages:page", {
+    console.log("[migrations] trimOldMessages:page", {
       scheduled: slice.page.length,
       isDone: slice.isDone,
     });
     if (!slice.isDone) {
-      await ctx.scheduler.runAfter(0, internal.migrations.trimOldToolMessages, {
+      await ctx.scheduler.runAfter(0, internal.migrations.trimOldMessages, {
         cursor: slice.continueCursor,
       });
     }
@@ -616,7 +617,7 @@ export const trimOldToolMessages = internalMutation({
 // la même transaction : aucun thread vivant n'est visé.
 //
 // Lancer avec : `npx convex run migrations:deleteOrphanThreads '{}'`.
-// Idempotent. À lancer avant `trimOldToolMessages`, qui part de
+// Idempotent. À lancer avant `trimOldMessages`, qui part de
 // `threadMetadata`.
 
 export const deleteOrphanThreads = internalMutation({

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { TRIM_MIN_CHARS, trimToolContent } from "./messageTrim";
+import { TRIM_MIN_CHARS, trimMessage } from "./messageTrim";
 
 const big = "x".repeat(TRIM_MIN_CHARS);
 
-describe("trimToolContent", () => {
+describe("trimMessage", () => {
   test("allège un gros résultat de tool", () => {
-    const trimmed = trimToolContent({
+    const trimmed = trimMessage({
       role: "tool",
       content: [
         {
@@ -27,7 +27,7 @@ describe("trimToolContent", () => {
   });
 
   test("allège de gros arguments en gardant l'explication", () => {
-    const trimmed = trimToolContent({
+    const trimmed = trimMessage({
       role: "assistant",
       content: [
         { type: "text", text: "Writing it" },
@@ -55,7 +55,7 @@ describe("trimToolContent", () => {
 
   test("laisse les petits contenus, le texte et les tools affichés dans le chat", () => {
     expect(
-      trimToolContent({
+      trimMessage({
         role: "tool",
         content: [
           {
@@ -73,6 +73,28 @@ describe("trimToolContent", () => {
         ],
       }),
     ).toBeNull();
-    expect(trimToolContent({ role: "user", content: big })).toBeNull();
+    expect(trimMessage({ role: "user", content: big })).toBeNull();
+  });
+
+  test("garde le texte du raisonnement, retire ses métadonnées chiffrées", () => {
+    const details = { openrouter: { reasoning_details: [{ data: big }] } };
+    const trimmed = trimMessage({
+      role: "assistant",
+      content: [
+        {
+          type: "reasoning",
+          text: "Thinking it through",
+          signature: "sig",
+          providerOptions: details,
+          providerMetadata: details,
+        },
+        { type: "redacted-reasoning", data: big },
+        { type: "text", text: "Answer" },
+      ],
+    });
+    expect(trimmed?.content).toEqual([
+      { type: "reasoning", text: "Thinking it through" },
+      { type: "text", text: "Answer" },
+    ]);
   });
 });

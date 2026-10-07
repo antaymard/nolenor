@@ -3,7 +3,7 @@ import { components, internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
-import { trimToolContent } from "./messageTrim";
+import { trimMessage } from "./messageTrim";
 import { dispatchStatuses } from "../schemas/dispatchesSchema";
 import { submissionStatuses } from "../schemas/submissionsSchema";
 
@@ -16,8 +16,9 @@ import { submissionStatuses } from "../schemas/submissionsSchema";
  *   c'est l'historique des tâches ;
  * - `submissions` placées ou retirées, `dispatches` aiguillées : 7 jours.
  *
- * Les messages des tâches purgées perdent au passage leur contenu de tool
- * (cf. messageTrim.ts) : c'est l'essentiel de la table `messages`.
+ * Les messages des tâches purgées sont allégés au passage de leur contenu de
+ * tool et des métadonnées de leur raisonnement (cf. messageTrim.ts) : c'est
+ * l'essentiel de la table `messages`.
  *
  * Un passage par table, par pages, sur la plage expirée (index de création) :
  * ce qu'on garde ne bloque pas la suite.
@@ -91,7 +92,7 @@ export const purgeExpired = internalMutation({
     const isLiveRun = liveRunChecker(ctx);
 
     let deleted = 0;
-    // Les messages des tâches purgées : leur contenu de tool est allégé,
+    // Les messages des tâches purgées sont allégés (cf. messageTrim.ts),
     // en tâche à part (les messages sont lourds).
     const toTrim: string[] = [];
     for (const doc of slice.page) {
@@ -160,7 +161,7 @@ export const purgeWorkerTranscript = internalMutation({
   },
 });
 
-/** Allège le contenu de tool de ces messages (cf. messageTrim.ts). */
+/** Allège ces messages (cf. messageTrim.ts). */
 export const trimMessages = internalMutation({
   args: { messageIds: v.array(v.string()) },
   returns: v.null(),
@@ -170,7 +171,7 @@ export const trimMessages = internalMutation({
       { messageIds },
     );
     for (const doc of docs) {
-      const message = doc?.message && trimToolContent(doc.message);
+      const message = doc?.message && trimMessage(doc.message);
       if (!doc || !message) continue;
       await ctx.runMutation(components.agent.messages.updateMessage, {
         messageId: doc._id,
@@ -182,9 +183,9 @@ export const trimMessages = internalMutation({
 });
 
 /**
- * Le rattrapage d'un thread (cf. migrations.trimOldToolMessages) : ses
- * messages de tool de plus de 30 jours, du plus ancien, une page par
- * transaction. S'arrête au premier message plus récent.
+ * Le rattrapage d'un thread (cf. migrations.trimOldMessages) : ses messages
+ * de plus de 30 jours, du plus ancien, une page par transaction. S'arrête au
+ * premier message plus récent.
  */
 export const trimThreadMessages = internalMutation({
   args: { threadId: v.string(), cursor: v.optional(v.string()) },
@@ -201,7 +202,7 @@ export const trimThreadMessages = internalMutation({
     );
     for (const doc of page.page) {
       if (doc._creationTime >= cutoff) return null;
-      const message = doc.tool && doc.message && trimToolContent(doc.message);
+      const message = doc.message && trimMessage(doc.message);
       if (!message) continue;
       await ctx.runMutation(components.agent.messages.updateMessage, {
         messageId: doc._id,

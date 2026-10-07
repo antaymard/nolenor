@@ -2746,7 +2746,7 @@ describe("rétention", () => {
     });
 
     vi.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
-    await t.mutation(internal.migrations.trimOldToolMessages, {});
+    await t.mutation(internal.migrations.trimOldMessages, {});
     await drain(t);
 
     const parts = await toolParts(t, seed.threadId);

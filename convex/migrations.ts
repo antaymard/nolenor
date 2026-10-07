@@ -5,6 +5,7 @@ import type { Id } from "./_generated/dataModel";
 import { isNodeTypeEmbedded } from "./config/nodeConfig";
 import { buildEmbeddingText, embedDocuments } from "./lib/voyage";
 import * as NodeDataModels from "./models/nodeDataModels";
+import { WORKER_TRANSCRIPT_RETENTION_MS } from "./harness/retention";
 
 // ── Backfill des embeddings Voyage-4 ────────────────────────────────────────
 // Chunks créés avant l'indexation vectorielle (ou dont l'embed a échoué) :
@@ -519,5 +520,51 @@ export const purgeViewportNodes = internalMutation({
 
     console.log("[migrations] purgeViewportNodes:complete");
     return { done: true, phase, processed, deleted, continueCursor };
+  },
+});
+
+// ── Transcripts des sous-agents d'avant leur purge planifiée ────────────────
+// Depuis harness/retention.ts, le transcript d'un sous-agent est supprimé 7
+// jours après la fin de son run. Celui-ci rattrape les sous-agents plus
+// anciens : un `purgeWorkerTranscript` planifié par thread (chacun dans sa
+// transaction, les transcripts sont lourds).
+//
+// Lancer avec : `npx convex run migrations:purgeOldWorkerTranscripts '{}'`.
+// Idempotent : un transcript déjà supprimé ne coûte qu'une lecture.
+
+export const purgeOldWorkerTranscripts = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ done: v.boolean(), scheduled: v.number() }),
+  // Annotation explicite : la mutation se re-schedule elle-même via `internal`
+  // (même fichier), sans quoi l'inférence TS boucle (cf. guidelines).
+  handler: async (ctx, args): Promise<{ done: boolean; scheduled: number }> => {
+    const cutoff = Date.now() - WORKER_TRANSCRIPT_RETENTION_MS;
+    const slice = await ctx.db
+      .query("threadMetadata")
+      .withIndex("by_creation_time", (q) => q.lt("_creationTime", cutoff))
+      .paginate({ numItems: 200, cursor: args.cursor ?? null });
+
+    let scheduled = 0;
+    for (const row of slice.page) {
+      if (!row.masterThreadId || row.run) continue;
+      await ctx.scheduler.runAfter(
+        0,
+        internal.harness.retention.purgeWorkerTranscript,
+        { threadId: row.threadId },
+      );
+      scheduled += 1;
+    }
+    console.log("[migrations] purgeOldWorkerTranscripts:page", {
+      scheduled,
+      isDone: slice.isDone,
+    });
+    if (!slice.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.purgeOldWorkerTranscripts,
+        { cursor: slice.continueCursor },
+      );
+    }
+    return { done: slice.isDone, scheduled };
   },
 });

@@ -1,5 +1,5 @@
 import { createThread, saveMessage } from "@convex-dev/agent";
-import { components } from "../_generated/api";
+import { components, internal } from "../_generated/api";
 import type { MutationCtx } from "../_generated/server";
 import { requireCanvasAccess } from "../lib/auth";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
@@ -8,6 +8,7 @@ import {
   type ThreadRunEndStatus,
 } from "../schemas/threadMetadataSchema";
 import { getProfile } from "./profiles";
+import { WORKER_TRANSCRIPT_RETENTION_MS } from "./retention";
 import { finalResponseText } from "./runHistory";
 import {
   BACKGROUND_REPORT_REQUEST,
@@ -126,6 +127,12 @@ export async function onSubagentRunEnded(
 ) {
   const parent = current.run.parent;
   if (!parent) return;
+  // Le rapport part au parent ; le transcript ne sert plus qu'à déboguer.
+  await ctx.scheduler.runAfter(
+    WORKER_TRANSCRIPT_RETENTION_MS,
+    internal.harness.retention.purgeWorkerTranscript,
+    { threadId: current.row.threadId },
+  );
   const report =
     status === threadRunStatuses.idle
       ? (await finalResponseText(ctx, current.run.startMessageId)) ||

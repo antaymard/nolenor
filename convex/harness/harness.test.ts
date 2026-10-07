@@ -1544,6 +1544,34 @@ describe("phase 5a — sous-agents", () => {
     expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
   });
 
+  test("transcript du sous-agent : supprimé 7 jours après, son coût reste", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setResponder((prompt) =>
+      prompt.includes("WORKER SYSTEM PROMPT")
+        ? [text("Child report")]
+        : prompt.includes("Child report")
+          ? [text("Parent done")]
+          : [call("run_subAgent", { instructions: "Summarize the docs" })],
+    );
+    await send(t, seed, "Delegate this");
+    await drain(t);
+    const child = await childThreadOf(t, seed.threadId);
+    expect(await transcript(t, child!.threadId)).not.toHaveLength(0);
+
+    vi.advanceTimersByTime(8 * 24 * 60 * 60 * 1000);
+    await drain(t);
+
+    expect(await transcript(t, child!.threadId)).toHaveLength(0);
+    expect(await childThreadOf(t, seed.threadId)).toBeDefined();
+    expect(roles(await transcript(t, seed.threadId))).toEqual([
+      "user:text",
+      "assistant:tool-call",
+      "tool:tool-result",
+      "assistant:text",
+    ]);
+  });
+
   test("arrière-plan : le parent continue, le rapport revient en followUp", async () => {
     const t = setup();
     const seed = await seedThread(t);

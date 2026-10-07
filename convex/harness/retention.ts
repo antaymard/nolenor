@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
+import { components, internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
@@ -17,11 +17,15 @@ import { submissionStatuses } from "../schemas/submissionsSchema";
  *
  * Un passage par table, par pages, sur la plage expirée (index de création) :
  * ce qu'on garde ne bloque pas la suite.
+ *
+ * À part : le transcript d'un sous-agent (cf. `purgeWorkerTranscript`).
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RUN_DATA_RETENTION_MS = 30 * DAY_MS;
 const QUEUE_RETENTION_MS = 7 * DAY_MS;
+/** Le temps de déboguer un sous-agent ; ensuite, seul son rapport compte. */
+export const WORKER_TRANSCRIPT_RETENTION_MS = 7 * DAY_MS;
 const PAGE_SIZE = 200;
 
 const phases = [
@@ -111,6 +115,28 @@ export const purgeExpired = internalMutation({
         ...(slice.isDone ? {} : { cursor: slice.continueCursor }),
       });
     }
+    return null;
+  },
+});
+
+/**
+ * Le transcript d'un sous-agent : ses messages et ses streams, dans le
+ * composant agent. Personne ne le relit — le parent n'en garde que le
+ * rapport — et c'est le plus lourd de la table `messages` (recherches web,
+ * pages ouvertes, nodes lus). Planifié à la fin de son run (cf.
+ * subagents.ts). La ligne `threadMetadata` reste : elle porte son coût,
+ * additionné à celui de la conversation parente.
+ */
+export const purgeWorkerTranscript = internalMutation({
+  args: { threadId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { threadId }) => {
+    const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+    // Un thread Nolë n'est jamais visé ; un sous-agent relancé non plus.
+    if (!row?.masterThreadId || row.run) return null;
+    await ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {
+      threadId,
+    });
     return null;
   },
 });

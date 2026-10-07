@@ -54,8 +54,9 @@ function ZoomCompensated({ children }: { children: React.ReactNode }) {
  * React Flow ne remesure les handles qu'au resize du node, que le zoom ne
  * déclenche pas : on le lui demande à chaque changement d'échelle, sinon le
  * départ d'une connexion et la recherche du handle cible liraient des
- * positions périmées. Les edges, elles, s'accrochent à la boîte réelle (cf.
- * `CustomEdge`).
+ * positions périmées — et les edges, qui s'accrochent aux handles mesurés
+ * (cf. `floatingEdgeGeometry`), resteraient au bord d'une boîte d'un autre
+ * zoom.
  */
 function ZoomCompensatedHandles({
   nodeId,
@@ -69,6 +70,13 @@ function ZoomCompensatedHandles({
   useEffect(() => {
     updateNodeInternals(nodeId);
   }, [scale, nodeId, updateNodeInternals]);
+  // Option décochée : les handles retournent sur la boîte réelle, mais rien
+  // ne fait remesurer React Flow (la taille du node ne change pas) — les
+  // edges resteraient accrochées aux bords agrandis, à distance du node.
+  useEffect(
+    () => () => updateNodeInternals(nodeId),
+    [nodeId, updateNodeInternals],
+  );
 
   return (
     <div

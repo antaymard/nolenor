@@ -23,10 +23,17 @@ function NodeHandles({
   // hasDataHandles = false,
   showSourceHandles = false,
   nodeId,
+  scale = 1,
 }: {
   hasDataHandles?: boolean;
   showSourceHandles?: boolean;
   nodeId: string;
+  /**
+   * Échelle des poignées, autour de leur centre (donc toujours centrées sur le
+   * bord) : celle d'un node `scaleWithZoom`, pour qu'elles gardent leur
+   * taille à l'écran comme lui (cf. `NodeFrame`).
+   */
+  scale?: number;
 }) {
   const isConnecting = useStore(connectionInProgressSelector);
 
@@ -98,6 +105,7 @@ function NodeHandles({
           style={{
             height: 9,
             width: 9,
+            ...(scale !== 1 && { scale: String(scale) }),
           }}
         />
       ))}

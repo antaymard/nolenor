@@ -6,5 +6,5 @@
 export const TITLE_HEADING_CLASSNAMES = {
   h1: "text-[28px] font-semibold",
   h2: "text-[22px] font-semibold",
-  h3: "text-base font-semibold",
+  h3: "text-[17px] font-semibold",
 } as const;

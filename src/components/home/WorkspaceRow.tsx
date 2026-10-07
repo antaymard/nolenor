@@ -10,6 +10,7 @@ import {
   WorkspaceMenu,
   type WorkspaceItemProps,
 } from "./WorkspaceCard";
+import { CollaboratorStack } from "@/components/canvas/presence/CollaboratorStack";
 import { formatBlocks, formatEdited } from "./workspaceFormat";
 
 /**
@@ -21,6 +22,7 @@ export default function WorkspaceRow({
   onEdit,
   onDelete,
   pendingTasks,
+  collaborators,
   className,
   style,
 }: WorkspaceItemProps) {
@@ -56,6 +58,12 @@ export default function WorkspaceRow({
       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">
         {canvas.name}
       </span>
+      {/* `z-10` : au-dessus du lien étiré, pour que le survol montre les
+          noms. */}
+      <CollaboratorStack
+        collaborators={collaborators}
+        className="relative z-10 shrink-0"
+      />
       <CanvasTaskBadge tasks={pendingTasks} className="shadow-none" />
       <span className="w-20 shrink-0 text-xs text-slate-500 max-sm:hidden">
         {canvas.shared ? "Shared" : "Yours"}

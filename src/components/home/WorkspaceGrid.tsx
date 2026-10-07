@@ -6,6 +6,7 @@ import {
   pendingTasksOf,
   type PendingTasksByCanvas,
 } from "@/hooks/useHomePendingTasks";
+import type { PresenceByCanvas } from "@/hooks/useCanvasesPresence";
 import { Dialog } from "@/components/shadcn/dialog";
 import {
   AlertDialog,
@@ -24,6 +25,7 @@ import {
   type HomeCanvasLayout,
 } from "@/lib/homeLayoutStorage";
 import { cn } from "@/lib/utils";
+import type { Collaborator } from "@/stores/canvasPresenceStore";
 import WorkspaceCard, { type WorkspaceCardCanvas } from "./WorkspaceCard";
 import WorkspaceRow from "./WorkspaceRow";
 
@@ -41,8 +43,13 @@ interface WorkspaceGridProps {
   /** Les tâches en attente de Nolë, par canvas : chaque carte y pioche les
    *  siennes. Une carte sans entrée n'affiche rien. */
   pendingTasks: PendingTasksByCanvas;
+  /** Les autres membres en ligne, par canvas : une carte sans entrée n'en
+   *  affiche aucun. */
+  presence: PresenceByCanvas;
   onDelete: (canvasId: Id<"canvases">) => void;
 }
+
+const NO_COLLABORATORS: Collaborator[] = [];
 
 /** Décalage d'apparition des cartes, plafonné comme dans la sidebar : au-delà
  *  d'une dizaine, l'escalier devient une attente. */
@@ -62,6 +69,7 @@ export default function WorkspaceGrid({
   ownCanvases,
   sharedCanvases,
   pendingTasks,
+  presence,
   onDelete,
 }: WorkspaceGridProps) {
   const [filter, setFilter] = useState<CanvasFilter>("all");
@@ -109,6 +117,7 @@ export default function WorkspaceGrid({
     onEdit: canvas.shared ? undefined : setCanvasToEdit,
     onDelete: canvas.shared ? undefined : setCanvasToDelete,
     pendingTasks: pendingTasksOf(pendingTasks, canvas._id),
+    collaborators: presence.get(canvas._id) ?? NO_COLLABORATORS,
     className: "animate-appear-up",
     style: appearDelay(index),
   });

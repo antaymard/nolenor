@@ -24,6 +24,8 @@ import {
   type HomePendingTask,
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
+import type { Collaborator } from "@/stores/canvasPresenceStore";
+import { CollaboratorStack } from "@/components/canvas/presence/CollaboratorStack";
 import { formatBlocks, formatEdited } from "./workspaceFormat";
 
 export interface WorkspaceCardCanvas extends CanvasAppearance {
@@ -44,6 +46,8 @@ export interface WorkspaceItemProps {
   /** Ce que Nolë y a laissé en plan, résumé en une pastille. Le détail est
    *  dans la liste des tâches, au-dessus — ici on signale, on ne raconte pas. */
   pendingTasks: HomePendingTask[];
+  /** Les autres membres en ligne sur ce canvas en ce moment. */
+  collaborators: Collaborator[];
   className?: string;
   style?: CSSProperties;
 }
@@ -138,6 +142,7 @@ export default function WorkspaceCard({
   onEdit,
   onDelete,
   pendingTasks,
+  collaborators,
   className,
   style,
 }: WorkspaceItemProps) {
@@ -189,6 +194,12 @@ export default function WorkspaceCard({
         <CanvasTaskBadge
           tasks={pendingTasks}
           className="absolute top-2.5 right-2.5"
+        />
+        {/* `z-10` : au-dessus du lien étiré, pour que le survol montre les
+            noms. */}
+        <CollaboratorStack
+          collaborators={collaborators}
+          className="absolute right-3 bottom-3 z-10"
         />
       </div>
 

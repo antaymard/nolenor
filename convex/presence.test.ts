@@ -160,4 +160,52 @@ describe("canvas presence", () => {
       }),
     ).rejects.toThrow();
   });
+
+  test("the home lists, per canvas of mine, the other members online", async () => {
+    const t = setup();
+    const { owner, guest, stranger, canvasId } = await seed(t);
+    const strangerCanvas = await t.run((ctx) =>
+      ctx.db.insert("canvases", {
+        creatorId: stranger,
+        name: "Stranger's",
+        updatedAt: Date.now(),
+      }),
+    );
+    const join = (userId: string, roomId: string, tab: string) =>
+      as(t, userId).mutation(api.presence.heartbeat, {
+        roomId,
+        userId: makePresenceUserId(userId, tab),
+        sessionId: `${userId}-${tab}`,
+        interval: 10_000,
+      });
+
+    await join(owner, canvasId, "a");
+    // Two tabs: listed once.
+    await join(guest, canvasId, "a");
+    await join(guest, canvasId, "b");
+    await join(stranger, strangerCanvas, "a");
+
+    // The owner sees the guest, not themself, nor the stranger's canvas.
+    expect(await as(t, owner).query(api.presence.listMyCanvases, {})).toEqual([
+      {
+        canvasId,
+        collaborators: [
+          {
+            userId: guest,
+            name: "Guest",
+            image: "https://example.com/guest.png",
+          },
+        ],
+      },
+    ]);
+    // A shared canvas counts too.
+    expect(await as(t, guest).query(api.presence.listMyCanvases, {})).toEqual([
+      { canvasId, collaborators: [{ userId: owner, name: "Owner" }] },
+    ]);
+    // Alone on their own canvas: nothing to show.
+    expect(
+      await as(t, stranger).query(api.presence.listMyCanvases, {}),
+    ).toEqual([]);
+    await expect(t.query(api.presence.listMyCanvases, {})).rejects.toThrow();
+  });
 });

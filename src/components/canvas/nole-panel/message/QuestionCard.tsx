@@ -29,12 +29,18 @@ export function QuestionCard({
   questions,
   result,
   canAnswer,
+  variant = "card",
 }: {
   threadId?: string;
   questions: AskedQuestion[];
   result: QuestionResult | null;
   /** Le run attend bien cette réponse (thread `waiting`, dernier message). */
   canAnswer: boolean;
+  /**
+   * `inline` : sans cadre ni bandeau, pour vivre dans une autre carte (la
+   * carte de tâche sous l'omnibar).
+   */
+  variant?: "card" | "inline";
 }) {
   const answerQuestion = useMutation(api.harness.ingress.answerQuestion);
   const [selected, setSelected] = useState<string[][]>(() =>
@@ -82,16 +88,25 @@ export function QuestionCard({
       questions.map((q, i) => ({ question: q.question, selected: selected[i] })),
     );
 
+  const inline = variant === "inline";
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-sm">
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-violet-50/60 px-3 py-2 text-xs font-medium text-violet-700">
-        <TbMessageQuestion size={15} className="shrink-0" />
-        {questions.length > 1
-          ? `Nolë has ${questions.length} questions`
-          : "Nolë has a question"}
-      </div>
+    <div
+      className={cn(
+        "flex flex-col",
+        !inline &&
+          "overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-sm",
+      )}
+    >
+      {!inline && (
+        <div className="flex items-center gap-2 border-b border-slate-100 bg-violet-50/60 px-3 py-2 text-xs font-medium text-violet-700">
+          <TbMessageQuestion size={15} className="shrink-0" />
+          {questions.length > 1
+            ? `Nolë has ${questions.length} questions`
+            : "Nolë has a question"}
+        </div>
+      )}
 
-      <div className="flex flex-col gap-4 px-3 py-3">
+      <div className={cn("flex flex-col gap-4", inline ? "py-1" : "px-3 py-3")}>
         {questions.map((question, questionIndex) => (
           <QuestionSection
             key={questionIndex}
@@ -120,7 +135,12 @@ export function QuestionCard({
       </div>
 
       {open && (
-        <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2">
+        <div
+          className={cn(
+            "flex items-center gap-2 border-t border-slate-100",
+            inline ? "pt-2" : "px-3 py-2",
+          )}
+        >
           <span className="min-w-0 flex-1 text-[11px] leading-snug text-slate-400">
             {answerable
               ? "Or reply in your own words in the chat box below."

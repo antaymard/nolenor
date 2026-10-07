@@ -7,10 +7,7 @@ import type * as PmTransform from "@tiptap/pm/transform";
 import { components, internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import {
-  importExternal,
-  withHeadlessDom,
-} from "./ia/helpers/headlessBlockNote";
+import { importExternal } from "./ia/helpers/headlessBlockNote";
 import {
   blocksToProsemirrorDoc,
   createServerBlockNoteSchema,
@@ -50,19 +47,19 @@ export const pushDocToSync = internalAction({
       components.prosemirrorSync,
     );
 
-    await withHeadlessDom(async () => {
-      const editor = core.BlockNoteEditor.create({
-        schema: createServerBlockNoteSchema(core),
-        _headless: true,
-      });
-      const next = blocksToProsemirrorDoc(core, editor, blocks);
+    // Pas de jsdom : la conversion blocs <-> ProseMirror ne touche pas au
+    // DOM (cf. lib/blockNoteServerSchema.test.ts, en environnement Node pur).
+    const editor = core.BlockNoteEditor.create({
+      schema: createServerBlockNoteSchema(core),
+      _headless: true,
+    });
+    const next = blocksToProsemirrorDoc(core, editor, blocks);
 
-      await sync.transform(ctx, nodeDataId, editor.pmSchema, (current) => {
-        if (current.eq(next)) return null;
-        const tr = new Transform(current);
-        tr.replaceWith(0, current.content.size, next.content);
-        return tr;
-      });
+    await sync.transform(ctx, nodeDataId, editor.pmSchema, (current) => {
+      if (current.eq(next)) return null;
+      const tr = new Transform(current);
+      tr.replaceWith(0, current.content.size, next.content);
+      return tr;
     });
     return null;
   },

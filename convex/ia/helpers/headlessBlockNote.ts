@@ -87,8 +87,8 @@ export function importExternal<T>(specifier: string): Promise<T> {
  * `document`/`window` are always restored and the lock always released, even if
  * `fn` throws.
  */
-export async function withHeadlessDom<T>(
-  fn: (dom: DomGlobals) => T | Promise<T>,
+export async function withHeadlessEditor<T>(
+  fn: (editor: HeadlessBlockNoteEditor, dom: DomGlobals) => T | Promise<T>,
 ): Promise<T> {
   const previous = jsdomLock;
   let release!: () => void;
@@ -104,17 +104,10 @@ export async function withHeadlessDom<T>(
     const dom = await getDom();
     g.document = dom.document;
     g.window = dom.window;
-    return await fn(dom);
+    return await fn(await getEditor(), dom);
   } finally {
     g.document = savedDoc;
     g.window = savedWin;
     release();
   }
-}
-
-/** `withHeadlessDom` with the default-schema markdown editor. */
-export async function withHeadlessEditor<T>(
-  fn: (editor: HeadlessBlockNoteEditor, dom: DomGlobals) => T | Promise<T>,
-): Promise<T> {
-  return withHeadlessDom(async (dom) => fn(await getEditor(), dom));
 }

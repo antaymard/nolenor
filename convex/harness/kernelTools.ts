@@ -72,6 +72,12 @@ The result is one of:
             .string()
             .optional()
             .describe("Very short tag shown above the question, e.g. 'Format'."),
+          multiSelect: z
+            .boolean()
+            .optional()
+            .describe(
+              "true when the options are not mutually exclusive (e.g. which sections to include, which formats to produce): the user can pick several. Omit for a single choice.",
+            ),
           options: z
             .array(
               z.object({
@@ -84,7 +90,6 @@ The result is one of:
             )
             .max(6)
             .optional(),
-          multiSelect: z.boolean().optional(),
         }),
       )
       .min(1)

@@ -23,15 +23,12 @@ function readNodeIdList(data: unknown, key: keyof CanvasPresenceData): string[] 
   return ids.filter((id): id is string => typeof id === "string");
 }
 
-/**
- * Les nodes sur lesquels ce participant est actif : sélectionnés ou ouverts.
- * Lecture défensive d'un `data` reçu de la présence (stocké en `v.any()`).
- */
-export function readActiveNodeIds(data: unknown): string[] {
-  return [
-    ...new Set([
-      ...readNodeIdList(data, "selectedNodeIds"),
-      ...readNodeIdList(data, "openNodeIds"),
-    ]),
-  ];
+/** Nodes sélectionnés. Lecture défensive d'un `data` stocké en `v.any()`. */
+export function readSelectedNodeIds(data: unknown): string[] {
+  return readNodeIdList(data, "selectedNodeIds");
+}
+
+/** Nodes ouverts en window. Lecture défensive, comme ci-dessus. */
+export function readOpenNodeIds(data: unknown): string[] {
+  return readNodeIdList(data, "openNodeIds");
 }

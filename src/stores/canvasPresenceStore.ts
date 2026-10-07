@@ -1,7 +1,10 @@
 import { create } from "zustand";
 import type { PresenceState } from "@convex-dev/presence/react";
 import { parsePresenceUserId } from "@/../convex/lib/presenceIds";
-import { readActiveNodeIds } from "@/../convex/lib/presenceData";
+import {
+  readOpenNodeIds,
+  readSelectedNodeIds,
+} from "@/../convex/lib/presenceData";
 
 /**
  * Les AUTRES membres présents sur le canvas ouvert, et les nodes sur lesquels
@@ -24,18 +27,24 @@ export type Collaborator = {
   image?: string;
 };
 
+/**
+ * Un collaborateur actif sur un node. `open` : il l'a ouvert en window (ce qui
+ * l'emporte s'il l'a aussi sélectionné) ; `selected` : sélectionné seulement.
+ */
+export type NodeCollaborator = Collaborator & { activity: "open" | "selected" };
+
 interface CanvasPresenceStore {
   collaborators: Collaborator[];
   /**
    * nodeId → membres actifs dessus (sélectionné ou ouvert en window), dans
    * l'ordre des collaborateurs.
    */
-  collaboratorsByNodeId: Map<string, Collaborator[]>;
+  collaboratorsByNodeId: Map<string, NodeCollaborator[]>;
   setPresence: (states: PresenceState[], myUserId: string) => void;
   reset: () => void;
 }
 
-const EMPTY_BY_NODE = new Map<string, Collaborator[]>();
+const EMPTY_BY_NODE = new Map<string, NodeCollaborator[]>();
 
 function sameCollaborators(a: Collaborator[], b: Collaborator[]): boolean {
   return (
@@ -49,6 +58,16 @@ function sameCollaborators(a: Collaborator[], b: Collaborator[]): boolean {
   );
 }
 
+function sameNodeCollaborators(
+  a: NodeCollaborator[],
+  b: NodeCollaborator[],
+): boolean {
+  return (
+    sameCollaborators(a, b) &&
+    a.every((c, i) => c.activity === b[i].activity)
+  );
+}
+
 export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
   collaborators: [],
   collaboratorsByNodeId: EMPTY_BY_NODE,
@@ -58,7 +77,10 @@ export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
       // Un participant par onglet côté serveur : on regroupe par utilisateur
       // réel, et ses nodes actifs sont l'union de ceux de ses onglets.
       const byUser = new Map<string, Collaborator>();
-      const activeByUser = new Map<string, Set<string>>();
+      const activeByUser = new Map<
+        string,
+        Map<string, NodeCollaborator["activity"]>
+      >();
       for (const presence of states) {
         if (!presence.online) continue;
         const userId = parsePresenceUserId(presence.userId);
@@ -69,10 +91,14 @@ export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
             name: presence.name,
             image: presence.image,
           });
-          activeByUser.set(userId, new Set());
+          activeByUser.set(userId, new Map());
         }
-        for (const nodeId of readActiveNodeIds(presence.data)) {
-          activeByUser.get(userId)?.add(nodeId);
+        const active = activeByUser.get(userId);
+        for (const nodeId of readSelectedNodeIds(presence.data)) {
+          if (!active?.has(nodeId)) active?.set(nodeId, "selected");
+        }
+        for (const nodeId of readOpenNodeIds(presence.data)) {
+          active?.set(nodeId, "open");
         }
       }
 
@@ -84,12 +110,14 @@ export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
         ? state.collaborators
         : nextCollaborators;
 
-      const nextByNode = new Map<string, Collaborator[]>();
+      const nextByNode = new Map<string, NodeCollaborator[]>();
       for (const collaborator of collaborators) {
-        for (const nodeId of activeByUser.get(collaborator.userId) ?? []) {
+        const active = activeByUser.get(collaborator.userId) ?? new Map();
+        for (const [nodeId, activity] of active) {
+          const entry = { ...collaborator, activity };
           const list = nextByNode.get(nodeId);
-          if (list) list.push(collaborator);
-          else nextByNode.set(nodeId, [collaborator]);
+          if (list) list.push(entry);
+          else nextByNode.set(nodeId, [entry]);
         }
       }
       // Partage structurel : un node dont l'entrée n'a pas changé garde la
@@ -98,7 +126,7 @@ export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
         nextByNode.size !== state.collaboratorsByNodeId.size;
       for (const [nodeId, list] of nextByNode) {
         const previous = state.collaboratorsByNodeId.get(nodeId);
-        if (previous && sameCollaborators(previous, list)) {
+        if (previous && sameNodeCollaborators(previous, list)) {
           nextByNode.set(nodeId, previous);
         } else {
           byNodeChanged = true;
@@ -123,7 +151,7 @@ export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
 /** Les membres actifs sur CE node, `undefined` s'il n'y en a pas. */
 export function useNodeCollaborators(
   nodeId: string,
-): Collaborator[] | undefined {
+): NodeCollaborator[] | undefined {
   return useCanvasPresenceStore((state) =>
     state.collaboratorsByNodeId.get(nodeId),
   );

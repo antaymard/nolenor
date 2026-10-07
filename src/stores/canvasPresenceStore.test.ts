@@ -83,7 +83,7 @@ describe("canvasPresenceStore", () => {
     expect(collaboratorsByNodeId.size).toBe(0);
   });
 
-  test("a node open in a window counts like a selected one, once per user", () => {
+  test("a node open in a window shows its collaborators, once per user", () => {
     useCanvasPresenceStore.getState().setPresence(
       [
         // Alice selected n1 in one tab and has it open in another.
@@ -94,12 +94,28 @@ describe("canvasPresenceStore", () => {
       ME,
     );
     const { collaboratorsByNodeId } = useCanvasPresenceStore.getState();
-    expect(collaboratorsByNodeId.get("n1")?.map((c) => c.userId)).toEqual([
-      "alice",
+    const activities = (nodeId: string) =>
+      collaboratorsByNodeId
+        .get(nodeId)
+        ?.map(({ userId, activity }) => ({ userId, activity }));
+    // Open in a window wins over selected, for the same user.
+    expect(activities("n1")).toEqual([{ userId: "alice", activity: "open" }]);
+    expect(activities("n2")).toEqual([
+      { userId: "alice", activity: "open" },
+      { userId: "bob", activity: "open" },
     ]);
-    expect(collaboratorsByNodeId.get("n2")?.map((c) => c.userId)).toEqual([
-      "alice",
-      "bob",
-    ]);
+    expect(activities("n3")).toBeUndefined();
+  });
+
+  test("an activity change alone re-renders the node", () => {
+    const { setPresence } = useCanvasPresenceStore.getState();
+    setPresence([state("alice", "a", ["n1"])], ME);
+    const before = useCanvasPresenceStore.getState().collaboratorsByNodeId.get("n1");
+    expect(before?.[0].activity).toBe("selected");
+
+    setPresence([state("alice", "a", ["n1"], {}, ["n1"])], ME);
+    const after = useCanvasPresenceStore.getState().collaboratorsByNodeId.get("n1");
+    expect(after).not.toBe(before);
+    expect(after?.[0].activity).toBe("open");
   });
 });

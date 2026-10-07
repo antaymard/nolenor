@@ -107,6 +107,13 @@ export interface Profile {
   ): Promise<void>;
 }
 
+/** Un node du canvas, tel qu'un routeur peut le reconnaître. */
+export type DispatchNode = {
+  id: string;
+  type: string;
+  title: string;
+};
+
 /** Un thread vers lequel une demande pourrait partir. */
 export type DispatchCandidate = {
   threadId: string;
@@ -117,8 +124,22 @@ export type DispatchCandidate = {
   pendingQuestion?: string;
   /** Les dernières demandes de l'utilisateur, les plus récentes d'abord. */
   recentRequests: string[];
-  /** Les nodes que le thread a créés ou modifiés. */
-  touchedNodeIds: string[];
+  /** La dernière réponse du thread (tronquée), à quoi une suite réagit. */
+  lastAnswer?: string;
+  /** Le dernier run : quand il a démarré, fini, et ce qu'il a donné. */
+  lastRun?: {
+    startedAt: number;
+    endedAt?: number;
+    outcome:
+      | "running"
+      | "waiting"
+      | "answered"
+      | "edited_canvas"
+      | "failed"
+      | "stopped";
+  };
+  /** Les nodes sur lesquels le thread a travaillé : écrits, puis lus. */
+  nodes: (DispatchNode & { access: "wrote" | "read" })[];
   /** Le résumé de compaction, s'il en a un (tronqué). */
   summary?: string;
   lastActivityAt: number;
@@ -132,7 +153,12 @@ export type DispatchCandidate = {
 export interface Router {
   route(
     ctx: ActionCtx,
-    request: { prompt: string; nodeIds: string[]; userId: Id<"users"> },
+    request: {
+      prompt: string;
+      /** Les nodes attachés à la demande. */
+      nodes: DispatchNode[];
+      userId: Id<"users">;
+    },
     candidates: DispatchCandidate[],
   ): Promise<{ threadId: string | null; confidence?: number }>;
 }

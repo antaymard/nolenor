@@ -22,7 +22,10 @@ import { dispatchStatuses } from "../schemas/dispatchesSchema";
 import { getProfile } from "./profiles";
 import { submitToThread } from "./tasks";
 import { userText } from "./transcript";
-import type { DispatchCandidate, Profile } from "./types";
+import { getNodeDataTitle } from "../lib/getNodeDataTitle";
+import { threadRunStatuses } from "../schemas/threadMetadataSchema";
+import { runToolTasks, targetNodeIds } from "./runWrites";
+import type { DispatchCandidate, DispatchNode, Profile } from "./types";
 
 /**
  * Le threadless : une demande arrive sans thread (l'omnibar), et la harness
@@ -42,9 +45,13 @@ import type { DispatchCandidate, Profile } from "./types";
  * l'aiguillage — un filet planifié la finalise si `route` n'a pas répondu.
  */
 
-/** Fenêtre des candidats : threads actifs depuis moins de 7 jours, 20 au plus. */
-const CANDIDATE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_CANDIDATES = 20;
+/**
+ * Fenêtre des candidats : les threads qui tournent ou attendent, quel que
+ * soit leur âge, et ceux au repos actifs depuis moins de 24 h ; 8 au plus.
+ * Au-delà, des threads anciens aux titres voisins brouillent le choix.
+ */
+const CANDIDATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const MAX_CANDIDATES = 8;
 const THREAD_SCAN_LIMIT = 30;
 /** En dessous, le routeur hésite : nouveau thread. */
 const MIN_CONFIDENCE = 0.5;
@@ -53,7 +60,9 @@ const ROUTING_DEADLINE_MS = 30_000;
 
 const RECENT_REQUESTS = 3;
 const REQUEST_CHARS = 300;
-const TOUCHED_NODES = 15;
+const ANSWER_CHARS = 400;
+const CANDIDATE_NODES = 12;
+const NODE_TITLE_CHARS = 80;
 const SUMMARY_CHARS = 600;
 const RECENT_DISPATCHES = 5;
 
@@ -178,7 +187,9 @@ export async function dispatchRequest(
     content: args.content,
     input: args.input,
     ...(args.model !== undefined ? { model: args.model } : {}),
-    ...(args.attachments !== undefined ? { attachments: args.attachments } : {}),
+    ...(args.attachments !== undefined
+      ? { attachments: args.attachments }
+      : {}),
     nodeIds: args.nodeIds,
     ...(args.forceNew ? { forceNew: true } : {}),
   });
@@ -197,7 +208,11 @@ function truncate(text: string, max: number) {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
-async function recentRequests(ctx: QueryCtx, threadId: string) {
+/**
+ * Les derniers messages du thread, hors tools : les demandes récentes de
+ * l'utilisateur et la dernière réponse du thread.
+ */
+async function recentExchange(ctx: QueryCtx, threadId: string) {
   const page: { page: MessageDoc[] } = await ctx.runQuery(
     components.agent.messages.listMessagesByThreadId,
     {
@@ -207,13 +222,132 @@ async function recentRequests(ctx: QueryCtx, threadId: string) {
       paginationOpts: { cursor: null, numItems: 12 },
     },
   );
-  return page.page
+  const requests = page.page
     .filter((doc) => doc.message?.role === "user")
     .map(userText)
     // Les rapports de sous-agents ne sont pas des demandes de l'utilisateur.
     .filter((text) => text && !text.startsWith("<subagent_result"))
     .slice(0, RECENT_REQUESTS)
     .map((text) => truncate(text, REQUEST_CHARS));
+  const answer = page.page.find(
+    (doc) => doc.message?.role === "assistant" && doc.text?.trim(),
+  )?.text;
+  return {
+    requests,
+    ...(answer ? { lastAnswer: truncate(answer.trim(), ANSWER_CHARS) } : {}),
+  };
+}
+
+/** Un node du canvas par son id, s'il y est encore. */
+async function describeNode(
+  ctx: QueryCtx,
+  canvasId: Id<"canvases">,
+  node: Doc<"nodes"> | null,
+): Promise<DispatchNode | null> {
+  if (!node || node.canvasId !== canvasId || node.status === "trashed") {
+    return null;
+  }
+  const data = await ctx.db.get(
+    "nodeDatas",
+    node.nodeDataId as Id<"nodeDatas">,
+  );
+  return {
+    id: node.id,
+    type: node.type,
+    title: truncate(
+      data ? getNodeDataTitle(data) : node.type,
+      NODE_TITLE_CHARS,
+    ),
+  };
+}
+
+async function describeNodeIds(
+  ctx: QueryCtx,
+  canvasId: Id<"canvases">,
+  nodeIds: string[],
+): Promise<DispatchNode[]> {
+  const nodes: DispatchNode[] = [];
+  for (const nodeId of nodeIds.slice(0, CANDIDATE_NODES)) {
+    const node = await describeNode(
+      ctx,
+      canvasId,
+      await NodeModels.getNodeByLlmId(ctx, { nodeId }),
+    );
+    if (node) nodes.push(node);
+  }
+  return nodes;
+}
+
+/**
+ * Les nodes sur lesquels le thread a travaillé : ceux qu'il a écrits (sur
+ * toute sa durée), puis ceux que son dernier run a lus — le lien qu'on lui a
+ * demandé d'analyser, par exemple.
+ */
+async function candidateNodes(
+  ctx: QueryCtx,
+  row: Doc<"threadMetadata">,
+  lastRunMessageId: string | undefined,
+): Promise<DispatchCandidate["nodes"]> {
+  const nodes: DispatchCandidate["nodes"] = [];
+  const seen = new Set<string>();
+  const add = (node: DispatchNode | null, access: "wrote" | "read") => {
+    if (!node || seen.has(node.id) || nodes.length >= CANDIDATE_NODES) return;
+    seen.add(node.id);
+    nodes.push({ ...node, access });
+  };
+
+  const touches = [...(row.touchedNodes ?? [])].sort((a, b) => b.at - a.at);
+  for (const touch of touches) {
+    if (nodes.length >= CANDIDATE_NODES) break;
+    if (touch.kind === "deleted") continue;
+    add(
+      await describeNode(
+        ctx,
+        row.canvasId,
+        await NodeModels.getNodeByNodeDataId(ctx, {
+          nodeDataId: touch.nodeDataId,
+        }),
+      ),
+      "wrote",
+    );
+  }
+
+  if (lastRunMessageId) {
+    const tools = await runToolTasks(ctx, lastRunMessageId);
+    for (const tool of tools) {
+      if (nodes.length >= CANDIDATE_NODES) break;
+      if (tool.status !== "completed") continue;
+      for (const nodeId of targetNodeIds(tool.input)) {
+        if (seen.has(nodeId)) continue;
+        add(
+          await describeNode(
+            ctx,
+            row.canvasId,
+            await NodeModels.getNodeByLlmId(ctx, { nodeId }),
+          ),
+          tool.replay === "safe" ? "read" : "wrote",
+        );
+      }
+    }
+  }
+  return nodes;
+}
+
+function runOutcome(
+  run: Doc<"runs">,
+): NonNullable<DispatchCandidate["lastRun"]>["outcome"] {
+  switch (run.status) {
+    case threadRunStatuses.running:
+      return "running";
+    case threadRunStatuses.waiting:
+      return "waiting";
+    case threadRunStatuses.error:
+      return "failed";
+    case threadRunStatuses.aborted:
+      return "stopped";
+    default:
+      return (run.touchedNodes?.length ?? 0) > 0 ? "edited_canvas" : "answered";
+  }
 }
 
 async function pendingQuestion(
@@ -237,17 +371,11 @@ async function describeCandidate(
   const thread = await getThreadMetadata(ctx, components.agent, {
     threadId: row.threadId,
   }).catch(() => null);
-
-  const touchedNodeIds: string[] = [];
-  for (const touch of row.touchedNodes ?? []) {
-    if (touchedNodeIds.length >= TOUCHED_NODES) break;
-    if (touch.kind === "deleted") continue;
-    const node = await NodeModels.getNodeByNodeDataId(ctx, {
-      nodeDataId: touch.nodeDataId,
-    });
-    if (node) touchedNodeIds.push(node.id);
-  }
-
+  const lastRun = await ctx.db
+    .query("runs")
+    .withIndex("by_threadId", (q) => q.eq("threadId", row.threadId))
+    .order("desc")
+    .first();
   const compaction = await ctx.db
     .query("compactions")
     .withIndex("by_threadId", (q) => q.eq("threadId", row.threadId))
@@ -256,15 +384,30 @@ async function describeCandidate(
   const question = row.run?.awaitingTaskId
     ? await pendingQuestion(ctx, row.run.awaitingTaskId)
     : undefined;
+  const exchange = await recentExchange(ctx, row.threadId);
 
   return {
     threadId: row.threadId,
     title: thread?.title?.trim() || null,
     status: row.run ? (row.run.awaitingTaskId ? "waiting" : "running") : "idle",
     ...(question ? { pendingQuestion: question } : {}),
-    recentRequests: await recentRequests(ctx, row.threadId),
-    touchedNodeIds,
-    ...(compaction ? { summary: truncate(compaction.summary, SUMMARY_CHARS) } : {}),
+    recentRequests: exchange.requests,
+    ...(exchange.lastAnswer ? { lastAnswer: exchange.lastAnswer } : {}),
+    ...(lastRun
+      ? {
+          lastRun: {
+            startedAt: lastRun.startedAt,
+            ...(lastRun.endedAt !== undefined
+              ? { endedAt: lastRun.endedAt }
+              : {}),
+            outcome: runOutcome(lastRun),
+          },
+        }
+      : {}),
+    nodes: await candidateNodes(ctx, row, lastRun?.runMessageId),
+    ...(compaction
+      ? { summary: truncate(compaction.summary, SUMMARY_CHARS) }
+      : {}),
     lastActivityAt: ThreadMetadataModels.lastActivityTime(row),
   };
 }
@@ -277,7 +420,7 @@ type LoadedDispatch = {
   profile: string;
   userId: Id<"users">;
   prompt: string;
-  nodeIds: string[];
+  nodes: DispatchNode[];
   forceNew: boolean;
   candidates: DispatchCandidate[];
 };
@@ -312,7 +455,7 @@ export const loadCandidates = internalQuery({
     );
     const mentioned = new Set(dispatch.nodeIds);
     const overlap = (candidate: DispatchCandidate) =>
-      candidate.touchedNodeIds.filter((id) => mentioned.has(id)).length;
+      candidate.nodes.filter((node) => mentioned.has(node.id)).length;
     candidates.sort(
       (a, b) => overlap(b) - overlap(a) || b.lastActivityAt - a.lastActivityAt,
     );
@@ -321,7 +464,7 @@ export const loadCandidates = internalQuery({
       profile: dispatch.profile,
       userId: dispatch.userId,
       prompt: dispatch.prompt,
-      nodeIds: dispatch.nodeIds,
+      nodes: await describeNodeIds(ctx, dispatch.canvasId, dispatch.nodeIds),
       forceNew: dispatch.forceNew === true,
       candidates: candidates.slice(0, MAX_CANDIDATES),
     };
@@ -367,7 +510,7 @@ export const route = internalAction({
         ctx,
         {
           prompt: loaded.prompt,
-          nodeIds: loaded.nodeIds,
+          nodes: loaded.nodes,
           userId: loaded.userId,
         },
         loaded.candidates,
@@ -467,7 +610,9 @@ export const finalize = internalMutation({
       decision: {
         kind,
         reason: args.reason,
-        ...(args.confidence !== undefined ? { confidence: args.confidence } : {}),
+        ...(args.confidence !== undefined
+          ? { confidence: args.confidence }
+          : {}),
       },
     });
     return threadId;

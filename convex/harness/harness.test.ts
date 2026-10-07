@@ -1790,6 +1790,8 @@ describe("phase 7a — aiguillage threadless", () => {
       threadId: seed.threadId,
       status: "idle",
       recentRequests: ["Pricing ideas"],
+      lastAnswer: "First answer",
+      lastRun: { outcome: "answered" },
     });
     expect(await dispatchRow(t, dispatchId)).toMatchObject({
       threadId: seed.threadId,
@@ -1979,7 +1981,9 @@ describe("phase 7a — aiguillage threadless", () => {
           title: "Pricing",
           status: "idle",
           recentRequests: ["Pricing ideas"],
-          touchedNodeIds: [],
+          lastAnswer: "Three pricing ideas: …",
+          lastRun: { startedAt: 1, endedAt: 1, outcome: "answered" },
+          nodes: [],
           lastActivityAt: 1,
         },
         {
@@ -1988,14 +1992,18 @@ describe("phase 7a — aiguillage threadless", () => {
           status: "waiting",
           pendingQuestion: "Which format?",
           recentRequests: ["Organize the roadmap"],
-          touchedNodeIds: ["N1"],
-          lastActivityAt: 2,
+          nodes: [{ id: "N1", type: "table", title: "Roadmap", access: "wrote" }],
+          lastActivityAt: Date.now() - 3 * 60_000,
         },
       ];
       const decision = await t.action((ctx) =>
         jevRouter.route(
           ctx,
-          { prompt: "A table", nodeIds: ["N1"], userId: seed.userId },
+          {
+            prompt: "A table",
+            nodes: [{ id: "N1", type: "table", title: "Roadmap" }],
+            userId: seed.userId,
+          },
           candidates,
         ),
       );
@@ -2006,10 +2014,25 @@ describe("phase 7a — aiguillage threadless", () => {
       expect(request.body).toMatchObject({
         model: "typesafe/jev-1.13",
         state: {
-          request: "A table",
+          request: {
+            text: "A table",
+            attached_nodes: [{ id: "N1", type: "table", title: "Roadmap" }],
+          },
           threads: [
-            { id: "T1", title: "Pricing", status: "idle" },
-            { id: "T2", status: "waiting", pending_question: "Which format?" },
+            {
+              id: "T1",
+              title: "Pricing",
+              status: "idle",
+              last_answer: "Three pricing ideas: …",
+              last_run: expect.stringContaining("answered in the chat"),
+            },
+            {
+              id: "T2",
+              status: "waiting",
+              last_active: "3 min ago",
+              pending_question: "Which format?",
+              nodes: [{ id: "N1", title: "Roadmap", access: "wrote" }],
+            },
           ],
         },
         questions: { thread: { type: "choice" } },

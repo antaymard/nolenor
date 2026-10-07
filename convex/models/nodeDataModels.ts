@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { components, internal } from "../_generated/api";
+import { hasLiveDoc } from "../blocknoteSync";
 import * as SearchableChunkModels from "./searchableChunkModels";
 import * as NodeDataVersionModels from "./nodeDataVersionModels";
 import * as R2ObjectModels from "./r2ObjectModels";
@@ -196,8 +197,24 @@ export async function updateValues(
   },
 ): Promise<boolean> {
   console.log(`🔄 Updating values for nodeData ${_id}`);
-  const existing = await ctx.db.get("nodeDatas", _id);
+  let existing = await ctx.db.get("nodeDatas", _id);
   if (!existing) throw new ConvexError("NodeData not found");
+
+  // Blocknote ouvert en édition collaborative, `doc` écrit hors sync : la
+  // recopie des dernières frappes, si elle attend encore son échéance, est
+  // faite d'abord. Le point de restauration ci-dessous contient alors ce qui
+  // vient d'être tapé, attribué à son auteur (cf. blocknoteLiveDoc.catchUp).
+  const isBlocknoteDocWrite =
+    existing.type === "blocknote" && "doc" in values && !fromSync;
+  const hasLiveBlocknoteDoc =
+    isBlocknoteDocWrite && (await hasLiveDoc(ctx, _id));
+  if (hasLiveBlocknoteDoc) {
+    await ctx.runMutation(internal.blocknoteLiveDoc.catchUp, {
+      nodeDataId: _id,
+    });
+    existing = await ctx.db.get("nodeDatas", _id);
+    if (!existing) throw new ConvexError("NodeData not found");
+  }
 
   // Diff minimal: on ne conserve que les clés réellement modifiées.
   // Cela évite un patch DB + une reindexation quand la valeur entrante est identique.
@@ -345,20 +362,14 @@ export async function updateValues(
 
   // Un blocknote ouvert en édition collaborative a un doc ProseMirror vivant
   // dans le composant prosemirror-sync : sans cette poussée, l'écriture
-  // serait écrasée par la prochaine publication d'un éditeur ouvert. Rien à
-  // faire tant que personne ne l'a ouvert en sync (il naît de `values.doc`).
-  if (existing.type === "blocknote" && "doc" in changedValues && !fromSync) {
-    const syncVersion = await ctx.runQuery(
-      components.prosemirrorSync.lib.latestVersion,
-      { id: _id },
-    );
-    if (syncVersion !== null) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.blocknoteSyncNode.pushDocToSync,
-        { nodeDataId: _id },
-      );
-    }
+  // serait écrasée par la prochaine recopie depuis les éditeurs ouverts. Dans
+  // la même transaction, pour qu'aucune recopie ne puisse passer entre les
+  // deux. Rien à faire tant que personne ne l'a ouvert en sync (il naît de
+  // `values.doc`).
+  if (hasLiveBlocknoteDoc && "doc" in changedValues) {
+    await ctx.runMutation(internal.blocknoteLiveDoc.pushStoredDoc, {
+      nodeDataId: _id,
+    });
   }
 
   return true;

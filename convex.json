@@ -1,11 +1,5 @@
 {
   "node": {
-    "externalPackages": [
-      "sharp",
-      "jsdom",
-      "@blocknote/core",
-      "@tiptap/pm",
-      "@convex-dev/prosemirror-sync"
-    ]
+    "externalPackages": ["sharp", "jsdom", "@blocknote/core"]
   }
 }

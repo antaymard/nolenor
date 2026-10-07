@@ -4,6 +4,7 @@ import type * as BlockNoteCore from "@blocknote/core";
 import {
   blocksToProsemirrorDoc,
   createServerBlockNoteSchema,
+  replaceChangedBlocks,
 } from "./blockNoteServerSchema";
 
 // Le schéma serveur et la conversion blocs <-> ProseMirror tournent-ils sans
@@ -75,5 +76,45 @@ describe("BlockNote server schema without a DOM", () => {
 
     expect(typeof window).toBe("undefined");
     expect(typeof document).toBe("undefined");
+  });
+
+  test("replaceChangedBlocks only touches the blocks that differ", () => {
+    const editor = core.BlockNoteEditor.create({
+      schema: createServerBlockNoteSchema(core),
+      _headless: true,
+    });
+    const para = (id: string, text: string) => ({
+      id,
+      type: "paragraph",
+      content: [{ type: "text", text, styles: {} }],
+    });
+    const doc = (blocks: unknown[]) =>
+      blocksToProsemirrorDoc(core, editor, blocks);
+    const before = doc([para("a", "one"), para("b", "two"), para("c", "three")]);
+
+    expect(replaceChangedBlocks(before, before)).toBeNull();
+
+    const after = doc([para("a", "one"), para("b", "TWO"), para("c", "three")]);
+    const tr = replaceChangedBlocks(before, after)!;
+    expect(tr.doc.eq(after)).toBe(true);
+    // One step, spanning block "b" only: "a" before it and "c" after it are
+    // left in place, so other editors' cursors there do not move.
+    expect(tr.steps).toHaveLength(1);
+    const { from, to } = tr.steps[0].toJSON() as { from: number; to: number };
+    const blockGroup = before.firstChild!;
+    expect(from).toBe(1 + blockGroup.child(0).nodeSize);
+    expect(to).toBe(from + blockGroup.child(1).nodeSize);
+
+    // Insertions and deletions at the edges still land.
+    const grown = doc([
+      para("z", "zero"),
+      para("a", "one"),
+      para("b", "two"),
+      para("c", "three"),
+      para("d", "four"),
+    ]);
+    expect(replaceChangedBlocks(before, grown)!.doc.eq(grown)).toBe(true);
+    const shrunk = doc([para("b", "two")]);
+    expect(replaceChangedBlocks(before, shrunk)!.doc.eq(shrunk)).toBe(true);
   });
 });

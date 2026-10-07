@@ -74,15 +74,6 @@ function getEditor(): Promise<HeadlessBlockNoteEditor> {
 }
 
 /**
- * Load a package listed in `convex.json` `externalPackages` at runtime, from
- * node_modules, without esbuild seeing it (cf. `hiddenImport`). Only for
- * "use node" actions.
- */
-export function importExternal<T>(specifier: string): Promise<T> {
-  return hiddenImport(specifier) as Promise<T>;
-}
-
-/**
  * Run `fn` with the jsdom globals installed, one caller at a time. The previous
  * `document`/`window` are always restored and the lock always released, even if
  * `fn` throws.

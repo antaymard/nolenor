@@ -151,6 +151,19 @@ export class Debouncer<Fn extends Target> {
     });
   }
 
+  /**
+   * Retire l'exécution en attente et rend ses args, pour que l'appelant
+   * fasse le travail lui-même dans SA transaction — `flush` ne fait que le
+   * planifier. null si rien n'est en attente.
+   */
+  async take(ctx: RunMutationCtx, key: string): Promise<FunctionArgs<Fn> | null> {
+    const taken = await ctx.runMutation(this.component.lib.take, {
+      namespace: this.namespace,
+      key,
+    });
+    return taken ? (taken.functionArgs as FunctionArgs<Fn>) : null;
+  }
+
   /** null si aucune fenêtre n'est ouverte pour `key`. */
   async status(ctx: RunQueryCtx, key: string): Promise<DebounceStatus | null> {
     return await ctx.runQuery(this.component.lib.status, {

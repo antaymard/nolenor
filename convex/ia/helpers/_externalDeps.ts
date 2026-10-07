@@ -13,8 +13,6 @@ import { action } from "../../_generated/server";
 
 import "jsdom";
 import "@blocknote/core";
-import "@tiptap/pm/transform";
-import "@convex-dev/prosemirror-sync";
 
 export const noop = action({
   args: {},

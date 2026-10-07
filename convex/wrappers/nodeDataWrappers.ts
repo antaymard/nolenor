@@ -1,5 +1,7 @@
 import { v, ConvexError, type Infer } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
+import { internal } from "../_generated/api";
+import { hasLiveDoc } from "../blocknoteSync";
 import type { MutationCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 import { nodeTypeValidator } from "../schemas/nodeTypeSchema";
@@ -228,7 +230,7 @@ export const readNodeData = internalQuery({
 // (editor-level `requireCanvasAccess`). The tool does the node lookup via
 // `getNodeWithNodeData` (same as the document tools) and passes `_id` here.
 
-const blockNoteEditValidator = v.union(
+export const blockNoteEditValidator = v.union(
   v.object({
     kind: v.literal("insert"),
     position: v.union(
@@ -352,24 +354,70 @@ function applyTargetedEdit(
   return tree;
 }
 
+export type BlockNoteEditResult = {
+  insertedBlockIds?: string[];
+  affectedBlockId?: string;
+  deletedCount?: number;
+};
+
+export const blockNoteEditResultValidator = v.object({
+  insertedBlockIds: v.optional(v.array(v.string())),
+  affectedBlockId: v.optional(v.string()),
+  deletedCount: v.optional(v.number()),
+});
+
+/**
+ * L'arbre de blocs après `edit`, calculé sur `current` sans rien écrire.
+ * Partagé avec l'édition du doc vivant (blocknoteLiveDoc.ts), qui le rejoue
+ * sur la dernière version du doc collaboratif.
+ */
+export function computeBlockNoteEdit(
+  current: BlockNoteBlock[],
+  edit: Infer<typeof blockNoteEditValidator>,
+  result: BlockNoteEditResult,
+): unknown {
+  // Full replacement: nothing to address, the ids are all fresh.
+  // Targeted edits: the agent addresses blocks by the short aliases
+  // read_nodes shows (see lib/blockIdAliases.ts), so the operation runs in
+  // alias space — "block not found" hints list aliases too — and the real
+  // ids are restored before storage.
+  return edit.kind === "replaceDocument"
+    ? normalizeReplaceDocumentBlocks(edit.blocks)
+    : applyTargetedEdit(current, edit, result);
+}
+
 export const editBlockNoteDocument = internalMutation({
   args: {
     nodeDataId: v.id("nodeDatas"),
     edit: blockNoteEditValidator,
     actor: nodeDataVersionActorValidator,
   },
-  returns: v.object({
-    insertedBlockIds: v.optional(v.array(v.string())),
-    affectedBlockId: v.optional(v.string()),
-    deletedCount: v.optional(v.number()),
-  }),
-  handler: async (ctx, args) => {
+  returns: blockNoteEditResultValidator,
+  // Type de retour explicite : `applyEdit` vit dans blocknoteLiveDoc.ts, qui
+  // importe ce module (cycle de types par `internal`).
+  handler: async (ctx, args): Promise<BlockNoteEditResult> => {
     const nodeData = await ctx.db.get(args.nodeDataId);
     if (!nodeData) {
       throw new ConvexError("Node data not found.");
     }
     if (nodeData.type !== "blocknote") {
       throw new ConvexError("Target node must be a blocknote node.");
+    }
+
+    // Ouvert en édition collaborative : l'édition se rejoue sur le doc
+    // vivant, à sa dernière version, pour ne perdre aucune frappe pas encore
+    // recopiée dans `values.doc` (cf. blocknoteLiveDoc.applyEdit).
+    if (await hasLiveDoc(ctx, args.nodeDataId)) {
+      const result: BlockNoteEditResult = await ctx.runMutation(
+        internal.blocknoteLiveDoc.applyEdit,
+        args,
+      );
+      await trackAgentTouch(ctx, {
+        actor: args.actor,
+        nodeDataId: args.nodeDataId,
+        kind: threadNodeTouchKinds.updated,
+      });
+      return result;
     }
 
     // For replaceDocument, the current doc is irrelevant (full overwrite), so
@@ -410,21 +458,8 @@ export const editBlockNoteDocument = internalMutation({
       current = parsed;
     }
 
-    const result: {
-      insertedBlockIds?: string[];
-      affectedBlockId?: string;
-      deletedCount?: number;
-    } = {};
-
-    // Full replacement: nothing to address, the ids are all fresh.
-    // Targeted edits: the agent addresses blocks by the short aliases
-    // read_nodes shows (see lib/blockIdAliases.ts), so the operation runs in
-    // alias space — "block not found" hints list aliases too — and the real
-    // ids are restored before storage.
-    const tree: unknown =
-      args.edit.kind === "replaceDocument"
-        ? normalizeReplaceDocumentBlocks(args.edit.blocks)
-        : applyTargetedEdit(current, args.edit, result);
+    const result: BlockNoteEditResult = {};
+    const tree = computeBlockNoteEdit(current, args.edit, result);
 
     const serialized = stringifyBlockNoteDocumentForStorage(tree);
 

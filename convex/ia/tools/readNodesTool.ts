@@ -729,6 +729,24 @@ export default function readNodesTool({
 
         const requestedNodeIdSet = new Set(requestedNodeIds);
 
+        // Un blocknote en édition collaborative a ses dernières frappes dans
+        // son doc vivant, recopiées dans `values.doc` par lots : la recopie
+        // en attente est faite avant de lire, pour lire ce qui est tapé (cf.
+        // blocknoteLiveDoc.catchUpCanvasNodes). Rien à faire, et pas de
+        // mutation, sans blocknote demandé.
+        const requestedBlocknoteIds = requestedNodeIds.filter(
+          (nodeId) => canvasNodeTypeById.get(nodeId) === "blocknote",
+        );
+        if (requestedBlocknoteIds.length > 0) {
+          await ctx.runMutation(
+            internal.blocknoteLiveDoc.catchUpCanvasNodes,
+            {
+              canvasId: canvasId as Id<"canvases">,
+              nodeIds: requestedBlocknoteIds,
+            },
+          );
+        }
+
         const pdfPagesByNodeId = new Map<string, number[]>();
         for (const entry of input.pdfPages ?? []) {
           pdfPagesByNodeId.set(entry.nodeId, entry.pages);

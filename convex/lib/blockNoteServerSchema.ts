@@ -1,4 +1,6 @@
 import type * as BlockNoteCore from "@blocknote/core";
+import type { Node as PmNode } from "@tiptap/pm/model";
+import { Transform } from "@tiptap/pm/transform";
 import {
   calloutBlockConfig,
   dateInlineContentConfig,
@@ -79,4 +81,53 @@ export function blocksToProsemirrorDoc(
     null,
     schema.nodes.blockGroup.create(null, nodes),
   );
+}
+
+/**
+ * Les steps qui font passer le doc `current` à `next`, en ne remplaçant que
+ * les blocs de premier niveau qui diffèrent (préfixe et suffixe communs
+ * conservés). Un remplacement du doc entier ferait sauter le curseur des
+ * autres éditeurs ouverts, qui se mappe à travers ces steps. null si les deux
+ * docs sont identiques.
+ */
+export function replaceChangedBlocks(
+  current: PmNode,
+  next: PmNode,
+): Transform | null {
+  const before = current.firstChild;
+  const after = next.firstChild;
+  if (!before || !after) throw new Error("BlockNote doc without blockGroup.");
+
+  let start = 0;
+  while (
+    start < before.childCount &&
+    start < after.childCount &&
+    before.child(start).eq(after.child(start))
+  ) {
+    start++;
+  }
+  if (start === before.childCount && start === after.childCount) return null;
+
+  let endBefore = before.childCount;
+  let endAfter = after.childCount;
+  while (
+    endBefore > start &&
+    endAfter > start &&
+    before.child(endBefore - 1).eq(after.child(endAfter - 1))
+  ) {
+    endBefore--;
+    endAfter--;
+  }
+
+  // +1 : on entre dans le blockGroup, premier enfant du doc.
+  let from = 1;
+  for (let i = 0; i < start; i++) from += before.child(i).nodeSize;
+  let to = from;
+  for (let i = start; i < endBefore; i++) to += before.child(i).nodeSize;
+  const inserted: PmNode[] = [];
+  for (let i = start; i < endAfter; i++) inserted.push(after.child(i));
+
+  const tr = new Transform(current);
+  tr.replaceWith(from, to, inserted);
+  return tr;
 }

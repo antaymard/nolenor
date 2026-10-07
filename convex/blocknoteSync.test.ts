@@ -10,6 +10,7 @@ import schema from "./schema";
 import debouncerSchema from "./components/debouncer/schema";
 import { modules } from "./test.setup";
 import * as NodeDataModel from "./models/nodeDataModels";
+import { prosemirrorSync } from "./blocknoteSync";
 import {
   blocksToProsemirrorDoc,
   createServerBlockNoteSchema,
@@ -89,7 +90,16 @@ async function seed(t: T) {
       updatedAt: Date.now(),
       values: { doc: JSON.stringify(INITIAL) },
     });
-    return { owner, reader, coEditor, nodeDataId };
+    await ctx.db.insert("nodes", {
+      id: "doc-node",
+      nodeDataId,
+      canvasId,
+      type: "blocknote",
+      position: { x: 0, y: 0 },
+      width: 300,
+      height: 200,
+    });
+    return { owner, reader, coEditor, canvasId, nodeDataId };
   });
 }
 
@@ -105,17 +115,65 @@ async function createLiveDoc(t: T, owner: Id<"users">, id: Id<"nodeDatas">) {
   });
 }
 
-async function scheduledPushes(t: T) {
+/** Les ids des blocs de premier niveau du doc vivant, à sa dernière version. */
+async function liveIds(t: T, nodeDataId: Id<"nodeDatas">) {
   return t.run(async (ctx) => {
-    const jobs = await ctx.db.system.query("_scheduled_functions").collect();
-    return jobs.filter((job) => job.name.includes("pushDocToSync")).length;
+    const { doc } = await prosemirrorSync.getDoc(
+      ctx,
+      nodeDataId,
+      editor.pmSchema,
+    );
+    const ids: string[] = [];
+    doc.firstChild?.forEach((node) => ids.push(node.attrs.id as string));
+    return ids;
   });
+}
+
+/** Les ids des blocs de premier niveau de `values.doc`. */
+async function storedIds(t: T, nodeDataId: Id<"nodeDatas">) {
+  const nodeData = await t.run((ctx) => ctx.db.get(nodeDataId));
+  return (JSON.parse(nodeData!.values.doc as string) as { id: string }[]).map(
+    (block) => block.id,
+  );
+}
+
+/** `userId` envoie les steps qui font passer le doc vivant de `from` à `to`. */
+async function typeAs(
+  t: T,
+  userId: Id<"users">,
+  nodeDataId: Id<"nodeDatas">,
+  from: unknown[],
+  to: unknown[],
+) {
+  const version = await t.run((ctx) =>
+    ctx.runQuery(components.prosemirrorSync.lib.latestVersion, {
+      id: nodeDataId,
+    }),
+  );
+  const result = await as(t, userId).mutation(api.blocknoteSync.submitSteps, {
+    id: nodeDataId,
+    version: version!,
+    clientId: userId,
+    steps: stepsBetween(from, to),
+  });
+  expect(result.status).toBe("synced");
+}
+
+async function versionDocs(t: T) {
+  return t.run(async (ctx) =>
+    (await ctx.db.query("nodeDataVersions").collect()).map((version) => ({
+      actor: version.actor,
+      ids: (JSON.parse(version.values.doc as string) as { id: string }[]).map(
+        (block) => block.id,
+      ),
+    })),
+  );
 }
 
 async function pendingCopy(t: T, nodeDataId: Id<"nodeDatas">) {
   return t.run((ctx) =>
     ctx.runQuery(components.debouncer.lib.status, {
-      namespace: "blocknoteMaterialize:materializeLatest",
+      namespace: "blocknoteLiveDoc:materializeLatest",
       key: nodeDataId,
     }),
   );
@@ -199,7 +257,7 @@ describe("blocknote sync", () => {
       steps: stepsBetween(INITIAL, EDITED),
     });
 
-    await t.mutation(internal.blocknoteMaterialize.materializeLatest, {
+    await t.mutation(internal.blocknoteLiveDoc.materializeLatest, {
       nodeDataId,
       userId: owner,
     });
@@ -216,11 +274,11 @@ describe("blocknote sync", () => {
     expect(versions.map((version) => version.actor)).toEqual([
       { type: "user", userId: owner },
     ]);
-    // Written from the live doc: nothing to push back into it.
-    expect(await scheduledPushes(t)).toBe(0);
+    // Written from the live doc: nothing pushed back into it.
+    expect(await liveIds(t, nodeDataId)).toEqual(["b1", "b2"]);
 
     // Nothing changed since: no write at all.
-    await t.mutation(internal.blocknoteMaterialize.materializeLatest, {
+    await t.mutation(internal.blocknoteLiveDoc.materializeLatest, {
       nodeDataId,
       userId: owner,
     });
@@ -228,24 +286,99 @@ describe("blocknote sync", () => {
     expect(again!.updatedAt).toBe(stored!.updatedAt);
   });
 
-  test("other writes are pushed to the live doc, only once it exists", async () => {
+  test("other writes reach the live doc in the same transaction", async () => {
     const t = setup();
     const { owner, nodeDataId } = await seed(t);
     const write = (id: string) =>
       t.run((ctx) =>
         NodeDataModel.updateValues(ctx, {
           _id: nodeDataId,
-          values: { doc: [paragraph(id, "agent")] },
+          values: { doc: [paragraph(id, "restored")] },
           actor: { type: "system" },
         }),
       );
 
+    // No live doc yet: nothing to push, it will be born from values.doc.
     await write("before-sync");
-    expect(await scheduledPushes(t)).toBe(0);
+    expect(await liveIds(t, nodeDataId).catch(() => null)).toBeNull();
 
     await createLiveDoc(t, owner, nodeDataId);
-    await write("agent");
-    expect(await scheduledPushes(t)).toBe(1);
+    await write("restored");
+    expect(await liveIds(t, nodeDataId)).toEqual(["restored"]);
+  });
+
+  test("a full write first copies pending keystrokes, credited to their author", async () => {
+    const t = setup();
+    const { owner, nodeDataId } = await seed(t);
+    await createLiveDoc(t, owner, nodeDataId);
+    await typeAs(t, owner, nodeDataId, INITIAL, EDITED);
+
+    await t.run((ctx) =>
+      NodeDataModel.updateValues(ctx, {
+        _id: nodeDataId,
+        values: { doc: [paragraph("x", "set_node_data")] },
+        actor: { type: "agent", userId: owner, threadId: "thread" },
+      }),
+    );
+
+    // Owner's typing got its own restore point before the agent's write.
+    expect(await versionDocs(t)).toEqual([
+      { actor: { type: "user", userId: owner }, ids: ["b1"] },
+      {
+        actor: { type: "agent", userId: owner, threadId: "thread" },
+        ids: ["b1", "b2"],
+      },
+    ]);
+    expect(await liveIds(t, nodeDataId)).toEqual(["x"]);
+    expect(await pendingCopy(t, nodeDataId)).toBeNull();
+  });
+
+  test("an agent block edit replays on the live doc, losing no keystroke", async () => {
+    const t = setup();
+    const { owner, nodeDataId } = await seed(t);
+    await createLiveDoc(t, owner, nodeDataId);
+    // Typed but not yet copied: values.doc still only has b1.
+    await typeAs(t, owner, nodeDataId, INITIAL, EDITED);
+    expect(await storedIds(t, nodeDataId)).toEqual(["b1"]);
+
+    const actor = { type: "agent" as const, userId: owner, threadId: "thread" };
+    const result = await t.mutation(
+      internal.wrappers.nodeDataWrappers.editBlockNoteDocument,
+      {
+        nodeDataId,
+        edit: {
+          kind: "insert",
+          position: "end",
+          blocks: [{ type: "paragraph", content: "from the agent" }],
+        },
+        actor,
+      },
+    );
+    expect(result.insertedBlockIds).toHaveLength(1);
+
+    const live = await liveIds(t, nodeDataId);
+    expect(live.slice(0, 2)).toEqual(["b1", "b2"]);
+    expect(live).toHaveLength(3);
+    expect(await storedIds(t, nodeDataId)).toEqual(live);
+    // Restore points: before the owner's typing, then just before the agent.
+    expect(await versionDocs(t)).toEqual([
+      { actor: { type: "user", userId: owner }, ids: ["b1"] },
+      { actor, ids: ["b1", "b2"] },
+    ]);
+  });
+
+  test("an agent read first copies pending keystrokes", async () => {
+    const t = setup();
+    const { owner, canvasId, nodeDataId } = await seed(t);
+    await createLiveDoc(t, owner, nodeDataId);
+    await typeAs(t, owner, nodeDataId, INITIAL, EDITED);
+
+    await t.mutation(internal.blocknoteLiveDoc.catchUpCanvasNodes, {
+      canvasId,
+      nodeIds: ["doc-node", "not-a-node"],
+    });
+    expect(await storedIds(t, nodeDataId)).toEqual(["b1", "b2"]);
+    expect(await pendingCopy(t, nodeDataId)).toBeNull();
   });
 
   test("co-editing humans share one version, an agent write opens a new one", async () => {
@@ -259,22 +392,8 @@ describe("blocknote sync", () => {
       from: unknown[],
       to: unknown[],
     ) => {
-      const version = await t.run((ctx) =>
-        ctx.runQuery(components.prosemirrorSync.lib.latestVersion, {
-          id: nodeDataId,
-        }),
-      );
-      const result = await as(t, userId).mutation(
-        api.blocknoteSync.submitSteps,
-        {
-          id: nodeDataId,
-          version: version!,
-          clientId: userId,
-          steps: stepsBetween(from, to),
-        },
-      );
-      expect(result.status).toBe("synced");
-      await t.mutation(internal.blocknoteMaterialize.materializeLatest, {
+      await typeAs(t, userId, nodeDataId, from, to);
+      await t.mutation(internal.blocknoteLiveDoc.materializeLatest, {
         nodeDataId,
         userId,
       });

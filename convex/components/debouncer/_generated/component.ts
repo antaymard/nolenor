@@ -67,5 +67,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         },
         Name
       >;
+      take: FunctionReference<
+        "mutation",
+        "internal",
+        { key: string; namespace: string },
+        null | { functionArgs: any },
+        Name
+      >;
     };
   };

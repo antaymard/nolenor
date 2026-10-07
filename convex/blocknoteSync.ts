@@ -1,8 +1,8 @@
 import { ConvexError, v } from "convex/values";
+import type { FunctionReference } from "convex/server";
 import { ProsemirrorSync } from "@convex-dev/prosemirror-sync";
 import { components, internal } from "./_generated/api";
 import {
-  internalQuery,
   mutation,
   type MutationCtx,
   type QueryCtx,
@@ -11,7 +11,6 @@ import type { DataModel, Id } from "./_generated/dataModel";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import errors from "./config/errorsConfig";
 import { Debouncer } from "./lib/debouncer";
-import { parseStoredBlockNoteDocument } from "./lib/blockNoteDocument";
 
 // Édition collaborative des nodes blocknote (SPIKE).
 //
@@ -21,14 +20,16 @@ import { parseStoredBlockNoteDocument } from "./lib/blockNoteDocument";
 //
 // `values.doc` reste la forme lue par TOUT le reste de l'app (vue canvas,
 // recherche, versions, export, tools de l'agent). Il en devient une copie,
-// tenue à jour par le serveur seul :
-//   - éditeurs → `values.doc` : chaque lot de steps accepté planifie une
-//     recopie regroupée (`blocknoteMaterialize.ts`), qui reconstruit le doc
-//     à sa dernière version et l'écrit. Un éditeur fermé juste après sa
-//     dernière frappe est donc couvert, snapshot envoyé ou non ;
-//   - autre écriture → doc vivant : toute écriture du `doc` hors de ce chemin
-//     (agent, restore, MCP) est poussée dans le doc vivant par
-//     `blocknoteSyncNode.pushDocToSync` (cf. NodeDataModel.updateValues).
+// tenue à jour par le serveur seul (cf. blocknoteLiveDoc.ts) :
+//   - frappes → `values.doc` : chaque lot de steps accepté planifie une
+//     recopie regroupée, qui reconstruit le doc à sa dernière version. Un
+//     éditeur fermé juste après sa dernière frappe est donc couvert ;
+//   - édition de l'agent → doc vivant : rejouée par `transform` sur la
+//     dernière version, puis recopiée aussitôt ;
+//   - autre écriture du `doc` (restore, set_node_data, MCP) → doc vivant :
+//     poussée dans la même transaction (cf. NodeDataModel.updateValues).
+// Avant d'écrire ou de lire pour l'agent, une recopie en attente est faite
+// sur place : rien de tapé n'échappe au point de restauration ni à l'agent.
 //
 // Un doc vivant naît à la première ouverture en sync, depuis `values.doc`
 // (`create` côté client).
@@ -43,11 +44,32 @@ export const prosemirrorSync = new ProsemirrorSync<Id<"nodeDatas">>(
  * même par apparaître dans le canvas, la recherche et les tools de l'agent.
  * Chaque recopie réindexe le node et peut créer un point de restauration.
  */
-const materializeDebouncer = new Debouncer(
+// Typé explicitement : inféré depuis `internal`, il dépendrait du type de
+// blocknoteLiveDoc.ts, qui importe ce module (cycle de types).
+export const materializeDebouncer: Debouncer<
+  FunctionReference<
+    "mutation",
+    "internal",
+    { nodeDataId: Id<"nodeDatas">; userId: Id<"users"> },
+    null
+  >
+> = new Debouncer(
   components.debouncer,
-  internal.blocknoteMaterialize.materializeLatest,
+  internal.blocknoteLiveDoc.materializeLatest,
   { delay: 5_000, maxWait: 30_000 },
 );
+
+/** Ce blocknote a-t-il un doc vivant (déjà ouvert en édition collaborative) ? */
+export async function hasLiveDoc(
+  ctx: Pick<MutationCtx, "runQuery">,
+  nodeDataId: Id<"nodeDatas">,
+): Promise<boolean> {
+  const version = await ctx.runQuery(
+    components.prosemirrorSync.lib.latestVersion,
+    { id: nodeDataId },
+  );
+  return version !== null;
+}
 
 async function requireBlocknoteAccess(
   ctx: QueryCtx | MutationCtx,
@@ -115,16 +137,5 @@ export const submitSteps = mutation({
       });
     }
     return result;
-  },
-});
-
-/** Les blocs stockés d'un blocknote, pour la poussée vers le doc vivant. */
-export const readStoredDoc = internalQuery({
-  args: { nodeDataId: v.id("nodeDatas") },
-  returns: v.union(v.null(), v.array(v.any())),
-  handler: async (ctx, { nodeDataId }) => {
-    const nodeData = await ctx.db.get(nodeDataId);
-    if (!nodeData || nodeData.type !== "blocknote") return null;
-    return parseStoredBlockNoteDocument(nodeData.values.doc) ?? null;
   },
 });

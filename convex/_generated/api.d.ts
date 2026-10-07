@@ -540,4 +540,6 @@ export declare const components: {
   agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   debouncer: import("../components/debouncer/_generated/component.js").ComponentApi<"debouncer">;
+  presence: import("@convex-dev/presence/_generated/component.js").ComponentApi<"presence">;
+  prosemirrorSync: import("@convex-dev/prosemirror-sync/_generated/component.js").ComponentApi<"prosemirrorSync">;
 };

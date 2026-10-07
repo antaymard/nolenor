@@ -2236,50 +2236,6 @@ describe("phase 7c — une tâche = un run", () => {
     expect(await info()).toMatchObject({ runStatus: "aborted" });
   });
 
-  test("migration : champs dépréciés effacés, runs orphelins clos", async () => {
-    const t = setup();
-    const seed = await seedNoleThread(t);
-    const orphanId = await t.run(async (ctx) => {
-      const row = await ctx.db
-        .query("threadMetadata")
-        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
-        .unique();
-      await ctx.db.patch("threadMetadata", row!._id, {
-        runStatus: "running",
-        runStartedAt: 1,
-        reviewedAt: 2,
-        lastActivity: { text: "Old", at: 3 },
-      });
-      return ctx.db.insert("runs", {
-        threadId: seed.threadId,
-        runMessageId: "orphan-run",
-        canvasId: seed.canvasId,
-        userId: seed.userId,
-        agentName: "Nolë",
-        request: "Stuck",
-        status: "running",
-        startedAt: 1,
-      });
-    });
-
-    await t.mutation(internal.migrations.clearThreadRunState, {});
-    await drain(t);
-
-    const row = await t.run((ctx) =>
-      ctx.db
-        .query("threadMetadata")
-        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
-        .unique(),
-    );
-    expect(row).not.toHaveProperty("runStatus");
-    expect(row).not.toHaveProperty("runStartedAt");
-    expect(row).not.toHaveProperty("reviewedAt");
-    expect(row).not.toHaveProperty("lastActivity");
-    expect(await t.run((ctx) => ctx.db.get("runs", orphanId))).toMatchObject({
-      status: "aborted",
-    });
-  });
-
   test("en cours, en attente, arrêtée : la tâche suit le run", async () => {
     const t = setup();
     const seed = await seedNoleThread(t);

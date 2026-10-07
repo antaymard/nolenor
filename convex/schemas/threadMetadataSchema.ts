@@ -109,9 +109,6 @@ const threadRunValidator = v.object({
   startMessageId: v.string(),
   promptMessageId: v.string(),
   generationTaskId: v.id("agentTasks"),
-  // Déprécié : l'ancien jeton de fin de run. Plus écrit ni lu ; reste optionnel
-  // le temps que les runs ouverts avant sa suppression se terminent.
-  runToken: v.optional(v.number()),
   maxGenerations: v.number(),
   // Le modèle des générations à venir. Lu à chaque claim : un changement de
   // modèle pendant le run (sélecteur, steer) prend effet au step suivant.
@@ -156,16 +153,8 @@ const threadMetadataValidator = v.object({
   // `threadMetadataModels.recordRunStart`. À ne pas confondre avec le nombre
   // de steps LLM, qui vit dans `aiUsageDaily.eventsCount`.
   roundsNb: v.optional(v.number()),
-  // Dépréciés : l'état des runs vit dans la table `runs` (une ligne par
-  // tâche) et dans `run` ci-dessous (le run en cours). Plus écrits ni lus ;
-  // effacés par `migrations.clearThreadRunState`, puis à retirer d'ici.
-  lastActivity: v.optional(threadLastActivityValidator),
-  runStatus: v.optional(threadRunStatusValidator),
-  runStartedAt: v.optional(v.number()),
-  runEndedAt: v.optional(v.number()),
-  lastRunError: v.optional(v.string()),
-  reviewedAt: v.optional(v.number()),
   // Le run en cours de la harness, présent exactement tant qu'il travaille.
+  // L'état des runs passés vit dans la table `runs`, une ligne par tâche.
   // C'est la référence que toutes les tâches confrontent avant d'écrire : un
   // run abandonné (abort, nouveau message) ne fait plus rien dès qu'il n'est
   // plus celui-ci.

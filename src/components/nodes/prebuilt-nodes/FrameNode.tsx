@@ -44,6 +44,7 @@ import {
   type FrameTitleLevel,
 } from "@/../convex/config/nodeConfig";
 import type { XyNodeProps } from "@/types/domain";
+import { TITLE_HEADING_CLASSNAMES } from "./titleLevelStyles";
 
 /** Plancher d'une frame vide : en dessous, la barre de titre ne tient plus. */
 const EMPTY_MIN_WIDTH = 160;
@@ -54,18 +55,14 @@ const EMPTY_MIN_HEIGHT = 120;
  * qu'une échelle typographique, et le titre d'une frame en est un niveau comme
  * un autre.
  */
-const TITLE_LEVEL_CLASSNAMES: Record<FrameTitleLevel, string> = {
-  h1: "text-2xl font-semibold",
-  h2: "text-lg font-semibold",
-  h3: "text-md font-semibold",
-};
+const TITLE_LEVEL_CLASSNAMES: Record<FrameTitleLevel, string> =
+  TITLE_HEADING_CLASSNAMES;
 
 const TITLE_LEVEL_ICONS: Record<FrameTitleLevel, ReactNode> = {
   h1: <LuHeading1 />,
   h2: <LuHeading2 />,
   h3: <LuHeading3 />,
 };
-
 
 const RESIZE_LINE_STYLE: CSSProperties = { borderWidth: 2 };
 const RESIZE_HANDLE_STYLE: CSSProperties = {
@@ -512,7 +509,9 @@ function FrameNode(xyNode: XyNodeProps) {
           // sélectionne, pas seulement sa barre de titre. Effacé dès qu'un
           // état du geste ou du document prend le dessus, pour ne pas cumuler
           // deux rings.
-          !xyNode.selected && !isDropTarget && "hover:ring-1 hover:ring-blue-400/50",
+          !xyNode.selected &&
+            !isDropTarget &&
+            "hover:ring-1 hover:ring-blue-400/50",
           // Cible de dépôt : la bordure prime sur la couleur du node, c'est
           // une réponse au geste en cours et pas un état du document.
           isDropTarget && "border-blue-500 bg-blue-500/10",

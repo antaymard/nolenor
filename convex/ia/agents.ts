@@ -9,18 +9,25 @@ import { type AiUsageSource } from "../schemas/aiUsageSourceSchema";
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
+    label: "Mistral Large 4",
+    value: "mistralai/mistral-large-4-0",
+    price: "0.68_2.09",
+    isMultimodal: true,
+    maxContext: 524000,
+  },
+  {
+    label: "Deepseek V4.1 flash",
+    value: "deepseek/deepseek-v4.1-flash",
+    price: "0.15_0.60",
+    isMultimodal: true,
+    maxContext: 1000000,
+  },
+  {
     label: "GPT 6 Luna",
     value: "openai/gpt-6-luna",
     price: "0.10_0.50",
     isMultimodal: true,
     maxContext: 1100000,
-  },
-  {
-    label: "GLM 5.3 Flash",
-    value: "z-ai/glm-5.3-flash",
-    price: "0.075_0.25",
-    isMultimodal: true,
-    maxContext: 1000000,
   },
   {
     label: "Meta Muse Spark 1.3 Contributor",
@@ -36,20 +43,6 @@ export const chatModelOptions = [
     isMultimodal: true,
     maxContext: 1000000,
   },
-  {
-    label: "Deepseek V4.1 flash",
-    value: "deepseek/deepseek-v4.1-flash",
-    price: "0.15_0.60",
-    isMultimodal: true,
-    maxContext: 1000000,
-  },
-  // {
-  //   label: "Tencent Hy4",
-  //   value: "tencent/hy4-preview",
-  //   price: "0.85_2.50",
-  //   isMultimodal: false,
-  //   maxContext: 1000000,
-  // },
   // {
   //   label: "Gemini 3.8 Flash",
   //   value: "google/gemini-3.8-flash",
@@ -419,7 +412,7 @@ export async function requestOpenRouterTranscription({
   model,
   audio,
   filename,
-  onlyProviders
+  onlyProviders,
 }: {
   model: string;
   audio: Blob;
@@ -434,7 +427,7 @@ export async function requestOpenRouterTranscription({
   form.append("model", model);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "segment");
-  form.append("provider", JSON.stringify({only: onlyProviders}))
+  form.append("provider", JSON.stringify({ only: onlyProviders }));
 
   const response = await fetch(
     "https://openrouter.ai/api/v1/audio/transcriptions",

@@ -664,6 +664,14 @@ button,
   z-index: 1001 !important;
 }
 
+/* Nodes « Scale with zoom » (cf. `ZoomCompensated` dans NodeFrame) : ils
+   grossissent par-dessus leurs voisins quand on dézoome, donc toujours au
+   premier plan, comme le titre des frames — mais sous lui (100000).
+   `!important` parce que React Flow écrit le z en style inline. */
+.react-flow__node:has(.zoom-compensated) {
+  z-index: 99999 !important;
+}
+
 /* Calque des titres de frame (cf. `FrameTitleLayer`) : au-dessus de tous les
    nodes, dont les z-index sont des rangs denses 0..n-1 (cf. nodeLayering), et
    toujours sous la toolbar des nodes, qui vit hors du viewport. Transparent au

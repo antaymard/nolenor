@@ -1,5 +1,5 @@
-import { NodeResizer, useStore } from "@xyflow/react";
-import { memo, useCallback, useState } from "react";
+import { NodeResizer, useStore, useUpdateNodeInternals } from "@xyflow/react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { colors } from "@/components/ui/styles";
 import type { XyNodeProps } from "@/types/domain";
@@ -20,6 +20,9 @@ import { zoomCompensationScaleSelector } from "@/lib/zoomCompensation";
  * comme le titre des frames. Elle grandit depuis son centre, autour de la
  * boîte réelle, que les edges continuent de viser.
  *
+ * Passe aussi le node au premier plan (classe `zoom-compensated`, cf.
+ * index.css) : il grossit par-dessus ses voisins, il ne doit pas passer dessous.
+ *
  * Composant à part pour que seuls les nodes qui ont l'option s'abonnent au
  * zoom. Les handles et le resizer restent hors de l'échelle : React Flow les
  * mesure, une mesure sous `scale` fausserait les edges.
@@ -28,10 +31,55 @@ function ZoomCompensated({ children }: { children: React.ReactNode }) {
   const scale = useStore(zoomCompensationScaleSelector);
   return (
     <div
-      className="h-full"
+      className="zoom-compensated h-full"
       style={{ scale: String(scale), transformOrigin: "center" }}
     >
       {children}
+    </div>
+  );
+}
+
+/**
+ * Les handles d'un node `scaleWithZoom`, posés sur les bords de sa boîte
+ * VISIBLE (agrandie autour de son centre) et à la même échelle qu'elle.
+ * Restés sur la boîte réelle, ils tombaient au milieu du texte une fois
+ * dézoomé, et rétrécissaient à deux pixels : impossible de partir de ce node.
+ *
+ * Un `inset` négatif plutôt qu'un `scale` sur le conteneur : un `scale`
+ * créerait un contexte d'empilement, et la boîte, rendue après, passerait
+ * par-dessus les handles visibles. En pourcentages, `top`/`bottom` se lisent
+ * sur la hauteur et `left`/`right` sur la largeur : c'est exactement la
+ * boîte agrandie de `ZoomCompensated`.
+ *
+ * React Flow ne remesure les handles qu'au resize du node, que le zoom ne
+ * déclenche pas : on le lui demande à chaque changement d'échelle, sinon le
+ * départ d'une connexion et la recherche du handle cible liraient des
+ * positions périmées. Les edges, elles, s'accrochent à la boîte réelle (cf.
+ * `CustomEdge`).
+ */
+function ZoomCompensatedHandles({
+  nodeId,
+  showSourceHandles,
+}: {
+  nodeId: string;
+  showSourceHandles: boolean;
+}) {
+  const scale = useStore(zoomCompensationScaleSelector);
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => {
+    updateNodeInternals(nodeId);
+  }, [scale, nodeId, updateNodeInternals]);
+
+  return (
+    <div
+      className="pointer-events-none absolute"
+      style={{ inset: `${((1 - scale) / 2) * 100}%` }}
+    >
+      <NodeHandles
+        showSourceHandles={showSourceHandles}
+        nodeId={nodeId}
+        scale={scale}
+      />
     </div>
   );
 }
@@ -206,7 +254,14 @@ function NodeFrame({
 
   return (
     <>
-      <NodeHandles showSourceHandles={xyNode?.selected} nodeId={xyNode.id} />
+      {scaleWithZoom ? (
+        <ZoomCompensatedHandles
+          showSourceHandles={!!xyNode.selected}
+          nodeId={xyNode.id}
+        />
+      ) : (
+        <NodeHandles showSourceHandles={xyNode?.selected} nodeId={xyNode.id} />
+      )}
       <NodeResizer
         isVisible={resizable && xyNode?.selected}
         minWidth={minWidth}

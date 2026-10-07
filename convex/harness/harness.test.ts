@@ -2661,6 +2661,63 @@ describe("suppression et accès", () => {
 });
 
 describe("rétention", () => {
+  /** Les parts de tool du transcript, dans l'ordre. */
+  async function toolParts(t: T, threadId: string) {
+    return (await transcript(t, threadId)).flatMap((doc) =>
+      Array.isArray(doc.message?.content)
+        ? (doc.message.content as { type: string }[]).filter(
+            (part) => part.type === "tool-call" || part.type === "tool-result",
+          )
+        : [],
+    );
+  }
+
+  const bigText = "x".repeat(5000);
+
+  test("une tâche purgée : son contenu de tool est allégé, le reste du message gardé", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: bigText })], [text("All done")]]);
+    await send(t, seed, "Read a lot");
+    await drain(t);
+
+    vi.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
+    await t.mutation(internal.harness.retention.purgeExpired, {});
+    await drain(t);
+
+    const [callPart, resultPart] = await toolParts(t, seed.threadId);
+    expect(callPart).toMatchObject({
+      toolName: "echo",
+      input: { explanation: "Running echo", _removed: expect.any(String) },
+    });
+    expect(JSON.stringify(resultPart)).not.toContain(bigText);
+    const docs = await transcript(t, seed.threadId);
+    expect(docs[docs.length - 1]?.text).toBe("All done");
+  });
+
+  test("rattrapage : les vieux messages de tool de chaque thread", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: bigText })], [text("All done")]]);
+    await send(t, seed, "Read a lot");
+    await drain(t);
+    // Des tâches déjà purgées (ou jamais créées, avant la harness).
+    await t.run(async (ctx) => {
+      for (const task of await ctx.db.query("agentTasks").collect()) {
+        await ctx.db.delete("agentTasks", task._id);
+      }
+    });
+
+    vi.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
+    await t.mutation(internal.migrations.trimOldToolMessages, {});
+    await drain(t);
+
+    const parts = await toolParts(t, seed.threadId);
+    expect(parts).toHaveLength(2);
+    expect(JSON.stringify(parts)).not.toContain(bigText);
+  });
+
+
   test("purge les données d'exécution expirées, garde le run en cours et l'historique", async () => {
     const t = setup();
     const seed = await seedThread(t);

@@ -568,3 +568,41 @@ export const purgeOldWorkerTranscripts = internalMutation({
     return { done: slice.isDone, scheduled };
   },
 });
+
+// ── Contenu de tool des vieux messages ──────────────────────────────────────
+// Depuis harness/retention.ts, les messages perdent leur contenu de tool
+// quand leurs tâches expirent (30 jours). Celui-ci rattrape les messages plus
+// anciens, ceux d'avant la harness compris : un `trimThreadMessages` planifié
+// par thread, qui avance page par page.
+//
+// Lancer avec : `npx convex run migrations:trimOldToolMessages '{}'`.
+// Idempotent : un message déjà allégé n'est pas réécrit.
+
+export const trimOldToolMessages = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ done: v.boolean(), scheduled: v.number() }),
+  // Annotation explicite : la mutation se re-schedule elle-même via `internal`
+  // (même fichier), sans quoi l'inférence TS boucle (cf. guidelines).
+  handler: async (ctx, args): Promise<{ done: boolean; scheduled: number }> => {
+    const slice = await ctx.db
+      .query("threadMetadata")
+      .paginate({ numItems: 100, cursor: args.cursor ?? null });
+    for (const row of slice.page) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.harness.retention.trimThreadMessages,
+        { threadId: row.threadId },
+      );
+    }
+    console.log("[migrations] trimOldToolMessages:page", {
+      scheduled: slice.page.length,
+      isDone: slice.isDone,
+    });
+    if (!slice.isDone) {
+      await ctx.scheduler.runAfter(0, internal.migrations.trimOldToolMessages, {
+        cursor: slice.continueCursor,
+      });
+    }
+    return { done: slice.isDone, scheduled: slice.page.length };
+  },
+});

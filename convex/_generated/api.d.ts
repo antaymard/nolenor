@@ -39,6 +39,7 @@ import type * as harness_generation from "../harness/generation.js";
 import type * as harness_ingress from "../harness/ingress.js";
 import type * as harness_kernelTools from "../harness/kernelTools.js";
 import type * as harness_live from "../harness/live.js";
+import type * as harness_messageTrim from "../harness/messageTrim.js";
 import type * as harness_profiles from "../harness/profiles.js";
 import type * as harness_purge from "../harness/purge.js";
 import type * as harness_retention from "../harness/retention.js";
@@ -287,6 +288,7 @@ declare const fullApi: ApiFromModules<{
   "harness/ingress": typeof harness_ingress;
   "harness/kernelTools": typeof harness_kernelTools;
   "harness/live": typeof harness_live;
+  "harness/messageTrim": typeof harness_messageTrim;
   "harness/profiles": typeof harness_profiles;
   "harness/purge": typeof harness_purge;
   "harness/retention": typeof harness_retention;

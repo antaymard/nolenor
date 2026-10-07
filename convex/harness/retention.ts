@@ -3,6 +3,7 @@ import { components, internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
+import { trimToolContent } from "./messageTrim";
 import { dispatchStatuses } from "../schemas/dispatchesSchema";
 import { submissionStatuses } from "../schemas/submissionsSchema";
 
@@ -14,6 +15,9 @@ import { submissionStatuses } from "../schemas/submissionsSchema";
  *   thread (une question peut attendre longtemps). La ligne `runs` reste :
  *   c'est l'historique des tâches ;
  * - `submissions` placées ou retirées, `dispatches` aiguillées : 7 jours.
+ *
+ * Les messages des tâches purgées perdent au passage leur contenu de tool
+ * (cf. messageTrim.ts) : c'est l'essentiel de la table `messages`.
  *
  * Un passage par table, par pages, sur la plage expirée (index de création) :
  * ce qu'on garde ne bloque pas la suite.
@@ -27,6 +31,8 @@ const QUEUE_RETENTION_MS = 7 * DAY_MS;
 /** Le temps de déboguer un sous-agent ; ensuite, seul son rapport compte. */
 export const WORKER_TRANSCRIPT_RETENTION_MS = 7 * DAY_MS;
 const PAGE_SIZE = 200;
+/** Messages relus et réécrits par transaction : ils peuvent peser lourd. */
+const TRIM_BATCH = 10;
 
 const phases = [
   "agentTasks",
@@ -85,6 +91,9 @@ export const purgeExpired = internalMutation({
     const isLiveRun = liveRunChecker(ctx);
 
     let deleted = 0;
+    // Les messages des tâches purgées : leur contenu de tool est allégé,
+    // en tâche à part (les messages sont lourds).
+    const toTrim: string[] = [];
     for (const doc of slice.page) {
       const expired =
         phase === "agentTasks"
@@ -101,8 +110,18 @@ export const purgeExpired = internalMutation({
               ? (doc as Doc<"submissions">).status !== submissionStatuses.queued
               : (doc as Doc<"dispatches">).status !== dispatchStatuses.routing;
       if (!expired) continue;
+      if (phase === "agentTasks") {
+        const task = doc as Doc<"agentTasks">;
+        const messageId = task.resultMessageId ?? task.responseMessageId;
+        if (messageId) toTrim.push(messageId);
+      }
       await ctx.db.delete(doc._id);
       deleted += 1;
+    }
+    for (let i = 0; i < toTrim.length; i += TRIM_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.harness.retention.trimMessages, {
+        messageIds: toTrim.slice(i, i + TRIM_BATCH),
+      });
     }
     if (deleted > 0) {
       console.log("[retention] purged", { phase, deleted });
@@ -137,6 +156,65 @@ export const purgeWorkerTranscript = internalMutation({
     await ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {
       threadId,
     });
+    return null;
+  },
+});
+
+/** Allège le contenu de tool de ces messages (cf. messageTrim.ts). */
+export const trimMessages = internalMutation({
+  args: { messageIds: v.array(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, { messageIds }) => {
+    const docs = await ctx.runQuery(
+      components.agent.messages.getMessagesByIds,
+      { messageIds },
+    );
+    for (const doc of docs) {
+      const message = doc?.message && trimToolContent(doc.message);
+      if (!doc || !message) continue;
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: doc._id,
+        patch: { message },
+      });
+    }
+    return null;
+  },
+});
+
+/**
+ * Le rattrapage d'un thread (cf. migrations.trimOldToolMessages) : ses
+ * messages de tool de plus de 30 jours, du plus ancien, une page par
+ * transaction. S'arrête au premier message plus récent.
+ */
+export const trimThreadMessages = internalMutation({
+  args: { threadId: v.string(), cursor: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const cutoff = Date.now() - RUN_DATA_RETENTION_MS;
+    const page = await ctx.runQuery(
+      components.agent.messages.listMessagesByThreadId,
+      {
+        threadId: args.threadId,
+        order: "asc",
+        paginationOpts: { cursor: args.cursor ?? null, numItems: TRIM_BATCH },
+      },
+    );
+    for (const doc of page.page) {
+      if (doc._creationTime >= cutoff) return null;
+      const message = doc.tool && doc.message && trimToolContent(doc.message);
+      if (!message) continue;
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: doc._id,
+        patch: { message },
+      });
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.harness.retention.trimThreadMessages,
+        { threadId: args.threadId, cursor: page.continueCursor },
+      );
+    }
     return null;
   },
 });

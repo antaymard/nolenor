@@ -4,14 +4,12 @@ import type { OpenedWindow } from "@/stores/windowsStore";
 import WindowContentErrorBoundary from "./WindowContentErrorBoundary";
 import WindowLoadingState from "./WindowLoadingState";
 import { isPendingDocId } from "@/lib/pendingDocIds";
-import { ENABLE_BLOCKNOTE_SYNC } from "@/lib/featureFlags";
 
 // Window bodies are lazy-loaded: they pull heavy dependencies (BlockNote
 // editor, pdfjs, tanstack-table…) that shouldn't weigh down the canvas chunk.
 // Ce module est le *seul* point d'import de ces bodies : desktop et mobile
 // partagent donc les mêmes chunks.
 const BlocknoteWindow = lazy(() => import("./prebuilt/BlocknoteWindow"));
-const BlocknoteSyncWindow = lazy(() => import("./prebuilt/BlocknoteSyncWindow"));
 const LinkWindow = lazy(() => import("./prebuilt/LinkWindow"));
 const ImageWindow = lazy(() => import("./prebuilt/ImageWindow"));
 const PdfWindow = lazy(() => import("./prebuilt/PdfWindow"));
@@ -63,11 +61,7 @@ function NodeWindowBody({
 
   switch (nodeType) {
     case "blocknote":
-      return ENABLE_BLOCKNOTE_SYNC ? (
-        <BlocknoteSyncWindow nodeDataId={nodeDataId} />
-      ) : (
-        <BlocknoteWindow nodeDataId={nodeDataId} />
-      );
+      return <BlocknoteWindow nodeDataId={nodeDataId} />;
     case "link":
       return <LinkWindow nodeDataId={nodeDataId} />;
     case "app":

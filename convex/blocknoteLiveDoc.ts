@@ -28,7 +28,7 @@ import {
   prosemirrorSync,
 } from "./blocknoteSync";
 
-// Le côté serveur du doc vivant d'un blocknote synchronisé (SPIKE, cf.
+// Le côté serveur du doc vivant d'un blocknote synchronisé (cf.
 // blocknoteSync.ts) : tout ce qui convertit entre doc ProseMirror et blocs,
 // dans le runtime V8.
 //

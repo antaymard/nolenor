@@ -30,7 +30,7 @@ const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
 
 /**
  * Forme canonique du document, pour ne ré-hydrater que sur un vrai changement.
- * Même rôle que le `docSignature` de `BlocknoteWindow`.
+ * Même rôle que le `docSignature` de `BlockNoteFieldEditor`.
  */
 function blocksSignature(blocks: BlockNoteBlock[]): string {
   return JSON.stringify(blocks);
@@ -46,7 +46,7 @@ function BlockNoteReadOnlyViewImpl({
   className,
 }: BlockNoteReadOnlyViewProps) {
   const theme = useResolvedTheme();
-  // Créé une fois avec le contenu initial, comme dans `BlocknoteWindow` : le
+  // Créé une fois avec le contenu initial, comme dans `BlockNoteFieldEditor` : le
   // premier paint est déjà le bon. `createSafeBlockNoteEditor` encaisse un
   // document stocké que le schéma ProseMirror refuse et rend un éditeur vide
   // plutôt que de lever — ici rien n'est jamais réécrit, donc pas de bandeau

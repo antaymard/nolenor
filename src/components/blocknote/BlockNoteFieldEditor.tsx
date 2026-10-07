@@ -33,13 +33,12 @@ import { useResolvedTheme } from "@/lib/theme";
 
 // Éditeur BlockNote au niveau CHAMP, sans couplage à un nodeData.
 //
-// BlocknoteWindow (le node blocknote prébuilt) est câblé en dur sur
-// `nodeDataId` + `values.doc` et sauvegarde lui-même : inutilisable pour un
-// champ de custom node, qui reçoit sa value en prop et délègue la sauvegarde
-// au flux dirty/save de la window. Le protocole d'hydratation Last-Write-Wins
-// est en revanche identique et reproduit fidèlement ici : c'est lui qui évite
-// de re-hydrater (et donc de perdre le curseur) quand le serveur ne fait que
-// renvoyer en écho ce qu'on vient d'écrire.
+// BlocknoteWindow (le node blocknote prébuilt) édite le doc collaboratif du
+// nodeData (cf. convex/blocknoteSync.ts) : inutilisable pour un champ de
+// custom node, qui reçoit sa value en prop et délègue la sauvegarde au flux
+// dirty/save de la window. Ici, protocole d'hydratation Last-Write-Wins : il
+// évite de re-hydrater (et donc de perdre le curseur) quand le serveur ne fait
+// que renvoyer en écho ce qu'on vient d'écrire.
 
 const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
 
@@ -228,7 +227,7 @@ function BlockNoteFieldEditor({
         >
           {/* No `portalElement` override: it would bypass `editor.portalElement`
               and break the drag handle's hover tracking — see the long
-              version in BlocknoteWindow.tsx next to the same controller. */}
+              version in AppEditorMenus.tsx next to the same controller. */}
           <SideMenuController sideMenu={SideMenuWithoutAddButton} />
           <SuggestionMenuController
             triggerCharacter="/"
@@ -247,7 +246,7 @@ function BlockNoteFieldEditor({
             }
           />
           {/* Mentions `@` vers les nodes du canvas, comme dans
-              BlocknoteWindow (cf. le commentaire du même contrôleur là-bas
+              AppEditorMenus (cf. le commentaire du même contrôleur là-bas
               pour le générique explicite et `NodeMentionMenu`). */}
           <SuggestionMenuController<
             (query: string) => Promise<NodeMentionItem[]>

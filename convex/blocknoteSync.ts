@@ -12,7 +12,7 @@ import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import errors from "./config/errorsConfig";
 import { Debouncer } from "./lib/debouncer";
 
-// Édition collaborative des nodes blocknote (SPIKE).
+// Édition collaborative des nodes blocknote.
 //
 // Le doc vivant est un doc ProseMirror du composant `prosemirror-sync`, dont
 // l'id est celui du nodeData. Les éditeurs ouverts s'échangent des steps (OT),

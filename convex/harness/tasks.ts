@@ -188,6 +188,11 @@ async function endRun(
     errorMessage,
   });
   await RunModels.endRun(ctx, current.run.startMessageId, status, errorMessage);
+  await getProfile(current.run.profile).runEnded?.(ctx, {
+    threadId: current.row.threadId,
+    runMessageId: current.run.startMessageId,
+    status,
+  });
   await ctx.db.patch("threadMetadata", current.row._id, { run: undefined });
   // Run d'un sous-agent : son résultat revient au parent.
   if (current.run.parent) {
@@ -485,6 +490,7 @@ export async function startRun(
     canvasId: args.canvasId,
     userId: args.userId,
     agentName: args.profile.agentName,
+    profile: args.profile.name,
     request: args.request ?? "",
   });
 

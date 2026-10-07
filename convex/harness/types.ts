@@ -97,6 +97,14 @@ export interface Profile {
    * direct).
    */
   threadCreated?(ctx: MutationCtx, threadId: string): Promise<void>;
+  /**
+   * Un run vient de finir (dans la transaction qui le clôt) : de quoi en
+   * qualifier l'issue en fond, ex. juger si sa réponse compte.
+   */
+  runEnded?(
+    ctx: MutationCtx,
+    run: { threadId: string; runMessageId: string; status: string },
+  ): Promise<void>;
 }
 
 /** Un thread vers lequel une demande pourrait partir. */

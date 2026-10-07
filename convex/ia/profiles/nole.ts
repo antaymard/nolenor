@@ -11,6 +11,7 @@ import { generateNoleSystemPrompt } from "../systemPrompts/noleSystemPrompt";
 import { getToolsForAgent } from "../tools";
 import { createUsageHandler } from "../usage";
 import { jevRouter } from "../router/jevRouter";
+import { scheduleAnswerJudgment } from "../taskOutcome";
 import {
   canvasCompaction,
   canvasStepContext,
@@ -135,6 +136,12 @@ export const noleProfile: Profile = {
   subagents: { profile: "worker" },
   askUser: true,
   router: jevRouter,
+  // Une tâche finie : sa réponse compte-t-elle ? (cf. ia/taskOutcome.ts)
+  async runEnded(ctx, run) {
+    if (run.status === "idle") {
+      await scheduleAnswerJudgment(ctx, run.runMessageId);
+    }
+  },
   async threadCreated(ctx, threadId) {
     await ctx.scheduler.runAfter(0, internal.threads.generateThreadTitle, {
       threadId,

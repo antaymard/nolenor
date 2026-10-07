@@ -3,7 +3,7 @@
 // changement de modèle (phase 3a), deltas `<system_update>` (phase 3b),
 // tools différés et halo des nodes écrits (phase 3c), compaction (phase 4),
 // sous-agents (phase 5a), questions à l'utilisateur (phase 5b), aiguillage
-// threadless (phase 7a), tâches = runs (phase 7c).
+// threadless (phase 7a), tâches = runs (phase 7c), issue des tâches.
 //
 // Un profil de test remplace Nolë : modèle factice (mockModel du composant)
 // et trois tools jouets — `echo` (lecture, replay safe), `boom` (lève) et
@@ -2189,5 +2189,168 @@ describe("phase 7c — une tâche = un run", () => {
       status: "aborted",
     });
     expect((await runRows(t, seed.threadId))[0].endedAt).toBeDefined();
+  });
+});
+
+describe("issue des tâches : signaux et jugement de la réponse", () => {
+  async function seedNole(t: T) {
+    const seed = await seedThread(t);
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("threadMetadata")
+        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
+        .unique();
+      await ctx.db.patch("threadMetadata", row!._id, { agentName: "Nolë" });
+    });
+    return seed;
+  }
+
+  async function startAsNole(
+    t: T,
+    seed: Awaited<ReturnType<typeof seedThread>>,
+    prompt: string,
+  ) {
+    const result = await t.run((ctx) =>
+      submitToThread(ctx, {
+        threadId: seed.threadId,
+        userId: seed.userId,
+        canvasId: seed.canvasId,
+        profile: { name: "test", agentName: "Nolë", maxGenerationsPerRun: 25 },
+        prompt,
+        content: prompt,
+        input: { userPrompt: prompt },
+      }),
+    );
+    if (!("messageId" in result)) throw new Error("expected a run start");
+    return result.messageId;
+  }
+
+  function stubJev(noul: number | Error) {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      if (noul instanceof Error) throw noul;
+      return new Response(
+        JSON.stringify({
+          model: "typesafe/jev-1.13",
+          answers: { meaningful: { type: "noul", noul } },
+          usage: { input_tokens: 300, output_tokens: 10 },
+        }),
+        { status: 200 },
+      );
+    });
+    return bodies;
+  }
+
+  async function judge(t: T, runMessageId: string) {
+    await t.action(internal.ia.taskOutcome.judgeAnswer, { runMessageId });
+    return t.run(async (ctx) =>
+      ctx.db
+        .query("runs")
+        .withIndex("by_runMessageId", (q) => q.eq("runMessageId", runMessageId))
+        .unique(),
+    );
+  }
+
+  test("Jev juge la réponse : elle compte, ou n'est qu'un compte rendu", async () => {
+    const t = setup();
+    const seed = await seedNole(t);
+    setModel([[text("The key point is X, and here is why.")], [text("Done.")]]);
+    const first = await startAsNole(t, seed, "What is the key point?");
+    await drain(t);
+    const second = await startAsNole(t, seed, "Tidy the canvas");
+    await drain(t);
+
+    try {
+      const bodies = stubJev(0.86);
+      expect(await judge(t, first)).toMatchObject({
+        answer: true,
+        answerScore: 0.86,
+        answerText: "The key point is X, and here is why.",
+      });
+      expect(bodies[0]).toMatchObject({
+        model: "typesafe/jev-1.13",
+        state: { request: "What is the key point?" },
+        questions: { meaningful: { type: "noul" } },
+      });
+
+      stubJev(0.1);
+      expect(await judge(t, second)).toMatchObject({ answer: false });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("Jev en panne : repli prudent, la réponse compte s'il n'y a rien sur le canvas", async () => {
+    const t = setup();
+    const seed = await seedNole(t);
+    setModel([[text("Short answer")]]);
+    const runMessageId = await startAsNole(t, seed, "Question?");
+    await drain(t);
+    try {
+      stubJev(new Error("network down"));
+      expect(await judge(t, runMessageId)).toMatchObject({ answer: true });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("signaux : échec et travail en fond se lisent sur la tâche", async () => {
+    const t = setup();
+    const seed = await seedNole(t);
+    setResponder((prompt) =>
+      prompt.includes("WORKER SYSTEM PROMPT")
+        ? prompt.includes("echo:")
+          ? [text("Child report")]
+          : [call("echo", { text: "w" })]
+        : prompt.includes("subagent_result")
+          ? [text("Here is what it found")]
+          : prompt.includes("Started in the background")
+            ? [text("Working on it in the background")]
+            : [call("run_subAgent", { instructions: "Dig", background: true })],
+    );
+    await startAsNole(t, seed, "Research this in the background");
+    await runOneLayer(t); // le parent lance le sous-agent, qui démarre
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const task = (
+      await asUser.query(api.runs.listPendingRuns, { canvasId: seed.canvasId })
+    ).find((each) => each.request === "Research this in the background");
+    expect(task?.outcome).toMatchObject({
+      pending: 1,
+      failed: false,
+      needsUser: false,
+      canvas: false,
+    });
+    await drain(t);
+    const tasks = await asUser.query(api.runs.listPendingRuns, {
+      canvasId: seed.canvasId,
+    });
+    expect(tasks.every((each) => each.outcome.pending === 0)).toBe(true);
+  });
+
+  test("« Retry » : la demande d'une tâche en échec repart dans son thread", async () => {
+    const t = setup();
+    const seed = await seedNole(t);
+    setModel([[text("Recovered")]], { 0: "This model's request was invalid" });
+    await startAsNole(t, seed, "Do the thing");
+    await drain(t);
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const [failed] = await asUser.query(api.runs.listPendingRuns, {
+      canvasId: seed.canvasId,
+    });
+    expect(failed.outcome.failed).toBe(true);
+    expect(await asUser.mutation(api.runs.retryRun, { runId: failed.runId })).toEqual({
+      retried: true,
+    });
+    await drain(t);
+
+    const tasks = await asUser.query(api.runs.listPendingRuns, {
+      canvasId: seed.canvasId,
+    });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({ request: "Do the thing", runStatus: "idle" });
+    expect(promptText(1)).toContain("Do the thing");
   });
 });

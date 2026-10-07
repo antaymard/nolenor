@@ -1,6 +1,6 @@
-import { internal } from "../../_generated/api";
 import type { DispatchCandidate, Router } from "../../harness/types";
 import { aiUsageSources } from "../../schemas/aiUsageSourceSchema";
+import { askJev } from "../jev";
 
 /**
  * L'aiguillage des demandes de l'omnibar par Jev (TypeSafe), via l'API
@@ -12,13 +12,9 @@ import { aiUsageSources } from "../../schemas/aiUsageSourceSchema";
  * porte le détail : demandes récentes, question en attente, nodes touchés,
  * résumé. Un `T…` qui ne correspond à rien vaut `new`.
  *
- * Ce n'est pas du chat completions : appel HTTP direct, et usage compté à la
- * main (source `router`).
+ * Usage compté sous la source `router` (cf. ia/jev.ts).
  */
 
-const DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions";
-export const JEV_MODEL = "typesafe/jev-1.13";
-const TIMEOUT_MS = 8000;
 const NEW_THREAD = "new";
 
 const INSTRUCTIONS =
@@ -36,21 +32,12 @@ function optionLabel(candidate: DispatchCandidate): string {
   return `${subject} (${STATUS_LABEL[candidate.status]})`;
 }
 
-type DecisionsResponse = {
-  model?: string;
-  answers?: Record<
-    string,
-    { type?: string; choice?: string; confidence?: number } | undefined
-  >;
-  usage?: { cost?: number; input_tokens?: number; output_tokens?: number };
-};
-
 export const jevRouter: Router = {
   async route(ctx, request, candidates) {
     const keys = candidates.map((_, index) => `T${index + 1}`);
-    const body = {
-      model: JEV_MODEL,
-      user: request.userId,
+    const answers = await askJev(ctx, {
+      userId: request.userId,
+      source: aiUsageSources.router,
       state: {
         request: request.prompt,
         mentioned_node_ids: request.nodeIds,
@@ -82,26 +69,9 @@ export const jevRouter: Router = {
           },
         },
       },
-    };
-
-    const response = await fetch(DECISIONS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!response.ok) {
-      throw new Error(
-        `Jev ${response.status}: ${(await response.text()).slice(0, 300)}`,
-      );
-    }
-    const data = (await response.json()) as DecisionsResponse;
-    await recordUsage(ctx, request.userId, data);
 
-    const answer = data.answers?.thread;
+    const answer = answers.thread;
     const index = answer?.choice ? keys.indexOf(answer.choice) : -1;
     return {
       threadId: index >= 0 ? candidates[index].threadId : null,
@@ -111,34 +81,3 @@ export const jevRouter: Router = {
     };
   },
 };
-
-/** Ne fait jamais échouer l'aiguillage : la comptabilité se logue, c'est tout. */
-async function recordUsage(
-  ctx: Parameters<Router["route"]>[0],
-  userId: string,
-  data: DecisionsResponse,
-) {
-  try {
-    const inputTokens = data.usage?.input_tokens ?? 0;
-    const outputTokens = data.usage?.output_tokens ?? 0;
-    await ctx.runMutation(internal.wrappers.aiUsageWrappers.recordUsage, {
-      source: aiUsageSources.router,
-      userId,
-      model: data.model ?? JEV_MODEL,
-      provider: "openrouter",
-      ...(typeof data.usage?.cost === "number" ? { costUsd: data.usage.cost } : {}),
-      tokens: {
-        inputTokens,
-        cachedInputTokens: 0,
-        cacheWriteTokens: 0,
-        outputTokens,
-        reasoningTokens: 0,
-        totalTokens: inputTokens + outputTokens,
-      },
-    });
-  } catch (error) {
-    console.error("[router] failed to record usage", {
-      detail: error instanceof Error ? error.message : String(error),
-    });
-  }
-}

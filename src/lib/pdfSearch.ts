@@ -1,4 +1,8 @@
-import { findSearchMatches } from "@/lib/searchMatch";
+import {
+  findPreparedMatches,
+  prepareSearchText,
+  type PreparedSearchText,
+} from "@/lib/searchMatch";
 import type { SearchResult } from "@/components/windows/side-panel/SearchResultsList";
 
 export type PdfSearchHit = SearchResult & { pageIndex: number };
@@ -9,6 +13,27 @@ type PdfPageText = { order: number; page?: number; text: string };
 export const PDF_SEARCH_LIMIT = 200;
 const PDF_MATCHES_PER_PAGE = 10;
 
+type PdfSearchIndex = { pageIndex: number; prepared: PreparedSearchText }[];
+
+/**
+ * Index par tableau de pages : `useQuery` garde la même référence tant que
+ * les données ne changent pas, donc l'index survit aux frappes et au
+ * remontage des résultats, et part avec le tableau.
+ */
+const indexCache = new WeakMap<readonly PdfPageText[], PdfSearchIndex>();
+
+function getPdfSearchIndex(pages: readonly PdfPageText[]): PdfSearchIndex {
+  let index = indexCache.get(pages);
+  if (!index) {
+    index = pages.map((page) => ({
+      pageIndex: typeof page.page === "number" ? page.page - 1 : page.order,
+      prepared: prepareSearchText(markdownToPlainText(page.text)),
+    }));
+    indexCache.set(pages, index);
+  }
+  return index;
+}
+
 /**
  * Occurrences de `query` dans le texte indexé des pages (le markdown produit
  * à l'indexation, cf. `searchableChunks.listPdfPages`), page par page.
@@ -18,12 +43,9 @@ export function searchPdfPages(
   query: string,
 ): PdfSearchHit[] {
   const hits: PdfSearchHit[] = [];
-  for (const page of pages) {
-    const pageIndex =
-      typeof page.page === "number" ? page.page - 1 : page.order;
-    const text = markdownToPlainText(page.text);
-    const matches = findSearchMatches(
-      text,
+  for (const { pageIndex, prepared } of getPdfSearchIndex(pages)) {
+    const matches = findPreparedMatches(
+      prepared,
       query,
       Math.min(PDF_MATCHES_PER_PAGE, PDF_SEARCH_LIMIT - hits.length),
     );
@@ -31,7 +53,7 @@ export function searchPdfPages(
       hits.push({
         key: `${pageIndex}:${match.start}`,
         pageIndex,
-        text,
+        text: prepared.text,
         ...match,
         label: `p. ${pageIndex + 1}`,
       });

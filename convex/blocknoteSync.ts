@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { ProsemirrorSync } from "@convex-dev/prosemirror-sync";
-import { components } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import {
   internalQuery,
   mutation,
@@ -10,7 +10,7 @@ import {
 import type { DataModel, Id } from "./_generated/dataModel";
 import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
 import errors from "./config/errorsConfig";
-import * as NodeDataModel from "./models/nodeDataModels";
+import { Debouncer } from "./lib/debouncer";
 import { parseStoredBlockNoteDocument } from "./lib/blockNoteDocument";
 
 // Édition collaborative des nodes blocknote (SPIKE).
@@ -20,10 +20,12 @@ import { parseStoredBlockNoteDocument } from "./lib/blockNoteDocument";
 // le composant tient snapshots et historique.
 //
 // `values.doc` reste la forme lue par TOUT le reste de l'app (vue canvas,
-// recherche, versions, export, tools de l'agent). Il en devient une copie :
-//   - éditeur → `values.doc` : un éditeur dont tous les steps sont confirmés
-//     publie ses blocs (`publishDoc`), seulement s'il est à la dernière
-//     version — un autre éditeur plus à jour publiera à son tour ;
+// recherche, versions, export, tools de l'agent). Il en devient une copie,
+// tenue à jour par le serveur seul :
+//   - éditeurs → `values.doc` : chaque lot de steps accepté planifie une
+//     recopie regroupée (`blocknoteMaterialize.ts`), qui reconstruit le doc
+//     à sa dernière version et l'écrit. Un éditeur fermé juste après sa
+//     dernière frappe est donc couvert, snapshot envoyé ou non ;
 //   - autre écriture → doc vivant : toute écriture du `doc` hors de ce chemin
 //     (agent, restore, MCP) est poussée dans le doc vivant par
 //     `blocknoteSyncNode.pushDocToSync` (cf. NodeDataModel.updateValues).
@@ -33,6 +35,18 @@ import { parseStoredBlockNoteDocument } from "./lib/blockNoteDocument";
 
 export const prosemirrorSync = new ProsemirrorSync<Id<"nodeDatas">>(
   components.prosemirrorSync,
+);
+
+/**
+ * Regroupe les recopies d'un même node : 5 s après la dernière frappe, et au
+ * plus 30 s après la première, pour qu'une frappe continue finisse quand
+ * même par apparaître dans le canvas, la recherche et les tools de l'agent.
+ * Chaque recopie réindexe le node et peut créer un point de restauration.
+ */
+const materializeDebouncer = new Debouncer(
+  components.debouncer,
+  internal.blocknoteMaterialize.materializeLatest,
+  { delay: 5_000, maxWait: 30_000 },
 );
 
 async function requireBlocknoteAccess(
@@ -54,13 +68,8 @@ async function requireBlocknoteAccess(
   return { nodeData, userId };
 }
 
-export const {
-  getSnapshot,
-  submitSnapshot,
-  latestVersion,
-  getSteps,
-  submitSteps,
-} = prosemirrorSync.syncApi<DataModel>({
+export const { getSnapshot, submitSnapshot, latestVersion, getSteps } =
+  prosemirrorSync.syncApi<DataModel>({
   checkRead: async (ctx, id) => {
     await requireBlocknoteAccess(ctx, id, "viewer");
   },
@@ -70,34 +79,42 @@ export const {
 });
 
 /**
- * Publie dans `values.doc` les blocs d'un éditeur synchronisé.
- *
- * L'appelant garantit n'avoir aucun step local non confirmé : ses blocs sont
- * alors exactement le doc à `version`. Ignoré (false) si le doc vivant a
- * avancé depuis — un éditeur plus à jour publiera.
+ * Le `submitSteps` du composant, plus la recopie regroupée dans `values.doc`
+ * quand les steps sont acceptés. Même nom et même contrat que celui de
+ * `syncApi`, que le hook client appelle par `api.blocknoteSync.submitSteps`.
  */
-export const publishDoc = mutation({
+export const submitSteps = mutation({
   args: {
-    nodeDataId: v.id("nodeDatas"),
+    id: v.string(),
     version: v.number(),
-    doc: v.array(v.any()),
+    clientId: v.union(v.string(), v.number()),
+    steps: v.array(v.string()),
   },
-  returns: v.boolean(),
-  handler: async (ctx, { nodeDataId, version, doc }) => {
-    const { userId } = await requireBlocknoteAccess(ctx, nodeDataId, "editor");
-
-    const latest = await ctx.runQuery(
-      components.prosemirrorSync.lib.latestVersion,
-      { id: nodeDataId },
+  returns: v.union(
+    v.object({
+      status: v.literal("needs-rebase"),
+      clientIds: v.array(v.union(v.string(), v.number())),
+      steps: v.array(v.string()),
+    }),
+    v.object({ status: v.literal("synced") }),
+  ),
+  handler: async (ctx, args) => {
+    const { nodeData, userId } = await requireBlocknoteAccess(
+      ctx,
+      args.id,
+      "editor",
     );
-    if (latest !== version) return false;
-
-    return NodeDataModel.updateValues(ctx, {
-      _id: nodeDataId,
-      values: { doc },
-      actor: { type: "user", userId: userId as Id<"users"> },
-      fromSync: true,
-    });
+    const result = await ctx.runMutation(
+      components.prosemirrorSync.lib.submitSteps,
+      args,
+    );
+    if (result.status === "synced") {
+      await materializeDebouncer.schedule(ctx, nodeData._id, {
+        nodeDataId: nodeData._id,
+        userId: userId as Id<"users">,
+      });
+    }
+    return result;
   },
 });
 

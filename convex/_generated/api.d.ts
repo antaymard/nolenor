@@ -15,6 +15,7 @@ import type * as adminNotifications from "../adminNotifications.js";
 import type * as aiUsage from "../aiUsage.js";
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
+import type * as blocknoteMaterialize from "../blocknoteMaterialize.js";
 import type * as blocknoteSync from "../blocknoteSync.js";
 import type * as blocknoteSyncNode from "../blocknoteSyncNode.js";
 import type * as canvasBookmarks from "../canvasBookmarks.js";
@@ -265,6 +266,7 @@ declare const fullApi: ApiFromModules<{
   aiUsage: typeof aiUsage;
   apiTokens: typeof apiTokens;
   auth: typeof auth;
+  blocknoteMaterialize: typeof blocknoteMaterialize;
   blocknoteSync: typeof blocknoteSync;
   blocknoteSyncNode: typeof blocknoteSyncNode;
   canvasBookmarks: typeof canvasBookmarks;

@@ -7,6 +7,7 @@ import {
   CalloutLayout,
   emojiFontStyle,
 } from "./callout-components";
+import { calloutBlockConfig } from "@/../convex/lib/blockNoteCustomSchema";
 
 /**
  * Static (read-only) rendering of a callout: rounded colored box with a plain
@@ -60,14 +61,7 @@ export function CalloutView({
  * reuses `CalloutView` so both surfaces stay identical.
  */
 export const createCalloutBlockSpec = createReactBlockSpec(
-  {
-    type: "callout",
-    propSchema: {
-      color: { default: CALLOUT_DEFAULT_COLOR },
-      icon: { default: CALLOUT_DEFAULT_ICON },
-    },
-    content: "inline",
-  },
+  calloutBlockConfig,
   {
     render: (props) => (
       <CalloutLayout

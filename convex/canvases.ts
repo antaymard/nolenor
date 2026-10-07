@@ -1,6 +1,11 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { optionalAuth, requireAuth, requireCanvasAccess } from "./lib/auth";
+import {
+  getCanvasAccess,
+  optionalAuth,
+  requireAuth,
+  requireCanvasAccess,
+} from "./lib/auth";
 import * as CanvasModels from "./models/canvasModels";
 import {
   canvasBackgroundValidator,
@@ -58,7 +63,14 @@ export const readCanvas = query({
 
     const canvas = await CanvasModels.readCanvasById(ctx, { canvasId });
 
-    return { ...canvas, _permission: permission };
+    // Un canvas public se lit sans en être membre : `_permission` vaut alors
+    // "viewer" comme pour un partage en lecture. `_isMember` les distingue,
+    // pour ce qui est réservé aux membres (la présence, cf. presence.ts).
+    const isMember = authUserId
+      ? (await getCanvasAccess(ctx, canvasId, authUserId)) !== null
+      : false;
+
+    return { ...canvas, _permission: permission, _isMember: isMember };
   },
 });
 

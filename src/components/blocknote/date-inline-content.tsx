@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/shadcn/popover";
+import { dateInlineContentConfig } from "@/../convex/lib/blockNoteCustomSchema";
 
 const TODAY = "Today";
 const YESTERDAY = "Yesterday";
@@ -100,13 +101,7 @@ export function DatePillView({ date }: { date?: string }) {
  * previews in BlocknoteNode.tsx): a plain span, no popover, via `DatePillView`.
  */
 export const dateInlineContentSpec = createReactInlineContentSpec(
-  {
-    type: "date",
-    propSchema: {
-      date: { default: "" },
-    },
-    content: "none",
-  },
+  dateInlineContentConfig,
   {
     render: (props) => (
       <Popover>

@@ -70,7 +70,7 @@ function SkillContentEditor({
       >
         {/* No `portalElement` override: it would bypass `editor.portalElement`
             and break the drag handle's hover tracking — see the long version
-            in BlocknoteWindow.tsx next to the same controller. */}
+            in AppEditorMenus.tsx next to the same controller. */}
         <SideMenuController sideMenu={SideMenuWithoutAddButton} />
         <SuggestionMenuController
           triggerCharacter="/"

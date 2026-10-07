@@ -1,174 +1,97 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { filterSuggestionItems, type PartialBlock } from "@blocknote/core";
-import { BlockNoteView } from "@blocknote/shadcn";
 import {
-  getDefaultReactSlashMenuItems,
-  SideMenuController,
-  SuggestionMenuController,
-} from "@blocknote/react";
-import type { Block } from "@blocknote/core";
-import { useNodeDataValues } from "@/hooks/useNodeData";
-import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import type { Block, PartialBlock } from "@blocknote/core";
+import { BlockNoteView } from "@blocknote/shadcn";
+import { useBlockNoteSync } from "@convex-dev/prosemirror-sync/blocknote";
+import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
+import {
+  parseStoredBlockNoteDocument,
+  type BlockNoteBlock,
+} from "@/../convex/lib/blockNoteDocument";
+import { useNodeDataValues } from "@/hooks/useNodeData";
+import {
+  blockNoteSchema,
+  type AppBlockNoteEditor,
+} from "@/components/blocknote/schema";
+import { insertLineExtension } from "@/components/blocknote/insertLineExtension";
+import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
+import { useBlockNoteUpload } from "@/components/blocknote/useBlockNoteUpload";
+import { AppEditorMenus } from "@/components/blocknote/AppEditorMenus";
+import { BlockNoteReadOnlyView } from "@/components/blocknote/BlockNoteReadOnlyView";
+import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
+import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
+import { BlocknoteOutlinePanel } from "@/components/windows/side-panel/BlocknoteOutlinePanel";
 import { useWindowFrameContext } from "@/components/windows/WindowFrameContext";
-import { parseStoredBlockNoteDocument } from "@/../convex/lib/blockNoteDocument";
+import WindowLoadingState from "@/components/windows/WindowLoadingState";
 import {
   extractHeadings,
   headingsSignature,
   type Heading,
 } from "@/lib/blocknoteOutline";
 import { revealElement } from "@/lib/revealElement";
-import { BlocknoteOutlinePanel } from "@/components/windows/side-panel/BlocknoteOutlinePanel";
-import type { AppBlockNoteEditor } from "@/components/blocknote/schema";
-import {
-  getCustomSlashMenuItems,
-  groupSuggestionItems,
-} from "@/components/blocknote/registry";
-import {
-  getNodeMentionSuggestionItems,
-  type NodeMentionItem,
-} from "@/components/blocknote/nodeMentionSuggestions";
-import { NodeMentionMenu } from "@/components/blocknote/NodeMentionMenu";
-import { createSafeBlockNoteEditor } from "@/components/blocknote/safeCreateEditor";
-import { useBlockNoteUpload } from "@/components/blocknote/useBlockNoteUpload";
-import { SideMenuWithoutAddButton } from "@/components/blocknote/SideMenu";
-import CorruptedDocumentBanner from "@/components/blocknote/CorruptedDocumentBanner";
-import { BlockNoteErrorBoundary } from "@/components/blocknote/BlockNoteErrorBoundary";
-import { Spinner } from "@/components/shadcn/spinner";
 import { useCanvasStore } from "@/stores/canvasStore";
-import { cn } from "@/lib/utils";
-import WindowLoadingState from "@/components/windows/WindowLoadingState";
 import { useResolvedTheme } from "@/lib/theme";
 
-interface BlocknoteWindowProps {
-  nodeDataId: Id<"nodeDatas">;
-  onDocChange?: (doc: Block[]) => void;
-}
+// Window d'un node blocknote, en édition collaborative (cf.
+// convex/blocknoteSync.ts).
+//
+// Le contenu vit dans le doc ProseMirror du composant prosemirror-sync,
+// échangé par steps avec les autres éditeurs ouverts : pas de bouton Save, pas
+// de dirty, pas de re-hydratation Last-Write-Wins. `values.doc`, lu par tout
+// le reste de l'app, est recopié par le serveur seul à partir des steps reçus
+// (cf. convex/blocknoteLiveDoc.ts).
 
-// A single empty paragraph used to visually clear the editor when the server
-// pushes an empty document (e.g. the agent deleted every block). It is never
-// persisted: the next user keystroke triggers a normal save of the resulting
-// document, and a no-op save is skipped because the dirty flag is only set by
-// genuine user edits.
-const EMPTY_PARAGRAPH: PartialBlock = { type: "paragraph" };
-
-// Mounts BlockNote's floating menus (side menu, formatting toolbar, slash
-// menu...) on document.body instead of the default .bn-container, which
-// otherwise sits inside this app's overflow:hidden/auto window chrome
-// (WindowFrame) and clips them at the window's edges.
+// Monte les menus flottants de BlockNote sur document.body plutôt que dans
+// .bn-container, imbriqué dans la chrome overflow:hidden/auto de la window
+// (WindowFrame), qui les rognait à ses bords.
 const PORTAL_ELEMENTS = { default: null } as const;
 
 /**
- * Canonical form of a stored doc, used to tell "the server sent something new"
- * from "the server echoed what we just wrote".
- *
- * The same document reaches us in two shapes: the optimistic store update
- * writes the live `Block[]`, then Convex pushes back the serialized string.
- * Comparing by reference (as this component used to) treated both as remote
- * changes and re-hydrated the editor twice per save — an overlay flash and a
- * lost cursor each time.
+ * L'onglet Plan de la window : sommaire des titres et recherche dans le doc.
+ * Scopé à `containerRef` pour que `scrollIntoView` trouve l'ancêtre réellement
+ * scrollable, en flottant comme en plein écran.
  */
-function docSignature(doc: unknown): string {
-  if (doc === undefined || doc === null) return "";
-  return typeof doc === "string" ? doc : JSON.stringify(doc);
-}
-
-function EditorLoading() {
-  return (
-    <span className="flex items-center gap-2 text-sm text-slate-500">
-      <Spinner className="size-4" />
-      Loading editor
-    </span>
-  );
-}
-
-function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
-  const theme = useResolvedTheme();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const latestDocRef = useRef<Block[] | null>(null);
-  const hydrationFrameRef = useRef<number | null>(null);
-  const skipNextChangeRef = useRef(false);
-  const [isDirty, setIsDirty] = useState(false);
-  const [shouldMountEditor, setShouldMountEditor] = useState(false);
-  // Starts `true`: the editor is created synchronously with the initial server
-  // content (see the creation useState below), so no hydration overlay is needed
-  // on mount. The re-hydration effect toggles it around later remote updates.
-  const [isEditorReady, setIsEditorReady] = useState(true);
-  const { setDirty, setSaveHandler, setPlanTabContent } =
-    useWindowFrameContext();
-  const nodeDataValues = useNodeDataValues(nodeDataId);
-  const { updateNodeDataValues } = useUpdateNodeDataValues();
-  const setFocus = useCanvasStore((s) => s.setFocus);
-
-  // Upload R2 pour les blocs image/video/audio/file : sans `uploadFile`,
-  // BlockNote n'affiche que l'onglet "Embed" par URL et le paste/drag & drop
-  // de fichiers est mort. Le wrapper stable via ref évite de recréer
-  // l'éditeur si la callback Convex change après le montage.
-  const uploadToR2 = useBlockNoteUpload();
-  const uploadRef = useRef(uploadToR2);
-  useEffect(() => {
-    uploadRef.current = uploadToR2;
-  }, [uploadToR2]);
-  const stableUpload = useCallback((file: File) => uploadRef.current(file), []);
-
-  const docSource = nodeDataValues?.doc;
-
-  // ── Editor creation (once) ──────────────────────────────────────────────
-  // Created with the initial server content so the first paint is correct. The
-  // initial payload is recorded as already-hydrated so the re-hydration effect
-  // below does NOT replace the blocks a second time on mount.
-  //
-  // `createSafeBlockNoteEditor` guards against a stored document that trips
-  // ProseMirror's schema (e.g. a malformed table) — see safeCreateEditor.ts.
-  // On failure it hands back a working *empty* editor instead of throwing, so
-  // `isCorrupted` gates both saving and edits behind an explicit user
-  // confirmation (CorruptedDocumentBanner below): the original content is
-  // dropped from the in-memory editor, but stays recoverable server-side
-  // until the user acknowledges losing it.
-  const [{ editor, isCorrupted }] = useState<{
-    editor: AppBlockNoteEditor;
-    isCorrupted: boolean;
-  }>(() => {
-    const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
-      PartialBlock[] | null;
-    const result = createSafeBlockNoteEditor(parsedBlocks, {
-      uploadFile: stableUpload,
-    });
-    return { editor: result.editor, isCorrupted: result.status !== "ok" };
-  });
-  const [isCorruptionAcknowledged, setIsCorruptionAcknowledged] =
-    useState(!isCorrupted);
-  const lastHydratedSignatureRef = useRef<string | null>(null);
-  if (lastHydratedSignatureRef.current === null) {
-    lastHydratedSignatureRef.current = docSignature(docSource);
-  }
-
-  // ── Plan tab: outline + scroll-to-heading ───────────────────────────────
-  // Own outline, independent of `onDocChange` — computed here so the window
-  // frame's Plan tab gets it in both floating and fullscreen modes, and
-  // scoped to `containerRef` so `scrollIntoView` finds whichever ancestor is
-  // actually scrollable.
+function usePlanTab(
+  editor: AppBlockNoteEditor,
+  containerRef: RefObject<HTMLDivElement | null>,
+) {
+  const { setPlanTabContent } = useWindowFrameContext();
   const [headings, setHeadings] = useState<Heading[]>(() =>
     extractHeadings(editor.document as unknown as Block[]),
   );
-  const headingsSigRef = useRef<string | null>(null);
-  if (headingsSigRef.current === null) {
-    headingsSigRef.current = headingsSignature(headings);
-  }
-  const updateHeadings = useCallback((doc: Block[]) => {
-    const next = extractHeadings(doc);
-    const signature = headingsSignature(next);
-    if (signature === headingsSigRef.current) return;
-    headingsSigRef.current = signature;
-    setHeadings(next);
-  }, []);
-  const findBlockElement = useCallback((blockId: string) => {
-    const root = containerRef.current;
-    if (!root) return undefined;
-    return Array.from(root.querySelectorAll<HTMLElement>("[data-id]")).find(
-      (el) => el.getAttribute("data-id") === blockId,
-    );
-  }, []);
+  const headingsSigRef = useRef(headingsSignature(headings));
+
+  // Les steps reçus des autres éditeurs passent aussi par `onChange` : le
+  // sommaire suit le doc partagé, pas seulement la frappe locale.
+  useEffect(
+    () =>
+      editor.onChange(() => {
+        const next = extractHeadings(editor.document as unknown as Block[]);
+        const signature = headingsSignature(next);
+        if (signature === headingsSigRef.current) return;
+        headingsSigRef.current = signature;
+        setHeadings(next);
+      }),
+    [editor],
+  );
+
+  const findBlockElement = useCallback(
+    (blockId: string) => {
+      const root = containerRef.current;
+      if (!root) return undefined;
+      return Array.from(root.querySelectorAll<HTMLElement>("[data-id]")).find(
+        (el) => el.getAttribute("data-id") === blockId,
+      );
+    },
+    [containerRef],
+  );
   const scrollToHeading = useCallback(
     (heading: Heading) => {
       findBlockElement(heading.id)?.scrollIntoView({
@@ -195,6 +118,7 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     (callback: () => void) => editor.onChange(callback),
     [editor],
   );
+
   useEffect(() => {
     setPlanTabContent(
       <BlocknoteOutlinePanel
@@ -215,166 +139,33 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
     scrollToSearchHit,
     setPlanTabContent,
   ]);
+}
 
-  const handleSaveClick = useCallback(async (): Promise<boolean> => {
-    const doc = latestDocRef.current ?? editor.document;
-    if (!doc) return false;
-    const savedDocSignature = docSignature(doc);
-    // Remember what we are writing: the optimistic store update and the server
-    // echo both come back through `docSource`, and neither should re-hydrate.
-    lastHydratedSignatureRef.current = docSignature(doc);
-    const success = await updateNodeDataValues({
-      nodeDataId,
-      values: { doc },
-    });
-    // Only clear dirty state once the server mutation has actually succeeded,
-    // so a failed save keeps the unsaved-indicator on and the content editable.
-    const hasPendingEdits =
-      docSignature(latestDocRef.current) !== savedDocSignature;
-    if (success && !hasPendingEdits) {
-      setIsDirty(false);
-    }
-    return success && !hasPendingEdits;
-  }, [editor, nodeDataId, updateNodeDataValues]);
+function SyncedEditor({
+  editor,
+  nodeDataId,
+  isReadOnly,
+}: {
+  editor: AppBlockNoteEditor;
+  nodeDataId: Id<"nodeDatas">;
+  isReadOnly: boolean;
+}) {
+  const theme = useResolvedTheme();
+  const containerRef = useRef<HTMLDivElement>(null);
+  usePlanTab(editor, containerRef);
 
-  // Save is only wired up once any corruption banner has been acknowledged —
-  // otherwise the window's own Save button (in the surrounding chrome, not
-  // covered by the banner overlay below) could silently overwrite the
-  // original stored document with the empty fallback before the user agreed
-  // to lose it.
+  // Un viewer suit le doc en direct mais n'y écrit pas : le serveur
+  // refuserait ses steps (cf. `checkWrite`).
   useEffect(() => {
-    if (!isCorruptionAcknowledged) return;
-    setSaveHandler(handleSaveClick);
-    return () => setSaveHandler(null);
-  }, [handleSaveClick, setSaveHandler, isCorruptionAcknowledged]);
+    editor.isEditable = !isReadOnly;
+  }, [editor, isReadOnly]);
 
-  const handleContinueFromCorruption = useCallback(() => {
-    setIsCorruptionAcknowledged(true);
-    // The user just explicitly agreed to drop the corrupted content — persist
-    // the recovered (empty) document immediately rather than waiting for a
-    // save that may never come if they close the window without editing,
-    // which would otherwise leave the crash-inducing document in storage.
-    void handleSaveClick();
-  }, [handleSaveClick]);
-
-  useEffect(() => {
-    setDirty(isDirty);
-  }, [isDirty, setDirty]);
-
-  useEffect(() => {
-    return () => {
-      if (hydrationFrameRef.current !== null) {
-        cancelAnimationFrame(hydrationFrameRef.current);
-      }
-    };
-  }, []);
-
-  // Defer heavy editor mount so the window frame can paint immediately.
-  useEffect(() => {
-    const frameId = requestAnimationFrame(() => setShouldMountEditor(true));
-    return () => cancelAnimationFrame(frameId);
-  }, []);
-
-  // ── Initial document emission ────────────────────────────────────────────
-  // `BlockNoteView`'s onChange only fires on a real transaction, never on
-  // mount: the editor is built synchronously with the server content, so no
-  // transaction happens. Without this, a consumer of `onDocChange` (or the
-  // Plan-tab outline) stays empty until the first keystroke.
-  useEffect(() => {
-    const doc = editor.document as unknown as Block[];
-    latestDocRef.current = doc;
-    onDocChange?.(doc);
-    updateHeadings(doc);
-  }, [editor, onDocChange, updateHeadings]);
-
-  // ── Re-hydration (Last-Write-Wins) ───────────────────────────────────────
-  // When the server pushes a doc whose content differs from the last one we
-  // hydrated or saved, we replace the editor's blocks. `skipNextChangeRef`
-  // suppresses the resulting onChange so the window is not marked dirty from a
-  // remote update. An empty document is applied as a single ephemeral empty
-  // paragraph (see above).
-  useEffect(() => {
-    if (!nodeDataValues) return;
-    const signature = docSignature(docSource);
-    if (signature === lastHydratedSignatureRef.current) return;
-
-    lastHydratedSignatureRef.current = signature;
-    setIsEditorReady(false);
-
-    if (hydrationFrameRef.current !== null) {
-      cancelAnimationFrame(hydrationFrameRef.current);
-    }
-
-    hydrationFrameRef.current = requestAnimationFrame(() => {
-      hydrationFrameRef.current = null;
-      const parsedBlocks = parseStoredBlockNoteDocument(docSource) as
-        PartialBlock[] | null;
-      const replacement =
-        parsedBlocks && parsedBlocks.length > 0
-          ? parsedBlocks
-          : [EMPTY_PARAGRAPH];
-
-      skipNextChangeRef.current = true;
-      try {
-        // BlockNote always keeps at least one block, so the document is never
-        // empty here and `replaceBlocks` covers the whole tree.
-        editor.replaceBlocks(
-          editor.document.map((b) => b.id),
-          replacement,
-        );
-      } catch (err) {
-        console.error("[BlocknoteWindow] replaceBlocks failed:", err);
-      } finally {
-        // Clear unconditionally: if replaceBlocks emitted no onChange, a stale
-        // `true` would swallow the user's next edit and lose the dirty flag.
-        skipNextChangeRef.current = false;
-      }
-
-      // Emit explicitly rather than relying on the onChange that replaceBlocks
-      // happens to dispatch — if the replacement is a no-op at the ProseMirror
-      // level, no change event fires and consumers would keep a stale outline.
-      const doc = editor.document as unknown as Block[];
-      latestDocRef.current = doc;
-      onDocChange?.(doc);
-      updateHeadings(doc);
-
-      setIsEditorReady(true);
-    });
-  }, [docSource, editor, nodeDataValues, onDocChange, updateHeadings]);
-
-  const handleChange = useCallback(() => {
-    // The custom schema only widens inline content (date pill); the stored
-    // JSON shape is unchanged, hence the cast to the default Block type.
-    const doc = editor.document as unknown as Block[];
-    latestDocRef.current = doc;
-    onDocChange?.(doc);
-    updateHeadings(doc);
-    if (skipNextChangeRef.current) {
-      skipNextChangeRef.current = false;
-      return;
-    }
-    setIsDirty(true);
-  }, [onDocChange, editor, updateHeadings]);
-
-  const handleFocus = useCallback(() => {
-    setFocus("richtext-editor");
-  }, [setFocus]);
-
-  const handleBlur = useCallback(() => {
-    setFocus("canvas");
-  }, [setFocus]);
-
-  // Cf. `BlockNoteFieldEditor` : un démontage n'émet pas de `blur`, et le
-  // store resterait bloqué sur `richtext-editor`. `closeWindow` couvre la
-  // fermeture par le bouton, pas les autres démontages.
+  // Gèle les raccourcis canvas pendant la frappe. `blur` ne part pas quand un
+  // élément focalisé est démonté (window fermée autrement que par son
+  // bouton) : sans ce relâchement, le store resterait sur `richtext-editor`.
+  const setFocus = useCanvasStore((s) => s.setFocus);
   const releaseFocus = useCanvasStore((s) => s.releaseFocus);
   useEffect(() => () => releaseFocus("richtext-editor"), [releaseFocus]);
-
-  if (!nodeDataValues) return <WindowLoadingState />;
-
-  if (!shouldMountEditor) {
-    return <WindowLoadingState label="Loading editor" />;
-  }
 
   return (
     <div
@@ -382,74 +173,137 @@ function BlocknoteWindow({ nodeDataId, onDocChange }: BlocknoteWindowProps) {
       // `bn-window-doc` : mesure centrée quand la window est large (cf.
       // blocknote-overrides.css).
       className="bn-window-doc relative h-full w-full"
-      onFocus={handleFocus}
-      onBlur={handleBlur}
+      onFocus={() => setFocus("richtext-editor")}
+      onBlur={() => setFocus("canvas")}
     >
-      <BlockNoteErrorBoundary resetKey={docSource}>
+      <BlockNoteErrorBoundary resetKey={nodeDataId}>
         <BlockNoteView
           editor={editor}
           theme={theme}
-          onChange={handleChange}
-          className={cn("nodrag h-full")}
+          className="nodrag h-full"
           slashMenu={false}
           sideMenu={false}
           portalElements={PORTAL_ELEMENTS}
         >
-          {/* No `portalElement` override here: BlockNote's own mousemove
-              hide-tracking (SideMenuView.onMouseMove -> editor.isWithinEditor)
-              only recognizes elements inside `editor.portalElement`. Forcing
-              this popover straight into `document.body` (as the neighbouring
-              SuggestionMenuController does) puts the drag handle outside that
-              check, so the instant the cursor reaches the handle the menu
-              reads it as "left the editor" and hides it. Leaving this prop
-              unset falls back to `editor.portalElement`, which is already
-              mounted at document.body via `portalElements={PORTAL_ELEMENTS}`
-              above — same clipping fix, without breaking hover tracking. */}
-          <SideMenuController sideMenu={SideMenuWithoutAddButton} />
-          <SuggestionMenuController
-            triggerCharacter="/"
-            portalElement={null}
-            shouldOpen={(tr) =>
-              !tr.selection.$from.parent.type.isInGroup("tableContent")
-            }
-            getItems={async (query) =>
-              filterSuggestionItems(
-                groupSuggestionItems([
-                  ...getDefaultReactSlashMenuItems(editor),
-                  ...getCustomSlashMenuItems(editor),
-                ]),
-                query,
-              )
-            }
-          />
-          {/* `suggestionMenuComponent` : le menu par défaut keye ses lignes
-              sur le titre, et deux nodes peuvent porter le même (cf.
-              `NodeMentionMenu`).
-
-              Le type d'item est passé explicitement : les props du contrôleur
-              sont un type conditionnel SUR ce générique, ce qui bloque son
-              inférence depuis `getItems` — sans ça TypeScript retombe sur le
-              défaut `DefaultReactSuggestionItem` et refuse notre menu. */}
-          <SuggestionMenuController<
-            (query: string) => Promise<NodeMentionItem[]>
-          >
-            triggerCharacter="@"
-            suggestionMenuComponent={NodeMentionMenu}
-            getItems={async (query) =>
-              getNodeMentionSuggestionItems(editor, query)
-            }
-          />
+          <AppEditorMenus editor={editor} />
         </BlockNoteView>
       </BlockNoteErrorBoundary>
-      {!isEditorReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-surface/65">
-          <EditorLoading />
-        </div>
-      )}
-      {!isCorruptionAcknowledged && (
-        <CorruptedDocumentBanner onContinue={handleContinueFromCorruption} />
-      )}
     </div>
+  );
+}
+
+/**
+ * Crée le doc vivant depuis `values.doc` à la première ouverture en sync.
+ * Deux éditeurs qui le créent en même temps envoient le même contenu (ids de
+ * blocs stockés) : le second échoue sans conséquence, le snapshot du premier
+ * arrive.
+ *
+ * Un document stocké que le schéma refuse (cf. safeCreateEditor.ts) n'est
+ * remplacé par un doc vide qu'après confirmation explicite : jusque-là,
+ * l'original reste récupérable côté serveur.
+ */
+function CreateFromStoredDoc({
+  storedDoc,
+  create,
+}: {
+  storedDoc: unknown;
+  create: (content: object) => Promise<void>;
+}) {
+  const [initial] = useState(() =>
+    createSafeBlockNoteEditor(
+      parseStoredBlockNoteDocument(storedDoc) as PartialBlock[] | null,
+    ),
+  );
+  const [isAcknowledged, setIsAcknowledged] = useState(
+    initial.status === "ok",
+  );
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isAcknowledged || startedRef.current) return;
+    startedRef.current = true;
+    create(initial.editor.prosemirrorState.doc.toJSON()).catch(
+      (error: unknown) => {
+        console.warn("[BlocknoteWindow] create failed", error);
+      },
+    );
+  }, [create, initial, isAcknowledged]);
+
+  if (!isAcknowledged) {
+    return (
+      <div className="relative h-full w-full">
+        <CorruptedDocumentBanner onContinue={() => setIsAcknowledged(true)} />
+      </div>
+    );
+  }
+  return <WindowLoadingState label="Preparing document" />;
+}
+
+function BlocknoteWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
+  const nodeDataValues = useNodeDataValues(nodeDataId);
+  const { setDirty, setSaveHandler } = useWindowFrameContext();
+  const isReadOnly = useCanvasStore(
+    (state) => state.canvas?._permission === "viewer",
+  );
+
+  // Plus de sauvegarde manuelle : chaque frappe part au serveur.
+  useEffect(() => {
+    setDirty(false);
+    setSaveHandler(null);
+  }, [setDirty, setSaveHandler]);
+
+  // Upload R2 pour les blocs image/video/audio/file : sans `uploadFile`,
+  // BlockNote n'affiche que l'onglet "Embed" par URL et le paste/drag & drop
+  // de fichiers est mort. Via ref : l'éditeur est créé une fois par le hook
+  // de sync, la callback Convex peut changer ensuite.
+  const uploadToR2 = useBlockNoteUpload();
+  const uploadRef = useRef(uploadToR2);
+  useEffect(() => {
+    uploadRef.current = uploadToR2;
+  }, [uploadToR2]);
+  const [editorOptions] = useState(() => ({
+    schema: blockNoteSchema,
+    extensions: [insertLineExtension],
+    uploadFile: (file: File) => uploadRef.current(file),
+  }));
+
+  const sync = useBlockNoteSync<AppBlockNoteEditor>(
+    api.blocknoteSync,
+    nodeDataId,
+    {
+      editorOptions,
+      onSyncError: (error) =>
+        console.warn("[BlocknoteWindow] sync error", error),
+    },
+  );
+
+  if (sync.isLoading || !nodeDataValues) return <WindowLoadingState />;
+  if (sync.editor) {
+    return (
+      <SyncedEditor
+        editor={sync.editor}
+        nodeDataId={nodeDataId}
+        isReadOnly={isReadOnly}
+      />
+    );
+  }
+  // Jamais ouvert en sync. Seul un éditeur peut créer le doc vivant : un
+  // viewer lit `values.doc` tel quel.
+  if (isReadOnly) {
+    return (
+      <div className="bn-window-doc relative h-full w-full">
+        <BlockNoteReadOnlyView
+          blocks={
+            (parseStoredBlockNoteDocument(nodeDataValues.doc) ??
+              []) as BlockNoteBlock[]
+          }
+          className="h-full"
+        />
+      </div>
+    );
+  }
+  return (
+    <CreateFromStoredDoc storedDoc={nodeDataValues.doc} create={sync.create} />
   );
 }
 

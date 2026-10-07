@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
 import { HiDotsVertical } from "react-icons/hi";
 import { TbUsers } from "react-icons/tb";
@@ -24,6 +24,8 @@ import {
   type HomePendingTask,
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
+import type { Collaborator } from "@/stores/canvasPresenceStore";
+import { CollaboratorStack } from "@/components/canvas/presence/CollaboratorStack";
 import { formatBlocks, formatEdited } from "./workspaceFormat";
 
 export interface WorkspaceCardCanvas extends CanvasAppearance {
@@ -44,6 +46,8 @@ export interface WorkspaceItemProps {
   /** Ce que Nolë y a laissé en plan, résumé en une pastille. Le détail est
    *  dans la liste des tâches, au-dessus — ici on signale, on ne raconte pas. */
   pendingTasks: HomePendingTask[];
+  /** Les autres membres en ligne sur ce canvas en ce moment. */
+  collaborators: Collaborator[];
   className?: string;
   style?: CSSProperties;
 }
@@ -132,12 +136,17 @@ export function WorkspaceMenu({
   );
 }
 
-/** Un canvas en carte, pour la vue grille. */
-export default function WorkspaceCard({
+/**
+ * Un canvas en carte, pour la vue grille. Mémoïsée : la grille se redessine à
+ * chaque changement de présence sur l'un des canvas, seule la carte concernée
+ * doit suivre (cf. `useCanvasesPresence`).
+ */
+function WorkspaceCard({
   canvas,
   onEdit,
   onDelete,
   pendingTasks,
+  collaborators,
   className,
   style,
 }: WorkspaceItemProps) {
@@ -190,6 +199,12 @@ export default function WorkspaceCard({
           tasks={pendingTasks}
           className="absolute top-2.5 right-2.5"
         />
+        {/* `z-10` : au-dessus du lien étiré, pour que le survol montre les
+            noms. */}
+        <CollaboratorStack
+          collaborators={collaborators}
+          className="absolute right-3 bottom-3 z-10"
+        />
       </div>
 
       <div className="flex flex-1 flex-col gap-1 px-3.5 pt-3 pb-3.5">
@@ -225,3 +240,5 @@ export default function WorkspaceCard({
     </div>
   );
 }
+
+export default memo(WorkspaceCard);

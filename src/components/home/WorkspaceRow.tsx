@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   EMOJI_FONT_STYLE,
@@ -10,17 +11,19 @@ import {
   WorkspaceMenu,
   type WorkspaceItemProps,
 } from "./WorkspaceCard";
+import { CollaboratorStack } from "@/components/canvas/presence/CollaboratorStack";
 import { formatBlocks, formatEdited } from "./workspaceFormat";
 
 /**
  * Un canvas en ligne, pour la vue liste : plus dense que la grille, pour qui a
- * beaucoup de canvas et les retrouve par leur nom.
+ * beaucoup de canvas et les retrouve par leur nom. Mémoïsée, comme la carte.
  */
-export default function WorkspaceRow({
+function WorkspaceRow({
   canvas,
   onEdit,
   onDelete,
   pendingTasks,
+  collaborators,
   className,
   style,
 }: WorkspaceItemProps) {
@@ -56,6 +59,12 @@ export default function WorkspaceRow({
       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">
         {canvas.name}
       </span>
+      {/* `z-10` : au-dessus du lien étiré, pour que le survol montre les
+          noms. */}
+      <CollaboratorStack
+        collaborators={collaborators}
+        className="relative z-10 shrink-0"
+      />
       <CanvasTaskBadge tasks={pendingTasks} className="shadow-none" />
       <span className="w-20 shrink-0 text-xs text-slate-500 max-sm:hidden">
         {canvas.shared ? "Shared" : "Yours"}
@@ -70,3 +79,5 @@ export default function WorkspaceRow({
     </li>
   );
 }
+
+export default memo(WorkspaceRow);

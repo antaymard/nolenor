@@ -153,7 +153,7 @@ function RouteComponent() {
                   >
                     {/* No `portalElement` override: it would bypass
                         `editor.portalElement` and break the drag handle's
-                        hover tracking — see BlocknoteWindow.tsx for the
+                        hover tracking — see AppEditorMenus.tsx for the
                         full story next to the same controller. */}
                     <SideMenuController sideMenu={SideMenuWithoutAddButton} />
                   </BlockNoteView>

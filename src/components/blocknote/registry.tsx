@@ -92,7 +92,7 @@ export const customInlineContent: CustomInlineContentEntry[] = [
   },
   {
     // No slashMenuItem: mentions are only inserted via the "@" trigger (see
-    // nodeMentionSuggestions.tsx / BlocknoteWindow.tsx), not the "/" menu.
+    // nodeMentionSuggestions.tsx / AppEditorMenus.tsx), not the "/" menu.
     type: "mention",
     spec: customInlineContentSpecs.mention,
     View: MentionPillView,

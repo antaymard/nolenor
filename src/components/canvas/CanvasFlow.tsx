@@ -42,6 +42,7 @@ import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "@/lib/canvasViewportFraming";
 import { useInitialViewportFromUrl } from "@/hooks/useInitialViewportFromUrl";
 import { useRegisterCanvasNavigator } from "@/hooks/useGoToBookmark";
 import { useSyncBookmarkedNodes } from "@/hooks/useCanvasBookmarks";
+import CanvasPresenceSync from "@/components/canvas/presence/CanvasPresenceSync";
 import { useSyncNoleLiveActivity } from "@/hooks/useSyncNoleLiveActivity";
 import { cn } from "@/lib/utils";
 import { useResolvedTheme } from "@/lib/theme";
@@ -661,6 +662,8 @@ export default function CanvasFlow({
 
   return (
     <>
+      {/* Présence du canvas : facepile, pills de sélection des autres. */}
+      <CanvasPresenceSync canvasId={canvasId} />
       {isDraggingOver && <CanvasDropOverlay />}
       <CompactFrameDeleteDialog />
       <ReactFlow

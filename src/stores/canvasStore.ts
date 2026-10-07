@@ -5,6 +5,9 @@ import type { CanvasPermission } from "@/../convex/lib/auth";
 
 type CanvasInStore = Omit<Doc<"canvases">, "nodes" | "edges"> & {
   _permission: CanvasPermission;
+  // Absent sur un canvas posé dans le store avant l'ajout du champ côté
+  // serveur : traité comme « non membre ».
+  _isMember?: boolean;
 };
 
 type Status = "idle" | "unsynced" | "saving" | "saved" | "error";

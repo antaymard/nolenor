@@ -19,7 +19,8 @@ const reindex = new Debouncer(
 
 // dans une mutation ou une action
 await reindex.schedule(ctx, nodeDataId, { nodeDataId });
-await reindex.flush(ctx, nodeDataId); // exécuter maintenant
+await reindex.flush(ctx, nodeDataId); // exécuter maintenant (via le scheduler)
+const args = await reindex.take(ctx, nodeDataId); // retirer et faire soi-même
 await reindex.cancel(ctx, nodeDataId); // abandonner
 await reindex.status(ctx, nodeDataId); // aussi depuis une query
 ```

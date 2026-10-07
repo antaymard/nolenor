@@ -6,6 +6,7 @@ import NewCanvasButton from "@/components/app-shell/NewCanvasButton";
 import PageHeader from "@/components/app-shell/PageHeader";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { useHomePendingTasks } from "@/hooks/useHomePendingTasks";
+import { useCanvasesPresence } from "@/hooks/useCanvasesPresence";
 import { useTaskCanvases } from "@/hooks/useTaskCanvases";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
 import TaskList from "./TaskList";
@@ -33,6 +34,9 @@ export default function HomePage() {
   // cours.
   const pending = useHomePendingTasks();
   const taskCanvases = useTaskCanvases();
+  // Qui est sur quel canvas en ce moment : à part, pour la même raison — la
+  // présence bouge à chaque sélection d'un collaborateur.
+  const presence = useCanvasesPresence();
 
   const handleDelete = useCallback(
     (canvasId: Id<"canvases">) => {
@@ -93,6 +97,7 @@ export default function HomePage() {
             ownCanvases={ownCanvases}
             sharedCanvases={sharedCanvases}
             pendingTasks={pending.byCanvas}
+            presence={presence}
             onDelete={handleDelete}
           />
         </>

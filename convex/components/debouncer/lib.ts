@@ -254,6 +254,23 @@ export const flush = mutation({
   },
 });
 
+/**
+ * Retire l'exécution en attente et rend ses args, sans l'exécuter : à
+ * l'appelant de faire le travail lui-même, dans sa propre transaction (ce que
+ * `flush`, qui passe par le scheduler, ne permet pas). null si rien n'est en
+ * attente — une fenêtre eager en cooldown est laissée intacte.
+ */
+export const take = mutation({
+  args: keyArgs,
+  returns: v.union(v.null(), v.object({ functionArgs: v.any() })),
+  handler: async (ctx, args) => {
+    const window = await findWindow(ctx, args);
+    if (!window || !window.pending) return null;
+    await close(ctx, window);
+    return { functionArgs: window.functionArgs };
+  },
+});
+
 export const status = query({
   args: keyArgs,
   returns: v.union(

@@ -19,8 +19,7 @@ import { useCanvasStore } from "@/stores/canvasStore";
 // - Variants à commit immédiat/blur : écriture directe (optimiste + rollback).
 // - Variants à commit "deferred" (rich_text sur BlockNote) : derrière le flux
 //   dirty/save du WindowFrame (Mod+S / bouton Save), agrégé sur tous les
-//   champs différés de la window via CustomFieldsContext — même UX que
-//   BlocknoteWindow.
+//   champs différés de la window via CustomFieldsContext.
 
 export default function CustomWindow({
   nodeDataId,

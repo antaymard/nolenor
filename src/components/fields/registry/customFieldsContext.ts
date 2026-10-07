@@ -4,7 +4,7 @@ import { createContext, useContext } from "react";
 // LayoutRenderer. Les variants dont la politique de commit est "deferred"
 // (aujourd'hui rich_text.full) ne committent pas au blur : ils publient leur
 // valeur en attente ici, et CustomWindow agrège dirty/save vers le
-// WindowFrameContext (Mod+S / bouton Save), comme BlocknoteWindow.
+// WindowFrameContext (Mod+S / bouton Save).
 //
 // Générique (et non plus rich_text/Plate-spécifique) : `reportPendingValue`
 // reçoit la valeur DÉJÀ sous sa forme stockée, donc CustomWindow n'a plus à

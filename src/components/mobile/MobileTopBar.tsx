@@ -3,6 +3,7 @@ import { HiOutlineCog } from "react-icons/hi";
 import { TbChevronDown } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import CanvasStatus from "@/components/canvas/on-canvas-ui/CanvasStatus";
+import CanvasPresence from "@/components/canvas/on-canvas-ui/CanvasPresence";
 import SharingModal from "@/components/canvas/on-canvas-ui/SharingModal";
 
 export default function MobileTopBar({
@@ -26,6 +27,7 @@ export default function MobileTopBar({
         <TbChevronDown size={14} className="shrink-0 opacity-70" />
       </button>
       <div className="flex shrink-0 items-center gap-0.5">
+        <CanvasPresence />
         <CanvasStatus />
         {/* Autonome : rend son propre trigger, et null si l'user n'est pas owner. */}
         <SharingModal />

@@ -1,15 +1,14 @@
 import { useMemo } from "react";
-import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 import type { OutlineEntry } from "@/lib/pdfOutline";
 import { PDF_SEARCH_LIMIT, searchPdfPages } from "@/lib/pdfSearch";
-import { useWindowSearchQuery } from "../WindowSearchContext";
+import {
+  useDebouncedSearchQuery,
+  useWindowSearchQuery,
+} from "../WindowSearchContext";
 import { SearchResultsList } from "./SearchResultsList";
 
 type PdfPageText = { order: number; page?: number; text: string };
-
-/** Le temps de finir un mot : inutile de chercher chaque préfixe tapé. */
-const SEARCH_DEBOUNCE_MS = 150;
 
 /**
  * Renders a PDF page/section outline, registered by `PdfWindow` as the window
@@ -88,7 +87,7 @@ function PdfSearchResults({
   onSelect: (pageIndex: number) => void;
   className?: string;
 }) {
-  const debouncedQuery = useDebounce(query, SEARCH_DEBOUNCE_MS);
+  const debouncedQuery = useDebouncedSearchQuery(query);
   const hits = useMemo(
     () => (pages ? searchPdfPages(pages, debouncedQuery) : []),
     [pages, debouncedQuery],

@@ -74,6 +74,33 @@ export function prepareSearchText(text: string): PreparedSearchText {
   };
 }
 
+/**
+ * Index de recherche mémoïsé par source : les données venant de `useQuery`
+ * gardent leur référence tant qu'elles ne changent pas, donc l'index survit
+ * aux frappes et aux remontages, et part avec la source.
+ */
+export function memoizeSearchIndex<Source extends object, Index>(
+  build: (source: Source) => Index,
+): (source: Source) => Index {
+  const cache = new WeakMap<Source, Index>();
+  return (source) => {
+    let index = cache.get(source);
+    if (index === undefined) {
+      index = build(source);
+      cache.set(source, index);
+    }
+    return index;
+  };
+}
+
+/** `findSearchMatch` sur un texte déjà préparé. */
+export function findPreparedMatch(
+  prepared: PreparedSearchText,
+  query: string,
+): SearchMatch | null {
+  return findPreparedMatches(prepared, query, 1)[0] ?? null;
+}
+
 /** `findSearchMatches` sur un texte déjà préparé. */
 export function findPreparedMatches(
   prepared: PreparedSearchText,

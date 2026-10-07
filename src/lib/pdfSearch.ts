@@ -1,7 +1,7 @@
 import {
   findPreparedMatches,
+  memoizeSearchIndex,
   prepareSearchText,
-  type PreparedSearchText,
 } from "@/lib/searchMatch";
 import type { SearchResult } from "@/components/windows/side-panel/SearchResultsList";
 
@@ -13,26 +13,13 @@ type PdfPageText = { order: number; page?: number; text: string };
 export const PDF_SEARCH_LIMIT = 200;
 const PDF_MATCHES_PER_PAGE = 10;
 
-type PdfSearchIndex = { pageIndex: number; prepared: PreparedSearchText }[];
-
-/**
- * Index par tableau de pages : `useQuery` garde la même référence tant que
- * les données ne changent pas, donc l'index survit aux frappes et au
- * remontage des résultats, et part avec le tableau.
- */
-const indexCache = new WeakMap<readonly PdfPageText[], PdfSearchIndex>();
-
-function getPdfSearchIndex(pages: readonly PdfPageText[]): PdfSearchIndex {
-  let index = indexCache.get(pages);
-  if (!index) {
-    index = pages.map((page) => ({
+const getPdfSearchIndex = memoizeSearchIndex(
+  (pages: readonly PdfPageText[]) =>
+    pages.map((page) => ({
       pageIndex: typeof page.page === "number" ? page.page - 1 : page.order,
       prepared: prepareSearchText(markdownToPlainText(page.text)),
-    }));
-    indexCache.set(pages, index);
-  }
-  return index;
-}
+    })),
+);
 
 /**
  * Occurrences de `query` dans le texte indexé des pages (le markdown produit

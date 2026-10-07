@@ -1874,10 +1874,57 @@ describe("phase 7a — aiguillage threadless", () => {
     expect(promptText(1)).toContain("A table please");
   });
 
+  test("candidats : dans l'ordre de leur dernier run, pas de leur création", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    const later = await t.run(async (ctx) => {
+      const threadId = await createThread(ctx, components.agent, {
+        userId: seed.userId,
+      });
+      await ctx.db.insert("threadMetadata", {
+        threadId,
+        userId: seed.userId,
+        canvasId: seed.canvasId,
+        totalUsageUsd: 0,
+        agentName: "Tester",
+      });
+      return { ...seed, threadId };
+    });
+    // Un thread jamais utilisé n'est pas candidat.
+    await t.run(async (ctx) => {
+      const threadId = await createThread(ctx, components.agent, {
+        userId: seed.userId,
+      });
+      await ctx.db.insert("threadMetadata", {
+        threadId,
+        userId: seed.userId,
+        canvasId: seed.canvasId,
+        totalUsageUsd: 0,
+        agentName: "Tester",
+      });
+    });
+    setModel([[text("Done")]]);
+    await send(t, later, "Recent thread, older run");
+    await drain(t);
+    vi.advanceTimersByTime(1000);
+    await send(t, seed, "Old thread, latest run");
+    await drain(t);
+
+    await dispatch(t, seed, "Follow up");
+    await drain(t);
+    expect(routerCalls[0].candidates.map((c) => c.threadId)).toEqual([
+      seed.threadId,
+      later.threadId,
+    ]);
+  });
+
   test("confiance basse, routeur en panne, nouvelle tâche demandée : nouveau thread", async () => {
     const t = setup();
     const seed = await seedThread(t);
     setModel([[text("Done")]]);
+    // Un thread qui a déjà servi : sans run, il ne serait pas candidat.
+    await send(t, seed, "Earlier work");
+    await drain(t);
 
     routeTo = (candidates) => ({ threadId: candidates[0].threadId, confidence: 0.3 });
     const low = await dispatch(t, seed, "Something");

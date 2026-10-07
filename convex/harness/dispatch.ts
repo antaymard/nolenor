@@ -46,13 +46,18 @@ import type { DispatchCandidate, DispatchNode, Profile } from "./types";
  */
 
 /**
- * Fenêtre des candidats : les threads qui tournent ou attendent, quel que
- * soit leur âge, et ceux au repos actifs depuis moins de 24 h ; 8 au plus.
- * Au-delà, des threads anciens aux titres voisins brouillent le choix.
+ * Fenêtre des candidats : les threads des derniers runs du canvas, ceux qui
+ * tournent ou attendent, et ceux au repos actifs depuis moins de 24 h ; 8 au
+ * plus. Au-delà, des threads anciens aux titres voisins brouillent le choix.
  */
 const CANDIDATE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_CANDIDATES = 8;
-const THREAD_SCAN_LIMIT = 30;
+/** Runs récents lus pour trouver les threads actifs. */
+const RUN_SCAN_LIMIT = 40;
+/** Threads décrits avant le tri : la description est la partie coûteuse. */
+const DESCRIBE_LIMIT = 12;
+/** Tool calls du dernier run lus pour ses nodes. */
+const NODE_SCAN_TOOLS = 100;
 /** En dessous, le routeur hésite : nouveau thread. */
 const MIN_CONFIDENCE = 0.5;
 /** Le filet : au-delà, la demande part dans un nouveau thread. */
@@ -313,7 +318,7 @@ async function candidateNodes(
   }
 
   if (lastRunMessageId) {
-    const tools = await runToolTasks(ctx, lastRunMessageId);
+    const tools = await runToolTasks(ctx, lastRunMessageId, NODE_SCAN_TOOLS);
     for (const tool of tools) {
       if (nodes.length >= CANDIDATE_NODES) break;
       if (tool.status !== "completed") continue;
@@ -367,15 +372,11 @@ async function pendingQuestion(
 async function describeCandidate(
   ctx: QueryCtx,
   row: Doc<"threadMetadata">,
+  lastRun: Doc<"runs">,
 ): Promise<DispatchCandidate> {
   const thread = await getThreadMetadata(ctx, components.agent, {
     threadId: row.threadId,
   }).catch(() => null);
-  const lastRun = await ctx.db
-    .query("runs")
-    .withIndex("by_threadId", (q) => q.eq("threadId", row.threadId))
-    .order("desc")
-    .first();
   const compaction = await ctx.db
     .query("compactions")
     .withIndex("by_threadId", (q) => q.eq("threadId", row.threadId))
@@ -393,18 +394,12 @@ async function describeCandidate(
     ...(question ? { pendingQuestion: question } : {}),
     recentRequests: exchange.requests,
     ...(exchange.lastAnswer ? { lastAnswer: exchange.lastAnswer } : {}),
-    ...(lastRun
-      ? {
-          lastRun: {
-            startedAt: lastRun.startedAt,
-            ...(lastRun.endedAt !== undefined
-              ? { endedAt: lastRun.endedAt }
-              : {}),
-            outcome: runOutcome(lastRun),
-          },
-        }
-      : {}),
-    nodes: await candidateNodes(ctx, row, lastRun?.runMessageId),
+    lastRun: {
+      startedAt: lastRun.startedAt,
+      ...(lastRun.endedAt !== undefined ? { endedAt: lastRun.endedAt } : {}),
+      outcome: runOutcome(lastRun),
+    },
+    nodes: await candidateNodes(ctx, row, lastRun.runMessageId),
     ...(compaction
       ? { summary: truncate(compaction.summary, SUMMARY_CHARS) }
       : {}),
@@ -413,8 +408,9 @@ async function describeCandidate(
 }
 
 /**
- * Les threads entre lesquels choisir : ceux qui tournent, et ceux actifs
- * dans la fenêtre. Ceux qui partagent des nodes avec la demande d'abord.
+ * Les threads entre lesquels choisir : ceux des derniers runs du canvas qui
+ * tournent, ou ont été actifs dans la fenêtre. Ceux qui partagent des nodes
+ * avec la demande d'abord.
  */
 type LoadedDispatch = {
   profile: string;
@@ -431,27 +427,42 @@ export const loadCandidates = internalQuery({
     const dispatch = await ctx.db.get("dispatches", dispatchId);
     if (!dispatch || dispatch.status !== dispatchStatuses.routing) return null;
 
-    const now = Date.now();
+    // Les threads dans l'ordre de leur dernier run : l'ordre d'activité, que
+    // `threadMetadata` (indexé par date de création) ne donne pas.
     const agentName = getProfile(dispatch.profile).agentName;
-    const rows = (
-      await ctx.db
-        .query("threadMetadata")
-        .withIndex("by_userId_and_canvasId_and_agentName", (q) =>
-          q
-            .eq("userId", dispatch.userId)
-            .eq("canvasId", dispatch.canvasId)
-            .eq("agentName", agentName),
-        )
-        .order("desc")
-        .take(THREAD_SCAN_LIMIT)
-    ).filter(
-      (row) =>
-        row.run !== undefined ||
-        now - ThreadMetadataModels.lastActivityTime(row) < CANDIDATE_WINDOW_MS,
-    );
+    const recentRuns = await ctx.db
+      .query("runs")
+      .withIndex("by_canvasId_and_userId_and_agentName", (q) =>
+        q
+          .eq("canvasId", dispatch.canvasId)
+          .eq("userId", dispatch.userId)
+          .eq("agentName", agentName),
+      )
+      .order("desc")
+      .take(RUN_SCAN_LIMIT);
+    const lastRunByThread = new Map<string, Doc<"runs">>();
+    for (const run of recentRuns) {
+      if (!lastRunByThread.has(run.threadId)) {
+        lastRunByThread.set(run.threadId, run);
+      }
+    }
+
+    const now = Date.now();
+    const admitted: { row: Doc<"threadMetadata">; lastRun: Doc<"runs"> }[] = [];
+    for (const [threadId, lastRun] of lastRunByThread) {
+      if (admitted.length >= DESCRIBE_LIMIT) break;
+      const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+      if (
+        row &&
+        (row.run !== undefined ||
+          now - ThreadMetadataModels.lastActivityTime(row) < CANDIDATE_WINDOW_MS)
+      ) {
+        admitted.push({ row, lastRun });
+      }
+    }
 
     const candidates = await Promise.all(
-      rows.map((row) => describeCandidate(ctx, row)),
+      admitted.map(({ row, lastRun }) => describeCandidate(ctx, row, lastRun)),
     );
     const mentioned = new Set(dispatch.nodeIds);
     const overlap = (candidate: DispatchCandidate) =>

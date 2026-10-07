@@ -41,13 +41,14 @@ export async function runGenerations(
 export async function runToolTasks(
   ctx: QueryCtx,
   runMessageId: string,
+  limit = RUN_TASKS_LIMIT,
 ): Promise<Task[]> {
   return await ctx.db
     .query("agentTasks")
     .withIndex("by_runMessageId_and_kind", (q) =>
       q.eq("runMessageId", runMessageId).eq("kind", agentTaskKinds.tool),
     )
-    .take(RUN_TASKS_LIMIT);
+    .take(limit);
 }
 
 /** La dernière génération qui a répondu : sa réponse est celle du run. */

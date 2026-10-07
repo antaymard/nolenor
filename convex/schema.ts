@@ -252,6 +252,13 @@ const schema = defineSchema({
   runs: defineTable(runsValidator)
     .index("by_runMessageId", ["runMessageId"])
     .index("by_threadId", ["threadId"])
+    // Les derniers runs d'un canvas, du plus récent : les threads actifs, dans
+    // l'ordre de leur activité (cf. harness/dispatch.ts).
+    .index("by_canvasId_and_userId_and_agentName", [
+      "canvasId",
+      "userId",
+      "agentName",
+    ])
     // Les tâches à relire (`reviewedAt` absent) : celles d'un canvas pour ses
     // cartes, celles de l'utilisateur pour la home. `agentName` écarte les
     // runs de sous-agents, que personne ne relit.

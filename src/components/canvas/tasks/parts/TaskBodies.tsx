@@ -4,6 +4,7 @@ import { TbRefresh } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { MarkdownText } from "@/components/ai/MarkdownText";
+import { MentionedNodeCard } from "@/components/canvas/nole-panel/MentionedNodeCard";
 import { QuestionCard } from "@/components/canvas/nole-panel/message/QuestionCard";
 import type { AskedQuestion } from "@/components/canvas/nole-panel/message/activity/activityModel";
 
@@ -91,6 +92,33 @@ export function TaskAnswerBody({ text }: { text: string }) {
   return (
     <div className="nowheel ml-7 max-h-40 overflow-y-auto overscroll-contain pr-1 text-sm text-slate-700">
       <MarkdownText>{text}</MarkdownText>
+    </div>
+  );
+}
+
+/**
+ * Les nodes joints à la demande, sous son texte : le contexte de la réponse.
+ * Mêmes pastilles que sous un message du chat — un clic y amène, la distance
+ * dit où il est.
+ */
+export function TaskAttachedNodes({
+  nodes,
+}: {
+  nodes: readonly { id: string; title: string }[];
+}) {
+  if (nodes.length === 0) return null;
+  return (
+    <div
+      className="flex flex-wrap gap-1 pl-7"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {nodes.map((node) => (
+        <MentionedNodeCard
+          key={node.id}
+          nodeId={node.id}
+          fallbackTitle={node.title}
+        />
+      ))}
     </div>
   );
 }

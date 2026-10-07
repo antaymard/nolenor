@@ -10,6 +10,7 @@ import { TaskHeader } from "./parts/TaskHeader";
 import {
   TaskActivityBody,
   TaskAnswerBody,
+  TaskAttachedNodes,
   TaskErrorBody,
   TaskQuestionBody,
 } from "./parts/TaskBodies";
@@ -66,7 +67,12 @@ export default function TaskCard({
           retryable={body.retryable}
         />
       )}
-      {body?.kind === "answer" && <TaskAnswerBody text={body.text} />}
+      {body?.kind === "answer" && (
+        <>
+          <TaskAttachedNodes nodes={task.attachedNodes} />
+          <TaskAnswerBody text={body.text} />
+        </>
+      )}
       <TaskFooter nodes={view.nodes} pending={view.pending} />
     </TaskShell>
   );

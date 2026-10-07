@@ -8,6 +8,7 @@ import { getProfile } from "./harness/profiles";
 import { noleProfile, type NoleRunInput } from "./ia/profiles/nole";
 import { agentTaskKinds } from "./schemas/agentTasksSchema";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
+import * as MessageMetadataModels from "./models/messageMetadataModels";
 import * as RunModels from "./models/runModels";
 import * as ThreadMetadataModels from "./models/threadMetadataModels";
 import {
@@ -71,11 +72,17 @@ export const listPendingRuns = query({
           pendingQuestions = Array.isArray(questions) ? questions : null;
         }
         const failed = run.status === "error" || run.status === "aborted";
+        // Les nodes joints au message qui a ouvert le run : le contexte de la
+        // demande, à côté de son texte.
+        const startMessage = await MessageMetadataModels.findByMessageId(ctx, {
+          messageId: run.runMessageId,
+        });
         return {
           runId: run._id,
           threadId: run.threadId,
           title: thread?.title?.trim() || null,
           request: run.request,
+          attachedNodes: startMessage?.attachments?.nodes ?? [],
           runStatus: run.status,
           runStartedAt: run.startedAt,
           runEndedAt: run.endedAt ?? null,

@@ -10,6 +10,7 @@ function task(overrides: Partial<PendingTask> = {}): PendingTask {
     threadId: "thread",
     title: "Pricing",
     request: "Make a pricing table",
+    attachedNodes: [],
     runStatus: "idle",
     runStartedAt: NOW - 60_000,
     runEndedAt: NOW - 1000,

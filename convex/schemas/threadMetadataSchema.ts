@@ -15,17 +15,12 @@ const threadAgentNames = {
 } as const;
 
 /**
- * État grossier du tour en cours, écrit par le serveur. C'est la seule façon
- * de savoir qu'un thread travaille sans avoir sa conversation à l'écran : le
- * flux de messages ne renseigne que le thread dont un composant est monté.
+ * État d'un run (`runs.status`), et de la pastille d'un thread : celui de son
+ * run en cours, ou l'issue du dernier (cf. `runModels.threadRunState`).
  *
  * Le détail (token courant, tool en cours, reasoning) reste au flux client,
- * qui le donne gratuitement ; le dupliquer ici demanderait une écriture par
- * step LLM.
- *
- * Pas de littéral « périmé » : un `running` que plus personne ne terminera se
- * reconnaît à son âge, et l'âge se lit côté client (cf. `resolveRunStatus`).
- * Une query qui lirait l'horloge ne se réévaluerait jamais.
+ * qui le donne gratuitement. Pas d'état « périmé » : la harness conclut
+ * toujours un run, au besoin via le cron de reprise.
  */
 const threadRunStatuses = {
   running: "running",
@@ -78,7 +73,7 @@ const threadNodeTouchValidator = v.object({
 });
 
 /**
- * La dernière action de l'agent sur ce thread, telle qu'il l'a formulée
+ * La dernière action de l'agent sur un run, telle qu'il l'a formulée
  * lui-même : le champ `explanation` que porte l'entrée de chaque tool.
  *
  * C'est du détail fin, et le détail fin vit d'ordinaire dans le flux de
@@ -104,8 +99,6 @@ const threadLastActivityValidator = v.object({
  *   précédent tant qu'aucun steer n'a été placé ;
  * - `generationTaskId` : la génération courante, la seule autorisée à
  *   enchaîner ;
- * - `runToken` : le `runStartedAt` posé par `markRunStarted`, rendu à
- *   `markRunEnded` en fin de run ;
  * - `maxGenerations` : plafond du profil, recopié pour que les mutations n'aient
  *   pas à charger le profil ;
  * - `profile` : le profil du run, pour ouvrir le suivant à partir des messages
@@ -116,7 +109,9 @@ const threadRunValidator = v.object({
   startMessageId: v.string(),
   promptMessageId: v.string(),
   generationTaskId: v.id("agentTasks"),
-  runToken: v.number(),
+  // Déprécié : l'ancien jeton de fin de run. Plus écrit ni lu ; reste optionnel
+  // le temps que les runs ouverts avant sa suppression se terminent.
+  runToken: v.optional(v.number()),
   maxGenerations: v.number(),
   // Le modèle des générations à venir. Lu à chaque claim : un changement de
   // modèle pendant le run (sélecteur, steer) prend effet au step suivant.
@@ -155,30 +150,20 @@ const threadMetadataValidator = v.object({
   // actor `agent` — et non depuis `maybeCheckpoint`, dont le coalescing
   // laisserait des trous.
   touchedNodes: v.optional(v.array(threadNodeTouchValidator)),
-  // Dernière action de l'agent, écrite à chaque tool call par l'enveloppe de
-  // `getToolsForAgent`. Effacée par `markRunStarted` : un thread relancé ne doit
-  // pas afficher une seconde la dernière action du tour précédent. Survit en
-  // revanche à `markRunEnded` — c'est le meilleur résumé de ce qui vient d'être
-  // fait, et le dock le montre jusqu'à la revue.
-  lastActivity: v.optional(threadLastActivityValidator),
   agentName: v.string(),
   lastMessageTime: v.optional(v.number()),
-  // Nombre de messages envoyés par l'utilisateur sur ce thread, incrémenté par
-  // `threadMetadataModels.markRunStarted`. À ne pas confondre avec le nombre
+  // Nombre de runs ouverts sur ce thread, incrémenté par
+  // `threadMetadataModels.recordRunStart`. À ne pas confondre avec le nombre
   // de steps LLM, qui vit dans `aiUsageDaily.eventsCount`.
   roundsNb: v.optional(v.number()),
-  // Absent = jamais lancé, donc `idle` : aucune migration à faire.
+  // Dépréciés : l'état des runs vit dans la table `runs` (une ligne par
+  // tâche) et dans `run` ci-dessous (le run en cours). Plus écrits ni lus ;
+  // effacés par `migrations.clearThreadRunState`, puis à retirer d'ici.
+  lastActivity: v.optional(threadLastActivityValidator),
   runStatus: v.optional(threadRunStatusValidator),
   runStartedAt: v.optional(v.number()),
   runEndedAt: v.optional(v.number()),
-  // Message d'erreur du dernier tour échoué, tronqué : il est affiché tel quel.
   lastRunError: v.optional(v.string()),
-  // Accusé de réception humain du dernier tour conclu. Orthogonal à
-  // `runStatus`, et non une valeur de plus dedans : on peut avoir vu un échec,
-  // et fondre les deux ferait disparaître la pastille rouge de la liste de
-  // threads au moment même où on accuse réception. C'est ce champ qui sort une
-  // tâche du dock d'activité ; `markRunStarted` l'efface pour qu'un thread
-  // relancé y revienne.
   reviewedAt: v.optional(v.number()),
   // Le run en cours de la harness, présent exactement tant qu'il travaille.
   // C'est la référence que toutes les tâches confrontent avant d'écrire : un
@@ -195,31 +180,15 @@ type ThreadNodeTouchKind = Infer<typeof threadNodeTouchKindValidator>;
 /** États terminaux : ce qu'un tour peut valoir une fois `running` quitté. */
 type ThreadRunEndStatus = Exclude<ThreadRunStatus, "running" | "waiting">;
 
-/** `lastRunError` est affiché tel quel : on ne stocke pas une stack entière. */
+/** `runs.error` est affiché tel quel : on ne stocke pas une stack entière. */
 const RUN_ERROR_MAX_LENGTH = 300;
 
 /**
- * Borne de `lastActivity.text`. Le tool demande au modèle une étiquette courte,
+ * Borne de `runs.lastActivity.text`. Le tool demande au modèle une étiquette courte,
  * mais rien ne l'y oblige : la borne existe pour que la pastille reste une
  * pastille même le jour où il rédige un paragraphe.
  */
 const ACTIVITY_TEXT_MAX_LENGTH = 140;
-
-/**
- * Au-delà de ce délai, un thread encore marqué `running` est tenu pour
- * interrompu. Le serveur écrit son état terminal dans un `finally`, mais rien
- * ne s'exécute quand l'action meurt avec son conteneur : sans cette borne, la
- * pastille tournerait indéfiniment — pire que pas de statut, l'utilisateur y
- * croit.
- *
- * Généreux à dessein : un tour Nolë va jusqu'à 25 steps, dont des sous-agents.
- *
- * Vit ici, et non côté client, parce que les deux bords en ont besoin : l'UI
- * pour afficher `stale`, et `threadMetadataModels.markReviewed` pour accepter
- * de clore un tour périmé. Deux constantes qui divergent, et une pastille
- * devient indélogeable.
- */
-const RUN_STALE_MS = 15 * 60 * 1000;
 
 export {
   threadMetadataValidator,
@@ -232,7 +201,6 @@ export {
   threadRunValidator,
   ACTIVITY_TEXT_MAX_LENGTH,
   RUN_ERROR_MAX_LENGTH,
-  RUN_STALE_MS,
   type ThreadRunStatus,
   type ThreadRunEndStatus,
   type ThreadNodeTouch,

@@ -14,7 +14,6 @@ function task(overrides: Partial<PendingTask> = {}): PendingTask {
     runStatus: "idle",
     runStartedAt: NOW - 60_000,
     runEndedAt: NOW - 1000,
-    reviewedAt: null,
     touchedNodes: [],
     lastActivity: null,
     lastRunError: null,
@@ -44,9 +43,7 @@ describe("resolveTaskView", () => {
         runStatus: "running",
         runEndedAt: null,
         lastActivity: { text: "Reading 3 nodes", at: NOW },
-      }),
-      NOW,
-    );
+      }));
     expect(view).toMatchObject({
       status: "running",
       emphasis: "compact",
@@ -63,9 +60,7 @@ describe("resolveTaskView", () => {
         pendingQuestions: [{ question: "Which format?" }],
         outcome: { ...task().outcome, needsUser: true, canvas: true },
         touchedNodes: [node],
-      }),
-      NOW,
-    );
+      }));
     expect(view.emphasis).toBe("attention");
     expect(view.body).toMatchObject({
       kind: "question",
@@ -82,9 +77,7 @@ describe("resolveTaskView", () => {
         lastRunError: "Provider error",
         touchedNodes: [node],
         outcome: { ...task().outcome, failed: true, canvas: true },
-      }),
-      NOW,
-    );
+      }));
     expect(view).toMatchObject({
       emphasis: "attention",
       body: {
@@ -98,22 +91,10 @@ describe("resolveTaskView", () => {
   });
 
   test("arrêtée par l'utilisateur : compacte, relançable", () => {
-    const view = resolveTaskView(task({ runStatus: "aborted" }), NOW);
+    const view = resolveTaskView(task({ runStatus: "aborted" }));
     expect(view).toMatchObject({
       emphasis: "compact",
       body: { kind: "error", message: "Stopped before finishing.", retryable: true },
-    });
-  });
-
-  test("qui ne répond plus : signalée, pas relançable", () => {
-    const view = resolveTaskView(
-      task({ runStatus: "running", runEndedAt: null, runStartedAt: 0 }),
-      NOW,
-    );
-    expect(view).toMatchObject({
-      status: "stale",
-      emphasis: "attention",
-      body: { kind: "error", retryable: false },
     });
   });
 
@@ -127,9 +108,7 @@ describe("resolveTaskView", () => {
           answerText: "The key point is X.",
           canvas: true,
         },
-      }),
-      NOW,
-    );
+      }));
     expect(view).toMatchObject({
       emphasis: "expanded",
       body: { kind: "answer", text: "The key point is X." },
@@ -142,24 +121,20 @@ describe("resolveTaskView", () => {
       task({
         touchedNodes: [node],
         outcome: { ...task().outcome, answer: false, canvas: true },
-      }),
-      NOW,
-    );
+      }));
     expect(view).toMatchObject({ emphasis: "compact", body: null, autoDismissMs: null });
   });
 
   test("rien à montrer : s'écarte d'elle-même ; pas tant que le juge n'a pas parlé", () => {
     expect(
-      resolveTaskView(task({ outcome: { ...task().outcome, answer: false } }), NOW)
+      resolveTaskView(task({ outcome: { ...task().outcome, answer: false } }))
         .autoDismissMs,
     ).toBe(EMPTY_TASK_DISMISS_MS);
-    expect(resolveTaskView(task(), NOW).autoDismissMs).toBeNull();
+    expect(resolveTaskView(task()).autoDismissMs).toBeNull();
     // Du travail en fond à attendre : elle reste.
     expect(
       resolveTaskView(
-        task({ outcome: { ...task().outcome, answer: false, pending: 1 } }),
-        NOW,
-      ).autoDismissMs,
+        task({ outcome: { ...task().outcome, answer: false, pending: 1 } })).autoDismissMs,
     ).toBeNull();
   });
 });

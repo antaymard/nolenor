@@ -12,7 +12,7 @@ import { useClearHomeTasks } from "@/hooks/useClearHomeTasks";
 import type { CanvasCover } from "@/lib/canvasCover";
 import {
   resolveRunStatus,
-  type HomePendingThread,
+  type HomePendingTask,
 } from "@/lib/threadRunStatus";
 import TaskRow from "./TaskRow";
 
@@ -23,7 +23,7 @@ const UNDO_WINDOW_MS = 6000;
 
 interface TaskListProps {
   /** Déjà triées (cf. `useHomePendingTasks`). */
-  tasks: HomePendingThread[];
+  tasks: HomePendingTask[];
   /** Les canvas que la home liste. Une tâche dont le canvas n'y est pas — un
    *  partage révoqué — n'est pas affichée : elle mènerait à un cul-de-sac. */
   canvases: ReadonlyMap<Id<"canvases">, TaskCanvasInfo>;
@@ -39,9 +39,8 @@ interface TaskListProps {
  * regardé, tous canvas confondus.
  *
  * Une boîte de réception, comme le dock d'un canvas : une tâche y reste jusqu'à
- * ce qu'on l'ouvre ou qu'on l'écarte. Les deux surfaces lisent la même règle
- * (`isPendingReview`), donc écarter ici la retire aussi du dock, et
- * réciproquement.
+ * ce qu'on l'ouvre ou qu'on l'écarte. Les deux surfaces lisent les mêmes runs,
+ * donc écarter ici la retire aussi du canvas, et réciproquement.
  */
 export default function TaskList({
   tasks,
@@ -54,15 +53,15 @@ export default function TaskList({
   // Les tâches acquittées restent visibles quelques secondes en état
   // « cleared » avec un bouton Undo inline — pas de toast. La mutation est
   // immédiate : quitter la page ne les ramène pas.
-  const [recentlyCleared, setRecentlyCleared] = useState<HomePendingThread[]>(
+  const [recentlyCleared, setRecentlyCleared] = useState<HomePendingTask[]>(
     [],
   );
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const timers = useRef(new Map<Id<"runs">, ReturnType<typeof setTimeout>>());
 
-  const dropCleared = useCallback((threadId: string) => {
-    timers.current.delete(threadId);
+  const dropCleared = useCallback((runId: Id<"runs">) => {
+    timers.current.delete(runId);
     setRecentlyCleared((current) =>
-      current.filter((task) => task.threadId !== threadId),
+      current.filter((task) => task.runId !== runId),
     );
   }, []);
 
@@ -75,17 +74,17 @@ export default function TaskList({
   }, []);
 
   const clear = useCallback(
-    (toClear: HomePendingThread[]) => {
+    (toClear: HomePendingTask[]) => {
       const fresh = toClear.filter(
-        (task) => !timers.current.has(task.threadId),
+        (task) => !timers.current.has(task.runId),
       );
       if (fresh.length === 0) return;
       clearTasks(fresh);
       setRecentlyCleared((current) => [...fresh, ...current]);
       for (const task of fresh) {
         timers.current.set(
-          task.threadId,
-          setTimeout(() => dropCleared(task.threadId), UNDO_WINDOW_MS),
+          task.runId,
+          setTimeout(() => dropCleared(task.runId), UNDO_WINDOW_MS),
         );
       }
     },
@@ -93,16 +92,16 @@ export default function TaskList({
   );
 
   const revert = useCallback(
-    (threadId: string) => {
-      const timer = timers.current.get(threadId);
+    (runId: Id<"runs">) => {
+      const timer = timers.current.get(runId);
       if (timer) clearTimeout(timer);
-      timers.current.delete(threadId);
+      timers.current.delete(runId);
       // Retrait optimiste local : la query remettra la ligne d'elle-même via
       // l'update optimiste du unmark, sans attendre le serveur.
       setRecentlyCleared((current) =>
-        current.filter((task) => task.threadId !== threadId),
+        current.filter((task) => task.runId !== runId),
       );
-      revertTasks([threadId]);
+      revertTasks([runId]);
     },
     [revertTasks],
   );
@@ -117,9 +116,8 @@ export default function TaskList({
   // Tout ce qui ne tourne plus. Pas les tours en cours ni les questions en
   // attente, que le serveur refuse d'accuser : les compter promettrait un
   // effet qui n'aurait pas lieu.
-  const now = Date.now();
   const clearable = listed.filter((task) => {
-    const status = resolveRunStatus(task, now);
+    const status = resolveRunStatus(task);
     return status !== "running" && status !== "waiting";
   });
 
@@ -171,7 +169,7 @@ export default function TaskList({
         <ul className="flex flex-col gap-2">
           {visible.map((task) => (
             <TaskRow
-              key={task.threadId}
+              key={task.runId}
               task={task}
               // `listed` ne garde que les tâches dont le canvas est connu.
               canvas={canvases.get(task.canvasId)!}
@@ -180,7 +178,7 @@ export default function TaskList({
           ))}
           {clearedVisible.map((task) => (
             <li
-              key={`cleared-${task.threadId}`}
+              key={`cleared-${task.runId}`}
               className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 py-2.5 pr-2.5 pl-3 opacity-70"
               aria-live="polite"
             >
@@ -190,7 +188,7 @@ export default function TaskList({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => revert(task.threadId)}
+                onClick={() => revert(task.runId)}
                 className="gap-1.5 bg-surface"
                 aria-label={`Undo clear of ${task.title || "Nolë"}`}
               >

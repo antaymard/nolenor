@@ -53,13 +53,9 @@ export const EMPTY_TASK_DISMISS_MS = 6000;
 
 const STOPPED_MESSAGE = "Stopped before finishing.";
 const FAILED_MESSAGE = "Something went wrong.";
-const STALE_MESSAGE = "This task stopped responding.";
 
-export function resolveTaskView(
-  task: PendingTask,
-  now: number = Date.now(),
-): TaskView {
-  const status = resolveRunStatus(task, now);
+export function resolveTaskView(task: PendingTask): TaskView {
+  const status = resolveRunStatus(task);
   const { outcome } = task;
   const nodes = task.touchedNodes;
   const base = { status, nodes, pending: outcome.pending };
@@ -89,7 +85,7 @@ export function resolveTaskView(
     };
   }
 
-  if (status === "error" || status === "aborted" || status === "stale") {
+  if (status === "error" || status === "aborted") {
     return {
       ...base,
       // Arrêtée par l'utilisateur : rien d'inattendu, pas de quoi alerter.
@@ -97,13 +93,10 @@ export function resolveTaskView(
       body: {
         kind: "error",
         message:
-          status === "stale"
-            ? STALE_MESSAGE
-            : (task.lastRunError ??
-              (status === "aborted" ? STOPPED_MESSAGE : FAILED_MESSAGE)),
+          task.lastRunError ??
+          (status === "aborted" ? STOPPED_MESSAGE : FAILED_MESSAGE),
         partial: outcome.canvas,
-        // Un run qui ne répond plus n'est pas fini : on ne le relance pas.
-        retryable: status !== "stale",
+        retryable: true,
       },
       dismissible: true,
       autoDismissMs: null,

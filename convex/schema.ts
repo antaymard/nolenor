@@ -252,7 +252,20 @@ const schema = defineSchema({
   runs: defineTable(runsValidator)
     .index("by_runMessageId", ["runMessageId"])
     .index("by_threadId", ["threadId"])
-    .index("by_canvasId_and_userId", ["canvasId", "userId"]),
+    // Les tâches à relire (`reviewedAt` absent) : celles d'un canvas pour ses
+    // cartes, celles de l'utilisateur pour la home. `agentName` écarte les
+    // runs de sous-agents, que personne ne relit.
+    .index("by_canvasId_and_userId_and_agentName_and_reviewedAt", [
+      "canvasId",
+      "userId",
+      "agentName",
+      "reviewedAt",
+    ])
+    .index("by_userId_and_agentName_and_reviewedAt", [
+      "userId",
+      "agentName",
+      "reviewedAt",
+    ]),
   // Demandes envoyées sans thread (omnibar) et leur aiguillage (cf.
   // harness/dispatch.ts).
   dispatches: defineTable(dispatchesValidator)

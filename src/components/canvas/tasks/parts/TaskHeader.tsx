@@ -83,7 +83,7 @@ export function TaskStatusIndicator({ status }: { status: ResolvedRunStatus }) {
         <TbMessageQuestion size={16} className="text-violet-600" />
       ) : status === "error" ? (
         <TbAlertCircle size={16} className="text-red-500" />
-      ) : status === "stale" || status === "aborted" ? (
+      ) : status === "aborted" ? (
         <TbAlertTriangle size={15} className="text-amber-500" />
       ) : (
         <TbCheck size={16} className="text-emerald-600" />

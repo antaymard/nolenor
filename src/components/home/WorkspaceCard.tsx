@@ -21,7 +21,7 @@ import {
   getDockStatusAppearance,
   pickDominantRunStatus,
   resolveRunStatus,
-  type HomePendingThread,
+  type HomePendingTask,
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
 import { formatBlocks, formatEdited } from "./workspaceFormat";
@@ -43,28 +43,26 @@ export interface WorkspaceItemProps {
   onDelete?: (canvas: WorkspaceCardCanvas) => void;
   /** Ce que Nolë y a laissé en plan, résumé en une pastille. Le détail est
    *  dans la liste des tâches, au-dessus — ici on signale, on ne raconte pas. */
-  pendingTasks: HomePendingThread[];
+  pendingTasks: HomePendingTask[];
   className?: string;
   style?: CSSProperties;
 }
 
 /**
  * La pastille des tâches d'un canvas : un compte, et la couleur de la plus
- * urgente (cf. `pickDominantRunStatus`). Pas de minuterie : une carte qui met
- * un rendu à passer du violet à l'ambre ne trompe personne.
+ * urgente (cf. `pickDominantRunStatus`).
  */
 export function CanvasTaskBadge({
   tasks,
   className,
 }: {
-  tasks: HomePendingThread[];
+  tasks: HomePendingTask[];
   className?: string;
 }) {
   if (tasks.length === 0) return null;
 
-  const now = Date.now();
   const status = pickDominantRunStatus(
-    tasks.map((task) => resolveRunStatus(task, now)),
+    tasks.map((task) => resolveRunStatus(task)),
   );
   const appearance = getDockStatusAppearance(status);
 

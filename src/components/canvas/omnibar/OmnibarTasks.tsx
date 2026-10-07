@@ -8,19 +8,19 @@ import {
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import { useOpenNoleThread } from "@/hooks/useOpenNoleThread";
-import { isPendingReview, type PendingTask } from "@/lib/threadRunStatus";
+import type { PendingTask } from "@/lib/threadRunStatus";
 import TaskCard from "@/components/canvas/tasks/TaskCard";
 import { resolveTaskView } from "@/components/canvas/tasks/taskView";
 
 /** Cartes compactes visibles avant le « +N ». */
-const MAX_COMPACT_VISIBLE = 3;
+const MAX_COMPACT_VISIBLE = 5;
 
 /**
  * Les tâches de Nolë au-dessus de l'omnibar : une carte par run (cf. convex/runs.ts).
  *
  * Ce qui demande une lecture ou une action (réponse, question, échec) passe
  * en tête, en pleine largeur ; le reste — en cours, ou fini avec un résultat
- * sur le canvas — en rangée de cartes compactes dessous. Une boîte de
+ * sur le canvas — en pile de cartes compactes dessous. Une boîte de
  * réception, pas un flux : une tâche y reste jusqu'à ce qu'on l'écarte ou
  * qu'on ouvre sa conversation.
  */
@@ -44,16 +44,15 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
     [open],
   );
 
-  // Le serveur ne lit pas l'horloge ; l'admission finale se décide ici.
-  const now = Date.now();
-  const pending = (tasks ?? []).filter((task) => isPendingReview(task, now));
+  // Le serveur ne renvoie que les tâches à relire.
+  const pending = tasks ?? [];
   if (pending.length === 0) return null;
 
   const prominent = pending.filter(
-    (task) => resolveTaskView(task, now).emphasis !== "compact",
+    (task) => resolveTaskView(task).emphasis !== "compact",
   );
   const compact = pending.filter(
-    (task) => resolveTaskView(task, now).emphasis === "compact",
+    (task) => resolveTaskView(task).emphasis === "compact",
   );
   const visible = compact.slice(0, MAX_COMPACT_VISIBLE);
   const overflow = compact.slice(MAX_COMPACT_VISIBLE);
@@ -71,7 +70,7 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
     <div className="flex w-full flex-col items-start gap-2">
       {prominent.map(card)}
       {compact.length > 0 && (
-        <div className="flex flex-wrap items-end justify-start gap-2">
+        <div className="flex flex-col items-start gap-2">
           {visible.map(card)}
           {overflow.length > 0 && (
             <Popover open={overflowOpen} onOpenChange={setOverflowOpen}>
@@ -79,7 +78,7 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
                 <button
                   type="button"
                   aria-label={`${overflow.length} more tasks`}
-                  className="flex h-[46px] shrink-0 items-center rounded-xl border border-slate-200 bg-surface px-3 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+                  className="flex shrink-0 items-center rounded-xl border border-slate-200 bg-surface px-3 py-1 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
                 >
                   +{overflow.length}
                 </button>

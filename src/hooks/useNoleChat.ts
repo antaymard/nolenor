@@ -13,7 +13,7 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNoleThread } from "@/hooks/useNoleThread";
-import { useResolvedRunStatus } from "@/hooks/useThreadRunStatus";
+import { resolveRunStatus } from "@/lib/threadRunStatus";
 import { useNoleModelSelection } from "@/hooks/useNoleModelSelection";
 import { useNoleSpeechInput } from "@/hooks/useNoleSpeechInput";
 import { useSelectableNodes } from "@/hooks/useSelectableNodes";
@@ -121,7 +121,7 @@ export function useNoleChat() {
   // Remplace un drapeau remonté de ChatInterface, qui devait mémoriser *quel*
   // thread répondait : démonté à l'ouverture d'une conversation vierge, il
   // n'avait plus aucun moyen de se remettre à false et bloquait l'envoi.
-  const runStatus = useResolvedRunStatus(threadInfo);
+  const runStatus = resolveRunStatus({ runStatus: threadInfo?.runStatus });
   const isAssistantResponding = runStatus === "running";
 
   // Dirty windows block sending until saved/closed.

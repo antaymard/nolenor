@@ -1,46 +1,24 @@
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/../convex/_generated/api";
-import {
-  RUN_STALE_MS,
-  type ThreadRunStatus,
-} from "@/../convex/schemas/threadMetadataSchema";
+import type { ThreadRunStatus } from "@/../convex/schemas/threadMetadataSchema";
 
-/**
- * Réexporté depuis le schéma Convex, où il vit désormais : le serveur en a
- * besoin lui aussi, pour accepter de clore un tour périmé
- * (`threadMetadataModels.markReviewed`). Deux constantes qui divergeraient, et
- * une pastille « sans réponse » deviendrait indélogeable.
- */
-export { RUN_STALE_MS };
-
-/**
- * Ce que l'interface affiche. `stale` n'existe pas en base : c'est un
- * `running` qu'on a cessé de croire.
- */
-export type ResolvedRunStatus = ThreadRunStatus | "stale";
+/** Ce que l'interface affiche : le statut d'un run, tel quel. */
+export type ResolvedRunStatus = ThreadRunStatus;
 
 export type ThreadRunFields = {
   runStatus: ThreadRunStatus | null | undefined;
-  runStartedAt: number | null | undefined;
 };
 
 /**
- * Tranche l'état affichable d'un thread.
+ * Le statut affichable d'un thread ou d'une tâche. Absent = thread jamais
+ * lancé : rien en cours, rien à signaler.
  *
- * La péremption se décide ici, côté client, et non dans la query : lire
- * l'horloge dans une query Convex donnerait un résultat qui ne se réévalue
- * jamais (même raison que `threads.getLatestCanvasThread`). Le serveur renvoie
- * donc `runStatus` et `runStartedAt` bruts, et l'appelant passe son `now`.
+ * Pas de péremption : la harness conclut toujours un run (au besoin par le
+ * cron de reprise), et le serveur rend déjà l'état d'un thread déduit de son
+ * run en cours ou du dernier (cf. `runModels.threadRunState`).
  */
-export function resolveRunStatus(
-  { runStatus, runStartedAt }: ThreadRunFields,
-  now: number = Date.now(),
-): ResolvedRunStatus {
-  // Absent = thread jamais lancé : rien en cours, rien à signaler.
-  if (!runStatus) return "idle";
-  if (runStatus !== "running") return runStatus;
-  if (runStartedAt != null && now - runStartedAt > RUN_STALE_MS) return "stale";
-  return "running";
+export function resolveRunStatus({ runStatus }: ThreadRunFields): ResolvedRunStatus {
+  return runStatus ?? "idle";
 }
 
 export type RunStatusAppearance = {
@@ -63,8 +41,8 @@ export type RunStatusAppearance = {
  * dit déjà « Nolë » (l'anneau pointillé d'un node attaché) — l'étendre au
  * travail en cours prolonge un sens appris plutôt que d'en inventer un.
  *
- * `aborted` et `stale` partagent l'ambre : dans les deux cas le tour ne s'est
- * pas terminé, sans que le modèle ait échoué. Seul le libellé les distingue.
+ * `aborted` est ambre : le tour ne s'est pas terminé, sans que le modèle ait
+ * échoué.
  */
 export const RUN_STATUS_APPEARANCE: Record<
   Exclude<ResolvedRunStatus, "idle">,
@@ -87,13 +65,6 @@ export const RUN_STATUS_APPEARANCE: Record<
   aborted: {
     label: "Interrupted",
     description: "The response was interrupted.",
-    className: "border-amber-200 bg-amber-50 text-amber-700",
-    dotClassName: "bg-amber-500",
-  },
-  stale: {
-    label: "No reply",
-    description:
-      "This turn never completed. Resend your message to retry.",
     className: "border-amber-200 bg-amber-50 text-amber-700",
     dotClassName: "bg-amber-500",
   },
@@ -123,7 +94,6 @@ export const RUN_STATUS_BORDER: Record<ResolvedRunStatus, string> = {
   idle: "border-emerald-200",
   error: "border-red-200",
   aborted: "border-amber-200",
-  stale: "border-amber-200",
 };
 
 /**
@@ -136,43 +106,11 @@ export function getRunStatusAppearance(
   return status === "idle" ? null : RUN_STATUS_APPEARANCE[status];
 }
 
-/**
- * Ce que le dock d'activité sait d'un thread. `runEndedAt` s'ajoute au couple
- * du statut parce que c'est lui, et non le statut résolu, qui atteste qu'un
- * tour s'est réellement conclu (cf. `isPendingReview`).
- */
+/** Les dates d'un run, pour le dater et mesurer sa durée. */
 export type ThreadDockFields = ThreadRunFields & {
+  runStartedAt: number | null | undefined;
   runEndedAt: number | null | undefined;
-  reviewedAt: number | null | undefined;
 };
-
-/**
- * Le thread a-t-il sa place au dock d'activité ?
- *
- * Le dock est une boîte de réception, pas un flux d'activité récente : une
- * tâche finie y reste jusqu'à ce qu'on l'ait vue, sans TTL. C'est la revue qui
- * l'en sort, et rien d'autre.
- *
- * Le piège est `idle`. `resolveRunStatus` le rend aussi bien pour un tour qui
- * s'est bien terminé que pour un thread qui n'a jamais été lancé — d'où le
- * garde sur `runEndedAt`, sans lequel tout l'historique du canvas entrerait au
- * dock au premier chargement.
- */
-export function isPendingReview(
-  fields: ThreadDockFields,
-  now: number = Date.now(),
-): boolean {
-  const resolved = resolveRunStatus(fields, now);
-  // Un tour en cours ne se revoit pas : il n'est pas fini. Une question qui
-  // attend sa réponse non plus.
-  if (resolved === "running" || resolved === "waiting") return true;
-  // Un `running` qu'on a cessé de croire n'aura jamais son `runEndedAt` ; il
-  // reste pourtant à revoir, c'est même la tâche qui appelle le plus l'œil.
-  if (resolved === "stale") return fields.reviewedAt == null;
-  // Ni lancé, ni conclu : rien à faire relire.
-  if (fields.runEndedAt == null) return false;
-  return fields.reviewedAt == null;
-}
 
 /**
  * L'apparence du cas que le header n'a jamais à afficher : une tâche qui a
@@ -214,10 +152,10 @@ export type PendingTask = FunctionReturnType<
 /**
  * Une tâche telle que la home la reçoit : rattachée à son canvas, et sans le
  * détail des nodes touchés — hors d'un canvas ouvert, leurs titres sont
- * inaccessibles (cf. `threads.listPendingThreadsForUser`).
+ * inaccessibles (cf. `runs.listPendingRunsForUser`).
  */
-export type HomePendingThread = FunctionReturnType<
-  typeof api.threads.listPendingThreadsForUser
+export type HomePendingTask = FunctionReturnType<
+  typeof api.runs.listPendingRunsForUser
 >[number];
 
 /**
@@ -234,7 +172,6 @@ const RUN_STATUS_URGENCY: Record<ResolvedRunStatus, number> = {
   // Une question bloque le travail jusqu'à la réponse : aussi pressant qu'un
   // tour qui n'a pas abouti.
   waiting: 3,
-  stale: 3,
   aborted: 3,
   running: 2,
   idle: 1,
@@ -267,10 +204,8 @@ export function pickDominantRunStatus(
 /**
  * L'instant que la home date : la fin du tour, ou son départ à défaut.
  *
- * Un tour en cours n'a pas de fin, et un `stale` n'en aura jamais — personne ne
- * conclura ce tour-là. Les dater par leur départ vaut mieux que de ne pas les
- * dater : « lancé il y a trois heures » est précisément ce qui donne envie
- * d'aller voir.
+ * Un tour en cours n'a pas encore de fin : le dater par son départ vaut mieux
+ * que de ne pas le dater.
  */
 export function runTimeAnchor(fields: ThreadDockFields): number | null {
   return fields.runEndedAt ?? fields.runStartedAt ?? null;

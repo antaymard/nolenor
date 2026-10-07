@@ -15,7 +15,7 @@ type ChatInterfaceProps = {
   threadId: string;
   onRetry?: (userMessage: string) => void;
   /**
-   * Le tour est en cours selon le serveur (`runStatus`, péremption comprise).
+   * Le tour est en cours selon le serveur (`runStatus`).
    * Seul signal fiable entre deux étapes : le message n'y est plus
    * `streaming` mais `pending`, alors que l'agent travaille toujours.
    */

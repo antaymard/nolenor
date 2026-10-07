@@ -8,7 +8,7 @@ import {
   agentTaskStatuses,
   liveAgentTaskStatuses,
 } from "../schemas/agentTasksSchema";
-import { runWrites, targetNodeIds } from "./runWrites";
+import { runToolTasks, runWrites, targetNodeIds } from "./runWrites";
 
 /**
  * Lectures de la harness pour l'UI et le diagnostic.
@@ -21,7 +21,10 @@ const ACTIVE_RUNS_LIMIT = 5;
 /**
  * L'activité de Nolë sur un canvas, pour la montrer en live :
  * - `calls` : les tool calls en cours — quel thread, quel tool, quels nodes ;
- * - `written` : les nodes que les runs en cours ont déjà écrits ou créés.
+ * - `written` : les nodes que les runs en cours ont déjà écrits ou créés ;
+ * - `done` : par node, le dernier tool call terminé des runs en cours (lecture
+ *   comprise), pour que le canvas garde la trace de ce que Nolë a fait
+ *   jusqu'à la fin du run, et pas seulement pendant l'appel.
  */
 export const listLiveActivity = query({
   args: { canvasId: v.id("canvases") },
@@ -31,7 +34,7 @@ export const listLiveActivity = query({
     try {
       await requireCanvasAccess(ctx, canvasId, userId, "viewer");
     } catch {
-      return { calls: [], written: [] };
+      return { calls: [], written: [], done: [] };
     }
 
     const calls = [];
@@ -66,8 +69,35 @@ export const listLiveActivity = query({
     }
 
     const written = [];
+    const lastDone = new Map<
+      string,
+      {
+        threadId: string;
+        nodeId: string;
+        access: "read" | "write";
+        label: string | null;
+        endedAt: number;
+      }
+    >();
     for (const run of [...runs.values()].slice(0, ACTIVE_RUNS_LIMIT)) {
-      const writes = await runWrites(ctx, run);
+      const tools = await runToolTasks(ctx, run.runMessageId);
+      for (const tool of tools) {
+        if (tool.status !== agentTaskStatuses.completed) continue;
+        const endedAt = tool.endedAt ?? tool._creationTime;
+        for (const nodeId of targetNodeIds(tool.input)) {
+          const previous = lastDone.get(nodeId);
+          if (previous && previous.endedAt > endedAt) continue;
+          lastDone.set(nodeId, {
+            threadId: run.threadId,
+            nodeId,
+            access: tool.replay === "safe" ? "read" : "write",
+            label: tool.explanation ?? null,
+            endedAt,
+          });
+        }
+      }
+
+      const writes = await runWrites(ctx, run, tools);
       const nodeIds = new Set(writes.nodeIds);
       for (const nodeDataId of writes.nodeDataIds) {
         const node = await NodeModels.getNodeByNodeDataId(ctx, { nodeDataId });
@@ -79,7 +109,7 @@ export const listLiveActivity = query({
         written.push({ threadId: run.threadId, nodeId });
       }
     }
-    return { calls, written };
+    return { calls, written, done: [...lastDone.values()] };
   },
 });
 

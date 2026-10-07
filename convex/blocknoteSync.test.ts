@@ -63,6 +63,7 @@ async function seed(t: T) {
   return t.run(async (ctx) => {
     const owner = await ctx.db.insert("users", {});
     const reader = await ctx.db.insert("users", {});
+    const coEditor = await ctx.db.insert("users", {});
     const canvasId = await ctx.db.insert("canvases", {
       creatorId: owner,
       name: "Canvas",
@@ -75,13 +76,20 @@ async function seed(t: T) {
       permission: "viewer",
       grantedBy: owner,
     });
+    await ctx.db.insert("shares", {
+      resourceType: "canvas",
+      canvasId,
+      userId: coEditor,
+      permission: "editor",
+      grantedBy: owner,
+    });
     const nodeDataId = await ctx.db.insert("nodeDatas", {
       canvasId,
       type: "blocknote",
       updatedAt: Date.now(),
       values: { doc: JSON.stringify(INITIAL) },
     });
-    return { owner, reader, nodeDataId };
+    return { owner, reader, coEditor, nodeDataId };
   });
 }
 
@@ -238,5 +246,69 @@ describe("blocknote sync", () => {
     await createLiveDoc(t, owner, nodeDataId);
     await write("agent");
     expect(await scheduledPushes(t)).toBe(1);
+  });
+
+  test("co-editing humans share one version, an agent write opens a new one", async () => {
+    const t = setup();
+    const { owner, coEditor, nodeDataId } = await seed(t);
+    await createLiveDoc(t, owner, nodeDataId);
+
+    // One editing turn: steps, then the grouped copy credited to their author.
+    const editAs = async (
+      userId: Id<"users">,
+      from: unknown[],
+      to: unknown[],
+    ) => {
+      const version = await t.run((ctx) =>
+        ctx.runQuery(components.prosemirrorSync.lib.latestVersion, {
+          id: nodeDataId,
+        }),
+      );
+      const result = await as(t, userId).mutation(
+        api.blocknoteSync.submitSteps,
+        {
+          id: nodeDataId,
+          version: version!,
+          clientId: userId,
+          steps: stepsBetween(from, to),
+        },
+      );
+      expect(result.status).toBe("synced");
+      await t.mutation(internal.blocknoteMaterialize.materializeLatest, {
+        nodeDataId,
+        userId,
+      });
+    };
+    const versionActors = () =>
+      t.run(async (ctx) =>
+        (await ctx.db.query("nodeDataVersions").collect()).map(
+          (version) => version.actor,
+        ),
+      );
+
+    const second = [...EDITED, paragraph("b3", "from B")];
+    const third = [...second, paragraph("b4", "from A again")];
+    await editAs(owner, INITIAL, EDITED);
+    await editAs(coEditor, EDITED, second);
+    await editAs(owner, second, third);
+
+    // Each copy did land...
+    const stored = await t.run((ctx) => ctx.db.get(nodeDataId));
+    expect(JSON.parse(stored!.values.doc as string)).toHaveLength(4);
+    // ...but A and B alternating is one session: a single restore point,
+    // holding the document from before it.
+    expect(await versionActors()).toEqual([{ type: "user", userId: owner }]);
+
+    await t.run((ctx) =>
+      NodeDataModel.updateValues(ctx, {
+        _id: nodeDataId,
+        values: { doc: [paragraph("b1", "rewritten by Nolë")] },
+        actor: { type: "agent", userId: owner, threadId: "thread" },
+      }),
+    );
+    expect(await versionActors()).toEqual([
+      { type: "user", userId: owner },
+      { type: "agent", userId: owner, threadId: "thread" },
+    ]);
   });
 });

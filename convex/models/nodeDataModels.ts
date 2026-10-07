@@ -312,6 +312,7 @@ export async function updateValues(
     actor,
     changedKeys,
     trigger: "update",
+    sharedHumanSession: fromSync,
   });
 
   const now = Date.now();

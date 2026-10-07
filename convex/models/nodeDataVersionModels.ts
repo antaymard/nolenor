@@ -47,12 +47,20 @@ export async function maybeCheckpoint(
     changedKeys,
     trigger,
     force = false,
+    sharedHumanSession = false,
   }: {
     nodeData: Doc<"nodeDatas">;
     actor: NodeDataVersionActor;
     changedKeys: Array<string>;
     trigger: NodeDataVersionTrigger;
     force?: boolean;
+    // Write issu de l'édition collaborative (cf. blocknoteMaterialize.ts) :
+    // les frappes de plusieurs humains y sont entremêlées, et l'`actor` n'est
+    // que l'auteur des derniers steps regroupés. Une version par bascule
+    // d'auteur découperait l'historique au hasard des fenêtres de recopie :
+    // tous les humains prolongent donc la même session. Un agent ou le
+    // système en ouvrent toujours une nouvelle.
+    sharedHumanSession?: boolean;
   },
 ): Promise<Id<"nodeDataVersions"> | null> {
   // Types qui ne se versionnent pas du tout (cf. `capabilities` dans
@@ -75,7 +83,13 @@ export async function maybeCheckpoint(
       .order("desc")
       .first();
 
-    if (latest && actorsEqual(latest.actor, actor)) {
+    const sameSession =
+      latest !== null &&
+      (actorsEqual(latest.actor, actor) ||
+        (sharedHumanSession &&
+          latest.actor.type === "user" &&
+          actor.type === "user"));
+    if (latest && sameSession) {
       if (Date.now() - latest._creationTime < COALESCE_WINDOW_MS) return null;
     }
   }

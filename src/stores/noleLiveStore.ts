@@ -13,6 +13,8 @@ import { create } from "zustand";
  */
 export type NoleNodeActivity = {
   access: "read" | "write" | "written" | "seen";
+  /** Le tool de l'appel en cours ou du dernier appel fini, pour son icône. */
+  toolName: string | null;
   label: string | null;
   leaving?: boolean;
 };
@@ -33,6 +35,7 @@ function sameActivities(
       !other ||
       other.access !== activity.access ||
       other.label !== activity.label ||
+      other.toolName !== activity.toolName ||
       other.leaving !== activity.leaving
     ) {
       return false;

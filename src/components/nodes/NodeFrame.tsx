@@ -8,8 +8,7 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useNoleNodeActivity } from "@/stores/noleLiveStore";
-import { isLiveAccess } from "@/lib/noleLiveActivity";
-import { CheckIcon } from "lucide-react";
+import NoleActivityBead from "./NoleActivityBead";
 import BookmarkedBadge from "./BookmarkedBadge";
 import { NodeTitleHeader } from "./NodeHeader";
 import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
@@ -33,36 +32,6 @@ function ZoomCompensated({ children }: { children: React.ReactNode }) {
       style={{ scale: String(scale), transformOrigin: "center" }}
     >
       {children}
-    </div>
-  );
-}
-
-/**
- * L'étiquette de l'action de Nolë au-dessus du node : pleine pendant l'appel,
- * discrète une fois l'appel fini (elle reste jusqu'à la fin du run).
- */
-function NoleActivityLabel({
-  label,
-  live,
-  leaving,
-}: {
-  label: string;
-  live: boolean;
-  leaving: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "pointer-events-none absolute -top-7 left-1 z-20 flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium shadow-sm",
-        "transition-[opacity,background-color,color] duration-500",
-        live
-          ? "bg-violet-600 text-white"
-          : "border border-violet-200 bg-white/90 text-violet-700",
-        leaving && "opacity-0",
-      )}
-    >
-      {!live && <CheckIcon className="size-3 shrink-0" />}
-      <span className="truncate">{label}</span>
     </div>
   );
 }
@@ -192,13 +161,7 @@ function NodeFrame({
           (cf. `BookmarkedBadge`). */}
       {isBookmarked && <BookmarkedBadge />}
 
-      {noleActivity?.label && (
-        <NoleActivityLabel
-          label={noleActivity.label}
-          live={isLiveAccess(noleActivity.access)}
-          leaving={noleActivity.leaving === true}
-        />
-      )}
+      {noleActivity && <NoleActivityBead activity={noleActivity} />}
 
       {/* `content-visibility: auto` : le navigateur saute le layout et le
           paint du contenu tant que le node est hors écran, ce qui borne le

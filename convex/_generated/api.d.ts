@@ -30,6 +30,7 @@ import type * as config_trashConfig from "../config/trashConfig.js";
 import type * as config_uploadsConfig from "../config/uploadsConfig.js";
 import type * as crons from "../crons.js";
 import type * as dataExport from "../dataExport.js";
+import type * as diagnostics from "../diagnostics.js";
 import type * as edges from "../edges.js";
 import type * as harness_compaction from "../harness/compaction.js";
 import type * as harness_deferredTools from "../harness/deferredTools.js";
@@ -279,6 +280,7 @@ declare const fullApi: ApiFromModules<{
   "config/uploadsConfig": typeof config_uploadsConfig;
   crons: typeof crons;
   dataExport: typeof dataExport;
+  diagnostics: typeof diagnostics;
   edges: typeof edges;
   "harness/compaction": typeof harness_compaction;
   "harness/deferredTools": typeof harness_deferredTools;

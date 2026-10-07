@@ -2695,6 +2695,21 @@ describe("rétention", () => {
     expect(docs[docs.length - 1]?.text).toBe("All done");
   });
 
+  test("diagnostic : le volume des messages, par tool et par seuil", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: bigText })], [text("All done")]]);
+    await send(t, seed, "Read a lot");
+    await drain(t);
+
+    const report = await t.action(internal.diagnostics.messageSizes, {});
+    expect(report.scanned).toMatchObject({ threads: 1, messages: 4 });
+    expect(report.byTool[0]).toMatchObject({ tool: "echo", parts: 2 });
+    const at2k = report.thresholds.find((row) => row.threshold === 2000);
+    expect(at2k).toMatchObject({ parts: 2 });
+    expect(at2k!.pctOfAll).toBeGreaterThan(50);
+  });
+
   test("rattrapage : les vieux messages de tool de chaque thread", async () => {
     const t = setup();
     const seed = await seedThread(t);

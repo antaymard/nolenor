@@ -34,6 +34,7 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import { isCompactFrame } from "@/lib/frameVariant";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import BookmarkedBadge from "@/components/nodes/BookmarkedBadge";
+import RemoteSelectionPill from "@/components/canvas/presence/RemoteSelectionPill";
 import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import { colors, resolveColor } from "@/components/ui/styles";
 import { cn } from "@/lib/utils";
@@ -522,6 +523,8 @@ function FrameNode(xyNode: XyNodeProps) {
       >
         {/* Même pastille que `NodeFrame` (cf. `BookmarkedBadge`). */}
         {isBookmarked && <BookmarkedBadge />}
+        {/* Même pill que `NodeFrame` : qui d'autre a sélectionné la frame. */}
+        <RemoteSelectionPill nodeId={xyNode.id} />
       </div>
     </>
   );

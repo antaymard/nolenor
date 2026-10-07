@@ -125,4 +125,36 @@ describe("canvas presence", () => {
       }),
     ).rejects.toThrow();
   });
+
+  test("a member publishes their selection, others read it from the room", async () => {
+    const t = setup();
+    const { owner, guest, canvasId } = await seed(t);
+    const guestPresenceId = makePresenceUserId(guest, "tab");
+
+    const { roomToken } = await as(t, guest).mutation(api.presence.heartbeat, {
+      roomId: canvasId,
+      userId: guestPresenceId,
+      sessionId: "s",
+      interval: 10_000,
+    });
+    await as(t, guest).mutation(api.presence.updateSelection, {
+      roomId: canvasId,
+      userId: guestPresenceId,
+      selectedNodeIds: ["n1", "n2"],
+    });
+
+    const states = await t.query(api.presence.list, { roomToken });
+    expect(states.find((s) => s.userId === guestPresenceId)?.data).toEqual({
+      selectedNodeIds: ["n1", "n2"],
+    });
+
+    // Nobody publishes under someone else's presence id.
+    await expect(
+      as(t, owner).mutation(api.presence.updateSelection, {
+        roomId: canvasId,
+        userId: guestPresenceId,
+        selectedNodeIds: [],
+      }),
+    ).rejects.toThrow();
+  });
 });

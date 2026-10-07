@@ -1,17 +1,21 @@
 import { ConvexError, v } from "convex/values";
 import { Presence } from "@convex-dev/presence";
 import { components } from "./_generated/api";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { getCanvasAccess, requireAuth } from "./lib/auth";
 import errors from "./config/errorsConfig";
 import { parsePresenceUserId } from "./lib/presenceIds";
+import {
+  MAX_PUBLISHED_SELECTION,
+  type CanvasPresenceData,
+} from "./lib/presenceData";
 import { resolveUserDisplayName } from "./lib/userDisplayName";
 
 // Présence sur un canvas : qui l'a ouvert en ce moment.
 //
 // Une room par canvas (`roomId` = id du canvas), un participant par onglet
-// (cf. lib/presenceIds.ts). Ces trois fonctions implémentent l'interface
+// (cf. lib/presenceIds.ts). `heartbeat`, `list` et `disconnect` implémentent l'interface
 // `PresenceAPI` attendue par le hook `usePresence` d'`@convex-dev/presence`,
 // d'où leurs signatures imposées — et le nom de module : sur fermeture
 // d'onglet, le hook envoie `presence:disconnect` en dur via `sendBeacon`.
@@ -38,6 +42,26 @@ const presenceStateValidator = v.object({
   image: v.optional(v.string()),
 });
 
+/**
+ * L'appelant est bien celui que désigne l'id de présence, et membre du canvas
+ * de la room. L'identité vient de l'auth, jamais du client.
+ */
+async function requireRoomParticipant(
+  ctx: MutationCtx,
+  roomId: string,
+  presenceUserId: string,
+) {
+  const authUserId = await requireAuth(ctx);
+  if (parsePresenceUserId(presenceUserId) !== authUserId) {
+    throw new ConvexError(errors.UNAUTHORIZED_USER);
+  }
+
+  const canvasId = ctx.db.normalizeId("canvases", roomId);
+  if (!canvasId) throw new ConvexError(errors.CANVAS_NOT_FOUND);
+  const access = await getCanvasAccess(ctx, canvasId, authUserId);
+  if (!access) throw new ConvexError(errors.CANVAS_NOT_FOUND);
+}
+
 export const heartbeat = mutation({
   args: {
     roomId: v.string(),
@@ -47,18 +71,7 @@ export const heartbeat = mutation({
   },
   returns: v.object({ roomToken: v.string(), sessionToken: v.string() }),
   handler: async (ctx, { roomId, userId, sessionId, interval }) => {
-    const authUserId = await requireAuth(ctx);
-
-    // L'identité vient de l'auth, jamais du client : l'id de présence doit
-    // porter l'utilisateur authentifié.
-    if (parsePresenceUserId(userId) !== authUserId) {
-      throw new ConvexError(errors.UNAUTHORIZED_USER);
-    }
-
-    const canvasId = ctx.db.normalizeId("canvases", roomId);
-    if (!canvasId) throw new ConvexError(errors.CANVAS_NOT_FOUND);
-    const access = await getCanvasAccess(ctx, canvasId, authUserId);
-    if (!access) throw new ConvexError(errors.CANVAS_NOT_FOUND);
+    await requireRoomParticipant(ctx, roomId, userId);
 
     const boundedInterval = Math.min(
       Math.max(interval, MIN_INTERVAL_MS),
@@ -71,6 +84,29 @@ export const heartbeat = mutation({
       sessionId,
       boundedInterval,
     );
+  },
+});
+
+/**
+ * Publie les nodes que ce participant (cet onglet) a sélectionnés. Hors de
+ * l'interface du hook : le client l'appelle lui-même, sur changement de
+ * sélection.
+ */
+export const updateSelection = mutation({
+  args: {
+    roomId: v.string(),
+    userId: v.string(),
+    selectedNodeIds: v.array(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { roomId, userId, selectedNodeIds }) => {
+    await requireRoomParticipant(ctx, roomId, userId);
+
+    const data: CanvasPresenceData = {
+      selectedNodeIds: selectedNodeIds.slice(0, MAX_PUBLISHED_SELECTION),
+    };
+    await presence.updateRoomUser(ctx, roomId, userId, data);
+    return null;
   },
 });
 

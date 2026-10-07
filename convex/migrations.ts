@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalAction, internalMutation } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { isNodeTypeEmbedded } from "./config/nodeConfig";
 import { buildEmbeddingText, embedDocuments } from "./lib/voyage";
@@ -604,5 +604,100 @@ export const trimOldToolMessages = internalMutation({
       });
     }
     return { done: slice.isDone, scheduled: slice.page.length };
+  },
+});
+
+// ── Threads sans `threadMetadata` ───────────────────────────────────────────
+// Les threads du composant agent qui n'ont pas de ligne `threadMetadata` :
+// ceux d'avant la table, ou restes d'une suppression incomplète. Tous les
+// listings de l'app partent de `threadMetadata` : ils sont invisibles, mais
+// leurs messages pèsent. Supprimés en entier (messages, streams, thread),
+// un thread par transaction. Le chat crée toujours un thread et sa ligne dans
+// la même transaction : aucun thread vivant n'est visé.
+//
+// Lancer avec : `npx convex run migrations:deleteOrphanThreads '{}'`.
+// Idempotent. À lancer avant `trimOldToolMessages`, qui part de
+// `threadMetadata`.
+
+export const deleteOrphanThreads = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.null(),
+  // Annotation explicite : la mutation se re-schedule elle-même via `internal`
+  // (même fichier), sans quoi l'inférence TS boucle (cf. guidelines).
+  handler: async (ctx, args): Promise<null> => {
+    const users = await ctx.db
+      .query("users")
+      .paginate({ numItems: 50, cursor: args.cursor ?? null });
+    for (const user of users.page) {
+      await ctx.scheduler.runAfter(0, internal.migrations.deleteUserOrphanThreads, {
+        userId: user._id,
+      });
+    }
+    if (!users.isDone) {
+      await ctx.scheduler.runAfter(0, internal.migrations.deleteOrphanThreads, {
+        cursor: users.continueCursor,
+      });
+    } else {
+      // Et les threads sans utilisateur.
+      await ctx.scheduler.runAfter(0, internal.migrations.deleteUserOrphanThreads, {});
+    }
+    return null;
+  },
+});
+
+export const deleteUserOrphanThreads = internalMutation({
+  args: { userId: v.optional(v.string()), cursor: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const threads = await ctx.runQuery(
+      components.agent.threads.listThreadsByUserId,
+      {
+        ...(args.userId !== undefined ? { userId: args.userId } : {}),
+        order: "asc",
+        paginationOpts: { cursor: args.cursor ?? null, numItems: 100 },
+      },
+    );
+    let scheduled = 0;
+    for (const thread of threads.page) {
+      const row = await ctx.db
+        .query("threadMetadata")
+        .withIndex("by_threadId", (q) => q.eq("threadId", thread._id))
+        .unique();
+      if (row) continue;
+      await ctx.scheduler.runAfter(0, internal.migrations.deleteOrphanThread, {
+        threadId: thread._id,
+      });
+      scheduled += 1;
+    }
+    if (scheduled > 0) {
+      console.log("[migrations] deleteOrphanThreads:user", {
+        userId: args.userId ?? null,
+        scheduled,
+      });
+    }
+    if (!threads.isDone) {
+      await ctx.scheduler.runAfter(0, internal.migrations.deleteUserOrphanThreads, {
+        ...(args.userId !== undefined ? { userId: args.userId } : {}),
+        cursor: threads.continueCursor,
+      });
+    }
+    return null;
+  },
+});
+
+export const deleteOrphanThread = internalMutation({
+  args: { threadId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { threadId }) => {
+    // Revérifié ici : la ligne a pu être créée entre-temps.
+    const row = await ctx.db
+      .query("threadMetadata")
+      .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
+      .unique();
+    if (row) return null;
+    await ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {
+      threadId,
+    });
+    return null;
   },
 });

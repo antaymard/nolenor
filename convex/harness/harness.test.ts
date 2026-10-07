@@ -2695,19 +2695,41 @@ describe("rétention", () => {
     expect(docs[docs.length - 1]?.text).toBe("All done");
   });
 
-  test("diagnostic : le volume des messages, par tool et par seuil", async () => {
+  test("diagnostic, puis suppression des threads sans threadMetadata", async () => {
     const t = setup();
     const seed = await seedThread(t);
     setModel([[call("echo", { text: bigText })], [text("All done")]]);
     await send(t, seed, "Read a lot");
     await drain(t);
+    // Un thread d'avant `threadMetadata` : dans le composant seulement.
+    const orphanId = await t.run(async (ctx) => {
+      const threadId = await createThread(ctx, components.agent, {
+        userId: seed.userId,
+      });
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        userId: seed.userId,
+        prompt: "Old conversation",
+      });
+      return threadId;
+    });
 
     const report = await t.action(internal.diagnostics.messageSizes, {});
-    expect(report.scanned).toMatchObject({ threads: 1, messages: 4 });
+    expect(report.scanned).toMatchObject({
+      threads: 2,
+      messages: 5,
+      complete: true,
+    });
+    expect(report.orphans).toMatchObject({ threads: 1, messages: 1 });
     expect(report.byTool[0]).toMatchObject({ tool: "echo", parts: 2 });
-    const at2k = report.thresholds.find((row) => row.threshold === 2000);
-    expect(at2k).toMatchObject({ parts: 2 });
-    expect(at2k!.pctOfAll).toBeGreaterThan(50);
+    expect(
+      report.thresholds.find((row) => row.threshold === 2000),
+    ).toMatchObject({ parts: 2 });
+
+    await t.mutation(internal.migrations.deleteOrphanThreads, {});
+    await drain(t);
+    expect(await transcript(t, orphanId)).toHaveLength(0);
+    expect(await transcript(t, seed.threadId)).toHaveLength(4);
   });
 
   test("rattrapage : les vieux messages de tool de chaque thread", async () => {

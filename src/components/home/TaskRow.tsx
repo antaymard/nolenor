@@ -10,18 +10,16 @@ import {
   TbMessageQuestion,
 } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
-import {
-  useResolvedRunStatus,
-  useRunDuration,
-} from "@/hooks/useThreadRunStatus";
+import { useRunDuration } from "@/hooks/useThreadRunStatus";
 import type { CanvasCover } from "@/lib/canvasCover";
 import { formatDistanceToNowStrict } from "@/lib/date-utils";
 import {
   RUN_STATUS_APPEARANCE,
   RUN_STATUS_BORDER,
   getDockStatusAppearance,
+  resolveRunStatus,
   runTimeAnchor,
-  type HomePendingThread,
+  type HomePendingTask,
   type ResolvedRunStatus,
 } from "@/lib/threadRunStatus";
 import { cn } from "@/lib/utils";
@@ -35,18 +33,16 @@ function TaskStatusIcon({ status }: { status: ResolvedRunStatus }) {
   if (status === "running") return <TbLoader2 className="animate-spin" />;
   if (status === "waiting") return <TbMessageQuestion />;
   if (status === "error") return <TbAlertCircle />;
-  if (status === "stale" || status === "aborted") return <TbAlertTriangle />;
+  if (status === "aborted") return <TbAlertTriangle />;
   return <TbCheck />;
 }
 
 /**
  * Ce que la ligne dit du travail. Un échec donne sa raison, que la dernière
- * action ne dit pas ; un tour resté sans réponse n'a rien formulé d'utile, on
- * explique plutôt quoi faire.
+ * action ne dit pas.
  */
-function taskDetail(task: HomePendingThread, status: ResolvedRunStatus) {
+function taskDetail(task: HomePendingTask, status: ResolvedRunStatus) {
   if (status === "error" && task.lastRunError) return task.lastRunError;
-  if (status === "stale") return RUN_STATUS_APPEARANCE.stale.description;
   if (status === "waiting") return RUN_STATUS_APPEARANCE.waiting.description;
   if (task.lastActivity?.text) return task.lastActivity.text;
   if (status === "running") return "Nolë is working on it…";
@@ -54,9 +50,9 @@ function taskDetail(task: HomePendingThread, status: ResolvedRunStatus) {
 }
 
 interface TaskRowProps {
-  task: HomePendingThread;
+  task: HomePendingTask;
   canvas: { name: string; cover: CanvasCover };
-  onClear: (task: HomePendingThread) => void;
+  onClear: (task: HomePendingTask) => void;
 }
 
 /**
@@ -65,18 +61,19 @@ interface TaskRowProps {
  * gestes — ouvrir la conversation, ou l'écarter.
  *
  * Composant à part entière, et non une ligne rendue en boucle, pour que chaque
- * tâche ait sa minuterie de péremption (`useResolvedRunStatus`) et son compteur
- * de durée pendant un run.
+ * tâche ait son compteur de durée pendant un run.
  */
 export default function TaskRow({ task, canvas, onClear }: TaskRowProps) {
   const navigate = useNavigate();
-  const status = useResolvedRunStatus(task);
+  const status = resolveRunStatus(task);
   const isRunning = status === "running";
   const appearance = getDockStatusAppearance(status);
   const duration = useRunDuration(task, isRunning);
   const anchor = runTimeAnchor(task);
   const detail = taskDetail(task, status);
-  const title = task.title || "Nolë";
+  // La demande, comme sur les cartes du canvas : deux tâches d'une même
+  // conversation se distinguent par elle, pas par le titre du thread.
+  const title = task.request || task.title || "Nolë";
 
   const open = () => {
     void navigate({
@@ -105,7 +102,10 @@ export default function TaskRow({ task, canvas, onClear }: TaskRowProps) {
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-semibold text-slate-900">
+          <span
+            className="truncate text-sm font-semibold text-slate-900"
+            title={task.title ? `In “${task.title}”` : undefined}
+          >
             {title}
           </span>
           <span className="flex max-w-44 shrink-0 items-center gap-1.5 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600 max-sm:hidden">
@@ -138,9 +138,7 @@ export default function TaskRow({ task, canvas, onClear }: TaskRowProps) {
           </span>
         )}
         <span className="flex items-center gap-2.5">
-          {/* Un tour périmé n'aura jamais de fin : sa « durée » ne serait que
-              l'âge de son départ, que la date au-dessus dit déjà. */}
-          {duration && status !== "stale" && (
+          {duration && (
             <span className="flex items-center gap-1" title="Time spent">
               <TbClock className="size-3.5" />
               {duration}

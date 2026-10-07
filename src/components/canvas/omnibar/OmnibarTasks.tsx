@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from "@/components/shadcn/popover";
 import { useOpenNoleThread } from "@/hooks/useOpenNoleThread";
-import { isPendingReview, type PendingTask } from "@/lib/threadRunStatus";
+import type { PendingTask } from "@/lib/threadRunStatus";
 import TaskCard from "@/components/canvas/tasks/TaskCard";
 import { resolveTaskView } from "@/components/canvas/tasks/taskView";
 
@@ -44,16 +44,15 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
     [open],
   );
 
-  // Le serveur ne lit pas l'horloge ; l'admission finale se décide ici.
-  const now = Date.now();
-  const pending = (tasks ?? []).filter((task) => isPendingReview(task, now));
+  // Le serveur ne renvoie que les tâches à relire.
+  const pending = tasks ?? [];
   if (pending.length === 0) return null;
 
   const prominent = pending.filter(
-    (task) => resolveTaskView(task, now).emphasis !== "compact",
+    (task) => resolveTaskView(task).emphasis !== "compact",
   );
   const compact = pending.filter(
-    (task) => resolveTaskView(task, now).emphasis === "compact",
+    (task) => resolveTaskView(task).emphasis === "compact",
   );
   const visible = compact.slice(0, MAX_COMPACT_VISIBLE);
   const overflow = compact.slice(MAX_COMPACT_VISIBLE);

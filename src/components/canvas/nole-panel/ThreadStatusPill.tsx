@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils";
 import {
   getRunStatusAppearance,
+  resolveRunStatus,
   type ResolvedRunStatus,
   type ThreadRunFields,
 } from "@/lib/threadRunStatus";
-import { useResolvedRunStatus } from "@/hooks/useThreadRunStatus";
 
 type ThreadStatusPillProps = {
   status: ResolvedRunStatus;
@@ -57,14 +57,7 @@ export default function ThreadStatusPill({
   );
 }
 
-/**
- * Variante branchée : prend les champs bruts d'un thread et résout le statut
- * elle-même.
- *
- * Exister comme composant, et pas comme un appel de hook dans la boucle de
- * rendu de la liste, est ce qui permet à chaque ligne d'avoir sa propre
- * minuterie de péremption sans que l'appelant ait à extraire un composant.
- */
+/** Variante branchée : prend les champs bruts d'un thread. */
 export function ThreadRunStatusPill({
   thread,
   size,
@@ -74,6 +67,11 @@ export function ThreadRunStatusPill({
   size?: ThreadStatusPillProps["size"];
   className?: string;
 }) {
-  const status = useResolvedRunStatus(thread);
-  return <ThreadStatusPill status={status} size={size} className={className} />;
+  return (
+    <ThreadStatusPill
+      status={resolveRunStatus({ runStatus: thread?.runStatus })}
+      size={size}
+      className={className}
+    />
+  );
 }

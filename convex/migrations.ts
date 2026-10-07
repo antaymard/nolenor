@@ -521,3 +521,118 @@ export const purgeViewportNodes = internalMutation({
     return { done: true, phase, processed, deleted, continueCursor };
   },
 });
+
+// ── État des runs sur `threadMetadata` ──────────────────────────────────────
+// L'état des runs a quitté `threadMetadata` pour la table `runs` (une ligne
+// par tâche) et `threadMetadata.run` (le run en cours). Deux phases :
+// - `threads` : efface les champs dépréciés (`runStatus`, `runStartedAt`,
+//   `runEndedAt`, `lastRunError`, `reviewedAt`, `lastActivity`, et
+//   `run.runToken`) ;
+// - `runs` : clôt en `aborted` les runs restés ouverts alors que leur thread
+//   n'en a plus (ancienne pastille « périmée ») : sans ça, leur carte
+//   tournerait pour toujours.
+//
+// Lancer avec : `npx convex run migrations:clearThreadRunState '{}'`.
+// Idempotent. Une fois terminée, retirer les champs dépréciés de
+// `threadMetadataSchema` (et `runToken` de `threadRunValidator`).
+
+const RUN_STATE_PAGE_SIZE = 100;
+const runStatePhaseValidator = v.union(v.literal("threads"), v.literal("runs"));
+
+type RunStateResult = {
+  done: boolean;
+  phase: "threads" | "runs";
+  processed: number;
+  patched: number;
+};
+
+export const clearThreadRunState = internalMutation({
+  args: {
+    phase: v.optional(runStatePhaseValidator),
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    done: v.boolean(),
+    phase: runStatePhaseValidator,
+    processed: v.number(),
+    patched: v.number(),
+  }),
+  // Annotation explicite : la mutation se re-schedule elle-même via `internal`
+  // (même fichier), sans quoi l'inférence TS boucle (cf. guidelines).
+  handler: async (ctx, args): Promise<RunStateResult> => {
+    const phase = args.phase ?? "threads";
+    const paginationOpts = {
+      numItems: RUN_STATE_PAGE_SIZE,
+      cursor: args.cursor ?? null,
+    };
+    let patched = 0;
+    let slice: { page: unknown[]; isDone: boolean; continueCursor: string };
+
+    if (phase === "threads") {
+      const page = await ctx.db.query("threadMetadata").paginate(paginationOpts);
+      slice = page;
+      for (const row of page.page) {
+        const stale =
+          row.runStatus !== undefined ||
+          row.runStartedAt !== undefined ||
+          row.runEndedAt !== undefined ||
+          row.lastRunError !== undefined ||
+          row.reviewedAt !== undefined ||
+          row.lastActivity !== undefined ||
+          row.run?.runToken !== undefined;
+        if (!stale) continue;
+        const { runToken: _runToken, ...run } = row.run ?? {};
+        await ctx.db.patch("threadMetadata", row._id, {
+          runStatus: undefined,
+          runStartedAt: undefined,
+          runEndedAt: undefined,
+          lastRunError: undefined,
+          reviewedAt: undefined,
+          lastActivity: undefined,
+          ...(row.run ? { run: run as NonNullable<typeof row.run> } : {}),
+        });
+        patched += 1;
+      }
+    } else {
+      const page = await ctx.db.query("runs").paginate(paginationOpts);
+      slice = page;
+      for (const run of page.page) {
+        if (run.endedAt !== undefined) continue;
+        const thread = await ctx.db
+          .query("threadMetadata")
+          .withIndex("by_threadId", (q) => q.eq("threadId", run.threadId))
+          .unique();
+        if (thread?.run?.startMessageId === run.runMessageId) continue;
+        await ctx.db.patch("runs", run._id, {
+          status: "aborted",
+          endedAt: Date.now(),
+        });
+        patched += 1;
+      }
+    }
+
+    const processed = slice.page.length;
+    console.log("[migrations] clearThreadRunState:page", {
+      phase,
+      processed,
+      patched,
+      isDone: slice.isDone,
+    });
+
+    if (!slice.isDone) {
+      await ctx.scheduler.runAfter(0, internal.migrations.clearThreadRunState, {
+        phase,
+        cursor: slice.continueCursor,
+      });
+      return { done: false, phase, processed, patched };
+    }
+    if (phase === "threads") {
+      await ctx.scheduler.runAfter(0, internal.migrations.clearThreadRunState, {
+        phase: "runs",
+      });
+      return { done: false, phase, processed, patched };
+    }
+    console.log("[migrations] clearThreadRunState:complete");
+    return { done: true, phase, processed, patched };
+  },
+});

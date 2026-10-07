@@ -2,15 +2,10 @@ import type { Doc, Id } from "../_generated/dataModel";
 import * as RunModels from "./runModels";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import {
-  ACTIVITY_TEXT_MAX_LENGTH,
-  RUN_ERROR_MAX_LENGTH,
-  RUN_STALE_MS,
   threadAgentNames,
   threadNodeTouchKinds,
-  threadRunStatuses,
   type ThreadNodeTouch,
   type ThreadNodeTouchKind,
-  type ThreadRunEndStatus,
 } from "../schemas/threadMetadataSchema";
 
 type ThreadMetadata = Doc<"threadMetadata">;
@@ -45,32 +40,6 @@ export async function listNoleThreadsByUserAndCanvas(
         .eq("userId", userId)
         .eq("canvasId", canvasId)
         .eq("agentName", threadAgentNames.nole),
-    )
-    .order("desc")
-    .take(limit);
-}
-
-/**
- * Conversations Nolë d'un utilisateur, tous canvas confondus, les plus
- * récemment créées d'abord.
- *
- * Sert la home, qui n'a pas de canvas courant : lui faire appeler
- * `listNoleThreadsByUserAndCanvas` une fois par workspace multiplierait les
- * scans par le nombre de canvas du compte, pour n'en garder au bout du compte
- * qu'une poignée de lignes.
- *
- * Ordonnée par date de création, comme son homologue par canvas : une
- * conversation ancienne relancée aujourd'hui se range donc loin dans le scan.
- * L'appelant borne, et trie ensuite sur la dernière activité.
- */
-export async function listNoleThreadsByUser(
-  ctx: QueryCtx,
-  { userId, limit }: { userId: Id<"users">; limit: number },
-): Promise<ThreadMetadata[]> {
-  return await ctx.db
-    .query("threadMetadata")
-    .withIndex("by_userId_and_agentName", (q) =>
-      q.eq("userId", userId).eq("agentName", threadAgentNames.nole),
     )
     .order("desc")
     .take(limit);
@@ -139,120 +108,25 @@ export async function addUsage(
 }
 
 /**
- * Marque le début d'un tour, et date l'interaction.
+ * Date l'interaction et compte le tour : un run démarre sur ce thread.
  *
  * La comptabilité d'usage ne stampe `lastMessageTime` qu'une fois l'assistant
  * passé ; on veut aussi dater l'envoi, sinon un tour qui échoue laisse le
  * thread paraître plus vieux qu'il ne l'est. C'est aussi ici, et pas dans la
  * comptabilité de coût, qu'on incrémente `roundsNb` : le `usageHandler` du
- * composant agent est appelé une fois par step LLM, donc y compter les rounds
- * revenait à compter des steps.
+ * composant agent est appelé une fois par step LLM.
  *
- * Renvoie le `runStartedAt` écrit — le jeton que `markRunEnded` exigera pour
- * conclure ce tour-là, et pas un autre parti entre-temps. `null` quand le
- * thread n'a pas de ligne de metadata (rien à conclure non plus).
- *
- * Efface `reviewedAt` au passage : sans ça, un thread revu puis relancé ne
- * reviendrait jamais au dock d'activité.
+ * L'état du run, lui, vit sur `run` (en cours) et dans la table `runs`.
  */
-export async function markRunStarted(
+export async function recordRunStart(
   ctx: MutationCtx,
   { threadId }: { threadId: string },
-): Promise<number | null> {
-  const threadRow = await findByThreadId(ctx, { threadId });
-  if (!threadRow) return null;
-
-  const runStartedAt = Date.now();
-  await ctx.db.patch("threadMetadata", threadRow._id, {
-    lastMessageTime: runStartedAt,
-    roundsNb: (threadRow.roundsNb ?? 0) + 1,
-    runStatus: threadRunStatuses.running,
-    runStartedAt,
-    runEndedAt: undefined,
-    lastRunError: undefined,
-    reviewedAt: undefined,
-    // Le tour précédent laisse sa dernière action derrière lui, à dessein (elle
-    // résume la tâche au dock). Elle n'a plus rien à dire du tour qui démarre :
-    // la garder ferait afficher pendant quelques secondes un travail terminé
-    // comme s'il était en cours.
-    lastActivity: undefined,
-  });
-  return runStartedAt;
-}
-
-/** Le run attend une réponse de l'utilisateur (`ask_user`). */
-export async function markRunWaiting(
-  ctx: MutationCtx,
-  { threadId, runToken }: { threadId: string; runToken: number },
-): Promise<void> {
-  const threadRow = await findByThreadId(ctx, { threadId });
-  if (!threadRow || threadRow.runStartedAt !== runToken) return;
-  await ctx.db.patch("threadMetadata", threadRow._id, {
-    runStatus: threadRunStatuses.waiting,
-  });
-}
-
-/**
- * Le run repart après la réponse de l'utilisateur. Nouveau `runStartedAt`,
- * donc nouveau jeton : la péremption d'un `running` se compte depuis la
- * reprise, pas depuis la question posée il y a des heures.
- */
-export async function markRunResumed(
-  ctx: MutationCtx,
-  { threadId, runToken }: { threadId: string; runToken: number },
-): Promise<number | null> {
-  const threadRow = await findByThreadId(ctx, { threadId });
-  if (!threadRow || threadRow.runStartedAt !== runToken) return null;
-  const resumedAt = Date.now();
-  await ctx.db.patch("threadMetadata", threadRow._id, {
-    runStatus: threadRunStatuses.running,
-    runStartedAt: resumedAt,
-  });
-  return resumedAt;
-}
-
-/**
- * Sort le thread de `running`.
- *
- * `runToken` est le `runStartedAt` rendu par `markRunStarted` : sans lui, la
- * fin du tour N remettrait le thread au repos alors que le tour N+1, parti
- * entre-temps, tourne encore. On ne conclut donc que le tour qu'on a soi-même
- * ouvert.
- *
- * N'écrit surtout pas `reviewedAt`, pas même `undefined` : `threads.abortStream`
- * vient d'en poser un, et l'action de streaming conclut le même tour un instant
- * plus tard avec un jeton qui correspond. Lister le champ ici effacerait cet
- * accusé de réception et ferait resurgir au dock une tâche que l'utilisateur
- * vient lui-même d'interrompre.
- *
- * No-op silencieux quand la ligne n'existe pas : la traçabilité ne doit jamais
- * faire échouer un tour dont la réponse est déjà partie — même prudence que
- * `addUsage`.
- */
-export async function markRunEnded(
-  ctx: MutationCtx,
-  {
-    threadId,
-    status,
-    runToken,
-    errorMessage,
-  }: {
-    threadId: string;
-    status: ThreadRunEndStatus;
-    runToken?: number;
-    errorMessage?: string;
-  },
 ): Promise<void> {
   const threadRow = await findByThreadId(ctx, { threadId });
   if (!threadRow) return;
-  if (runToken !== undefined && threadRow.runStartedAt !== runToken) return;
-
   await ctx.db.patch("threadMetadata", threadRow._id, {
-    runStatus: status,
-    runEndedAt: Date.now(),
-    lastRunError: errorMessage
-      ? errorMessage.slice(0, RUN_ERROR_MAX_LENGTH)
-      : undefined,
+    lastMessageTime: Date.now(),
+    roundsNb: (threadRow.roundsNb ?? 0) + 1,
   });
 }
 
@@ -319,92 +193,5 @@ export async function recordNodeTouch(
 
   await ctx.db.patch("threadMetadata", threadRow._id, {
     touchedNodes: nextTouched,
-  });
-}
-
-/**
- * Accuse réception du dernier tour conclu — l'utilisateur a ouvert la
- * conversation, ou écarté la tâche du dock d'activité.
- *
- * Refuse un tour réellement en cours : il n'est pas fini, donc pas revuable.
- * Sans ce garde, un clic poserait un `reviewedAt` que la règle d'admission
- * ignore tant que le thread tourne — la pastille resterait à l'écran, puis
- * disparaîtrait à la fin du tour sans avoir jamais été regardée.
- *
- * Un `running` périmé, lui, est revuable : personne ne le conclura, et c'est
- * même la tâche qui appelle le plus l'œil. Lire l'horloge est légitime ici,
- * dans une mutation — c'est dans une *query* qu'elle donnerait un résultat qui
- * ne se réévalue jamais.
- */
-export async function markReviewed(
-  ctx: MutationCtx,
-  { threadId }: { threadId: string },
-): Promise<void> {
-  const threadRow = await findByThreadId(ctx, { threadId });
-  if (!threadRow) return;
-  // Une question attend sa réponse : rien à acquitter.
-  if (threadRow.runStatus === threadRunStatuses.waiting) return;
-
-  if (threadRow.runStatus === threadRunStatuses.running) {
-    const startedAt = threadRow.runStartedAt;
-    const isStale =
-      startedAt !== undefined && Date.now() - startedAt > RUN_STALE_MS;
-    if (!isStale) return;
-  }
-
-  // Déjà accusé : ne pas réécrire la ligne pour rien.
-  if (threadRow.reviewedAt !== undefined) return;
-
-  await ctx.db.patch("threadMetadata", threadRow._id, {
-    reviewedAt: Date.now(),
-  });
-}
-
-/**
- * Défait `markReviewed` : la tâche revient dans le dock et sur la home.
- *
- * N'existe que pour le « Undo » qui suit un clear depuis la home — un clic
- * malheureux ne doit pas faire perdre la trace d'un travail qu'on n'a pas lu.
- * No-op si la tâche n'avait pas été accusée.
- */
-export async function unmarkReviewed(
-  ctx: MutationCtx,
-  { threadId }: { threadId: string },
-): Promise<void> {
-  const threadRow = await findByThreadId(ctx, { threadId });
-  if (!threadRow || threadRow.reviewedAt === undefined) return;
-
-  await ctx.db.patch("threadMetadata", threadRow._id, {
-    reviewedAt: undefined,
-  });
-}
-
-/**
- * Enregistre ce que l'agent est en train de faire, tel qu'il l'a formulé.
- *
- * Appelé une fois par tool call depuis l'enveloppe de `getToolsForAgent`, donc
- * sur le même ordre de grandeur que `addUsage` (un step LLM appelle zéro ou un
- * tool). C'est ce qui rend le coût acceptable : la ligne est déjà réécrite à ce
- * rythme, on ne change pas la nature du trafic sur ce document.
- *
- * Ne throw jamais et n'écrit pas deux fois la même phrase : il s'exécute sur le
- * chemin chaud d'un tour en cours, et une trace d'activité qui ferait échouer le
- * travail qu'elle décrit serait absurde. No-op silencieux quand la ligne
- * manque — threads de sous-agents, écritures MCP hors conversation.
- */
-export async function recordActivity(
-  ctx: MutationCtx,
-  { threadId, text }: { threadId: string; text: string },
-): Promise<void> {
-  const trimmed = text.trim().slice(0, ACTIVITY_TEXT_MAX_LENGTH);
-  if (!trimmed) return;
-  await RunModels.recordActivity(ctx, threadId, trimmed);
-
-  const threadRow = await findByThreadId(ctx, { threadId });
-  if (!threadRow) return;
-  if (threadRow.lastActivity?.text === trimmed) return;
-
-  await ctx.db.patch("threadMetadata", threadRow._id, {
-    lastActivity: { text: trimmed, at: Date.now() },
   });
 }

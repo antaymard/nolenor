@@ -99,13 +99,15 @@ export async function endRun(
 /** La dernière action annoncée par l'agent (l'`explanation` d'un tool). */
 export async function recordActivity(
   ctx: MutationCtx,
-  threadId: string,
+  runMessageId: string,
   text: string,
 ): Promise<void> {
   const trimmed = text.trim().slice(0, ACTIVITY_TEXT_MAX_LENGTH);
   if (!trimmed) return;
-  const run = await findActiveRun(ctx, threadId);
-  if (!run || run.lastActivity?.text === trimmed) return;
+  const run = await findByRunMessageId(ctx, runMessageId);
+  if (!run || run.endedAt !== undefined || run.lastActivity?.text === trimmed) {
+    return;
+  }
   await ctx.db.patch("runs", run._id, {
     lastActivity: { text: trimmed, at: Date.now() },
   });
@@ -142,6 +144,15 @@ export async function markReviewed(
   return true;
 }
 
+/** Défait `markReviewed` (le « Undo » de la home). */
+export async function unmarkReviewed(
+  ctx: MutationCtx,
+  run: Run,
+): Promise<void> {
+  if (run.reviewedAt === undefined) return;
+  await ctx.db.patch("runs", run._id, { reviewedAt: undefined });
+}
+
 /** Ouvrir la conversation, c'est relire toutes ses tâches finies. */
 export async function markThreadReviewed(
   ctx: MutationCtx,
@@ -155,15 +166,29 @@ export async function markThreadReviewed(
   for (const run of runs) await markReviewed(ctx, run);
 }
 
-/** Reste-t-il, sur ce thread, une tâche finie à relire ? */
-export async function hasUnreviewedRun(
-  ctx: QueryCtx | MutationCtx,
-  threadId: string,
-): Promise<boolean> {
-  const runs = await ctx.db
+/**
+ * L'état de run d'un thread, pour sa pastille : celui du run en cours
+ * (`threadMetadata.run`), sinon l'issue du dernier. Un run resté ouvert alors
+ * que le thread n'en a plus ne finira jamais : il compte comme interrompu.
+ */
+export async function threadRunState(
+  ctx: QueryCtx,
+  row: Doc<"threadMetadata">,
+): Promise<{ runStatus: ThreadRunStatus | null; lastRunError: string | null }> {
+  if (row.run) {
+    return {
+      runStatus: row.run.awaitingTaskId ? "waiting" : "running",
+      lastRunError: null,
+    };
+  }
+  const last = await ctx.db
     .query("runs")
-    .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
+    .withIndex("by_threadId", (q) => q.eq("threadId", row.threadId))
     .order("desc")
-    .take(50);
-  return runs.some((run) => run.endedAt !== undefined && run.reviewedAt === undefined);
+    .first();
+  if (!last) return { runStatus: null, lastRunError: null };
+  return {
+    runStatus: last.endedAt === undefined ? "aborted" : last.status,
+    lastRunError: last.error ?? null,
+  };
 }

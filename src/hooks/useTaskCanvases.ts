@@ -9,7 +9,7 @@ import { canvasCover } from "@/lib/canvasCover";
  * leur nom et leur couleur de couverture.
  *
  * Sert aussi de filtre. Les tâches viennent des threads de l'utilisateur, pas
- * de ses canvas (cf. `threads.listPendingThreadsForUser`) : un partage révoqué
+ * de ses canvas (cf. `runs.listPendingRunsForUser`) : un partage révoqué
  * laisse des tâches qui pointent vers un canvas qu'il ne voit plus. Une tâche
  * absente de cette map n'est ni listée ni comptée.
  *

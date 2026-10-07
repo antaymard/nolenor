@@ -26,11 +26,13 @@ import type { LanguageModelV3Content, LanguageModelV3Prompt } from "@ai-sdk/prov
 import { APICallError, tool } from "ai";
 import { z } from "zod";
 import { api, components, internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { QueryCtx } from "../_generated/server";
 import schema from "../schema";
 import { modules } from "../test.setup";
 import { registerProfile } from "./profiles";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
+import * as RunModels from "../models/runModels";
 import { isRetryableGenerationError } from "./errors";
 import { abortRun, setRunModel, startRun, submitToThread } from "./tasks";
 import { assembleRunContext, findCut } from "./transcript";
@@ -396,13 +398,31 @@ async function tasksOf(t: T, runMessageId: string) {
   );
 }
 
+/**
+ * Une ligne de thread, avec l'état que l'UI en lit : le statut déduit de son
+ * run (cf. `RunModels.threadRunState`) et la dernière action de son dernier run.
+ */
+async function withRunState(ctx: QueryCtx, row: Doc<"threadMetadata">) {
+  const lastRun = await ctx.db
+    .query("runs")
+    .withIndex("by_threadId", (q) => q.eq("threadId", row.threadId))
+    .order("desc")
+    .first();
+  return {
+    ...row,
+    runStatus: (await RunModels.threadRunState(ctx, row)).runStatus,
+    lastActivity: lastRun?.lastActivity,
+  };
+}
+
 async function threadRow(t: T, threadId: string) {
-  return t.run(async (ctx) =>
-    ctx.db
+  return t.run(async (ctx) => {
+    const row = await ctx.db
       .query("threadMetadata")
       .withIndex("by_threadId", (q) => q.eq("threadId", threadId))
-      .unique(),
-  );
+      .unique();
+    return row ? withRunState(ctx, row) : null;
+  });
 }
 
 const promptText = (i: number) => JSON.stringify(model.doStreamCalls[i].prompt);
@@ -1480,11 +1500,12 @@ describe("phase 4 — compaction", () => {
 
 describe("phase 5a — sous-agents", () => {
   async function childThreadOf(t: T, parentThreadId: string) {
-    return t.run(async (ctx) =>
-      (await ctx.db.query("threadMetadata").collect()).find(
-        (row) => row.masterThreadId === parentThreadId,
-      ),
-    );
+    return t.run(async (ctx) => {
+      const row = (await ctx.db.query("threadMetadata").collect()).find(
+        (candidate) => candidate.masterThreadId === parentThreadId,
+      );
+      return row ? withRunState(ctx, row) : undefined;
+    });
   }
 
   test("premier plan : le parent attend, le rapport devient le résultat du tool", async () => {
@@ -1749,8 +1770,10 @@ describe("phase 7a — aiguillage threadless", () => {
 
   async function threadsOf(t: T, userId: Id<"users">) {
     return t.run(async (ctx) =>
-      (await ctx.db.query("threadMetadata").collect()).filter(
-        (row) => row.userId === userId,
+      Promise.all(
+        (await ctx.db.query("threadMetadata").collect())
+          .filter((row) => row.userId === userId)
+          .map((row) => withRunState(ctx, row)),
       ),
     );
   }
@@ -2148,7 +2171,7 @@ describe("phase 7c — une tâche = un run", () => {
     ]);
   });
 
-  test("revue par tâche ; le thread sort de la home quand tout est relu", async () => {
+  test("revue par tâche : le canvas et la home lisent les mêmes runs", async () => {
     const t = setup();
     const seed = await seedNoleThread(t);
     setModel([[text("Done")]]);
@@ -2158,45 +2181,103 @@ describe("phase 7c — une tâche = un run", () => {
     await drain(t);
 
     const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const home = () => asUser.query(api.runs.listPendingRunsForUser, {});
     const [two, one] = await asUser.query(api.runs.listPendingRuns, {
       canvasId: seed.canvasId,
     });
+    expect((await home()).map((task) => task.request)).toEqual(["Two", "One"]);
+
     await asUser.mutation(api.runs.markRunReviewed, { runId: one.runId });
-    expect((await threadRow(t, seed.threadId))?.reviewedAt).toBeUndefined();
+    expect((await home()).map((task) => task.runId)).toEqual([two.runId]);
     await asUser.mutation(api.runs.markRunReviewed, { runId: two.runId });
-    expect((await threadRow(t, seed.threadId))?.reviewedAt).toBeDefined();
+    expect(await home()).toEqual([]);
     expect(
       await asUser.query(api.runs.listPendingRuns, { canvasId: seed.canvasId }),
     ).toEqual([]);
+
+    // Undo depuis la home : la tâche revient partout.
+    await asUser.mutation(api.runs.unmarkRunReviewed, { runId: one.runId });
+    expect((await home()).map((task) => task.runId)).toEqual([one.runId]);
+    expect(
+      (
+        await asUser.query(api.runs.listPendingRuns, { canvasId: seed.canvasId })
+      ).map((task) => task.runId),
+    ).toEqual([one.runId]);
   });
 
-  test("run qui ne répond plus : écarté, sa carte disparaît sans qu'il soit clos", async () => {
+  test("statut d'un thread : son run en cours, sinon l'issue du dernier", async () => {
     const t = setup();
     const seed = await seedNoleThread(t);
-    const runId = await t.run((ctx) =>
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    const info = () =>
+      asUser.query(api.threads.getThreadInfo, { threadId: seed.threadId });
+    expect(await info()).toMatchObject({ runStatus: null });
+
+    setModel([[call("echo", { text: "a" })], [text("Done")]]);
+    await sendAsNole(t, seed, "Work");
+    await runOneLayer(t);
+    expect(await info()).toMatchObject({ runStatus: "running" });
+    await drain(t);
+    expect(await info()).toMatchObject({ runStatus: "idle" });
+
+    // Un run resté ouvert alors que le thread n'en a plus : interrompu.
+    await t.run((ctx) =>
       ctx.db.insert("runs", {
         threadId: seed.threadId,
-        runMessageId: "stale-run",
+        runMessageId: "orphan-run",
         canvasId: seed.canvasId,
         userId: seed.userId,
         agentName: "Nolë",
         request: "Stuck",
         status: "running",
-        startedAt: Date.now() - 24 * 60 * 60 * 1000,
+        startedAt: Date.now(),
       }),
     );
-    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
-    expect(
-      await asUser.query(api.runs.listPendingRuns, { canvasId: seed.canvasId }),
-    ).toHaveLength(1);
+    expect(await info()).toMatchObject({ runStatus: "aborted" });
+  });
 
-    await asUser.mutation(api.runs.markRunReviewed, { runId });
-    expect(
-      await asUser.query(api.runs.listPendingRuns, { canvasId: seed.canvasId }),
-    ).toEqual([]);
-    const [run] = await runRows(t, seed.threadId);
-    expect(run.reviewedAt).toBeDefined();
-    expect(run.endedAt).toBeUndefined();
+  test("migration : champs dépréciés effacés, runs orphelins clos", async () => {
+    const t = setup();
+    const seed = await seedNoleThread(t);
+    const orphanId = await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("threadMetadata")
+        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
+        .unique();
+      await ctx.db.patch("threadMetadata", row!._id, {
+        runStatus: "running",
+        runStartedAt: 1,
+        reviewedAt: 2,
+        lastActivity: { text: "Old", at: 3 },
+      });
+      return ctx.db.insert("runs", {
+        threadId: seed.threadId,
+        runMessageId: "orphan-run",
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        agentName: "Nolë",
+        request: "Stuck",
+        status: "running",
+        startedAt: 1,
+      });
+    });
+
+    await t.mutation(internal.migrations.clearThreadRunState, {});
+    await drain(t);
+
+    const row = await t.run((ctx) =>
+      ctx.db
+        .query("threadMetadata")
+        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
+        .unique(),
+    );
+    expect(row).not.toHaveProperty("runStatus");
+    expect(row).not.toHaveProperty("runStartedAt");
+    expect(row).not.toHaveProperty("reviewedAt");
+    expect(row).not.toHaveProperty("lastActivity");
+    expect(await t.run((ctx) => ctx.db.get("runs", orphanId))).toMatchObject({
+      status: "aborted",
+    });
   });
 
   test("en cours, en attente, arrêtée : la tâche suit le run", async () => {

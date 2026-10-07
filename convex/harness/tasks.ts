@@ -172,12 +172,6 @@ async function endRun(
     }
     await maybeCompactAfterRun(ctx, current, generations);
   }
-  await ThreadMetadataModels.markRunEnded(ctx, {
-    threadId: current.row.threadId,
-    status,
-    runToken: current.run.runToken,
-    errorMessage,
-  });
   await RunModels.endRun(ctx, current.run.startMessageId, status, errorMessage);
   await getProfile(current.run.profile).runEnded?.(ctx, {
     threadId: current.row.threadId,
@@ -466,9 +460,7 @@ export async function startRun(
 
   // Écrit ici, dans la transaction du message, pour que toutes les surfaces
   // voient le thread travailler dès l'envoi.
-  const runToken = (await ThreadMetadataModels.markRunStarted(ctx, {
-    threadId: args.threadId,
-  }))!;
+  await ThreadMetadataModels.recordRunStart(ctx, { threadId: args.threadId });
   await RunModels.createRun(ctx, {
     threadId: args.threadId,
     runMessageId: args.startMessageId,
@@ -498,7 +490,6 @@ export async function startRun(
       startMessageId: args.startMessageId,
       promptMessageId: args.startMessageId,
       generationTaskId,
-      runToken,
       maxGenerations: args.profile.maxGenerationsPerRun,
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.parent ? { parent: args.parent } : {}),
@@ -975,10 +966,6 @@ async function askUser(
   }
   current.run = { ...current.run, awaitingTaskId: toolTaskId };
   await ctx.db.patch("threadMetadata", current.row._id, { run: current.run });
-  await ThreadMetadataModels.markRunWaiting(ctx, {
-    threadId: current.row.threadId,
-    runToken: current.run.runToken,
-  });
   await RunModels.setRunStatus(ctx, current.run.startMessageId, "waiting");
   return { wait: true };
 }
@@ -1001,14 +988,9 @@ export async function answerPendingQuestion(
   const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
   const taskId = row?.run?.awaitingTaskId;
   if (!row?.run || !taskId) return false;
-  const runToken =
-    (await ThreadMetadataModels.markRunResumed(ctx, {
-      threadId,
-      runToken: row.run.runToken,
-    })) ?? row.run.runToken;
   // Avant de résoudre : la génération suivante relit le run.
   await ctx.db.patch("threadMetadata", row._id, {
-    run: { ...row.run, awaitingTaskId: undefined, runToken },
+    run: { ...row.run, awaitingTaskId: undefined },
   });
   await RunModels.setRunStatus(ctx, row.run.startMessageId, "running");
   return resolveWaitingTool(ctx, taskId, {
@@ -1414,10 +1396,7 @@ export const claimTool = internalMutation({
       leaseExpiresAt: now + LEASE_MS,
     });
     if (mode === "execute" && task.explanation) {
-      await ThreadMetadataModels.recordActivity(ctx, {
-        threadId: task.threadId,
-        text: task.explanation,
-      });
+      await RunModels.recordActivity(ctx, task.runMessageId, task.explanation);
     }
 
     return {

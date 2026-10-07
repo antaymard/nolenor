@@ -1,8 +1,5 @@
 import { useEffect } from "react";
-import {
-  useResolvedRunStatus,
-  useRunDuration,
-} from "@/hooks/useThreadRunStatus";
+import { useRunDuration } from "@/hooks/useThreadRunStatus";
 import type { PendingTask } from "@/lib/threadRunStatus";
 import { resolveTaskView } from "./taskView";
 import { TaskShell } from "./parts/TaskShell";
@@ -31,9 +28,6 @@ export default function TaskCard({
   onOpen: (threadId: string) => void;
   onDismiss: (task: PendingTask) => void;
 }) {
-  // Abonne la carte à l'horloge : un run qui cesse de répondre passe « stale »
-  // sans que rien ne change en base.
-  useResolvedRunStatus(task);
   const view = resolveTaskView(task);
   const duration = useRunDuration(task, view.status === "running");
 

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { components, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import {
   internalAction,
   internalMutation,
@@ -7,7 +7,7 @@ import {
   type MutationCtx,
 } from "../_generated/server";
 import * as RunModels from "../models/runModels";
-import { agentTaskKinds } from "../schemas/agentTasksSchema";
+import { finalResponseText } from "../harness/runHistory";
 import { aiUsageSources } from "../schemas/aiUsageSourceSchema";
 import { askJev } from "./jev";
 
@@ -45,25 +45,11 @@ export const loadForJudgment = internalQuery({
   handler: async (ctx, { runMessageId }) => {
     const run = await RunModels.findByRunMessageId(ctx, runMessageId);
     if (!run) return null;
-    const generations = await ctx.db
-      .query("agentTasks")
-      .withIndex("by_runMessageId_and_kind", (q) =>
-        q.eq("runMessageId", runMessageId).eq("kind", agentTaskKinds.generation),
-      )
-      .take(500);
-    const last = generations
-      .filter((generation) => generation.responseMessageId)
-      .sort((a, b) => (b.step ?? 0) - (a.step ?? 0))[0];
-    const [message] = last?.responseMessageId
-      ? await ctx.runQuery(components.agent.messages.getMessagesByIds, {
-          messageIds: [last.responseMessageId],
-        })
-      : [null];
     return {
       userId: run.userId,
       request: run.request,
       nodesChanged: run.touchedNodes?.length ?? 0,
-      text: message?.text?.trim() ?? "",
+      text: await finalResponseText(ctx, runMessageId),
     };
   },
 });

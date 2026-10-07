@@ -29,9 +29,6 @@ const RUNS_SCAN_LIMIT = 60;
  * réponse, et celles finies sans avoir été relues. Un thread peut en avoir
  * plusieurs : une tâche non relue garde sa carte quand le thread repart sur
  * une autre demande.
- *
- * Mêmes champs que les threads du dock (`threads.listPendingThreads`), plus
- * la demande : la carte se lit pareil.
  */
 export const listPendingRuns = query({
   args: { canvasId: v.id("canvases") },

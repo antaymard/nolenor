@@ -239,8 +239,7 @@ const schema = defineSchema({
     // Abort d'un run et somme de son usage.
     .index("by_runMessageId_and_kind", ["runMessageId", "kind"])
     // Live sur le canvas : tâches en cours d'un canvas.
-    .index("by_canvasId_and_status", ["canvasId", "status"])
-    .index("by_toolCallId", ["toolCallId"]),
+    .index("by_canvasId_and_status", ["canvasId", "status"]),
   runPrompts: defineTable(runPromptsValidator)
     .index("by_messageId", ["messageId"])
     .index("by_threadId", ["threadId"]),
@@ -256,10 +255,11 @@ const schema = defineSchema({
     .index("by_canvasId_and_userId", ["canvasId", "userId"]),
   // Demandes envoyées sans thread (omnibar) et leur aiguillage (cf.
   // harness/dispatch.ts).
-  dispatches: defineTable(dispatchesValidator).index(
-    "by_canvasId_and_userId",
-    ["canvasId", "userId"],
-  ),
+  dispatches: defineTable(dispatchesValidator)
+    .index("by_canvasId_and_userId", ["canvasId", "userId"])
+    // Suppression d'un thread, d'un compte (cf. harness/purge.ts).
+    .index("by_threadId", ["threadId"])
+    .index("by_userId", ["userId"]),
   // Résumés de la partie ancienne d'un thread (cf. harness/compaction.ts).
   compactions: defineTable(compactionsValidator).index("by_threadId", [
     "threadId",

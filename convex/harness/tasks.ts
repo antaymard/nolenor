@@ -28,6 +28,7 @@ import { LOAD_TOOLS, loadTools } from "./deferredTools";
 import { ASK_USER, KERNEL_TOOL_NAMES, RUN_SUBAGENT } from "./kernelTools";
 import { onSubagentRunEnded, spawnSubagent } from "./subagents";
 import { getProfile } from "./profiles";
+import { lastResponse, runGenerations } from "./runHistory";
 import { saveToolResult, type ToolResultOutput } from "./transcript";
 
 /**
@@ -126,28 +127,17 @@ function contextTokensOf(
 }
 
 /** L'usage du run sur le dernier message assistant, comme le faisait streamResponse. */
-async function recordRunUsage(ctx: MutationCtx, current: CurrentRun) {
-  const generations = await ctx.db
-    .query("agentTasks")
-    .withIndex("by_runMessageId_and_kind", (q) =>
-      q
-        .eq("runMessageId", current.run.startMessageId)
-        .eq("kind", agentTaskKinds.generation),
-    )
-    .take(500);
-
+async function recordRunUsage(
+  ctx: MutationCtx,
+  current: CurrentRun,
+  generations: Task[],
+) {
+  const last = lastResponse(generations);
+  if (!last?.responseMessageId) return;
   let usage: Record<string, unknown> = {};
-  let last: Task | undefined;
   for (const generation of generations) {
     if (generation.usage) usage = sumUsage(usage, generation.usage);
-    if (
-      generation.responseMessageId &&
-      (!last || (generation.step ?? 0) > (last.step ?? 0))
-    ) {
-      last = generation;
-    }
   }
-  if (!last?.responseMessageId) return;
 
   await MessageMetadataModels.recordAssistantUsage(ctx, {
     userId: current.row.userId,
@@ -170,16 +160,17 @@ async function endRun(
   errorMessage?: string,
 ) {
   if (status === threadRunStatuses.idle) {
+    const generations = await runGenerations(ctx, current.run.startMessageId);
     // La comptabilité ne fait jamais échouer un run.
     try {
-      await recordRunUsage(ctx, current);
+      await recordRunUsage(ctx, current, generations);
     } catch (error) {
       console.error("[harness] failed to record run usage", {
         threadId: current.row.threadId,
         detail: error instanceof Error ? error.message : String(error),
       });
     }
-    await maybeCompactAfterRun(ctx, current);
+    await maybeCompactAfterRun(ctx, current, generations);
   }
   await ThreadMetadataModels.markRunEnded(ctx, {
     threadId: current.row.threadId,
@@ -225,18 +216,12 @@ function inputTokensOf(usage: Record<string, unknown> | undefined): number {
  * pas entre deux steps : compacter casse le cache, autant le faire une fois
  * le run fini (cf. Pi). Le run suivant ne l'attend pas.
  */
-async function maybeCompactAfterRun(ctx: MutationCtx, current: CurrentRun) {
-  const generations = await ctx.db
-    .query("agentTasks")
-    .withIndex("by_runMessageId_and_kind", (q) =>
-      q
-        .eq("runMessageId", current.run.startMessageId)
-        .eq("kind", agentTaskKinds.generation),
-    )
-    .take(500);
-  const last = generations
-    .filter((generation) => generation.responseMessageId)
-    .sort((a, b) => (b.step ?? 0) - (a.step ?? 0))[0];
+async function maybeCompactAfterRun(
+  ctx: MutationCtx,
+  current: CurrentRun,
+  generations: Task[],
+) {
+  const last = lastResponse(generations);
   if (!last) return;
 
   const settings = getProfile(last.profile).compaction;
@@ -633,6 +618,18 @@ export async function abortRun(
   return true;
 }
 
+/**
+ * Arrête le run d'un thread qu'on supprime : ses tâches s'arrêtent à leur
+ * prochaine frontière, sans fin de run — ni rapport à un parent, ni run
+ * suivant ouvert depuis la file. Rien ne doit plus écrire dans ce thread.
+ */
+export async function haltRun(ctx: MutationCtx, threadId: string) {
+  const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+  if (!row?.run) return;
+  await abortRunTasks(ctx, row.run.startMessageId);
+  await ctx.db.patch("threadMetadata", row._id, { run: undefined });
+}
+
 // ── Génération ─────────────────────────────────────────────────────────────
 
 export const claimGeneration = internalMutation({
@@ -709,14 +706,7 @@ export const claimGeneration = internalMutation({
  * de sa fenêtre — le début de la génération précédente.
  */
 async function runContextState(ctx: MutationCtx, task: Task, now: number) {
-  const generations = await ctx.db
-    .query("agentTasks")
-    .withIndex("by_runMessageId_and_kind", (q) =>
-      q
-        .eq("runMessageId", task.runMessageId)
-        .eq("kind", agentTaskKinds.generation),
-    )
-    .take(500);
+  const generations = await runGenerations(ctx, task.runMessageId);
   const step = task.step ?? 1;
   const previous = generations.find((g) => (g.step ?? 1) === step - 1);
 
@@ -1244,14 +1234,7 @@ export const claimCompaction = internalMutation({
       .unique();
     // Les deltas du run, pour renvoyer au modèle exactement le contexte de sa
     // dernière génération (le cache sert alors le résumé).
-    const generations = await ctx.db
-      .query("agentTasks")
-      .withIndex("by_runMessageId_and_kind", (q) =>
-        q
-          .eq("runMessageId", task.runMessageId)
-          .eq("kind", agentTaskKinds.generation),
-      )
-      .take(500);
+    const generations = await runGenerations(ctx, task.runMessageId);
     const updates = generations.flatMap((generation) =>
       generation.systemUpdate && generation.responseMessageId
         ? [

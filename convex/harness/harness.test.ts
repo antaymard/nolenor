@@ -11,6 +11,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import agentTest from "@convex-dev/agent/test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import {
   Agent,
   createThread,
@@ -1192,11 +1193,16 @@ describe("phase 3b — deltas <system_update>", () => {
         replay: "unsafe",
         input: { nodeId: "writtenByRun" },
       });
-      const row = await ctx.db
-        .query("threadMetadata")
-        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
-        .unique();
-      await ctx.db.patch("threadMetadata", row!._id, {
+      // Ce que les wrappers de nodeDatas écrivent pendant le run.
+      await ctx.db.insert("runs", {
+        threadId: seed.threadId,
+        runMessageId,
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        agentName: "Tester",
+        request: "",
+        status: "running",
+        startedAt: Date.now(),
         touchedNodes: [
           { nodeDataId: created, kind: "created", at: Date.now() + 1000 },
         ],
@@ -1315,11 +1321,16 @@ describe("phase 3c — tools différés et nodes écrits", () => {
         replay: "safe",
         input: { nodeIds: ["untouched"] },
       });
-      const row = await ctx.db
-        .query("threadMetadata")
-        .withIndex("by_threadId", (q) => q.eq("threadId", seed.threadId))
-        .unique();
-      await ctx.db.patch("threadMetadata", row!._id, {
+      // Ce que les wrappers de nodeDatas écrivent pendant le run.
+      await ctx.db.insert("runs", {
+        threadId: seed.threadId,
+        runMessageId,
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        agentName: "Tester",
+        request: "",
+        status: "running",
+        startedAt: Date.now(),
         touchedNodes: [
           { nodeDataId: created, kind: "created", at: Date.now() + 1000 },
         ],
@@ -2375,5 +2386,164 @@ describe("issue des tâches : signaux et jugement de la réponse", () => {
     expect(tasks).toHaveLength(1);
     expect(tasks[0]).toMatchObject({ request: "Do the thing", runStatus: "idle" });
     expect(promptText(1)).toContain("Do the thing");
+  });
+});
+
+describe("suppression et accès", () => {
+  /** Les lignes de la harness qui parlent encore de ces threads. */
+  async function leftovers(t: T, threadIds: string[]) {
+    return t.run(async (ctx) => {
+      const ids = new Set(threadIds);
+      const count = async (
+        table:
+          | "agentTasks"
+          | "runs"
+          | "runPrompts"
+          | "compactions"
+          | "submissions"
+          | "dispatches"
+          | "messageMetadata"
+          | "threadMetadata",
+      ) =>
+        (await ctx.db.query(table).collect()).filter(
+          (row) => "threadId" in row && ids.has(row.threadId as string),
+        ).length;
+      return {
+        agentTasks: await count("agentTasks"),
+        runs: await count("runs"),
+        runPrompts: await count("runPrompts"),
+        compactions: await count("compactions"),
+        submissions: await count("submissions"),
+        dispatches: await count("dispatches"),
+        messageMetadata: await count("messageMetadata"),
+        threadMetadata: await count("threadMetadata"),
+      };
+    });
+  }
+
+  test("supprimer un thread purge la harness, sous-agents compris", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setResponder((prompt) =>
+      prompt.includes("WORKER SYSTEM PROMPT")
+        ? [text("Child report")]
+        : prompt.includes("Child report")
+          ? [text("Parent done")]
+          : [call("run_subAgent", { instructions: "Summarize the docs" })],
+    );
+    const runMessageId = await send(t, seed, "Delegate this");
+    await drain(t);
+    const child = await t.run(async (ctx) =>
+      (await ctx.db.query("threadMetadata").collect()).find(
+        (row) => row.masterThreadId === seed.threadId,
+      ),
+    );
+    expect(child).toBeDefined();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("compactions", {
+        threadId: seed.threadId,
+        firstKeptMessageId: runMessageId,
+        firstKeptOrder: 0,
+        firstKeptStepOrder: 0,
+        summary: "Summary",
+        userMessages: [],
+        tokensBefore: 1,
+        mode: "inCache",
+        runMessageId,
+      });
+      await ctx.db.insert("dispatches", {
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        profile: "test",
+        status: "routed",
+        prompt: "Delegate this",
+        content: "Delegate this",
+        input: {},
+        nodeIds: [],
+        threadId: seed.threadId,
+      });
+    });
+    const threadIds = [seed.threadId, child!.threadId];
+    const before = await leftovers(t, threadIds);
+    expect(before.agentTasks).toBeGreaterThan(0);
+    expect(before.runs).toBe(2);
+    expect(before.runPrompts).toBe(2);
+
+    await t
+      .withIdentity({ subject: `${seed.userId}|session` })
+      .action(api.threads.deleteThread, { threadId: seed.threadId });
+    await drain(t);
+
+    expect(await leftovers(t, threadIds)).toEqual({
+      agentTasks: 0,
+      runs: 0,
+      runPrompts: 0,
+      compactions: 0,
+      submissions: 0,
+      dispatches: 0,
+      messageMetadata: 0,
+      threadMetadata: 0,
+    });
+  });
+
+  test("supprimer un thread qui travaille arrête son run", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[call("echo", { text: "a" })], [text("Done")]]);
+    await send(t, seed, "Long task");
+    await runOneLayer(t); // la génération a rendu son tool call
+
+    await t
+      .withIdentity({ subject: `${seed.userId}|session` })
+      .action(api.threads.deleteThread, { threadId: seed.threadId });
+    await drain(t);
+
+    expect(await leftovers(t, [seed.threadId])).toMatchObject({
+      agentTasks: 0,
+      runs: 0,
+      threadMetadata: 0,
+    });
+  });
+
+  test("saveMessage : refusé sur le thread d'un autre, ou d'un autre canvas", async () => {
+    const t = setup();
+    rateLimiterTest.register(t);
+    const seed = await seedThread(t);
+    const { stranger, strangerCanvas, otherCanvas } = await t.run(async (ctx) => {
+      const stranger = await ctx.db.insert("users", {});
+      return {
+        stranger,
+        strangerCanvas: await ctx.db.insert("canvases", {
+          creatorId: stranger,
+          name: "Theirs",
+          updatedAt: Date.now(),
+        }),
+        otherCanvas: await ctx.db.insert("canvases", {
+          creatorId: seed.userId,
+          name: "Other",
+          updatedAt: Date.now(),
+        }),
+      };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: `${stranger}|session` })
+        .mutation(api.ia.nole.saveMessage, {
+          threadId: seed.threadId,
+          canvasId: strangerCanvas,
+          prompt: "Hijack",
+        }),
+    ).rejects.toThrow("Thread not found or access denied.");
+    await expect(
+      t
+        .withIdentity({ subject: `${seed.userId}|session` })
+        .mutation(api.ia.nole.saveMessage, {
+          threadId: seed.threadId,
+          canvasId: otherCanvas,
+          prompt: "Wrong canvas",
+        }),
+    ).rejects.toThrow("Thread not found or access denied.");
+    expect(roles(await transcript(t, seed.threadId))).toEqual([]);
   });
 });

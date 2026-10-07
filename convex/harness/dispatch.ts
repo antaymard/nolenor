@@ -24,7 +24,7 @@ import { submitToThread } from "./tasks";
 import { userText } from "./transcript";
 import { getNodeDataTitle } from "../lib/getNodeDataTitle";
 import { threadRunStatuses } from "../schemas/threadMetadataSchema";
-import { runToolTasks, targetNodeIds } from "./runWrites";
+import { runToolTasks, targetNodeIds } from "./runHistory";
 import type { DispatchCandidate, DispatchNode, Profile } from "./types";
 
 /**

@@ -5,7 +5,7 @@ import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import { escapeXmlAttribute } from "../../lib/xml";
 import * as NodeModels from "../../models/nodeModels";
 import * as ThreadMetadataModels from "../../models/threadMetadataModels";
-import { targetNodeIds } from "../../harness/runWrites";
+import { targetNodeIds } from "../../harness/runHistory";
 import { agentTaskKinds } from "../../schemas/agentTasksSchema";
 
 const MAX_RUNS = 50;

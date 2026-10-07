@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internalQuery } from "../../_generated/server";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import * as NodeModels from "../../models/nodeModels";
-import { runWrites } from "../../harness/runWrites";
+import { runWrites } from "../../harness/runHistory";
 
 /** Au-delà, on compte sans lister : le modèle a `list_nodes` pour le détail. */
 const MAX_LISTED = 20;
@@ -14,7 +14,7 @@ const MAX_SCANNED = 200;
  * collaborateur.
  *
  * Source provisoire : `nodeDatas.updatedAt`, qui ne dit pas QUI a écrit. Les
- * écritures du run sont retirées par recoupement (cf. harness/runWrites.ts).
+ * écritures du run sont retirées par recoupement (cf. harness/runHistory.ts).
  * À remplacer par une table de modifications avec leur acteur, quand elle
  * existera : seule cette query changera.
  */

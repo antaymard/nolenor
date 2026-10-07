@@ -125,7 +125,6 @@ export const noleProfile: Profile = {
       agentName: toolAgentNames.nole,
       threadCtx: { authUserId: run.userId, canvasId: run.canvasId },
       isMultimodal: isModelMultimodal(languageModel(run)),
-      trackActivity: false,
     });
   },
 

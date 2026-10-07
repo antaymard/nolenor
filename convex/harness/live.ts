@@ -8,7 +8,7 @@ import {
   agentTaskStatuses,
   liveAgentTaskStatuses,
 } from "../schemas/agentTasksSchema";
-import { runToolTasks, runWrites, targetNodeIds } from "./runWrites";
+import { runToolTasks, runWrites, targetNodeIds } from "./runHistory";
 
 /**
  * Lectures de la harness pour l'UI et le diagnostic.

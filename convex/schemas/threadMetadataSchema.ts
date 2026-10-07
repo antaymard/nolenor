@@ -164,7 +164,7 @@ const threadMetadataValidator = v.object({
   agentName: v.string(),
   lastMessageTime: v.optional(v.number()),
   // Nombre de messages envoyés par l'utilisateur sur ce thread, incrémenté par
-  // `threadMetadataWrappers.markRunStarted`. À ne pas confondre avec le nombre
+  // `threadMetadataModels.markRunStarted`. À ne pas confondre avec le nombre
   // de steps LLM, qui vit dans `aiUsageDaily.eventsCount`.
   roundsNb: v.optional(v.number()),
   // Absent = jamais lancé, donc `idle` : aucune migration à faire.

@@ -60,7 +60,6 @@ export const workerProfile: Profile = {
       agentName: toolAgentNames.worker,
       threadCtx: { authUserId: run.userId, canvasId: run.canvasId },
       isMultimodal: isModelMultimodal(languageModel(run)),
-      trackActivity: false,
     });
   },
 

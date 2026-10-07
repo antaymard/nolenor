@@ -3,12 +3,12 @@ import { components } from "../_generated/api";
 import type { MutationCtx } from "../_generated/server";
 import { requireCanvasAccess } from "../lib/auth";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
-import { agentTaskKinds } from "../schemas/agentTasksSchema";
 import {
   threadRunStatuses,
   type ThreadRunEndStatus,
 } from "../schemas/threadMetadataSchema";
 import { getProfile } from "./profiles";
+import { finalResponseText } from "./runHistory";
 import {
   BACKGROUND_REPORT_REQUEST,
   resolveWaitingTool,
@@ -128,7 +128,8 @@ export async function onSubagentRunEnded(
   if (!parent) return;
   const report =
     status === threadRunStatuses.idle
-      ? await finalText(ctx, current.run.startMessageId)
+      ? (await finalResponseText(ctx, current.run.startMessageId)) ||
+        "(The subagent finished without a report.)"
       : status === threadRunStatuses.error
         ? `The subagent failed: ${errorMessage ?? "unknown error"}.`
         : "The subagent was stopped before finishing.";
@@ -155,25 +156,6 @@ export async function onSubagentRunEnded(
       "</subagent_result>",
     ].join("\n"),
   });
-}
-
-/** La dernière réponse du run, celle qui fait office de rapport. */
-async function finalText(ctx: MutationCtx, runMessageId: string) {
-  const generations = await ctx.db
-    .query("agentTasks")
-    .withIndex("by_runMessageId_and_kind", (q) =>
-      q.eq("runMessageId", runMessageId).eq("kind", agentTaskKinds.generation),
-    )
-    .take(500);
-  const last = generations
-    .filter((generation) => generation.responseMessageId)
-    .sort((a, b) => (b.step ?? 0) - (a.step ?? 0))[0];
-  if (!last?.responseMessageId) return "(The subagent finished without a report.)";
-  const [message] = await ctx.runQuery(
-    components.agent.messages.getMessagesByIds,
-    { messageIds: [last.responseMessageId] },
-  );
-  return message?.text?.trim() || "(The subagent finished without a report.)";
 }
 
 /**

@@ -31,12 +31,10 @@ import {
   listNoleThreadsByUser,
   listNoleThreadsByUserAndCanvas,
   markReviewed,
-  markRunEnded,
   unmarkReviewed,
 } from "./models/threadMetadataModels";
 import {
   threadLastActivityValidator,
-  threadNodeTouchValidator,
   threadRunStatuses,
   threadRunStatusValidator,
 } from "./schemas/threadMetadataSchema";
@@ -262,78 +260,6 @@ function isDockCandidate(metadata: Doc<"threadMetadata">): boolean {
 }
 
 /**
- * Les tâches que le dock d'activité affiche : ce qui tourne, et ce qui attend
- * d'être relu.
- *
- * Query distincte de `listCanvasThreads`, et non trois champs de plus : le dock
- * est monté en permanence sur le canvas alors que le sélecteur ne vit qu'avec
- * le panneau ouvert. Comme `addUsage` patche la ligne du thread une fois par
- * step LLM, une query montée en permanence se réévalue une vingtaine de fois
- * par tour — d'où le filtre avant l'hydratation, qui ramène en pratique zéro à
- * trois lignes au lieu de trente.
- */
-export const listPendingThreads = query({
-  args: {
-    canvasId: v.id("canvases"),
-  },
-  returns: v.array(
-    v.object({
-      threadId: v.string(),
-      title: v.union(v.string(), v.null()),
-      // Bruts, comme pour `listCanvasThreads` : c'est le client qui résout la
-      // péremption et l'admission finale.
-      runStatus: v.union(threadRunStatusValidator, v.null()),
-      runStartedAt: v.union(v.number(), v.null()),
-      runEndedAt: v.union(v.number(), v.null()),
-      reviewedAt: v.union(v.number(), v.null()),
-      touchedNodes: v.array(threadNodeTouchValidator),
-      // Ce que l'agent a formulé en dernier. Le libellé des pastilles, pendant
-      // le tour comme après : le titre du thread ne dit que le sujet, pas où
-      // en est le travail.
-      lastActivity: v.union(threadLastActivityValidator, v.null()),
-      // Les questions d'`ask_user` quand le thread attend une réponse : la
-      // carte du dock les montre, et on y répond sur place.
-      pendingQuestions: v.union(v.array(v.any()), v.null()),
-    }),
-  ),
-  handler: async (ctx, { canvasId }) => {
-    const threads = await loadNoleThreads(ctx, {
-      canvasId,
-      filter: isDockCandidate,
-      project: (metadata, title) => ({
-        threadId: metadata.threadId,
-        title,
-        runStatus: metadata.runStatus ?? null,
-        runStartedAt: metadata.runStartedAt ?? null,
-        runEndedAt: metadata.runEndedAt ?? null,
-        reviewedAt: metadata.reviewedAt ?? null,
-        touchedNodes: metadata.touchedNodes ?? [],
-        lastActivity: metadata.lastActivity ?? null,
-        awaitingTaskId: metadata.run?.awaitingTaskId ?? null,
-      }),
-    });
-    return Promise.all(
-      threads.map(async ({ awaitingTaskId, ...thread }) => ({
-        ...thread,
-        pendingQuestions: awaitingTaskId
-          ? await readPendingQuestions(ctx, awaitingTaskId)
-          : null,
-      })),
-    );
-  },
-});
-
-async function readPendingQuestions(
-  ctx: QueryCtx,
-  taskId: Id<"agentTasks">,
-): Promise<unknown[] | null> {
-  const task = await ctx.db.get("agentTasks", taskId);
-  const questions = (task?.input as { questions?: unknown } | undefined)
-    ?.questions;
-  return Array.isArray(questions) ? questions : null;
-}
-
-/**
  * Les tâches en attente de revue, tous canvas confondus : ce que la home
  * affiche sur chaque workspace.
  *
@@ -358,7 +284,7 @@ export const listPendingThreadsForUser = query({
       // Ce qui rattache la tâche à sa carte : la home groupe là-dessus.
       canvasId: v.id("canvases"),
       title: v.union(v.string(), v.null()),
-      // Bruts, comme pour `listPendingThreads` : c'est le client qui résout la
+      // Bruts, comme pour `listCanvasThreads` : c'est le client qui résout la
       // péremption et l'admission finale.
       runStatus: v.union(threadRunStatusValidator, v.null()),
       runStartedAt: v.union(v.number(), v.null()),
@@ -524,14 +450,6 @@ export const abortStream = mutation({
     }
 
     const aborted = runAborted || streamAborted;
-    // Un stream sans run (thread d'avant la harness) : le statut est écrit ici,
-    // sans jeton — l'utilisateur coupe le tour courant, quel qu'il soit.
-    if (streamAborted && !runAborted) {
-      await markRunEnded(ctx, {
-        threadId,
-        status: threadRunStatuses.aborted,
-      });
-    }
     if (aborted) {
       // Appuyer sur stop est déjà un accusé de réception : la tâche ne doit pas
       // resurgir au dock pour se faire relire. Après la fin du run, et pas
@@ -618,6 +536,14 @@ export const deleteThread = action({
     });
     if (!thread || thread.userId !== authUserId) {
       throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
+    }
+
+    // Ce que l'app garde du thread hors du composant (runs, tâches, metadata
+    // des messages…) et ses sous-agents, par lots. Son run s'arrête au passage.
+    while (
+      await ctx.runMutation(internal.harness.purge.purgeThread, { threadId })
+    ) {
+      // Un lot par transaction.
     }
 
     await ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {

@@ -1,5 +1,9 @@
+import { getThreadMetadata } from "@convex-dev/agent";
 import { v } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import { components } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import { mutation, query, type MutationCtx } from "../_generated/server";
+import errors from "../config/errorsConfig";
 import { chatModelOptions, vChatModelValues } from "./agents";
 import { requireAuth, requireCanvasAccess } from "../lib/auth";
 import {
@@ -50,6 +54,7 @@ export const saveMessage = mutation({
     // access up front (matching the worker path). Without this, an authenticated
     // user could point the agent at any canvas id they know.
     await requireCanvasAccess(ctx, canvasId, authUserId, "editor");
+    await requireOwnThread(ctx, threadId, authUserId, canvasId);
 
     // Le message part par la harness : il ouvre un run si le thread est au
     // repos, sinon il attend sa place dans le run en cours (steer).
@@ -80,6 +85,28 @@ export const saveMessage = mutation({
  * repos — ou vers un nouveau thread (cf. harness/dispatch.ts). `forceNew` :
  * l'utilisateur veut une nouvelle tâche, sans aiguillage.
  */
+/**
+ * Le thread est celui de l'utilisateur, sur ce canvas : un message y ouvre un
+ * run, le steere ou répond à sa question. Un thread sans ligne de metadata
+ * (antérieur à la table) se vérifie sur le composant agent.
+ */
+async function requireOwnThread(
+  ctx: MutationCtx,
+  threadId: string,
+  userId: Id<"users">,
+  canvasId: Id<"canvases">,
+) {
+  const row = await ThreadMetadataModels.findByThreadId(ctx, { threadId });
+  const allowed = row
+    ? row.userId === userId && row.canvasId === canvasId
+    : (
+        await getThreadMetadata(ctx, components.agent, { threadId }).catch(
+          () => null,
+        )
+      )?.userId === userId;
+  if (!allowed) throw new Error(errors.THREAD_NOT_FOUND_OR_FORBIDDEN);
+}
+
 export const submit = mutation({
   args: {
     canvasId: v.id("canvases"),

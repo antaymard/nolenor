@@ -31,6 +31,10 @@ interface NoleStore {
   // `useCallback` changeait d'identité à chaque frappe et la propageait à tous
   // ses consommateurs — aucune mémoïsation en aval n'y résistait.
   userInput: string;
+  // Le brouillon de l'omnibar, distinct de celui du panel : une demande sans
+  // conversation n'est pas un message de la conversation ouverte. Dans le
+  // store pour la même raison que la dictée ci-dessous, qui l'écrit aussi.
+  omnibarInput: string;
   attachedNodes: CanvasNode[];
   attachedPosition: { x: number; y: number } | null;
 
@@ -44,6 +48,7 @@ interface NoleStore {
   // Signature de `useState` : la dictée met à jour le brouillon en fonction du
   // texte déjà saisi (`prev => prev + transcription`).
   setUserInput: Dispatch<SetStateAction<string>>;
+  setOmnibarInput: Dispatch<SetStateAction<string>>;
   addAttachments: (
     attachments: { nodes?: CanvasNode[]; position?: { x: number; y: number } },
     removeIfPresent?: boolean,
@@ -65,6 +70,7 @@ export const useNoleStore = create<NoleStore>()(
       activeThreadId: null,
       modelSelection: null,
       userInput: "",
+      omnibarInput: "",
       attachedNodes: [],
       attachedPosition: null,
 
@@ -87,6 +93,13 @@ export const useNoleStore = create<NoleStore>()(
       setUserInput: (value) => {
         set((state) => ({
           userInput: typeof value === "function" ? value(state.userInput) : value,
+        }));
+      },
+
+      setOmnibarInput: (value) => {
+        set((state) => ({
+          omnibarInput:
+            typeof value === "function" ? value(state.omnibarInput) : value,
         }));
       },
 

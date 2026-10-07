@@ -35,12 +35,27 @@ const LIVE_COOLDOWN_MS = 60_000;
  * `startSTT` / `stopSTT` ont une identité STABLE (le statut live évolue en cours
  * de session, mais on ne veut pas re-binder `usePushToTalk` en plein appui).
  */
-export function useNoleSpeechInput() {
+/**
+ * Le brouillon que la dictée écrit : le composer du panel, ou l'omnibar. Les
+ * deux vivent dans le store Nolë.
+ */
+export type NoleSpeechTarget = "panel" | "omnibar";
+
+const DRAFT_FIELD = {
+  panel: "userInput",
+  omnibar: "omnibarInput",
+} as const;
+
+export function useNoleSpeechInput(target: NoleSpeechTarget = "panel") {
   // Le brouillon vit dans le store Nolë : la dictée l'écrit ici, et le lit à
   // l'appui sur le micro (cf. `startSTT`). Le passer en argument depuis
   // `useNoleChat` n'apporterait rien — l'action zustand a déjà une identité
   // stable, et le getter vient de toute façon du store.
-  const setUserInput = useNoleStore((state) => state.setUserInput);
+  const setUserInput = useNoleStore((state) =>
+    target === "omnibar" ? state.setOmnibarInput : state.setUserInput,
+  );
+  const targetRef = useRef(target);
+  targetRef.current = target;
 
   // --- Moteur live (streaming) -------------------------------------------
   const baseRef = useRef("");
@@ -125,7 +140,8 @@ export function useNoleSpeechInput() {
       // Lecture ponctuelle à l'appui (pas un rendu) : `getState()` garde
       // `startSTT` stable, ce qu'exige `usePushToTalk` — il ne doit pas se
       // re-binder en plein appui.
-      baseRef.current = useNoleStore.getState().userInput;
+      baseRef.current =
+        useNoleStore.getState()[DRAFT_FIELD[targetRef.current]];
       await liveStartRef.current();
     } else {
       await batchStartRef.current();

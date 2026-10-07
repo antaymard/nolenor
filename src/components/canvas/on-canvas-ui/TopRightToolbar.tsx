@@ -6,6 +6,7 @@ import { useConvexAuth } from "convex/react";
 import SharingModal from "./SharingModal";
 import TrashModal from "./TrashModal";
 import CanvasStatus from "./CanvasStatus";
+import CanvasPresence from "./CanvasPresence";
 
 function TopRightToolbar() {
   const { isAuthenticated } = useConvexAuth();
@@ -13,7 +14,8 @@ function TopRightToolbar() {
 
   return (
     <div className="canvas-ui-container animate-appear-down px-1!">
-      <div className="flex h-8 items-center px-2">
+      <div className="flex h-8 items-center gap-2 px-2">
+        <CanvasPresence />
         <CanvasStatus />
       </div>
       <TrashModal />

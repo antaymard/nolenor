@@ -189,6 +189,7 @@ import type * as nodeDataVersions from "../nodeDataVersions.js";
 import type * as nodeDatas from "../nodeDatas.js";
 import type * as nodeTemplates from "../nodeTemplates.js";
 import type * as nodes from "../nodes.js";
+import type * as presence from "../presence.js";
 import type * as recipes from "../recipes.js";
 import type * as runs from "../runs.js";
 import type * as schemas_agentTasksSchema from "../schemas/agentTasksSchema.js";
@@ -436,6 +437,7 @@ declare const fullApi: ApiFromModules<{
   nodeDatas: typeof nodeDatas;
   nodeTemplates: typeof nodeTemplates;
   nodes: typeof nodes;
+  presence: typeof presence;
   recipes: typeof recipes;
   runs: typeof runs;
   "schemas/agentTasksSchema": typeof schemas_agentTasksSchema;
@@ -526,4 +528,5 @@ export declare const components: {
   agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   debouncer: import("../components/debouncer/_generated/component.js").ComponentApi<"debouncer">;
+  presence: import("@convex-dev/presence/_generated/component.js").ComponentApi<"presence">;
 };

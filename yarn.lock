@@ -1698,6 +1698,18 @@
     path-to-regexp "^6.3.0"
     server-only "^0.0.1"
 
+"@convex-dev/batch-worker@^0.2.0":
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/@convex-dev/batch-worker/-/batch-worker-0.2.2.tgz#c27c346c767bd2a70d011c3170653c3e8e2f86a7"
+  integrity sha512-3knigElzTVhWw1sN28EYkGBTdrJZ03vMj2PJPuFq3V0Tg41i7tcv/EWDBFQWcUaKzBWWVw693hcJtxCF3CRtEw==
+
+"@convex-dev/presence@0.4.0":
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/@convex-dev/presence/-/presence-0.4.0.tgz#568773de04eb6e6f6096458778aaec1ceea09689"
+  integrity sha512-T1f2aHyS2D2dxvMnvY+qSJBIRG0W7ph8+mgOvZif52JLlLNscCHTangAgNWR4VLYGhXFFDxwSSpdh7vxzA/hPQ==
+  dependencies:
+    "@convex-dev/batch-worker" "^0.2.0"
+
 "@convex-dev/rate-limiter@^0.3.2":
   version "0.3.2"
   resolved "https://registry.yarnpkg.com/@convex-dev/rate-limiter/-/rate-limiter-0.3.2.tgz#3ad760bc3e3264f6b401a86fc1fd3e45f6a6935c"

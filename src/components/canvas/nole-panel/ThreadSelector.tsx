@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { TbMessageSearch, TbTrash } from "react-icons/tb";
+import { cn } from "@/lib/utils";
 import { useCanvasThreads } from "./useCanvasThreads";
 import { ThreadRunStatusPill } from "./ThreadStatusPill";
 
@@ -15,12 +16,18 @@ interface ThreadSelectorProps {
   canvasId: Id<"canvases"> | undefined;
   currentThreadId: string | null;
   onSelectThread: (threadId: string) => void;
+  /** Le déclencheur hors du header du panel (ex. à côté de l'island). */
+  triggerClassName?: string;
+  /** Côté d'ouverture du menu ; en bas par défaut (header du panel). */
+  side?: "top" | "bottom";
 }
 
 export default function ThreadSelector({
   canvasId,
   currentThreadId,
   onSelectThread,
+  triggerClassName,
+  side = "bottom",
 }: ThreadSelectorProps) {
   // La liste n'est chargée qu'à l'ouverture du menu. Montée en permanence, sa
   // query hydrate jusqu'à 30 threads via le composant agent — et comme elle lit
@@ -34,12 +41,18 @@ export default function ThreadSelector({
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="text-slate-400">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Conversation history"
+          className={cn("text-slate-400", triggerClassName)}
+        >
           <TbMessageSearch size={16} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
+        side={side}
         className="w-64 max-h-80 overflow-y-auto rounded-xl"
       >
         {isLoading && (

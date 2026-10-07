@@ -7,7 +7,9 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import type { CanvasNode } from "@/types";
 import NoleIcon from "@/assets/svg-components/NoleIcon";
 import { MicStatus } from "@/components/canvas/nole-panel/chat-input/ComposerStatus";
+import ThreadSelector from "@/components/canvas/nole-panel/ThreadSelector";
 import { useNoleSpeechInput } from "@/hooks/useNoleSpeechInput";
+import { useOpenNoleThread } from "@/hooks/useOpenNoleThread";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
 import { cn } from "@/lib/utils";
 import { getCanvasNodeTitle } from "@/lib/getCanvasNodeTitle";
@@ -56,6 +58,8 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
   const submit = useMutation(api.ia.nole.submit);
   const reactFlow = useReactFlow();
   const isPanelOpen = useNoleStore((state) => state.panelLayout === "expanded");
+  const activeThreadId = useNoleStore((state) => state.activeThreadId);
+  const openThread = useOpenNoleThread();
 
   const speech = useNoleSpeechInput("omnibar");
   usePushToTalk({
@@ -194,59 +198,72 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
           <OmnibarFeed canvasId={canvasId} />
         </div>
       )}
-      <div
-        ref={islandRef}
-        onKeyDown={(event) => {
-          // Échap ferme d'abord le menu des mentions : react-mentions arrête
-          // alors la propagation, et l'island ne le voit pas.
-          if (event.key === "Escape" && isExpanded) {
-            event.preventDefault();
-            collapse();
-          }
-        }}
-        className={cn(
-          "canvas-ui-container overflow-hidden p-0! [interpolate-size:allow-keywords]",
-          "transition-[width,border-radius,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          isExpanded
-            ? "w-[560px] max-w-[calc(100vw-32px)] rounded-2xl focus-within:shadow-lg"
-            : "h-10 w-auto rounded-full",
-        )}
-      >
-        {isExpanded ? (
-          <OmnibarComposer
-            onSend={() => void send()}
-            onDiscard={() => {
-              // Le prompt seulement : les pièces jointes sont partagées avec
-              // le panel, et le choix du modèle vaut pour la suite.
-              useNoleStore.getState().setOmnibarInput("");
+      <div className="flex items-end gap-2">
+        <div
+          ref={islandRef}
+          onKeyDown={(event) => {
+            // Échap ferme d'abord le menu des mentions : react-mentions arrête
+            // alors la propagation, et l'island ne le voit pas.
+            if (event.key === "Escape" && isExpanded) {
+              event.preventDefault();
               collapse();
-            }}
-            isSending={sending}
-            isRecording={speech.isRecording}
-            isTranscribing={speech.isTranscribing}
-            sttBusy={speech.sttBusy}
-            micLevel={speech.micLevel}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              useNoleStore.getState().setPanelLayout("minimized");
-              setIsExpanded(true);
-            }}
-            aria-label="Ask Nolë"
-            className="flex h-full items-center gap-3 pr-2 pl-3.5 whitespace-nowrap"
-          >
-            <span className="flex items-center gap-1.5 text-sm font-bold tracking-tight">
-              <NoleIcon size={16} /> Nolë
-            </span>
-            <MicStatus
+            }
+          }}
+          className={cn(
+            "canvas-ui-container overflow-hidden p-0! [interpolate-size:allow-keywords]",
+            "transition-[width,border-radius,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            isExpanded
+              ? "w-[560px] max-w-[calc(100vw-32px)] rounded-2xl focus-within:shadow-lg"
+              : "h-10 w-auto rounded-full",
+          )}
+        >
+          {isExpanded ? (
+            <OmnibarComposer
+              onSend={() => void send()}
+              onDiscard={() => {
+                // Le prompt seulement : les pièces jointes sont partagées avec
+                // le panel, et le choix du modèle vaut pour la suite.
+                useNoleStore.getState().setOmnibarInput("");
+                collapse();
+              }}
+              isSending={sending}
               isRecording={speech.isRecording}
               isTranscribing={speech.isTranscribing}
-              level={speech.micLevel}
+              sttBusy={speech.sttBusy}
+              micLevel={speech.micLevel}
             />
-          </button>
-        )}
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                useNoleStore.getState().setPanelLayout("minimized");
+                setIsExpanded(true);
+              }}
+              aria-label="Ask Nolë"
+              className="flex h-full items-center gap-3 pr-2 pl-3.5 whitespace-nowrap"
+            >
+              <span className="flex items-center gap-1.5 text-sm font-bold tracking-tight">
+                <NoleIcon size={16} /> Nolë
+              </span>
+              <MicStatus
+                isRecording={speech.isRecording}
+                isTranscribing={speech.isTranscribing}
+                level={speech.micLevel}
+              />
+            </button>
+          )}
+        </div>
+        {/* L'historique des conversations du canvas : en choisir une l'ouvre
+          dans le panel. */}
+        <div className="canvas-ui-container h-10 rounded-full p-0!">
+          <ThreadSelector
+            canvasId={canvasId}
+            currentThreadId={activeThreadId}
+            onSelectThread={openThread}
+            side="top"
+            triggerClassName="size-10 rounded-full text-slate-500 hover:text-slate-800"
+          />
+        </div>
       </div>
     </div>
   );

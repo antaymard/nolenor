@@ -6,7 +6,6 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { MarkdownText } from "@/components/ai/MarkdownText";
 import { QuestionCard } from "@/components/canvas/nole-panel/message/QuestionCard";
 import type { AskedQuestion } from "@/components/canvas/nole-panel/message/activity/activityModel";
-import { cn } from "@/lib/utils";
 
 /**
  * Les corps d'une carte de tâche : un seul à la fois, choisi par
@@ -83,29 +82,15 @@ export function TaskErrorBody({
   );
 }
 
-/** Une réponse qui compte : lisible sur place, sans ouvrir le chat. */
+/**
+ * Une réponse qui compte : lisible sur place, sans ouvrir le chat. Bornée et
+ * scrollable — une longue réponse ne doit pas manger le canvas. `nowheel` :
+ * la molette fait défiler la réponse, pas zoomer le canvas.
+ */
 export function TaskAnswerBody({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false);
   return (
-    <div className="flex flex-col gap-1 pl-7">
-      <div
-        className={cn(
-          "text-sm whitespace-pre-wrap text-slate-700",
-          !expanded && "line-clamp-4",
-        )}
-      >
-        <MarkdownText>{text}</MarkdownText>
-      </div>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          setExpanded((value) => !value);
-        }}
-        className="self-start text-[11px] font-medium text-violet-600 hover:underline"
-      >
-        {expanded ? "Show less" : "Show more"}
-      </button>
+    <div className="nowheel ml-7 max-h-40 overflow-y-auto overscroll-contain pr-1 text-sm text-slate-700">
+      <MarkdownText>{text}</MarkdownText>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   EMOJI_FONT_STYLE,
@@ -15,9 +16,9 @@ import { formatBlocks, formatEdited } from "./workspaceFormat";
 
 /**
  * Un canvas en ligne, pour la vue liste : plus dense que la grille, pour qui a
- * beaucoup de canvas et les retrouve par leur nom.
+ * beaucoup de canvas et les retrouve par leur nom. Mémoïsée, comme la carte.
  */
-export default function WorkspaceRow({
+function WorkspaceRow({
   canvas,
   onEdit,
   onDelete,
@@ -78,3 +79,5 @@ export default function WorkspaceRow({
     </li>
   );
 }
+
+export default memo(WorkspaceRow);

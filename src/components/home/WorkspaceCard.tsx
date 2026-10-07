@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
 import { HiDotsVertical } from "react-icons/hi";
 import { TbUsers } from "react-icons/tb";
@@ -136,8 +136,12 @@ export function WorkspaceMenu({
   );
 }
 
-/** Un canvas en carte, pour la vue grille. */
-export default function WorkspaceCard({
+/**
+ * Un canvas en carte, pour la vue grille. Mémoïsée : la grille se redessine à
+ * chaque changement de présence sur l'un des canvas, seule la carte concernée
+ * doit suivre (cf. `useCanvasesPresence`).
+ */
+function WorkspaceCard({
   canvas,
   onEdit,
   onDelete,
@@ -236,3 +240,5 @@ export default function WorkspaceCard({
     </div>
   );
 }
+
+export default memo(WorkspaceCard);

@@ -52,10 +52,13 @@ interface WorkspaceGridProps {
 const NO_COLLABORATORS: Collaborator[] = [];
 
 /** Décalage d'apparition des cartes, plafonné comme dans la sidebar : au-delà
- *  d'une dizaine, l'escalier devient une attente. */
-const appearDelay = (index: number) => ({
-  animationDelay: `${Math.min(index, 10) * 30}ms`,
-});
+ *  d'une dizaine, l'escalier devient une attente. Les objets de style sont
+ *  créés une fois : neufs à chaque rendu, ils déjoueraient le `memo` des
+ *  cartes (la grille se redessine à chaque changement de présence). */
+const APPEAR_DELAYS = Array.from({ length: 11 }, (_, index) => ({
+  animationDelay: `${index * 30}ms`,
+}));
+const appearDelay = (index: number) => APPEAR_DELAYS[Math.min(index, 10)];
 
 /**
  * « Recent canvases » : tous les canvas, les siens et ceux reçus en partage,

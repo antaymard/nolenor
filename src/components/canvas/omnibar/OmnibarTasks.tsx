@@ -13,7 +13,7 @@ import TaskCard from "@/components/canvas/tasks/TaskCard";
 import { resolveTaskView } from "@/components/canvas/tasks/taskView";
 
 /** Cartes compactes visibles avant le « +N ». */
-const MAX_COMPACT_VISIBLE = 3;
+const MAX_COMPACT_VISIBLE = 5;
 
 /**
  * Les tâches de Nolë au-dessus de l'omnibar : une carte par run (cf. convex/runs.ts).

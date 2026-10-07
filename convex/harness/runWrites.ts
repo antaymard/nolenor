@@ -1,4 +1,4 @@
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import { agentTaskKinds } from "../schemas/agentTasksSchema";
@@ -13,6 +13,19 @@ export function targetNodeIds(input: unknown): string[] {
   return typeof nodeId === "string" ? [nodeId] : [];
 }
 
+/** Les tool calls d'un run, dans l'ordre de création. */
+export async function runToolTasks(
+  ctx: QueryCtx,
+  runMessageId: string,
+): Promise<Doc<"agentTasks">[]> {
+  return await ctx.db
+    .query("agentTasks")
+    .withIndex("by_runMessageId_and_kind", (q) =>
+      q.eq("runMessageId", runMessageId).eq("kind", agentTaskKinds.tool),
+    )
+    .take(500);
+}
+
 /**
  * Ce qu'un run a écrit sur le canvas, par recoupement : les nodes visés par
  * ses tool calls d'écriture (ids de canvas), et ceux que son thread a créés
@@ -24,14 +37,11 @@ export function targetNodeIds(input: unknown): string[] {
 export async function runWrites(
   ctx: QueryCtx,
   run: { threadId: string; runMessageId: string },
+  /** Les tool calls du run, quand l'appelant les a déjà lus. */
+  preloadedTools?: Doc<"agentTasks">[],
 ): Promise<{ nodeIds: Set<string>; nodeDataIds: Set<Id<"nodeDatas">> }> {
   const nodeIds = new Set<string>();
-  const tools = await ctx.db
-    .query("agentTasks")
-    .withIndex("by_runMessageId_and_kind", (q) =>
-      q.eq("runMessageId", run.runMessageId).eq("kind", agentTaskKinds.tool),
-    )
-    .take(500);
+  const tools = preloadedTools ?? (await runToolTasks(ctx, run.runMessageId));
   for (const tool of tools) {
     if (tool.replay === "safe") continue; // une lecture n'écrit rien
     for (const id of targetNodeIds(tool.input)) nodeIds.add(id);

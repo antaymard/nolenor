@@ -8,6 +8,8 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useNoleNodeActivity } from "@/stores/noleLiveStore";
+import { isLiveAccess } from "@/lib/noleLiveActivity";
+import { CheckIcon } from "lucide-react";
 import BookmarkedBadge from "./BookmarkedBadge";
 import { NodeTitleHeader } from "./NodeHeader";
 import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
@@ -31,6 +33,36 @@ function ZoomCompensated({ children }: { children: React.ReactNode }) {
       style={{ scale: String(scale), transformOrigin: "center" }}
     >
       {children}
+    </div>
+  );
+}
+
+/**
+ * L'étiquette de l'action de Nolë au-dessus du node : pleine pendant l'appel,
+ * discrète une fois l'appel fini (elle reste jusqu'à la fin du run).
+ */
+function NoleActivityLabel({
+  label,
+  live,
+  leaving,
+}: {
+  label: string;
+  live: boolean;
+  leaving: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute -top-7 left-1 z-20 flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium shadow-sm",
+        "transition-[opacity,background-color,color] duration-500",
+        live
+          ? "bg-violet-600 text-white"
+          : "border border-violet-200 bg-white/90 text-violet-700",
+        leaving && "opacity-0",
+      )}
+    >
+      {!live && <CheckIcon className="size-3 shrink-0" />}
+      <span className="truncate">{label}</span>
     </div>
   );
 }
@@ -123,16 +155,25 @@ function NodeFrame({
         !isTransparent && "shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
         isAttachedToNole &&
           "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
-        // Halo live : un tool de Nolë tourne sur ce node. `before:` pour ne
-        // pas entrer en conflit avec l'outline du node attaché (`after:`).
+        // Halo de Nolë sur ce node. `before:` pour ne pas entrer en conflit
+        // avec l'outline du node attaché (`after:`). Les transitions font
+        // glisser d'un état à l'autre (lecture en cours → déjà lu) et portent
+        // le fondu de sortie (cf. lib/noleLiveActivity.ts).
         noleActivity &&
-          "before:pointer-events-none before:absolute before:-inset-1.5 before:rounded-[20px] before:border-2",
+          "before:pointer-events-none before:absolute before:-inset-1.5 before:rounded-[20px] before:border-2 before:transition-[opacity,border-color,box-shadow] before:duration-500",
         noleActivity?.access === "read" &&
           "before:border-violet-400/60 before:shadow-[0_0_12px_rgba(139,92,246,0.25)]",
         noleActivity?.access === "write" &&
-          "before:animate-pulse before:border-violet-600 before:shadow-[0_0_16px_rgba(124,58,237,0.45)]",
-        // Déjà écrit par le run en cours : un repère discret, jusqu'à sa fin.
+          cn(
+            "before:border-violet-600 before:shadow-[0_0_16px_rgba(124,58,237,0.45)]",
+            // Le pulse anime l'opacité : il masquerait le fondu.
+            !noleActivity.leaving && "before:animate-pulse",
+          ),
+        // Déjà écrit / déjà lu par le run en cours : un repère discret,
+        // jusqu'à sa fin.
         noleActivity?.access === "written" && "before:border-violet-500/40",
+        noleActivity?.access === "seen" && "before:border-violet-400/20",
+        noleActivity?.leaving && "before:opacity-0",
         !canDrag && "nodrag",
         xyNode.selected
           ? cn(
@@ -152,9 +193,11 @@ function NodeFrame({
       {isBookmarked && <BookmarkedBadge />}
 
       {noleActivity?.label && (
-        <div className="pointer-events-none absolute -top-7 left-1 z-20 max-w-full truncate rounded-full bg-violet-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-sm">
-          {noleActivity.label}
-        </div>
+        <NoleActivityLabel
+          label={noleActivity.label}
+          live={isLiveAccess(noleActivity.access)}
+          leaving={noleActivity.leaving === true}
+        />
       )}
 
       {/* `content-visibility: auto` : le navigateur saute le layout et le

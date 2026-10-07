@@ -42,9 +42,11 @@ export const listPendingRuns = query({
         .order("desc")
         .take(RUNS_SCAN_LIMIT)
     ).filter(
-      (run) =>
-        run.agentName === threadAgentNames.nole &&
-        (run.endedAt === undefined || run.reviewedAt === undefined),
+      // Écartée = sortie du dock, qu'elle soit finie ou non : un run « stale »
+      // qu'on écarte garde son `endedAt` vide (la harness peut encore le
+      // conclure), mais sa carte disparaît. Une tâche en cours ou en attente
+      // n'est jamais écartée (cf. markRunReviewed).
+      (run) => run.agentName === threadAgentNames.nole && run.reviewedAt === undefined,
     );
 
     return Promise.all(
@@ -96,6 +98,8 @@ export const markRunReviewed = mutation({
       return null;
     }
     if (run.endedAt === undefined) {
+      // Un run qui ne répond plus s'écarte sans être clos : s'il est encore
+      // vivant, c'est la harness qui posera sa vraie fin.
       const isStale = Date.now() - run.startedAt > RUN_STALE_MS;
       if (!isStale || run.status === "waiting") return null;
       await ctx.db.patch("runs", runId, { reviewedAt: Date.now() });

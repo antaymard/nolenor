@@ -2136,6 +2136,35 @@ describe("phase 7c — une tâche = un run", () => {
     ).toEqual([]);
   });
 
+  test("run qui ne répond plus : écarté, sa carte disparaît sans qu'il soit clos", async () => {
+    const t = setup();
+    const seed = await seedNoleThread(t);
+    const runId = await t.run((ctx) =>
+      ctx.db.insert("runs", {
+        threadId: seed.threadId,
+        runMessageId: "stale-run",
+        canvasId: seed.canvasId,
+        userId: seed.userId,
+        agentName: "Nolë",
+        request: "Stuck",
+        status: "running",
+        startedAt: Date.now() - 24 * 60 * 60 * 1000,
+      }),
+    );
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    expect(
+      await asUser.query(api.runs.listPendingRuns, { canvasId: seed.canvasId }),
+    ).toHaveLength(1);
+
+    await asUser.mutation(api.runs.markRunReviewed, { runId });
+    expect(
+      await asUser.query(api.runs.listPendingRuns, { canvasId: seed.canvasId }),
+    ).toEqual([]);
+    const [run] = await runRows(t, seed.threadId);
+    expect(run.reviewedAt).toBeDefined();
+    expect(run.endedAt).toBeUndefined();
+  });
+
   test("en cours, en attente, arrêtée : la tâche suit le run", async () => {
     const t = setup();
     const seed = await seedNoleThread(t);

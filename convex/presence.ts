@@ -92,6 +92,54 @@ export const heartbeat = mutation({
   },
 });
 
+// Une ligne de présence hors ligne depuis plus longtemps est supprimée par
+// `pruneRoom`. Assez long pour qu'un rechargement ou une coupure réseau
+// retrouve sa ligne (et ses données) ; assez court pour que la table ne
+// garde pas la trace de chaque onglet jamais ouvert.
+const STALE_OFFLINE_MS = 5 * 60_000;
+// Lignes examinées par passage : les en-ligne d'abord, puis les hors-ligne
+// des plus récentes aux plus anciennes (ordre du composant). Une room très
+// encombrée se vide en quelques arrivées.
+const PRUNE_SCAN_LIMIT = 200;
+
+/**
+ * Supprime les participants hors ligne depuis longtemps dans la room.
+ *
+ * Le composant passe un participant hors ligne à sa déconnexion mais ne
+ * supprime jamais sa ligne. Comme il y a un participant par onglet (cf.
+ * lib/presenceIds.ts), chaque canvas ouvert en laisserait une, pour toujours :
+ * la table grossirait sans fin et `list` en renverrait jusqu'à sa limite.
+ *
+ * Appelée une fois par le client à son arrivée dans la room, pas à chaque
+ * heartbeat : elle lit toute la room, et la relire toutes les dix secondes
+ * par onglet ferait entrer les heartbeats en conflit avec chaque
+ * publication d'activité.
+ */
+export const pruneRoom = mutation({
+  args: { roomId: v.string(), userId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, { roomId, userId }) => {
+    await requireRoomParticipant(ctx, roomId, userId);
+
+    const cutoff = Date.now() - STALE_OFFLINE_MS;
+    const participants = await presence.listRoom(
+      ctx,
+      roomId,
+      false,
+      PRUNE_SCAN_LIMIT,
+    );
+    let removed = 0;
+    for (const participant of participants) {
+      if (participant.online || participant.lastDisconnected >= cutoff) {
+        continue;
+      }
+      await presence.removeRoomUser(ctx, roomId, participant.userId);
+      removed++;
+    }
+    return removed;
+  },
+});
+
 /**
  * Publie les nodes sur lesquels ce participant (cet onglet) est actif :
  * sélectionnés sur le canvas, ou ouverts en window. Les deux listes ensemble,

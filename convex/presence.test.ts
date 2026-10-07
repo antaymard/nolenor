@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import presenceTest from "@convex-dev/presence/test";
 import { api } from "./_generated/api";
 import schema from "./schema";
@@ -207,5 +207,65 @@ describe("canvas presence", () => {
       await as(t, stranger).query(api.presence.listMyCanvases, {}),
     ).toEqual([]);
     await expect(t.query(api.presence.listMyCanvases, {})).rejects.toThrow();
+  });
+
+  describe("pruneRoom", () => {
+    afterEach(() => vi.useRealTimers());
+
+    test("removes long-gone tabs, keeps recent ones and those online", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-08T10:00:00Z"));
+      const t = setup();
+      const { owner, guest, canvasId } = await seed(t);
+      const join = (userId: string, tab: string) =>
+        as(t, userId).mutation(api.presence.heartbeat, {
+          roomId: canvasId,
+          userId: makePresenceUserId(userId, tab),
+          sessionId: `${userId}-${tab}`,
+          interval: 10_000,
+        });
+      const leave = (sessionToken: string) =>
+        t.mutation(api.presence.disconnect, { sessionToken });
+
+      // Two tabs left at 10:00, one at 10:08; the owner stays.
+      await leave((await join(guest, "old-1")).sessionToken);
+      await leave((await join(guest, "old-2")).sessionToken);
+      vi.setSystemTime(new Date("2026-10-08T10:08:00Z"));
+      await leave((await join(guest, "recent")).sessionToken);
+      const { roomToken } = await join(owner, "here");
+
+      vi.setSystemTime(new Date("2026-10-08T10:10:00Z"));
+      expect(
+        await as(t, owner).mutation(api.presence.pruneRoom, {
+          roomId: canvasId,
+          userId: makePresenceUserId(owner, "here"),
+        }),
+      ).toBe(2);
+
+      const left = await t.query(api.presence.list, { roomToken });
+      expect(left.map((p) => p.userId).sort()).toEqual(
+        [
+          makePresenceUserId(guest, "recent"),
+          makePresenceUserId(owner, "here"),
+        ].sort(),
+      );
+    });
+
+    test("only a participant of the room can prune it", async () => {
+      const t = setup();
+      const { owner, stranger, canvasId } = await seed(t);
+      await expect(
+        as(t, stranger).mutation(api.presence.pruneRoom, {
+          roomId: canvasId,
+          userId: makePresenceUserId(stranger, "tab"),
+        }),
+      ).rejects.toThrow();
+      await expect(
+        as(t, stranger).mutation(api.presence.pruneRoom, {
+          roomId: canvasId,
+          userId: makePresenceUserId(owner, "tab"),
+        }),
+      ).rejects.toThrow();
+    });
   });
 });

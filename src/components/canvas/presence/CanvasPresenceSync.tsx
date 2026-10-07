@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useStore, type ReactFlowState } from "@xyflow/react";
 import usePresence from "@convex-dev/presence/react";
@@ -38,6 +38,26 @@ const openNodeIdsKeySelector = (state: { openedWindows: OpenedWindow[] }) =>
 
 const splitKey = (key: string) => (key ? key.split(",") : []);
 
+const TAB_ID_STORAGE_KEY = "nolenor:presenceTabId";
+
+/**
+ * L'id de cet onglet pour la présence (cf. convex/lib/presenceIds.ts). Gardé
+ * en `sessionStorage` : un rechargement du même onglet retrouve son
+ * participant au lieu d'en créer un nouveau. Sans stockage disponible, un id
+ * par montage — `pruneRoom` nettoie derrière.
+ */
+function readTabId(): string {
+  try {
+    const stored = sessionStorage.getItem(TAB_ID_STORAGE_KEY);
+    if (stored) return stored;
+    const tabId = crypto.randomUUID();
+    sessionStorage.setItem(TAB_ID_STORAGE_KEY, tabId);
+    return tabId;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
 function PresenceSession({
   canvasId,
   myUserId,
@@ -45,8 +65,7 @@ function PresenceSession({
   canvasId: Id<"canvases">;
   myUserId: string;
 }) {
-  // Un id par onglet (et par montage) : cf. convex/lib/presenceIds.ts.
-  const [tabId] = useState(() => crypto.randomUUID());
+  const [tabId] = useState(readTabId);
   const presenceUserId = makePresenceUserId(myUserId, tabId);
   const states = usePresence(api.presence, canvasId, presenceUserId);
 
@@ -62,6 +81,20 @@ function PresenceSession({
   // dans la room, et on republie à chaque retour (onglet de nouveau visible).
   const isJoined =
     states?.some((s) => s.userId === presenceUserId && s.online) ?? false;
+
+  // Une fois par arrivée : les participants partis depuis longtemps sont
+  // supprimés de la room (cf. `presence.pruneRoom`).
+  const pruneRoom = useMutation(api.presence.pruneRoom);
+  const hasPrunedRef = useRef(false);
+  useEffect(() => {
+    if (!isJoined || hasPrunedRef.current) return;
+    hasPrunedRef.current = true;
+    pruneRoom({ roomId: canvasId, userId: presenceUserId }).catch(
+      (error: unknown) => {
+        console.warn("[presence] prune failed", error);
+      },
+    );
+  }, [isJoined, canvasId, presenceUserId, pruneRoom]);
 
   const selectedNodeIdsKey = useStore(selectedNodeIdsKeySelector);
   const openNodeIdsKey = useWindowsStore(openNodeIdsKeySelector);

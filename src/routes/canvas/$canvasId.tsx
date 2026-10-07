@@ -207,15 +207,14 @@ function CanvasContent({
         </Panel>
         {isAuthenticated ? (
           <>
-            {/* L'omnibar : demander sans choisir de conversation, et les
-                tâches de Nolë juste dessous. */}
-            <Panel position="top-center">
-              <Omnibar canvasId={canvasId} />
-            </Panel>
             <Panel position="bottom-left">
-              {/* La conversation étendue est un `absolute` ancré dans
-                  `NoleCanvasPanel` : elle flotte au-dessus du bouton. */}
-              <NoleCanvasPanel />
+              {/* L'omnibar (demander sans choisir de conversation, et les
+                  tâches de Nolë empilées au-dessus) tient le coin. La
+                  conversation étendue est un `absolute` ancré dans
+                  `NoleCanvasPanel` : elle flotte au-dessus de l'island. */}
+              <NoleCanvasPanel>
+                <Omnibar canvasId={canvasId} />
+              </NoleCanvasPanel>
             </Panel>
             {/* Le miroir du coin gauche : le bouton des repères reste à
                 l'extrême droite, les windows minimisées le prolongent vers le

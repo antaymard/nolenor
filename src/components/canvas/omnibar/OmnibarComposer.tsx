@@ -1,4 +1,5 @@
 import { useQuery } from "convex/react";
+import { TbX } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import RichTextArea from "@/components/canvas/nole-panel/RichTextArea";
 import { AttachmentRow } from "@/components/canvas/nole-panel/chat-input/AttachmentChips";
@@ -8,6 +9,7 @@ import {
 } from "@/components/canvas/nole-panel/chat-input/ComposerStatus";
 import ModelSelect from "@/components/canvas/nole-panel/chat-input/ModelSelect";
 import SendStopButton from "@/components/canvas/nole-panel/chat-input/SendStopButton";
+import { Button } from "@/components/shadcn/button";
 import { useSelectableNodes } from "@/hooks/useSelectableNodes";
 import { useHasUserInput, useNoleStore } from "@/stores/noleStore";
 import { useWindowsStore } from "@/stores/windowsStore";
@@ -17,6 +19,8 @@ const INPUT_MAX_ROWS = 6;
 
 type OmnibarComposerProps = {
   onSend: () => void;
+  /** Le X : vide le brouillon et replie l'island. */
+  onDiscard: () => void;
   isSending: boolean;
   isRecording: boolean;
   isTranscribing: boolean;
@@ -35,6 +39,7 @@ type OmnibarComposerProps = {
  */
 export default function OmnibarComposer({
   onSend,
+  onDiscard,
   isSending,
   isRecording,
   isTranscribing,
@@ -66,20 +71,34 @@ export default function OmnibarComposer({
 
   return (
     <div className="flex w-full flex-col">
-      <AttachmentRow
-        selectableNodes={selectableNodes}
-        attachedNodes={attachedNodes}
-        attachedPosition={attachedPosition}
-        addAttachments={addAttachments}
-        removeAttachments={removeAttachments}
-      />
+      <div className="flex items-start gap-1 pr-1.5">
+        <div className="min-w-0 flex-1">
+          <AttachmentRow
+            selectableNodes={selectableNodes}
+            attachedNodes={attachedNodes}
+            attachedPosition={attachedPosition}
+            addAttachments={addAttachments}
+            removeAttachments={removeAttachments}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onDiscard}
+          aria-label="Clear and close"
+          title="Clear and close"
+          className="mt-1.5 shrink-0 text-slate-400 hover:text-slate-700"
+        >
+          <TbX size={15} />
+        </Button>
+      </div>
 
       <div className="px-3 pt-2.5">
         <RichTextArea
           draft="omnibar"
           onSubmit={onSend}
           maxRows={INPUT_MAX_ROWS}
-          suggestionsPlacement="below"
           placeholder="Ask Nolë anything, @ to mention a node"
         />
       </div>

@@ -16,7 +16,7 @@ import { resolveTaskView } from "@/components/canvas/tasks/taskView";
 const MAX_COMPACT_VISIBLE = 3;
 
 /**
- * Les tâches de Nolë sous l'omnibar : une carte par run (cf. convex/runs.ts).
+ * Les tâches de Nolë au-dessus de l'omnibar : une carte par run (cf. convex/runs.ts).
  *
  * Ce qui demande une lecture ou une action (réponse, question, échec) passe
  * en tête, en pleine largeur ; le reste — en cours, ou fini avec un résultat
@@ -68,10 +68,10 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
   );
 
   return (
-    <div className="flex w-full flex-col items-center gap-2">
+    <div className="flex w-full flex-col items-start gap-2">
       {prominent.map(card)}
       {compact.length > 0 && (
-        <div className="flex flex-wrap items-start justify-center gap-2">
+        <div className="flex flex-wrap items-end justify-start gap-2">
           {visible.map(card)}
           {overflow.length > 0 && (
             <Popover open={overflowOpen} onOpenChange={setOverflowOpen}>
@@ -84,7 +84,7 @@ export default function OmnibarTasks({ canvasId }: { canvasId: Id<"canvases"> })
                   +{overflow.length}
                 </button>
               </PopoverTrigger>
-              <PopoverContent side="bottom" align="center" className="w-auto p-2">
+              <PopoverContent side="top" align="start" className="w-auto p-2">
                 <div className="flex flex-col items-start gap-2">
                   {overflow.map(card)}
                 </div>

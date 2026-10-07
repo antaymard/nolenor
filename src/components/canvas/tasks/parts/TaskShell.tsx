@@ -56,7 +56,7 @@ export function TaskShell({
   return (
     <div
       className={cn(
-        "animate-in fade-in slide-in-from-top-2 duration-200",
+        "animate-in fade-in slide-in-from-bottom-2 duration-200",
         view.emphasis === "compact" ? "shrink-0" : "w-full",
       )}
     >

@@ -23,8 +23,12 @@ import OmnibarTasks from "./OmnibarTasks";
 /**
  * L'omnibar : demander quelque chose à Nolë sans choisir de conversation.
  * Le serveur aiguille la demande vers la tâche qu'elle concerne, ou en ouvre
- * une nouvelle (cf. convex/harness/dispatch.ts). Sous la barre : où est
- * partie la dernière demande, et les tâches en cours.
+ * une nouvelle (cf. convex/harness/dispatch.ts). Au-dessus de l'island : où
+ * est partie la dernière demande, et les tâches en cours.
+ *
+ * Elle tient le coin bas-gauche, à la place de l'ancien bouton Nolë. Quand la
+ * conversation (panel) est ouverte, elle flotte au même endroit : l'island
+ * reste compacte et le stack s'efface ; un clic sur l'island ferme le panel.
  *
  * Façon Dynamic Island, deux états :
  * - compact : une pilule de la hauteur du bouton Nolë (h-10), qui dit qui est
@@ -32,8 +36,9 @@ import OmnibarTasks from "./OmnibarTasks";
  * - expanded : le composer, iso avec celui du panel (cf. OmnibarComposer).
  *   Un clic l'ouvre, Échap la replie.
  *
- * La dictée se fait en compact (la pilule montre l'écoute) ; une fois la
- * transcription rendue, l'island s'ouvre sur le texte, à relire avant envoi.
+ * La dictée ouvre l'island : le texte s'y inscrit en direct, et reste à
+ * relire avant envoi. Rien de reconnu, elle revient en compact si c'est la
+ * dictée qui l'avait ouverte.
  *
  * La dictée (Ctrl+Alt maintenus) marche sans focus, tant que le panel est
  * fermé : ouvert, c'est son composer qui l'écoute.
@@ -43,6 +48,10 @@ import OmnibarTasks from "./OmnibarTasks";
 export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
   const [sending, setSending] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  // Lu par l'effet de la dictée sans en faire une dépendance : il ne doit
+  // réagir qu'au début et à la fin d'une dictée.
+  const isExpandedRef = useRef(isExpanded);
+  isExpandedRef.current = isExpanded;
   const islandRef = useRef<HTMLDivElement>(null);
   const submit = useMutation(api.ia.nole.submit);
   const reactFlow = useReactFlow();
@@ -63,15 +72,48 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
     }
   };
 
-  // Fin d'une dictée : l'island s'ouvre sur le texte transcrit, curseur à la
-  // fin. Rien de reconnu, elle reste compacte (la dictée l'a déjà signalé).
+  // Un clic ailleurs replie l'island si elle est vide ; un brouillon ou une
+  // dictée en cours la gardent ouverte. Les menus portés hors de l'island
+  // (modèle, mentions) comptent comme dedans : choisir un modèle ne la
+  // replie pas.
+  useEffect(() => {
+    if (!isExpanded) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (islandRef.current?.contains(target)) return;
+      if (target.closest("[data-radix-popper-content-wrapper]")) return;
+      if (useNoleStore.getState().omnibarInput.trim() || speech.sttBusy) return;
+      setIsExpanded(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isExpanded, speech.sttBusy]);
+
+  // Le panel s'ouvre (N, une tâche ouverte) : il prend la place, l'island se
+  // replie.
+  useEffect(() => {
+    if (isPanelOpen) setIsExpanded(false);
+  }, [isPanelOpen]);
+
+  // La dictée ouvre l'island pour qu'on y voie le texte arriver. À la fin,
+  // curseur après le texte ; rien de reconnu, elle revient en compact si
+  // c'est la dictée qui l'avait ouverte (la dictée l'a déjà signalé).
   const wasBusyRef = useRef(false);
+  const openedByDictationRef = useRef(false);
   useEffect(() => {
     const wasBusy = wasBusyRef.current;
     wasBusyRef.current = speech.sttBusy;
+    if (!wasBusy && speech.sttBusy) {
+      openedByDictationRef.current = !isExpandedRef.current;
+      setIsExpanded(true);
+      return;
+    }
     if (!wasBusy || speech.sttBusy) return;
-    if (!useNoleStore.getState().omnibarInput.trim()) return;
-    setIsExpanded(true);
+    if (!useNoleStore.getState().omnibarInput.trim()) {
+      if (openedByDictationRef.current) setIsExpanded(false);
+      return;
+    }
     requestAnimationFrame(() => {
       const el = islandRef.current?.querySelector("textarea");
       if (!el) return;
@@ -90,7 +132,7 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
     if (useWindowsStore.getState().dirtyNodeIds.length > 0) {
       toast.error(
         "Please save or close the modified windows before sending your request.",
-        { position: "top-center", duration: 5000 },
+        { position: "bottom-left", duration: 5000 },
       );
       return;
     }
@@ -117,7 +159,7 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
     });
 
     // Envoyée, la demande quitte l'island : elle repart en compact, et la
-    // suite se lit dessous (feed, tâches).
+    // suite se lit au-dessus (feed, tâches).
     state.setOmnibarInput("");
     collapse();
     setSending(true);
@@ -137,7 +179,7 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
       state.setOmnibarInput(prompt);
       setIsExpanded(true);
       toast.error("Couldn't send your request. Please try again.", {
-        position: "top-center",
+        position: "bottom-left",
       });
     } finally {
       setSending(false);
@@ -145,7 +187,13 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
   };
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-start gap-2">
+      {!isPanelOpen && (
+        <div className="flex w-[560px] max-w-[calc(100vw-32px)] flex-col items-start gap-2">
+          <OmnibarTasks canvasId={canvasId} />
+          <OmnibarFeed canvasId={canvasId} />
+        </div>
+      )}
       <div
         ref={islandRef}
         onKeyDown={(event) => {
@@ -167,6 +215,12 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
         {isExpanded ? (
           <OmnibarComposer
             onSend={() => void send()}
+            onDiscard={() => {
+              // Le prompt seulement : les pièces jointes sont partagées avec
+              // le panel, et le choix du modèle vaut pour la suite.
+              useNoleStore.getState().setOmnibarInput("");
+              collapse();
+            }}
             isSending={sending}
             isRecording={speech.isRecording}
             isTranscribing={speech.isTranscribing}
@@ -176,7 +230,10 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
         ) : (
           <button
             type="button"
-            onClick={() => setIsExpanded(true)}
+            onClick={() => {
+              useNoleStore.getState().setPanelLayout("minimized");
+              setIsExpanded(true);
+            }}
             aria-label="Ask Nolë"
             className="flex h-full items-center gap-3 pr-2 pl-3.5 whitespace-nowrap"
           >
@@ -191,8 +248,6 @@ export default function Omnibar({ canvasId }: { canvasId: Id<"canvases"> }) {
           </button>
         )}
       </div>
-      <OmnibarFeed canvasId={canvasId} />
-      <OmnibarTasks canvasId={canvasId} />
     </div>
   );
 }

@@ -45,11 +45,6 @@ interface RichTextAreaProps {
   submitOnEnter?: boolean;
   /** Le brouillon édité : celui du panel par défaut. */
   draft?: NoleDraft;
-  /**
-   * Côté d'ouverture du menu des mentions : au-dessus pour un composer ancré
-   * en bas (panel, mobile), en dessous pour l'omnibar, en haut de l'écran.
-   */
-  suggestionsPlacement?: "above" | "below";
 }
 
 /**
@@ -70,7 +65,6 @@ export default function RichTextArea({
   autoFocus = true,
   submitOnEnter = true,
   draft = "panel",
-  suggestionsPlacement = "above",
 }: RichTextAreaProps) {
   // Le brouillon est lu ici et pas plus haut : c'est le seul composant qui a
   // besoin du texte lui-même, donc le seul qui doive re-rendre à chaque
@@ -101,13 +95,13 @@ export default function RichTextArea({
   }, [nodeIdsByDataId, nodeDatas]);
 
   const style = useMemo(
-    () => buildStyle(minRows, maxRows, suggestionsPlacement),
-    [minRows, maxRows, suggestionsPlacement],
+    () => buildStyle(minRows, maxRows),
+    [minRows, maxRows],
   );
 
   // Le dropdown est sorti en portail : le composer vit dans des conteneurs qui
   // rognent (panneau du canvas, wrapper du pulse en `overflow: hidden`), et le
-  // côté d'ouverture dépend de l'ancrage du composer (`suggestionsPlacement`).
+  // champ est ancré en bas — les suggestions doivent s'ouvrir vers le haut.
   const portalHost = typeof document !== "undefined" ? document.body : undefined;
 
   return (
@@ -117,7 +111,7 @@ export default function RichTextArea({
       value={value}
       placeholder={placeholder}
       suggestionsPortalHost={portalHost}
-      forceSuggestionsAboveCursor={suggestionsPlacement === "above"}
+      forceSuggestionsAboveCursor
       a11ySuggestionsListLabel="Nodes du canvas à mentionner"
       onKeyDown={(e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
@@ -177,11 +171,7 @@ export default function RichTextArea({
  * pour que le texte réellement affiché (le textarea) se superpose au pixel près
  * aux pastilles de mention peintes par le highlighter.
  */
-function buildStyle(
-  minRows: number,
-  maxRows: number,
-  suggestionsPlacement: "above" | "below",
-) {
+function buildStyle(minRows: number, maxRows: number) {
   const minHeight = minRows * LINE_HEIGHT_PX;
   const maxHeight = maxRows * LINE_HEIGHT_PX;
   const shared = {
@@ -217,8 +207,7 @@ function buildStyle(
       // react-mentions colle le menu à la ligne du curseur (et annule toute
       // marge dans son calcul) : un translate lui rend de l'air sans fausser
       // le positionnement.
-      transform:
-        suggestionsPlacement === "above" ? "translateY(-6px)" : "translateY(6px)",
+      transform: "translateY(-6px)",
     },
   } as const;
 }

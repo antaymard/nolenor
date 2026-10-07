@@ -9,12 +9,13 @@ function state(
   tab: string,
   selectedNodeIds: string[],
   extra: Partial<PresenceState> = {},
+  openNodeIds: string[] = [],
 ): PresenceState {
   return {
     userId: `${userId}:${tab}`,
     online: true,
     lastDisconnected: 0,
-    data: { selectedNodeIds },
+    data: { selectedNodeIds, openNodeIds },
     name: userId.toUpperCase(),
     ...extra,
   };
@@ -34,11 +35,11 @@ describe("canvasPresenceStore", () => {
       ME,
     );
 
-    const { collaborators, selectionsByNodeId } =
+    const { collaborators, collaboratorsByNodeId } =
       useCanvasPresenceStore.getState();
     expect(collaborators.map((c) => c.userId)).toEqual(["alice"]);
-    expect([...selectionsByNodeId.keys()].sort()).toEqual(["n1", "n2"]);
-    expect(selectionsByNodeId.get("n1")?.map((c) => c.userId)).toEqual([
+    expect([...collaboratorsByNodeId.keys()].sort()).toEqual(["n1", "n2"]);
+    expect(collaboratorsByNodeId.get("n1")?.map((c) => c.userId)).toEqual([
       "alice",
     ]);
   });
@@ -58,11 +59,11 @@ describe("canvasPresenceStore", () => {
     const after = useCanvasPresenceStore.getState();
 
     expect(after.collaborators).toBe(before.collaborators);
-    expect(after.selectionsByNodeId.get("n1")).toBe(
-      before.selectionsByNodeId.get("n1"),
+    expect(after.collaboratorsByNodeId.get("n1")).toBe(
+      before.collaboratorsByNodeId.get("n1"),
     );
-    expect(after.selectionsByNodeId.has("n2")).toBe(false);
-    expect(after.selectionsByNodeId.get("n3")?.[0].userId).toBe("bob");
+    expect(after.collaboratorsByNodeId.has("n2")).toBe(false);
+    expect(after.collaboratorsByNodeId.get("n3")?.[0].userId).toBe("bob");
 
     // Same input again: no store update at all.
     setPresence(
@@ -76,9 +77,29 @@ describe("canvasPresenceStore", () => {
     useCanvasPresenceStore
       .getState()
       .setPresence([state("alice", "a", [], { data: "nope" })], ME);
-    const { collaborators, selectionsByNodeId } =
+    const { collaborators, collaboratorsByNodeId } =
       useCanvasPresenceStore.getState();
     expect(collaborators).toHaveLength(1);
-    expect(selectionsByNodeId.size).toBe(0);
+    expect(collaboratorsByNodeId.size).toBe(0);
+  });
+
+  test("a node open in a window counts like a selected one, once per user", () => {
+    useCanvasPresenceStore.getState().setPresence(
+      [
+        // Alice selected n1 in one tab and has it open in another.
+        state("alice", "a", ["n1"]),
+        state("alice", "b", [], {}, ["n1", "n2"]),
+        state("bob", "a", [], {}, ["n2"]),
+      ],
+      ME,
+    );
+    const { collaboratorsByNodeId } = useCanvasPresenceStore.getState();
+    expect(collaboratorsByNodeId.get("n1")?.map((c) => c.userId)).toEqual([
+      "alice",
+    ]);
+    expect(collaboratorsByNodeId.get("n2")?.map((c) => c.userId)).toEqual([
+      "alice",
+      "bob",
+    ]);
   });
 });

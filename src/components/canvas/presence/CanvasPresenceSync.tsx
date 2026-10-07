@@ -7,15 +7,17 @@ import type { Id } from "@/../convex/_generated/dataModel";
 import { makePresenceUserId } from "@/../convex/lib/presenceIds";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useCanvasPresenceStore } from "@/stores/canvasPresenceStore";
+import { useWindowsStore, type OpenedWindow } from "@/stores/windowsStore";
 
 // Tient la présence du canvas ouvert : heartbeat, liste des membres présents
-// (versée dans `canvasPresenceStore`) et publication de la sélection locale.
-// Ne rend rien. Monté par `CanvasFlow`, sous le `ReactFlowProvider` dont il
-// lit la sélection.
+// (versée dans `canvasPresenceStore`) et publication des nodes sur lesquels
+// cet onglet est actif : sélectionnés, ou ouverts en window. Ne rend rien.
+// Monté par `CanvasFlow`, sous le `ReactFlowProvider` dont il lit la
+// sélection.
 
-// Regroupe les changements de sélection rapprochés (lasso, clics enchaînés) :
-// chaque publication réinvalide la liste de présence de toute la room.
-const SELECTION_PUBLISH_DELAY_MS = 200;
+// Regroupe les changements rapprochés (lasso, clics enchaînés) : chaque
+// publication réinvalide la liste de présence de toute la room.
+const ACTIVITY_PUBLISH_DELAY_MS = 200;
 
 // Clé par valeur : le sélecteur tourne à chaque changement du store React
 // Flow (pan, drag…), seule une sélection différente doit re-rendre.
@@ -24,6 +26,17 @@ const selectedNodeIdsKeySelector = (state: ReactFlowState) =>
     .filter((node) => node.selected)
     .map((node) => node.id)
     .join(",");
+
+// Même principe côté windows : une window réduite n'est plus regardée, elle
+// ne compte pas. Triée, pour qu'un changement de z-index ne republie rien.
+const openNodeIdsKeySelector = (state: { openedWindows: OpenedWindow[] }) =>
+  state.openedWindows
+    .filter((opened) => opened.windowState !== "minimized")
+    .map((opened) => opened.xyNodeId)
+    .sort()
+    .join(",");
+
+const splitKey = (key: string) => (key ? key.split(",") : []);
 
 function PresenceSession({
   canvasId,
@@ -51,24 +64,31 @@ function PresenceSession({
     states?.some((s) => s.userId === presenceUserId && s.online) ?? false;
 
   const selectedNodeIdsKey = useStore(selectedNodeIdsKeySelector);
-  const updateSelection = useMutation(api.presence.updateSelection);
+  const openNodeIdsKey = useWindowsStore(openNodeIdsKeySelector);
+  const updateActivity = useMutation(api.presence.updateActivity);
   useEffect(() => {
     if (!isJoined) return;
     const timeout = setTimeout(() => {
-      updateSelection({
+      updateActivity({
         roomId: canvasId,
         userId: presenceUserId,
-        selectedNodeIds: selectedNodeIdsKey
-          ? selectedNodeIdsKey.split(",")
-          : [],
+        selectedNodeIds: splitKey(selectedNodeIdsKey),
+        openNodeIds: splitKey(openNodeIdsKey),
       }).catch((error: unknown) => {
-        // Sans conséquence au-delà de la pill chez les autres : la prochaine
-        // sélection republie.
-        console.warn("[presence] selection publish failed", error);
+        // Sans conséquence au-delà de la pill chez les autres : le prochain
+        // changement republie.
+        console.warn("[presence] activity publish failed", error);
       });
-    }, SELECTION_PUBLISH_DELAY_MS);
+    }, ACTIVITY_PUBLISH_DELAY_MS);
     return () => clearTimeout(timeout);
-  }, [isJoined, selectedNodeIdsKey, canvasId, presenceUserId, updateSelection]);
+  }, [
+    isJoined,
+    selectedNodeIdsKey,
+    openNodeIdsKey,
+    canvasId,
+    presenceUserId,
+    updateActivity,
+  ]);
 
   return null;
 }

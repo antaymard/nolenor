@@ -1,10 +1,11 @@
 import { create } from "zustand";
 import type { PresenceState } from "@convex-dev/presence/react";
 import { parsePresenceUserId } from "@/../convex/lib/presenceIds";
-import { readSelectedNodeIds } from "@/../convex/lib/presenceData";
+import { readActiveNodeIds } from "@/../convex/lib/presenceData";
 
 /**
- * Les AUTRES membres présents sur le canvas ouvert, et ce qu'ils sélectionnent.
+ * Les AUTRES membres présents sur le canvas ouvert, et les nodes sur lesquels
+ * ils sont actifs (sélectionnés ou ouverts en window).
  *
  * Un store et pas une lecture directe de la query de présence depuis
  * `NodeFrame` : rendu une fois par node, il re-rendrait TOUS les nodes à
@@ -25,13 +26,16 @@ export type Collaborator = {
 
 interface CanvasPresenceStore {
   collaborators: Collaborator[];
-  /** nodeId → membres qui l'ont sélectionné, dans l'ordre des collaborateurs. */
-  selectionsByNodeId: Map<string, Collaborator[]>;
+  /**
+   * nodeId → membres actifs dessus (sélectionné ou ouvert en window), dans
+   * l'ordre des collaborateurs.
+   */
+  collaboratorsByNodeId: Map<string, Collaborator[]>;
   setPresence: (states: PresenceState[], myUserId: string) => void;
   reset: () => void;
 }
 
-const EMPTY_SELECTIONS = new Map<string, Collaborator[]>();
+const EMPTY_BY_NODE = new Map<string, Collaborator[]>();
 
 function sameCollaborators(a: Collaborator[], b: Collaborator[]): boolean {
   return (
@@ -47,14 +51,14 @@ function sameCollaborators(a: Collaborator[], b: Collaborator[]): boolean {
 
 export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
   collaborators: [],
-  selectionsByNodeId: EMPTY_SELECTIONS,
+  collaboratorsByNodeId: EMPTY_BY_NODE,
 
   setPresence: (states, myUserId) =>
     set((state) => {
       // Un participant par onglet côté serveur : on regroupe par utilisateur
-      // réel, et sa sélection est l'union de celles de ses onglets.
+      // réel, et ses nodes actifs sont l'union de ceux de ses onglets.
       const byUser = new Map<string, Collaborator>();
-      const selectedByUser = new Map<string, Set<string>>();
+      const activeByUser = new Map<string, Set<string>>();
       for (const presence of states) {
         if (!presence.online) continue;
         const userId = parsePresenceUserId(presence.userId);
@@ -65,10 +69,10 @@ export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
             name: presence.name,
             image: presence.image,
           });
-          selectedByUser.set(userId, new Set());
+          activeByUser.set(userId, new Set());
         }
-        for (const nodeId of readSelectedNodeIds(presence.data)) {
-          selectedByUser.get(userId)?.add(nodeId);
+        for (const nodeId of readActiveNodeIds(presence.data)) {
+          activeByUser.get(userId)?.add(nodeId);
         }
       }
 
@@ -80,54 +84,54 @@ export const useCanvasPresenceStore = create<CanvasPresenceStore>()((set) => ({
         ? state.collaborators
         : nextCollaborators;
 
-      const nextSelections = new Map<string, Collaborator[]>();
+      const nextByNode = new Map<string, Collaborator[]>();
       for (const collaborator of collaborators) {
-        for (const nodeId of selectedByUser.get(collaborator.userId) ?? []) {
-          const list = nextSelections.get(nodeId);
+        for (const nodeId of activeByUser.get(collaborator.userId) ?? []) {
+          const list = nextByNode.get(nodeId);
           if (list) list.push(collaborator);
-          else nextSelections.set(nodeId, [collaborator]);
+          else nextByNode.set(nodeId, [collaborator]);
         }
       }
       // Partage structurel : un node dont l'entrée n'a pas changé garde la
       // même référence, et ne re-rend pas.
-      let selectionsChanged =
-        nextSelections.size !== state.selectionsByNodeId.size;
-      for (const [nodeId, list] of nextSelections) {
-        const previous = state.selectionsByNodeId.get(nodeId);
+      let byNodeChanged =
+        nextByNode.size !== state.collaboratorsByNodeId.size;
+      for (const [nodeId, list] of nextByNode) {
+        const previous = state.collaboratorsByNodeId.get(nodeId);
         if (previous && sameCollaborators(previous, list)) {
-          nextSelections.set(nodeId, previous);
+          nextByNode.set(nodeId, previous);
         } else {
-          selectionsChanged = true;
+          byNodeChanged = true;
         }
       }
 
-      if (collaborators === state.collaborators && !selectionsChanged) {
+      if (collaborators === state.collaborators && !byNodeChanged) {
         return state;
       }
       return {
         collaborators,
-        selectionsByNodeId: selectionsChanged
-          ? nextSelections
-          : state.selectionsByNodeId,
+        collaboratorsByNodeId: byNodeChanged
+          ? nextByNode
+          : state.collaboratorsByNodeId,
       };
     }),
 
   reset: () =>
-    set({ collaborators: [], selectionsByNodeId: EMPTY_SELECTIONS }),
+    set({ collaborators: [], collaboratorsByNodeId: EMPTY_BY_NODE }),
 }));
 
-/** Les membres qui ont sélectionné CE node, `undefined` s'il n'y en a pas. */
-export function useNodeRemoteSelection(
+/** Les membres actifs sur CE node, `undefined` s'il n'y en a pas. */
+export function useNodeCollaborators(
   nodeId: string,
 ): Collaborator[] | undefined {
   return useCanvasPresenceStore((state) =>
-    state.selectionsByNodeId.get(nodeId),
+    state.collaboratorsByNodeId.get(nodeId),
   );
 }
 
 /**
  * Teinte stable par utilisateur : la même personne garde sa couleur dans la
- * facepile et sur les nodes qu'elle sélectionne.
+ * facepile et sur les nodes où elle est active.
  */
 export function collaboratorHue(userId: string): number {
   let hash = 0;

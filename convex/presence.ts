@@ -7,7 +7,7 @@ import { getCanvasAccess, requireAuth } from "./lib/auth";
 import errors from "./config/errorsConfig";
 import { parsePresenceUserId } from "./lib/presenceIds";
 import {
-  MAX_PUBLISHED_SELECTION,
+  MAX_PUBLISHED_NODE_IDS,
   type CanvasPresenceData,
 } from "./lib/presenceData";
 import { resolveUserDisplayName } from "./lib/userDisplayName";
@@ -88,22 +88,25 @@ export const heartbeat = mutation({
 });
 
 /**
- * Publie les nodes que ce participant (cet onglet) a sélectionnés. Hors de
- * l'interface du hook : le client l'appelle lui-même, sur changement de
- * sélection.
+ * Publie les nodes sur lesquels ce participant (cet onglet) est actif :
+ * sélectionnés sur le canvas, ou ouverts en window. Les deux listes ensemble,
+ * puisque `data` est remplacé en bloc. Hors de l'interface du hook : le
+ * client l'appelle lui-même, quand l'une change.
  */
-export const updateSelection = mutation({
+export const updateActivity = mutation({
   args: {
     roomId: v.string(),
     userId: v.string(),
     selectedNodeIds: v.array(v.string()),
+    openNodeIds: v.array(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { roomId, userId, selectedNodeIds }) => {
+  handler: async (ctx, { roomId, userId, selectedNodeIds, openNodeIds }) => {
     await requireRoomParticipant(ctx, roomId, userId);
 
     const data: CanvasPresenceData = {
-      selectedNodeIds: selectedNodeIds.slice(0, MAX_PUBLISHED_SELECTION),
+      selectedNodeIds: selectedNodeIds.slice(0, MAX_PUBLISHED_NODE_IDS),
+      openNodeIds: openNodeIds.slice(0, MAX_PUBLISHED_NODE_IDS),
     };
     await presence.updateRoomUser(ctx, roomId, userId, data);
     return null;

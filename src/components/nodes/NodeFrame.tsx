@@ -10,7 +10,7 @@ import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useNoleNodeActivity } from "@/stores/noleLiveStore";
 import NoleActivityBead from "./NoleActivityBead";
 import BookmarkedBadge from "./BookmarkedBadge";
-import RemoteSelectionPill from "@/components/canvas/presence/RemoteSelectionPill";
+import NodeCollaboratorsPill from "@/components/canvas/presence/NodeCollaboratorsPill";
 import { NodeTitleHeader } from "./NodeHeader";
 import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
 import { zoomCompensationScaleSelector } from "@/lib/zoomCompensation";
@@ -249,8 +249,8 @@ function NodeFrame({
         ) : (
           children
         )}
-        {/* Qui d'autre a sélectionné ce node (présence du canvas). */}
-        <RemoteSelectionPill nodeId={xyNode.id} />
+        {/* Qui d'autre est sur ce node : sélection, window (présence). */}
+        <NodeCollaboratorsPill nodeId={xyNode.id} />
       </div>
     </div>
   );

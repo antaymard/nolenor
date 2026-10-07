@@ -77,6 +77,7 @@ import type * as ia_helpers_transcriptFormatters from "../ia/helpers/transcriptF
 import type * as ia_helpers_transcriptSummaryPrompt from "../ia/helpers/transcriptSummaryPrompt.js";
 import type * as ia_imageGeneration from "../ia/imageGeneration.js";
 import type * as ia_imageGenerationRun from "../ia/imageGenerationRun.js";
+import type * as ia_jev from "../ia/jev.js";
 import type * as ia_nole from "../ia/nole.js";
 import type * as ia_profiles_index from "../ia/profiles/index.js";
 import type * as ia_profiles_nole from "../ia/profiles/nole.js";
@@ -87,6 +88,7 @@ import type * as ia_systemPrompts_newUserPrompt from "../ia/systemPrompts/newUse
 import type * as ia_systemPrompts_noleSystemPrompt from "../ia/systemPrompts/noleSystemPrompt.js";
 import type * as ia_systemPrompts_systemParts from "../ia/systemPrompts/systemParts.js";
 import type * as ia_systemPrompts_workerSystemPrompt from "../ia/systemPrompts/workerSystemPrompt.js";
+import type * as ia_taskOutcome from "../ia/taskOutcome.js";
 import type * as ia_tools_blockNoteTools from "../ia/tools/blockNoteTools.js";
 import type * as ia_tools_createConnectionTool from "../ia/tools/createConnectionTool.js";
 import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
@@ -321,6 +323,7 @@ declare const fullApi: ApiFromModules<{
   "ia/helpers/transcriptSummaryPrompt": typeof ia_helpers_transcriptSummaryPrompt;
   "ia/imageGeneration": typeof ia_imageGeneration;
   "ia/imageGenerationRun": typeof ia_imageGenerationRun;
+  "ia/jev": typeof ia_jev;
   "ia/nole": typeof ia_nole;
   "ia/profiles/index": typeof ia_profiles_index;
   "ia/profiles/nole": typeof ia_profiles_nole;
@@ -331,6 +334,7 @@ declare const fullApi: ApiFromModules<{
   "ia/systemPrompts/noleSystemPrompt": typeof ia_systemPrompts_noleSystemPrompt;
   "ia/systemPrompts/systemParts": typeof ia_systemPrompts_systemParts;
   "ia/systemPrompts/workerSystemPrompt": typeof ia_systemPrompts_workerSystemPrompt;
+  "ia/taskOutcome": typeof ia_taskOutcome;
   "ia/tools/blockNoteTools": typeof ia_tools_blockNoteTools;
   "ia/tools/createConnectionTool": typeof ia_tools_createConnectionTool;
   "ia/tools/createNodeTool": typeof ia_tools_createNodeTool;

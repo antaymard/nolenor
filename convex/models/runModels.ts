@@ -54,6 +54,7 @@ export async function createRun(
     canvasId: Id<"canvases">;
     userId: Id<"users">;
     agentName: string;
+    profile: string;
     request: string;
   },
 ): Promise<void> {

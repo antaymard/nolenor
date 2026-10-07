@@ -25,6 +25,8 @@ const runsValidator = v.object({
   userId: v.id("users"),
   // Les sous-agents ont leurs runs aussi ; le dock ne montre que Nolë.
   agentName: v.string(),
+  // Le profil qui l'a exécuté : de quoi relancer la demande à l'identique.
+  profile: v.optional(v.string()),
   // Ce que l'utilisateur a demandé, tel qu'il l'a tapé (tronqué).
   request: v.string(),
   status: threadRunStatusValidator,
@@ -35,6 +37,16 @@ const runsValidator = v.object({
   // Les nodes écrits PENDANT ce run, pas ceux de tout le thread.
   touchedNodes: v.optional(v.array(threadNodeTouchValidator)),
   reviewedAt: v.optional(v.number()),
+
+  // ── Issue, une fois le run fini (cf. ia/taskOutcome.ts) ──
+  // La réponse finale, telle que la carte peut la montrer sans ouvrir le
+  // chat (tronquée).
+  answerText: v.optional(v.string()),
+  // Cette réponse apporte-t-elle quelque chose à lire, au-delà du compte
+  // rendu des changements ? Absent tant que non jugé.
+  answer: v.optional(v.boolean()),
+  // La probabilité rendue par le juge, pour régler le seuil sur des données.
+  answerScore: v.optional(v.number()),
 });
 
 export { runsValidator };

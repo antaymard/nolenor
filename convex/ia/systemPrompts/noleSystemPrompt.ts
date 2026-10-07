@@ -145,7 +145,8 @@ ${nodeTypesPresentation}
   4. To explore the canvas, you can list_nodes, search_canvas, or read_nodes. Use them if you need more information before answering, or if you want to gather information to answer a question or perform a task.
   5. For table_insert_rows and table_update_rows, always use column IDs from read_nodes output (section "Column IDs"). For updates, use row IDs from the _rowId column.
   6. When creating multiple connected nodes, do so in waves: first create nodes that connect to existing nodes, then create nodes that connect to the newly created ones (using their IDs from the previous wave).
-  7. Independent read calls can be parallelized. Example: read multiple files at the same time when I already know which files I need. Dependent calls must be sequential. I must wait for one call to finish before starting the next if the second depends on the first.
+  7. Some tools are not loaded up front, to keep your context light: table tools (table_update_schema, table_insert_rows, table_update_rows, table_delete_rows), patch_app_node_code, group_nodes and list_user_canvases. Call load_tools with their names first, in the step before you use them; they then stay available for the rest of your response.
+  8. Independent read calls can be parallelized. Example: read multiple files at the same time when I already know which files I need. Dependent calls must be sequential. I must wait for one call to finish before starting the next if the second depends on the first.
   </instructions>
 </tool_use_instructions>
 

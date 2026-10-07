@@ -20,6 +20,9 @@ const aiUsageSources = {
   transcription: "transcription",
   // L'aiguillage des demandes de l'omnibar (Jev, cf. ia/router/jevRouter.ts).
   router: "router",
+  // Le jugement de l'issue d'une tâche : sa réponse compte-t-elle ? (Jev,
+  // cf. ia/taskOutcome.ts).
+  taskOutcome: "taskOutcome",
 } as const;
 
 const vAiUsageSource = v.union(
@@ -29,6 +32,7 @@ const vAiUsageSource = v.union(
   v.literal(aiUsageSources.imageGeneration),
   v.literal(aiUsageSources.transcription),
   v.literal(aiUsageSources.router),
+  v.literal(aiUsageSources.taskOutcome),
 );
 
 type AiUsageSource = typeof vAiUsageSource.type;

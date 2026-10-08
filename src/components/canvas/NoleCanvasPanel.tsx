@@ -25,9 +25,9 @@ export default function NoleCanvasPanel({ children }: { children: ReactNode }) {
       {layout === "expanded" && (
         // `bottom-12.5` : l'island compacte fait h-10 comme la toolbar, la
         // conversation la recouvrirait sinon (l'omnibar reste compacte et
-        // masque ses tâches tant que le panel est ouvert). Pas de
-        // `canvas-ui-container` ici : c'est `ChatContainer` qui porte déjà le
-        // matériau (blur + ombre).
+        // masque ses tâches tant que le panel est ouvert). L'ombre est portée
+        // par le `ResizablePanel` ci-dessous (`shadow-md`, comme
+        // `canvas-ui-container`), pas par `ChatContainer`.
         //
         // Le resize : le groupe mesure 38rem mais la conversation n'en occupe
         // par défaut que 380px (`w-95` d'origine) ; le second panel est un
@@ -44,13 +44,22 @@ export default function NoleCanvasPanel({ children }: { children: ReactNode }) {
           <ResizablePanelGroup
             direction="horizontal"
             autoSaveId="nolenor:nole-panel-width"
-            className="h-full bg-transparent!"
+            // `overflow-visible!` : le groupe impose `overflow: hidden` en style
+            // inline, ce qui rogne l'ombre du panel (ses bords touchent ceux du
+            // groupe). En visible, l'ombre `shadow-md` se peint en entier —
+            // le groupe ne contient que le panel, la poignée et un fantôme
+            // transparent, donc rien ne débordait visuellement de toute façon.
+            className="h-full overflow-visible! bg-transparent!"
           >
             <ResizablePanel
               defaultSize={62.5}
               minSize={40}
               maxSize={95}
-              className="pointer-events-auto rounded-xl!"
+              // `shadow-md` : la même ombre que les éléments `canvas-ui-container`
+              // (le shadow interne de `ChatContainer` est rogné par l'overflow
+              // hidden du panel redimensionnable, donc l'ombre est portée ici —
+              // même pattern que `NoleOverlay` qui désactive l'ombre interne).
+              className="pointer-events-auto rounded-2xl! shadow-md [&>div]:shadow-none!"
             >
               <ChatContainer onClose={() => setPanelLayout("minimized")} />
             </ResizablePanel>

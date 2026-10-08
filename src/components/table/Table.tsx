@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -46,10 +40,7 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { Button } from "@/components/shadcn/button";
-import {
-  TbPlus,
-  TbTrash,
-} from "react-icons/tb";
+import { TbPlus, TbTrash } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { AddColumnMenu } from "./AddColumnMenu";
 import { CellEditor } from "./CellEditor";
@@ -65,10 +56,18 @@ import { RowRecordDialog } from "./RowRecordDialog";
 import { SelectOptionsDialog } from "./SelectOptionsDialog";
 import { SummaryFooter } from "./SummaryFooter";
 import { TableToolbar } from "./TableToolbar";
-import { ACTIONS_COLUMN_ID, GUTTER_COLUMN_ID, isUtilityColumn } from "./columnIds";
+import {
+  ACTIONS_COLUMN_ID,
+  GUTTER_COLUMN_ID,
+  isUtilityColumn,
+} from "./columnIds";
 import { countLossyCells } from "./coerce";
 import { cellText } from "./cellText";
-import { applyFilters, type FilterConjunction, type TableFilter } from "./filters";
+import {
+  applyFilters,
+  type FilterConjunction,
+  type TableFilter,
+} from "./filters";
 import { compareRowsByColumn, type TableSort } from "./sorting";
 import type { RegisterCellFlush } from "./cellDraft";
 import {
@@ -115,7 +114,10 @@ export interface TableProps {
     options: SelectOption[],
     isMulti: boolean,
   ) => void;
-  onColumnSummaryChange?: (colId: string, summary: SummaryKind | undefined) => void;
+  onColumnSummaryChange?: (
+    colId: string,
+    summary: SummaryKind | undefined,
+  ) => void;
   onRowHeightChange?: (rowHeight: RowHeight) => void;
   /**
    * Vue persistée, contrôlée par le parent — comme `rowHeight`. Seule la
@@ -244,13 +246,32 @@ export function Table({
     [tableColumns, readOnly],
   );
 
-  // Les colonnes ajoutées adoptent leur largeur persistée, celles qui
-  // disparaissent quittent l'état — sans écraser un redimensionnement en cours.
+  /**
+   * Largeurs que CE client a émises et que les colonnes reçues ne portent pas
+   * encore : pendant le geste, puis le temps que le parent les enregistre (il
+   * peut les regrouper avant envoi). Tant qu'une colonne y figure, sa largeur
+   * locale gagne ; dès que la largeur reçue la rejoint, c'est de nouveau la
+   * largeur reçue qui fait foi — y compris celle qu'un autre éditeur pose
+   * ensuite.
+   */
+  const emittedWidthsRef = useRef(new Map<string, number>());
+
+  // Les colonnes adoptent leur largeur persistée (posée ici ou par un autre
+  // éditeur), celles qui disparaissent quittent l'état — sans écraser un
+  // redimensionnement en cours.
   useEffect(() => {
+    const emitted = emittedWidthsRef.current;
+    const liveIds = new Set(tableColumns.map((col) => col.id));
+    for (const [colId, width] of emitted) {
+      const col = tableColumns.find((c) => c.id === colId);
+      if (!liveIds.has(colId) || col?.width === width) emitted.delete(colId);
+    }
     setColumnSizing((prev) => {
       const next: Record<string, number> = {};
       for (const col of tableColumns) {
-        const width = col.id in prev ? prev[col.id] : col.width;
+        const width = emitted.has(col.id)
+          ? (prev[col.id] ?? col.width)
+          : (col.width ?? prev[col.id]);
         if (width != null) next[col.id] = width;
       }
       const sameSize = Object.keys(next).length === Object.keys(prev).length;
@@ -268,7 +289,8 @@ export function Table({
    * recherche, non : la position affichée ne dit plus rien de la position
    * stockée, et déposer entre deux lignes n'aurait pas de cible.
    */
-  const canReorderRows = !readOnly && sorting.length === 0 && globalFilter === "";
+  const canReorderRows =
+    !readOnly && sorting.length === 0 && globalFilter === "";
   const reorderBlockedReason =
     readOnly || canReorderRows
       ? undefined
@@ -297,7 +319,9 @@ export function Table({
       const column = columnsById.get(columnId);
       if (!column) return false;
       const term = String(filterValue).toLowerCase();
-      return cellText(row.getValue(columnId), column).toLowerCase().includes(term);
+      return cellText(row.getValue(columnId), column)
+        .toLowerCase()
+        .includes(term);
     },
     [columnsById],
   );
@@ -448,8 +472,7 @@ export function Table({
           sortingFn: (a, b) => compareRowsByColumn(a.original, b.original, col),
           cell: ({ row }) => {
             const isEditing =
-              editingRowId === row.original.id &&
-              editingColumnId === col.id;
+              editingRowId === row.original.id && editingColumnId === col.id;
             const value = row.original.cells[col.id];
             return (
               <CellEditor
@@ -534,7 +557,9 @@ export function Table({
             : updaterOrValue;
         for (const [colId, width] of Object.entries(next)) {
           if (prev[colId] !== width) {
-            onColumnWidthChangeRef.current?.(colId, Math.round(width));
+            const rounded = Math.round(width);
+            emittedWidthsRef.current.set(colId, rounded);
+            onColumnWidthChangeRef.current?.(colId, rounded);
           }
         }
         return next;
@@ -662,24 +687,6 @@ export function Table({
     if (record && !rows.some((r) => r.id === record.rowId)) setRecord(null);
   }, [record, rows]);
 
-  // `applyFilters` ignore déjà les filtres dont la colonne n'existe plus, mais
-  // `canReorderRows` et `showGhostRow` comptaient les conditions, pas leur effet :
-  // supprimer une colonne filtrée laissait la grille sans ligne fantôme et sans
-  // réordonnancement, avec un compteur qui annonçait « non filtré ».
-  useEffect(() => {
-    const alive = filters.filter((f) => columnsById.has(f.columnId));
-    if (alive.length !== filters.length) onFiltersChange?.(alive);
-  }, [columnsById, filters, onFiltersChange]);
-
-  // Même ménage pour le tri, et pour une raison plus vive encore : un critère
-  // sur une colonne supprimée ne se voit nulle part (plus d'en-tête, donc plus
-  // de flèche, donc rien à « clear »), mais `canReorderRows` le compte toujours
-  // — le déplacement de lignes serait mort sans explication trouvable.
-  useEffect(() => {
-    const alive = sorting.filter((s) => columnsById.has(s.columnId));
-    if (alive.length !== sorting.length) onSortingChange?.(alive);
-  }, [columnsById, sorting, onSortingChange]);
-
   useEffect(() => {
     if (optionsDialogColumnId && !columnsById.has(optionsDialogColumnId)) {
       setOptionsDialogColumnId(null);
@@ -735,9 +742,7 @@ export function Table({
       onDragEnd={handleDragEnd}
       sensors={sensors}
     >
-      <div
-        className={cn("flex flex-col outline-none", className)}
-      >
+      <div className={cn("flex flex-col outline-none", className)}>
         <TableToolbar
           columns={tableColumns}
           search={globalFilter}
@@ -804,7 +809,8 @@ export function Table({
                               lossyCountFor={(type) =>
                                 countLossyCells(
                                   rows.map(
-                                    (row) => row.cells[header.column.id] ?? null,
+                                    (row) =>
+                                      row.cells[header.column.id] ?? null,
                                   ),
                                   columnsById.get(header.column.id)!,
                                   type,
@@ -816,7 +822,9 @@ export function Table({
                               onTypeChange={(type) =>
                                 onColumnTypeChange?.(header.column.id, type)
                               }
-                              onDelete={() => onDeleteColumn?.(header.column.id)}
+                              onDelete={() =>
+                                onDeleteColumn?.(header.column.id)
+                              }
                               onEditOptions={() =>
                                 setOptionsDialogColumnId(header.column.id)
                               }
@@ -901,9 +909,12 @@ export function Table({
                                 // basculer la valeur en cliquant n'importe où
                                 // dans la cellule serait trop facile à faire
                                 // par accident.
-                                readOnly || !cellColumn || cellColumn.type === "checkbox"
+                                readOnly ||
+                                !cellColumn ||
+                                cellColumn.type === "checkbox"
                                   ? undefined
-                                  : () => openCell(row.original.id, cell.column.id)
+                                  : () =>
+                                      openCell(row.original.id, cell.column.id)
                               }
                             >
                               {flexRender(

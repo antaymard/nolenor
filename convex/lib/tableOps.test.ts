@@ -228,7 +228,42 @@ describe("applyTableOps", () => {
   });
 });
 
+test("deleting a column drops the filters and sorts on it", () => {
+  const next = applyTableOps(
+    {
+      title: "",
+      table: {
+        ...state().table,
+        filters: [
+          { id: "f1", columnId: "tag", operator: "isEmpty" },
+          { id: "f2", columnId: "name", operator: "isNotEmpty" },
+        ],
+        sorting: [{ columnId: "tag", desc: false }],
+      },
+    },
+    [{ kind: "deleteColumns", columnIds: ["tag"] }],
+  );
+  expect(next.table.filters).toEqual([
+    { id: "f2", columnId: "name", operator: "isNotEmpty" },
+  ]);
+  expect(next.table.sorting).toEqual([]);
+});
+
 describe("readStoredTable", () => {
+  test("ignores filters and sorts left on a deleted column", () => {
+    expect(
+      readStoredTable({
+        columns: [{ id: "a", name: "A", type: "text" }],
+        rows: [],
+        filters: [{ columnId: "gone" }, { columnId: "a" }],
+        sorting: [{ columnId: "a", desc: true }],
+      }),
+    ).toMatchObject({
+      filters: [{ columnId: "a" }],
+      sorting: [{ columnId: "a", desc: true }],
+    });
+  });
+
   test("reads a missing or damaged table as an empty one", () => {
     expect(readStoredTable(undefined)).toEqual({ columns: [], rows: [] });
     expect(readStoredTable({ rows: [null, { id: "r" }] })).toEqual({

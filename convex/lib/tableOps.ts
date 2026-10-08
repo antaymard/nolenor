@@ -58,7 +58,29 @@ export function readStoredTable(raw: unknown): StoredTable {
             : { ...row, cells: {} },
         )
     : [];
-  return { ...table, columns, rows };
+  return withLiveView({ ...table, columns, rows });
+}
+
+/**
+ * Un filtre ou un tri sur une colonne supprimée ne se voit nulle part (plus
+ * d'en-tête, donc rien à « clear »), mais la grille le compte toujours : plus
+ * de ligne fantôme, plus de réordonnancement, sans explication trouvable.
+ * Retiré à la lecture (tables d'avant ce ménage) et à la suppression.
+ */
+function withLiveView(table: StoredTable): StoredTable {
+  const columnIds = new Set(table.columns.map((column) => column.id));
+  const isLive = (entry: unknown) => {
+    const columnId = (entry as { columnId?: unknown } | null)?.columnId;
+    return typeof columnId !== "string" || columnIds.has(columnId);
+  };
+  const next = { ...table };
+  for (const key of ["filters", "sorting"] as const) {
+    const list = table[key];
+    if (Array.isArray(list) && !list.every(isLive)) {
+      next[key] = list.filter(isLive);
+    }
+  }
+  return next;
 }
 
 export function applyTableOps(
@@ -134,7 +156,7 @@ function applyTableOp(state: TableState, op: TableOp): TableState {
       if (!table.columns.some((column) => ids.has(column.id))) return state;
       return {
         ...state,
-        table: {
+        table: withLiveView({
           ...table,
           columns: table.columns.filter((column) => !ids.has(column.id)),
           rows: table.rows.map((row) => {
@@ -142,7 +164,7 @@ function applyTableOp(state: TableState, op: TableOp): TableState {
             for (const id of ids) delete cells[id];
             return { ...row, cells };
           }),
-        },
+        }),
       };
     }
 
@@ -164,11 +186,11 @@ function applyTableOp(state: TableState, op: TableOp): TableState {
     case "replaceAll":
       return {
         ...state,
-        table: {
+        table: withLiveView({
           ...table,
           columns: op.columns,
           rows: op.rows.map((row) => withCellsForColumns(row, op.columns)),
-        },
+        }),
       };
   }
 }

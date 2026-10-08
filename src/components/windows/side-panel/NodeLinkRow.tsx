@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useReactFlow } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeData } from "@/hooks/useNodeData";
@@ -24,8 +24,8 @@ export function NodeLinkRow({
 }: {
   nodeDataId: Id<"nodeDatas">;
   snippet?: string;
-  /** Small leading marker, e.g. a direction arrow for connections. */
-  prefix?: string;
+  /** Small leading marker, e.g. a direction icon for connections. */
+  prefix?: ReactNode;
 }) {
   const title = useNodeDataTitle(nodeDataId);
   const nodeData = useNodeData(nodeDataId);

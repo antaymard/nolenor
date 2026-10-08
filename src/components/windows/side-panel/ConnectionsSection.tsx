@@ -1,21 +1,47 @@
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
+import { TbArrowLeftFromArc, TbArrowRightToArc } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeDataIdOf } from "@/lib/nodeIdentity";
 import { NodeLinkRow } from "./NodeLinkRow";
 import { SectionLabel } from "./SectionLabel";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/shadcn/tooltip";
 
 function ConnectionRow({
   otherXyNodeId,
-  prefix,
+  direction,
 }: {
   otherXyNodeId: string;
-  prefix: string;
+  direction: "incoming" | "outgoing";
 }) {
   const nodeDataId = useNodeDataIdOf(otherXyNodeId);
   if (!nodeDataId) return null;
-  return <NodeLinkRow nodeDataId={nodeDataId} prefix={prefix} />;
+  const DirectionIcon =
+    direction === "incoming" ? TbArrowRightToArc : TbArrowLeftFromArc;
+  const tooltip =
+    direction === "incoming"
+      ? "Source — this block points to the current block"
+      : "Target — the current block points to this block";
+  return (
+    <NodeLinkRow
+      nodeDataId={nodeDataId}
+      prefix={
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex shrink-0 text-slate-400">
+              <DirectionIcon size={16} />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="left">{tooltip}</TooltipContent>
+        </Tooltip>
+      }
+    />
+  );
 }
 
 /** This node's canvas connections (edges), split by direction. */
@@ -56,10 +82,18 @@ export function ConnectionsSection({
       ) : (
         <>
           {outgoing.map((id) => (
-            <ConnectionRow key={`out-${id}`} otherXyNodeId={id} prefix="→" />
+            <ConnectionRow
+              key={`out-${id}`}
+              otherXyNodeId={id}
+              direction="outgoing"
+            />
           ))}
           {incoming.map((id) => (
-            <ConnectionRow key={`in-${id}`} otherXyNodeId={id} prefix="←" />
+            <ConnectionRow
+              key={`in-${id}`}
+              otherXyNodeId={id}
+              direction="incoming"
+            />
           ))}
         </>
       )}

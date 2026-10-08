@@ -1,6 +1,7 @@
 import { internal } from "../_generated/api";
 import type { ActionCtx } from "../_generated/server";
 import type { AiUsageSource } from "../schemas/aiUsageSourceSchema";
+import { openRouterAttributionHeaders } from "./openrouterApp";
 
 /**
  * Jev (TypeSafe) via l'API Decisions d'OpenRouter : des décisions typées
@@ -54,6 +55,7 @@ export async function askJev(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      ...openRouterAttributionHeaders(),
     },
     body: JSON.stringify({
       model: JEV_MODEL,

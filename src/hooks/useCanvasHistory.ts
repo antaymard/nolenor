@@ -5,13 +5,8 @@ import toast from "react-hot-toast";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import type { CanvasOp } from "@/../convex/schemas/canvasOpsSchema";
+import { getLiveEdgeDoc, getLiveNodeDoc } from "@/lib/canvasDocCache";
 import {
-  getLiveEdgeDoc,
-  getLiveNodeDoc,
-  getNodeDataDoc,
-} from "@/lib/canvasDocCache";
-import {
-  addPendingNodeDatasToListQuery,
   applyEdgeDataPatchesToListQuery,
   applyNodePatchesToListQuery,
   removeEdgesFromListQuery,
@@ -106,17 +101,10 @@ export function useCanvasHistory(canvasId: Id<"canvases">) {
               const doc = getLiveNodeDoc(id);
               return doc ? [doc] : [];
             });
+            // Le contenu suit sans aller-retour : pendant le chargement de sa
+            // query, `useNodeDataSubscriptions` rend le dernier nodeData connu
+            // (`canvasDocCache`).
             restoreNodesInListQuery(localStore, targetCanvasId, docs);
-            // Le cadre sans son contenu clignoterait en « node vide » le temps
-            // d'un aller-retour : on remet aussi le nodeData connu.
-            addPendingNodeDatasToListQuery(
-              localStore,
-              targetCanvasId,
-              docs.flatMap((doc) => {
-                const nodeData = getNodeDataDoc(doc.nodeDataId);
-                return nodeData ? [nodeData] : [];
-              }),
-            );
             break;
           }
           case "patchEdges":

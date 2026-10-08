@@ -789,8 +789,8 @@ export function useCanvasNodes(
           // ResizeObserver can fire after setNodes() (font load, neighbouring
           // query invalidation re-running this useEffect) and re-emit the
           // exact dimensions we just rendered. Without this guard the
-          // resulting mutation invalidates readCanvas / listByCanvasId /
-          // listUserCanvases, which re-renders, which re-fires the observer
+          // resulting mutation invalidates nodes.listFromCanvas, which
+          // re-renders, which re-fires the observer
           // — a self-perpetuating loop on every canvas load. 0.5px absorbs
           // sub-pixel rounding noise.
           const meaningfulChanges = canvasNodes

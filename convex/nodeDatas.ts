@@ -44,26 +44,6 @@ export const read = query({
   },
 });
 
-export const listByCanvasId = query({
-  args: { canvasId: v.id("canvases") },
-  handler: async (ctx, { canvasId }) => {
-    const authUserId = await optionalAuth(ctx);
-    await requireCanvasAccess(ctx, canvasId, authUserId, "viewer", {
-      allowPublic: true,
-    });
-
-    // Nodes à la corbeille compris : le filtre se fait côté client
-    // (`useCanvasBootstrap`). Lire la table `nodes` ici pour les écarter
-    // rendait la query dépendante de chaque node — un drag, un resize, une
-    // couleur la relançaient, et elle relisait puis renvoyait tous les
-    // nodeDatas du canvas pour rien.
-    return await ctx.db
-      .query("nodeDatas")
-      .withIndex("by_canvasId", (q) => q.eq("canvasId", canvasId))
-      .collect();
-  },
-});
-
 export const listRecentByCanvasId = query({
   args: {
     canvasId: v.id("canvases"),

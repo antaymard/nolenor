@@ -9,13 +9,12 @@ import { useNoleStore } from "@/stores/noleStore";
 import { useTemplatesStore } from "@/stores/templatesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { toCanvasEdge, toCanvasNode } from "@/lib/flowNodes";
-import { isPendingDocId } from "@/lib/pendingDocIds";
 import {
   clearCanvasDocCache,
   rememberEdgeDocs,
-  rememberNodeDataDocs,
   rememberNodeDocs,
 } from "@/lib/canvasDocCache";
+import { useNodeDataSubscriptions } from "@/hooks/useNodeDataSubscriptions";
 import { useCanvasHistoryStore } from "@/stores/canvasHistoryStore";
 
 /**
@@ -30,7 +29,6 @@ export function useCanvasBootstrap(
   canvasId: Id<"canvases">,
   { isAuthenticated }: { isAuthenticated: boolean },
 ) {
-  const setNodeDatas = useNodeDataStore((state) => state.setNodeDatas);
   const clearNodeDatas = useNodeDataStore((state) => state.clear);
   const setCanvas = useCanvasStore((state) => state.setCanvas);
   const upsertTemplates = useTemplatesStore((state) => state.upsertTemplates);
@@ -109,15 +107,9 @@ export function useCanvasBootstrap(
     if (tableEdges) rememberEdgeDocs(tableEdges);
   }, [tableEdges]);
 
-  // Fetch nodeDatas for this canvas
-  const {
-    isError: isNodeDatasError,
-    data: nodeDatas,
-    error: nodeDatasError,
-  } = useRichQuery(
-    api.nodeDatas.listByCanvasId,
-    canvasId ? { canvasId } : "skip",
-  );
+  // Une query par nodeData des nodes vivants (cf. useNodeDataSubscriptions).
+  const { isError: isNodeDatasError, error: nodeDatasError } =
+    useNodeDataSubscriptions(tableNodes);
 
   // Custom node templates : ceux référencés par le canvas (viewers de
   // canvases partagés inclus) + ceux du user (menu d'ajout, nouveaux nodes).
@@ -183,36 +175,6 @@ export function useCanvasBootstrap(
     setCanvas(canvasForStore);
   }, [canvasForStore, setCanvas]);
   // ======
-
-  // Le registre reçoit TOUS les docs, corbeille comprise : c'est là que
-  // l'update optimiste d'une restauration va rechercher le nodeData.
-  useEffect(() => {
-    if (nodeDatas) rememberNodeDataDocs(nodeDatas);
-  }, [nodeDatas]);
-
-  // `listByCanvasId` renvoie aussi les nodeDatas des nodes à la corbeille
-  // (gardés 30 jours) : le serveur ne lit plus `nodes` pour les écarter, sans
-  // quoi chaque drag relançait la query. On les écarte ici, sinon ils
-  // resteraient dans `nodeDataStore` et donc proposés à la mention `@` (cf.
-  // `getNodeMentionSuggestionItems`) — une pill vers un node absent.
-  //
-  // `tableNodes` ne contient que les nodes vivants. On garde en plus les docs
-  // `pending_…` : pendant une création local-first, le node n'existe encore
-  // que dans l'état React Flow, pas dans `nodes.listFromCanvas`, et l'écarter
-  // ferait clignoter le contenu du node fraîchement créé. Après confirmation,
-  // node et nodeData arrivent dans le même snapshot serveur.
-  const liveNodeDatas = useMemo(() => {
-    if (nodeDatas === undefined || tableNodes === undefined) return undefined;
-    const liveIds = new Set<string>(tableNodes.map((node) => node.nodeDataId));
-    return nodeDatas.filter(
-      (nodeData) => liveIds.has(nodeData._id) || isPendingDocId(nodeData._id),
-    );
-  }, [nodeDatas, tableNodes]);
-
-  // Sync convex nodeDatas -> zustand store
-  useEffect(() => {
-    if (liveNodeDatas) setNodeDatas(liveNodeDatas);
-  }, [liveNodeDatas, setNodeDatas]);
 
   useEffect(() => {
     if (isNodeDatasError) {

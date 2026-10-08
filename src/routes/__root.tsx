@@ -12,9 +12,9 @@ import { useEffect } from "react";
 import { z } from "zod";
 import TemplateEditorModal from "@/components/settings/templates/TemplateEditorModal";
 import ErrorDisplay from "@/components/ui/ErrorDisplay";
+import UpdateAwareErrorDisplay from "@/components/ui/UpdateAwareErrorDisplay";
 import { Button } from "@/components/shadcn/button";
 import { api } from "@/../convex/_generated/api";
-import { applyUpdate } from "@/lib/appUpdate";
 import { identifyUser, reportError } from "@/lib/analytics";
 import CommandCenter from "@/components/command-center/CommandCenter";
 
@@ -48,13 +48,17 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
     reportError(error, { source: "router.errorComponent" });
   }, [error]);
 
+  // `autoReload` : la route entière est déjà démontée, recharger ne fait rien
+  // perdre. Si un déploiement explique l'erreur, la page se met à jour seule.
   return (
     <div className="h-screen w-screen">
-      <ErrorDisplay
+      <UpdateAwareErrorDisplay
         title="This page could not be loaded"
         error={error instanceof Error ? error : null}
-        cta={
-          <div className="flex flex-wrap justify-center gap-2">
+        reloadLabel="Reload"
+        autoReload
+        secondaryActions={
+          <>
             <Button variant="outline" onClick={reset}>
               Try again
             </Button>
@@ -67,8 +71,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
             >
               Back to my canvases
             </Button>
-            <Button onClick={applyUpdate}>Reload</Button>
-          </div>
+          </>
         }
       />
     </div>

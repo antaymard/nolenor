@@ -15,8 +15,10 @@ export default function ErrorDisplay({
   message,
   error,
   cta = null,
+  icon = <TbError404 />,
 }: {
   cta?: React.ReactNode;
+  icon?: React.ReactNode;
   title?: string;
   message?: string;
   error?: Error | null;
@@ -34,9 +36,7 @@ export default function ErrorDisplay({
     <div className="h-full w-full flex items-center">
       <Empty>
         <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <TbError404 />
-          </EmptyMedia>
+          <EmptyMedia variant="icon">{icon}</EmptyMedia>
           <EmptyTitle>{displayTitle}</EmptyTitle>
           <EmptyDescription className="text-base">
             {displayMessage}

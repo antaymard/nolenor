@@ -8,6 +8,8 @@ type CanvasInStore = Omit<Doc<"canvases">, "nodes" | "edges"> & {
   // Absent sur un canvas posé dans le store avant l'ajout du champ côté
   // serveur : traité comme « non membre ».
   _isMember?: boolean;
+  // Partagé avec au moins une personne (même repli : absent = non).
+  _isShared?: boolean;
 };
 
 type Status = "idle" | "unsynced" | "saving" | "saved" | "error";

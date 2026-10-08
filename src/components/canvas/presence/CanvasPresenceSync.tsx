@@ -127,21 +127,29 @@ function PresenceSession({
 }
 
 /**
- * Monte la présence seulement pour un membre du canvas : le serveur refuse
- * les autres (cf. convex/presence.ts), et le hook relancerait un heartbeat
- * en échec toutes les dix secondes.
+ * Monte la présence seulement :
+ * - pour un membre du canvas : le serveur refuse les autres (cf.
+ *   convex/presence.ts), et le hook relancerait un heartbeat en échec toutes
+ *   les dix secondes ;
+ * - sur un canvas partagé : sans partage, seul son propriétaire y entre en
+ *   membre, il n'y aurait personne à montrer. C'est le cas de l'immense
+ *   majorité des canvas : ni heartbeat ni publication d'activité pour eux.
+ *   Partager le canvas monte la présence aussitôt (`_isShared` est réactif).
  */
 export default function CanvasPresenceSync({
   canvasId,
 }: {
   canvasId: Id<"canvases">;
 }) {
-  const isMember = useCanvasStore(
-    (state) => state.canvas?._id === canvasId && state.canvas._isMember === true,
+  const isEnabled = useCanvasStore(
+    (state) =>
+      state.canvas?._id === canvasId &&
+      state.canvas._isMember === true &&
+      state.canvas._isShared === true,
   );
-  const me = useQuery(api.users.me);
+  const me = useQuery(api.users.me, isEnabled ? {} : "skip");
 
-  if (!isMember || !me) return null;
+  if (!isEnabled || !me) return null;
 
   // `key` : un changement de canvas repart d'une session neuve.
   return (

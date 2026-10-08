@@ -1,4 +1,5 @@
 import { ConvexError } from "convex/values";
+import type { FunctionReference } from "convex/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { components, internal } from "../_generated/api";
@@ -15,6 +16,26 @@ import {
   stringifyBlockNoteDocumentForStorage,
   InvalidBlockNoteDocumentError,
 } from "../lib/blockNoteDocument";
+import { Debouncer } from "../lib/debouncer";
+
+// Une table éditée cellule par cellule écrit à chaque frappe validée : on
+// réindexe une fois que ça se calme (au plus tard toutes les 30 s pendant une
+// édition continue), pas à chaque écriture.
+const DEBOUNCED_REINDEX_KEYS = ["table", "title"];
+// Type explicite : l'inférer passerait par `internal`, qui dépend de ce
+// fichier.
+const reindexDebouncer: Debouncer<
+  FunctionReference<
+    "action",
+    "internal",
+    { nodeDataId: Id<"nodeDatas">; updatedKeys?: string[] },
+    null
+  >
+> = new Debouncer(
+  components.debouncer,
+  internal.searchable.chunkBuilder.rebuildChunks,
+  { delay: 5_000, maxWait: 30_000 },
+);
 
 export async function readNodeData(
   ctx: QueryCtx,
@@ -188,12 +209,21 @@ export async function updateValues(
     // rien à y renvoyer. Toute autre écriture du `doc` d'un blocknote
     // (agent, restore, MCP, ancienne window) y est poussée.
     fromSync = false,
+    // Éditeurs humains qui travaillent ensemble sur le même node (doc
+    // collaboratif, table éditée par opérations) : leurs écritures alternées
+    // tombent dans le même point de restauration (cf. maybeCheckpoint).
+    sharedHumanSession = fromSync,
+    // Écritures fines et rapprochées (une cellule à la fois) : la
+    // réindexation attend que ça se calme au lieu de repartir à chaque fois.
+    debounceReindex = false,
   }: {
     _id: Id<"nodeDatas">;
     values: Record<string, unknown>;
     actor: NodeDataVersionActor;
     skipValidation?: boolean;
     fromSync?: boolean;
+    sharedHumanSession?: boolean;
+    debounceReindex?: boolean;
   },
 ): Promise<boolean> {
   console.log(`🔄 Updating values for nodeData ${_id}`);
@@ -329,7 +359,7 @@ export async function updateValues(
     actor,
     changedKeys,
     trigger: "update",
-    sharedHumanSession: fromSync,
+    sharedHumanSession,
   });
 
   const now = Date.now();
@@ -351,14 +381,23 @@ export async function updateValues(
     });
   }
 
-  await ctx.scheduler.runAfter(
-    0,
-    internal.searchable.chunkBuilder.rebuildChunks,
-    {
+  if (debounceReindex) {
+    // Les arguments du dernier appel gagnent : toutes les clés que ce chemin
+    // peut écrire, pour qu'aucune ne soit oubliée par le regroupement.
+    await reindexDebouncer.schedule(ctx, _id, {
       nodeDataId: _id,
-      updatedKeys: changedKeys,
-    },
-  );
+      updatedKeys: DEBOUNCED_REINDEX_KEYS,
+    });
+  } else {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.searchable.chunkBuilder.rebuildChunks,
+      {
+        nodeDataId: _id,
+        updatedKeys: changedKeys,
+      },
+    );
+  }
 
   // Un blocknote ouvert en édition collaborative a un doc ProseMirror vivant
   // dans le composant prosemirror-sync : sans cette poussée, l'écriture

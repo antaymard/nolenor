@@ -13,11 +13,6 @@ import {
 import { parseRichTextCell } from "../../lib/tableRichTextCell";
 import { richTextCellFromMarkdown } from "../helpers/tableRichTextMarkdown";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
-import {
-  TableWriteConflictError,
-  withTableWriteRetry,
-  writeTableIfUnchanged,
-} from "../helpers/tableWrite";
 
 // Tool compaction config
 export const tableInsertRowsToolConfig: ToolConfig = {
@@ -83,195 +78,199 @@ export default function tableInsertRowsTool({
           'Rows to insert as objects keyed by columnId. Example: `[{"description":"Embedded content"},{"type":"Document","color":"Navy"}]`.',
         ),
     }),
-    execute: (ctx, input): Promise<string> =>
-      withTableWriteRetry(async () => {
-        console.log(
-          `🧮 Table row insert requested on node ${input.nodeId}, anchor ${input.anchorRowId ?? "<start>"}`,
+    execute: async (ctx, input): Promise<string> => {
+      console.log(
+        `🧮 Table row insert requested on node ${input.nodeId}, anchor ${input.anchorRowId ?? "<start>"}`,
+      );
+
+      try {
+        const { nodeId } = input;
+        const anchorRowId = input.anchorRowId?.trim() ?? "";
+        const values = input.values;
+
+        const { node, nodeData } = await ctx.runQuery(
+          internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+          {
+            canvasId,
+            nodeId,
+          },
         );
 
-        try {
-          const { nodeId } = input;
-          const anchorRowId = input.anchorRowId?.trim() ?? "";
-          const values = input.values;
+        if (node.type !== "table" || nodeData.type !== "table") {
+          return ERROR_TARGET_NOT_TABLE;
+        }
 
-          const { node, nodeData } = await ctx.runQuery(
-            internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+        const tableValue = (nodeData.values.table ?? {}) as StoredTableValue;
+        const columns = Array.isArray(tableValue.columns)
+          ? tableValue.columns
+          : null;
+        const rows = Array.isArray(tableValue.rows) ? tableValue.rows : null;
+
+        if (!columns || !rows) {
+          return ERROR_INVALID_TABLE_CONTENT;
+        }
+
+        if (columns.length === 0) {
+          return ERROR_TABLE_SCHEMA_EMPTY;
+        }
+
+        const needsCanvasNodeIds = columns.some((col) => col.type === "node");
+        const knownCanvasNodeIds = new Set<string>();
+        if (needsCanvasNodeIds) {
+          const { nodes: canvasNodes } = await ctx.runQuery(
+            internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
             {
-              canvasId,
-              nodeId,
+              canvasId: canvasId as Id<"canvases">,
             },
           );
-
-          if (node.type !== "table" || nodeData.type !== "table") {
-            return ERROR_TARGET_NOT_TABLE;
+          for (const cn of canvasNodes) {
+            knownCanvasNodeIds.add(cn.id);
           }
+        }
 
-          const tableValue = (nodeData.values.table ?? {}) as StoredTableValue;
-          const columns = Array.isArray(tableValue.columns)
-            ? tableValue.columns
-            : null;
-          const rows = Array.isArray(tableValue.rows) ? tableValue.rows : null;
+        // L'id stocké de la ligne d'ancrage (la saisie est normalisée).
+        let insertAfterRowId: string | null = null;
+        if (anchorRowId.length > 0) {
+          const anchorMatches = rows.filter(
+            (row) => (row.id ?? "").trim() === anchorRowId,
+          );
 
-          if (!columns || !rows) {
-            return ERROR_INVALID_TABLE_CONTENT;
-          }
-
-          if (columns.length === 0) {
-            return ERROR_TABLE_SCHEMA_EMPTY;
-          }
-
-          const needsCanvasNodeIds = columns.some((col) => col.type === "node");
-          const knownCanvasNodeIds = new Set<string>();
-          if (needsCanvasNodeIds) {
-            const { nodes: canvasNodes } = await ctx.runQuery(
-              internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
-              {
-                canvasId: canvasId as Id<"canvases">,
-              },
+          if (anchorMatches.length === 0) {
+            return toolError(
+              `No match found for anchorRowId "${input.anchorRowId}".`,
             );
-            for (const cn of canvasNodes) {
-              knownCanvasNodeIds.add(cn.id);
+          }
+          if (anchorMatches.length > 1) {
+            return toolError(
+              `Found ${anchorMatches.length} matches for anchorRowId "${input.anchorRowId}". Please provide a unique rowId.`,
+            );
+          }
+
+          insertAfterRowId = anchorMatches[0].id;
+        }
+
+        const rowsToInsert: Array<TableRow> = [];
+
+        for (const rowInput of values) {
+          const resolvedUpdates: Array<{ columnId: string; value: unknown }> =
+            [];
+
+          for (const [columnInput, rawValue] of Object.entries(rowInput)) {
+            const columnId = columnInput.trim();
+            if (!columnId) {
+              return toolError("columnId must be a non-empty string.");
             }
-          }
 
-          let insertIndex = 0;
-          if (anchorRowId.length > 0) {
-            const anchorMatches = rows.filter(
-              (row) => (row.id ?? "").trim() === anchorRowId,
+            const matchedColumns = columns.filter(
+              (column) => column.id.trim() === columnId,
             );
 
-            if (anchorMatches.length === 0) {
+            if (matchedColumns.length === 0) {
               return toolError(
-                `No match found for anchorRowId "${input.anchorRowId}".`,
+                `No match found for columnId "${columnInput}". Valid columns: ${describeColumns(columns)}.`,
               );
             }
-            if (anchorMatches.length > 1) {
+            if (matchedColumns.length > 1) {
               return toolError(
-                `Found ${anchorMatches.length} matches for anchorRowId "${input.anchorRowId}". Please provide a unique rowId.`,
+                `Found ${matchedColumns.length} matches for columnId "${columnInput}". Please provide a unique column id.`,
               );
             }
 
-            const anchorIdx = rows.findIndex(
-              (row) => (row.id ?? "").trim() === anchorRowId,
+            const matchedColumn = matchedColumns[0];
+
+            const duplicate = resolvedUpdates.some(
+              (existing) => existing.columnId === matchedColumn.id,
             );
-            insertIndex = anchorIdx + 1;
-          }
-
-          const rowsToInsert: Array<TableRow> = [];
-
-          for (const rowInput of values) {
-            const resolvedUpdates: Array<{ columnId: string; value: unknown }> =
-              [];
-
-            for (const [columnInput, rawValue] of Object.entries(rowInput)) {
-              const columnId = columnInput.trim();
-              if (!columnId) {
-                return toolError("columnId must be a non-empty string.");
-              }
-
-              const matchedColumns = columns.filter(
-                (column) => column.id.trim() === columnId,
+            if (duplicate) {
+              return toolError(
+                `Column "${matchedColumn.name}" is provided multiple times.`,
               );
-
-              if (matchedColumns.length === 0) {
-                return toolError(
-                  `No match found for columnId "${columnInput}". Valid columns: ${describeColumns(columns)}.`,
-                );
-              }
-              if (matchedColumns.length > 1) {
-                return toolError(
-                  `Found ${matchedColumns.length} matches for columnId "${columnInput}". Please provide a unique column id.`,
-                );
-              }
-
-              const matchedColumn = matchedColumns[0];
-
-              const duplicate = resolvedUpdates.some(
-                (existing) => existing.columnId === matchedColumn.id,
-              );
-              if (duplicate) {
-                return toolError(
-                  `Column "${matchedColumn.name}" is provided multiple times.`,
-                );
-              }
-
-              // Rich text : Markdown (avec jetons de mention, date, pill),
-              // comme `set_node_data` sur un node blocknote. Un document déjà
-              // sérialisé passe tel quel par `normalizeCellValueForColumn`.
-              let cellValue = rawValue;
-              if (
-                matchedColumn.type === "richtext" &&
-                typeof rawValue === "string" &&
-                !parseRichTextCell(rawValue)
-              ) {
-                const encoded = await richTextCellFromMarkdown(
-                  ctx,
-                  canvasId as Id<"canvases">,
-                  rawValue,
-                );
-                if (!encoded.ok) {
-                  return toolError(
-                    `Column "${matchedColumn.name}": ${encoded.error}`,
-                  );
-                }
-                cellValue = encoded.value;
-              }
-
-              const normalized = normalizeCellValueForColumn({
-                rawValue: cellValue,
-                column: matchedColumn,
-                ctx: { knownCanvasNodeIds },
-              });
-              if (!normalized.ok) {
-                return normalized.error;
-              }
-
-              resolvedUpdates.push({
-                columnId: matchedColumn.id,
-                value: normalized.value,
-              });
             }
 
-            const nextCells: Record<string, unknown> = {};
-            for (const update of resolvedUpdates) {
-              nextCells[update.columnId] = update.value;
+            // Rich text : Markdown (avec jetons de mention, date, pill),
+            // comme `set_node_data` sur un node blocknote. Un document déjà
+            // sérialisé passe tel quel par `normalizeCellValueForColumn`.
+            let cellValue = rawValue;
+            if (
+              matchedColumn.type === "richtext" &&
+              typeof rawValue === "string" &&
+              !parseRichTextCell(rawValue)
+            ) {
+              const encoded = await richTextCellFromMarkdown(
+                ctx,
+                canvasId as Id<"canvases">,
+                rawValue,
+              );
+              if (!encoded.ok) {
+                return toolError(
+                  `Column "${matchedColumn.name}": ${encoded.error}`,
+                );
+              }
+              cellValue = encoded.value;
             }
 
-            rowsToInsert.push({
-              id: generateLlmId(),
-              cells: nextCells,
+            const normalized = normalizeCellValueForColumn({
+              rawValue: cellValue,
+              column: matchedColumn,
+              ctx: { knownCanvasNodeIds },
+            });
+            if (!normalized.ok) {
+              return normalized.error;
+            }
+
+            resolvedUpdates.push({
+              columnId: matchedColumn.id,
+              value: normalized.value,
             });
           }
 
-          const updatedRows = [
-            ...rows.slice(0, insertIndex),
-            ...rowsToInsert,
-            ...rows.slice(insertIndex),
-          ];
+          const nextCells: Record<string, unknown> = {};
+          for (const update of resolvedUpdates) {
+            nextCells[update.columnId] = update.value;
+          }
 
-          await writeTableIfUnchanged(ctx, {
-            nodeDataId: nodeData._id,
-            expectedTable: nodeData.values.table,
-            table: { ...tableValue, columns, rows: updatedRows },
+          rowsToInsert.push({
+            id: generateLlmId(),
+            cells: nextCells,
+          });
+        }
+
+        await ctx.runMutation(
+          internal.wrappers.nodeDataWrappers.applyTableOps,
+          {
+            _id: nodeData._id,
+            ops: [
+              {
+                kind: "insertRows",
+                rows: rowsToInsert.map((row) => ({
+                  id: row.id,
+                  cells: row.cells ?? {},
+                })),
+                // Ligne d'ancrage supprimée entre-temps : en fin de table.
+                position: insertAfterRowId
+                  ? { afterRowId: insertAfterRowId }
+                  : "start",
+              },
+            ],
             actor: {
               type: "agent",
               userId: threadCtx.authUserId,
               threadId: ctx.threadId,
             },
-          });
+          },
+        );
 
-          console.log(
-            `✅ Table row insert complete for node ${nodeId} (${rowsToInsert.length} row(s))`,
-          );
+        console.log(
+          `✅ Table row insert complete for node ${nodeId} (${rowsToInsert.length} row(s))`,
+        );
 
-          return `Successfully added ${rowsToInsert.length} rows.`;
-        } catch (error) {
-          if (error instanceof TableWriteConflictError) throw error;
-          console.error("Table insert rows tool error:", error);
-          return toolError(
-            error instanceof Error ? error.message : String(error),
-          );
-        }
-      }),
+        return `Successfully added ${rowsToInsert.length} rows.`;
+      } catch (error) {
+        console.error("Table insert rows tool error:", error);
+        return toolError(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    },
   });
 }

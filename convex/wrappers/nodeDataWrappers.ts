@@ -16,6 +16,8 @@ import {
 
 import * as NodeDataModels from "../models/nodeDataModels";
 import * as NodeModels from "../models/nodeModels";
+import * as TableModels from "../models/tableModels";
+import { tableOpValidator } from "../schemas/tableOpsSchema";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import {
   type BlockNoteBlock,
@@ -30,10 +32,7 @@ import {
   validateBlockNoteDocument,
   InvalidBlockNoteDocumentError,
 } from "../lib/blockNoteDocument";
-import {
-  resolveBlockIdsIn,
-  withBlockIdAliases,
-} from "../lib/blockIdAliases";
+import { resolveBlockIdsIn, withBlockIdAliases } from "../lib/blockIdAliases";
 
 /**
  * Rattache le node au thread qui vient de l'écrire, avec ce qui lui a été fait.
@@ -123,66 +122,37 @@ export const updateValues = internalMutation({
 });
 
 /**
- * Écriture optimiste pour les tools table : ils lisent la table (query), la
- * transforment dans l'action puis la réécrivent en entier. Entre les deux, un
- * autre appel (tools lancés en parallèle par l'agent, édition utilisateur) a
- * pu modifier la table ; une écriture aveugle effacerait silencieusement ce
- * changement. On n'écrit donc que si la table est encore celle qui a été lue,
- * sinon on renvoie false et l'appelant recommence sur l'état frais.
+ * Écriture des tools table (agent, MCP) : les mêmes opérations que la grille,
+ * appliquées à l'état courant dans cette transaction. Un humain qui édite la
+ * table pendant que l'agent travaille garde ses cellules, et des tools lancés
+ * en parallèle se cumulent au lieu de se rejouer.
  */
-export const updateTableIfUnchanged = internalMutation({
+export const applyTableOps = internalMutation({
   args: {
     _id: v.id("nodeDatas"),
-    expectedTable: v.optional(v.any()),
-    table: v.any(),
+    ops: v.array(tableOpValidator),
     actor: nodeDataVersionActorValidator,
   },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    const existing = await ctx.db.get("nodeDatas", args._id);
-    if (!existing) throw new ConvexError("NodeData not found");
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const nodeData = await ctx.db.get("nodeDatas", args._id);
+    if (!nodeData) throw new ConvexError("NodeData not found");
 
-    if (!isDeepEqual(existing.values?.table, args.expectedTable)) {
-      return false;
+    const updated = await TableModels.applyOps(ctx, {
+      nodeData,
+      ops: args.ops,
+      actor: args.actor,
+    });
+    if (updated) {
+      await trackAgentTouch(ctx, {
+        actor: args.actor,
+        nodeDataId: args._id,
+        kind: threadNodeTouchKinds.updated,
+      });
     }
-
-    await NodeDataModels.updateValues(ctx, {
-      _id: args._id,
-      values: { table: args.table },
-      actor: args.actor,
-    });
-    await trackAgentTouch(ctx, {
-      actor: args.actor,
-      nodeDataId: args._id,
-      kind: threadNodeTouchKinds.updated,
-    });
-    return true;
+    return null;
   },
 });
-
-// Égalité structurelle, indépendante de l'ordre des clés : la valeur relue en
-// base n'a aucune garantie de conserver l'ordre de celle renvoyée par la query.
-function isDeepEqual(a: unknown, b: unknown): boolean {
-  if (Object.is(a, b)) return true;
-  if (typeof a !== "object" || typeof b !== "object" || !a || !b) {
-    return false;
-  }
-  if (Array.isArray(a) !== Array.isArray(b)) return false;
-  if (Array.isArray(a) && Array.isArray(b)) {
-    return (
-      a.length === b.length && a.every((item, i) => isDeepEqual(item, b[i]))
-    );
-  }
-  const aRecord = a as Record<string, unknown>;
-  const bRecord = b as Record<string, unknown>;
-  const aKeys = Object.keys(aRecord);
-  if (aKeys.length !== Object.keys(bRecord).length) return false;
-  return aKeys.every(
-    (key) =>
-      Object.prototype.hasOwnProperty.call(bRecord, key) &&
-      isDeepEqual(aRecord[key], bRecord[key]),
-  );
-}
 
 export const deleteWithCascade = internalMutation({
   args: {
@@ -333,7 +303,11 @@ function applyTargetedEdit(
         }
         case "updateProps":
           return {
-            tree: updateBlockProps(blocks, resolve(edit.blockId), edit.propsPatch),
+            tree: updateBlockProps(
+              blocks,
+              resolve(edit.blockId),
+              edit.propsPatch,
+            ),
           };
         case "patchText":
           return {

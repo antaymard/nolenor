@@ -100,40 +100,29 @@ function TableWindow({ nodeDataId }: { nodeDataId: Id<"nodeDatas"> }) {
     setSaveHandler(null);
   }, [setDirty, setSaveHandler]);
 
-  const canvasId = nodeData?.canvasId;
   const applyMutation = useMutation(api.tableOps.apply);
   // Mémoïsée : `withOptimisticUpdate` rend une fonction neuve à chaque appel.
   const applyOps = useMemo(
     () =>
       applyMutation.withOptimisticUpdate((localStore, args) => {
-        if (!canvasId) return;
-        const list = localStore.getQuery(api.nodeDatas.listByCanvasId, {
-          canvasId,
-        });
-        if (list === undefined) return;
-        localStore.setQuery(
-          api.nodeDatas.listByCanvasId,
-          { canvasId },
-          list.map((doc) => {
-            if (doc._id !== args.nodeDataId) return doc;
-            const next = applyTableOps(
-              {
-                table: readStoredTable(doc.values?.table),
-                title:
-                  typeof doc.values?.title === "string" ? doc.values.title : "",
-              },
-              args.ops,
-            );
-            return {
-              ...doc,
-              values: { ...doc.values, table: next.table, title: next.title },
-              // Le nodeDataStore ne remplace un doc que si `updatedAt` change.
-              updatedAt: Date.now(),
-            };
-          }),
+        const queryArgs = { nodeDataId: args.nodeDataId };
+        const doc = localStore.getQuery(api.nodeDatas.read, queryArgs);
+        if (!doc) return;
+        const next = applyTableOps(
+          {
+            table: readStoredTable(doc.values?.table),
+            title: typeof doc.values?.title === "string" ? doc.values.title : "",
+          },
+          args.ops,
         );
+        localStore.setQuery(api.nodeDatas.read, queryArgs, {
+          ...doc,
+          values: { ...doc.values, table: next.table, title: next.title },
+          // Le nodeDataStore ne remplace un doc que si `updatedAt` change.
+          updatedAt: Date.now(),
+        });
       }),
-    [applyMutation, canvasId],
+    [applyMutation],
   );
 
   const send = useCallback(

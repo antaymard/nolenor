@@ -338,14 +338,10 @@ export function useCanvasNodes(
   const persistLayoutUpdates = useCallback(
     (
       updates: LayoutUpdate[],
-      {
-        touchCanvas,
-        failureMessage,
-        track,
-      }: { touchCanvas: boolean; failureMessage?: string; track: boolean },
+      { failureMessage, track }: { failureMessage?: string; track: boolean },
     ) => {
       if (updates.length === 0) return Promise.resolve();
-      const run = () => patchNodesInConvex({ updates, touchCanvas });
+      const run = () => patchNodesInConvex({ updates });
       if (track && failureMessage) {
         return persistNodeChange(run, failureMessage);
       }
@@ -358,7 +354,6 @@ export function useCanvasNodes(
   // (change `dragging: false`) ou changement de position hors drag.
   const flushDragPositions = useCallback(
     (opts: {
-      touchCanvas: boolean;
       track: boolean;
       failureMessage?: string;
     }) => {
@@ -941,7 +936,6 @@ export function useCanvasNodes(
           void persistLayoutUpdates(
             resizeUpdates,
             {
-              touchCanvas: true,
               track: true,
               failureMessage: "Could not save the node size",
             },
@@ -1002,7 +996,6 @@ export function useCanvasNodes(
             initialOffsets: new Map(),
           };
           return flushDragPositions({
-            touchCanvas: true,
             track: true,
             failureMessage: "Could not save the node position",
           });

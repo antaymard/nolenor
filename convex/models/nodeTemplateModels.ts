@@ -115,8 +115,8 @@ function parseDefinitionOrThrow(input: TemplateWriteInput) {
 
 // `updatedAt` sert de clé de fraîcheur au front : templatesStore ignore un
 // doc dont l'updatedAt n'a pas bougé, pour ne pas re-rendre toutes les
-// instances d'un template à chaque re-push de listForCanvas — qui re-tourne
-// à chaque drag de node (cf. resolveTemplatesForCanvas).
+// instances d'un template à chaque re-push de listForCanvas (cf.
+// resolveTemplatesForCanvas).
 //
 // Date.now() seul ne suffit donc pas : deux écritures sur le même template
 // dans la même milliseconde produiraient la même valeur, et la seconde serait

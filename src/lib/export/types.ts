@@ -16,7 +16,6 @@ export type ExportCanvasSummary = {
   _id: Id<"canvases">;
   name: string;
   description?: string;
-  updatedAt: number;
   nodeCount: number;
 };
 

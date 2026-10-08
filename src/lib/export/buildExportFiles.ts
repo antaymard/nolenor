@@ -130,7 +130,7 @@ export async function buildCanvasFiles(
     "",
     canvas.description ?? "",
     "",
-    `Updated ${new Date(canvas.updatedAt).toISOString().slice(0, 10)} · ${ordered.length} node(s)`,
+    `${ordered.length} node(s)`,
     "",
     "## Nodes",
     "",

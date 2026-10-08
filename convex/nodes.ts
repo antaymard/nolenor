@@ -74,6 +74,9 @@ export const createWithNodeData = mutation({
 export const patch = mutation({
   args: {
     updates: v.array(nodePatchUpdateValidator),
+    // Ignoré : plus aucune écriture ne touche `canvases.updatedAt`. Toujours
+    // accepté pour ne pas faire échouer la validation des clients ouverts sur
+    // un ancien bundle ; à retirer une fois ceux-ci rafraîchis.
     touchCanvas: v.optional(v.boolean()),
   },
   returns: v.array(v.string()),
@@ -87,7 +90,6 @@ export const patch = mutation({
 
     return NodeModels.patchNodes(ctx, {
       updates: args.updates,
-      touchCanvas: args.touchCanvas,
     });
   },
 });

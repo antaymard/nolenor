@@ -60,6 +60,9 @@ export const create = mutation({
 export const patch = mutation({
   args: {
     updates: v.array(edgePatchUpdateValidator),
+    // Ignoré : plus aucune écriture ne touche `canvases.updatedAt`. Toujours
+    // accepté pour ne pas faire échouer la validation des clients ouverts sur
+    // un ancien bundle ; à retirer une fois ceux-ci rafraîchis.
     touchCanvas: v.optional(v.boolean()),
   },
   returns: v.array(v.string()),
@@ -73,7 +76,6 @@ export const patch = mutation({
 
     return EdgeModels.patchEdges(ctx, {
       updates: args.updates,
-      touchCanvas: args.touchCanvas,
     });
   },
 });

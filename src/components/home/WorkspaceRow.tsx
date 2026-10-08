@@ -12,7 +12,7 @@ import {
   type WorkspaceItemProps,
 } from "./WorkspaceCard";
 import { CollaboratorStack } from "@/components/canvas/presence/CollaboratorStack";
-import { formatBlocks, formatEdited } from "./workspaceFormat";
+import { formatBlocks } from "./workspaceFormat";
 
 /**
  * Un canvas en ligne, pour la vue liste : plus dense que la grille, pour qui a
@@ -71,9 +71,6 @@ function WorkspaceRow({
       </span>
       <span className="w-20 shrink-0 text-xs text-slate-500 max-md:hidden">
         {formatBlocks(canvas.nodeCount)}
-      </span>
-      <span className="w-40 shrink-0 truncate text-right text-xs text-slate-500 max-sm:hidden">
-        {formatEdited(canvas.updatedAt)}
       </span>
       <WorkspaceMenu canvas={canvas} onEdit={onEdit} onDelete={onDelete} />
     </li>

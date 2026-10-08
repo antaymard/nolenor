@@ -27,9 +27,7 @@ export const listCanvasesForExport = query({
 
     const result = await ctx.db
       .query("canvases")
-      .withIndex("by_creator_and_updatedAt", (q) =>
-        q.eq("creatorId", authUserId),
-      )
+      .withIndex("by_creator", (q) => q.eq("creatorId", authUserId))
       .order("desc")
       .paginate({ ...args.paginationOpts, maximumBytesRead: MAX_BYTES_PER_PAGE });
 
@@ -40,7 +38,6 @@ export const listCanvasesForExport = query({
           _id: canvas._id,
           name: canvas.name,
           description: canvas.description,
-          updatedAt: canvas.updatedAt,
           nodeCount: (await NodeModels.listFromCanvas(ctx, { canvasId: canvas._id }))
             .length,
         })),

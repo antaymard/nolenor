@@ -26,13 +26,12 @@ import {
 import { cn } from "@/lib/utils";
 import type { Collaborator } from "@/stores/canvasPresenceStore";
 import { CollaboratorStack } from "@/components/canvas/presence/CollaboratorStack";
-import { formatBlocks, formatEdited } from "./workspaceFormat";
+import { formatBlocks } from "./workspaceFormat";
 
 export interface WorkspaceCardCanvas extends CanvasAppearance {
   _id: Id<"canvases">;
   name: string;
   description?: string;
-  updatedAt: number;
   nodeCount: number;
   shared?: boolean;
   permission?: "viewer" | "editor";
@@ -233,7 +232,7 @@ function WorkspaceCard({
             </>
           )}
           <span className="truncate">
-            {formatBlocks(canvas.nodeCount)} · {formatEdited(canvas.updatedAt)}
+            {formatBlocks(canvas.nodeCount)}
           </span>
         </p>
       </div>

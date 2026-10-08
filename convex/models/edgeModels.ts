@@ -7,7 +7,6 @@ import {
   TRASH_RETENTION_MS,
 } from "../config/trashConfig";
 import { generateLlmId } from "../lib/llmId";
-import * as CanvasModels from "./canvasModels";
 import type { CanvasEdge } from "../schemas/edgesSchema";
 import type { EdgePatchUpdate } from "../schemas/edgesSchema";
 
@@ -164,11 +163,9 @@ export async function createEdges(
   ctx: MutationCtx,
   {
     edges,
-    touchCanvas: shouldTouchCanvas = true,
     allowDuplicatePairs = false,
   }: {
     edges: Array<EdgeCreateInput & { id?: string }>;
-    touchCanvas?: boolean;
     /**
      * Clone fidèle d'un canvas existant (onboarding) : ses éventuels
      * doublons historiques ne doivent pas faire échouer la copie.
@@ -236,10 +233,6 @@ export async function createEdges(
     });
     createdIds.push(llmId);
   }
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, canvasId);
-  }
   return createdIds;
 }
 
@@ -252,11 +245,9 @@ export async function patchEdge(
   {
     edgeId,
     data,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     edgeId: string;
     data?: Record<string, unknown>;
-    touchCanvas?: boolean;
   },
 ): Promise<string> {
   const edge = await getEdgeOrThrow(ctx, { edgeId });
@@ -266,10 +257,6 @@ export async function patchEdge(
   await ctx.db.patch(edge._id, {
     data: { ...(edge.data ?? {}), ...data },
   });
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, edge.canvasId);
-  }
   return edge.id;
 }
 
@@ -277,10 +264,8 @@ export async function patchEdges(
   ctx: MutationCtx,
   {
     updates,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     updates: Array<EdgePatchUpdate>;
-    touchCanvas?: boolean;
   },
 ): Promise<string[]> {
   if (updates.length === 0) return [];
@@ -288,7 +273,7 @@ export async function patchEdges(
   const edges = await Promise.all(
     updates.map((update) => getEdgeOrThrow(ctx, { edgeId: update.edgeId })),
   );
-  const canvasId = requireSameCanvasId(edges.map((edge) => edge.canvasId));
+  requireSameCanvasId(edges.map((edge) => edge.canvasId));
 
   const edgeIds: string[] = [];
   for (const update of updates) {
@@ -296,13 +281,8 @@ export async function patchEdges(
       await patchEdge(ctx, {
         edgeId: update.edgeId,
         data: update.data,
-        touchCanvas: false,
       }),
     );
-  }
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, canvasId);
   }
   return edgeIds;
 }
@@ -316,21 +296,15 @@ export async function trashEdge(
   {
     edgeId,
     trashedAt = Date.now(),
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     edgeId: string;
     trashedAt?: number;
-    touchCanvas?: boolean;
   },
 ): Promise<string> {
   const edge = await getEdgeOrThrow(ctx, { edgeId });
   if (edge.status === "trashed") return edge.id;
 
   await ctx.db.patch(edge._id, { status: "trashed", trashedAt });
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, edge.canvasId);
-  }
   return edge.id;
 }
 
@@ -344,10 +318,8 @@ export async function untrashEdge(
   ctx: MutationCtx,
   {
     edgeId,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     edgeId: string;
-    touchCanvas?: boolean;
   },
 ): Promise<string | null> {
   const edge = await getEdgeOrThrow(ctx, { edgeId });
@@ -366,10 +338,6 @@ export async function untrashEdge(
   if (!sourceLives || !targetLives) return null;
 
   await ctx.db.patch(edge._id, { status: undefined, trashedAt: undefined });
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, edge.canvasId);
-  }
   return edge.id;
 }
 
@@ -377,10 +345,8 @@ export async function untrashEdges(
   ctx: MutationCtx,
   {
     edgeIds,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     edgeIds: Array<string>;
-    touchCanvas?: boolean;
   },
 ): Promise<string[]> {
   const uniqueIds = [...new Set(edgeIds)];
@@ -389,16 +355,12 @@ export async function untrashEdges(
   const edges = await Promise.all(
     uniqueIds.map((edgeId) => getEdgeOrThrow(ctx, { edgeId })),
   );
-  const canvasId = requireSameCanvasId(edges.map((edge) => edge.canvasId));
+  requireSameCanvasId(edges.map((edge) => edge.canvasId));
 
   const untrashed: string[] = [];
   for (const edgeId of uniqueIds) {
-    const restored = await untrashEdge(ctx, { edgeId, touchCanvas: false });
+    const restored = await untrashEdge(ctx, { edgeId });
     if (restored !== null) untrashed.push(restored);
-  }
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, canvasId);
   }
   return untrashed;
 }
@@ -408,12 +370,10 @@ export async function trashEdges(
   {
     edgeIds,
     trashedAt = Date.now(),
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     edgeIds: Array<string>;
     /** Cf. `NodeModels.trashNodes` : partagée par toute une transaction. */
     trashedAt?: number;
-    touchCanvas?: boolean;
   },
 ): Promise<string[]> {
   const uniqueIds = [...new Set(edgeIds)];
@@ -422,15 +382,11 @@ export async function trashEdges(
   const edges = await Promise.all(
     uniqueIds.map((edgeId) => getEdgeOrThrow(ctx, { edgeId })),
   );
-  const canvasId = requireSameCanvasId(edges.map((edge) => edge.canvasId));
+  requireSameCanvasId(edges.map((edge) => edge.canvasId));
 
   const trashed: string[] = [];
   for (const edgeId of uniqueIds) {
-    trashed.push(await trashEdge(ctx, { edgeId, trashedAt, touchCanvas: false }));
-  }
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, canvasId);
+    trashed.push(await trashEdge(ctx, { edgeId, trashedAt }));
   }
   return trashed;
 }
@@ -512,7 +468,6 @@ export async function untrashEdgesTrashedWith(
   for (const edge of candidates) {
     const result = await untrashEdge(ctx, {
       edgeId: edge.id,
-      touchCanvas: false,
     });
     if (result !== null) restored.push(result);
   }

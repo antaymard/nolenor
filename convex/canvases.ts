@@ -33,7 +33,6 @@ export const listUserCanvases = query({
       coverImage: v.optional(canvasCoverImageValidator),
       shared: v.optional(v.boolean()),
       permission: v.optional(v.union(v.literal("viewer"), v.literal("editor"))),
-      updatedAt: v.number(),
       nodeCount: v.number(),
     }),
   ),

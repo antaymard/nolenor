@@ -209,6 +209,41 @@ describe("canvas presence", () => {
     await expect(t.query(api.presence.listMyCanvases, {})).rejects.toThrow();
   });
 
+  test("the home skips my canvases that are not shared any more", async () => {
+    const t = setup();
+    const { owner, guest, canvasId } = await seed(t);
+    // The guest is still online, but their share has just been removed.
+    await as(t, guest).mutation(api.presence.heartbeat, {
+      roomId: canvasId,
+      userId: makePresenceUserId(guest, "tab"),
+      sessionId: "s",
+      interval: 10_000,
+    });
+    await t.run(async (ctx) => {
+      for (const share of await ctx.db.query("shares").collect()) {
+        await ctx.db.delete(share._id);
+      }
+    });
+    expect(await as(t, owner).query(api.presence.listMyCanvases, {})).toEqual(
+      [],
+    );
+  });
+
+  test("readCanvas says whether the canvas is shared", async () => {
+    const t = setup();
+    const { owner, canvasId } = await seed(t);
+    const read = () =>
+      as(t, owner).query(api.canvases.readCanvas, { canvasId });
+    expect((await read())._isShared).toBe(true);
+
+    await t.run(async (ctx) => {
+      for (const share of await ctx.db.query("shares").collect()) {
+        await ctx.db.delete(share._id);
+      }
+    });
+    expect((await read())._isShared).toBe(false);
+  });
+
   describe("pruneRoom", () => {
     afterEach(() => vi.useRealTimers());
 

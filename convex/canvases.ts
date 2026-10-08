@@ -70,7 +70,22 @@ export const readCanvas = query({
       ? (await getCanvasAccess(ctx, canvasId, authUserId)) !== null
       : false;
 
-    return { ...canvas, _permission: permission, _isMember: isMember };
+    // Partagé avec au moins une personne ? Sinon seul son propriétaire peut
+    // l'ouvrir en membre : la présence n'aurait personne à montrer, le client
+    // ne la monte pas (cf. CanvasPresenceSync). Lu ici, la query suit un
+    // partage ajouté ou retiré.
+    const isShared =
+      (await ctx.db
+        .query("shares")
+        .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
+        .first()) !== null;
+
+    return {
+      ...canvas,
+      _permission: permission,
+      _isMember: isMember,
+      _isShared: isShared,
+    };
   },
 });
 

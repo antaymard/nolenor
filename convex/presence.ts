@@ -258,8 +258,20 @@ export const listMyCanvases = query({
       .query("shares")
       .withIndex("by_user", (q) => q.eq("userId", authUserId))
       .collect();
+    // Mes canvas non partagés n'ont personne d'autre que moi : la présence
+    // n'y est même pas montée (cf. CanvasPresenceSync). Un `first()` indexé
+    // par canvas plutôt qu'une lecture de room inutile.
+    const ownShared = await Promise.all(
+      own.map(async (canvas) => {
+        const share = await ctx.db
+          .query("shares")
+          .withIndex("by_canvas", (q) => q.eq("canvasId", canvas._id))
+          .first();
+        return share ? canvas._id : null;
+      }),
+    );
     const canvasIds = [
-      ...own.map((canvas) => canvas._id),
+      ...ownShared.filter((id) => id !== null),
       ...shares
         .filter((share) => share.resourceType === "canvas")
         .map((share) => share.canvasId),

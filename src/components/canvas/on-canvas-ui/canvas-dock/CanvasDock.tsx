@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { TbBookmark } from "react-icons/tb";
+import { useConvexAuth, useQuery } from "convex/react";
+import { TbBookmark, TbBookmarkFilled } from "react-icons/tb";
+import { api } from "@/../convex/_generated/api";
+import { useCanvasStore } from "@/stores/canvasStore";
 import { Toggle } from "@/components/shadcn/toggle";
 import { useCanvasOwnsKeyboard } from "@/hooks/useCanvasHotkeysEnabled";
 import { useIsolatedHotkey } from "@/hooks/useIsolatedHotkey";
@@ -24,6 +27,17 @@ import DockBookmarksList from "./DockBookmarksList";
  */
 export default function CanvasDock() {
   const [isOpen, setIsOpen] = useState(isBookmarksDockOpen);
+
+  // Même garde que `useCanvasBookmarks` : pas de session (canvas public visité
+  // sans compte), pas de repères — l'icône reste outline.
+  const canvasId = useCanvasStore((state) => state.canvas?._id);
+  const { isAuthenticated } = useConvexAuth();
+  const bookmarks = useQuery(
+    api.canvasBookmarks.listForCanvas,
+    canvasId && isAuthenticated ? { canvasId } : "skip",
+  );
+  // `undefined` le temps du chargement : on reste en outline, comme vide.
+  const hasBookmarks = (bookmarks?.length ?? 0) > 0;
 
   function handleToggle(next: boolean) {
     setIsOpen(next);
@@ -56,7 +70,15 @@ export default function CanvasDock() {
           aria-label="Bookmarks"
           title="Bookmarks: jump to a saved spot (B)"
         >
-          <TbBookmark size={19} />
+          {hasBookmarks ? (
+            <TbBookmarkFilled
+              size={19}
+              className="text-amber-500"
+              aria-hidden
+            />
+          ) : (
+            <TbBookmark size={19} aria-hidden />
+          )}
         </Toggle>
       </div>
     </div>

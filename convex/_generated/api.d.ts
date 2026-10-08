@@ -81,6 +81,7 @@ import type * as ia_imageGeneration from "../ia/imageGeneration.js";
 import type * as ia_imageGenerationRun from "../ia/imageGenerationRun.js";
 import type * as ia_jev from "../ia/jev.js";
 import type * as ia_nole from "../ia/nole.js";
+import type * as ia_openrouterApp from "../ia/openrouterApp.js";
 import type * as ia_profiles_index from "../ia/profiles/index.js";
 import type * as ia_profiles_nole from "../ia/profiles/nole.js";
 import type * as ia_profiles_shared from "../ia/profiles/shared.js";
@@ -340,6 +341,7 @@ declare const fullApi: ApiFromModules<{
   "ia/imageGenerationRun": typeof ia_imageGenerationRun;
   "ia/jev": typeof ia_jev;
   "ia/nole": typeof ia_nole;
+  "ia/openrouterApp": typeof ia_openrouterApp;
   "ia/profiles/index": typeof ia_profiles_index;
   "ia/profiles/nole": typeof ia_profiles_nole;
   "ia/profiles/shared": typeof ia_profiles_shared;

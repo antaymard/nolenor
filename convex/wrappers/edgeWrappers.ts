@@ -10,13 +10,11 @@ import {
 export const create = internalMutation({
   args: {
     edges: v.array(edgeCreateItemValidator),
-    touchCanvas: v.optional(v.boolean()),
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
     return EdgeModels.createEdges(ctx, {
       edges: args.edges,
-      touchCanvas: args.touchCanvas,
     });
   },
 });
@@ -24,13 +22,11 @@ export const create = internalMutation({
 export const patch = internalMutation({
   args: {
     updates: v.array(edgePatchUpdateValidator),
-    touchCanvas: v.optional(v.boolean()),
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
     return EdgeModels.patchEdges(ctx, {
       updates: args.updates,
-      touchCanvas: args.touchCanvas,
     });
   },
 });

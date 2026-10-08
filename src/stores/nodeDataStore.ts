@@ -6,6 +6,15 @@ interface NodeDataStore {
   // Map pour O(1) lookup
   nodeDatas: Map<Id<"nodeDatas">, Doc<"nodeDatas">>;
 
+  /**
+   * nodeDatas factices des créations local-first en vol, keyés par le llmId
+   * du node (`_id` = `pending_<llmId>`). Ils ne sont pas écrits dans
+   * `nodeDatas` directement : c'est la synchro (`useCanvasBootstrap`) qui les y
+   * verse, et qui les relâche quand le vrai doc est chargé. Une création qui
+   * échoue les retire elle-même (`removePendingNodeData`).
+   */
+  pendingNodeDatas: Map<string, Doc<"nodeDatas">>;
+
   // Actions
   setNodeDatas: (nodeDatas: Doc<"nodeDatas">[]) => void;
   getNodeData: (id: Id<"nodeDatas">) => Doc<"nodeDatas"> | undefined;
@@ -14,6 +23,8 @@ interface NodeDataStore {
     values: Record<string, unknown>,
   ) => void;
   setNodeData: (id: Id<"nodeDatas">, nodeData: Doc<"nodeDatas">) => void;
+  addPendingNodeData: (nodeId: string, nodeData: Doc<"nodeDatas">) => void;
+  removePendingNodeData: (nodeId: string) => void;
   clear: () => void;
 }
 
@@ -21,6 +32,7 @@ export const useNodeDataStore = create<NodeDataStore>()(
   devtools(
     (set, get) => ({
       nodeDatas: new Map(),
+      pendingNodeDatas: new Map(),
 
       setNodeDatas: (nodeDatas) => {
         set((state) => {
@@ -72,7 +84,24 @@ export const useNodeDataStore = create<NodeDataStore>()(
         });
       },
 
-      clear: () => set({ nodeDatas: new Map() }),
+      addPendingNodeData: (nodeId, nodeData) => {
+        set((state) => {
+          const next = new Map(state.pendingNodeDatas);
+          next.set(nodeId, nodeData);
+          return { pendingNodeDatas: next };
+        });
+      },
+
+      removePendingNodeData: (nodeId) => {
+        set((state) => {
+          if (!state.pendingNodeDatas.has(nodeId)) return state;
+          const next = new Map(state.pendingNodeDatas);
+          next.delete(nodeId);
+          return { pendingNodeDatas: next };
+        });
+      },
+
+      clear: () => set({ nodeDatas: new Map(), pendingNodeDatas: new Map() }),
     }),
     { name: "nodeData-store" },
   ),

@@ -12,9 +12,9 @@ import { toCanvasEdge, toCanvasNode } from "@/lib/flowNodes";
 import {
   clearCanvasDocCache,
   rememberEdgeDocs,
-  rememberNodeDataDocs,
   rememberNodeDocs,
 } from "@/lib/canvasDocCache";
+import { useNodeDataSubscriptions } from "@/hooks/useNodeDataSubscriptions";
 import { useCanvasHistoryStore } from "@/stores/canvasHistoryStore";
 
 /**
@@ -29,7 +29,6 @@ export function useCanvasBootstrap(
   canvasId: Id<"canvases">,
   { isAuthenticated }: { isAuthenticated: boolean },
 ) {
-  const setNodeDatas = useNodeDataStore((state) => state.setNodeDatas);
   const clearNodeDatas = useNodeDataStore((state) => state.clear);
   const setCanvas = useCanvasStore((state) => state.setCanvas);
   const upsertTemplates = useTemplatesStore((state) => state.upsertTemplates);
@@ -108,15 +107,9 @@ export function useCanvasBootstrap(
     if (tableEdges) rememberEdgeDocs(tableEdges);
   }, [tableEdges]);
 
-  // Fetch nodeDatas for this canvas
-  const {
-    isError: isNodeDatasError,
-    data: nodeDatas,
-    error: nodeDatasError,
-  } = useRichQuery(
-    api.nodeDatas.listByCanvasId,
-    canvasId ? { canvasId } : "skip",
-  );
+  // Une query par nodeData des nodes vivants (cf. useNodeDataSubscriptions).
+  const { isError: isNodeDatasError, error: nodeDatasError } =
+    useNodeDataSubscriptions(tableNodes);
 
   // Custom node templates : ceux référencés par le canvas (viewers de
   // canvases partagés inclus) + ceux du user (menu d'ajout, nouveaux nodes).
@@ -182,14 +175,6 @@ export function useCanvasBootstrap(
     setCanvas(canvasForStore);
   }, [canvasForStore, setCanvas]);
   // ======
-
-  // Sync convex nodeDatas -> zustand store
-  useEffect(() => {
-    if (nodeDatas) {
-      setNodeDatas(nodeDatas);
-      rememberNodeDataDocs(nodeDatas);
-    }
-  }, [nodeDatas, setNodeDatas]);
 
   useEffect(() => {
     if (isNodeDatasError) {

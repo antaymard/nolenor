@@ -102,15 +102,12 @@ export default function WorkspaceGrid({
   // et « Mine » sont la même liste.
   const hasBothKinds = ownCanvases.length > 0 && sharedCanvases.length > 0;
   const activeFilter = hasBothKinds ? filter : "all";
-  const canvases = (
+  const canvases =
     activeFilter === "mine"
       ? ownCanvases
       : activeFilter === "shared"
         ? sharedCanvases
-        : [...ownCanvases, ...sharedCanvases]
-  )
-    .slice()
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+        : [...ownCanvases, ...sharedCanvases];
 
   if (ownCanvases.length === 0 && sharedCanvases.length === 0) return null;
 

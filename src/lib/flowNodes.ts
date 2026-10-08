@@ -205,32 +205,7 @@ export function removeEdgesFromListQuery(
 }
 
 /**
- * Optimistic des nodeDatas fabriqués à la création local-first : le doc
- * (`_id` factice `pending_<llmId>`) entre dans le cache de
- * `nodeDatas.listByCanvasId` pour que le contenu du node s'affiche avant
- * la confirmation serveur. Le push réel remplace la liste entière — la
- * clé factice disparaît d'elle-même (cf. `setNodeDatas` du nodeDataStore).
- * Rollback automatique par Convex si la mutation échoue.
- */
-export function addPendingNodeDatasToListQuery(
-  localStore: OptimisticLocalStore,
-  canvasId: Id<"canvases">,
-  docs: Doc<"nodeDatas">[],
-) {
-  if (docs.length === 0) return;
-  const existing = localStore.getQuery(api.nodeDatas.listByCanvasId, {
-    canvasId,
-  });
-  if (existing === undefined) return;
-  localStore.setQuery(api.nodeDatas.listByCanvasId, { canvasId }, [
-    ...existing,
-    ...docs,
-  ]);
-}
-
-/**
- * Optimistic des edges fabriqués à la création local-first : même principe
- * que `addPendingNodeDatasToListQuery` — le doc factice (`_id`
+ * Optimistic des edges fabriqués à la création local-first : le doc factice (`_id`
  * `pending_<llmId>`, llmId définitif) habite le cache de
  * `edges.listFromCanvas` pour que tout re-push intermédiaire garde l'edge
  * en attente, jusqu'à ce que le doc réel le remplace (même llmId).

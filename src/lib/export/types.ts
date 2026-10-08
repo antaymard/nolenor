@@ -16,8 +16,6 @@ export type ExportCanvasSummary = {
   _id: Id<"canvases">;
   name: string;
   description?: string;
-  updatedAt: number;
-  nodeCount: number;
 };
 
 /** Un fichier de l'archive. `path` est relatif à la racine du ZIP. */

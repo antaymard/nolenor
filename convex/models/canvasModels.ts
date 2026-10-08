@@ -31,9 +31,6 @@ type UserCanvasListItem = {
   coverImage?: CanvasCoverImage;
   shared?: boolean;
   permission?: "viewer" | "editor";
-  updatedAt: number;
-  /** Nombre de blocs, pour l'afficher sans charger le canvas. */
-  nodeCount: number;
 };
 
 async function getCanvasOrThrow(
@@ -153,31 +150,13 @@ async function releaseCoverKeys(
   }
 }
 
-async function countLiveNodes(
-  ctx: QueryCtx | MutationCtx,
-  canvasId: Id<"canvases">,
-): Promise<number> {
-  const nodes = await ctx.db
-    .query("nodes")
-    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
-    .collect();
-  return nodes.filter((node) => node.status !== "trashed").length;
-}
-
-export async function touchCanvas(
-  ctx: MutationCtx,
-  canvasId: Id<"canvases">,
-): Promise<void> {
-  await ctx.db.patch("canvases", canvasId, { updatedAt: Date.now() });
-}
-
 export async function listUserCanvasesWithShares(
   ctx: QueryCtx,
   { authUserId }: { authUserId: Id<"users"> },
 ): Promise<Array<UserCanvasListItem>> {
   const ownCanvases = await ctx.db
     .query("canvases")
-    .withIndex("by_creator_and_updatedAt", (q) => q.eq("creatorId", authUserId))
+    .withIndex("by_creator", (q) => q.eq("creatorId", authUserId))
     .order("desc")
     .collect();
 
@@ -193,34 +172,34 @@ export async function listUserCanvasesWithShares(
         const canvas = await ctx.db.get("canvases", share.canvasId);
         if (!canvas) return null;
         return {
+          createdAt: canvas._creationTime,
           _id: canvas._id,
           name: canvas.name,
           ...appearanceOf(canvas),
           shared: true as const,
           permission: share.permission,
-          updatedAt: canvas.updatedAt,
-          nodeCount: await countLiveNodes(ctx, canvas._id),
         };
       }),
   );
 
   return [
-    // Les deux listes sont triées par récence, mais séparément : l'appelant
-    // qui les affiche l'une sous l'autre (sidebar, home) n'a rien à retrier,
-    // et celui qui les sépare garde chaque section dans le bon ordre.
+    // Les deux listes sont triées séparément, plus récemment créé d'abord :
+    // l'appelant qui les affiche l'une sous l'autre (sidebar, home) n'a rien
+    // à retrier, et celui qui les sépare garde chaque section dans le bon
+    // ordre. Plus de tri par dernière modification : `canvases.updatedAt`
+    // n'est plus maintenu (cf. canvasesSchema).
     ...(await Promise.all(
       ownCanvases.map(async (canvas) => ({
         _id: canvas._id,
         name: canvas.name,
         description: canvas.description,
         ...appearanceOf(canvas),
-        updatedAt: canvas.updatedAt,
-        nodeCount: await countLiveNodes(ctx, canvas._id),
       })),
     )),
     ...sharedCanvases
       .filter((canvas) => canvas !== null)
-      .sort((a, b) => b.updatedAt - a.updatedAt),
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map(({ createdAt: _createdAt, ...canvas }) => canvas),
   ];
 }
 
@@ -245,7 +224,6 @@ export async function setCanvasPublicState(
 
   await ctx.db.patch("canvases", canvasId, {
     isPublic,
-    updatedAt: Date.now(),
   });
 
   return null;
@@ -282,7 +260,6 @@ export async function createCanvasForUser(
     ...(normalizedIcon !== undefined ? { icon: normalizedIcon } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(coverImage !== undefined ? { coverImage } : {}),
-    updatedAt: Date.now(),
   });
 }
 
@@ -314,7 +291,6 @@ export async function updateCanvasDetails(
     description,
     ...(background !== undefined ? { background } : {}),
     ...fields,
-    updatedAt: Date.now(),
   });
   if (releasedCoverKey) await releaseCoverKeys(ctx, [releasedCoverKey]);
 
@@ -339,7 +315,6 @@ export async function setCanvasAppearance(
 
   await ctx.db.patch("canvases", canvasId, {
     ...fields,
-    updatedAt: Date.now(),
   });
   if (releasedCoverKey) await releaseCoverKeys(ctx, [releasedCoverKey]);
 
@@ -360,7 +335,6 @@ export async function setCanvasBackground(
 
   await ctx.db.patch("canvases", canvasId, {
     background,
-    updatedAt: Date.now(),
   });
 
   return canvasId;

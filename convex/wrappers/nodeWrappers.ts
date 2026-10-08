@@ -90,13 +90,11 @@ export const createInFrame = internalMutation({
 export const patch = internalMutation({
   args: {
     updates: v.array(nodePatchUpdateValidator),
-    touchCanvas: v.optional(v.boolean()),
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
     return NodeModels.patchNodes(ctx, {
       updates: args.updates,
-      touchCanvas: args.touchCanvas,
     });
   },
 });

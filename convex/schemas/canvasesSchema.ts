@@ -68,7 +68,11 @@ const canvasesValidator = v.object({
   color: v.optional(canvasColorValidator),
   coverImage: v.optional(canvasCoverImageValidator),
 
-  updatedAt: v.number(),
+  // Vestige : plus écrit ni lu. Le patcher à chaque modification invalidait
+  // toutes les queries du canvas (le contrôle d'accès lit ce doc). La récence
+  // reviendra par l'historique des modifications du canvas. Reste déclaré
+  // tant que les docs existants le portent.
+  updatedAt: v.optional(v.number()),
 });
 
 export {

@@ -26,13 +26,11 @@ import {
 import { cn } from "@/lib/utils";
 import type { Collaborator } from "@/stores/canvasPresenceStore";
 import { CollaboratorStack } from "@/components/canvas/presence/CollaboratorStack";
-import { formatBlocks } from "./workspaceFormat";
 
 export interface WorkspaceCardCanvas extends CanvasAppearance {
   _id: Id<"canvases">;
   name: string;
   description?: string;
-  nodeCount: number;
   shared?: boolean;
   permission?: "viewer" | "editor";
 }
@@ -223,18 +221,12 @@ function WorkspaceCard({
             {canvas.description}
           </p>
         )}
-        <p className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-slate-500">
-          {canvas.shared && (
-            <>
-              <TbUsers className="size-3.5 shrink-0" />
-              <span className="font-medium text-slate-600">Shared</span>
-              <span aria-hidden>·</span>
-            </>
-          )}
-          <span className="truncate">
-            {formatBlocks(canvas.nodeCount)}
-          </span>
-        </p>
+        {canvas.shared && (
+          <p className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-slate-500">
+            <TbUsers className="size-3.5 shrink-0" />
+            <span className="font-medium text-slate-600">Shared</span>
+          </p>
+        )}
       </div>
     </div>
   );

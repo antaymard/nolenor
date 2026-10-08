@@ -77,8 +77,7 @@ export default function MemoriesPanel() {
             >
               {canvases.map((canvas) => (
                 <option key={canvas._id} value={canvas._id}>
-                  {canvas.name} ({canvas.nodeCount} node
-                  {canvas.nodeCount === 1 ? "" : "s"})
+                  {canvas.name}
                 </option>
               ))}
             </select>

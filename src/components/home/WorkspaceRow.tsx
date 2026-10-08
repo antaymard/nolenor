@@ -12,7 +12,6 @@ import {
   type WorkspaceItemProps,
 } from "./WorkspaceCard";
 import { CollaboratorStack } from "@/components/canvas/presence/CollaboratorStack";
-import { formatBlocks } from "./workspaceFormat";
 
 /**
  * Un canvas en ligne, pour la vue liste : plus dense que la grille, pour qui a
@@ -68,9 +67,6 @@ function WorkspaceRow({
       <CanvasTaskBadge tasks={pendingTasks} className="shadow-none" />
       <span className="w-20 shrink-0 text-xs text-slate-500 max-sm:hidden">
         {canvas.shared ? "Shared" : "Yours"}
-      </span>
-      <span className="w-20 shrink-0 text-xs text-slate-500 max-md:hidden">
-        {formatBlocks(canvas.nodeCount)}
       </span>
       <WorkspaceMenu canvas={canvas} onEdit={onEdit} onDelete={onDelete} />
     </li>

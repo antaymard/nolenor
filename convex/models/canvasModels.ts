@@ -31,8 +31,6 @@ type UserCanvasListItem = {
   coverImage?: CanvasCoverImage;
   shared?: boolean;
   permission?: "viewer" | "editor";
-  /** Nombre de blocs, pour l'afficher sans charger le canvas. */
-  nodeCount: number;
 };
 
 async function getCanvasOrThrow(
@@ -152,17 +150,6 @@ async function releaseCoverKeys(
   }
 }
 
-async function countLiveNodes(
-  ctx: QueryCtx | MutationCtx,
-  canvasId: Id<"canvases">,
-): Promise<number> {
-  const nodes = await ctx.db
-    .query("nodes")
-    .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
-    .collect();
-  return nodes.filter((node) => node.status !== "trashed").length;
-}
-
 export async function listUserCanvasesWithShares(
   ctx: QueryCtx,
   { authUserId }: { authUserId: Id<"users"> },
@@ -191,7 +178,6 @@ export async function listUserCanvasesWithShares(
           ...appearanceOf(canvas),
           shared: true as const,
           permission: share.permission,
-          nodeCount: await countLiveNodes(ctx, canvas._id),
         };
       }),
   );
@@ -208,7 +194,6 @@ export async function listUserCanvasesWithShares(
         name: canvas.name,
         description: canvas.description,
         ...appearanceOf(canvas),
-        nodeCount: await countLiveNodes(ctx, canvas._id),
       })),
     )),
     ...sharedCanvases

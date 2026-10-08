@@ -33,15 +33,11 @@ export const listCanvasesForExport = query({
 
     return {
       ...result,
-      page: await Promise.all(
-        result.page.map(async (canvas) => ({
-          _id: canvas._id,
-          name: canvas.name,
-          description: canvas.description,
-          nodeCount: (await NodeModels.listFromCanvas(ctx, { canvasId: canvas._id }))
-            .length,
-        })),
-      ),
+      page: result.page.map((canvas) => ({
+        _id: canvas._id,
+        name: canvas.name,
+        description: canvas.description,
+      })),
     };
   },
 });

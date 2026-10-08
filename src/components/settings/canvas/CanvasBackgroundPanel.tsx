@@ -191,8 +191,7 @@ export default function CanvasBackgroundPanel({
         >
           {ownedCanvases.map((owned) => (
             <option key={owned._id} value={owned._id}>
-              {owned.name} ({owned.nodeCount} node
-              {owned.nodeCount === 1 ? "" : "s"})
+              {owned.name}
             </option>
           ))}
         </select>

@@ -12,7 +12,6 @@ import { generateLlmId } from "../lib/llmId";
 import { frameZIndexBelow } from "../lib/nodeLayering";
 import { measureTitleNode, normalizeTitleLevel } from "../lib/titleNodeSizing";
 import * as CanvasBookmarkModels from "./canvasBookmarkModels";
-import * as CanvasModels from "./canvasModels";
 import * as EdgeModels from "./edgeModels";
 import * as NodeDataModels from "./nodeDataModels";
 import * as SearchableChunkModels from "./searchableChunkModels";
@@ -122,12 +121,10 @@ export async function createNode(
     node,
     nodeDataId,
     id: providedId,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     node: NodeCreateInput;
     nodeDataId: Id<"nodeDatas">;
     id?: string;
-    touchCanvas?: boolean;
   },
 ): Promise<string> {
   await getCanvasOrThrow(ctx, node.canvasId);
@@ -161,10 +158,6 @@ export async function createNode(
     nodeDataId,
   });
 
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, node.canvasId);
-  }
-
   return llmId;
 }
 
@@ -185,14 +178,12 @@ export async function createNodeWithData(
     templateId,
     actor,
     id: providedId,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     node: NodeCreateInput;
     values: Record<string, unknown>;
     templateId?: Id<"nodeTemplates">;
     actor?: NodeDataVersionActor;
     id?: string;
-    touchCanvas?: boolean;
   },
 ): Promise<{ nodeId: string; nodeDataId: Id<"nodeDatas"> }> {
   // Id fourni (création local-first côté client) : le check passe AVANT la
@@ -233,7 +224,6 @@ export async function createNodeWithData(
     node,
     nodeDataId,
     id: providedId,
-    touchCanvas: shouldTouchCanvas,
   });
   return { nodeId, nodeDataId };
 }
@@ -255,7 +245,7 @@ export async function createNodesWithData(
 ): Promise<Array<{ nodeId: string; nodeDataId: Id<"nodeDatas"> }>> {
   if (nodes.length === 0) return [];
 
-  const canvasId = requireSameCanvasId(nodes.map((item) => item.node.canvasId));
+  requireSameCanvasId(nodes.map((item) => item.node.canvasId));
 
   const created = [];
   for (const item of nodes) {
@@ -266,12 +256,9 @@ export async function createNodesWithData(
         values: item.values,
         templateId: item.templateId,
         actor,
-        touchCanvas: false,
       }),
     );
   }
-
-  await CanvasModels.touchCanvas(ctx, canvasId);
   return created;
 }
 
@@ -485,7 +472,6 @@ export async function createFrameAroundNodes(
     },
     values,
     actor,
-    touchCanvas: false,
   });
 
   // `patchNodes` et pas un `db.patch` à la main : il rejoue `assertCanBeChildOf`
@@ -502,10 +488,7 @@ export async function createFrameAroundNodes(
         },
       },
     })),
-    touchCanvas: false,
   });
-
-  await CanvasModels.touchCanvas(ctx, canvasId);
 
   return {
     frameId,
@@ -570,7 +553,6 @@ export async function createNodeInFrame(
     values,
     templateId,
     actor,
-    touchCanvas: false,
   });
 
   const width = Math.max(frame.width, node.position.x + node.width + padding);
@@ -579,8 +561,6 @@ export async function createNodeInFrame(
   if (grown) {
     await ctx.db.patch(frame._id, { width, height });
   }
-
-  await CanvasModels.touchCanvas(ctx, canvasId);
 
   return { ...created, frame: { width, height, grown } };
 }
@@ -622,19 +602,17 @@ async function assertCanBeChildOf(
 /**
  * Patch des props visuelles/positionnelles d'un node (couleur, position,
  * dimensions, verrouillage, …). Seuls les champs fournis sont écrits ;
- * `data` et `displayOptions` sont fusionnés en shallow, le reste est remplacé. Props vide = no-op (retourne l'id sans toucher
- * `canvases.updatedAt`). Retourne le llmId.
+ * `data` et `displayOptions` sont fusionnés en shallow, le reste est remplacé. Props vide = no-op (retourne l'id sans
+ * écrire). Retourne le llmId.
  */
 export async function patchNode(
   ctx: MutationCtx,
   {
     nodeId,
     props,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     nodeId: string;
     props: NodePatchProps;
-    touchCanvas?: boolean;
   },
 ): Promise<string> {
   const node = await getNodeOrThrow(ctx, { nodeId });
@@ -674,10 +652,6 @@ export async function patchNode(
   if (Object.keys(patch).length === 0) return node.id;
 
   await ctx.db.patch(node._id, patch);
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, node.canvasId);
-  }
 
   return node.id;
 }
@@ -720,10 +694,8 @@ export async function patchNodes(
   ctx: MutationCtx,
   {
     updates,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     updates: Array<{ nodeId: string; props: NodePatchProps }>;
-    touchCanvas?: boolean;
   },
 ): Promise<string[]> {
   if (updates.length === 0) return [];
@@ -731,7 +703,7 @@ export async function patchNodes(
   const nodes = await Promise.all(
     updates.map((update) => getNodeOrThrow(ctx, { nodeId: update.nodeId })),
   );
-  const canvasId = requireSameCanvasId(nodes.map((node) => node.canvasId));
+  requireSameCanvasId(nodes.map((node) => node.canvasId));
 
   const nodeIds: string[] = [];
   for (const update of updates) {
@@ -739,13 +711,8 @@ export async function patchNodes(
       await patchNode(ctx, {
         nodeId: update.nodeId,
         props: update.props,
-        touchCanvas: false,
       }),
     );
-  }
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, canvasId);
   }
   return nodeIds;
 }
@@ -768,21 +735,15 @@ export async function trashNode(
   {
     nodeId,
     trashedAt = Date.now(),
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     nodeId: string;
     trashedAt?: number;
-    touchCanvas?: boolean;
   },
 ): Promise<string> {
   const node = await getNodeOrThrow(ctx, { nodeId });
   if (node.status === "trashed") return node.id;
 
   await ctx.db.patch(node._id, { status: "trashed", trashedAt });
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, node.canvasId);
-  }
 
   return node.id;
 }
@@ -803,10 +764,8 @@ export async function untrashNode(
   ctx: MutationCtx,
   {
     nodeId,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     nodeId: string;
-    touchCanvas?: boolean;
   },
 ): Promise<string> {
   const node = await getNodeOrThrow(ctx, { nodeId });
@@ -836,16 +795,12 @@ export async function untrashNode(
     }),
   });
 
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, node.canvasId);
-  }
-
   return node.id;
 }
 
 /**
  * Trash batch : mise à la corbeille des nodes et des edges qui les touchent,
- * 1 seul `touchCanvas`. Aucune destruction ici (cf. `trashNode`) — le
+ * en une transaction. Aucune destruction ici (cf. `trashNode`) — le
  * `deleteWithCascade` qui partait en `runAfter(0)` est passé au cron
  * `purgeTrashed`, sans quoi restaurer un node ne rendait qu'un cadre vide.
  *
@@ -861,7 +816,6 @@ export async function trashNodes(
     nodeIds,
     actor,
     trashedAt = Date.now(),
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     nodeIds: Array<string>;
     actor?: NodeDataVersionActor;
@@ -871,7 +825,6 @@ export async function trashNodes(
      * date que le node, sinon `untrashEdgesTrashedWith` ne les rend pas.
      */
     trashedAt?: number;
-    touchCanvas?: boolean;
   },
 ): Promise<string[]> {
   const uniqueIds = [...new Set(nodeIds)];
@@ -912,7 +865,6 @@ export async function trashNodes(
       await trashNode(ctx, {
         nodeId: node.id,
         trashedAt,
-        touchCanvas: false,
       }),
     );
     if (node.status === "trashed") continue;
@@ -934,10 +886,6 @@ export async function trashNodes(
     nodeIds: nodes.map((node) => node.id),
     trashedAt,
   });
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, canvasId);
-  }
   return trashed;
 }
 
@@ -962,12 +910,10 @@ export async function untrashNodes(
     nodeIds,
     restoreIncidentEdges = false,
     restoreChildren = false,
-    touchCanvas: shouldTouchCanvas = true,
   }: {
     nodeIds: Array<string>;
     restoreIncidentEdges?: boolean;
     restoreChildren?: boolean;
-    touchCanvas?: boolean;
   },
 ): Promise<{ nodeIds: string[]; edgeIds: string[] }> {
   const uniqueIds = [...new Set(nodeIds)];
@@ -1030,7 +976,7 @@ export async function untrashNodes(
   const untrashedNodeIds: string[] = [];
   for (const node of parentsFirst) {
     untrashedNodeIds.push(
-      await untrashNode(ctx, { nodeId: node.id, touchCanvas: false }),
+      await untrashNode(ctx, { nodeId: node.id }),
     );
   }
 
@@ -1045,10 +991,6 @@ export async function untrashNodes(
         })),
       );
     }
-  }
-
-  if (shouldTouchCanvas) {
-    await CanvasModels.touchCanvas(ctx, canvasId);
   }
   return { nodeIds: untrashedNodeIds, edgeIds: untrashedEdgeIds };
 }
@@ -1208,7 +1150,5 @@ export async function moveNodes(
     }
   }
 
-  await CanvasModels.touchCanvas(ctx, sourceCanvasId);
-  await CanvasModels.touchCanvas(ctx, targetCanvasId);
   return nodes.map((node) => node.id);
 }

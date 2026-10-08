@@ -31,24 +31,38 @@ export async function listByCreator(
 // Résout les templates référencés par les nodeDatas d'un canvas, quel que
 // soit leur creator (viewers de canvases partagés) et y compris archivés
 // (les instances vivantes doivent continuer à rendre). Tri stable par _id.
+//
+// Skip-scan sur `by_canvasId_and_templateId` : un `.first()` par template
+// distinct, chacun reprenant juste après le précédent. On lit donc UN nodeData
+// par template au lieu de tous ceux du canvas — l'ancienne version collectait
+// le canvas entier (values comprises) à chaque exécution, et comme elle
+// dépendait de toute la plage `by_canvasId`, n'importe quelle écriture de
+// contenu la relançait : c'était la 2e query la plus lourde en lecture.
+// Désormais seules les écritures sur le premier node de chaque template (ou
+// l'ajout d'un nouveau template sur le canvas) l'invalident.
+//
+// La borne basse `""` écarte les nodeDatas sans template : `undefined` trie
+// avant toute chaîne dans un index, et tout Id est une chaîne non vide.
 export async function resolveTemplatesForCanvas(
   ctx: Ctx,
   canvasId: Id<"canvases">,
 ): Promise<Doc<"nodeTemplates">[]> {
-  const nodeDatas = await ctx.db
-    .query("nodeDatas")
-    .withIndex("by_canvasId", (q) => q.eq("canvasId", canvasId))
-    .collect();
-
-  const ids = new Set<string>();
-  for (const nodeData of nodeDatas) {
-    if (nodeData.templateId) ids.add(nodeData.templateId);
+  const ids: Id<"nodeTemplates">[] = [];
+  let after = "" as Id<"nodeTemplates">;
+  for (;;) {
+    const next = await ctx.db
+      .query("nodeDatas")
+      .withIndex("by_canvasId_and_templateId", (q) =>
+        q.eq("canvasId", canvasId).gt("templateId", after),
+      )
+      .first();
+    if (!next?.templateId) break;
+    ids.push(next.templateId);
+    after = next.templateId;
   }
-  if (ids.size === 0) return [];
+  if (ids.length === 0) return [];
 
-  const docs = await Promise.all(
-    Array.from(ids).map((id) => ctx.db.get(id as Id<"nodeTemplates">)),
-  );
+  const docs = await Promise.all(ids.map((id) => ctx.db.get(id)));
 
   return docs
     .filter((d): d is Doc<"nodeTemplates"> => d !== null)
@@ -101,8 +115,8 @@ function parseDefinitionOrThrow(input: TemplateWriteInput) {
 
 // `updatedAt` sert de clé de fraîcheur au front : templatesStore ignore un
 // doc dont l'updatedAt n'a pas bougé, pour ne pas re-rendre toutes les
-// instances d'un template à chaque re-push de listForCanvas — qui re-tourne
-// à chaque drag de node (cf. resolveTemplatesForCanvas).
+// instances d'un template à chaque re-push de listForCanvas (cf.
+// resolveTemplatesForCanvas).
 //
 // Date.now() seul ne suffit donc pas : deux écritures sur le même template
 // dans la même milliseconde produiraient la même valeur, et la seconde serait

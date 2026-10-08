@@ -30,7 +30,7 @@ export type NodeMentionItem = DefaultReactSuggestionItem & {
  * Suggestion items for the `@` mention trigger (see AppEditorMenus.tsx):
  * every node on the open canvas, most recently updated first, filtered by
  * `query`. No backend request — `nodeDataStore` only ever holds the current
- * canvas's node data (see nodeDatas.listByCanvasId), so filtering the
+ * canvas's live node data (see useNodeDataSubscriptions), so filtering the
  * already-synced local store is both correct and free.
  *
  * `getState()` reads (not hooks): this runs from inside `getItems`, an async

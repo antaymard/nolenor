@@ -74,7 +74,6 @@ export const createWithNodeData = mutation({
 export const patch = mutation({
   args: {
     updates: v.array(nodePatchUpdateValidator),
-    touchCanvas: v.optional(v.boolean()),
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
@@ -87,7 +86,6 @@ export const patch = mutation({
 
     return NodeModels.patchNodes(ctx, {
       updates: args.updates,
-      touchCanvas: args.touchCanvas,
     });
   },
 });

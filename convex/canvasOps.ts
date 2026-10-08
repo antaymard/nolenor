@@ -4,7 +4,6 @@ import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import errors from "./config/errorsConfig";
-import * as CanvasModels from "./models/canvasModels";
 import * as EdgeModels from "./models/edgeModels";
 import * as NodeModels from "./models/nodeModels";
 import { canvasOpValidator } from "./schemas/canvasOpsSchema";
@@ -86,7 +85,6 @@ export const apply = mutation({
           );
           await NodeModels.patchNodes(ctx, {
             updates: op.updates,
-            touchCanvas: false,
           });
           break;
         }
@@ -96,7 +94,6 @@ export const apply = mutation({
             nodeIds: op.nodeIds,
             actor: { type: "user", userId: authUserId },
             trashedAt,
-            touchCanvas: false,
           });
           break;
         }
@@ -104,7 +101,6 @@ export const apply = mutation({
           await assertNodesOnCanvas(ctx, canvasId, op.nodeIds);
           await NodeModels.untrashNodes(ctx, {
             nodeIds: op.nodeIds,
-            touchCanvas: false,
           });
           break;
         }
@@ -116,7 +112,6 @@ export const apply = mutation({
           );
           await EdgeModels.patchEdges(ctx, {
             updates: op.updates,
-            touchCanvas: false,
           });
           break;
         }
@@ -125,7 +120,6 @@ export const apply = mutation({
           await EdgeModels.trashEdges(ctx, {
             edgeIds: op.edgeIds,
             trashedAt,
-            touchCanvas: false,
           });
           break;
         }
@@ -133,14 +127,11 @@ export const apply = mutation({
           await assertEdgesOnCanvas(ctx, canvasId, op.edgeIds);
           await EdgeModels.untrashEdges(ctx, {
             edgeIds: op.edgeIds,
-            touchCanvas: false,
           });
           break;
         }
       }
     }
-
-    await CanvasModels.touchCanvas(ctx, canvasId);
     return null;
   },
 });

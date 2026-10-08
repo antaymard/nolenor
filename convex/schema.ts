@@ -80,7 +80,6 @@ const schema = defineSchema({
   // ============================================================================
   canvases: defineTable(canvasesValidator)
     .index("by_creator", ["creatorId"])
-    .index("by_creator_and_updatedAt", ["creatorId", "updatedAt"])
     .searchIndex("search_name", {
       searchField: "name",
       filterFields: ["creatorId"],
@@ -110,7 +109,9 @@ const schema = defineSchema({
     .index("by_canvasId", ["canvasId"])
     // Les changements d'un canvas depuis un instant (cf. harness, deltas).
     .index("by_canvasId_and_updatedAt", ["canvasId", "updatedAt"])
-    .index("by_templateId", ["templateId"]),
+    .index("by_templateId", ["templateId"])
+    // Templates distincts d'un canvas (skip-scan, cf. resolveTemplatesForCanvas).
+    .index("by_canvasId_and_templateId", ["canvasId", "templateId"]),
 
   // Templates de custom nodes définis par l'utilisateur : champs typés +
   // arbres de layout (node / window). Scopés par user, réutilisables sur

@@ -60,7 +60,6 @@ export const create = mutation({
 export const patch = mutation({
   args: {
     updates: v.array(edgePatchUpdateValidator),
-    touchCanvas: v.optional(v.boolean()),
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
@@ -73,7 +72,6 @@ export const patch = mutation({
 
     return EdgeModels.patchEdges(ctx, {
       updates: args.updates,
-      touchCanvas: args.touchCanvas,
     });
   },
 });

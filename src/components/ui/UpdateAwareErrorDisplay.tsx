@@ -70,7 +70,7 @@ export default function UpdateAwareErrorDisplay({
     return (
       <ErrorDisplay
         icon={<TbSparkles />}
-        title="Nolënor just got an update"
+        title="✨ Nolënor just got an update"
         message={
           autoReload
             ? "A new version was released while you were working. It's downloading now and the page will refresh by itself in a few seconds — your work is saved."

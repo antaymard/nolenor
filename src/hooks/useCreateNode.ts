@@ -9,13 +9,13 @@ import { getDefaultNodeDataValues } from "@/../convex/config/nodeConfig";
 import { getDefaultValuesForTemplate } from "@/../convex/config/fieldConfig";
 import { useParams } from "@tanstack/react-router";
 import { useTemplatesStore } from "@/stores/templatesStore";
+import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { nextFrameZIndex, nextTopZIndex } from "@/lib/nodeLayering";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import {
   consumePendingCreation,
   markNodesAsPendingCreation,
 } from "@/lib/pendingCreatedNodes";
-import { addPendingNodeDatasToListQuery } from "@/lib/flowNodes";
 import { pendingDocId } from "@/lib/pendingDocIds";
 import { toastError } from "@/components/utils/errorUtils";
 import { trackCanvasSync } from "@/lib/trackCanvasSync";
@@ -49,34 +49,7 @@ type CreateNodeResult = {
 
 export function useCreateNode() {
   const { getNodes, setNodes } = useReactFlow();
-  const createWithNodeData = useMutation(
-    api.nodes.createWithNodeData,
-  ).withOptimisticUpdate((localStore, { nodes }) => {
-    if (nodes.length === 0) return;
-    // nodeDatas factices, mêmes values que celles envoyées au serveur : le
-    // contenu du node est rendu avant la confirmation (cf.
-    // `addPendingNodeDatasToListQuery`).
-    addPendingNodeDatasToListQuery(
-      localStore,
-      nodes[0].node.canvasId,
-      nodes.flatMap((item): Doc<"nodeDatas">[] => {
-        if (item.id === undefined) return [];
-        return [
-          {
-            _id: pendingDocId<"nodeDatas">(item.id),
-            _creationTime: Date.now(),
-            canvasId: item.node.canvasId,
-            type: item.node.type,
-            updatedAt: Date.now(),
-            values: item.nodeDataValues,
-            ...(item.nodeDataTemplateId !== undefined && {
-              templateId: item.nodeDataTemplateId,
-            }),
-          },
-        ];
-      }),
-    );
-  });
+  const createWithNodeData = useMutation(api.nodes.createWithNodeData);
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
     from: "/canvas/$canvasId",
   });
@@ -142,11 +115,23 @@ export function useCreateNode() {
 
     // ── Local-first ─────────────────────────────────────────────────
     // Le llmId est généré côté client et passé à la mutation : le node et
-    // son contenu s'affichent AVANT la confirmation serveur (le cache
-    // optimiste fournit un nodeData factice `_id` `pending_<llmId>`), et le
+    // son contenu s'affichent AVANT la confirmation serveur (nodeData factice
+    // `_id` `pending_<llmId>`, mêmes values que celles envoyées), et le
     // serveur préserve l'id — idempotent sur retry, refus cross-canvas.
     const nodeId = generateLlmId();
     const fakeNodeDataId = pendingDocId<"nodeDatas">(nodeId);
+    // Relâché par la synchro dès que le vrai doc est chargé (cf.
+    // `useNodeDataSubscriptions`), ou par le rollback ci-dessous.
+    const pendingNodeData: Doc<"nodeDatas"> = {
+      _id: fakeNodeDataId,
+      _creationTime: Date.now(),
+      canvasId,
+      type: (node.type ?? "default") as NodeType,
+      updatedAt: Date.now(),
+      values,
+      ...(templateId && { templateId }),
+    };
+    useNodeDataStore.getState().addPendingNodeData(nodeId, pendingNodeData);
 
     // Le registre pending garde ce node à travers les syncs intermédiaires
     // (listes serveur partielles) et force sa sélection à sa première
@@ -259,9 +244,9 @@ export function useCreateNode() {
         return { nodeId, nodeDataId };
       })
       .catch((error: unknown) => {
-        // Rollback du local-first : le cache optimiste est rétabli par Convex,
-        // le node local et le pending restent à notre charge.
+        // Rollback du local-first : node local, pending et nodeData factice.
         consumePendingCreation(nodeId);
+        useNodeDataStore.getState().removePendingNodeData(nodeId);
         setNodes((current) => current.filter((n) => n.id !== nodeId));
         if (useNodeEditorStore.getState().editingNodeId === nodeId) {
           useNodeEditorStore.getState().setEditingNodeId(null);

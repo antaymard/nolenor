@@ -52,31 +52,15 @@ export const listByCanvasId = query({
       allowPublic: true,
     });
 
-    const nodeDatas = await ctx.db
+    // Nodes à la corbeille compris : le filtre se fait côté client
+    // (`useCanvasBootstrap`). Lire la table `nodes` ici pour les écarter
+    // rendait la query dépendante de chaque node — un drag, un resize, une
+    // couleur la relançaient, et elle relisait puis renvoyait tous les
+    // nodeDatas du canvas pour rien.
+    return await ctx.db
       .query("nodeDatas")
       .withIndex("by_canvasId", (q) => q.eq("canvasId", canvasId))
       .collect();
-
-    // Depuis la corbeille, le nodeData d'un node supprimé survit 30 jours :
-    // sans ce filtre il resterait dans `nodeDataStore`, et donc proposé à la
-    // mention `@` (cf. `getNodeMentionSuggestionItems`) — une pill vers un
-    // node absent du canvas.
-    //
-    // On n'écarte QUE les nodeDatas explicitement rattachés à un node trashé.
-    // Un nodeData sans ligne `nodes` est gardé : c'est la fenêtre normale
-    // d'une création local-first, et la refermer ici ferait clignoter le
-    // contenu des nodes fraîchement créés.
-    const nodes = await ctx.db
-      .query("nodes")
-      .withIndex("by_canvas", (q) => q.eq("canvasId", canvasId))
-      .collect();
-    const trashed = new Set(
-      nodes.flatMap((node) =>
-        node.status === "trashed" ? [node.nodeDataId] : [],
-      ),
-    );
-
-    return nodeDatas.filter((nodeData) => !trashed.has(nodeData._id));
   },
 });
 

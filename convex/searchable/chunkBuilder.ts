@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { internalAction, type ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { generateText } from "ai";
-import { openrouter } from "@openrouter/ai-sdk-provider";
+import { openrouterAttributed as openrouter } from "../ia/openrouterApp";
 import Parallel from "parallel-web";
 import { uploadBuffer } from "../lib/r2";
 import { blocksToMarkdown } from "../ia/helpers/blockNoteMarkdown";

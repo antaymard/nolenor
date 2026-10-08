@@ -12,11 +12,6 @@ import {
 import { parseRichTextCell } from "../../lib/tableRichTextCell";
 import { richTextCellFromMarkdown } from "../helpers/tableRichTextMarkdown";
 import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
-import {
-  TableWriteConflictError,
-  withTableWriteRetry,
-  writeTableIfUnchanged,
-} from "../helpers/tableWrite";
 
 // Tool compaction config
 export const tableUpdateRowsToolConfig: ToolConfig = {
@@ -78,227 +73,216 @@ export default function tableUpdateRowsTool({
         'Row updates in this format: `{"rowId":{"columnId":value}}`. Example: `{"588P493x":{"description":"Embedded content"},"412Z233E":{"type":"Document","color":"Navy"}}`.',
       ),
     }),
-    execute: (ctx, input): Promise<string> =>
-      withTableWriteRetry(async () => {
-        console.log(`🧮 Table rows update requested on node ${input.nodeId}`);
+    execute: async (ctx, input): Promise<string> => {
+      console.log(`🧮 Table rows update requested on node ${input.nodeId}`);
 
-        try {
-          const { nodeId } = input;
+      try {
+        const { nodeId } = input;
 
-          const requestedEntries = Object.entries(input.values).map(
-            ([rawRowId, rowValues]) => ({
-              rawRowId,
-              rowId: rawRowId.trim(),
-              rowValues,
-            }),
+        const requestedEntries = Object.entries(input.values).map(
+          ([rawRowId, rowValues]) => ({
+            rawRowId,
+            rowId: rawRowId.trim(),
+            rowValues,
+          }),
+        );
+
+        const emptyRowId = requestedEntries.find(
+          (entry) => entry.rowId.length === 0,
+        );
+        if (emptyRowId) {
+          return toolError("rowId must be a non-empty string.");
+        }
+
+        const duplicateRequestedRowId = requestedEntries.find(
+          (entry, index) =>
+            requestedEntries.findIndex(
+              (candidate) => candidate.rowId === entry.rowId,
+            ) !== index,
+        );
+        if (duplicateRequestedRowId) {
+          return toolError(
+            `rowId "${duplicateRequestedRowId.rawRowId}" is provided multiple times.`,
           );
+        }
 
-          const emptyRowId = requestedEntries.find(
-            (entry) => entry.rowId.length === 0,
-          );
-          if (emptyRowId) {
-            return toolError("rowId must be a non-empty string.");
-          }
+        const { node, nodeData } = await ctx.runQuery(
+          internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+          {
+            canvasId,
+            nodeId,
+          },
+        );
 
-          const duplicateRequestedRowId = requestedEntries.find(
-            (entry, index) =>
-              requestedEntries.findIndex(
-                (candidate) => candidate.rowId === entry.rowId,
-              ) !== index,
-          );
-          if (duplicateRequestedRowId) {
-            return toolError(
-              `rowId "${duplicateRequestedRowId.rawRowId}" is provided multiple times.`,
-            );
-          }
+        if (node.type !== "table" || nodeData.type !== "table") {
+          return ERROR_TARGET_NOT_TABLE;
+        }
 
-          const { node, nodeData } = await ctx.runQuery(
-            internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
+        const tableValue = (nodeData.values.table ?? {}) as StoredTableValue;
+        const columns = Array.isArray(tableValue.columns)
+          ? tableValue.columns
+          : null;
+        const rows = Array.isArray(tableValue.rows) ? tableValue.rows : null;
+
+        if (!columns || !rows) {
+          return ERROR_INVALID_TABLE_CONTENT;
+        }
+
+        if (columns.length === 0) {
+          return ERROR_TABLE_SCHEMA_EMPTY;
+        }
+
+        const needsCanvasNodeIds = columns.some((col) => col.type === "node");
+        const knownCanvasNodeIds = new Set<string>();
+        if (needsCanvasNodeIds) {
+          const { nodes: canvasNodes } = await ctx.runQuery(
+            internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
             {
-              canvasId,
-              nodeId,
+              canvasId: canvasId as Id<"canvases">,
             },
           );
-
-          if (node.type !== "table" || nodeData.type !== "table") {
-            return ERROR_TARGET_NOT_TABLE;
+          for (const cn of canvasNodes) {
+            knownCanvasNodeIds.add(cn.id);
           }
+        }
 
-          const tableValue = (nodeData.values.table ?? {}) as StoredTableValue;
-          const columns = Array.isArray(tableValue.columns)
-            ? tableValue.columns
-            : null;
-          const rows = Array.isArray(tableValue.rows) ? tableValue.rows : null;
-
-          if (!columns || !rows) {
-            return ERROR_INVALID_TABLE_CONTENT;
+        for (const entry of requestedEntries) {
+          const rowMatches = rows.filter(
+            (row) => (row.id ?? "").trim() === entry.rowId,
+          );
+          if (rowMatches.length === 0) {
+            return toolError(`No match found for rowId "${entry.rawRowId}".`);
           }
-
-          if (columns.length === 0) {
-            return ERROR_TABLE_SCHEMA_EMPTY;
-          }
-
-          const needsCanvasNodeIds = columns.some((col) => col.type === "node");
-          const knownCanvasNodeIds = new Set<string>();
-          if (needsCanvasNodeIds) {
-            const { nodes: canvasNodes } = await ctx.runQuery(
-              internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
-              {
-                canvasId: canvasId as Id<"canvases">,
-              },
+          if (rowMatches.length > 1) {
+            return toolError(
+              `Found ${rowMatches.length} matches for rowId "${entry.rawRowId}". Please provide a unique rowId.`,
             );
-            for (const cn of canvasNodes) {
-              knownCanvasNodeIds.add(cn.id);
-            }
           }
+        }
 
-          for (const entry of requestedEntries) {
-            const rowMatches = rows.filter(
-              (row) => (row.id ?? "").trim() === entry.rowId,
-            );
-            if (rowMatches.length === 0) {
-              return toolError(`No match found for rowId "${entry.rawRowId}".`);
+        const updatesByRowId = new Map<
+          string,
+          Array<{ columnId: string; value: unknown }>
+        >();
+
+        for (const entry of requestedEntries) {
+          const resolvedUpdates: Array<{ columnId: string; value: unknown }> =
+            [];
+
+          for (const [rawColumnId, rawValue] of Object.entries(
+            entry.rowValues,
+          )) {
+            const columnId = rawColumnId.trim();
+            if (!columnId) {
+              return toolError("columnId must be a non-empty string.");
             }
-            if (rowMatches.length > 1) {
+
+            const matchedColumns = columns.filter(
+              (column) => column.id.trim() === columnId,
+            );
+
+            if (matchedColumns.length === 0) {
               return toolError(
-                `Found ${rowMatches.length} matches for rowId "${entry.rawRowId}". Please provide a unique rowId.`,
+                `No match found for columnId "${rawColumnId}". Valid columns: ${describeColumns(columns)}.`,
               );
             }
+            if (matchedColumns.length > 1) {
+              return toolError(
+                `Found ${matchedColumns.length} matches for columnId "${rawColumnId}". Please provide a unique column id.`,
+              );
+            }
+
+            const matchedColumn = matchedColumns[0];
+
+            const duplicate = resolvedUpdates.some(
+              (existing) => existing.columnId === matchedColumn.id,
+            );
+            if (duplicate) {
+              return toolError(
+                `Column "${matchedColumn.name}" is provided multiple times.`,
+              );
+            }
+
+            // Rich text : Markdown (avec jetons de mention, date, pill),
+            // comme `set_node_data` sur un node blocknote. Un document déjà
+            // sérialisé passe tel quel par `normalizeCellValueForColumn`.
+            let cellValue = rawValue;
+            if (
+              matchedColumn.type === "richtext" &&
+              typeof rawValue === "string" &&
+              !parseRichTextCell(rawValue)
+            ) {
+              const encoded = await richTextCellFromMarkdown(
+                ctx,
+                canvasId as Id<"canvases">,
+                rawValue,
+              );
+              if (!encoded.ok) {
+                return toolError(
+                  `Column "${matchedColumn.name}": ${encoded.error}`,
+                );
+              }
+              cellValue = encoded.value;
+            }
+
+            const normalized = normalizeCellValueForColumn({
+              rawValue: cellValue,
+              column: matchedColumn,
+              ctx: { knownCanvasNodeIds },
+            });
+            if (!normalized.ok) {
+              return normalized.error;
+            }
+
+            resolvedUpdates.push({
+              columnId: matchedColumn.id,
+              value: normalized.value,
+            });
           }
 
-          const updatesByRowId = new Map<
-            string,
-            Array<{ columnId: string; value: unknown }>
-          >();
+          updatesByRowId.set(entry.rowId, resolvedUpdates);
+        }
 
-          for (const entry of requestedEntries) {
-            const resolvedUpdates: Array<{ columnId: string; value: unknown }> =
-              [];
-
-            for (const [rawColumnId, rawValue] of Object.entries(
-              entry.rowValues,
-            )) {
-              const columnId = rawColumnId.trim();
-              if (!columnId) {
-                return toolError("columnId must be a non-empty string.");
-              }
-
-              const matchedColumns = columns.filter(
-                (column) => column.id.trim() === columnId,
-              );
-
-              if (matchedColumns.length === 0) {
-                return toolError(
-                  `No match found for columnId "${rawColumnId}". Valid columns: ${describeColumns(columns)}.`,
-                );
-              }
-              if (matchedColumns.length > 1) {
-                return toolError(
-                  `Found ${matchedColumns.length} matches for columnId "${rawColumnId}". Please provide a unique column id.`,
-                );
-              }
-
-              const matchedColumn = matchedColumns[0];
-
-              const duplicate = resolvedUpdates.some(
-                (existing) => existing.columnId === matchedColumn.id,
-              );
-              if (duplicate) {
-                return toolError(
-                  `Column "${matchedColumn.name}" is provided multiple times.`,
-                );
-              }
-
-              // Rich text : Markdown (avec jetons de mention, date, pill),
-              // comme `set_node_data` sur un node blocknote. Un document déjà
-              // sérialisé passe tel quel par `normalizeCellValueForColumn`.
-              let cellValue = rawValue;
-              if (
-                matchedColumn.type === "richtext" &&
-                typeof rawValue === "string" &&
-                !parseRichTextCell(rawValue)
-              ) {
-                const encoded = await richTextCellFromMarkdown(
-                  ctx,
-                  canvasId as Id<"canvases">,
-                  rawValue,
-                );
-                if (!encoded.ok) {
-                  return toolError(
-                    `Column "${matchedColumn.name}": ${encoded.error}`,
-                  );
-                }
-                cellValue = encoded.value;
-              }
-
-              const normalized = normalizeCellValueForColumn({
-                rawValue: cellValue,
-                column: matchedColumn,
-                ctx: { knownCanvasNodeIds },
-              });
-              if (!normalized.ok) {
-                return normalized.error;
-              }
-
-              resolvedUpdates.push({
-                columnId: matchedColumn.id,
-                value: normalized.value,
-              });
-            }
-
-            updatesByRowId.set(entry.rowId, resolvedUpdates);
-          }
-
-          const updatedRows = rows.map((row) => {
-            const rowId = (row.id ?? "").trim();
-            const rowUpdates = updatesByRowId.get(rowId);
-
-            if (!rowUpdates) {
-              return row;
-            }
-
-            const nextCells: Record<string, unknown> = {
-              ...(row.cells ?? {}),
-            };
-
-            for (const update of rowUpdates) {
-              nextCells[update.columnId] = update.value;
-            }
-
-            return {
-              ...row,
-              cells: nextCells,
-            };
-          });
-
-          await writeTableIfUnchanged(ctx, {
-            nodeDataId: nodeData._id,
-            expectedTable: nodeData.values.table,
-            table: { ...tableValue, columns, rows: updatedRows },
+        await ctx.runMutation(
+          internal.wrappers.nodeDataWrappers.applyTableOps,
+          {
+            _id: nodeData._id,
+            ops: [
+              {
+                kind: "setCells",
+                cells: [...updatesByRowId].flatMap(([rowId, updates]) =>
+                  updates.map((update) => ({
+                    rowId,
+                    columnId: update.columnId,
+                    value: update.value,
+                  })),
+                ),
+              },
+            ],
             actor: {
               type: "agent",
               userId: threadCtx.authUserId,
               threadId: ctx.threadId,
             },
-          });
+          },
+        );
 
-          console.log(
-            `✅ Table row update complete for node ${nodeId} (${requestedEntries.length} row(s))`,
-          );
+        console.log(
+          `✅ Table row update complete for node ${nodeId} (${requestedEntries.length} row(s))`,
+        );
 
-          const updatedCellsCount = Array.from(updatesByRowId.values()).reduce(
-            (count, updates) => count + updates.length,
-            0,
-          );
+        const updatedCellsCount = Array.from(updatesByRowId.values()).reduce(
+          (count, updates) => count + updates.length,
+          0,
+        );
 
-          return `Successfully updated ${requestedEntries.length} rows and ${updatedCellsCount} cells.`;
-        } catch (error) {
-          if (error instanceof TableWriteConflictError) throw error;
-          console.error("Table update rows tool error:", error);
-          return toolError(
-            error instanceof Error ? error.message : String(error),
-          );
-        }
-      }),
+        return `Successfully updated ${requestedEntries.length} rows and ${updatedCellsCount} cells.`;
+      } catch (error) {
+        console.error("Table update rows tool error:", error);
+        return toolError(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    },
   });
 }

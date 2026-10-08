@@ -1,13 +1,23 @@
 import { components } from "../_generated/api";
 import { Agent } from "@convex-dev/agent";
-import { openrouter } from "@openrouter/ai-sdk-provider";
 import { v } from "convex/values";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
+import {
+  openrouterAttributed,
+  openRouterAttributionHeaders,
+} from "./openrouterApp";
 import { createUsageHandler } from "./usage";
 import { type AiUsageSource } from "../schemas/aiUsageSourceSchema";
 
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
+  {
+    label: "Claude Haiku 5.5",
+    value: "anthropic/claude-haiku-5.5",
+    price: "0.10_0.50",
+    isMultimodal: true,
+    maxContext: 1000000,
+  },
   {
     label: "Mistral Large 4",
     value: "mistralai/mistral-large-4-0",
@@ -23,13 +33,6 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "GPT 6 Luna",
-    value: "openai/gpt-6-luna",
-    price: "0.10_0.50",
-    isMultimodal: true,
-    maxContext: 1100000,
-  },
-  {
     label: "Meta Muse Spark 1.3 Contributor",
     value: "meta/muse-spark-1.3-contributor",
     price: "0.1_0.2",
@@ -37,9 +40,9 @@ export const chatModelOptions = [
     maxContext: 1000000,
   },
   {
-    label: "Mimo 2.6 Flash",
-    value: "xiaomi/mimo-v2.6-flash",
-    price: "0.14_0.28",
+    label: "Claude Sonnet 5.5",
+    value: "anthropic/claude-sonnet-5.5",
+    price: "2_10",
     isMultimodal: true,
     maxContext: 1000000,
   },
@@ -93,16 +96,23 @@ export type ChatModelOption = (typeof chatModelOptions)[number];
  */
 export const imageModelOptions = [
   {
-    label: "Meta Muse Image",
-    value: "meta/muse-image",
-    pricePerImage: "0.01",
+    label: "Nano Banana 2.1",
+    value: "google/gemini-nano-banana-2.1",
+    pricePerImage: "0.08",
     maxImages: 4,
     maxReferenceImages: 14,
   },
   {
-    label: "Microsoft MAI-Image-2.6 Flash",
-    value: "microsoft/mai-image-2.6-flash",
-    pricePerImage: "0.15",
+    label: "ByteDance Seedream 5.0 Flash",
+    value: "bytedance-seed/seedream-5-0-flash",
+    pricePerImage: "0.05",
+    maxImages: 4,
+    maxReferenceImages: 14,
+  },
+  {
+    label: "Black Forest Flux.3",
+    value: "black-forest-labs/flux-3-image",
+    pricePerImage: "0.04",
     maxImages: 4,
     maxReferenceImages: 4,
   },
@@ -114,15 +124,8 @@ export const imageModelOptions = [
     maxReferenceImages: 16,
   },
   {
-    label: "Nano Banana 2",
-    value: "google/gemini-3.1-flash-image",
-    pricePerImage: "0.15",
-    maxImages: 4,
-    maxReferenceImages: 14,
-  },
-  {
-    label: "Recraft V4 Pro Vector",
-    value: "recraft/recraft-v4-styles-pro-vector",
+    label: "Hy Image 3.5 Preview",
+    value: "tencent/hy-image-v3.5-preview",
     pricePerImage: "0.12",
     maxImages: 4,
     maxReferenceImages: 14,
@@ -154,10 +157,12 @@ export const MAX_IMAGES_PER_GENERATION = Math.max(
  *
  * `.chat(...)` plutôt que `openrouter(...)` : l'appel direct résout d'abord
  * vers la surcharge TypeScript « completion », alors que c'est bien un modèle
- * chat qui est construit au runtime.
+ * chat qui est construit au runtime. L'instance vient de
+ * `openrouterApp.ts` : attribution `Nolënor` (`HTTP-Referer` +
+ * `X-OpenRouter-Title`) sur chaque requête.
  */
 function openRouterModel(modelId: string): LanguageModelV3 {
-  return openrouter.chat(modelId, { usage: { include: true } });
+  return openrouterAttributed.chat(modelId, { usage: { include: true } });
 }
 
 export function getChatModel(
@@ -236,6 +241,7 @@ async function requestOpenRouterImage({
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      ...openRouterAttributionHeaders(),
     },
     body: JSON.stringify({
       model,
@@ -434,7 +440,10 @@ export async function requestOpenRouterTranscription({
     {
       method: "POST",
       // Pas de `Content-Type` : `fetch` pose lui-même le boundary multipart.
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        ...openRouterAttributionHeaders(),
+      },
       body: form,
     },
   );

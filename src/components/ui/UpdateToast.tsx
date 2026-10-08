@@ -13,7 +13,7 @@ const TOAST_ID = "app-update";
  */
 export function showUpdateToast(onReload: () => void): void {
   showActionToast({
-    message: "Nolënor just got an update ✨ Reload to use the new version.",
+    message: "✨ Nolënor just got a new version.",
     actionLabel: "Reload",
     onAction: onReload,
     id: TOAST_ID,

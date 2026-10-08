@@ -1,7 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/shadcn/button";
-import ErrorDisplay from "@/components/ui/ErrorDisplay";
-import { applyUpdate } from "@/lib/appUpdate";
+import UpdateAwareErrorDisplay from "@/components/ui/UpdateAwareErrorDisplay";
 import { reportError } from "@/lib/analytics";
 
 /**
@@ -40,12 +39,6 @@ export class AppErrorBoundary extends Component<
     });
   }
 
-  // Build frais plutôt que précache : l'erreur peut venir d'un onglet resté
-  // sur un build décalé du backend (cf. `applyUpdate`).
-  handleReload = (): void => {
-    applyUpdate();
-  };
-
   // Navigation dure plutôt que routeur : quand ce boundary rend, l'arbre React
   // est déjà démonté, donc rien ne garantit qu'un `navigate` remonte une app
   // saine. Un chargement complet repart d'un état propre.
@@ -59,16 +52,17 @@ export class AppErrorBoundary extends Component<
 
     return (
       <div className="h-screen w-screen">
-        <ErrorDisplay
+        {/* Reload = build frais plutôt que précache : l'erreur peut venir d'un
+            onglet resté sur un build décalé du backend (cf. `applyUpdate`).
+            `autoReload` : l'app est déjà démontée, rien à perdre. */}
+        <UpdateAwareErrorDisplay
           title="Something went wrong"
           message="The app hit an unexpected error. Reloading usually fixes it — your work is saved on the server."
-          cta={
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button variant="outline" onClick={this.handleBackHome}>
-                Back to my canvases
-              </Button>
-              <Button onClick={this.handleReload}>Reload the page</Button>
-            </div>
+          autoReload
+          secondaryActions={
+            <Button variant="outline" onClick={this.handleBackHome}>
+              Back to my canvases
+            </Button>
           }
         />
       </div>

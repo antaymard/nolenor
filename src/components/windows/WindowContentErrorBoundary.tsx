@@ -1,7 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { Button } from "@/components/shadcn/button";
-import ErrorDisplay from "@/components/ui/ErrorDisplay";
-import { applyUpdate } from "@/lib/appUpdate";
+import UpdateAwareErrorDisplay from "@/components/ui/UpdateAwareErrorDisplay";
 import { reportError } from "@/lib/analytics";
 
 /**
@@ -50,14 +48,13 @@ export class WindowContentErrorBoundary extends Component<
     if (!error) return this.props.children;
 
     return (
-      <ErrorDisplay
+      // Reload = build frais plutôt que précache : la cause typique est un
+      // chunk disparu au déploiement, re-rendre le même build ne sert à rien.
+      // Pas d'`autoReload` : d'autres fenêtres ouvertes peuvent contenir des
+      // brouillons, c'est à l'utilisateur de choisir le moment.
+      <UpdateAwareErrorDisplay
         title="This window could not be opened"
         message="Reloading the page usually fixes it — your work is saved on the server."
-        cta={
-          // Build frais plutôt que précache : la cause typique est un chunk
-          // disparu au déploiement, re-rendre le même build ne sert à rien.
-          <Button onClick={applyUpdate}>Reload the page</Button>
-        }
       />
     );
   }

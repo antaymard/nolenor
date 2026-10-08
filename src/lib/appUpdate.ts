@@ -19,6 +19,52 @@ import { reportError, trackEvent } from "@/lib/analytics";
 let updateServiceWorker: (() => Promise<void>) | undefined;
 let swRegistration: ServiceWorkerRegistration | undefined;
 let hasWaitingUpdate = false;
+
+/**
+ * Où en est la mise à jour, pour l'UI (cf. `useAppUpdateStatus`).
+ *
+ * - `unknown` : aucune vérification lancée depuis le boot ;
+ * - `checking` : on demande au serveur s'il existe un nouveau build ;
+ * - `up-to-date` : rien de neuf, l'onglet tourne sur le dernier build ;
+ * - `downloading` : un nouveau SW s'installe (précache du nouveau bundle) ;
+ * - `ready` : le nouveau build est téléchargé et attend la bascule ;
+ * - `reloading` : bascule demandée, la page va se recharger.
+ */
+export type AppUpdateStatus =
+  | "unknown"
+  | "checking"
+  | "up-to-date"
+  | "downloading"
+  | "ready"
+  | "reloading";
+
+let status: AppUpdateStatus = "unknown";
+const statusListeners = new Set<() => void>();
+
+function setStatus(next: AppUpdateStatus): void {
+  // `reloading` est terminal : la page part, aucun état intermédiaire ne doit
+  // faire revenir le bouton à un état cliquable entre-temps.
+  if (status === next || status === "reloading") return;
+  status = next;
+  statusListeners.forEach((listener) => listener());
+}
+
+export function getAppUpdateStatus(): AppUpdateStatus {
+  return status;
+}
+
+export function subscribeAppUpdateStatus(listener: () => void): () => void {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+
+function markUpdateReady(): void {
+  hasWaitingUpdate = true;
+  setStatus("ready");
+}
+
+/** Clic Reload déjà pris en compte : on ignore les clics répétés. */
+let reloadRequested = false;
 /**
  * Clic explicite sur Reload avec bascule SW demandée. Le listener
  * `controllerchange` ci-dessous recharge dès qu'il est armé, sans passer par
@@ -55,29 +101,151 @@ const RELOAD_FALLBACK_MS = 2_000;
  * filet : si aucun `controlling` n'arrive sous `RELOAD_FALLBACK_MS`, on
  * recharge nous-mêmes. Le clic ne reste donc jamais sans effet.
  *
+ * Sans SW en attente, le clic peut simplement précéder la détection du
+ * déploiement : le navigateur ne revérifie `sw.js` qu'à la navigation ou
+ * périodiquement, et le bandeau met quelques secondes à apparaître. Recharger
+ * tout de suite resservirait l'ancien précache — l'utilisateur retombait sur
+ * la même erreur et croyait l'app cassée. On force donc d'abord une
+ * vérification (`checkForUpdate`), on attend la fin du téléchargement du
+ * nouveau build, et seulement ensuite on bascule.
+ *
  * Branché sur les reloads des error boundaries : quand la cause est un
  * déploiement, recharger n'a de sens que si l'on récupère le nouveau build.
  */
 export function applyUpdate(): void {
-  reloadArmed = true;
+  if (reloadRequested) return;
+  reloadRequested = true;
   trackEvent("app_update.reload_click", {
     hadWaitingUpdate: hasWaitingUpdate,
     hasWaitingWorker: swRegistration?.waiting != null,
     hasController: navigator.serviceWorker?.controller != null,
   });
 
-  // Avec un service worker en attente, c'est lui qui recharge la page en
-  // prenant la main (notre listener `controllerchange` ci-dessous recharge dès
-  // qu'il est armé, sans le garde `isUpdate` du plugin). Le filet ci-dessous
-  // garantit le reload même si la bascule n'a pas lieu.
   if (hasWaitingUpdate && updateServiceWorker) {
-    void updateServiceWorker();
-    armReloadFallback("waiting-update");
+    reloadViaWaitingWorker("waiting-update");
     return;
   }
-  // Sans SW en attente — onglet d'une première visite, que rien ne contrôle
-  // encore — il n'y a que le réseau, donc on recharge nous-mêmes.
-  window.location.reload();
+
+  // `force` : le clic doit revérifier même juste après un « rien de neuf » —
+  // le nouveau build a pu être publié entre-temps.
+  void checkForUpdate({ force: true }).then((ready) => {
+    if (ready && updateServiceWorker) {
+      reloadViaWaitingWorker("checked-update");
+      return;
+    }
+    // Rien de neuf côté serveur (ou pas de SW du tout) : le réseau est la
+    // seule source, on recharge nous-mêmes. Pas de statut `reloading` ici :
+    // il annoncerait une mise à jour qui n'existe pas.
+    window.location.reload();
+  });
+}
+
+/**
+ * Bascule vers le SW en attente. Avec lui, c'est notre listener
+ * `controllerchange` qui recharge (sans le garde `isUpdate` du plugin) ; le
+ * filet garantit le reload même si la bascule n'a pas lieu.
+ */
+function reloadViaWaitingWorker(reason: string): void {
+  reloadArmed = true;
+  setStatus("reloading");
+  void updateServiceWorker?.();
+  armReloadFallback(reason);
+}
+
+/**
+ * Évite de marteler `registration.update()` quand plusieurs écrans d'erreur
+ * montent d'affilée : une vérification « rien de neuf » reste valable un
+ * moment.
+ */
+const UPDATE_CHECK_THROTTLE_MS = 10_000;
+/**
+ * Plafond d'attente du téléchargement du nouveau build (précache complet).
+ * Au-delà, on rend la main : le reload repartira du réseau.
+ */
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+
+let inFlightCheck: Promise<boolean> | undefined;
+let lastCheckAt = 0;
+
+/**
+ * Demande tout de suite au navigateur s'il existe un nouveau build, et attend
+ * qu'il soit téléchargé le cas échéant. Renvoie `true` si une bascule est
+ * prête (SW en `waiting`).
+ *
+ * Appelée par les écrans d'erreur dès leur montage : une erreur juste après un
+ * déploiement est très probablement un décalage front/back, et lancer le
+ * téléchargement sans attendre le clic permet d'afficher un message rassurant
+ * (« une mise à jour arrive ») au lieu d'une erreur.
+ */
+export function checkForUpdate({
+  force = false,
+}: { force?: boolean } = {}): Promise<boolean> {
+  if (hasWaitingUpdate) return Promise.resolve(true);
+  if (inFlightCheck) return inFlightCheck;
+  if (
+    !force &&
+    status === "up-to-date" &&
+    Date.now() - lastCheckAt < UPDATE_CHECK_THROTTLE_MS
+  ) {
+    return Promise.resolve(false);
+  }
+  inFlightCheck = runUpdateCheck().finally(() => {
+    inFlightCheck = undefined;
+    lastCheckAt = Date.now();
+  });
+  return inFlightCheck;
+}
+
+async function runUpdateCheck(): Promise<boolean> {
+  if (!("serviceWorker" in navigator)) {
+    setStatus("up-to-date");
+    return false;
+  }
+  setStatus("checking");
+  try {
+    const registration =
+      swRegistration ?? (await navigator.serviceWorker.getRegistration());
+    if (registration) {
+      swRegistration = registration;
+      // `update()` se résout une fois le nouveau SW en `installing` (s'il y
+      // en a un) : on peut alors suivre son téléchargement.
+      if (!registration.waiting && !registration.installing) {
+        await registration.update();
+      }
+      const installing = registration.installing;
+      if (installing) {
+        setStatus("downloading");
+        await waitUntilInstalled(installing);
+      }
+    }
+  } catch (error) {
+    // Hors ligne, SW désactivé, `sw.js` en 404… : on retombe sur un reload
+    // réseau classique.
+    reportError(error, { source: "pwa.checkForUpdate" });
+  }
+  if (swRegistration?.waiting) {
+    markUpdateReady();
+    return true;
+  }
+  setStatus("up-to-date");
+  return false;
+}
+
+/** Attend que le SW quitte `installing` (installé, ou abandonné). */
+function waitUntilInstalled(worker: ServiceWorker): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      worker.removeEventListener("statechange", onStateChange);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const onStateChange = () => {
+      if (worker.state !== "installing") done();
+    };
+    const timer = window.setTimeout(done, DOWNLOAD_TIMEOUT_MS);
+    worker.addEventListener("statechange", onStateChange);
+    onStateChange();
+  });
 }
 
 /** Recharge de force si le SW n'a pas pris la main entre-temps. */
@@ -162,7 +330,7 @@ export function installAppUpdateHandlers(): void {
     reportError(event.payload, { source: "vite:preloadError" });
     void refreshWaitingState().then((waiting) => {
       if (waiting) {
-        hasWaitingUpdate = true;
+        markUpdateReady();
         showUpdateToast(applyUpdate);
       } else {
         dismissUpdateToast();
@@ -183,7 +351,7 @@ async function handleNeedRefresh(): Promise<void> {
   const waiting = await refreshWaitingState();
   const controlledAtBoot = navigator.serviceWorker?.controller != null;
   if (waiting) {
-    hasWaitingUpdate = true;
+    markUpdateReady();
     trackEvent("app_update.update_available", {
       controlledAtBoot,
     });

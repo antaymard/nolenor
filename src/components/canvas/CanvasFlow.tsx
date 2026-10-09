@@ -29,6 +29,7 @@ import { useCanvasDropHandler } from "@/hooks/useCanvasDropHandler";
 import { useFrameDrawTool } from "@/hooks/useFrameDrawTool";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import FrameDrawOverlay from "./FrameDrawOverlay";
+import SnapGuidesOverlay from "./SnapGuidesOverlay";
 import CompactFrameDeleteDialog from "./CompactFrameDeleteDialog";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
@@ -810,6 +811,9 @@ export default function CanvasFlow({
         {isFrameTool && (
           <FrameDrawOverlay rect={frameDrawRect} handlers={frameDrawHandlers} />
         )}
+        {/* Guides d'alignement du drag en cours : sur les nodes, sous les
+            panneaux (cf. le composant). */}
+        <SnapGuidesOverlay />
         {children}
         {contextMenu.type && (
           <ContextMenu

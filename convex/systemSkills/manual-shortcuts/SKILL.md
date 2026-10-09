@@ -41,6 +41,7 @@ hidden: true
 | Wheel / two-finger swipe | Pan |
 | **Mod+scroll** (or trackpad pinch) | Zoom (10 % to 400 %) |
 | **Mod held while dragging a block** | Carries along the blocks it points to |
+| **Shift held while dragging a block or selection** | Alignment guides: snap to the edges, centres and spacing of visible blocks |
 | Double-click a block | Open its window |
 | Double-click a connection | Edit its label |
 | Right-click canvas / block / selection / connection | Context menus |

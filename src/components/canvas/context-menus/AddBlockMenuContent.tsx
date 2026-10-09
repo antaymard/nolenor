@@ -19,8 +19,10 @@ import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 import type {
   ConnectedNodeCreatedInfo,
+  FrameScope,
   PendingCanvasConnection,
 } from "@/types/ui/context-menu.types";
+import type { Node } from "@xyflow/react";
 
 export default function AddBlockMenuContent({
   getCreatePosition,
@@ -28,6 +30,7 @@ export default function AddBlockMenuContent({
   showShortcuts = true,
   pendingConnection,
   onConnectionNodeCreated,
+  parentFrame = null,
 }: {
   getCreatePosition: () => { x: number; y: number };
   onCreated?: () => void;
@@ -37,6 +40,11 @@ export default function AddBlockMenuContent({
   pendingConnection?: PendingCanvasConnection | null;
   /** Appelé après la création du node pour chaîner l'edge en attente. */
   onConnectionNodeCreated?: (info: ConnectedNodeCreatedInfo) => void;
+  /**
+   * La frame où le node doit naître (menu ouvert depuis sa window). Pas de
+   * frame dans une frame : le type disparaît de la liste.
+   */
+  parentFrame?: Pick<FrameScope, "frameId" | "compact"> | null;
 }) {
   const { createNode } = useCreateNode();
   const navigate = useNavigate();
@@ -58,13 +66,32 @@ export default function AddBlockMenuContent({
   // wrapper mesure puis fige la position du menu à ce moment-là.
   const templates = useMyTemplates();
 
+  const insideFrame = parentFrame !== null;
   const creatableNodes = useMemo(
     () =>
-      prebuiltNodesConfig.filter((nodeConfig) =>
-        canNodeTypeBeCreated(nodeConfig.node.type),
+      prebuiltNodesConfig.filter(
+        (nodeConfig) =>
+          canNodeTypeBeCreated(nodeConfig.node.type) &&
+          !(insideFrame && nodeConfig.node.type === "frame"),
       ),
-    [],
+    [insideFrame],
   );
+
+  // Rattache le node à la frame visée. Dans une frame compacte, il naît
+  // masqué sur le canvas comme ses voisins (le serveur le redira au prochain
+  // push, cf. `fromCanvasNodesToXyNodes`) : sans ça, il s'y peindrait le
+  // temps de l'aller-retour, en coordonnées de frame, par-dessus la carte.
+  function inParentFrame(node: Node): Node {
+    if (!parentFrame) return node;
+    return {
+      ...node,
+      parentId: parentFrame.frameId,
+      ...(parentFrame.compact && {
+        hidden: true,
+        data: { ...node.data, hiddenByFrame: true },
+      }),
+    };
+  }
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredNodes = normalizedQuery
@@ -168,7 +195,7 @@ export default function AddBlockMenuContent({
     onCreated?.();
     const position = getCreatePosition();
     const { nodeId, settled } = createNode({
-      node: nodeToCreate,
+      node: inParentFrame(nodeToCreate),
       position,
       autoEdit: true,
     });
@@ -182,7 +209,7 @@ export default function AddBlockMenuContent({
     onCreated?.();
     const position = getCreatePosition();
     const { nodeId, settled } = createNode({
-      node: {
+      node: inParentFrame({
         id: "",
         type: "custom",
         width: template.defaultDimensions.width,
@@ -192,7 +219,7 @@ export default function AddBlockMenuContent({
           color: template.color ?? "default",
           templateId: template._id,
         },
-      },
+      }),
       position,
     });
     chainPendingConnection(nodeId, settled);

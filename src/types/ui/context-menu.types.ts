@@ -6,6 +6,25 @@ export interface ContextMenuState<T = unknown> {
   type: ContextMenuType | null;
   position: { x: number; y: number };
   element: T | null;
+  /**
+   * Menu ouvert depuis la window d'une frame (cf. `FrameWindow`) plutôt que
+   * depuis le canvas : les positions y sont relatives à la frame, et un node
+   * créé naît dedans. Absent = le canvas.
+   */
+  frameScope?: FrameScope | null;
+}
+
+/**
+ * La window d'une frame, vue d'un menu contextuel.
+ *
+ * `flowPosition` : le point cliqué, en coordonnées de la frame — celles de
+ * ses enfants (`parentId`). `compact` : son contenu est masqué sur le canvas,
+ * un node qui y naît doit l'être aussi.
+ */
+export interface FrameScope {
+  frameId: string;
+  compact: boolean;
+  flowPosition: { x: number; y: number };
 }
 
 /**

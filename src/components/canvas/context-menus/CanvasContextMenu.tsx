@@ -11,6 +11,7 @@ import { useCanvasStore } from "@/stores/canvasStore";
 import {
   isPendingCanvasConnectionElement,
   type ConnectedNodeCreatedInfo,
+  type FrameScope,
   type PendingCanvasConnection,
 } from "@/types/ui/context-menu.types";
 
@@ -19,12 +20,18 @@ export default function ContextMenu({
   position,
   element,
   onConnectionNodeCreated,
+  frameScope = null,
 }: {
   closeMenu: () => void;
   position: { x: number; y: number };
   /** Connexion en attente quand le menu naît d'un drag lâché dans le vide. */
   element?: PendingCanvasConnection | null;
   onConnectionNodeCreated?: (info: ConnectedNodeCreatedInfo) => void;
+  /**
+   * Ouvert depuis la window d'une frame : le node naît dans la frame, au
+   * point cliqué — déjà converti en coordonnées de la frame par la window.
+   */
+  frameScope?: FrameScope | null;
 }) {
   const { x: canvasX, y: canvasY, zoom: canvasZoom } = useViewport();
   const captureFraming = useCaptureFraming();
@@ -38,11 +45,14 @@ export default function ContextMenu({
     element && isPendingCanvasConnectionElement(element) ? element : null;
 
   // Drag dans le vide : le node naît pile dessous, au point de drop. Sinon
-  // (clic droit) : conversion écran → flow du point de clic.
-  const newNodePosition = pendingConnection?.dropFlowPosition ?? {
-    x: (-canvasX + position.x) / canvasZoom,
-    y: (-canvasY + position.y) / canvasZoom,
-  };
+  // (clic droit) : conversion écran → flow du point de clic — faite par la
+  // window quand le menu vient d'une frame, le viewport du canvas n'ayant
+  // rien à voir avec le sien.
+  const newNodePosition = pendingConnection?.dropFlowPosition ??
+    frameScope?.flowPosition ?? {
+      x: (-canvasX + position.x) / canvasZoom,
+      y: (-canvasY + position.y) / canvasZoom,
+    };
 
   return (
     <>
@@ -51,6 +61,7 @@ export default function ContextMenu({
         onCreated={closeMenu}
         pendingConnection={pendingConnection}
         onConnectionNodeCreated={onConnectionNodeCreated}
+        parentFrame={frameScope}
       />
 
       {/* Repère de cadrage. Masqué quand le menu naît d'un drag d'edge lâché
@@ -66,7 +77,7 @@ export default function ContextMenu({
           Créé sans nom, comme les autres : le panneau l'affiche « Position »
           et on le renomme depuis lui. Pas de dialogue de nommage — il vivrait
           dans ce menu, démonté dès le clic, et mourrait avec lui. */}
-      {canBookmark && !pendingConnection && (
+      {canBookmark && !pendingConnection && !frameScope && (
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem

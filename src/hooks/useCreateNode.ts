@@ -97,9 +97,12 @@ export function useCreateNode() {
       color,
       variant,
       displayOptions,
+      // Dérivé au rendu (frame compacte), jamais écrit — cf. `frameVariant`.
+      hiddenByFrame: _ignoredHiddenByFrame,
       ...restData
     } = (node.data ?? {}) as {
       nodeDataId?: Id<"nodeDatas">;
+      hiddenByFrame?: boolean;
       color?: colorsEnum;
       variant?: string;
       displayOptions?: NodeDisplayOptions;

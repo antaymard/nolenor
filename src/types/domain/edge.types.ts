@@ -28,5 +28,7 @@ export interface EdgeCustomData {
   bendPoints?: EdgeBendPoint[];
   markerStart?: EdgeMarker;
   markerEnd?: EdgeMarker;
+  /** Rendu seul, jamais persisté : poignées de courbure désactivées (cf. `FrameWindow`). */
+  bendPointsLocked?: boolean;
   [key: string]: unknown;
 }

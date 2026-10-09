@@ -412,13 +412,8 @@ function FrameNode(xyNode: XyNodeProps) {
 
   return (
     <>
-      {/* Sous la frame et non au-dessus, à l'inverse des autres nodes : son
-          bord haut porte déjà le titre. Sans titre, ce bord est libre : la
-          toolbar y reprend sa place habituelle. */}
-      <CanvasNodeToolbar
-        xyNode={xyNode}
-        position={showTitle ? Position.Bottom : Position.Top}
-      >
+      {/* Au-dessus, comme les autres nodes. */}
+      <CanvasNodeToolbar xyNode={xyNode} position={Position.Top}>
         {renameButton}
         <NodeToolbarLabel>Title size</NodeToolbarLabel>
         <ToggleGroup

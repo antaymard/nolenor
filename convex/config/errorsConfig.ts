@@ -32,6 +32,16 @@ const errors = {
   INSUFFICIENT_PERMISSIONS:
     "You do not have the required permission for this action.",
   THREAD_NOT_FOUND_OR_FORBIDDEN: "Thread not found or access denied.",
+  RECIPE_NOT_FOUND: "This recipe does not exist.",
+  RECIPE_NAME_REQUIRED: "Recipe name is required.",
+  RECIPE_INSTRUCTIONS_REQUIRED: "Recipe instructions are required.",
+  RECIPE_TOO_MANY_TRIGGERS: "A recipe can have at most 5 triggers.",
+  RECIPE_TOO_MANY_SCHEDULED:
+    "You have reached the maximum number of active scheduled recipes. Disable one before enabling another.",
+  RECIPE_NOT_LAUNCHABLE:
+    "This recipe cannot be launched: it is disabled, or only its owner can run it.",
+  RECIPE_ALREADY_RUNNING:
+    "This recipe is already running. Wait for the current run to finish.",
   TEMPLATE_NOT_FOUND: "This node template does not exist.",
   TOKEN_NOT_FOUND: "This API token does not exist.",
   TOKEN_NAME_REQUIRED: "Token name is required.",

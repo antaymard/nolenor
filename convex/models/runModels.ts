@@ -70,6 +70,29 @@ export async function createRun(
   });
 }
 
+/** Rattache un run à la recipe qui l'a lancé (cf. recipeModels). */
+export async function setRunRecipe(
+  ctx: MutationCtx,
+  runMessageId: string,
+  recipeId: Id<"recipes">,
+): Promise<void> {
+  const run = await findByRunMessageId(ctx, runMessageId);
+  if (run) await ctx.db.patch("runs", run._id, { recipeId });
+}
+
+/** Le dernier run d'une recipe, s'il n'est pas terminé. */
+export async function findActiveRecipeRun(
+  ctx: QueryCtx | MutationCtx,
+  recipeId: Id<"recipes">,
+): Promise<Run | null> {
+  const latest = await ctx.db
+    .query("runs")
+    .withIndex("by_recipeId", (q) => q.eq("recipeId", recipeId))
+    .order("desc")
+    .first();
+  return latest && latest.endedAt === undefined ? latest : null;
+}
+
 /** `running` ↔ `waiting` (question posée, puis répondue). */
 export async function setRunStatus(
   ctx: MutationCtx,

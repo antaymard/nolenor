@@ -37,6 +37,8 @@ const runsValidator = v.object({
   // Les nodes écrits PENDANT ce run, pas ceux de tout le thread.
   touchedNodes: v.optional(v.array(threadNodeTouchValidator)),
   reviewedAt: v.optional(v.number()),
+  // Le run a été lancé par une recipe (cf. models/recipeModels.ts).
+  recipeId: v.optional(v.id("recipes")),
 
   // ── Issue, une fois le run fini (cf. ia/taskOutcome.ts) ──
   // La réponse finale, telle que la carte peut la montrer sans ouvrir le

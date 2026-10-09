@@ -25,7 +25,7 @@ function RouteComponent() {
     isPending,
     isError,
     isSuccess,
-  } = useRichQuery(api.recipes.listUserRecipes);
+  } = useRichQuery(api.recipes.list);
   const navigate = useNavigate();
 
   if (isPending) return <div>Loading...</div>;

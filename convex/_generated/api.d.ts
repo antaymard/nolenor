@@ -148,6 +148,7 @@ import type * as lib_presenceIds from "../lib/presenceIds.js";
 import type * as lib_r2 from "../lib/r2.js";
 import type * as lib_r2Keys from "../lib/r2Keys.js";
 import type * as lib_rateLimits from "../lib/rateLimits.js";
+import type * as lib_recipeSchedule from "../lib/recipeSchedule.js";
 import type * as lib_reciprocalRankFusion from "../lib/reciprocalRankFusion.js";
 import type * as lib_searchQuery from "../lib/searchQuery.js";
 import type * as lib_searchScoring from "../lib/searchScoring.js";
@@ -189,6 +190,7 @@ import type * as models_nodeDataVersionModels from "../models/nodeDataVersionMod
 import type * as models_nodeModels from "../models/nodeModels.js";
 import type * as models_nodeTemplateModels from "../models/nodeTemplateModels.js";
 import type * as models_r2ObjectModels from "../models/r2ObjectModels.js";
+import type * as models_recipeModels from "../models/recipeModels.js";
 import type * as models_runModels from "../models/runModels.js";
 import type * as models_searchableChunkModels from "../models/searchableChunkModels.js";
 import type * as models_skillModels from "../models/skillModels.js";
@@ -408,6 +410,7 @@ declare const fullApi: ApiFromModules<{
   "lib/r2": typeof lib_r2;
   "lib/r2Keys": typeof lib_r2Keys;
   "lib/rateLimits": typeof lib_rateLimits;
+  "lib/recipeSchedule": typeof lib_recipeSchedule;
   "lib/reciprocalRankFusion": typeof lib_reciprocalRankFusion;
   "lib/searchQuery": typeof lib_searchQuery;
   "lib/searchScoring": typeof lib_searchScoring;
@@ -449,6 +452,7 @@ declare const fullApi: ApiFromModules<{
   "models/nodeModels": typeof models_nodeModels;
   "models/nodeTemplateModels": typeof models_nodeTemplateModels;
   "models/r2ObjectModels": typeof models_r2ObjectModels;
+  "models/recipeModels": typeof models_recipeModels;
   "models/runModels": typeof models_runModels;
   "models/searchableChunkModels": typeof models_searchableChunkModels;
   "models/skillModels": typeof models_skillModels;

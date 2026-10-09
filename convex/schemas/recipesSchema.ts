@@ -46,7 +46,20 @@ const vRecipeSchedule = v.union(
 // propriétaire peut toujours la lancer depuis les réglages.
 const vRecipeManualTrigger = v.object({ kind: v.literal("manual") });
 
-const vRecipeTrigger = v.union(vRecipeManualTrigger, vRecipeSchedule);
+// Un seul lancement, à un instant précis (« rappelle-moi demain à 14 h »).
+// Une fois passé, le déclencheur reste mais ne compte plus : la recipe n'est
+// pas désactivée, pour que ses autres déclencheurs continuent de marcher.
+const vRecipeOnceTrigger = v.object({
+  kind: v.literal("once"),
+  // Instant UTC, en ms.
+  at: v.number(),
+});
+
+const vRecipeTrigger = v.union(
+  vRecipeManualTrigger,
+  vRecipeSchedule,
+  vRecipeOnceTrigger,
+);
 
 const recipesValidator = v.object({
   // Le propriétaire : une routine tourne en son nom.
@@ -59,7 +72,8 @@ const recipesValidator = v.object({
   triggers: v.array(vRecipeTrigger),
   enabled: v.boolean(),
   // Prochain lancement planifié. Présent seulement pour une recipe active qui
-  // a au moins un créneau : c'est ce que lit le cron (index `by_nextRunAt`).
+  // a un lancement à venir (créneau, ou `once` futur) : c'est ce que lit le
+  // cron (index `by_nextRunAt`).
   nextRunAt: v.optional(v.number()),
   lastRunAt: v.optional(v.number()),
   updatedAt: v.number(),

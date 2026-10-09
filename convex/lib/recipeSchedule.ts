@@ -148,22 +148,26 @@ export function nextOccurrence(
   throw new Error("Schedule has no occurrence");
 }
 
-/** Le prochain lancement, tous créneaux confondus ; `undefined` sans créneau. */
+/**
+ * Le prochain lancement strictement après `after`, tous déclencheurs
+ * confondus ; `undefined` s'il n'y en a plus (manuel seulement, ou `once`
+ * déjà passés).
+ */
 export function nextRunAt(
   triggers: readonly RecipeTrigger[],
   after: number,
 ): number | undefined {
   let next: number | undefined;
   for (const trigger of triggers) {
-    if (trigger.kind !== "schedule") continue;
-    const at = nextOccurrence(trigger, after);
-    if (next === undefined || at < next) next = at;
+    const at =
+      trigger.kind === "schedule"
+        ? nextOccurrence(trigger, after)
+        : trigger.kind === "once" && trigger.at > after
+          ? trigger.at
+          : undefined;
+    if (at !== undefined && (next === undefined || at < next)) next = at;
   }
   return next;
-}
-
-export function hasSchedule(triggers: readonly RecipeTrigger[]): boolean {
-  return triggers.some((trigger) => trigger.kind === "schedule");
 }
 
 /**

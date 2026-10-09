@@ -144,6 +144,33 @@ describe("nextRunAt", () => {
     ).toBe("2026-10-09T06:00:00.000Z");
   });
 
+  test("a future once trigger counts, a past one does not", () => {
+    const after = Date.parse("2026-10-09T05:00:00Z");
+    const daily = {
+      kind: "schedule",
+      every: "day",
+      at: "18:00",
+      timezone: "UTC",
+    } as const;
+    const soon = {
+      kind: "once",
+      at: Date.parse("2026-10-09T06:30:00Z"),
+    } as const;
+    const past = {
+      kind: "once",
+      at: Date.parse("2026-10-09T04:00:00Z"),
+    } as const;
+    expect(iso(nextRunAt([daily, soon], after)!)).toBe(
+      "2026-10-09T06:30:00.000Z",
+    );
+    expect(iso(nextRunAt([daily, past], after)!)).toBe(
+      "2026-10-09T18:00:00.000Z",
+    );
+    expect(nextRunAt([past], after)).toBeUndefined();
+    // Strictement après : un `once` qui tombe pile maintenant est consommé.
+    expect(nextRunAt([soon], soon.at)).toBeUndefined();
+  });
+
   test("no schedule, no next run", () => {
     expect(nextRunAt([{ kind: "manual" }], Date.now())).toBeUndefined();
   });

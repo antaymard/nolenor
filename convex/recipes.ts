@@ -67,12 +67,12 @@ export const create = mutation({
   returns: v.id("recipes"),
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
-    const fields = RecipeModels.normalizeFields(args);
+    const now = Date.now();
+    const fields = RecipeModels.normalizeFields(args, now);
     // Le propriétaire doit pouvoir lancer sa recipe là où elle vise.
     await requireCanvasAccess(ctx, fields.canvasId, userId, "editor");
-    await RecipeModels.assertScheduledQuota(ctx, userId, fields);
+    await RecipeModels.assertScheduledQuota(ctx, userId, fields, now);
 
-    const now = Date.now();
     return ctx.db.insert("recipes", {
       ...fields,
       userId,
@@ -87,15 +87,17 @@ export const update = mutation({
   returns: v.null(),
   handler: async (ctx, { recipeId, ...args }) => {
     const userId = await requireAuth(ctx);
-    await requireOwnRecipe(ctx, recipeId, userId);
-    const fields = RecipeModels.normalizeFields(args);
-    await requireCanvasAccess(ctx, fields.canvasId, userId, "editor");
-    await RecipeModels.assertScheduledQuota(ctx, userId, {
-      recipeId,
-      ...fields,
-    });
-
+    const recipe = await requireOwnRecipe(ctx, recipeId, userId);
     const now = Date.now();
+    const fields = RecipeModels.normalizeFields(args, now, recipe.triggers);
+    await requireCanvasAccess(ctx, fields.canvasId, userId, "editor");
+    await RecipeModels.assertScheduledQuota(
+      ctx,
+      userId,
+      { recipeId, ...fields },
+      now,
+    );
+
     await ctx.db.patch("recipes", recipeId, {
       ...fields,
       nextRunAt: RecipeModels.computeNextRunAt(fields, now),
@@ -111,13 +113,14 @@ export const setEnabled = mutation({
   handler: async (ctx, { recipeId, enabled }) => {
     const userId = await requireAuth(ctx);
     const recipe = await requireOwnRecipe(ctx, recipeId, userId);
-    await RecipeModels.assertScheduledQuota(ctx, userId, {
-      recipeId,
-      enabled,
-      triggers: recipe.triggers,
-    });
-
     const now = Date.now();
+    await RecipeModels.assertScheduledQuota(
+      ctx,
+      userId,
+      { recipeId, enabled, triggers: recipe.triggers },
+      now,
+    );
+
     await ctx.db.patch("recipes", recipeId, {
       enabled,
       nextRunAt: RecipeModels.computeNextRunAt(

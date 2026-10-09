@@ -216,6 +216,91 @@ describe("create / update", () => {
   });
 });
 
+describe("once", () => {
+  const IN_TWO_HOURS = NOW + 2 * 60 * 60 * 1000;
+
+  test("a one-time run must be in the future, and within a year", async () => {
+    const t = setup();
+    const { owner, canvasId } = await seed(t);
+    await expect(
+      as(t, owner).mutation(
+        api.recipes.create,
+        fields(canvasId, { triggers: [{ kind: "once", at: NOW - 1 }] }),
+      ),
+    ).rejects.toThrow(errors.RECIPE_ONCE_IN_PAST);
+    await expect(
+      as(t, owner).mutation(
+        api.recipes.create,
+        fields(canvasId, {
+          triggers: [{ kind: "once", at: NOW + 400 * 24 * 60 * 60 * 1000 }],
+        }),
+      ),
+    ).rejects.toThrow(errors.RECIPE_ONCE_TOO_FAR);
+  });
+
+  test("fires once, then leaves the cron; the recipe stays editable", async () => {
+    const t = setup();
+    const { owner, canvasId } = await seed(t);
+    const recipeId = await as(t, owner).mutation(
+      api.recipes.create,
+      fields(canvasId, { triggers: [{ kind: "once", at: IN_TWO_HOURS }] }),
+    );
+    expect(
+      (await as(t, owner).query(api.recipes.get, { recipeId })).nextRunAt,
+    ).toBe(IN_TWO_HOURS);
+
+    vi.setSystemTime(IN_TWO_HOURS + 60_000);
+    await t.mutation(internal.recipes.runDue, {});
+    const fired = await as(t, owner).query(api.recipes.get, { recipeId });
+    expect(fired.nextRunAt).toBeUndefined();
+    // Toujours active : un déclencheur manuel ajouté plus tard marchera.
+    expect(fired.enabled).toBe(true);
+
+    // Le formulaire renvoie le `once` passé tel quel : accepté.
+    await as(t, owner).mutation(api.recipes.update, {
+      recipeId,
+      ...fields(canvasId, {
+        name: "Renamed",
+        triggers: [{ kind: "once", at: IN_TWO_HOURS }],
+      }),
+    });
+    expect((await as(t, owner).query(api.recipes.get, { recipeId })).name).toBe(
+      "Renamed",
+    );
+  });
+
+  test("a past one-time run no longer counts against the cap", async () => {
+    const t = setup();
+    const { owner, canvasId } = await seed(t);
+    const once = await as(t, owner).mutation(
+      api.recipes.create,
+      fields(canvasId, { triggers: [{ kind: "once", at: IN_TWO_HOURS }] }),
+    );
+    for (let i = 0; i < MAX_SCHEDULED_RECIPES - 1; i++) {
+      await as(t, owner).mutation(
+        api.recipes.create,
+        fields(canvasId, { triggers: [DAILY_9H] }),
+      );
+    }
+    await expect(
+      as(t, owner).mutation(
+        api.recipes.create,
+        fields(canvasId, { triggers: [DAILY_9H] }),
+      ),
+    ).rejects.toThrow(errors.RECIPE_TOO_MANY_SCHEDULED);
+
+    vi.setSystemTime(IN_TWO_HOURS + 60_000);
+    await t.mutation(internal.recipes.runDue, {});
+    expect(
+      (await as(t, owner).query(api.recipes.get, { recipeId: once })).nextRunAt,
+    ).toBeUndefined();
+    await as(t, owner).mutation(
+      api.recipes.create,
+      fields(canvasId, { triggers: [DAILY_9H] }),
+    );
+  });
+});
+
 describe("launch", () => {
   test("opens a Nolë run on a new thread, attached to the recipe", async () => {
     const t = setup();

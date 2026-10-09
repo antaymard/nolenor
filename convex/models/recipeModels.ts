@@ -12,7 +12,7 @@ import {
 } from "../ia/profiles/nole";
 import { requireCanvasAccess } from "../lib/auth";
 import { enforceRateLimit } from "../lib/rateLimits";
-import { hasSchedule, nextRunAt, scheduleError } from "../lib/recipeSchedule";
+import { nextRunAt, scheduleError } from "../lib/recipeSchedule";
 import type { RecipeTrigger } from "../schemas/recipesSchema";
 import { threadAgentNames } from "../schemas/threadMetadataSchema";
 import * as RunModels from "./runModels";
@@ -27,6 +27,7 @@ type Recipe = Doc<"recipes">;
 /** Recipes planifiées actives par utilisateur. */
 export const MAX_SCHEDULED_RECIPES = 10;
 const MAX_TRIGGERS = 5;
+const MAX_ONCE_AHEAD_MS = 366 * 24 * 60 * 60 * 1000;
 /** Borne de lecture des recipes d'un utilisateur. */
 export const MAX_RECIPES_PER_USER = 200;
 
@@ -38,8 +39,18 @@ export type RecipeFields = {
   enabled: boolean;
 };
 
-/** Nettoie et vérifie les champs saisis ; throw une erreur lisible sinon. */
-export function normalizeFields(fields: RecipeFields): RecipeFields {
+/**
+ * Nettoie et vérifie les champs saisis ; throw une erreur lisible sinon.
+ *
+ * Un `once` doit tomber dans le futur — sauf s'il figurait déjà dans la
+ * recipe (`existing`) : le formulaire renvoie tels quels les déclencheurs
+ * déjà passés, et ils ne doivent pas bloquer l'enregistrement.
+ */
+export function normalizeFields(
+  fields: RecipeFields,
+  now: number,
+  existing: readonly RecipeTrigger[] = [],
+): RecipeFields {
   const name = fields.name.trim();
   const instructions = fields.instructions.trim();
   if (!name) throw new ConvexError(errors.RECIPE_NAME_REQUIRED);
@@ -48,9 +59,20 @@ export function normalizeFields(fields: RecipeFields): RecipeFields {
     throw new ConvexError(errors.RECIPE_TOO_MANY_TRIGGERS);
   }
   for (const trigger of fields.triggers) {
-    if (trigger.kind !== "schedule") continue;
-    const error = scheduleError(trigger);
-    if (error) throw new ConvexError(error);
+    if (trigger.kind === "schedule") {
+      const error = scheduleError(trigger);
+      if (error) throw new ConvexError(error);
+    } else if (trigger.kind === "once") {
+      const kept = existing.some(
+        (t) => t.kind === "once" && t.at === trigger.at,
+      );
+      if (trigger.at <= now && !kept) {
+        throw new ConvexError(errors.RECIPE_ONCE_IN_PAST);
+      }
+      if (trigger.at > now + MAX_ONCE_AHEAD_MS) {
+        throw new ConvexError(errors.RECIPE_ONCE_TOO_FAR);
+      }
+    }
   }
   return { ...fields, name, instructions };
 }
@@ -74,8 +96,10 @@ export async function listByUser(
 }
 
 /**
- * Plafond des routines : une recipe qui devient active et planifiée ne doit
- * pas faire dépasser `MAX_SCHEDULED_RECIPES` à son propriétaire.
+ * Plafond des routines : une recipe qui aura un prochain lancement planifié
+ * ne doit pas faire dépasser `MAX_SCHEDULED_RECIPES` à son propriétaire. Une
+ * recipe compte tant qu'elle a un lancement à venir (`nextRunAt`) : un `once`
+ * passé ne compte plus.
  */
 export async function assertScheduledQuota(
   ctx: MutationCtx,
@@ -85,13 +109,12 @@ export async function assertScheduledQuota(
     enabled: boolean;
     triggers: RecipeTrigger[];
   },
+  now: number,
 ): Promise<void> {
-  if (!candidate.enabled || !hasSchedule(candidate.triggers)) return;
+  if (computeNextRunAt(candidate, now) === undefined) return;
   const others = (await listByUser(ctx, userId)).filter(
     (recipe) =>
-      recipe._id !== candidate.recipeId &&
-      recipe.enabled &&
-      hasSchedule(recipe.triggers),
+      recipe._id !== candidate.recipeId && recipe.nextRunAt !== undefined,
   );
   if (others.length >= MAX_SCHEDULED_RECIPES) {
     throw new ConvexError(errors.RECIPE_TOO_MANY_SCHEDULED);

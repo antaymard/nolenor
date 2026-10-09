@@ -108,13 +108,16 @@ function NodeOverlayInner({ window: openedWindow }: { window: OpenedWindow }) {
    * donc aucune d'elles ne porte de brouillon à perdre.
    */
   const navigateToNode = useCallback(() => {
-    goToNode(xyNodeId);
     shell?.setActiveTab("canvas");
     const visibleIds = useWindowsStore
       .getState()
       .openedWindows.filter((w) => w.windowState !== "minimized")
       .map((w) => w.xyNodeId);
     closeWindowsForNodeIds(visibleIds);
+    // Après la fermeture : un node caché dans une frame compacte s'atteint
+    // par la window de la frame (cf. `useGoToNode`), qui ne doit pas partir
+    // avec les autres.
+    goToNode(xyNodeId);
   }, [goToNode, shell, xyNodeId, closeWindowsForNodeIds]);
 
   const runPendingExit = useCallback(

@@ -44,9 +44,24 @@ export function useGoToBookmark(): (target: BookmarkTarget) => boolean {
 
       // Sélection : les ids disparus sont filtrés plutôt que fatals — perdre un
       // node sur cinq ne doit pas invalider le repère, juste le rétrécir.
-      const liveIds = new Set(getNodes().map((node) => node.id));
-      const targets = target.nodeIds.filter((nodeId) => liveIds.has(nodeId));
-      if (targets.length === 0) return false;
+      const liveNodes = new Map(getNodes().map((node) => [node.id, node]));
+      const liveTargets = target.nodeIds.filter((nodeId) =>
+        liveNodes.has(nodeId),
+      );
+      if (liveTargets.length === 0) return false;
+      // Un node caché par une frame compacte ne se cadre pas (`fitView`
+      // ignore les nodes masqués) et ne doit pas être sélectionné à
+      // l'aveugle : c'est la carte de sa frame qu'on vise à sa place.
+      const targets = [
+        ...new Set(
+          liveTargets.map((nodeId) => {
+            const node = liveNodes.get(nodeId);
+            return node?.data?.hiddenByFrame === true && node.parentId
+              ? node.parentId
+              : nodeId;
+          }),
+        ),
+      ];
 
       const targetSet = new Set(targets);
       setNodes((nodes) =>

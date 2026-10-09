@@ -1,4 +1,11 @@
-import { useCallback, useMemo, useRef, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import {
   Background,
   BackgroundVariant,
@@ -6,6 +13,7 @@ import {
   PanOnScrollMode,
   ReactFlow,
   ReactFlowProvider,
+  useNodesInitialized,
   useReactFlow,
   useStore,
   useStoreApi,
@@ -32,6 +40,7 @@ import { FRAME_FIT_PADDING } from "@/lib/frameFit";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useContextMenuStore } from "@/stores/contextMenuStore";
 import { useEdgeEditorStore } from "@/stores/edgeEditorStore";
+import { useFrameWindowFocusStore } from "@/stores/frameWindowFocusStore";
 import type { EdgeCustomData } from "@/types/domain";
 import type {
   FrameScope,
@@ -426,8 +435,31 @@ function FrameFlow({
     pendingConnection?: PendingCanvasConnection | null,
   ) => void;
 }) {
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // « Aller au node » d'un enfant caché par la frame compacte : le canvas
+  // ouvre cette window et nous passe le node à cadrer (cf. `useGoToNode`).
+  // Ouverte pour ça, la window saute son cadrage d'ensemble : il partirait
+  // après le nôtre et le défairait.
+  const focusRequest = useFrameWindowFocusStore((state) =>
+    state.request?.frameId === frameId ? state.request : null,
+  );
+  const [openedForFocus] = useState(
+    () => useFrameWindowFocusStore.getState().request?.frameId === frameId,
+  );
+  const nodesInitialized = useNodesInitialized();
+  useEffect(() => {
+    if (!focusRequest || !nodesInitialized) return;
+    if (!nodes.some((node) => node.id === focusRequest.nodeId)) return;
+    void fitView({
+      nodes: [{ id: focusRequest.nodeId }],
+      duration: 300,
+      minZoom: 0.5,
+      maxZoom: 1,
+    });
+    useFrameWindowFocusStore.getState().consume(focusRequest);
+  }, [fitView, focusRequest, nodes, nodesInitialized]);
 
   const onPaneContextMenu = useCallback(
     (event: MouseEvent | globalThis.MouseEvent) => {
@@ -496,7 +528,7 @@ function FrameFlow({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}
-        fitView
+        fitView={!openedForFocus}
         fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={CANVAS_MIN_ZOOM}
         maxZoom={CANVAS_MAX_ZOOM}

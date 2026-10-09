@@ -9,6 +9,7 @@ import {
   useReactFlow,
   useStore,
   useStoreApi,
+  ViewportPortal,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -26,6 +27,8 @@ import { isCompactXyFrame } from "@/lib/frameVariant";
 import { colors, resolveColor } from "@/components/ui/styles";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { useCreateEdge } from "@/hooks/useCreateEdge";
+import { useFitFrameOnNewChildren, useFrameFit } from "@/hooks/useFrameFit";
+import { FRAME_FIT_PADDING } from "@/lib/frameFit";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useContextMenuStore } from "@/stores/contextMenuStore";
 import { useEdgeEditorStore } from "@/stores/edgeEditorStore";
@@ -75,6 +78,10 @@ type XY = { x: number; y: number };
  *
  * Les positions de cette vue SONT celles des enfants de la frame (relatives à
  * elle) : rien à convertir dans un sens comme dans l'autre.
+ *
+ * Les bords de la frame sont tracés dans la vue. Un node lâché au-delà ne
+ * sort pas de la frame : elle s'agrandit pour le contenir (cf.
+ * `useFrameFit`), dans le même Ctrl+Z que le geste.
  */
 export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
   const canEdit = useCanvasStore(
@@ -121,6 +128,9 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
     [children],
   );
   const flowNodes = useMemo(() => children.map(toStandaloneNode), [children]);
+
+  const { frameSize, fitFrame, fitAfterGesture } = useFrameFit(xyNodeId);
+  useFitFrameOnNewChildren(childIds, fitFrame, canEdit);
   const flowEdges = useMemo(
     () =>
       injectMarkerColor(
@@ -196,10 +206,31 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
       }
       if (forwarded.length > 0) {
         canvasStore.getState().triggerNodeChanges(forwarded);
+        // Fin d'un redimensionnement : le node a pu grandir hors de la frame.
+        if (
+          forwarded.some(
+            (change) =>
+              change.type === "dimensions" && change.resizing === false,
+          )
+        ) {
+          fitAfterGesture();
+        }
       }
       if (nodeSelection.size > 0) applySelection(nodeSelection, new Map());
     },
-    [applySelection, canEdit, canvasStore],
+    [applySelection, canEdit, canvasStore, fitAfterGesture],
+  );
+
+  // Relâcher d'un drag : le canvas a déjà écrit les positions (rejouées
+  // ci-dessus) ; reste à agrandir la frame si un node en est sorti.
+  const onNodeDragStop = useCallback(
+    (_event: MouseEvent, _node: Node, nodes: Node[]) => {
+      if (!canEdit) return;
+      fitAfterGesture(
+        new Map(nodes.map((node) => [node.id, { ...node.position }])),
+      );
+    },
+    [canEdit, fitAfterGesture],
   );
 
   const onEdgesChange = useCallback(
@@ -295,11 +326,26 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
       pendingConnection: PendingCanvasConnection | null = null,
     ) => {
       if (!canEdit) return;
+      // Un node ne naît pas au-delà du bord gauche ou haut : la frame ne
+      // sait grandir vers là qu'en décalant son contenu, ce qu'un node pas
+      // encore confirmé par le serveur ne permet pas (cf. `useFrameFit`). À
+      // droite et en bas, elle s'agrandit pour lui.
+      const inside = {
+        x: Math.max(flowPosition.x, FRAME_FIT_PADDING / 2),
+        y: Math.max(flowPosition.y, FRAME_FIT_PADDING / 2),
+      };
       setContextMenu({
         type: "canvas",
         position: screen,
-        element: pendingConnection,
-        frameScope: { frameId: xyNodeId, compact: isCompact, flowPosition },
+        element: pendingConnection && {
+          ...pendingConnection,
+          dropFlowPosition: inside,
+        },
+        frameScope: {
+          frameId: xyNodeId,
+          compact: isCompact,
+          flowPosition: inside,
+        },
       });
     },
     [canEdit, isCompact, setContextMenu, xyNodeId],
@@ -315,8 +361,10 @@ export default function FrameWindow({ xyNodeId }: { xyNodeId: string }) {
         patternColor={palette.hex}
         nodes={flowNodes}
         edges={flowEdges}
+        frameSize={frameSize}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         onNodeContextMenu={handleNodeContextMenu}
@@ -340,8 +388,10 @@ function FrameFlow({
   patternColor,
   nodes,
   edges,
+  frameSize,
   onNodesChange,
   onEdgesChange,
+  onNodeDragStop,
   onConnect,
   isValidConnection,
   onNodeContextMenu,
@@ -358,6 +408,9 @@ function FrameFlow({
   edges: Edge[];
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
+  /** Taille stockée de la frame (dépliée), pour tracer ses bords. */
+  frameSize: { width: number; height: number } | null;
+  onNodeDragStop: (event: MouseEvent, node: Node, nodes: Node[]) => void;
   onConnect: (connection: Connection) => void;
   isValidConnection: (connection: Connection | Edge) => boolean;
   onNodeContextMenu: (event: MouseEvent, node: Node) => void;
@@ -442,6 +495,7 @@ function FrameFlow({
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStop={onNodeDragStop}
         fitView
         fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={CANVAS_MIN_ZOOM}
@@ -482,6 +536,23 @@ function FrameFlow({
           size={1}
           color={patternColor}
         />
+        {/* Les bords de la frame, dans son repère : (0, 0) est son coin
+            haut-gauche. Un simple trait, sans fond — le portail se peint
+            par-dessus les nodes. */}
+        {frameSize && (
+          <ViewportPortal>
+            <div
+              className="pointer-events-none absolute rounded-lg border-2 border-dashed"
+              style={{
+                left: 0,
+                top: 0,
+                width: frameSize.width,
+                height: frameSize.height,
+                borderColor: patternColor,
+              }}
+            />
+          </ViewportPortal>
+        )}
       </ReactFlow>
       {nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">

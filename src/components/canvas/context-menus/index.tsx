@@ -29,7 +29,7 @@ export default function ContextMenuWrapper({
   /** Chaîne l'edge quand le node naît d'un drag lâché dans le vide. */
   onConnectionNodeCreated?: (info: ConnectedNodeCreatedInfo) => void;
 }) {
-  const { type, position, element } = contextMenu;
+  const { type, position, element, frameScope } = contextMenu;
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   const hasAdjustedRef = useRef(false);
 
@@ -90,6 +90,7 @@ export default function ContextMenuWrapper({
               isPendingCanvasConnectionElement(element) ? element : null
             }
             onConnectionNodeCreated={onConnectionNodeCreated}
+            frameScope={frameScope ?? null}
           />
         );
       case "node":
@@ -106,6 +107,7 @@ export default function ContextMenuWrapper({
             closeMenu={handleClose}
             position={position}
             xyEdge={element as Edge}
+            frameScope={frameScope ?? null}
           />
         );
       case "selection":

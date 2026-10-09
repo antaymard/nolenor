@@ -371,7 +371,10 @@ function EdgeOverlay({
         )
       )}
 
-      {selected && bendPoints.length > 0 && (
+      {/* `bendPointsLocked` : vue dérivée (window d'une frame), où les points
+          sont décalés pour l'affichage — un drag y persisterait ces
+          coordonnées-là, pas celles du canvas. */}
+      {selected && bendPoints.length > 0 && !edgeData.bendPointsLocked && (
         <>
           {bendPoints.map((bp) => (
             <EdgeBendHandle

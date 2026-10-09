@@ -16,6 +16,7 @@ import {
   TbTrash,
   TbWaveSine,
 } from "react-icons/tb";
+import type { FrameScope } from "@/types/ui/context-menu.types";
 import type {
   EdgeCustomData,
   EdgeStrokeStyle,
@@ -52,10 +53,13 @@ export default function EdgeContextMenu({
   closeMenu,
   xyEdge,
   position,
+  frameScope = null,
 }: {
   closeMenu: () => void;
   xyEdge: Edge;
   position: { x: number; y: number };
+  /** Ouvert depuis la window d'une frame (cf. `FrameWindow`). */
+  frameScope?: FrameScope | null;
 }) {
   const { screenToFlowPosition } = useReactFlow();
   const { deleteCanvasElements } = useDeleteCanvasElements();
@@ -197,7 +201,10 @@ export default function EdgeContextMenu({
       <DropdownMenuSeparator />
 
       {/* Add bend point */}
-      {bendPointCount < MAX_BEND_POINTS && (
+      {/* Pas depuis la window d'une frame : le point cliqué y est en
+          coordonnées de la frame, et la courbure s'y édite mal (cf.
+          `FrameWindow`). */}
+      {!frameScope && bendPointCount < MAX_BEND_POINTS && (
         <DropdownMenuItem
           className="whitespace-nowrap"
           onClick={handleAddBendPoint}

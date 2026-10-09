@@ -31,6 +31,7 @@ import { useIsFrameHovered } from "@/stores/frameHoverStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
+import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
 import { isCompactFrame } from "@/lib/frameVariant";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import BookmarkedBadge from "@/components/nodes/BookmarkedBadge";
@@ -155,9 +156,13 @@ function FrameNode(xyNode: XyNodeProps) {
   const values = useNodeDataValues(nodeDataId);
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const { getNodes } = useReactFlow();
-  // Le titre garde sa taille à l'écran quand on dézoome. Les poignées de
-  // resize juste à côté suivent la même règle (cf. `zoomCompensation`).
-  const titleScale = useStore(zoomCompensationScaleSelector);
+  // Le titre garde sa taille à l'écran quand on dézoome, sauf si l'option
+  // d'affichage `scaleWithZoom` est décochée : il suit alors le zoom comme le
+  // reste de la frame. Les poignées de resize juste à côté suivent toujours
+  // la règle (cf. `zoomCompensation`).
+  const { scaleWithZoom } = useNodeDisplayOptions(xyNode);
+  const zoomCompensationScale = useStore(zoomCompensationScaleSelector);
+  const titleScale = scaleWithZoom ? zoomCompensationScale : 1;
 
   const isCompact = isCompactFrame({
     type: "frame",
@@ -192,20 +197,14 @@ function FrameNode(xyNode: XyNodeProps) {
   const shouldAutoEdit = useNodeEditorStore(
     (state) => state.editingNodeId === xyNode.id,
   );
-  const [startInEditMode, setStartInEditMode] = useState(false);
-  useEffect(() => {
-    if (!shouldAutoEdit) return;
-    // Consommé aussitôt : le signal ne vaut que pour ce montage, sinon revenir
-    // sur le canvas rouvrirait l'édition.
-    useNodeEditorStore.getState().setEditingNodeId(null);
-    setStartInEditMode(true);
-  }, [shouldAutoEdit]);
 
   // Le crayon de la toolbar : seule porte vers le renommage d'une frame
-  // compacte, dont le double-clic ouvre la window. Le compteur sert de `key` :
+  // compacte, dont le double-clic ouvre la window, et d'une frame sans titre,
+  // qui n'affiche rien à cliquer. Le compteur sert de `key` :
   // `InlineEditableText` n'ouvre l'édition qu'une fois par montage, chaque
   // demande le remonte donc. `isRenaming` retombe à la fin de l'édition, pour
-  // qu'un remontage ultérieur (changement de variante) ne la rouvre pas.
+  // qu'un remontage ultérieur (changement de variante) ne la rouvre pas — et
+  // pour que le titre d'une frame laissée sans nom disparaisse.
   const [renameRequest, setRenameRequest] = useState(0);
   const [isRenaming, setIsRenaming] = useState(false);
   const requestRename = useCallback(() => {
@@ -213,6 +212,19 @@ function FrameNode(xyNode: XyNodeProps) {
     setIsRenaming(true);
   }, []);
   const endRename = useCallback(() => setIsRenaming(false), []);
+
+  useEffect(() => {
+    if (!shouldAutoEdit) return;
+    // Consommé aussitôt : le signal ne vaut que pour ce montage, sinon revenir
+    // sur le canvas rouvrirait l'édition. Passe par le renommage : le champ
+    // doit s'afficher même si la frame n'a pas encore de titre.
+    useNodeEditorStore.getState().setEditingNodeId(null);
+    requestRename();
+  }, [shouldAutoEdit, requestRename]);
+
+  // Une frame peut rester sans titre : rien n'est alors affiché au-dessus
+  // d'elle, sauf pendant qu'on la nomme.
+  const showTitle = title !== "" || isRenaming;
 
   const handleOpenWindow = useCallback(() => {
     if (!nodeDataId) return;
@@ -401,8 +413,12 @@ function FrameNode(xyNode: XyNodeProps) {
   return (
     <>
       {/* Sous la frame et non au-dessus, à l'inverse des autres nodes : son
-          bord haut porte déjà le titre. */}
-      <CanvasNodeToolbar xyNode={xyNode} position={Position.Bottom}>
+          bord haut porte déjà le titre. Sans titre, ce bord est libre : la
+          toolbar y reprend sa place habituelle. */}
+      <CanvasNodeToolbar
+        xyNode={xyNode}
+        position={showTitle ? Position.Bottom : Position.Top}
+      >
         {renameButton}
         <NodeToolbarLabel>Title size</NodeToolbarLabel>
         <ToggleGroup
@@ -463,32 +479,37 @@ function FrameNode(xyNode: XyNodeProps) {
           nodes (cf. `FrameTitleLayer`) : posé dans la frame, il héritait de
           son plan, et tout node qui débordait sur la bande au-dessus d'elle
           le recouvrait. */}
-      <FrameTitleLayer nodeId={xyNode.id}>
-        <div
-          className="pointer-events-auto absolute bottom-full left-0 mb-1 flex max-w-full items-center gap-1"
-          style={{ scale: String(titleScale), transformOrigin: "bottom left" }}
-          title={title || undefined}
-        >
-          {/* `nodrag nopan` : le titre ne déplace ni la frame ni le canvas,
+      {showTitle && (
+        <FrameTitleLayer nodeId={xyNode.id}>
+          <div
+            className="pointer-events-auto absolute bottom-full left-0 mb-1 flex max-w-full items-center gap-1"
+            style={{
+              scale: String(titleScale),
+              transformOrigin: "bottom left",
+            }}
+            title={title || undefined}
+          >
+            {/* `nodrag nopan` : le titre ne déplace ni la frame ni le canvas,
               comme quand il vivait dans le node (où `nodrag` empêchait que le
               pointerdown qui ouvre l'édition démarre un drag). */}
-          <InlineEditableText
-            key={renameRequest}
-            value={title}
-            onSave={rename}
-            onEditEnd={endRename}
-            startInEditMode={startInEditMode || isRenaming}
-            singleLine
-            placeholder="Untitled frame"
-            className={cn(
-              "nodrag nopan max-w-[40ch] truncate rounded px-1 leading-tight",
-              TITLE_LEVEL_CLASSNAMES[level],
-              nodeColor.textColor,
-            )}
-            inputClassName={TITLE_LEVEL_CLASSNAMES[level]}
-          />
-        </div>
-      </FrameTitleLayer>
+            <InlineEditableText
+              key={renameRequest}
+              value={title}
+              onSave={rename}
+              onEditEnd={endRename}
+              startInEditMode={isRenaming}
+              singleLine
+              placeholder="Untitled frame"
+              className={cn(
+                "nodrag nopan max-w-[40ch] truncate rounded px-1 leading-tight",
+                TITLE_LEVEL_CLASSNAMES[level],
+                nodeColor.textColor,
+              )}
+              inputClassName={TITLE_LEVEL_CLASSNAMES[level]}
+            />
+          </div>
+        </FrameTitleLayer>
+      )}
 
       <div
         className={cn(

@@ -83,6 +83,13 @@ export const NODE_TYPE_DISPLAY_OPTIONS: Partial<
     // `false` : les titres existants ne changent pas d'aspect.
     scaleWithZoom: { default: false },
   },
+  frame: {
+    // Porte sur le TITRE de la frame, pas sur sa boîte : une frame est une
+    // zone du canvas, elle garde sa taille monde. `true` : c'est le
+    // comportement que les titres de frame ont toujours eu. La carte compacte
+    // n'a pas de titre flottant.
+    scaleWithZoom: { default: true, hiddenInVariants: ["compact"] },
+  },
   app: {
     // `true` : c'est l'en-tête que la variante preview a toujours eu, les
     // apps existantes n'en perdent pas. Le décocher donne toute la hauteur à

@@ -54,11 +54,16 @@ export const list = query({
   },
 });
 
+/**
+ * La recipe, ou `null` si elle n'existe pas ou n'est pas à l'utilisateur :
+ * l'éditeur reste abonné un instant à une recipe qu'on vient de supprimer.
+ */
 export const get = query({
   args: { recipeId: v.id("recipes") },
   handler: async (ctx, { recipeId }) => {
     const userId = await requireAuth(ctx);
-    return requireOwnRecipe(ctx, recipeId, userId);
+    const recipe = await ctx.db.get("recipes", recipeId);
+    return recipe && recipe.userId === userId ? recipe : null;
   },
 });
 
@@ -171,7 +176,10 @@ export const listRuns = query({
   args: { recipeId: v.id("recipes") },
   handler: async (ctx, { recipeId }) => {
     const userId = await requireAuth(ctx);
-    await requireOwnRecipe(ctx, recipeId, userId);
+    // Vide plutôt qu'une erreur : comme `get`, la vue peut rester abonnée un
+    // instant à une recipe supprimée.
+    const recipe = await ctx.db.get("recipes", recipeId);
+    if (!recipe || recipe.userId !== userId) return [];
     return ctx.db
       .query("runs")
       .withIndex("by_recipeId", (q) => q.eq("recipeId", recipeId))

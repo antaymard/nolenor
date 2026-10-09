@@ -72,6 +72,12 @@ function fields(canvasId: Id<"canvases">, overrides: object = {}) {
   };
 }
 
+async function read(t: T, userId: Id<"users">, recipeId: Id<"recipes">) {
+  const recipe = await as(t, userId).query(api.recipes.get, { recipeId });
+  if (!recipe) throw new Error("recipe not found");
+  return recipe;
+}
+
 const runsOf = (t: T, recipeId: Id<"recipes">) =>
   t.run((ctx) =>
     ctx.db
@@ -97,7 +103,7 @@ describe("create / update", () => {
       api.recipes.create,
       fields(canvasId, { name: "  Annonces  ", triggers: [DAILY_9H] }),
     );
-    const recipe = await as(t, owner).query(api.recipes.get, { recipeId });
+    const recipe = await read(t, owner, recipeId);
     expect(recipe.name).toBe("Annonces");
     // 9 h à Paris (UTC+2), déjà passé à 12 h 17 : demain 7 h UTC.
     expect(recipe.nextRunAt).toBe(Date.parse("2026-10-10T07:00:00Z"));
@@ -115,7 +121,7 @@ describe("create / update", () => {
       fields(canvasId, { triggers: [DAILY_9H], enabled: false }),
     );
     for (const recipeId of [manual, disabled]) {
-      const recipe = await as(t, owner).query(api.recipes.get, { recipeId });
+      const recipe = await read(t, owner, recipeId);
       expect(recipe.nextRunAt).toBeUndefined();
     }
   });
@@ -152,9 +158,9 @@ describe("create / update", () => {
       api.recipes.create,
       fields(canvasId),
     );
-    await expect(
-      as(t, coEditor).query(api.recipes.get, { recipeId }),
-    ).rejects.toThrow(errors.RECIPE_NOT_FOUND);
+    expect(
+      await as(t, coEditor).query(api.recipes.get, { recipeId }),
+    ).toBeNull();
     await expect(
       as(t, coEditor).mutation(api.recipes.update, {
         recipeId,
@@ -203,16 +209,14 @@ describe("create / update", () => {
       recipeId,
       enabled: false,
     });
-    expect(
-      (await as(t, owner).query(api.recipes.get, { recipeId })).nextRunAt,
-    ).toBeUndefined();
+    expect((await read(t, owner, recipeId)).nextRunAt).toBeUndefined();
     await as(t, owner).mutation(api.recipes.setEnabled, {
       recipeId,
       enabled: true,
     });
-    expect(
-      (await as(t, owner).query(api.recipes.get, { recipeId })).nextRunAt,
-    ).toBe(Date.parse("2026-10-10T07:00:00Z"));
+    expect((await read(t, owner, recipeId)).nextRunAt).toBe(
+      Date.parse("2026-10-10T07:00:00Z"),
+    );
   });
 });
 
@@ -245,13 +249,11 @@ describe("once", () => {
       api.recipes.create,
       fields(canvasId, { triggers: [{ kind: "once", at: IN_TWO_HOURS }] }),
     );
-    expect(
-      (await as(t, owner).query(api.recipes.get, { recipeId })).nextRunAt,
-    ).toBe(IN_TWO_HOURS);
+    expect((await read(t, owner, recipeId)).nextRunAt).toBe(IN_TWO_HOURS);
 
     vi.setSystemTime(IN_TWO_HOURS + 60_000);
     await t.mutation(internal.recipes.runDue, {});
-    const fired = await as(t, owner).query(api.recipes.get, { recipeId });
+    const fired = await read(t, owner, recipeId);
     expect(fired.nextRunAt).toBeUndefined();
     // Toujours active : un déclencheur manuel ajouté plus tard marchera.
     expect(fired.enabled).toBe(true);
@@ -264,9 +266,7 @@ describe("once", () => {
         triggers: [{ kind: "once", at: IN_TWO_HOURS }],
       }),
     });
-    expect((await as(t, owner).query(api.recipes.get, { recipeId })).name).toBe(
-      "Renamed",
-    );
+    expect((await read(t, owner, recipeId)).name).toBe("Renamed");
   });
 
   test("a past one-time run no longer counts against the cap", async () => {
@@ -291,9 +291,7 @@ describe("once", () => {
 
     vi.setSystemTime(IN_TWO_HOURS + 60_000);
     await t.mutation(internal.recipes.runDue, {});
-    expect(
-      (await as(t, owner).query(api.recipes.get, { recipeId: once })).nextRunAt,
-    ).toBeUndefined();
+    expect((await read(t, owner, once)).nextRunAt).toBeUndefined();
     await as(t, owner).mutation(
       api.recipes.create,
       fields(canvasId, { triggers: [DAILY_9H] }),
@@ -331,7 +329,7 @@ describe("launch", () => {
         .unique(),
     );
     expect(metadata?.run?.profile).toBe("nole");
-    const recipe = await as(t, owner).query(api.recipes.get, { recipeId });
+    const recipe = await read(t, owner, recipeId);
     expect(recipe.lastRunAt).toBe(NOW);
     expect(
       await as(t, owner).query(api.recipes.listRuns, { recipeId }),
@@ -389,7 +387,7 @@ describe("routines", () => {
     vi.setSystemTime(Date.parse("2026-10-10T07:01:00Z"));
     await t.mutation(internal.recipes.runDue, {});
 
-    const recipe = await as(t, owner).query(api.recipes.get, { recipeId });
+    const recipe = await read(t, owner, recipeId);
     expect(recipe.nextRunAt).toBe(Date.parse("2026-10-11T07:00:00Z"));
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect(),
@@ -410,9 +408,7 @@ describe("routines", () => {
       fields(canvasId, { triggers: [DAILY_9H] }),
     );
     await t.mutation(internal.recipes.runDue, {});
-    const recipe = await as(t, owner).query(api.recipes.get, {
-      recipeId: scheduledRecipe,
-    });
+    const recipe = await read(t, owner, scheduledRecipe);
     expect(recipe.nextRunAt).toBe(Date.parse("2026-10-10T07:00:00Z"));
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect(),
@@ -449,7 +445,7 @@ describe("routines", () => {
 
     await t.mutation(internal.recipes.runScheduled, { recipeId });
     expect(await runsOf(t, recipeId)).toHaveLength(0);
-    const recipe = await as(t, coEditor).query(api.recipes.get, { recipeId });
+    const recipe = await read(t, coEditor, recipeId);
     expect(recipe.enabled).toBe(false);
     expect(recipe.nextRunAt).toBeUndefined();
   });

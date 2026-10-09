@@ -40,6 +40,7 @@ import {
   centerOf,
   findFrameAtPoint,
 } from "@/lib/frameMembership";
+import { useNodeSnapping } from "@/hooks/useNodeSnapping";
 
 /**
  * Écriture serveur d'un changement de nœud.
@@ -138,6 +139,7 @@ export function useCanvasNodes(
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const { getEdges, getNodes, setEdges } = useReactFlow();
   const isCtrlHeld = useKeyHold("Control");
+  const { snapChanges, endSnapSession } = useNodeSnapping();
   const closeWindowsForNodeIds = useWindowsStore(
     (state) => state.closeWindowsForNodeIds,
   );
@@ -462,7 +464,8 @@ export function useCanvasNodes(
     dragOriginsRef.current.clear();
     pendingReparentRef.current.clear();
     useFrameHoverStore.getState().setHoveredFrameId(null);
-  }, [canvasId]);
+    endSnapSession();
+  }, [canvasId, endSnapSession]);
 
   // Sync Convex -> React Flow nodes while preserving drag/resize state
   // and selection.
@@ -591,6 +594,16 @@ export function useCanvasNodes(
           );
         }
       }
+
+      // Guides d'alignement : les positions traînées sont aimantées ici,
+      // avant tout le reste — buffer, historique et entraînement des
+      // descendants doivent tous voir la position posée, pas celle du
+      // pointeur. Les descendants entraînés au Ctrl bougent avec le geste :
+      // ils ne servent pas de repère.
+      changes = snapChanges(
+        changes,
+        isCtrlHeld ? draggedChildrenCache.current.descendantSet : undefined,
+      );
 
       const positionChanges = changes.filter(
         (change: NodeChange) => change.type === "position",
@@ -1014,6 +1027,7 @@ export function useCanvasNodes(
       getNodes,
       setNodes,
       isCtrlHeld,
+      snapChanges,
     ],
   );
 
@@ -1076,13 +1090,14 @@ export function useCanvasNodes(
   );
 
   /**
-   * Le relâcher n'a plus qu'à éteindre la surbrillance : l'écriture est déjà
-   * partie avec le flush des positions, dans la même mutation et la même
-   * entrée d'historique.
+   * Le relâcher n'a plus qu'à éteindre la surbrillance et les guides :
+   * l'écriture est déjà partie avec le flush des positions, dans la même
+   * mutation et la même entrée d'historique.
    */
   const onNodeDragStop = useCallback(() => {
     useFrameHoverStore.getState().setHoveredFrameId(null);
-  }, []);
+    endSnapSession();
+  }, [endSnapSession]);
 
   const onSelectionStart = useCallback(() => {
     isLassoActiveRef.current = true;

@@ -661,6 +661,11 @@ export default function CanvasFlow({
   const theme = useResolvedTheme();
   const backgroundVariant = toReactFlowVariant(resolvedBackground.variant);
 
+  // Pendant un tracé de frame comme en mode main, le lasso et le drag des
+  // nodes sont suspendus : le geste est le même (appuyer, tirer, relâcher), il
+  // ne peut pas signifier trois choses à la fois.
+  const selectionOnDrag = !panWithFinger && !isFrameTool && !isHandTool;
+
   return (
     <>
       {/* Présence du canvas : facepile, pills de sélection des autres. */}
@@ -732,10 +737,14 @@ export default function CanvasFlow({
         zIndexMode="manual"
         elevateNodesOnSelect={false}
         selectionMode={SelectionMode.Partial}
-        // Pendant un tracé de frame comme en mode main, le lasso et le drag des
-        // nodes sont suspendus : le geste est le même (appuyer, tirer,
-        // relâcher), il ne peut pas signifier trois choses à la fois.
-        selectionOnDrag={!panWithFinger && !isFrameTool && !isHandTool}
+        selectionOnDrag={selectionOnDrag}
+        // Shift est la touche de lasso de React Flow : maintenu, il transforme
+        // tout appui — y compris sur un node — en lasso. Quand le drag sur le
+        // fond lasse déjà, il ne sert à rien d'autre ; on le libère pour
+        // l'aimantation (Shift + drag d'un node, cf. `useNodeSnapping`). En
+        // mode main, au doigt ou en tracé de frame, le drag gauche ne lasse
+        // pas : Shift reste alors le seul moyen de lancer un lasso.
+        selectionKeyCode={selectionOnDrag ? null : "Shift"}
         // Tactile : draggable est accordé node par node via withTouchDragGate.
         nodesDraggable={!isTouch && !isFrameTool && !isHandTool}
         // Tactile : le double-tap sert à ouvrir un node, pas à zoomer.

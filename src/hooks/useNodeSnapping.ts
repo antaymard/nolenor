@@ -34,22 +34,24 @@ function isMovingChange(change: NodeChange): change is NodePositionChange {
  * aimantée (celle de ses `dragItems`) : on y rejoue le dernier décalage, sinon
  * le node sauterait hors de l'alignement au moment de le poser.
  *
- * Alt maintenu pendant le geste coupe l'aimant, comme dans les outils de
- * design.
+ * Désactivé par défaut : l'aimant n'agit que tant que Shift est maintenu, et
+ * peut se prendre ou se lâcher en plein geste. Sans Shift, le node suit le
+ * pointeur au pixel près, comme avant.
  */
 export function useNodeSnapping() {
   const store = useStoreApi();
   const sessionRef = useRef<SnapSession | null>(null);
-  const isAltHeldRef = useRef(false);
+  const isShiftHeldRef = useRef(false);
 
-  // Un ref plutôt que `useKeyHold` : l'état d'Alt n'a rien à re-rendre, il
+  // Un ref plutôt que `useKeyHold` : l'état de Shift n'a rien à re-rendre, il
   // n'est lu qu'au fil des changes du drag.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      isAltHeldRef.current = event.altKey;
+      isShiftHeldRef.current = event.shiftKey;
     };
+    // Shift relâché hors de la fenêtre : on n'en saurait rien.
     const onBlur = () => {
-      isAltHeldRef.current = false;
+      isShiftHeldRef.current = false;
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKey);
@@ -127,7 +129,7 @@ export function useNodeSnapping() {
         sessionRef.current = session;
       }
 
-      if (isAltHeldRef.current) {
+      if (!isShiftHeldRef.current) {
         session.delta = { x: 0, y: 0 };
         useSnapGuidesStore.getState().setGuides(null);
         return changes;

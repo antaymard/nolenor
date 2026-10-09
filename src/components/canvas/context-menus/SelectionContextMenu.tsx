@@ -51,6 +51,7 @@ import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import CopyNodeIdsSubMenu from "./CopyNodeIdsSubMenu";
 import AppearanceMenu from "./AppearanceMenu";
+import ArrangeMenu from "./ArrangeMenu";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -222,6 +223,10 @@ export default function SelectionContextMenu({
         </Tooltip>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
+
+      {/* Alignement et distribution, suggérés selon la forme de la
+          sélection. */}
+      <ArrangeMenu nodes={elementsArray} closeMenu={closeMenu} />
 
       <AppearanceMenu nodes={elementsArray} closeMenu={closeMenu} />
 

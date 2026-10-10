@@ -10,9 +10,9 @@ hidden: true
 | What happened | Use |
 | --- | --- |
 | I just moved / recoloured / deleted / connected something | **Undo** (Ctrl/⌘+Z) |
-| I deleted a block earlier, after a reload, or someone else did | **Trash** (top-right), within 30 days |
+| I deleted a block earlier, after a reload, or someone else (or Nolë) did | **Trash** (top-right), within 30 days |
 | Text, a table or an app's code was changed (by me, Nolë or a collaborator) and I want the earlier content | **Versions** in the block's window, within 30 days |
-| Nolë moved, resized or recoloured blocks | Not undoable with Ctrl+Z; put them back by hand |
+| Nolë moved, resized, recoloured or changed the appearance of blocks | Not undoable with Ctrl+Z; put them back by hand |
 | I deleted a whole canvas | Cannot be recovered |
 
 ## Undo / redo
@@ -43,6 +43,6 @@ hidden: true
 **Settings → Export my data** downloads your canvases as a zip (see `manual-account-settings-and-data`). Do it before deleting a canvas or your account.
 
 ## Nolë and deletions
-Nolë cannot delete a block from the canvas. It can rewrite the content of a block, remove paragraphs in a document, or rows in a table: those are covered by **Versions**.
+Nolë can delete blocks and connections when asked: deleted blocks go to the **Trash** like yours, and **Restore** brings them back with their connections. When it rewrites the content of a block, removes paragraphs in a document or rows in a table, use **Versions**.
 
 See also: `manual-windows` (Versions tab), `manual-canvas-blocks` (delete).

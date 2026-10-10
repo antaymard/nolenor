@@ -13,6 +13,8 @@ Nolë is a copilot that works **on the open canvas through real tools**: it crea
 - **Research**: search the web and read web pages, then file the results in blocks with sources.
 - **Create blocks**: Title, Link, Image (from web pictures), Document, Value, Table (with typed columns), App, and frames around existing blocks. It can place blocks next to others, connect them (without labels — double-click a connection to name it yourself), and put new blocks inside a frame.
 - **Edit blocks**: rewrite or patch a document block by block, insert/update/delete table rows, change a table's columns, set values, rename, update an App's code, set an audio loop.
+- **Arrange blocks**: move blocks (next to another one, or to an exact position), change their **color** and their **appearance** (variant: Preview / Title, Carousel / Grid, Expanded / Compact frame…). A block inside a frame stays in it; locked blocks are not moved.
+- **Delete blocks and connections** when you ask for it: they go to the **Trash**, from which you can restore them for 30 days (see `manual-undo-history-trash`).
 - **Apps**: describe a dashboard, calculator, timer or prototype and it writes a working **App** block that reads the blocks connected to it.
 - **Images**: it can write or improve the **generation prompt** of an Image block (and suggest reference images) but **you press Generate**.
 - **Remember**: it keeps a short memory about you and about each canvas (see `manual-memory-and-skills`), and loads **skills** (instruction packs, yours or built-in) when a request matches.
@@ -20,7 +22,7 @@ Nolë is a copilot that works **on the open canvas through real tools**: it crea
 - **Answer in your language**, and write canvas content in it too, unless you ask otherwise.
 
 ## What Nolë cannot do
-- **Delete a block or a connection** from the canvas. It can edit contents (remove paragraphs or table rows), and it cannot take a block out of a frame. You delete blocks.
+- **Take a block out of a frame**, or put an existing block into another frame.
 - **Start an image generation or a transcription**, **upload files**, or **watch a video** (it only knows a video through its transcript, if you made one).
 - **Touch other canvases.** It knows their names and descriptions only; it cannot read or edit them from here. To move something: right-click → Move to another canvas, or ask in the other canvas.
 - **See unsaved edits** in an open window: save first.

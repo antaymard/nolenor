@@ -334,6 +334,11 @@ function describeCategory(
     }
     case "connect":
       return `added ${plural(n, "connection")}`;
+    case "delete":
+      // Les connexions seules ne portent pas de node dans l'entrée.
+      return uniqueNodes > 0
+        ? `deleted ${plural(uniqueNodes, "node")}`
+        : `deleted ${plural(n, "connection")}`;
     case "memory":
       return "updated memory";
     case "skill":

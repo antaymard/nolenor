@@ -20,6 +20,10 @@
   --animate-appear-zoom: appear-zoom 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-node-appear: node-appear 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-bead-pop: bead-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  /* `backwards` et non `both` : une fois arrivé, le dock ne garde aucun
+     transform — un transform résiduel ferait de lui le bloc conteneur des
+     éléments `fixed` qu'il contient. */
+  --animate-dock-slide-in: dock-slide-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   /* Boucles des illustrations de la modale d'accueil (CanvasWelcomeModal).
      Durées volontairement différentes : trois boucles au même tempo battent
      la mesure ensemble, ce qui attire l'œil au lieu de le laisser lire. */
@@ -106,6 +110,25 @@
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* Les docks du bas, à la fin du chargement du canvas : ils montent depuis
+   le bord de l'écran (cf. `CanvasContent`). */
+@keyframes dock-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(100% + 24px));
+  }
+}
+
+/* Contenu du canvas (nodes, edges, labels, toolbars de node) masqué pendant
+   son chargement initial : il se révèle d'un bloc plutôt que node par node.
+   Le fond et les panneaux restent (cf. `CanvasLoadingScreen`). */
+.react-flow__viewport {
+  transition: opacity 0.3s ease-out;
+}
+.react-flow.canvas-content-loading .react-flow__viewport {
+  opacity: 0;
 }
 
 /* Illustrations de la modale d'accueil.
@@ -270,6 +293,7 @@
   .animate-appear-zoom,
   .animate-node-appear,
   .animate-bead-pop,
+  .animate-dock-slide-in,
   .animate-welcome-pan-zoom,
   .animate-welcome-wheel,
   .animate-welcome-pointer-drag,

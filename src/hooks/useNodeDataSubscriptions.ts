@@ -28,7 +28,7 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
  */
 export function useNodeDataSubscriptions(
   tableNodes: readonly Doc<"nodes">[] | undefined,
-): { isError: boolean; error: Error | undefined } {
+): { isLoading: boolean; isError: boolean; error: Error | undefined } {
   const setNodeDatas = useNodeDataStore((state) => state.setNodeDatas);
   const removePendingNodeData = useNodeDataStore(
     (state) => state.removePendingNodeData,
@@ -73,6 +73,15 @@ export function useNodeDataSubscriptions(
     [results],
   );
 
+  // Chargement initial : la liste des nodes ou au moins une query encore en
+  // vol. Une query en erreur compte comme répondue, `error` la porte.
+  const isLoading = useMemo(
+    () =>
+      idsKey === undefined ||
+      Object.values(results).some((result) => result === undefined),
+    [idsKey, results],
+  );
+
   useEffect(() => {
     if (tableNodes === undefined) return;
     const current = useNodeDataStore.getState().nodeDatas;
@@ -108,5 +117,5 @@ export function useNodeDataSubscriptions(
     for (const nodeId of resolvedPending) removePendingNodeData(nodeId);
   }, [tableNodes, results, pendingNodeDatas, setNodeDatas, removePendingNodeData]);
 
-  return { isError: error !== undefined, error };
+  return { isLoading, isError: error !== undefined, error };
 }

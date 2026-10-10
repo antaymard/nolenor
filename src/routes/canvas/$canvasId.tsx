@@ -4,7 +4,7 @@ import { ReactFlowProvider, Panel } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import CanvasErrorScreen from "@/components/canvas/CanvasErrorScreen";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import WindowsContainer from "@/components/windows/WindowsContainer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CanvasSidebar from "@/components/canvas/CanvasSidebar";
@@ -24,6 +24,17 @@ import CanvasWelcomeModal from "@/components/canvas/welcome/CanvasWelcomeModal";
 import { useOpenThreadFromUrl } from "@/hooks/useOpenThreadFromUrl";
 import { useEmptyCanvasOnboarding } from "@/hooks/useEmptyCanvasOnboarding";
 import EmptyCanvasWithNole from "@/components/canvas/onboarding/EmptyCanvasWithNole";
+import CanvasLoadingScreen from "@/components/canvas/loading/CanvasLoadingScreen";
+import DockSlideIn from "@/components/canvas/loading/DockSlideIn";
+import {
+  createCanvasLoadingSession,
+  type CanvasLoadingSession,
+} from "@/components/canvas/loading/canvasLoadingTips";
+import {
+  CANVAS_BG_CLASS,
+  DEFAULT_CANVAS_BACKGROUND,
+  canvasBackgroundVars,
+} from "@/lib/canvasBackground";
 // Mobile-only surface: don't ship it to desktop sessions.
 const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
 
@@ -112,11 +123,17 @@ function CanvasContent({
     canvas,
     flowNodes,
     flowEdges,
+    isContentReady,
     isCanvasError,
     canvasError,
     isNodeDatasError,
     nodeDatasError,
   } = useCanvasBootstrap(canvasId, { isAuthenticated });
+
+  // Une séance par canvas (la route remonte ce composant à chaque canvas, cf.
+  // la `key` du `ReactFlowProvider`) : son astuce et son départ suivent
+  // l'écran de chargement d'un montage à l'autre.
+  const [loadingSession] = useState(createCanvasLoadingSession);
 
   // Après `useCanvasBootstrap`, dont le nettoyage remet la conversation active
   // à zéro : ses effets passent avant ceux de ce hook.
@@ -154,21 +171,13 @@ function CanvasContent({
   }
 
   if (!canvas) {
-    return (
-      <div className="flex items-center justify-center h-full animate-appear">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
+    return <StandaloneLoadingScreen session={loadingSession} />;
   }
 
   // Canvas vide en cours de bascule vers `?onboarding=true` : ne pas peindre
   // un React Flow vide une frame — le param arrive par `replace` juste après.
   if (isRedirectPending) {
-    return (
-      <div className="flex items-center justify-center h-full animate-appear">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
+    return <StandaloneLoadingScreen session={loadingSession} />;
   }
 
   // Onboarding : pas de canvas, pas de toolbars — juste Nolë. Reste sous le
@@ -184,9 +193,9 @@ function CanvasContent({
 
   return (
     <div className="flex-1 w-full h-full overflow-hidden overscroll-none">
-      {/* Après le garde `!canvas` ci-dessus : on accueille sur un canvas
-          affiché, pas sur un spinner. */}
-      <CanvasWelcomeModal />
+      {/* Une fois le contenu chargé : on accueille sur un canvas affiché, pas
+          sur un écran de chargement. */}
+      {isContentReady ? <CanvasWelcomeModal /> : null}
       <SearchModale />
       <WindowsContainer />
       <CanvasFlow
@@ -196,14 +205,26 @@ function CanvasContent({
         background={canvas.background}
         canEdit={canvas._permission !== "viewer"}
         variant="desktop"
+        isContentLoading={!isContentReady}
       >
+        {/* Avant les panneaux : les coins du haut restent par-dessus. Les
+            docks du bas, eux, attendent la fin du chargement pour monter. */}
+        <CanvasLoadingScreen
+          visible={!isContentReady}
+          session={loadingSession}
+        />
         {isAuthenticated ? (
           <Panel position="top-right">
             <TopRightToolbar />
           </Panel>
         ) : null}
         <Panel position="bottom-center">
-          <CanvasToolbar />
+          <DockSlideIn
+            revealed={isContentReady}
+            delay={DOCK_DELAYS_MS.center}
+          >
+            <CanvasToolbar />
+          </DockSlideIn>
         </Panel>
         {isAuthenticated ? (
           <>
@@ -212,18 +233,28 @@ function CanvasContent({
                   tâches de Nolë empilées au-dessus) tient le coin. La
                   conversation étendue est un `absolute` ancré dans
                   `NoleCanvasPanel` : elle flotte au-dessus de l'island. */}
-              <NoleCanvasPanel>
-                <Omnibar canvasId={canvasId} />
-              </NoleCanvasPanel>
+              <DockSlideIn
+                revealed={isContentReady}
+                delay={DOCK_DELAYS_MS.left}
+              >
+                <NoleCanvasPanel>
+                  <Omnibar canvasId={canvasId} />
+                </NoleCanvasPanel>
+              </DockSlideIn>
             </Panel>
             {/* Le miroir du coin gauche : le bouton des repères reste à
                 l'extrême droite, les windows minimisées le prolongent vers le
                 centre. */}
             <Panel position="bottom-right">
-              <div className="flex items-center gap-2">
-                <MinimizedDock />
-                <CanvasDock />
-              </div>
+              <DockSlideIn
+                revealed={isContentReady}
+                delay={DOCK_DELAYS_MS.right}
+              >
+                <div className="flex items-center gap-2">
+                  <MinimizedDock />
+                  <CanvasDock />
+                </div>
+              </DockSlideIn>
             </Panel>
           </>
         ) : (
@@ -232,6 +263,34 @@ function CanvasContent({
           </Panel>
         )}
       </CanvasFlow>
+    </div>
+  );
+}
+
+/** Les docks du bas montent de gauche à droite, à la fin du chargement. */
+const DOCK_DELAYS_MS = { left: 80, center: 140, right: 200 } as const;
+
+const DEFAULT_CANVAS_BG_VARS = canvasBackgroundVars(DEFAULT_CANVAS_BACKGROUND);
+
+/**
+ * L'écran de chargement avant que le doc canvas n'arrive : pas encore de React
+ * Flow, donc il pose lui-même un fond — celui par défaut, le fond du canvas
+ * n'étant pas encore connu.
+ */
+function StandaloneLoadingScreen({
+  session,
+}: {
+  session: CanvasLoadingSession;
+}) {
+  return (
+    <div
+      className={cn("relative h-full w-full", CANVAS_BG_CLASS)}
+      style={{
+        ...DEFAULT_CANVAS_BG_VARS,
+        backgroundColor: "var(--canvas-bg-display)",
+      }}
+    >
+      <CanvasLoadingScreen visible session={session} />
     </div>
   );
 }

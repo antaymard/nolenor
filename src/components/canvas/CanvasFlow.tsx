@@ -93,6 +93,11 @@ interface CanvasFlowProps {
   variant: CanvasFlowVariant;
   /** Fond partagé du canvas ; absent => défauts front (cf. canvasBackground.ts). */
   background?: CanvasBackground;
+  /**
+   * Vrai pendant le chargement initial : nodes et edges restent invisibles,
+   * le temps que leurs données arrivent toutes (cf. `CanvasLoadingScreen`).
+   */
+  isContentLoading?: boolean;
   /** Les `<Panel>` propres à la plateforme. */
   children?: ReactNode;
 }
@@ -109,6 +114,7 @@ export default function CanvasFlow({
   canEdit,
   variant,
   background,
+  isContentLoading = false,
   children,
 }: CanvasFlowProps) {
   const isTouch = variant === "touch";
@@ -687,6 +693,7 @@ export default function CanvasFlow({
         className={cn(
           CANVAS_BG_CLASS,
           isUrlViewportPending && "opacity-0",
+          isContentLoading && "canvas-content-loading",
           isHandTool && "canvas-hand-tool",
         )}
         panOnScroll

@@ -12,9 +12,9 @@ import { type AiUsageSource } from "../schemas/aiUsageSourceSchema";
 // MODELS CONF ==============================================================
 export const chatModelOptions = [
   {
-    label: "Claude Haiku 5.5",
-    value: "anthropic/claude-haiku-5.5",
-    price: "0.10_0.50",
+    label: "Deepseek V4.1 flash",
+    value: "deepseek/deepseek-v4.1-flash",
+    price: "0.15_0.60",
     isMultimodal: true,
     maxContext: 1000000,
   },
@@ -24,13 +24,6 @@ export const chatModelOptions = [
     price: "0.68_2.09",
     isMultimodal: true,
     maxContext: 524000,
-  },
-  {
-    label: "Deepseek V4.1 flash",
-    value: "deepseek/deepseek-v4.1-flash",
-    price: "0.15_0.60",
-    isMultimodal: true,
-    maxContext: 1000000,
   },
   {
     label: "Meta Muse Spark 1.3 Contributor",
@@ -46,13 +39,6 @@ export const chatModelOptions = [
     isMultimodal: true,
     maxContext: 1000000,
   },
-  // {
-  //   label: "Gemini 3.8 Flash",
-  //   value: "google/gemini-3.8-flash",
-  //   price: "0.75_3.75",
-  //   isMultimodal: true,
-  //   maxContext: 1000000,
-  // },
 ] as const;
 
 export const chatModelValues = chatModelOptions.map((model) => model.value);

@@ -7,23 +7,28 @@
  * défaut jusqu'à la prochaine édition. Ici, pas de DOM ni de canvas — on
  * additionne les chasses de Nunito, figées dans `titleFontMetrics.ts`.
  *
- * Les constantes doivent suivre le client au pixel : les classes de `LEVELS`
- * dans `TitleNode.tsx`, le thème Tailwind de `src/index.css`, les paddings et
- * la bordure de `useTitleNodeSizing`.
+ * Les constantes doivent suivre le client au pixel : les classes de
+ * `titleLevelStyles.ts` (et le `p` de `LEVELS` dans `TitleNode.tsx`), le thème
+ * Tailwind de `src/index.css`, les paddings et la bordure de
+ * `useTitleNodeSizing`.
  */
 import { METRIC_CHARS, NUNITO_METRICS } from "./titleFontMetrics";
 
 export type TitleLevel = "h1" | "h2" | "h3" | "p";
 export type TitleSizingMode = "auto" | "manual";
 
-/** Taille et interligne (px) de chaque niveau, tels que Tailwind les rend. */
+/**
+ * Taille et interligne (px) de chaque niveau, tels que Tailwind les rend. Les
+ * titres ont des tailles arbitraires (`text-[28px]`…) qui ne posent pas
+ * d'interligne : il hérite du `line-height: 1.5` du preflight.
+ */
 const LEVEL_TYPOGRAPHY: Record<
   TitleLevel,
   { fontSize: number; lineHeight: number; weight: 400 | 600 }
 > = {
-  h1: { fontSize: 30, lineHeight: 36, weight: 600 }, // text-3xl font-semibold
-  h2: { fontSize: 24, lineHeight: 32, weight: 600 }, // text-2xl font-semibold
-  h3: { fontSize: 18, lineHeight: 28, weight: 600 }, // text-lg font-semibold
+  h1: { fontSize: 28, lineHeight: 42, weight: 600 }, // text-[28px] font-semibold
+  h2: { fontSize: 22, lineHeight: 33, weight: 600 }, // text-[22px] font-semibold
+  h3: { fontSize: 17, lineHeight: 25.5, weight: 600 }, // text-[17px] font-semibold
   p: { fontSize: 15, lineHeight: 22.5, weight: 400 }, // text-base (15px dans le thème)
 };
 

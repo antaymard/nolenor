@@ -153,8 +153,8 @@ export const remove = mutation({
 
 /**
  * Lancement au clic, au nom de celui qui clique : le propriétaire depuis les
- * réglages, ou un membre du canvas depuis un TaskNode si la recipe a un
- * déclencheur `manual`.
+ * réglages, ou un autre membre du canvas si la recipe a un déclencheur
+ * `manual` (sans interface pour l'instant : le TaskNode viendra plus tard).
  */
 export const launch = mutation({
   args: { recipeId: v.id("recipes") },

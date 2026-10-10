@@ -1,6 +1,5 @@
 import { TbCalendarEvent, TbPlus, TbRepeat, TbTrash } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
-import { Checkbox } from "@/components/shadcn/checkbox";
 import { Input } from "@/components/shadcn/input";
 import {
   Select,
@@ -32,13 +31,16 @@ type TriggersEditorProps = {
 };
 
 /**
- * Les déclencheurs d'une recipe : le partage au clic (une case), puis une
- * ligne par créneau planifié ou lancement unique.
+ * Les déclencheurs d'une recipe : une ligne par créneau planifié ou lancement
+ * unique.
  */
 export default function TriggersEditor({
   triggers,
   onChange,
 }: TriggersEditorProps) {
+  // Le déclencheur `manual` (lancement par les membres du canvas) n'a pas
+  // encore de porte d'entrée : le TaskNode viendra plus tard. On ne
+  // l'affiche pas, mais on le conserve s'il est déjà là.
   const manual = triggers.some((t) => t.kind === "manual");
   const timed = triggers.filter(
     (t): t is ScheduleTrigger | OnceTrigger => t.kind !== "manual",
@@ -65,26 +67,9 @@ export default function TriggersEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex items-start gap-2 text-sm">
-        <Checkbox
-          checked={manual}
-          onCheckedChange={(checked) => emit(checked === true, timed)}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="font-medium text-slate-700">
-            Canvas members can run it
-          </span>
-          <span className="block text-slate-500">
-            Editors of the canvas can launch it from a task node. The run is
-            theirs, with their own rights. You can always run it from here.
-          </span>
-        </span>
-      </label>
-
       {timed.length === 0 && (
         <p className="text-sm text-slate-500">
-          No schedule: the recipe only runs when someone launches it.
+          No schedule: the recipe only runs when you run it from here.
         </p>
       )}
 

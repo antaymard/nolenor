@@ -81,7 +81,7 @@ function describeDays(days: readonly number[]): string {
     .join(", ");
 }
 
-/** Le libellé court d'un déclencheur, pour la liste et le TaskNode. */
+/** Le libellé court d'un déclencheur, pour la liste des recipes. */
 export function describeTrigger(trigger: RecipeTrigger): string {
   switch (trigger.kind) {
     case "manual":

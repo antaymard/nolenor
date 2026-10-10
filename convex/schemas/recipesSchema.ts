@@ -4,7 +4,7 @@ import { v, type Infer } from "convex/values";
  * Une recipe : une tâche confiée à Nolë, lancée à la main ou à heures fixes.
  *
  * Elle appartient à l'utilisateur, pas au canvas : on la gère depuis les
- * réglages, et un TaskNode n'en est qu'un raccourci (`values: { recipeId }`).
+ * réglages ; un futur TaskNode n'en sera qu'un raccourci sur le canvas.
  * Elle ne vit surtout pas dans un nodeData : dupliquer le node la ferait
  * tourner deux fois, et n'importe quel éditeur du canvas pourrait réécrire ce
  * qui s'exécute au nom du propriétaire.
@@ -42,7 +42,7 @@ const vRecipeSchedule = v.union(
   }),
 );
 
-// Lançable au clic par les autres membres du canvas (TaskNode). Le
+// Lançable au clic par les autres membres du canvas (futur TaskNode). Le
 // propriétaire peut toujours la lancer depuis les réglages.
 const vRecipeManualTrigger = v.object({ kind: v.literal("manual") });
 

@@ -47,7 +47,7 @@ function RecipesSettingsPage() {
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[320px_1fr] md:gap-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[320px_minmax(0,1fr)] md:gap-6">
         <div
           className={cn(
             "min-h-0 flex-1 overflow-y-auto pr-1",
@@ -70,7 +70,7 @@ function RecipesSettingsPage() {
 
         <div
           className={cn(
-            "flex min-h-0 flex-1 flex-col gap-3 md:border-l md:border-slate-200 md:pl-6",
+            "flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:border-l md:border-slate-200 md:pl-6",
             !isEditing && "hidden md:flex",
           )}
         >

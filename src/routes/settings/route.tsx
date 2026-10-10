@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
 import type { IconType } from "react-icons";
 import {
   TbArrowLeft,
@@ -27,6 +32,7 @@ import {
 } from "@/components/shadcn/sheet";
 import { useCloseSettings } from "@/hooks/useCloseSettings";
 import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
   component: RouteComponent,
@@ -92,12 +98,22 @@ const settingsSidebarSections: SettingsSidebarSection[] = [
   },
 ];
 
+/**
+ * Les pages qui prennent toute la largeur : liste et éditeur côte à côte, où
+ * la colonne de contenu manque de place sous `max-w-5xl`.
+ */
+const FULL_WIDTH_ROUTES = new Set(["/settings/recipes"]);
+
 function RouteComponent() {
   // Sur mobile la sidebar ne tient pas à côté du contenu : elle passe dans une
   // sheet, ouverte depuis la barre du haut et refermée dès qu'on navigue.
   const [navOpen, setNavOpen] = useState(false);
   // Ferme vers la page d'origine (canvas, home…) plutôt que toujours `/`.
   const closeSettings = useCloseSettings();
+  const fullWidth = useRouterState({
+    select: (state) =>
+      FULL_WIDTH_ROUTES.has(state.location.pathname.replace(/\/$/, "")),
+  });
 
   // Une section dont toutes les entrées sont réservées au dev disparaît avec
   // elles, plutôt que de laisser un titre seul en production.
@@ -195,7 +211,7 @@ function RouteComponent() {
             pages en deux colonnes (Skills) prennent `h-full` pour faire
             défiler leurs listes elles-mêmes. */}
         <main className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain px-4 py-8 md:px-10 md:py-10">
-          <div className="mx-auto h-full max-w-5xl">
+          <div className={cn("mx-auto h-full", !fullWidth && "max-w-5xl")}>
             <Outlet />
           </div>
         </main>

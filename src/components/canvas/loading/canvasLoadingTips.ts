@@ -1,33 +1,36 @@
 /**
  * Les astuces de l'écran de chargement du canvas : des gestes qui existent
- * mais ne se voient pas dans l'interface. Chacune doit rester vraie — elles
- * recopient le manuel (`convex/systemSkills/manual-shortcuts` et voisins),
- * à tenir à jour avec lui.
+ * mais ne se voient pas dans l'interface. Télégraphiques, à lire d'un coup
+ * d'œil — geste → effet. Chacune doit rester vraie : elles recopient le
+ * manuel (`convex/systemSkills/manual-shortcuts` et voisins), à tenir à jour
+ * avec lui.
  *
- * Une touche s'écrit entre crochets (`[Shift]`), rendue en `<kbd>`. `[Mod]`
- * et `[Alt]` prennent le libellé de la plateforme (⌘ / ⌥ sur Mac).
+ * Balisage, rendu en pastilles :
+ * - `[Shift]` une touche. `[Mod]` et `[Alt]` prennent le libellé de la
+ *   plateforme (⌘ / ⌥ sur Mac) ;
+ * - `{click}` un geste de souris, parmi `GESTURES`, rendu avec son icône.
  */
 export const CANVAS_LOADING_TIPS: readonly string[] = [
-  "[Alt]-click a block to attach it to Nolë as context.",
-  "[Alt]-click empty canvas to point Nolë at that spot.",
-  "Hold [Shift] while dragging to snap to alignment guides.",
-  "Hold [Mod] while dragging a block to carry along the blocks it points to.",
-  "Right-click a block → Appearance to switch its variant.",
-  "Short on room? Right-click a frame → Appearance → Compact to fold it into a card.",
-  "Click a mention or a search result to go to the block. [Mod]-click opens its window.",
-  "Right-click a title → Appearance → Scale with zoom keeps it readable from afar.",
-  "Hold [Mod] during a lasso to select blocks but skip frames.",
-  "Right-click a selection to align, distribute or tidy it up.",
-  "Release a connection on empty canvas to create a block already linked to it.",
-  "Press [T] [D] [I] [A] or [L] over the canvas to drop a block at the pointer.",
-  "[Mod] [K] searches the whole canvas, PDF text and transcripts included.",
-  "[Mod] [P] jumps to another canvas or to a bookmark.",
-  "Right-click empty canvas → Bookmark here saves a spot. [B] lists your bookmarks.",
-  "Press [F] to draw a frame around blocks.",
-  "Hold [Space] and drag to pan with the left button.",
-  "Double-click a connection to edit its label.",
-  "Drag a window's header to a screen edge to snap it to a third of the screen.",
-  "Hold [Ctrl] [Alt] in Nolë's chat to dictate, release to stop.",
+  "[Alt] + {click} a block → attach to Nolë",
+  "[Alt] + {click} empty canvas → point Nolë there",
+  "[Shift] + {drag} → alignment guides",
+  "[Mod] + {drag} a block → linked blocks follow",
+  "{right-click} → Appearance → switch variant",
+  "{right-click} a frame → Compact → more room",
+  "{click} a mention → go · [Mod] + {click} → open",
+  "{right-click} a title → Scale with zoom",
+  "[Mod] + lasso → skip frames",
+  "{right-click} a selection → align · tidy up",
+  "{drag} a connection to empty canvas → new block",
+  "[T] [D] [I] [A] [L] → drop a block at the pointer",
+  "[Mod] [K] → search everything, even PDFs",
+  "[Mod] [P] → jump to a canvas or bookmark",
+  "{right-click} canvas → Bookmark here · [B] → list",
+  "[F] → draw a frame",
+  "[Space] + {drag} → pan",
+  "{double-click} a connection → edit its label",
+  "{drag} a window to a screen edge → snap",
+  "Hold [Ctrl] [Alt] in chat → dictate",
 ];
 
 const IS_MAC =
@@ -38,18 +41,37 @@ const KEY_LABELS: Record<string, string> = IS_MAC
   ? { Mod: "⌘", Alt: "⌥" }
   : { Mod: "Ctrl" };
 
-export type TipPart = { text: string; isKey: boolean };
+export const GESTURES = [
+  "click",
+  "right-click",
+  "double-click",
+  "drag",
+] as const;
+export type Gesture = (typeof GESTURES)[number];
 
-/** Découpe une astuce en texte et touches, libellés de plateforme résolus. */
+export type TipPart =
+  | { kind: "text"; text: string }
+  | { kind: "key"; text: string }
+  | { kind: "gesture"; gesture: Gesture };
+
+const isGesture = (value: string): value is Gesture =>
+  (GESTURES as readonly string[]).includes(value);
+
+/** Découpe une astuce en texte, touches et gestes. */
 export function parseTip(tip: string): TipPart[] {
   return tip
-    .split(/\[([^\]]+)\]/)
-    .map((text, index) =>
-      index % 2 === 1
-        ? { text: KEY_LABELS[text] ?? text, isKey: true }
-        : { text, isKey: false },
-    )
-    .filter((part) => part.text !== "");
+    .split(/(\[[^\]]+\]|\{[^}]+\})/)
+    .filter((chunk) => chunk !== "")
+    .map((chunk): TipPart => {
+      const inner = chunk.slice(1, -1);
+      if (chunk.startsWith("[")) {
+        return { kind: "key", text: KEY_LABELS[inner] ?? inner };
+      }
+      if (chunk.startsWith("{") && isGesture(inner)) {
+        return { kind: "gesture", gesture: inner };
+      }
+      return { kind: "text", text: chunk };
+    });
 }
 
 let lastTipIndex = -1;

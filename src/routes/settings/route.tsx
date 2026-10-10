@@ -34,6 +34,8 @@ function RouteComponent() {
     <SettingsShell
       className="h-dvh"
       onClose={closeSettings}
+      // Hors canvas : pas de section « Canvas », il n'y a rien à régler.
+      hasCanvas={false}
       fullWidth={fullWidth}
       renderNavItem={(section, onNavigate) => {
         const Icon = section.icon;

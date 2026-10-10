@@ -1,20 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
-import type { Id } from "@/../convex/_generated/dataModel";
-import CanvasSettingsPage from "@/components/settings/pages/CanvasSettingsPage";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-const canvasSettingsSearchSchema = z.object({
-  canvasId: z.string().optional().catch(undefined),
-});
-
+/**
+ * L'apparence d'un canvas se règle depuis lui, dans la modale des réglages
+ * (cf. `SettingsModal`) : la page hors canvas n'a plus rien à proposer.
+ */
 export const Route = createFileRoute("/settings/canvas")({
-  component: RouteComponent,
-  validateSearch: canvasSettingsSearchSchema,
+  beforeLoad: () => {
+    throw redirect({ to: "/settings/account" });
+  },
 });
-
-function RouteComponent() {
-  const { canvasId } = Route.useSearch();
-  return (
-    <CanvasSettingsPage canvasId={canvasId as Id<"canvases"> | undefined} />
-  );
-}

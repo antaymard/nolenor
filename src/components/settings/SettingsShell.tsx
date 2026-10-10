@@ -23,6 +23,11 @@ type SettingsShellProps = {
     onNavigate?: () => void,
   ) => ReactNode;
   onClose: () => void;
+  /**
+   * Les réglages sont ouverts depuis un canvas : les sections qui portent sur
+   * lui (`requiresCanvas`) sont proposées.
+   */
+  hasCanvas: boolean;
   /** La page en cours prend toute la largeur (cf. `SettingsSection.fullWidth`). */
   fullWidth?: boolean;
   className?: string;
@@ -37,6 +42,7 @@ type SettingsShellProps = {
 export default function SettingsShell({
   renderNavItem,
   onClose,
+  hasCanvas,
   fullWidth = false,
   className,
   children,
@@ -65,7 +71,7 @@ export default function SettingsShell({
         aria-label="Settings"
         className="-mx-3 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3"
       >
-        {visibleSettingsGroups.map((group) => (
+        {visibleSettingsGroups({ hasCanvas }).map((group) => (
           <div key={group.label} className="flex flex-col gap-0.5">
             <h2 className="px-3 pb-1 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
               {group.label}

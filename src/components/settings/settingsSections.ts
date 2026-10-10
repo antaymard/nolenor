@@ -45,6 +45,11 @@ export type SettingsSection = {
    */
   fullWidth?: boolean;
   /**
+   * N'a de sens que pour le canvas ouvert : proposée dans la modale des
+   * réglages (ouverte depuis un canvas), pas dans la page `/settings`.
+   */
+  requiresCanvas?: boolean;
+  /**
    * Chargée à la demande : la modale des réglages vit dans la route canvas,
    * qui ne doit pas embarquer toutes les pages.
    */
@@ -99,6 +104,7 @@ const settingsGroups: SettingsGroup[] = [
         key: "canvas",
         label: "Canvas",
         icon: TbPalette,
+        requiresCanvas: true,
         Page: lazy(() => import("./pages/CanvasSettingsPage")),
       },
       {
@@ -132,21 +138,30 @@ const settingsGroups: SettingsGroup[] = [
 
 /**
  * Les groupes à afficher : sans les entrées réservées au dev en production,
- * et sans un groupe dont il ne resterait que le titre.
+ * sans celles qui exigent un canvas quand il n'y en a pas, et sans un groupe
+ * dont il ne resterait que le titre.
  */
-export const visibleSettingsGroups: SettingsGroup[] = settingsGroups
-  .map((group) => ({
-    ...group,
-    sections: group.sections.filter(
-      (section) => !section.devOnly || SHOW_DEV_ONLY_SETTINGS,
-    ),
-  }))
-  .filter((group) => group.sections.length > 0);
+export function visibleSettingsGroups({
+  hasCanvas,
+}: {
+  hasCanvas: boolean;
+}): SettingsGroup[] {
+  return settingsGroups
+    .map((group) => ({
+      ...group,
+      sections: group.sections.filter(
+        (section) =>
+          (!section.devOnly || SHOW_DEV_ONLY_SETTINGS) &&
+          (!section.requiresCanvas || hasCanvas),
+      ),
+    }))
+    .filter((group) => group.sections.length > 0);
+}
 
 export function findSettingsSection(
   key: string | null | undefined,
 ): SettingsSection | undefined {
-  return visibleSettingsGroups
+  return settingsGroups
     .flatMap((group) => group.sections)
     .find((section) => section.key === key);
 }

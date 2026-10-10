@@ -85,6 +85,7 @@ export default function SettingsModal({
           <SettingsShell
             className="h-full"
             onClose={close}
+            hasCanvas
             fullWidth={section.fullWidth}
             renderNavItem={(item, onNavigate) => {
               const Icon = item.icon;

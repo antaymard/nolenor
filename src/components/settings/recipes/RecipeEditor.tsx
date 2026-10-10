@@ -40,7 +40,12 @@ const EMPTY_DRAFT: Draft = {
 
 type RecipeEditorProps =
   | { recipeId: Id<"recipes">; onDeleted: () => void }
-  | { recipeId?: undefined; onCreated: (recipeId: Id<"recipes">) => void };
+  | {
+      recipeId?: undefined;
+      onCreated: (recipeId: Id<"recipes">) => void;
+      /** Le canvas pré-choisi d'une recipe neuve (réglages ouverts depuis lui). */
+      defaultCanvasId?: Id<"canvases">;
+    };
 
 /**
  * L'éditeur d'une recipe, neuve ou existante. Le formulaire est un brouillon
@@ -61,11 +66,13 @@ export default function RecipeEditor(props: RecipeEditorProps) {
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
   const [busy, setBusy] = useState<"save" | "run" | null>(null);
 
+  const defaultCanvasId =
+    "defaultCanvasId" in props ? props.defaultCanvasId : undefined;
   const hydrationKey = recipeId ?? "draft";
   useEffect(() => {
     if (hydratedFor === hydrationKey) return;
     if (!recipeId) {
-      setDraft(EMPTY_DRAFT);
+      setDraft({ ...EMPTY_DRAFT, canvasId: defaultCanvasId ?? "" });
       setHydratedFor("draft");
     } else if (recipe) {
       setDraft({
@@ -77,7 +84,7 @@ export default function RecipeEditor(props: RecipeEditorProps) {
       });
       setHydratedFor(recipe._id);
     }
-  }, [recipeId, recipe, hydratedFor, hydrationKey]);
+  }, [recipeId, recipe, hydratedFor, hydrationKey, defaultCanvasId]);
 
   if (recipeId && recipe === undefined) {
     return <Centered>Loading…</Centered>;

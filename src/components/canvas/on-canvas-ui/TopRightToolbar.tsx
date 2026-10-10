@@ -1,15 +1,16 @@
 import { Button } from "@/components/shadcn/button";
 import { HiOutlineCog } from "react-icons/hi";
-import { Link } from "@tanstack/react-router";
 import { memo } from "react";
 import { useConvexAuth } from "convex/react";
 import SharingModal from "./SharingModal";
 import TrashModal from "./TrashModal";
 import CanvasStatus from "./CanvasStatus";
 import CanvasPresence from "./CanvasPresence";
+import { useSettingsModalStore } from "@/stores/settingsModalStore";
 
 function TopRightToolbar() {
   const { isAuthenticated } = useConvexAuth();
+  const openSettings = useSettingsModalStore((state) => state.open);
   if (!isAuthenticated) return null;
 
   return (
@@ -20,25 +21,16 @@ function TopRightToolbar() {
       </div>
       <TrashModal />
       <SharingModal />
+      {/* En modale : le canvas reste monté dessous (cf. SettingsModal). */}
       <Button
         variant="ghost"
         size="icon-sm"
-        className="rounded-lg"
-        asChild
+        className="hover:bg-accent rounded-lg"
+        onClick={() => openSettings()}
+        title="Settings"
+        aria-label="Settings"
       >
-        <Link
-          to="/settings"
-          state={{
-            from:
-              window.location.pathname +
-              window.location.search +
-              window.location.hash,
-          }}
-          className="hover:bg-accent flex items-center rounded-lg"
-          title="Settings"
-        >
-          <HiOutlineCog size={18} />
-        </Link>
+        <HiOutlineCog size={18} />
       </Button>
     </div>
   );

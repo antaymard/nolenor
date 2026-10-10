@@ -70,7 +70,7 @@ Blue ring = selected block. **Violet dashed outline** = attached to Nolë (it wi
 | --- | --- |
 | `manual-home-and-canvases` | Home page, sidebar, creating / editing / deleting a canvas (icon, colour, cover, background), first-run screen, welcome tips, Tutorials page, "new version available" banner |
 | `manual-canvas-navigation` | Panning, zooming, selecting, Select / Hand tools, search (Ctrl+K), command center (Ctrl+P), bookmarks, the sync indicator |
-| `manual-canvas-blocks` | Adding, importing (drop / paste), moving, resizing, colour, layers, appearance, duplicate, copy/paste, delete, move to another canvas, copying block IDs |
+| `manual-canvas-blocks` | Adding, importing (drop / paste), moving, alignment guides, align / distribute / tidy up, resizing, colour, layers, appearance, duplicate, copy/paste, delete, move to another canvas, copying block IDs |
 | `manual-connections-and-frames` | Connections (create, label, style, delete), frames (draw, title, contents) |
 | `manual-blocks-text` | Title, Document (Blocknote: slash menu, @ mentions, callouts, dates) and Value blocks |
 | `manual-block-table` | Table block: columns, rows, filters, sort, summaries, CSV import/export |

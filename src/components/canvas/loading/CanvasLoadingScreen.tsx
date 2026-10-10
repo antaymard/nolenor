@@ -1,8 +1,20 @@
 import { useState } from "react";
+import {
+  HandGrab,
+  Lightbulb,
+  Mouse,
+  MousePointerClick,
+  type LucideIcon,
+} from "lucide-react";
 import { Spinner } from "@/components/shadcn/spinner";
 import { Kbd } from "@/components/shadcn/kbd";
 import { cn } from "@/lib/utils";
-import { parseTip, type CanvasLoadingSession } from "./canvasLoadingTips";
+import {
+  parseTip,
+  type CanvasLoadingSession,
+  type Gesture,
+  type TipPart,
+} from "./canvasLoadingTips";
 
 /**
  * Délai avant que le spinner et l'astuce n'apparaissent : un canvas qui
@@ -66,25 +78,60 @@ export default function CanvasLoadingScreen({
       aria-busy={visible}
     >
       <div
-        className="flex max-w-xs flex-col items-center gap-3 px-6 text-center animate-appear"
+        className="flex max-w-lg flex-col items-center gap-5 px-6 animate-appear"
         style={{ animationDelay: timing.revealDelay }}
       >
         <Spinner
-          className="size-5 text-muted-foreground"
+          className="size-8 text-muted-foreground"
           style={{ animationDelay: timing.spinDelay }}
         />
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          {parseTip(session.tip).map((part, index) =>
-            part.isKey ? (
-              <Kbd key={index} className="align-middle">
-                {part.text}
-              </Kbd>
-            ) : (
-              <span key={index}>{part.text}</span>
-            ),
-          )}
-        </p>
+        <div className="canvas-ui-container gap-2.5 px-4 py-2.5">
+          <Lightbulb className="size-4 shrink-0 text-amber-500" aria-hidden />
+          <p className="text-base leading-7">
+            {parseTip(session.tip).map((part, index) => (
+              <TipPartView key={index} part={part} />
+            ))}
+          </p>
+        </div>
       </div>
     </div>
+  );
+}
+
+const GESTURE_VIEWS: Record<Gesture, { icon: LucideIcon; label: string }> = {
+  click: { icon: MousePointerClick, label: "click" },
+  "right-click": { icon: Mouse, label: "right-click" },
+  "double-click": { icon: MousePointerClick, label: "double-click" },
+  drag: { icon: HandGrab, label: "drag" },
+};
+
+const CHIP_CLASS = "mx-px h-6 min-w-6 px-1.5 align-middle text-sm";
+
+/** Une pièce d'astuce : touche et geste en pastille, flèches estompées. */
+function TipPartView({ part }: { part: TipPart }) {
+  if (part.kind === "key") {
+    return <Kbd className={CHIP_CLASS}>{part.text}</Kbd>;
+  }
+  if (part.kind === "gesture") {
+    const { icon: Icon, label } = GESTURE_VIEWS[part.gesture];
+    return (
+      <Kbd className={CHIP_CLASS}>
+        <Icon className="size-3.5" aria-hidden />
+        {label}
+      </Kbd>
+    );
+  }
+  return (
+    <>
+      {part.text.split(/(→|·)/).map((chunk, index) =>
+        chunk === "→" || chunk === "·" ? (
+          <span key={index} className="text-muted-foreground/70">
+            {chunk}
+          </span>
+        ) : (
+          <span key={index}>{chunk}</span>
+        ),
+      )}
+    </>
   );
 }

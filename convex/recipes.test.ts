@@ -349,6 +349,35 @@ describe("launch", () => {
     ).rejects.toThrow(errors.RECIPE_ALREADY_RUNNING);
   });
 
+  test("a run waiting for an answer does not block the next one", async () => {
+    const t = setup();
+    const { owner, canvasId } = await seed(t);
+    const recipeId = await as(t, owner).mutation(
+      api.recipes.create,
+      fields(canvasId),
+    );
+    await as(t, owner).mutation(api.recipes.launch, { recipeId });
+    // Nolë a posé une question : le run attend, il ne travaille plus.
+    const [first] = await runsOf(t, recipeId);
+    await t.run((ctx) =>
+      ctx.db.patch("runs", first._id, { status: "waiting" }),
+    );
+
+    await as(t, owner).mutation(api.recipes.launch, { recipeId });
+    expect(await runsOf(t, recipeId)).toHaveLength(2);
+  });
+
+  test("rejects instructions that are too long", async () => {
+    const t = setup();
+    const { owner, canvasId } = await seed(t);
+    await expect(
+      as(t, owner).mutation(
+        api.recipes.create,
+        fields(canvasId, { instructions: "x".repeat(10_001) }),
+      ),
+    ).rejects.toThrow(errors.RECIPE_INSTRUCTIONS_TOO_LONG);
+  });
+
   test("another member runs it under their own name, only with a manual trigger", async () => {
     const t = setup();
     const { owner, coEditor, viewer, canvasId } = await seed(t);
@@ -397,6 +426,43 @@ describe("routines", () => {
         .filter((job) => job.name.includes("runScheduled"))
         .map((job) => job.args[0]),
     ).toEqual([{ recipeId }]);
+  });
+
+  test("runDue sets aside a recipe whose schedule breaks, and runs the others", async () => {
+    const t = setup();
+    const { owner, canvasId } = await seed(t);
+    const good = await as(t, owner).mutation(
+      api.recipes.create,
+      fields(canvasId, { triggers: [DAILY_9H] }),
+    );
+    // Écrite sans passer par la validation : un fuseau que le runtime ne
+    // connaît (plus).
+    const broken = await t.run((ctx) =>
+      ctx.db.insert("recipes", {
+        ...fields(canvasId),
+        userId: owner,
+        triggers: [{ ...DAILY_9H, timezone: "Mars/Olympus" }],
+        nextRunAt: NOW - 1,
+        updatedAt: NOW,
+      }),
+    );
+    vi.setSystemTime(Date.parse("2026-10-10T07:01:00Z"));
+    await t.mutation(internal.recipes.runDue, {});
+
+    const brokenAfter = await read(t, owner, broken);
+    expect(brokenAfter.enabled).toBe(false);
+    expect(brokenAfter.nextRunAt).toBeUndefined();
+    expect((await read(t, owner, good)).nextRunAt).toBe(
+      Date.parse("2026-10-11T07:00:00Z"),
+    );
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query("_scheduled_functions").collect(),
+    );
+    expect(
+      scheduled
+        .filter((job) => job.name.includes("runScheduled"))
+        .map((job) => job.args[0]),
+    ).toEqual([{ recipeId: good }]);
   });
 
   test("runDue ignores recipes that are not due", async () => {

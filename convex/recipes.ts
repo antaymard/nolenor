@@ -11,7 +11,7 @@ import {
 import errors from "./config/errorsConfig";
 import { requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as RecipeModels from "./models/recipeModels";
-import { vRecipeTrigger } from "./schemas/recipesSchema";
+import { recipeFieldsValidator } from "./schemas/recipesSchema";
 
 /**
  * Les recipes : CRUD depuis les réglages, lancement au clic, et le cron des
@@ -23,13 +23,7 @@ const DUE_BATCH = 50;
 /** Runs d'une recipe montrés dans son historique. */
 const RUNS_LIMIT = 20;
 
-const recipeFields = {
-  name: v.string(),
-  instructions: v.string(),
-  canvasId: v.id("canvases"),
-  triggers: v.array(vRecipeTrigger),
-  enabled: v.boolean(),
-};
+const recipeFields = recipeFieldsValidator.fields;
 
 /** La recipe, si elle existe et appartient à l'utilisateur ; throw sinon. */
 async function requireOwnRecipe(
@@ -211,9 +205,22 @@ export const runDue = internalMutation({
       .take(DUE_BATCH);
 
     for (const recipe of due) {
-      await ctx.db.patch("recipes", recipe._id, {
-        nextRunAt: RecipeModels.computeNextRunAt(recipe, now),
-      });
+      let nextRunAt: number | undefined;
+      try {
+        nextRunAt = RecipeModels.computeNextRunAt(recipe, now);
+      } catch (error) {
+        // Un créneau inexploitable ne doit pas faire échouer le passage : sans
+        // ça, `nextRunAt` n'avancerait pas et le même lot échouerait chaque
+        // minute, bloquant toutes les routines. On écarte cette recipe-là.
+        console.error(`Recipe ${recipe._id} disabled: bad schedule`, error);
+        await ctx.db.patch("recipes", recipe._id, {
+          enabled: false,
+          nextRunAt: undefined,
+          updatedAt: now,
+        });
+        continue;
+      }
+      await ctx.db.patch("recipes", recipe._id, { nextRunAt });
       await ctx.scheduler.runAfter(0, internal.recipes.runScheduled, {
         recipeId: recipe._id,
       });

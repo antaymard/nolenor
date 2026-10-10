@@ -61,9 +61,16 @@ const vRecipeTrigger = v.union(
   vRecipeOnceTrigger,
 );
 
-const recipesValidator = v.object({
-  // Le propriétaire : une routine tourne en son nom.
-  userId: v.id("users"),
+/** Déclencheurs par recipe, manuel compris (aussi la borne de l'éditeur). */
+const MAX_RECIPE_TRIGGERS = 5;
+/**
+ * Longueur maximale des instructions : elles partent telles quelles à Nolë à
+ * chaque run.
+ */
+const MAX_RECIPE_INSTRUCTIONS_LENGTH = 10_000;
+
+/** Ce que l'utilisateur saisit : la forme des mutations create / update. */
+const recipeFieldsValidator = v.object({
   name: v.string(),
   // Le message envoyé à Nolë. Peut mentionner des nodes du canvas.
   instructions: v.string(),
@@ -71,6 +78,11 @@ const recipesValidator = v.object({
   canvasId: v.id("canvases"),
   triggers: v.array(vRecipeTrigger),
   enabled: v.boolean(),
+});
+
+const recipesValidator = recipeFieldsValidator.extend({
+  // Le propriétaire : une routine tourne en son nom.
+  userId: v.id("users"),
   // Prochain lancement planifié. Présent seulement pour une recipe active qui
   // a un lancement à venir (créneau, ou `once` futur) : c'est ce que lit le
   // cron (index `by_nextRunAt`).
@@ -81,11 +93,16 @@ const recipesValidator = v.object({
 
 type RecipeSchedule = Infer<typeof vRecipeSchedule>;
 type RecipeTrigger = Infer<typeof vRecipeTrigger>;
+type RecipeFields = Infer<typeof recipeFieldsValidator>;
 
 export {
+  MAX_RECIPE_INSTRUCTIONS_LENGTH,
+  MAX_RECIPE_TRIGGERS,
+  recipeFieldsValidator,
   recipesValidator,
   vRecipeSchedule,
   vRecipeTrigger,
+  type RecipeFields,
   type RecipeSchedule,
   type RecipeTrigger,
 };

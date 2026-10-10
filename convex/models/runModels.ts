@@ -80,8 +80,13 @@ export async function setRunRecipe(
   if (run) await ctx.db.patch("runs", run._id, { recipeId });
 }
 
-/** Le dernier run d'une recipe, s'il n'est pas terminé. */
-export async function findActiveRecipeRun(
+/**
+ * Le dernier run d'une recipe, s'il travaille encore.
+ *
+ * `running` seulement : un run `waiting` attend une réponse, il peut attendre
+ * des jours, et ne doit pas bloquer les créneaux suivants d'une routine.
+ */
+export async function findRunningRecipeRun(
   ctx: QueryCtx | MutationCtx,
   recipeId: Id<"recipes">,
 ): Promise<Run | null> {
@@ -90,7 +95,7 @@ export async function findActiveRecipeRun(
     .withIndex("by_recipeId", (q) => q.eq("recipeId", recipeId))
     .order("desc")
     .first();
-  return latest && latest.endedAt === undefined ? latest : null;
+  return latest?.status === "running" ? latest : null;
 }
 
 /** `running` ↔ `waiting` (question posée, puis répondue). */

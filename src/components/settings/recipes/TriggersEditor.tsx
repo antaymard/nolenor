@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/shadcn/select";
 import { cn } from "@/lib/utils";
+import { MAX_RECIPE_TRIGGERS } from "@/../convex/schemas/recipesSchema";
 import {
   WEEKDAYS,
   browserTimezone,
@@ -21,9 +22,6 @@ import {
   type RecipeTrigger,
   type ScheduleTrigger,
 } from "./recipeTriggers";
-
-/** Même borne que le backend (`MAX_TRIGGERS`), manuel compris. */
-const MAX_TRIGGERS = 5;
 
 type TriggersEditorProps = {
   triggers: RecipeTrigger[];
@@ -45,7 +43,7 @@ export default function TriggersEditor({
   const timed = triggers.filter(
     (t): t is ScheduleTrigger | OnceTrigger => t.kind !== "manual",
   );
-  const canAdd = triggers.length < MAX_TRIGGERS;
+  const canAdd = triggers.length < MAX_RECIPE_TRIGGERS;
 
   const emit = (nextManual: boolean, nextTimed: RecipeTrigger[]) =>
     onChange([

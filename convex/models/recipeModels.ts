@@ -13,7 +13,12 @@ import {
 import { requireCanvasAccess } from "../lib/auth";
 import { enforceRateLimit } from "../lib/rateLimits";
 import { nextRunAt, scheduleError } from "../lib/recipeSchedule";
-import type { RecipeTrigger } from "../schemas/recipesSchema";
+import {
+  MAX_RECIPE_INSTRUCTIONS_LENGTH,
+  MAX_RECIPE_TRIGGERS,
+  type RecipeFields,
+  type RecipeTrigger,
+} from "../schemas/recipesSchema";
 import { threadAgentNames } from "../schemas/threadMetadataSchema";
 import * as RunModels from "./runModels";
 
@@ -26,18 +31,9 @@ type Recipe = Doc<"recipes">;
 
 /** Recipes planifiées actives par utilisateur. */
 export const MAX_SCHEDULED_RECIPES = 10;
-const MAX_TRIGGERS = 5;
 const MAX_ONCE_AHEAD_MS = 366 * 24 * 60 * 60 * 1000;
 /** Borne de lecture des recipes d'un utilisateur. */
 export const MAX_RECIPES_PER_USER = 200;
-
-export type RecipeFields = {
-  name: string;
-  instructions: string;
-  canvasId: Id<"canvases">;
-  triggers: RecipeTrigger[];
-  enabled: boolean;
-};
 
 /**
  * Nettoie et vérifie les champs saisis ; throw une erreur lisible sinon.
@@ -55,7 +51,10 @@ export function normalizeFields(
   const instructions = fields.instructions.trim();
   if (!name) throw new ConvexError(errors.RECIPE_NAME_REQUIRED);
   if (!instructions) throw new ConvexError(errors.RECIPE_INSTRUCTIONS_REQUIRED);
-  if (fields.triggers.length > MAX_TRIGGERS) {
+  if (instructions.length > MAX_RECIPE_INSTRUCTIONS_LENGTH) {
+    throw new ConvexError(errors.RECIPE_INSTRUCTIONS_TOO_LONG);
+  }
+  if (fields.triggers.length > MAX_RECIPE_TRIGGERS) {
     throw new ConvexError(errors.RECIPE_TOO_MANY_TRIGGERS);
   }
   for (const trigger of fields.triggers) {
@@ -77,7 +76,10 @@ export function normalizeFields(
   return { ...fields, name, instructions };
 }
 
-/** Le prochain lancement d'une recipe : seulement si active et planifiée. */
+/**
+ * Le prochain lancement d'une recipe : seulement si active et planifiée.
+ * Throw si un créneau est inexploitable (fuseau inconnu du runtime…).
+ */
 export function computeNextRunAt(
   recipe: Pick<Recipe, "enabled" | "triggers">,
   after: number,
@@ -143,7 +145,7 @@ export async function launch(
   userId: Id<"users">,
 ): Promise<{ threadId: string; runMessageId: string }> {
   await requireCanvasAccess(ctx, recipe.canvasId, userId, "editor");
-  if (await RunModels.findActiveRecipeRun(ctx, recipe._id)) {
+  if (await RunModels.findRunningRecipeRun(ctx, recipe._id)) {
     throw new ConvexError(errors.RECIPE_ALREADY_RUNNING);
   }
   await enforceRateLimit(ctx, "recipeRun", userId);
@@ -187,7 +189,8 @@ export async function launch(
  *
  * - propriétaire qui n'est plus `editor` du canvas (ou canvas supprimé) : la
  *   routine se désactive ;
- * - run précédent encore en cours, ou quota épuisé : créneau sauté.
+ * - run précédent encore en cours, ou quota épuisé : créneau sauté (ce sont
+ *   les refus de `launch`).
  */
 export async function launchScheduled(
   ctx: MutationCtx,
@@ -203,7 +206,6 @@ export async function launchScheduled(
     });
     return "disabled";
   }
-  if (await RunModels.findActiveRecipeRun(ctx, recipe._id)) return "skipped";
   try {
     await launch(ctx, recipe, recipe.userId);
   } catch (error) {

@@ -35,6 +35,8 @@ const errors = {
   RECIPE_NOT_FOUND: "This recipe does not exist.",
   RECIPE_NAME_REQUIRED: "Recipe name is required.",
   RECIPE_INSTRUCTIONS_REQUIRED: "Recipe instructions are required.",
+  RECIPE_INSTRUCTIONS_TOO_LONG:
+    "Recipe instructions are too long (10,000 characters at most).",
   RECIPE_TOO_MANY_TRIGGERS: "A recipe can have at most 5 triggers.",
   RECIPE_ONCE_IN_PAST: "A one-time run must be scheduled in the future.",
   RECIPE_ONCE_TOO_FAR: "A one-time run can be scheduled at most a year ahead.",

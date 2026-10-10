@@ -86,9 +86,11 @@ export default function CanvasBackgroundPanel({
   const [coverDraft, setCoverDraft] = useState<CanvasCoverDraft>({
     kind: "none",
   });
-  // Couverture et fond repliés à l'ouverture, chacun de son côté.
-  const [coverOpen, setCoverOpen] = useState(false);
-  const [backgroundOpen, setBackgroundOpen] = useState(false);
+  // Couverture et fond dépliés à l'ouverture : la page ne sert qu'à ça, et
+  // le coup d'œil sur le canvas suppose les réglages sous la main. Chacun se
+  // replie de son côté.
+  const [coverOpen, setCoverOpen] = useState(true);
+  const [backgroundOpen, setBackgroundOpen] = useState(true);
 
   // Même resync que le fond : au changement de canvas comme à chaque réponse
   // du serveur — deux canvas sans icône ne doivent pas se passer le brouillon.

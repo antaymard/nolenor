@@ -33,6 +33,7 @@ export default function SettingsModal({
   const sectionKey = useSettingsModalStore((state) => state.section);
   const setSection = useSettingsModalStore((state) => state.setSection);
   const close = useSettingsModalStore((state) => state.close);
+  const peeking = useSettingsModalStore((state) => state.peeking);
   const setFocus = useCanvasStore((state) => state.setFocus);
   const releaseFocus = useCanvasStore((state) => state.releaseFocus);
   const open = sectionKey !== null;
@@ -74,10 +75,20 @@ export default function SettingsModal({
       }}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/30 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        {/* « Maintenir pour voir » : la modale s'estompe sans se fermer, le
+            canvas apparaît dessous. */}
+        <DialogPrimitive.Overlay
+          className={cn(
+            "fixed inset-0 z-50 bg-slate-950/30 transition-opacity duration-150 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+            peeking && "opacity-0",
+          )}
+        />
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="fixed inset-0 z-50 overflow-hidden bg-surface shadow-[0_12px_40px_rgba(15,23,42,0.18)] duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[0.98] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98] md:inset-6 md:rounded-2xl md:border md:border-slate-200"
+          className={cn(
+            "fixed inset-0 z-50 overflow-hidden bg-surface shadow-[0_12px_40px_rgba(15,23,42,0.18)] transition-opacity duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[0.98] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98] md:inset-6 md:rounded-2xl md:border md:border-slate-200",
+            peeking && "opacity-0",
+          )}
         >
           <DialogPrimitive.Title className="sr-only">
             Settings

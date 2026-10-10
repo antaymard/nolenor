@@ -61,6 +61,7 @@ import { useIsTouchFirst } from "@/hooks/useTabletMode";
 import "@xyflow/react/dist/style.css";
 import { getNodeCapabilities } from "@/../convex/config/nodeConfig";
 import { generateLlmId } from "@/../convex/lib/llmId";
+import { useSettingsModalStore } from "@/stores/settingsModalStore";
 import type {
   ConnectedNodeCreatedInfo,
   PendingCanvasConnection,
@@ -646,9 +647,15 @@ export default function CanvasFlow({
 
   // Fond partagé : stocké sur le doc canvas, défauts front si absent
   // (nouveaux canvas + anciens sans champ). `none` => pas de motif.
+  // Pendant qu'on règle le fond dans les réglages (modale), le brouillon
+  // remplace le fond enregistré : le « maintenir pour voir » montre ce qu'on
+  // est en train de choisir.
+  const backgroundPreview = useSettingsModalStore(
+    (state) => state.backgroundPreview,
+  );
   const resolvedBackground = useMemo(
-    () => resolveCanvasBackground(background),
-    [background],
+    () => resolveCanvasBackground(backgroundPreview ?? background),
+    [backgroundPreview, background],
   );
   // Couleurs stockées → variables CSS ; `.canvas-bg` en dérive les couleurs
   // affichées, assombries en dark mode sans toucher à la base.

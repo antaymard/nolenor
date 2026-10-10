@@ -13,6 +13,7 @@ import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import { toastError } from "@/components/utils/errorUtils";
 import toast from "react-hot-toast";
+import { useSettingsModalStore } from "@/stores/settingsModalStore";
 import { canvasCover } from "@/lib/canvasCover";
 import CanvasBackgroundField from "./CanvasBackgroundField";
 import { CanvasCoverField, CanvasIdentityField } from "./CanvasAppearanceField";
@@ -61,6 +62,19 @@ export default function CanvasBackgroundPanel({
   useEffect(() => {
     setDraft(serverBackground);
   }, [serverBackground]);
+
+  // Le brouillon s'affiche sur le canvas, derrière la modale, tant qu'il
+  // diffère du fond enregistré (cf. `CanvasPeekButton`).
+  const setBackgroundPreview = useSettingsModalStore(
+    (state) => state.setBackgroundPreview,
+  );
+  useEffect(() => {
+    const dirty = (Object.keys(draft) as (keyof typeof draft)[]).some(
+      (key) => draft[key] !== serverBackground[key],
+    );
+    setBackgroundPreview(dirty ? sanitizeCanvasBackgroundForSave(draft) : null);
+  }, [draft, serverBackground, setBackgroundPreview]);
+  useEffect(() => () => setBackgroundPreview(null), [setBackgroundPreview]);
 
   const loadedCanvas = canvas ?? undefined;
   const serverIcon: string | undefined = loadedCanvas?.icon;

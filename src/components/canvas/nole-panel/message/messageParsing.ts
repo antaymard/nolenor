@@ -138,6 +138,12 @@ export function extractToolNodeIds(
     pushIfValid(input.sourceNodeId);
     pushIfValid(input.targetNodeId);
     pushIfValid(input.anchorNodeId);
+    if (Array.isArray(input.updates)) {
+      // `move_and_style_nodes` : une entrée par node.
+      input.updates.forEach((update) => {
+        if (isRecord(update)) pushIfValid(update.nodeId);
+      });
+    }
     if (Array.isArray(input.sourceNodes)) {
       // `create_node` accepte un id nu ou `{ nodeId, label }`.
       input.sourceNodes.forEach((entry) =>

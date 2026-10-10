@@ -33,9 +33,10 @@ export const groupNodesToolConfig: ToolConfig = {
  * l'accepte pas en type, et c'est voulu — une frame vide posée à côté du
  * contenu par l'auto-placement ne groupe rien.
  *
- * Refuse plutôt que d'arranger. L'agent n'a aucun tool pour défaire : pas de
- * dégroupement, pas de déplacement, pas de corbeille, et ses écritures
- * n'entrent dans aucune pile d'annulation. Un id inconnu ou un node déjà pris
+ * Refuse plutôt que d'arranger. L'agent n'a aucun tool pour défaire un
+ * groupement : pas de dégroupement, pas de sortie de frame (`delete_elements`
+ * emporterait le contenu avec la frame), et ses écritures n'entrent dans aucune
+ * pile d'annulation. Un id inconnu ou un node déjà pris
  * fait donc échouer l'appel entier, sans rien écrire — à l'inverse des
  * `sourceNodes` de `create_node`, qui écarte et rapporte. Là-bas le node existe
  * déjà et une edge en moins se rattrape ; ici la liste des ids EST l'objet

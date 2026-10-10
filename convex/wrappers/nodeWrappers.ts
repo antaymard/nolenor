@@ -109,6 +109,58 @@ export const trash = internalMutation({
   },
 });
 
+export const trashFromAgent = internalMutation({
+  args: {
+    canvasId: v.id("canvases"),
+    nodeIds: v.array(v.string()),
+    edgeIds: v.array(v.string()),
+    actor: v.optional(nodeDataVersionActorValidator),
+  },
+  returns: v.object({
+    nodeIds: v.array(v.string()),
+    edgeIds: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    return NodeModels.trashFromAgent(ctx, args);
+  },
+});
+
+const xyValidator = v.object({ x: v.number(), y: v.number() });
+
+export const updateLayout = internalMutation({
+  args: {
+    canvasId: v.id("canvases"),
+    updates: v.array(
+      v.object({
+        nodeId: v.string(),
+        position: v.optional(xyValidator),
+        color: v.optional(v.string()),
+        variant: v.optional(v.string()),
+      }),
+    ),
+  },
+  returns: v.array(
+    v.object({
+      nodeId: v.string(),
+      position: xyValidator,
+      width: v.number(),
+      height: v.number(),
+      color: v.optional(v.string()),
+      variant: v.optional(v.string()),
+      frameGrown: v.optional(
+        v.object({
+          frameId: v.string(),
+          width: v.number(),
+          height: v.number(),
+        }),
+      ),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    return NodeModels.updateNodesLayout(ctx, args);
+  },
+});
+
 export const move = internalMutation({
   args: {
     nodeIds: v.array(v.string()),

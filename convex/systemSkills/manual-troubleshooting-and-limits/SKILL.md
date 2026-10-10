@@ -33,7 +33,7 @@ hidden: true
 | Cannot send to Nolë: "Please save or close the modified windows…" | Save (Ctrl/⌘+S) or close the windows with unsaved changes. |
 | Nolë says to wait | Rate limit: wait the indicated time. |
 | Conversation shows **No reply**, **Interrupted** or **Failed** | Resend the message or press **Réessayer**; if it keeps failing start a new conversation. |
-| Nolë did not do what I asked | Attach the blocks or position, be specific, see `manual-nole-capabilities`. It cannot delete blocks, start image generation or transcription, or work across canvases. |
+| Nolë did not do what I asked | Attach the blocks or position, be specific, see `manual-nole-capabilities`. It cannot start image generation or transcription, take blocks out of frames, or work across canvases. |
 | Image: "A generation is already running on this node." | Wait for the running one. |
 | Image: "This model does not accept reference images…" / too many references | Unplug or exclude reference images, or pick another model. |
 | Image: "A prompt is required to generate images." | Type a prompt in the Generate tab. |

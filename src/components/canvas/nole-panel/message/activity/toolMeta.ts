@@ -1,6 +1,7 @@
 import type { IconType } from "react-icons";
 import {
   TbAdjustmentsHorizontal,
+  TbArrowsMove,
   TbArrowsRightLeft,
   TbBoxMultiple,
   TbBulb,
@@ -41,6 +42,7 @@ export type ToolCategory =
   | "create"
   | "edit"
   | "connect"
+  | "delete"
   | "memory"
   | "skill"
   | "agent"
@@ -98,6 +100,12 @@ const TOOL_META: Record<string, ToolMeta> = {
     label: "Update table schema",
   },
   group_nodes: { icon: TbBoxMultiple, category: "edit", label: "Group nodes" },
+  move_and_style_nodes: {
+    icon: TbArrowsMove,
+    category: "edit",
+    label: "Move / restyle nodes",
+  },
+  delete_elements: { icon: TbTrash, category: "delete", label: "Delete" },
   patch_app_node_code: { icon: TbCode, category: "edit", label: "Edit app code" },
   create_connection: {
     icon: TbArrowsRightLeft,

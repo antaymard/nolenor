@@ -3,7 +3,11 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import errors from "../config/errorsConfig";
-import { FRAME_CONTENT_PADDING, nodeDataConfig } from "../config/nodeConfig";
+import {
+  FRAME_COMPACT_VARIANT,
+  FRAME_CONTENT_PADDING,
+  nodeDataConfig,
+} from "../config/nodeConfig";
 import {
   TRASH_PURGE_BATCH_SIZE,
   TRASH_RETENTION_MS,
@@ -341,9 +345,9 @@ export async function listChildren(
  * qui pointe sur un node que le serveur ne connaît pas est rejeté. Ici, dans
  * une seule transaction, `patchNodes` relit l'insert de trois lignes plus haut.
  *
- * Et surtout : l'agent n'a aucun tool pour réparer. Ni corbeille, ni
- * déplacement, ni dégroupement — et ses écritures n'entrent dans aucune pile
- * d'annulation. Un groupement à moitié fait resterait à moitié fait. D'où le
+ * Et surtout : l'agent n'a aucun tool pour réparer. Ni dégroupement, ni sortie
+ * de frame — sa corbeille emporte le contenu avec la frame — et ses écritures
+ * n'entrent dans aucune pile d'annulation. Un groupement à moitié fait resterait à moitié fait. D'où le
  * tout-ou-rien : on valide l'ENSEMBLE des ids avant d'écrire quoi que ce soit,
  * et on lève sur le premier qui ne va pas plutôt que de l'écarter en silence.
  * Écarter donnerait une boîte qui ne correspond pas à ce qui a été demandé,
@@ -993,6 +997,275 @@ export async function untrashNodes(
     }
   }
   return { nodeIds: untrashedNodeIds, edgeIds: untrashedEdgeIds };
+}
+
+/**
+ * La suppression de l'agent : des nodes et des connexions, à la corbeille, en
+ * une transaction.
+ *
+ * Rien n'est détruit — c'est `trashNodes` / `trashEdges`, les mêmes que le
+ * canvas, donc la même modale corbeille pour tout rendre pendant 30 jours. Une
+ * frame emporte son contenu, un node ses connexions (cf. `trashNodes`).
+ *
+ * Une seule `trashedAt` pour tout le lot, comme `canvasOps.apply` : c'est ce
+ * qui fait revenir les connexions d'un node avec lui depuis la corbeille.
+ *
+ * Tout-ou-rien : un id inconnu, d'un autre canvas ou déjà à la corbeille lève
+ * avant la moindre écriture. L'agent croirait sinon avoir supprimé ce qu'il a
+ * nommé, alors qu'une partie a été écartée.
+ */
+export async function trashFromAgent(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    nodeIds,
+    edgeIds,
+    actor,
+  }: {
+    canvasId: Id<"canvases">;
+    nodeIds: Array<string>;
+    edgeIds: Array<string>;
+    actor?: NodeDataVersionActor;
+  },
+): Promise<{ nodeIds: string[]; edgeIds: string[] }> {
+  const uniqueNodeIds = [...new Set(nodeIds)];
+  const uniqueEdgeIds = [...new Set(edgeIds)];
+
+  const missingNodes: string[] = [];
+  for (const nodeId of uniqueNodeIds) {
+    const node = await getNodeByLlmId(ctx, { nodeId });
+    if (!node || node.canvasId !== canvasId || node.status === "trashed") {
+      missingNodes.push(nodeId);
+    }
+  }
+  if (missingNodes.length > 0) {
+    throw new ConvexError(
+      `${errors.NODE_NOT_FOUND} Unknown on this canvas: ${missingNodes.join(", ")}.`,
+    );
+  }
+
+  const missingEdges: string[] = [];
+  for (const edgeId of uniqueEdgeIds) {
+    const edge = await EdgeModels.getEdgeByLlmId(ctx, { edgeId });
+    if (!edge || edge.canvasId !== canvasId || edge.status === "trashed") {
+      missingEdges.push(edgeId);
+    }
+  }
+  if (missingEdges.length > 0) {
+    throw new ConvexError(
+      `${errors.EDGE_NOT_FOUND} Unknown on this canvas: ${missingEdges.join(", ")}.`,
+    );
+  }
+
+  const trashedAt = Date.now();
+  const trashedEdgeIds = await EdgeModels.trashEdges(ctx, {
+    edgeIds: uniqueEdgeIds,
+    trashedAt,
+  });
+  const trashedNodeIds = await trashNodes(ctx, {
+    nodeIds: uniqueNodeIds,
+    actor,
+    trashedAt,
+  });
+  return { nodeIds: trashedNodeIds, edgeIds: trashedEdgeIds };
+}
+
+export type NodeLayoutUpdate = {
+  nodeId: string;
+  /** Position MONDE du coin haut gauche, même pour un node dans une frame. */
+  position?: { x: number; y: number };
+  color?: string;
+  variant?: string;
+};
+
+export type NodeLayoutResult = {
+  nodeId: string;
+  position: { x: number; y: number };
+  width: number;
+  height: number;
+  color?: string;
+  variant?: string;
+  /** La frame du node a dû s'agrandir pour le contenir : sa nouvelle taille. */
+  frameGrown?: { frameId: string; width: number; height: number };
+};
+
+/**
+ * Déplacer, recolorer, changer de variante : les gestes d'apparence de
+ * l'agent, en une transaction.
+ *
+ * Les règles sont celles du canvas, appliquées ici et pas dans le tool :
+ *
+ * - une variante remet le node à ses dimensions par défaut, sauf celles qui
+ *   gardent la taille stockée (`preservesStoredSize`, cf. `useApplyVariant`) ;
+ * - une frame qui passe en compacte (ou en revient) change de bande de plan,
+ *   comme `zIndexesForVariantChange` côté client ;
+ * - un node dans une frame y reste. Il ne peut pas en sortir par le haut ou la
+ *   gauche, et s'il dépasse par le bas ou la droite la frame grandit, coin haut
+ *   gauche fixe — même règle que `createNodeInFrame`. L'appartenance n'est pas
+ *   l'affaire de ce chemin : on ne déplace qu'à l'intérieur de ce qui existe.
+ * - un node verrouillé ne bouge pas : c'est précisément ce que le verrou dit.
+ *
+ * Tout-ou-rien : la première règle violée lève, et la transaction entière est
+ * annulée avec elle.
+ */
+export async function updateNodesLayout(
+  ctx: MutationCtx,
+  {
+    canvasId,
+    updates,
+    padding = FRAME_CONTENT_PADDING,
+  }: {
+    canvasId: Id<"canvases">;
+    updates: Array<NodeLayoutUpdate>;
+    padding?: number;
+  },
+): Promise<NodeLayoutResult[]> {
+  if (updates.length === 0) return [];
+
+  const canvasNodes = await listFromCanvas(ctx, { canvasId });
+  const byId = new Map(canvasNodes.map((node) => [node.id, node]));
+
+  const seen = new Set<string>();
+  const unknown: string[] = [];
+  for (const update of updates) {
+    if (seen.has(update.nodeId)) {
+      throw new ConvexError(
+        `Node ${update.nodeId} is named twice: merge its changes into one update.`,
+      );
+    }
+    seen.add(update.nodeId);
+    if (!byId.has(update.nodeId)) unknown.push(update.nodeId);
+  }
+  if (unknown.length > 0) {
+    throw new ConvexError(
+      `${errors.NODE_NOT_FOUND} Unknown on this canvas: ${unknown.join(", ")}.`,
+    );
+  }
+
+  // Les deux bandes de plan (cf. `convex/lib/nodeLayering`) : le premier plan
+  // des nodes pour une frame qui se compacte, le dessous des frames pour une
+  // qui se déplie.
+  let topZIndex =
+    Math.max(0, ...canvasNodes.map((node) => node.zIndex ?? 0)) + 1;
+  let bottomZIndex = frameZIndexBelow(canvasNodes);
+
+  // Dans l'ordre reçu, chaque entrée voyant l'état laissé par les précédentes.
+  // La position demandée pour un enfant est une position monde, convertie dans
+  // le repère de sa frame telle qu'elle est À CE MOMENT : déplacer la frame
+  // plus loin dans la liste emmène l'enfant avec elle, comme sur le canvas.
+  const results: NodeLayoutResult[] = [];
+  for (const update of updates) {
+    // Relu à chaque tour : il a pu changer plus haut dans la boucle.
+    const node = await getNodeOrThrow(ctx, { nodeId: update.nodeId });
+    const patch: Partial<Omit<NodeDoc, "_id" | "_creationTime">> = {};
+
+    if (update.variant !== undefined) {
+      const variants = nodeDataConfig.find(
+        (item) => item.type === node.type,
+      )?.variants;
+      const variant = variants?.[update.variant];
+      if (!variants || !variant) {
+        throw new ConvexError(
+          variants
+            ? `Node ${node.id} (${node.type}) has no variant "${update.variant}". Available: ${Object.keys(variants).join(", ")}.`
+            : `Node ${node.id} (${node.type}) has no display variants.`,
+        );
+      }
+      patch.variant = update.variant;
+      if (variant.preservesStoredSize !== true) {
+        patch.width = variant.defaultWidth;
+        patch.height = variant.defaultHeight;
+      }
+      if (node.type === "frame") {
+        const wasCompact = node.variant === FRAME_COMPACT_VARIANT;
+        const willBeCompact = update.variant === FRAME_COMPACT_VARIANT;
+        if (wasCompact !== willBeCompact) {
+          patch.zIndex = willBeCompact ? topZIndex++ : bottomZIndex--;
+        }
+      }
+    }
+
+    if (update.color !== undefined) patch.color = update.color;
+
+    const frame =
+      node.parentId !== undefined
+        ? await getNodeByLlmId(ctx, { nodeId: node.parentId })
+        : null;
+    const liveFrame = frame && frame.status !== "trashed" ? frame : null;
+
+    if (update.position !== undefined) {
+      if (node.locked === true) {
+        throw new ConvexError(
+          `Node ${node.id} is locked by the user: it cannot be moved. Its color and variant can still change.`,
+        );
+      }
+      if (liveFrame) {
+        const relative = {
+          x: update.position.x - liveFrame.position.x,
+          y: update.position.y - liveFrame.position.y,
+        };
+        if (relative.x < 0 || relative.y < 0) {
+          throw new ConvexError(
+            `Node ${node.id} belongs to frame ${liveFrame.id}, whose top-left corner is at (${Math.trunc(liveFrame.position.x)}, ${Math.trunc(liveFrame.position.y)}): it cannot be moved above or left of it. A node cannot leave its frame.`,
+          );
+        }
+        patch.position = relative;
+      } else {
+        patch.position = update.position;
+      }
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(node._id, patch);
+    }
+
+    const position = patch.position ?? node.position;
+    const width = patch.width ?? node.width;
+    const height = patch.height ?? node.height;
+
+    // La frame grandit par le bas et la droite si l'enfant n'y tient plus :
+    // un déplacement comme une variante plus grande peuvent l'y pousser.
+    let frameGrown: NodeLayoutResult["frameGrown"];
+    if (liveFrame) {
+      const frameWidth = Math.max(
+        liveFrame.width,
+        position.x + width + padding,
+      );
+      const frameHeight = Math.max(
+        liveFrame.height,
+        position.y + height + padding,
+      );
+      if (frameWidth !== liveFrame.width || frameHeight !== liveFrame.height) {
+        await ctx.db.patch(liveFrame._id, {
+          width: frameWidth,
+          height: frameHeight,
+        });
+        frameGrown = {
+          frameId: liveFrame.id,
+          width: frameWidth,
+          height: frameHeight,
+        };
+      }
+    }
+
+    const color = patch.color ?? node.color;
+    const variant = patch.variant ?? node.variant;
+    results.push({
+      nodeId: node.id,
+      position: liveFrame
+        ? {
+            x: liveFrame.position.x + position.x,
+            y: liveFrame.position.y + position.y,
+          }
+        : position,
+      width,
+      height,
+      ...(color !== undefined && { color }),
+      ...(variant !== undefined && { variant }),
+      ...(frameGrown && { frameGrown }),
+    });
+  }
+  return results;
 }
 
 /** Les nodes à la corbeille d'un canvas, du plus récemment jeté au plus ancien. */

@@ -17,12 +17,8 @@ const NODE_TYPE_LABELS: Record<NodeType, string> = {
   audio: "Audio",
   video: "Videos",
   frame: "Frames",
-  task: "Tasks",
   custom: "Custom",
 };
-
-// Un TaskNode ne porte qu'un id de recipe : rien à chercher, pas de filtre.
-const SEARCHABLE_NODE_TYPES = nodeTypeValues.filter((type) => type !== "task");
 
 /**
  * Filter by node type. Deliberately chips instead of a `type:pdf` syntax:
@@ -49,7 +45,7 @@ export function SearchTypeFilter({
         className,
       )}
     >
-      {SEARCHABLE_NODE_TYPES.map((type) => {
+      {nodeTypeValues.map((type) => {
         const Icon = getNodeIcon(type);
         const active = selected.includes(type);
         return (

@@ -100,9 +100,7 @@ export function describeTrigger(trigger: RecipeTrigger): string {
 }
 
 /** Ce que la liste affiche à la place des déclencheurs planifiés. */
-export function describeSchedule(
-  recipe: Pick<Doc<"recipes">, "triggers">,
-): string {
+export function describeSchedule(recipe: Doc<"recipes">): string {
   const scheduled = recipe.triggers.filter((t) => t.kind !== "manual");
   if (scheduled.length === 0) return "Manual";
   const first = describeTrigger(scheduled[0]);

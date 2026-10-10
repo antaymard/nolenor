@@ -13,6 +13,7 @@ import {
   TbMusic,
   TbVideo,
   TbFrame,
+  TbChecklist,
 } from "react-icons/tb";
 
 export const NODE_TYPE_ICON_MAP: Record<string, IconType> = {
@@ -28,6 +29,7 @@ export const NODE_TYPE_ICON_MAP: Record<string, IconType> = {
   audio: TbMusic,
   video: TbVideo,
   frame: TbFrame,
+  task: TbChecklist,
   // Fallback générique pour les custom nodes ; les surfaces qui connaissent
   // le template affichent son icône propre (cf. getTemplateIcon).
   custom: TbTemplate,

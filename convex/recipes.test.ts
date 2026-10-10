@@ -461,3 +461,100 @@ describe("routines", () => {
     expect(await runsOf(t, recipeId)).toHaveLength(0);
   });
 });
+
+describe("task node", () => {
+  test("listForCanvas offers only the caller's recipes for this canvas", async () => {
+    const t = setup();
+    const { owner, coEditor, canvasId } = await seed(t);
+    const otherCanvas = await t.run((ctx) =>
+      ctx.db.insert("canvases", {
+        creatorId: owner,
+        name: "Other",
+        updatedAt: Date.now(),
+      }),
+    );
+    const here = await as(t, owner).mutation(
+      api.recipes.create,
+      fields(canvasId, { name: "Here" }),
+    );
+    await as(t, owner).mutation(
+      api.recipes.create,
+      fields(otherCanvas, { name: "Elsewhere" }),
+    );
+    expect(
+      await as(t, owner).query(api.recipes.listForCanvas, { canvasId }),
+    ).toEqual([{ _id: here, name: "Here" }]);
+    expect(
+      await as(t, coEditor).query(api.recipes.listForCanvas, { canvasId }),
+    ).toEqual([]);
+  });
+
+  test("shows the recipe to canvas members, with what each may do", async () => {
+    const t = setup();
+    const { owner, viewer, coEditor, canvasId } = await seed(t);
+    const recipeId = await as(t, owner).mutation(
+      api.recipes.create,
+      fields(canvasId),
+    );
+    const { threadId } = await as(t, owner).mutation(api.recipes.launch, {
+      recipeId,
+    });
+    const args = { recipeId, canvasId };
+
+    const forOwner = await as(t, owner).query(api.recipes.forTaskNode, args);
+    expect(forOwner).toMatchObject({
+      name: "Annonces",
+      isOwner: true,
+      canLaunch: true,
+      lastRun: { status: "running", threadId },
+    });
+    // Ni les instructions, ni la conversation du propriétaire.
+    expect(forOwner).not.toHaveProperty("instructions");
+    const forCoEditor = await as(t, coEditor).query(
+      api.recipes.forTaskNode,
+      args,
+    );
+    expect(forCoEditor).toMatchObject({
+      isOwner: false,
+      canLaunch: true,
+      lastRun: { status: "running", threadId: null },
+    });
+    const forViewer = await as(t, viewer).query(api.recipes.forTaskNode, args);
+    expect(forViewer?.canLaunch).toBe(false);
+  });
+
+  test("reveals nothing outside the recipe's canvas or to strangers", async () => {
+    const t = setup();
+    const { owner, canvasId } = await seed(t);
+    const stranger = await t.run((ctx) => ctx.db.insert("users", {}));
+    const otherCanvas = await t.run((ctx) =>
+      ctx.db.insert("canvases", {
+        creatorId: owner,
+        name: "Other",
+        updatedAt: Date.now(),
+      }),
+    );
+    const recipeId = await as(t, owner).mutation(
+      api.recipes.create,
+      fields(canvasId),
+    );
+    expect(
+      await as(t, owner).query(api.recipes.forTaskNode, {
+        recipeId,
+        canvasId: otherCanvas,
+      }),
+    ).toBeNull();
+    expect(
+      await as(t, stranger).query(api.recipes.forTaskNode, {
+        recipeId,
+        canvasId,
+      }),
+    ).toBeNull();
+    expect(
+      await as(t, owner).query(api.recipes.forTaskNode, {
+        recipeId: "not-an-id",
+        canvasId,
+      }),
+    ).toBeNull();
+  });
+});

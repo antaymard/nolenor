@@ -9,7 +9,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import errors from "./config/errorsConfig";
-import { requireAuth, requireCanvasAccess } from "./lib/auth";
+import { getCanvasAccess, requireAuth, requireCanvasAccess } from "./lib/auth";
 import * as RecipeModels from "./models/recipeModels";
 import { vRecipeTrigger } from "./schemas/recipesSchema";
 
@@ -185,6 +185,70 @@ export const listRuns = query({
       .withIndex("by_recipeId", (q) => q.eq("recipeId", recipeId))
       .order("desc")
       .take(RUNS_LIMIT);
+  },
+});
+
+// ── TaskNode ─────────────────────────────────────────────────────────────────
+
+/**
+ * Les recipes de l'utilisateur qui visent ce canvas : ce qu'un TaskNode
+ * propose de lier.
+ */
+export const listForCanvas = query({
+  args: { canvasId: v.id("canvases") },
+  handler: async (ctx, { canvasId }) => {
+    const userId = await requireAuth(ctx);
+    const recipes = await RecipeModels.listByUser(ctx, userId);
+    return recipes
+      .filter((recipe) => recipe.canvasId === canvasId)
+      .map((recipe) => ({ _id: recipe._id, name: recipe.name }));
+  },
+});
+
+/**
+ * Ce qu'un TaskNode montre de sa recipe, à n'importe quel membre du canvas.
+ *
+ * `recipeId` arrive des `values` du node, qu'un éditeur peut écrire : on
+ * l'accepte en chaîne et on ne révèle la recipe que si elle vise CE canvas et
+ * que l'appelant y a accès. Coller l'id d'une recipe dans un node d'un autre
+ * canvas ne montre donc rien. Ni les instructions, ni les conversations des
+ * autres : seulement le nom, les déclencheurs et l'état du dernier run.
+ */
+export const forTaskNode = query({
+  args: { recipeId: v.string(), canvasId: v.id("canvases") },
+  handler: async (ctx, { recipeId, canvasId }) => {
+    const userId = await requireAuth(ctx);
+    const id = ctx.db.normalizeId("recipes", recipeId);
+    const recipe = id ? await ctx.db.get("recipes", id) : null;
+    if (!recipe || recipe.canvasId !== canvasId) return null;
+    const access = await getCanvasAccess(ctx, canvasId, userId);
+    if (!access) return null;
+
+    const lastRun = await ctx.db
+      .query("runs")
+      .withIndex("by_recipeId", (q) => q.eq("recipeId", recipe._id))
+      .order("desc")
+      .first();
+    return {
+      _id: recipe._id,
+      name: recipe.name,
+      enabled: recipe.enabled,
+      triggers: recipe.triggers,
+      nextRunAt: recipe.nextRunAt,
+      isOwner: recipe.userId === userId,
+      // Lancer, c'est faire écrire Nolë dans le canvas : éditeur requis.
+      canLaunch:
+        RecipeModels.canLaunch(recipe, userId) &&
+        access.permission !== "viewer",
+      lastRun: lastRun
+        ? {
+            status: lastRun.status,
+            startedAt: lastRun.startedAt,
+            // Une conversation n'est visible que de celui qui l'a lancée.
+            threadId: lastRun.userId === userId ? lastRun.threadId : null,
+          }
+        : null,
+    };
   },
 });
 

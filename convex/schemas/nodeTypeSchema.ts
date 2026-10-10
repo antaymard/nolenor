@@ -16,6 +16,9 @@ const nodeTypeValues = [
   // rend le groupement explicite, là où la minimap devait jusqu'ici le
   // deviner à la proximité. Ne se crée qu'à la souris (`creatable: false`).
   "frame",
+  // Raccourci vers une recipe (cf. recipesSchema) : la lancer au clic, voir
+  // son dernier run. Ne porte que `recipeId` ; la recipe vit hors du canvas.
+  "task",
   // Node défini par l'utilisateur : la forme des values est portée par un
   // document nodeTemplates (cf. nodeDatas.templateId), pas par nodeConfig.
   "custom",

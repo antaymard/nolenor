@@ -137,6 +137,10 @@ export function getNodeDataTitle(
         : "Frame";
     }
 
+    case "task":
+      // Le nom vit sur la recipe, hors du canvas et réservé à ses ayants droit.
+      return "Task";
+
     case "custom": {
       if (template?.titleFieldId) {
         const title = nodeData.values[template.titleFieldId];

@@ -21,6 +21,8 @@ import AppNode from "./AppNode";
 import AudioNode from "./AudioNode";
 import VideoNode from "./VideoNode";
 import FrameNode from "./FrameNode";
+import TaskNode from "./TaskNode";
+import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 
 type NodeUiConfigItem = {
   nodeComponent: React.ComponentType<XyNodeProps>;
@@ -121,6 +123,14 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.video,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("video"),
     creatable: true,
+  },
+  task: {
+    nodeComponent: TaskNode,
+    nodeIcon: NODE_TYPE_ICON_MAP.task,
+    canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("task"),
+    // Comme la page Recipes dont il dépend : proposé en dev seulement (cf.
+    // lib/featureFlags.ts). Un TaskNode déjà posé reste rendu partout.
+    creatable: SHOW_DEV_ONLY_SETTINGS,
   },
   frame: {
     nodeComponent: FrameNode,

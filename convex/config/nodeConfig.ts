@@ -936,6 +936,37 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       })
       .default({ title: "", level: DEFAULT_FRAME_TITLE_LEVEL }),
   },
+  {
+    type: "task",
+    label: "Task",
+    description:
+      "Shortcut to a recipe: run it with a click and see its last run.",
+    llmDescription:
+      "A shortcut to one of the user's recipes (a task Nolë runs on demand or on a schedule). It only holds 'recipeId'; the recipe itself is managed in the settings.",
+    // Nom, déclencheurs, prochain run, dernier run, bouton : cinq lignes.
+    defaultDimensions: { width: baseWidth, height: 168, resizable: true },
+    capabilities: {
+      // V1 : invisible pour l'agent. Le node ne porte qu'un id, la recipe
+      // (instructions, déclencheurs) vit hors du canvas et n'appartient qu'à
+      // son propriétaire. À rouvrir avec le tool de création de recipes.
+      agent: {
+        exposed: false,
+        creatable: false,
+        readable: false,
+        writable: false,
+      },
+      mentionable: false,
+      versioned: false,
+      search: { embed: false },
+    },
+    dataValuesSchema: z
+      .object({
+        // `Id<"recipes">` en chaîne : les values sont libres, le backend le
+        // revalide à la lecture (cf. recipes.forTaskNode).
+        recipeId: z.string().default(""),
+      })
+      .default({ recipeId: "" }),
+  },
 ];
 
 function getDefaultNodeDataValues(

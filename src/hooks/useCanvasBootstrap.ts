@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
@@ -108,8 +108,28 @@ export function useCanvasBootstrap(
   }, [tableEdges]);
 
   // Une query par nodeData des nodes vivants (cf. useNodeDataSubscriptions).
-  const { isError: isNodeDatasError, error: nodeDatasError } =
-    useNodeDataSubscriptions(tableNodes);
+  const {
+    isLoading: isNodeDatasLoading,
+    isError: isNodeDatasError,
+    error: nodeDatasError,
+  } = useNodeDataSubscriptions(tableNodes);
+
+  // Le contenu est prêt quand le canvas, ses nodes, ses edges et le nodeData
+  // de chaque node ont répondu une première fois : l'écran de chargement le
+  // cache jusque-là, plutôt que de laisser les nodes se remplir un par un.
+  // Verrouillé par canvas : un node ajouté ensuite ouvre une query de plus,
+  // en vol le temps d'un aller-retour, et ne doit pas ramener l'écran.
+  const isContentLoading =
+    canvas === undefined ||
+    tableNodes === undefined ||
+    tableEdges === undefined ||
+    isNodeDatasLoading;
+  const [loadedCanvasId, setLoadedCanvasId] =
+    useState<Id<"canvases"> | null>(null);
+  const isContentReady = loadedCanvasId === canvasId || !isContentLoading;
+  useEffect(() => {
+    if (!isContentLoading) setLoadedCanvasId(canvasId);
+  }, [canvasId, isContentLoading]);
 
   // Custom node templates : ceux référencés par le canvas (viewers de
   // canvases partagés inclus) + ceux du user (menu d'ajout, nouveaux nodes).
@@ -193,6 +213,7 @@ export function useCanvasBootstrap(
     canvas,
     flowNodes,
     flowEdges,
+    isContentReady,
     isCanvasError,
     canvasError,
     isNodeDatasError,

@@ -1,7 +1,8 @@
 import PageHeader from "@/components/app-shell/PageHeader";
 import MemoriesPanel from "@/components/settings/memories/MemoriesPanel";
+import type { SettingsPageProps } from "../settingsSections";
 
-export default function MemoriesSettingsPage() {
+export default function MemoriesSettingsPage({ canvasId }: SettingsPageProps) {
   return (
     <div>
       <PageHeader
@@ -10,7 +11,7 @@ export default function MemoriesSettingsPage() {
       />
 
       <div className="mt-6 rounded-2xl bg-slate-50 p-3">
-        <MemoriesPanel />
+        <MemoriesPanel canvasId={canvasId} />
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import { redirect } from "@tanstack/react-router";
  * `vite build`, preview comprise. On développe donc la fonctionnalité
  * normalement en local, sans la proposer aux utilisateurs.
  *
- * Concerne aujourd'hui les pages Recipes et Custom nodes des settings. Les
+ * Concerne aujourd'hui la page Custom nodes des settings. Les
  * custom nodes DÉJÀ posés sur un canvas restent, eux, pleinement utilisables
  * et éditables (clic droit → éditer le template) : c'est la découverte et la
  * création depuis les settings qui sont mises de côté, pas le rendu.

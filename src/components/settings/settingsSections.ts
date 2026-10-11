@@ -117,7 +117,6 @@ const settingsGroups: SettingsGroup[] = [
         key: "recipes",
         label: "Routines",
         icon: TbListDetails,
-        devOnly: true,
         fullWidth: true,
         Page: lazy(() => import("./pages/RecipesSettingsPage")),
       },

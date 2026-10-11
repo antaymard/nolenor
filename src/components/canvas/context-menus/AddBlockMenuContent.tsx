@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useConvexAuth } from "convex/react";
 import type { Doc } from "@/../convex/_generated/dataModel";
-import { useNavigate } from "@tanstack/react-router";
 import { TbSearch, TbSettings } from "react-icons/tb";
 import {
   DropdownMenuItem,
@@ -16,6 +15,7 @@ import prebuiltNodesConfig, {
 import { useMyTemplates } from "@/stores/templatesStore";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
+import { useSettingsModalStore } from "@/stores/settingsModalStore";
 import { cn } from "@/lib/utils";
 import type {
   ConnectedNodeCreatedInfo,
@@ -47,7 +47,7 @@ export default function AddBlockMenuContent({
   parentFrame?: Pick<FrameScope, "frameId" | "compact"> | null;
 }) {
   const { createNode } = useCreateNode();
-  const navigate = useNavigate();
+  const openSettings = useSettingsModalStore((state) => state.open);
   const { isAuthenticated } = useConvexAuth();
   const [query, setQuery] = useState("");
   // Autofocus seulement au pointeur fin : sur tactile, focus = clavier
@@ -227,15 +227,7 @@ export default function AddBlockMenuContent({
   }
 
   function handleManageTemplates() {
-    navigate({
-      to: "/settings/templates",
-      state: {
-        from:
-          window.location.pathname +
-          window.location.search +
-          window.location.hash,
-      },
-    });
+    openSettings("templates");
   }
 
   function handleActivateItem(item: AddMenuItem | undefined) {

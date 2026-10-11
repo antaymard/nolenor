@@ -51,4 +51,13 @@ crons.interval(
   {},
 );
 
+// Routines : lance les recipes dont le prochain créneau est passé (cf.
+// recipes.runDue). La granularité des créneaux est l'heure ; la minute suffit.
+crons.interval(
+  "run due recipes",
+  { minutes: 1 },
+  internal.recipes.runDue,
+  {},
+);
+
 export default crons;

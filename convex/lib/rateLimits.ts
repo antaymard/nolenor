@@ -67,6 +67,16 @@ const limits = {
     period: MINUTE,
     capacity: 60,
   },
+  // Lancement d'une recipe (au clic ou planifié) : un run de Nolë complet,
+  // comme `noleMessage`. Les routines tournent au plus une fois par heure
+  // chacune ; c'est le filet de sécurité de tous les chemins de lancement,
+  // dont les futurs déclencheurs (webhook, événement).
+  recipeRun: {
+    kind: "token bucket",
+    rate: 30,
+    period: HOUR,
+    capacity: 10,
+  },
   // Endpoint public non authentifié : la clé est l'IP, pas un userId.
   wishlistSubscribe: {
     kind: "fixed window",
@@ -118,6 +128,7 @@ export const USER_KEYED_RATE_LIMITS = [
   "audioTranscription",
   "linkMetadata",
   "uploadUrl",
+  "recipeRun",
 ] as const satisfies ReadonlyArray<keyof typeof limits>;
 
 /**

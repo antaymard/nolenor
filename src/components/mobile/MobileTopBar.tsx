@@ -1,10 +1,10 @@
-import { Link } from "@tanstack/react-router";
 import { HiOutlineCog } from "react-icons/hi";
 import { TbChevronDown } from "react-icons/tb";
 import { Button } from "@/components/shadcn/button";
 import CanvasStatus from "@/components/canvas/on-canvas-ui/CanvasStatus";
 import CanvasPresence from "@/components/canvas/on-canvas-ui/CanvasPresence";
 import SharingModal from "@/components/canvas/on-canvas-ui/SharingModal";
+import { useSettingsModalStore } from "@/stores/settingsModalStore";
 
 export default function MobileTopBar({
   canvasName,
@@ -13,6 +13,7 @@ export default function MobileTopBar({
   canvasName?: string;
   onOpenCanvasSwitcher: () => void;
 }) {
+  const openSettings = useSettingsModalStore((state) => state.open);
   return (
     <div
       className="flex shrink-0 items-center gap-1 border-b px-2 py-2"
@@ -31,20 +32,14 @@ export default function MobileTopBar({
         <CanvasStatus />
         {/* Autonome : rend son propre trigger, et null si l'user n'est pas owner. */}
         <SharingModal />
-        <Button variant="ghost" size="icon" asChild>
-          <Link
-            to="/settings"
-            state={{
-              from:
-                window.location.pathname +
-                window.location.search +
-                window.location.hash,
-            }}
-            title="Settings"
-            aria-label="Settings"
-          >
-            <HiOutlineCog size={18} />
-          </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => openSettings()}
+          title="Settings"
+          aria-label="Settings"
+        >
+          <HiOutlineCog size={18} />
         </Button>
       </div>
     </div>

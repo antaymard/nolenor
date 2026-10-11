@@ -1,0 +1,40 @@
+import { useQuery } from "convex/react";
+import { api } from "@/../convex/_generated/api";
+import PageHeader from "@/components/app-shell/PageHeader";
+import { Button } from "@/components/shadcn/button";
+import TemplatesList from "@/components/settings/templates/TemplatesList";
+import { useTemplateEditor } from "@/hooks/useTemplateEditor";
+import { TbPlus } from "react-icons/tb";
+
+// Liste seule : l'édition se fait dans la modale plein écran (montée à la
+// racine), la même que celle ouverte depuis un clic droit sur un custom node.
+// Une seule surface d'édition à faire évoluer, et le builder n'est plus
+// coincé dans la colonne de droite des settings.
+export default function TemplatesSettingsPage() {
+  const templates = useQuery(api.nodeTemplates.listMine, {
+    includeArchived: true,
+  });
+  const { openTemplateEditor, openTemplateCreator } = useTemplateEditor();
+
+  return (
+    <div className="flex h-full flex-col gap-6">
+      <PageHeader
+        title="Custom nodes"
+        subtitle="Design your own node types from a library of fields, with a layout for the canvas and another for the window. Nolë can read and write them like any other node."
+        action={
+          <Button type="button" onClick={openTemplateCreator}>
+            <TbPlus />
+            New custom node
+          </Button>
+        }
+      />
+      <div className="min-h-0 max-w-2xl flex-1 overflow-y-auto pr-1">
+        {templates === undefined ? (
+          <p className="px-2 text-sm text-slate-500 italic">Loading…</p>
+        ) : (
+          <TemplatesList templates={templates} onSelect={openTemplateEditor} />
+        )}
+      </div>
+    </div>
+  );
+}

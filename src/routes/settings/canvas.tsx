@@ -1,29 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
-import PageHeader from "@/components/app-shell/PageHeader";
-import CanvasBackgroundPanel from "@/components/settings/canvas/CanvasBackgroundPanel";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-const canvasSettingsSearchSchema = z.object({
-  canvasId: z.string().optional().catch(undefined),
-});
-
+/**
+ * L'apparence d'un canvas se règle depuis lui, dans la modale des réglages
+ * (cf. `SettingsModal`) : la page hors canvas n'a plus rien à proposer.
+ */
 export const Route = createFileRoute("/settings/canvas")({
-  component: RouteComponent,
-  validateSearch: canvasSettingsSearchSchema,
+  beforeLoad: () => {
+    throw redirect({ to: "/settings/account" });
+  },
 });
-
-function RouteComponent() {
-  const { canvasId } = Route.useSearch();
-  return (
-    <div>
-      <PageHeader
-        title="Canvas"
-        subtitle="Icon, color, cover image and background, shared with everyone who can see the canvas. Only canvases you own can be edited."
-      />
-
-      <div className="mt-6 rounded-2xl bg-slate-50 p-3">
-        <CanvasBackgroundPanel initialCanvasId={canvasId} />
-      </div>
-    </div>
-  );
-}

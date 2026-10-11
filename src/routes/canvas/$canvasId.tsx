@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ReactFlowProvider, Panel } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import SettingsModal from "@/components/settings/SettingsModal";
 import CanvasErrorScreen from "@/components/canvas/CanvasErrorScreen";
 import { lazy, Suspense } from "react";
 import WindowsContainer from "@/components/windows/WindowsContainer";
@@ -64,9 +65,15 @@ function RouteComponent() {
   const { isAuthenticated } = useConvexAuth();
   const isMobile = useIsMobile();
 
+  // Les réglages s'ouvrent en modale par-dessus le canvas, qui reste monté.
+  const settingsModal = isAuthenticated ? (
+    <SettingsModal canvasId={canvasId} />
+  ) : null;
+
   if (isMobile && isAuthenticated) {
     return (
       <div className="bg-surface">
+        {settingsModal}
         <Suspense
           fallback={
             <div className="flex h-screen items-center justify-center">
@@ -90,6 +97,7 @@ function RouteComponent() {
 
   return (
     <div className="bg-surface">
+      {settingsModal}
       <ReactFlowProvider key={canvasId}>
         {isAuthenticated ? (
           <CanvasSidebar canvasId={canvasId}>{canvasContent}</CanvasSidebar>

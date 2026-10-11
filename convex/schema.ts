@@ -13,7 +13,7 @@ import { wishlistEmailsValidator } from "./schemas/wishlistEmailsSchema";
 import { skillsValidator } from "./schemas/skillsSchema";
 import { skillAttachmentsValidator } from "./schemas/skillAttachmentsSchema";
 import { messageMetadataValidator } from "./schemas/messageMetadataSchema";
-import { recipesValidor } from "./schemas/recipesSchema";
+import { recipesValidator } from "./schemas/recipesSchema";
 import { threadMetadataValidator } from "./schemas/threadMetadataSchema";
 import { agentTaskValidator } from "./schemas/agentTasksSchema";
 import { compactionsValidator } from "./schemas/compactionsSchema";
@@ -199,7 +199,11 @@ const schema = defineSchema({
     .index("by_skill", ["skillId"])
     .index("by_skill_and_name", ["skillId", "name"]),
 
-  recipes: defineTable(recipesValidor).index("by_user", ["userId"]),
+  recipes: defineTable(recipesValidator)
+    .index("by_user", ["userId"])
+    // Le cron des routines : les recipes actives dont le prochain lancement
+    // est passé (cf. recipes.runDue). Absent = rien de planifié.
+    .index("by_nextRunAt", ["nextRunAt"]),
 
   // ============================================================================
   // MESSAGE METADATA (chat UX: model/usage/cost per assistant message,
@@ -266,7 +270,9 @@ const schema = defineSchema({
       "userId",
       "agentName",
       "reviewedAt",
-    ]),
+    ])
+    // L'historique d'une recipe, le plus récent d'abord.
+    .index("by_recipeId", ["recipeId"]),
   // Demandes envoyées sans thread (omnibar) et leur aiguillage (cf.
   // harness/dispatch.ts).
   dispatches: defineTable(dispatchesValidator)

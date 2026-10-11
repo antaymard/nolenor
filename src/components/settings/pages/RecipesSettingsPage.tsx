@@ -39,8 +39,8 @@ export default function RecipesSettingsPage({ canvasId }: SettingsPageProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-6">
       <PageHeader
-        title="Recipes"
-        subtitle="Tasks for Nolë that you run on demand, on a schedule, or once at a given date. Each run is a new conversation on the recipe's canvas."
+        title="Routines"
+        subtitle="Tasks for Nolë that you run on demand, on a schedule, or once at a given date. Each run is a new conversation on the routine's canvas."
         action={
           <Button
             type="button"
@@ -50,7 +50,7 @@ export default function RecipesSettingsPage({ canvasId }: SettingsPageProps) {
             }}
           >
             <TbPlus />
-            New recipe
+            New routine
           </Button>
         }
       />
@@ -65,7 +65,7 @@ export default function RecipesSettingsPage({ canvasId }: SettingsPageProps) {
           {canvasId && allRecipes && (
             <div
               role="group"
-              aria-label="Recipes to show"
+              aria-label="Routines to show"
               className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1 text-sm"
             >
               {(
@@ -119,7 +119,7 @@ export default function RecipesSettingsPage({ canvasId }: SettingsPageProps) {
               className="self-start md:hidden"
               onClick={closeEditor}
             >
-              <TbArrowLeft /> All recipes
+              <TbArrowLeft /> All routines
             </Button>
           )}
           <div className="min-h-0 flex-1">
@@ -140,7 +140,7 @@ export default function RecipesSettingsPage({ canvasId }: SettingsPageProps) {
               />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-slate-500">
-                Select a recipe on the left, or create a new one.
+                Select a routine on the left, or create a new one.
               </div>
             )}
           </div>

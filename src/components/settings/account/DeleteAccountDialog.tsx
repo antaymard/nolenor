@@ -26,7 +26,7 @@ import { toastError } from "@/components/utils/errorUtils";
 const DELETED_ITEMS = [
   "your canvases, with every node, file and connection they hold",
   "your conversations with Nolë, and everything she remembers about you",
-  "your skills, recipes, custom nodes and API tokens",
+  "your skills, routines, custom nodes and API tokens",
   "your access to the canvases others have shared with you",
 ];
 

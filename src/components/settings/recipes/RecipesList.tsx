@@ -15,7 +15,7 @@ export default function RecipesList({
 }: RecipesListProps) {
   if (recipes.length === 0) {
     return (
-      <p className="px-2 text-sm text-slate-500 italic">No recipes yet.</p>
+      <p className="px-2 text-sm text-slate-500 italic">No routines yet.</p>
     );
   }
 

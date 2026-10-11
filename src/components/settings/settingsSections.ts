@@ -115,7 +115,7 @@ const settingsGroups: SettingsGroup[] = [
       },
       {
         key: "recipes",
-        label: "Recipes",
+        label: "Routines",
         icon: TbListDetails,
         devOnly: true,
         fullWidth: true,

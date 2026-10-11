@@ -90,7 +90,7 @@ export default function RecipeEditor(props: RecipeEditorProps) {
     return <Centered>Loading…</Centered>;
   }
   if (recipeId && recipe === null) {
-    return <Centered>Recipe not found.</Centered>;
+    return <Centered>Routine not found.</Centered>;
   }
   if (hydratedFor !== hydrationKey) return <Centered>Loading…</Centered>;
 
@@ -125,14 +125,14 @@ export default function RecipeEditor(props: RecipeEditorProps) {
           // L'interrupteur s'applique à part : on garde l'état en base.
           enabled: recipe?.enabled ?? draft.enabled,
         });
-        toast.success("Recipe saved.");
+        toast.success("Routine saved.");
       } else if ("onCreated" in props) {
         const id = await createRecipe(fields);
-        toast.success("Recipe created.");
+        toast.success("Routine created.");
         props.onCreated(id);
       }
     } catch (error) {
-      toastError(error, "Failed to save recipe.");
+      toastError(error, "Failed to save routine.");
     } finally {
       setBusy(null);
     }
@@ -146,7 +146,7 @@ export default function RecipeEditor(props: RecipeEditorProps) {
     try {
       await setEnabled({ recipeId: props.recipeId, enabled });
     } catch (error) {
-      toastError(error, "Failed to update recipe.");
+      toastError(error, "Failed to update routine.");
     }
   };
 
@@ -157,7 +157,7 @@ export default function RecipeEditor(props: RecipeEditorProps) {
       await launchRecipe({ recipeId: props.recipeId });
       toast.success("Nolë is on it.");
     } catch (error) {
-      toastError(error, "Failed to run recipe.");
+      toastError(error, "Failed to run routine.");
     } finally {
       setBusy(null);
     }
@@ -167,10 +167,10 @@ export default function RecipeEditor(props: RecipeEditorProps) {
     if (!props.recipeId) return;
     try {
       await removeRecipe({ recipeId: props.recipeId });
-      toast.success(`Recipe "${recipe?.name}" deleted.`);
+      toast.success(`Routine "${recipe?.name}" deleted.`);
       props.onDeleted();
     } catch (error) {
-      toastError(error, "Failed to delete recipe.");
+      toastError(error, "Failed to delete routine.");
     }
   };
 
@@ -182,7 +182,7 @@ export default function RecipeEditor(props: RecipeEditorProps) {
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3">
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className="text-xl font-bold break-words">
-            {recipe?.name || draft.name || "New recipe"}
+            {recipe?.name || draft.name || "New routine"}
           </h2>
           <label className="flex items-center gap-2 text-sm text-slate-600">
             <Switch checked={enabled} onCheckedChange={handleToggle} />
@@ -197,9 +197,9 @@ export default function RecipeEditor(props: RecipeEditorProps) {
         <div className="flex shrink-0 flex-wrap gap-2">
           {recipe && (
             <ConfirmableButton
-              title={`Delete recipe "${recipe.name}"?`}
+              title={`Delete routine "${recipe.name}"?`}
               text="Its past runs stay in their conversations. This cannot be undone."
-              confirmLabel="Delete recipe"
+              confirmLabel="Delete routine"
               destructive
               onConfirm={() => void handleDelete()}
             >
@@ -245,7 +245,7 @@ export default function RecipeEditor(props: RecipeEditorProps) {
 
       <Field
         label="Canvas"
-        hint="Where Nolë works when the recipe runs. You need to be an editor."
+        hint="Where Nolë works when the routine runs. You need to be an editor."
       >
         <Select
           value={draft.canvasId}

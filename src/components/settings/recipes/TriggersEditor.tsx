@@ -67,7 +67,7 @@ export default function TriggersEditor({
     <div className="flex flex-col gap-3">
       {timed.length === 0 && (
         <p className="text-sm text-slate-500">
-          No schedule: the recipe only runs when you run it from here.
+          No schedule: the routine only runs when you run it from here.
         </p>
       )}
 
@@ -257,7 +257,7 @@ function OnceRow({
       </div>
       {past && (
         <p className="pl-6 text-xs text-slate-500">
-          This date has passed: the recipe will not run again from it.
+          This date has passed: the routine will not run again from it.
         </p>
       )}
     </div>

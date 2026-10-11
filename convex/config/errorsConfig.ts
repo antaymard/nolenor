@@ -32,20 +32,20 @@ const errors = {
   INSUFFICIENT_PERMISSIONS:
     "You do not have the required permission for this action.",
   THREAD_NOT_FOUND_OR_FORBIDDEN: "Thread not found or access denied.",
-  RECIPE_NOT_FOUND: "This recipe does not exist.",
-  RECIPE_NAME_REQUIRED: "Recipe name is required.",
-  RECIPE_INSTRUCTIONS_REQUIRED: "Recipe instructions are required.",
+  RECIPE_NOT_FOUND: "This routine does not exist.",
+  RECIPE_NAME_REQUIRED: "Routine name is required.",
+  RECIPE_INSTRUCTIONS_REQUIRED: "Routine instructions are required.",
   RECIPE_INSTRUCTIONS_TOO_LONG:
-    "Recipe instructions are too long (10,000 characters at most).",
-  RECIPE_TOO_MANY_TRIGGERS: "A recipe can have at most 5 triggers.",
+    "Routine instructions are too long (10,000 characters at most).",
+  RECIPE_TOO_MANY_TRIGGERS: "A routine can have at most 5 triggers.",
   RECIPE_ONCE_IN_PAST: "A one-time run must be scheduled in the future.",
   RECIPE_ONCE_TOO_FAR: "A one-time run can be scheduled at most a year ahead.",
   RECIPE_TOO_MANY_SCHEDULED:
-    "You have reached the maximum number of active scheduled recipes. Disable one before enabling another.",
+    "You have reached the maximum number of active scheduled routines. Disable one before enabling another.",
   RECIPE_NOT_LAUNCHABLE:
-    "This recipe cannot be launched: it is disabled, or only its owner can run it.",
+    "This routine cannot be launched: it is disabled, or only its owner can run it.",
   RECIPE_ALREADY_RUNNING:
-    "This recipe is already running. Wait for the current run to finish.",
+    "This routine is already running. Wait for the current run to finish.",
   TEMPLATE_NOT_FOUND: "This node template does not exist.",
   TOKEN_NOT_FOUND: "This API token does not exist.",
   TOKEN_NAME_REQUIRED: "Token name is required.",

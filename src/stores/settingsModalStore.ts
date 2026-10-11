@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { CanvasBackground } from "@/lib/canvasBackground";
-import type { SettingsSectionKey } from "@/components/settings/settingsSections";
+import {
+  DEFAULT_SETTINGS_SECTION,
+  type SettingsSectionKey,
+} from "@/components/settings/settingsSections";
 
 /**
  * Les réglages ouverts en modale par-dessus un canvas (cf. `SettingsModal`) :
@@ -32,7 +35,7 @@ export const useSettingsModalStore = create<SettingsModalStore>()((set) => ({
   section: null,
   peeking: false,
   backgroundPreview: null,
-  open: (section = "account") => set({ section }),
+  open: (section = DEFAULT_SETTINGS_SECTION) => set({ section }),
   setSection: (section) => set({ section, peeking: false }),
   close: () => set({ section: null, peeking: false, backgroundPreview: null }),
   setPeeking: (peeking) => set({ peeking }),

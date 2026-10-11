@@ -39,12 +39,8 @@ export default function CanvasBackgroundPanel({
   const updateAppearance = useMutation(api.canvases.updateCanvasAppearance);
   const resolveCoverForSave = useCanvasCoverUpload();
   const [isSaving, setIsSaving] = useState(false);
-  const selectedCanvasId = canvasId;
 
-  const canvas = useQuery(
-    api.canvases.readCanvas,
-    selectedCanvasId ? { canvasId: selectedCanvasId } : "skip",
-  );
+  const canvas = useQuery(api.canvases.readCanvas, { canvasId });
   const serverBackground = useMemo(
     () =>
       resolveCanvasBackground(
@@ -134,13 +130,13 @@ export default function CanvasBackgroundPanel({
   const coverTint = canvasCover(identityDraft.color).tint;
 
   const handleSave = async () => {
-    if (!selectedCanvasId || !isDirty) return;
+    if (!isDirty) return;
     setIsSaving(true);
     try {
       if (isIconDirty || isColorDirty || isCoverDirty) {
         const coverImage = await resolveCoverForSave(coverDraft, serverCover);
         await updateAppearance({
-          canvasId: selectedCanvasId,
+          canvasId,
           ...(isIconDirty ? { icon: identityDraft.icon ?? null } : {}),
           ...(isColorDirty ? { color: identityDraft.color ?? null } : {}),
           ...(coverImage !== undefined ? { coverImage } : {}),
@@ -148,7 +144,7 @@ export default function CanvasBackgroundPanel({
       }
       if (isBackgroundDirty) {
         await updateBackground({
-          canvasId: selectedCanvasId,
+          canvasId,
           background: sanitizeCanvasBackgroundForSave(draft),
         });
       }

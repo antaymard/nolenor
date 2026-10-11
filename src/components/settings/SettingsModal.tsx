@@ -10,6 +10,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useSettingsModalStore } from "@/stores/settingsModalStore";
+import SettingsPageErrorBoundary from "./SettingsPageErrorBoundary";
 import SettingsShell from "./SettingsShell";
 import {
   DEFAULT_SETTINGS_SECTION,
@@ -121,17 +122,19 @@ export default function SettingsModal({
               );
             }}
           >
-            <Suspense
-              fallback={
-                <div className="flex h-full items-center justify-center">
-                  <Spinner className="size-6 text-muted-foreground" />
-                </div>
-              }
-            >
-              {/* Remontée par section : l'état d'une page ne fuit pas dans
-                  la suivante. */}
-              <Page key={section.key} canvasId={canvasId} />
-            </Suspense>
+            {/* Remontés par section : l'état d'une page (et son erreur) ne
+                fuit pas dans la suivante. */}
+            <SettingsPageErrorBoundary key={section.key}>
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Spinner className="size-6 text-muted-foreground" />
+                  </div>
+                }
+              >
+                <Page canvasId={canvasId} />
+              </Suspense>
+            </SettingsPageErrorBoundary>
           </SettingsShell>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

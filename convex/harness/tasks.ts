@@ -492,6 +492,7 @@ export async function startRun(
       generationTaskId,
       maxGenerations: args.profile.maxGenerationsPerRun,
       ...(args.model !== undefined ? { model: args.model } : {}),
+      ...(row.loadedTools?.length ? { loadedTools: row.loadedTools } : {}),
       ...(args.parent ? { parent: args.parent } : {}),
     },
   });
@@ -1057,7 +1058,11 @@ async function applyLoadTools(
     current.run.loadedTools ?? [],
   );
   current.run = { ...current.run, loadedTools: loaded };
-  await ctx.db.patch("threadMetadata", current.row._id, { run: current.run });
+  // Retenus aussi par le thread : les runs suivants les décrivent d'emblée.
+  await ctx.db.patch("threadMetadata", current.row._id, {
+    run: current.run,
+    loadedTools: loaded,
+  });
   return result;
 }
 

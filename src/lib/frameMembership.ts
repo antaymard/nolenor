@@ -39,10 +39,9 @@ export function centerOf(node: Node, byId: Map<string, Node>): XY {
 /**
  * La frame sous un point, la plus en avant d'abord.
  *
- * Le critère de survol est le CENTRE du node déplacé, pas son intersection :
- * c'est celui de Figma, et le seul qui ne vacille pas en cours de geste — un
- * node qui chevauche deux frames par ses bords a toujours un centre dans une
- * seule.
+ * Le point est le CURSEUR du drag, pas l'intersection des nodes portés : il
+ * ne vacille pas en cours de geste — un point est toujours dans une seule
+ * frame — et il vaut pour toute la sélection, qui entre ou sort d'un bloc.
  *
  * « La plus en avant » se lit sur le zIndex, avec l'ordre du tableau pour
  * départager, comme partout ailleurs sur ce canvas (cf. `toPaintOrder`).
@@ -93,13 +92,110 @@ export function canJoinFrame(node: Node): boolean {
  * qui est la vérité, l'appartenance ne fait que changer le repère dans lequel
  * on l'exprime.
  */
-export function positionInFrame(
-  absolute: XY,
-  frame: Node | null,
-): XY {
+export function positionInFrame(absolute: XY, frame: Node | null): XY {
   if (!frame) return absolute;
   return {
     x: absolute.x - frame.position.x,
     y: absolute.y - frame.position.y,
   };
+}
+
+export type SizedRect = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/**
+ * Où ranger des nodes déposés sur une frame compacte.
+ *
+ * Sur la carte, le point de dépôt ne dit rien de la frame dépliée : la carte
+ * a sa propre taille, sans rapport avec le contenu qu'elle masque. Les nodes
+ * arrivent donc SOUS le contenu existant, alignés sur son bord gauche — en
+ * haut à gauche si la frame est vide —, et gardent entre eux la disposition
+ * qu'ils avaient au relâcher.
+ *
+ * La frame grandit par la droite et le bas pour les contenir (coin haut
+ * gauche fixe, comme `createNodeInFrame` côté serveur) : le contenu existant
+ * ne bouge pas.
+ *
+ * Tout est en coordonnées de la frame. `frameSize` est sa taille STOCKÉE (la
+ * dépliée), pas celle de la carte.
+ */
+export function placeInCompactFrame({
+  incoming,
+  existing,
+  frameSize,
+  gap,
+  padding,
+}: {
+  incoming: SizedRect[];
+  existing: SizedRect[];
+  frameSize: { width: number; height: number };
+  gap: number;
+  padding: number;
+}): {
+  positions: Map<string, XY>;
+  size: { width: number; height: number };
+} {
+  const positions = new Map<string, XY>();
+  if (incoming.length === 0) return { positions, size: frameSize };
+
+  const minX = Math.min(...incoming.map((rect) => rect.x));
+  const minY = Math.min(...incoming.map((rect) => rect.y));
+  const origin =
+    existing.length > 0
+      ? {
+          x: Math.min(...existing.map((rect) => rect.x)),
+          y: Math.max(...existing.map((rect) => rect.y + rect.height)) + gap,
+        }
+      : { x: padding, y: padding };
+
+  let right = 0;
+  let bottom = 0;
+  for (const rect of incoming) {
+    const x = rect.x - minX + origin.x;
+    const y = rect.y - minY + origin.y;
+    positions.set(rect.id, { x, y });
+    right = Math.max(right, x + rect.width);
+    bottom = Math.max(bottom, y + rect.height);
+  }
+
+  return {
+    positions,
+    size: {
+      width: Math.max(frameSize.width, Math.ceil(right + padding)),
+      height: Math.max(frameSize.height, Math.ceil(bottom + padding)),
+    },
+  };
+}
+
+/**
+ * Où poser des nodes qu'on sort d'une frame : juste à sa droite, alignés sur
+ * son bord haut, dans la disposition qu'ils avaient dedans.
+ *
+ * `frame` est le rectangle RENDU de la frame en coordonnées monde — la carte
+ * pour une compacte : c'est à côté de ce qu'on voit que les nodes doivent
+ * apparaître. `members` est en coordonnées de la frame ; le résultat, en
+ * coordonnées monde.
+ */
+export function placeBesideFrame(
+  frame: { x: number; y: number; width: number },
+  members: SizedRect[],
+  gap: number,
+): Map<string, XY> {
+  const positions = new Map<string, XY>();
+  if (members.length === 0) return positions;
+  const minX = Math.min(...members.map((rect) => rect.x));
+  const minY = Math.min(...members.map((rect) => rect.y));
+  const origin = { x: frame.x + frame.width + gap, y: frame.y };
+  for (const rect of members) {
+    positions.set(rect.id, {
+      x: rect.x - minX + origin.x,
+      y: rect.y - minY + origin.y,
+    });
+  }
+  return positions;
 }

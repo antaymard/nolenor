@@ -16,6 +16,7 @@ import {
   TbBookmark,
   TbBookmarkOff,
   TbCopyPlus,
+  TbFrameOff,
   TbPalette,
   TbPaperclip,
   TbPhoto,
@@ -49,6 +50,7 @@ import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
+import { useRemoveFromFrame } from "@/hooks/useRemoveFromFrame";
 import CopyNodeIdsSubMenu from "./CopyNodeIdsSubMenu";
 import AppearanceMenu from "./AppearanceMenu";
 import ArrangeMenu from "./ArrangeMenu";
@@ -75,6 +77,7 @@ export default function SelectionContextMenu({
   const { duplicateNodes } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
+  const { removeFromFrame } = useRemoveFromFrame();
   const { updateNodeDataValues } = useUpdateNodeDataValues();
   const availableColors = Object.entries(colors).filter(
     ([key]) => key !== "default",
@@ -97,6 +100,9 @@ export default function SelectionContextMenu({
   const canMergeImages = imageNodes.length >= 2;
 
   const elementsArray = Array.isArray(elements) ? elements : [];
+  const framedNodeIds = elementsArray
+    .filter((node) => node.parentId)
+    .map((node) => node.id);
 
   // Détail de la sélection par type, du plus nombreux au moins nombreux,
   // pour la pastille de compte de l'en-tête.
@@ -346,6 +352,23 @@ export default function SelectionContextMenu({
           {allNodesBookmarked ? <TbBookmarkOff /> : <TbBookmark />}
           {allNodesBookmarked ? "Remove bookmarks" : "Bookmark selection"} (
           {bookmarkNodeIds.length})
+        </DropdownMenuItem>
+      )}
+
+      {/* Sortie de frame : posés à côté d'elle, reliés à elle (cf.
+          `useRemoveFromFrame`). Ne vise que ceux qui sont dans une frame. */}
+      {framedNodeIds.length > 0 && (
+        <DropdownMenuItem
+          className="whitespace-nowrap"
+          onClick={() => {
+            removeFromFrame(framedNodeIds);
+            closeMenu();
+          }}
+        >
+          <TbFrameOff />
+          Remove from frame
+          {framedNodeIds.length !== elementsArray.length &&
+            ` (${framedNodeIds.length})`}
         </DropdownMenuItem>
       )}
 

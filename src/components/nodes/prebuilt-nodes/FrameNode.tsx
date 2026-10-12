@@ -379,6 +379,9 @@ function FrameNode(xyNode: XyNodeProps) {
             xyNode.selected
               ? "ring-2 ring-blue-500/70"
               : "hover:ring-1 hover:ring-blue-400/60",
+            // Cible de dépôt : la carte accueille aussi, le node rejoint son
+            // contenu masqué (cf. `placeInCompactFrame`).
+            isDropTarget && "border-blue-500 bg-blue-50 ring-2 ring-blue-500/70",
             isAttachedToNole &&
               "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[16px] after:border-2 after:border-dashed after:border-violet-500/90",
           )}

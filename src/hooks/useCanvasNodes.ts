@@ -37,9 +37,11 @@ import { useFrameHoverStore } from "@/stores/frameHoverStore";
 import { isCompactFrame, isCompactXyFrame } from "@/lib/frameVariant";
 import {
   canJoinFrame,
-  centerOf,
   findFrameAtPoint,
+  placeInCompactFrame,
 } from "@/lib/frameMembership";
+import { FRAME_FIT_PADDING } from "@/lib/frameFit";
+import { FRAME_CONTENT_PADDING } from "@/../convex/config/nodeConfig";
 import { useNodeSnapping } from "@/hooks/useNodeSnapping";
 
 /**
@@ -76,6 +78,13 @@ type LayoutUpdate = {
     /** `null` = sortie de frame. Voyage avec `position` : cf. le flush. */
     parentId?: string | null;
   };
+};
+
+/** Ce qu'on lit de l'événement d'un drag : le point du curseur (ou du doigt). */
+type DragPointerEvent = {
+  clientX?: number;
+  clientY?: number;
+  touches?: ArrayLike<{ clientX: number; clientY: number }>;
 };
 
 const DEBUG_TITLE_SIZING = false;
@@ -132,13 +141,84 @@ function collectDescendants(
   return result;
 }
 
+/**
+ * Les nodes qui entrent dans une frame compacte, déplacés à leur place dans
+ * la frame dépliée (cf. `placeInCompactFrame`) — `updates` est modifié sur
+ * place. Rend, par frame, l'agrandissement à écrire avec eux.
+ *
+ * La taille stockée se lit dans `canvasNodes` : sur le canvas, une frame
+ * compacte a la taille de sa carte.
+ */
+function placeInCompactFramesWith(
+  updates: LayoutUpdate[],
+  nodesById: Map<string, Node>,
+  canvasNodes: CanvasNode[] | undefined,
+): Array<{
+  nodeId: string;
+  memberIds: string[];
+  before: { width: number; height: number };
+  after: { width: number; height: number };
+}> {
+  const byFrame = new Map<string, LayoutUpdate[]>();
+  for (const update of updates) {
+    const { parentId } = update.props;
+    if (!parentId || !update.props.position) continue;
+    const frame = nodesById.get(parentId);
+    if (!frame || !isCompactXyFrame(frame)) continue;
+    const group = byFrame.get(parentId);
+    if (group) group.push(update);
+    else byFrame.set(parentId, [update]);
+  }
+  if (byFrame.size === 0) return [];
+
+  const sizeOf = (node: Node | undefined) => ({
+    width: node?.measured?.width ?? node?.width ?? 0,
+    height: node?.measured?.height ?? node?.height ?? 0,
+  });
+
+  return [...byFrame].flatMap(([frameId, group]) => {
+    const stored = canvasNodes?.find((node) => node.id === frameId);
+    if (!stored) return [];
+    const memberIds = new Set(group.map((update) => update.nodeId));
+    const existing = [...nodesById.values()]
+      .filter((node) => node.parentId === frameId && !memberIds.has(node.id))
+      .map((node) => ({ id: node.id, ...node.position, ...sizeOf(node) }));
+    const incoming = group.map((update) => ({
+      id: update.nodeId,
+      ...update.props.position!,
+      ...sizeOf(nodesById.get(update.nodeId)),
+    }));
+    const before = { width: stored.width, height: stored.height };
+    const { positions, size } = placeInCompactFrame({
+      incoming,
+      existing,
+      frameSize: before,
+      gap: FRAME_FIT_PADDING,
+      padding: FRAME_CONTENT_PADDING,
+    });
+    for (const update of group) {
+      const position = positions.get(update.nodeId);
+      if (position) update.props.position = position;
+    }
+    return [
+      { nodeId: frameId, memberIds: [...memberIds], before, after: size },
+    ];
+  });
+}
+
 export function useCanvasNodes(
   canvasId: Id<"canvases">,
   canvasNodes?: CanvasNode[],
 ) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const { getEdges, getNodes, setEdges } = useReactFlow();
+  const { getEdges, getNodes, setEdges, screenToFlowPosition } =
+    useReactFlow();
   const isCtrlHeld = useKeyHold("Control");
+  // Lu par `flushDragPositions`, qui doit garder une identité stable : la
+  // taille STOCKÉE d'une frame compacte n'existe que là (le node React Flow
+  // porte celle de sa carte).
+  const canvasNodesRef = useRef(canvasNodes);
+  canvasNodesRef.current = canvasNodes;
   const { snapChanges, endSnapSession } = useNodeSnapping();
   const closeWindowsForNodeIds = useWindowsStore(
     (state) => state.closeWindowsForNodeIds,
@@ -373,7 +453,7 @@ export function useCanvasNodes(
           ? new Map(getNodes().map((node) => [node.id, node]))
           : null;
 
-      const updates = [...pending.entries()].map(([nodeId, position]) => {
+      const moves = [...pending.entries()].map(([nodeId, position]) => {
         const reparent = reparents.get(nodeId);
         if (!reparent || !nodesById) return { nodeId, props: { position } };
 
@@ -402,13 +482,23 @@ export function useCanvasNodes(
         };
       });
 
+      // Déposés sur une frame compacte : rangés sous son contenu, et la
+      // frame (dépliée) agrandie pour eux, dans la même écriture.
+      const frameResizes = nodesById
+        ? placeInCompactFramesWith(moves, nodesById, canvasNodesRef.current)
+        : [];
+      const updates: LayoutUpdate[] = [
+        ...moves,
+        ...frameResizes.map(({ nodeId, after }) => ({ nodeId, props: after })),
+      ];
+
       // Un déplacement de N nodes sélectionnés est UN geste : une seule entrée
       // d'historique, avec les N positions d'origine — et, quand le geste a
       // changé l'appartenance, la frame d'origine avec. Les origines ont été
       // capturées avant le geste, donc dans le repère d'avant : elles vont de
       // pair avec `previousParentId`, jamais avec l'un sans l'autre.
       const origins = dragOriginsRef.current;
-      const undoUpdates = updates.flatMap((update) => {
+      const undoMoves = moves.flatMap((update) => {
         const origin = origins.get(update.nodeId);
         if (!origin) return [];
         const reparent = reparents.get(update.nodeId);
@@ -422,6 +512,10 @@ export function useCanvasNodes(
           },
         ];
       });
+      const undoUpdates: LayoutUpdate[] = [
+        ...undoMoves,
+        ...frameResizes.map(({ nodeId, before }) => ({ nodeId, props: before })),
+      ];
       if (undoUpdates.length > 0) {
         recordUndo(
           { kind: "patchNodes", updates: undoUpdates },
@@ -432,12 +526,27 @@ export function useCanvasNodes(
       // Avant de vider les buffers : les deltas se lisent dedans.
       followBendPoints(true);
 
+      // Un node rangé dans une frame compacte disparaît du canvas : resté
+      // sélectionné, Suppr ou Ctrl+D l'emporteraient sans qu'on le voie.
+      const tucked = new Set(
+        frameResizes.flatMap((resize) => resize.memberIds),
+      );
+      if (tucked.size > 0) {
+        setNodes((current) =>
+          current.map((node) =>
+            tucked.has(node.id) && node.selected
+              ? { ...node, selected: false }
+              : node,
+          ),
+        );
+      }
+
       pending.clear();
       origins.clear();
       reparents.clear();
       return persistLayoutUpdates(updates, opts);
     },
-    [getNodes, persistLayoutUpdates, followBendPoints],
+    [getNodes, setNodes, persistLayoutUpdates, followBendPoints],
   );
 
   // Buffer pur, sans flush pendant le geste. Chaque écriture serveur en
@@ -1032,46 +1141,58 @@ export function useCanvasNodes(
   );
 
   /**
-   * Décide, à chaque frame du drag, dans quelle frame le node atterrirait.
+   * Décide, à chaque frame du drag, dans quelle frame la sélection
+   * atterrirait.
    *
    * Ici et pas au relâcher : React Flow appelle `updateNodePositions` — donc
    * `handleNodeChange`, donc `flushDragPositions` — AVANT `onNodeDragStop`.
    * La décision doit être prise pendant le geste pour que le flush la trouve.
    *
+   * Le critère est le CURSEUR, et il vaut pour toute la sélection : une
+   * sélection déposée sur une frame y entre en entier, pas seulement les
+   * nodes dont le centre tombe dedans. Un node seul suit la même règle — on
+   * vise avec la souris, pas avec le milieu de ce qu'on porte.
+   *
    * Recalculé à chaque frame plutôt que mémorisé : c'est un test de point dans
    * quelques rectangles, et le survol doit suivre le curseur.
    */
-  const onNodeDrag = useCallback(
-    (_event: unknown, _node: Node, draggedNodes: Node[]) => {
+  const decideFrameMembership = useCallback(
+    (event: DragPointerEvent, draggedNodes: Node[]) => {
       const current = getNodes();
       // Sortie immédiate sur un canvas sans frame — c'est-à-dire sur presque
       // tous. Ce handler tourne à chaque frame du geste : il ne doit rien
       // coûter quand il n'a rien à faire.
-      // Une frame compacte n'accueille rien : son contenu est masqué, un node
-      // déposé dessus disparaîtrait au relâcher.
+      const draggedIds = new Set(draggedNodes.map((node) => node.id));
+      // Une frame compacte accueille aussi : le node déposé sur sa carte
+      // rejoint son contenu (masqué), rangé sous ce qui y est déjà — cf.
+      // `placeInCompactFramesWith`. Une frame portée par le geste n'accueille
+      // pas : elle est toujours sous le curseur.
       const frames = current.filter(
-        (node) => node.type === "frame" && !isCompactXyFrame(node),
+        (node) => node.type === "frame" && !draggedIds.has(node.id),
       );
       if (frames.length === 0) return;
 
       const byId = new Map(current.map((node) => [node.id, node]));
-      const pending = pendingReparentRef.current;
+      // Typé souris par React Flow, mais un drag au doigt passe l'événement
+      // tactile : ses coordonnées sont sur le premier contact.
+      const point = event.touches?.[0] ?? event;
+      const { clientX, clientY } = point;
+      if (typeof clientX !== "number" || typeof clientY !== "number") return;
+      const cursor = screenToFlowPosition({ x: clientX, y: clientY });
 
-      let hovered: string | null = null;
+      const frame = findFrameAtPoint(frames, cursor);
+      const nextParentId = frame?.id ?? null;
+      const pending = pendingReparentRef.current;
+      let hovered = false;
 
       for (const dragged of draggedNodes) {
         const node = byId.get(dragged.id) ?? dragged;
         if (!canJoinFrame(node)) continue;
+        // Sa frame est du voyage : il la suit, il ne la quitte pas.
+        if (node.parentId && draggedIds.has(node.parentId)) continue;
+        hovered = hovered || nextParentId !== null;
 
-        const frame = findFrameAtPoint(frames, centerOf(node, byId));
         const previousParentId = node.parentId ?? null;
-        const nextParentId = frame?.id ?? null;
-
-        // La frame d'accueil s'entoure, y compris quand le node y était déjà :
-        // le retour visuel dit « au relâcher, ce node est dans cette frame »,
-        // pas « ce node change de frame ».
-        if (nextParentId) hovered = nextParentId;
-
         if (nextParentId === previousParentId) {
           // Rien à écrire — et surtout : purger une décision prise plus tôt
           // dans le même geste, quand le node est ressorti d'où il venait.
@@ -1084,9 +1205,28 @@ export function useCanvasNodes(
         });
       }
 
-      useFrameHoverStore.getState().setHoveredFrameId(hovered);
+      // La frame d'accueil s'entoure, y compris quand les nodes y étaient
+      // déjà : le retour visuel dit « au relâcher, ils sont dans cette
+      // frame », pas « ils changent de frame ».
+      useFrameHoverStore
+        .getState()
+        .setHoveredFrameId(hovered ? nextParentId : null);
     },
-    [getNodes],
+    [getNodes, screenToFlowPosition],
+  );
+
+  const onNodeDrag = useCallback(
+    (event: DragPointerEvent, _node: Node, draggedNodes: Node[]) =>
+      decideFrameMembership(event, draggedNodes),
+    [decideFrameMembership],
+  );
+
+  // Drag par le rectangle de sélection : même décision, React Flow ne passe
+  // simplement pas par `onNodeDrag`.
+  const onSelectionDrag = useCallback(
+    (event: DragPointerEvent, draggedNodes: Node[]) =>
+      decideFrameMembership(event, draggedNodes),
+    [decideFrameMembership],
   );
 
   /**
@@ -1113,6 +1253,7 @@ export function useCanvasNodes(
     handleNodeChange,
     onNodeDrag,
     onNodeDragStop,
+    onSelectionDrag,
     onSelectionStart,
     onSelectionEnd,
   };

@@ -29,6 +29,7 @@ import {
   TbCheck,
   TbCopy,
   TbCopyPlus,
+  TbFrameOff,
   TbLayoutBoardSplit,
   TbPalette,
   TbPaperclip,
@@ -49,6 +50,7 @@ import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useCanvasStore } from "@/stores/canvasStore";
+import { useRemoveFromFrame } from "@/hooks/useRemoveFromFrame";
 
 type NodeSubMenuItem = {
   label: string;
@@ -96,6 +98,7 @@ export default function NodeContextMenu({
   const { duplicateNode } = useDuplicateNode();
   const { updateCanvasNode } = useUpdateCanvasNode();
   const { applyLayerCommand } = useNodeLayering();
+  const { removeFromFrame } = useRemoveFromFrame();
   const addNoleAttachments = useNoleStore((state) => state.addAttachments);
   const removeNoleAttachments = useNoleStore(
     (state) => state.removeAttachments,
@@ -240,6 +243,15 @@ export default function NodeContextMenu({
       label: copyIds.label,
       icon: TbCopy,
       subMenu: copyIds.items,
+    },
+    {
+      // Posé à côté de la frame, relié à elle (cf. `useRemoveFromFrame`).
+      hidden: !xyNode.parentId,
+      label: "Remove from frame",
+      icon: TbFrameOff,
+      onClick: () => {
+        removeFromFrame([xyNode.id]);
+      },
     },
     {
       label: "Move to another canvas",

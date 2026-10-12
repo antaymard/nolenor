@@ -59,7 +59,7 @@ export function visibleTools(
     .map((name) => `- ${name}: ${summary(tools[name].description)}`)
     .join("\n");
   visible[LOAD_TOOLS] = tool({
-    description: `Load tools that are not available yet, by exact name. They become callable from your next step, for the rest of this response. Load only what you are about to use.\n\nLoadable tools:\n${catalog}`,
+    description: `Load tools that are not available yet, by exact name. They become callable from your next step, for the rest of this conversation. Load only what you are about to use.\n\nLoadable tools:\n${catalog}`,
     inputSchema: z.object({
       explanation: z
         .string()

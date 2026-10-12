@@ -117,7 +117,8 @@ const threadRunValidator = v.object({
   // modèle pendant le run (sélecteur, steer) prend effet au step suivant.
   model: v.optional(v.string()),
   // Tools différés chargés par le modèle (`load_tools`) : décrits à toutes
-  // les générations suivantes du run.
+  // les générations suivantes du run. Repris de `threadMetadata.loadedTools`
+  // à l'ouverture du run.
   loadedTools: v.optional(v.array(v.string())),
   // La question (`ask_user`) qui attend la réponse de l'utilisateur : son
   // prochain message y répond au lieu de partir en file.
@@ -165,6 +166,12 @@ const threadMetadataValidator = v.object({
   runEndedAt: v.optional(v.number()),
   lastRunError: v.optional(v.string()),
   reviewedAt: v.optional(v.number()),
+  // Tools différés chargés au fil du thread (`load_tools`). Ils restent
+  // décrits aux runs suivants : l'historique montre au modèle qu'il s'en est
+  // servi, et un tool retiré de sa liste ne peut plus être appelé — le
+  // modèle annonce l'action puis finit son tour sans la faire. Garder la
+  // liste stable préserve aussi le cache d'un run à l'autre.
+  loadedTools: v.optional(v.array(v.string())),
   // Le run en cours de la harness, présent exactement tant qu'il travaille.
   // C'est la référence que toutes les tâches confrontent avant d'écrire : un
   // run abandonné (abort, nouveau message) ne fait plus rien dès qu'il n'est

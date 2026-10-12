@@ -1282,6 +1282,31 @@ describe("phase 3c — tools différés et nodes écrits", () => {
     expect((await threadRow(t, seed.threadId))?.run).toBeUndefined();
   });
 
+  test("load_tools : un tool chargé reste décrit aux runs suivants du thread", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([
+      [call("load_tools", { names: ["rare"] })],
+      [call("rare")],
+      [text("Done")],
+      // Run suivant : le modèle rappelle le tool sans le recharger.
+      [call("rare")],
+      [text("Done again")],
+    ]);
+    await send(t, seed, "Use the rare tool");
+    await drain(t);
+    const secondRun = await send(t, seed, "Again");
+    await drain(t);
+
+    expect(toolNames(3)).toContain("rare");
+    expect(toolNames(3)).not.toContain("load_tools");
+    const tasks = await tasksOf(t, secondRun);
+    expect(tasks.find((task) => task.toolName === "rare")?.status).toBe(
+      "completed",
+    );
+    expect(promptText(4)).toContain("rare done");
+  });
+
   test("listLiveActivity : les nodes écrits par le run en cours", async () => {
     const t = setup();
     const seed = await seedThread(t);

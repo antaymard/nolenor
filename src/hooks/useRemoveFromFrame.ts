@@ -76,7 +76,10 @@ export function useRemoveFromFrame() {
         for (const node of members) {
           const position = positions.get(node.id);
           if (!position) continue;
-          updates.push({ nodeId: node.id, props: { parentId: null, position } });
+          updates.push({
+            nodeId: node.id,
+            props: { parentId: null, position },
+          });
           if (!isLinked(frameId, node.id)) {
             links.push({ source: frameId, target: node.id });
           }
@@ -88,9 +91,7 @@ export function useRemoveFromFrame() {
         await updateCanvasNodes(updates);
         // Après le patch : `createEdge` enregistre son annulation à la
         // confirmation serveur, qui doit tomber dans cette transaction.
-        await Promise.allSettled(
-          links.map((link) => createEdge(link).settled),
-        );
+        await Promise.allSettled(links.map((link) => createEdge(link).settled));
       });
     },
     [createEdge, getEdges, getNodes, updateCanvasNodes],

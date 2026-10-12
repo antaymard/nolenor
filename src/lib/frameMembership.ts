@@ -39,10 +39,9 @@ export function centerOf(node: Node, byId: Map<string, Node>): XY {
 /**
  * La frame sous un point, la plus en avant d'abord.
  *
- * Le critère de survol est le CENTRE du node déplacé, pas son intersection :
- * c'est celui de Figma, et le seul qui ne vacille pas en cours de geste — un
- * node qui chevauche deux frames par ses bords a toujours un centre dans une
- * seule.
+ * Le point est le CURSEUR du drag, pas l'intersection des nodes portés : il
+ * ne vacille pas en cours de geste — un point est toujours dans une seule
+ * frame — et il vaut pour toute la sélection, qui entre ou sort d'un bloc.
  *
  * « La plus en avant » se lit sur le zIndex, avec l'ordre du tableau pour
  * départager, comme partout ailleurs sur ce canvas (cf. `toPaintOrder`).

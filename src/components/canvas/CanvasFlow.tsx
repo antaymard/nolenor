@@ -454,6 +454,7 @@ export default function CanvasFlow({
     handleNodeChange,
     onNodeDrag,
     onNodeDragStop,
+    onSelectionDrag,
     onSelectionStart,
     onSelectionEnd,
   } = useCanvasNodes(canvasId, canvasNodes);
@@ -788,6 +789,8 @@ export default function CanvasFlow({
         // flush) AVANT `onNodeDragStop`. Cf. `useCanvasNodes`.
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onSelectionDrag={onSelectionDrag}
+        onSelectionDragStop={onNodeDragStop}
         // Bornent le lasso, pour que Ctrl + lasso écarte les frames (cf.
         // `useCanvasNodes`).
         onSelectionStart={onSelectionStart}

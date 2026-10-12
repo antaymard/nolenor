@@ -37,7 +37,6 @@ import { useFrameHoverStore } from "@/stores/frameHoverStore";
 import { isCompactFrame, isCompactXyFrame } from "@/lib/frameVariant";
 import {
   canJoinFrame,
-  centerOf,
   findFrameAtPoint,
   placeInCompactFrame,
 } from "@/lib/frameMembership";
@@ -79,6 +78,13 @@ type LayoutUpdate = {
     /** `null` = sortie de frame. Voyage avec `position` : cf. le flush. */
     parentId?: string | null;
   };
+};
+
+/** Ce qu'on lit de l'événement d'un drag : le point du curseur (ou du doigt). */
+type DragPointerEvent = {
+  clientX?: number;
+  clientY?: number;
+  touches?: ArrayLike<{ clientX: number; clientY: number }>;
 };
 
 const DEBUG_TITLE_SIZING = false;
@@ -205,7 +211,8 @@ export function useCanvasNodes(
   canvasNodes?: CanvasNode[],
 ) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const { getEdges, getNodes, setEdges } = useReactFlow();
+  const { getEdges, getNodes, setEdges, screenToFlowPosition } =
+    useReactFlow();
   const isCtrlHeld = useKeyHold("Control");
   // Lu par `flushDragPositions`, qui doit garder une identité stable : la
   // taille STOCKÉE d'une frame compacte n'existe que là (le node React Flow
@@ -1134,45 +1141,58 @@ export function useCanvasNodes(
   );
 
   /**
-   * Décide, à chaque frame du drag, dans quelle frame le node atterrirait.
+   * Décide, à chaque frame du drag, dans quelle frame la sélection
+   * atterrirait.
    *
    * Ici et pas au relâcher : React Flow appelle `updateNodePositions` — donc
    * `handleNodeChange`, donc `flushDragPositions` — AVANT `onNodeDragStop`.
    * La décision doit être prise pendant le geste pour que le flush la trouve.
    *
+   * Le critère est le CURSEUR, et il vaut pour toute la sélection : une
+   * sélection déposée sur une frame y entre en entier, pas seulement les
+   * nodes dont le centre tombe dedans. Un node seul suit la même règle — on
+   * vise avec la souris, pas avec le milieu de ce qu'on porte.
+   *
    * Recalculé à chaque frame plutôt que mémorisé : c'est un test de point dans
    * quelques rectangles, et le survol doit suivre le curseur.
    */
-  const onNodeDrag = useCallback(
-    (_event: unknown, _node: Node, draggedNodes: Node[]) => {
+  const decideFrameMembership = useCallback(
+    (event: DragPointerEvent, draggedNodes: Node[]) => {
       const current = getNodes();
       // Sortie immédiate sur un canvas sans frame — c'est-à-dire sur presque
       // tous. Ce handler tourne à chaque frame du geste : il ne doit rien
       // coûter quand il n'a rien à faire.
+      const draggedIds = new Set(draggedNodes.map((node) => node.id));
       // Une frame compacte accueille aussi : le node déposé sur sa carte
       // rejoint son contenu (masqué), rangé sous ce qui y est déjà — cf.
-      // `placeInCompactFramesWith`.
-      const frames = current.filter((node) => node.type === "frame");
+      // `placeInCompactFramesWith`. Une frame portée par le geste n'accueille
+      // pas : elle est toujours sous le curseur.
+      const frames = current.filter(
+        (node) => node.type === "frame" && !draggedIds.has(node.id),
+      );
       if (frames.length === 0) return;
 
       const byId = new Map(current.map((node) => [node.id, node]));
-      const pending = pendingReparentRef.current;
+      // Typé souris par React Flow, mais un drag au doigt passe l'événement
+      // tactile : ses coordonnées sont sur le premier contact.
+      const point = event.touches?.[0] ?? event;
+      const { clientX, clientY } = point;
+      if (typeof clientX !== "number" || typeof clientY !== "number") return;
+      const cursor = screenToFlowPosition({ x: clientX, y: clientY });
 
-      let hovered: string | null = null;
+      const frame = findFrameAtPoint(frames, cursor);
+      const nextParentId = frame?.id ?? null;
+      const pending = pendingReparentRef.current;
+      let hovered = false;
 
       for (const dragged of draggedNodes) {
         const node = byId.get(dragged.id) ?? dragged;
         if (!canJoinFrame(node)) continue;
+        // Sa frame est du voyage : il la suit, il ne la quitte pas.
+        if (node.parentId && draggedIds.has(node.parentId)) continue;
+        hovered = hovered || nextParentId !== null;
 
-        const frame = findFrameAtPoint(frames, centerOf(node, byId));
         const previousParentId = node.parentId ?? null;
-        const nextParentId = frame?.id ?? null;
-
-        // La frame d'accueil s'entoure, y compris quand le node y était déjà :
-        // le retour visuel dit « au relâcher, ce node est dans cette frame »,
-        // pas « ce node change de frame ».
-        if (nextParentId) hovered = nextParentId;
-
         if (nextParentId === previousParentId) {
           // Rien à écrire — et surtout : purger une décision prise plus tôt
           // dans le même geste, quand le node est ressorti d'où il venait.
@@ -1185,9 +1205,28 @@ export function useCanvasNodes(
         });
       }
 
-      useFrameHoverStore.getState().setHoveredFrameId(hovered);
+      // La frame d'accueil s'entoure, y compris quand les nodes y étaient
+      // déjà : le retour visuel dit « au relâcher, ils sont dans cette
+      // frame », pas « ils changent de frame ».
+      useFrameHoverStore
+        .getState()
+        .setHoveredFrameId(hovered ? nextParentId : null);
     },
-    [getNodes],
+    [getNodes, screenToFlowPosition],
+  );
+
+  const onNodeDrag = useCallback(
+    (event: DragPointerEvent, _node: Node, draggedNodes: Node[]) =>
+      decideFrameMembership(event, draggedNodes),
+    [decideFrameMembership],
+  );
+
+  // Drag par le rectangle de sélection : même décision, React Flow ne passe
+  // simplement pas par `onNodeDrag`.
+  const onSelectionDrag = useCallback(
+    (event: DragPointerEvent, draggedNodes: Node[]) =>
+      decideFrameMembership(event, draggedNodes),
+    [decideFrameMembership],
   );
 
   /**
@@ -1214,6 +1253,7 @@ export function useCanvasNodes(
     handleNodeChange,
     onNodeDrag,
     onNodeDragStop,
+    onSelectionDrag,
     onSelectionStart,
     onSelectionEnd,
   };

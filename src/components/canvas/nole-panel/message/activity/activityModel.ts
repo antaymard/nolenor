@@ -57,7 +57,10 @@ export type AskedQuestion = {
 
 /** Ce que l'utilisateur a répondu, tel que le modèle l'a reçu. */
 export type QuestionResult =
-  | { kind: "answers"; answers: { question: string; selected: string[] }[] }
+  | {
+      kind: "answers";
+      answers: { question: string; selected: string[]; text?: string }[];
+    }
   | { kind: "text"; answer: string }
   | { kind: "declined" };
 
@@ -130,6 +133,9 @@ function readQuestionResult(output: unknown): QuestionResult {
                         (label): label is string => typeof label === "string",
                       )
                     : [],
+                  ...(typeof answer.text === "string" && answer.text
+                    ? { text: answer.text }
+                    : {}),
                 },
               ]
             : [],

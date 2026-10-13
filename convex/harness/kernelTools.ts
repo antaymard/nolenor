@@ -57,7 +57,7 @@ const askUserTool = tool({
 Group related questions in one call (up to 4) rather than asking them one by one. For each question that is a choice, offer 2 to 6 options: a short label, and a one-line description when the trade-off is not obvious. If you recommend one, put it first and add " (Recommended)" to its label. Set multiSelect when several options can be picked together.
 
 The result is one of:
-- { answers: [{ question, selected: [labels] }] } — the options they picked;
+- { answers: [{ question, selected: [labels], text? }] } — per question, the options they picked and/or "text", what they typed in their own words (it may replace the options: selected is then empty);
 - { answer } — their own words, typed instead of picking (it may cover several questions);
 - { declined: true } — they refused to answer: do not ask again; go on with your best judgment, or stop and say what you need.`,
   inputSchema: z.object({

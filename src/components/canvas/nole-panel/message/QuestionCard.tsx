@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import {
   TbCheck,
-  TbMessageQuestion,
+  TbChevronLeft,
+  TbChevronRight,
   TbMessageCircleOff,
 } from "react-icons/tb";
 import { api } from "@/../convex/_generated/api";
@@ -13,16 +14,25 @@ import type {
   QuestionResult,
 } from "./activity/activityModel";
 
+type Draft = { selected: string[]; text: string };
+const EMPTY_DRAFT: Draft = { selected: [], text: "" };
+
+const isAnswered = (draft: Draft) =>
+  draft.selected.length > 0 || draft.text.trim().length > 0;
+
 /**
  * Les questions de Nolë (`ask_user`, cf. convex/harness/kernelTools.ts).
  *
- * Tant qu'elles attendent : chaque option est une ligne (libellé + précision),
- * à choix simple ou multiple. Une seule question à choix simple part au clic ;
- * sinon on coche, puis « Submit ». L'utilisateur peut aussi répondre avec ses
- * mots dans le champ du chat (le serveur y route son message), ou refuser.
+ * Tant qu'elles attendent : une question à la fois, paginée (« 1 of 3 »). Chaque
+ * question propose ses options (choix simple ou multiple) et, en dessous, un
+ * champ « Something else » pour répondre avec ses propres mots. Un choix simple
+ * fait passer à la question suivante ; la dernière s'envoie avec « Submit »
+ * (ou au clic quand il n'y a qu'une question à choix simple). « Skip » refuse
+ * de répondre. L'utilisateur peut aussi répondre dans le champ du chat (le
+ * serveur y route son message).
  *
- * Une fois répondu, la carte garde la trace : options choisies, texte libre,
- * ou refus.
+ * Une fois répondu, la carte garde la trace : réponses par question, texte
+ * libre, ou refus.
  */
 export function QuestionCard({
   threadId,
@@ -37,27 +47,41 @@ export function QuestionCard({
   /** Le run attend bien cette réponse (thread `waiting`, dernier message). */
   canAnswer: boolean;
   /**
-   * `inline` : sans cadre ni bandeau, pour vivre dans une autre carte (la
-   * carte de tâche sous l'omnibar).
+   * `inline` : sans cadre, pour vivre dans une autre carte (la carte de tâche
+   * sous l'omnibar).
    */
   variant?: "card" | "inline";
 }) {
   const answerQuestion = useMutation(api.harness.ingress.answerQuestion);
-  // Pendant le stream, `questions` grandit après le montage : l'état peut donc
-  // avoir moins d'entrées que de questions. On le lit toujours via `selectedAt`.
-  const [selected, setSelected] = useState<string[][]>([]);
-  const selectedAt = (i: number) => selected[i] ?? [];
+  // `questions` peut grandir après le montage (stream de l'input du tool) :
+  // on lit les brouillons et la page toujours via des accesseurs tolérants.
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [page, setPage] = useState(0);
   const [sending, setSending] = useState(false);
 
+  const inline = variant === "inline";
   const open = result === null && canAnswer;
+  const draftAt = (i: number) => drafts[i] ?? EMPTY_DRAFT;
+  const last = questions.length - 1;
+  const current = Math.min(page, Math.max(last, 0));
+  const question = questions[current];
   const oneClick =
     questions.length === 1 &&
     !questions[0].multiSelect &&
     questions[0].options.length > 0;
-  const answerable = questions.every((q) => q.options.length > 0);
-  const complete = questions.every((_, i) => selectedAt(i).length > 0);
+  const complete = questions.every((_, i) => isAnswered(draftAt(i)));
 
-  const send = async (answer: { question: string; selected: string[] }[] | null) => {
+  const patchDraft = (i: number, patch: Partial<Draft>) =>
+    setDrafts((all) =>
+      questions.map((_, j) => {
+        const draft = all[j] ?? EMPTY_DRAFT;
+        return j === i ? { ...draft, ...patch } : draft;
+      }),
+    );
+
+  const send = async (
+    answer: { question: string; selected: string[]; text?: string }[] | null,
+  ) => {
     if (!threadId || sending) return;
     setSending(true);
     try {
@@ -67,30 +91,91 @@ export function QuestionCard({
     }
   };
 
-  const toggle = (questionIndex: number, label: string) => {
-    const question = questions[questionIndex];
-    if (oneClick) {
-      void send([{ question: question.question, selected: [label] }]);
+  const payload = (override?: { index: number; draft: Draft }) =>
+    questions.map((q, i) => {
+      const draft = override?.index === i ? override.draft : draftAt(i);
+      const text = draft.text.trim();
+      return {
+        question: q.question,
+        selected: draft.selected,
+        ...(text ? { text } : {}),
+      };
+    });
+
+  const pick = (label: string) => {
+    if (!question) return;
+    const draft = draftAt(current);
+    if (question.multiSelect) {
+      patchDraft(current, {
+        selected: draft.selected.includes(label)
+          ? draft.selected.filter((l) => l !== label)
+          : [...draft.selected, label],
+      });
       return;
     }
-    setSelected((current) =>
-      questions.map((_, i) => {
-        const labels = current[i] ?? [];
-        if (i !== questionIndex) return labels;
-        if (!question.multiSelect) return [label];
-        return labels.includes(label)
-          ? labels.filter((l) => l !== label)
-          : [...labels, label];
-      }),
+    // Choix simple : exclusif avec le texte libre.
+    const next = { selected: [label], text: "" };
+    if (oneClick) {
+      void send(payload({ index: current, draft: next }));
+      return;
+    }
+    patchDraft(current, next);
+    if (current < last) setPage(current + 1);
+  };
+
+  const type = (text: string) => {
+    if (!question) return;
+    patchDraft(
+      current,
+      question.multiSelect ? { text } : { text, selected: [] },
     );
   };
 
-  const submit = () =>
-    void send(
-      questions.map((q, i) => ({ question: q.question, selected: selectedAt(i) })),
-    );
+  const advance = () => {
+    if (current < last) setPage(current + 1);
+    else if (complete) void send(payload());
+  };
 
-  const inline = variant === "inline";
+  // Réponse donnée, refusée ou périmée : un résumé, sans pagination.
+  if (!open) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col gap-3",
+          !inline &&
+            "rounded-xl border border-slate-200 bg-surface px-4 py-3 shadow-sm",
+        )}
+      >
+        {questions.map((q, i) => (
+          <AnsweredSection
+            key={i}
+            question={q}
+            answer={answerFor(result, q.question)}
+          />
+        ))}
+        {result?.kind === "text" && (
+          <div className="border-l-2 border-slate-200 pl-2 text-sm whitespace-pre-wrap text-slate-600">
+            {result.answer}
+          </div>
+        )}
+        {result?.kind === "declined" && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <TbMessageCircleOff size={14} />
+            Skipped
+          </div>
+        )}
+        {result === null && (
+          <span className="text-xs text-slate-400">Not answered.</span>
+        )}
+      </div>
+    );
+  }
+
+  if (!question) return null;
+  const draft = draftAt(current);
+  const interactive = !sending;
+  const isLast = current === last;
+
   return (
     <div
       className={cn(
@@ -99,139 +184,53 @@ export function QuestionCard({
           "overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-sm",
       )}
     >
-      {!inline && (
-        <div className="flex items-center gap-2 border-b border-slate-100 bg-violet-50/60 px-3 py-2 text-xs font-medium text-violet-700">
-          <TbMessageQuestion size={15} className="shrink-0" />
-          {questions.length > 1
-            ? `Nolë has ${questions.length} questions`
-            : "Nolë has a question"}
-        </div>
-      )}
-
-      <div className={cn("flex flex-col gap-4", inline ? "py-1" : "px-3 py-3")}>
-        {questions.map((question, questionIndex) => (
-          <QuestionSection
-            key={questionIndex}
-            question={question}
-            selected={selectedAt(questionIndex)}
-            answered={answeredFor(result, question.question)}
-            interactive={open && !sending}
-            onPick={(label) => toggle(questionIndex, label)}
-          />
-        ))}
-
-        {result?.kind === "text" && (
-          <div className="border-l-2 border-violet-200 pl-2 text-sm whitespace-pre-wrap text-slate-600">
-            {result.answer}
+      <div
+        className={cn("flex flex-col gap-3", inline ? "py-1" : "px-4 pt-3 pb-2")}
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            {question.header && (
+              <span className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+                {question.header}
+              </span>
+            )}
+            <div className="text-sm font-medium text-slate-800">
+              <MarkdownText>{question.question}</MarkdownText>
+            </div>
           </div>
-        )}
-        {result?.kind === "declined" && (
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <TbMessageCircleOff size={14} />
-            Declined
-          </div>
-        )}
-        {result === null && !canAnswer && (
-          <span className="text-xs text-slate-400">Not answered.</span>
-        )}
-      </div>
-
-      {open && (
-        <div
-          className={cn(
-            "flex items-center gap-2 border-t border-slate-100",
-            inline ? "pt-2" : "px-3 py-2",
+          {questions.length > 1 && (
+            <Pager
+              page={current}
+              total={questions.length}
+              onChange={setPage}
+            />
           )}
-        >
-          <span className="min-w-0 flex-1 text-[11px] leading-snug text-slate-400">
-            {answerable
-              ? "Or reply in your own words in the chat box below."
-              : "Reply in the chat box below."}
+        </div>
+
+        {question.multiSelect && (
+          <span className="-mt-1.5 text-[11px] text-slate-400">
+            Select all that apply.
           </span>
-          <button
-            type="button"
-            disabled={sending}
-            onClick={() => void send(null)}
-            className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-          >
-            Decline
-          </button>
-          {answerable && !oneClick && (
-            <button
-              type="button"
-              disabled={sending || !complete}
-              onClick={submit}
-              className="rounded-md bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40"
-            >
-              Submit
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+        )}
 
-function answeredFor(result: QuestionResult | null, question: string) {
-  if (result?.kind !== "answers") return null;
-  return result.answers.find((a) => a.question === question)?.selected ?? [];
-}
-
-function QuestionSection({
-  question,
-  selected,
-  answered,
-  interactive,
-  onPick,
-}: {
-  question: AskedQuestion;
-  selected: string[];
-  /** Les options retenues, une fois répondu par la carte. */
-  answered: string[] | null;
-  interactive: boolean;
-  onPick: (label: string) => void;
-}) {
-  const chosen = answered ?? selected;
-  return (
-    <div className="flex flex-col gap-2">
-      {question.header && (
-        <span className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
-          {question.header}
-        </span>
-      )}
-      <div className="text-sm font-medium text-slate-800">
-        <MarkdownText>{question.question}</MarkdownText>
-      </div>
-      {question.multiSelect && interactive && (
-        <span className="-mt-1 text-[11px] text-slate-400">
-          Select all that apply.
-        </span>
-      )}
-
-      {question.options.length > 0 && (
         <div className="flex flex-col divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200">
           {question.options.map((option, index) => {
-            const isChosen = chosen.includes(option.label);
-            // Répondu : seules les options retenues restent lisibles.
-            const dimmed = answered !== null && !isChosen;
+            const chosen = draft.selected.includes(option.label);
             return (
               <button
                 key={option.label}
                 type="button"
                 disabled={!interactive}
-                onClick={() => onPick(option.label)}
+                onClick={() => pick(option.label)}
                 className={cn(
-                  "flex items-start gap-2.5 px-3 py-2 text-left transition-colors",
-                  interactive && "hover:bg-slate-50",
-                  isChosen && "bg-violet-50",
-                  dimmed && "opacity-45",
-                  !interactive && "cursor-default",
+                  "flex items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-slate-50",
+                  chosen && "bg-violet-50 hover:bg-violet-50",
                 )}
               >
                 <OptionMarker
                   index={index}
                   multi={question.multiSelect}
-                  checked={isChosen}
+                  checked={chosen}
                 />
                 <span className="flex min-w-0 flex-col">
                   <span className="text-sm font-medium text-slate-800">
@@ -246,6 +245,147 @@ function QuestionSection({
               </button>
             );
           })}
+
+          <label
+            className={cn(
+              "flex items-center gap-2.5 px-3 py-2",
+              draft.text.trim() && "bg-violet-50",
+            )}
+          >
+            <OptionMarker
+              index={question.options.length}
+              multi={question.multiSelect}
+              checked={draft.text.trim().length > 0}
+            />
+            <input
+              type="text"
+              value={draft.text}
+              disabled={!interactive}
+              placeholder="Something else"
+              onChange={(event) => type(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  if (isAnswered(draft)) advance();
+                }
+              }}
+              className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "flex items-center gap-2",
+          inline ? "pt-1" : "px-4 pt-1 pb-3",
+        )}
+      >
+        <span className="min-w-0 flex-1 text-[11px] leading-snug text-slate-400">
+          Or reply in the chat box below.
+        </span>
+        <button
+          type="button"
+          disabled={sending}
+          onClick={() => void send(null)}
+          className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+        >
+          Skip
+        </button>
+        {!(oneClick && !draft.text.trim()) && (
+          <button
+            type="button"
+            disabled={sending || !isAnswered(draft) || (isLast && !complete)}
+            onClick={advance}
+            className="rounded-md bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40"
+          >
+            {isLast ? "Submit" : "Next"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function answerFor(result: QuestionResult | null, question: string) {
+  if (result?.kind !== "answers") return null;
+  return (
+    result.answers.find((a) => a.question === question) ?? {
+      question,
+      selected: [],
+    }
+  );
+}
+
+/** « ‹ 2 of 3 › ». */
+function Pager({
+  page,
+  total,
+  onChange,
+}: {
+  page: number;
+  total: number;
+  onChange: (page: number) => void;
+}) {
+  const arrow =
+    "rounded p-0.5 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent";
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 text-xs text-slate-500">
+      <button
+        type="button"
+        aria-label="Previous question"
+        disabled={page === 0}
+        onClick={() => onChange(page - 1)}
+        className={arrow}
+      >
+        <TbChevronLeft size={14} />
+      </button>
+      <span className="px-0.5 tabular-nums">
+        {page + 1} of {total}
+      </span>
+      <button
+        type="button"
+        aria-label="Next question"
+        disabled={page >= total - 1}
+        onClick={() => onChange(page + 1)}
+        className={arrow}
+      >
+        <TbChevronRight size={14} />
+      </button>
+    </div>
+  );
+}
+
+/** Une question répondue (ou restée sans réponse) : l'énoncé et ce qui a été retenu. */
+function AnsweredSection({
+  question,
+  answer,
+}: {
+  question: AskedQuestion;
+  answer: { selected: string[]; text?: string } | null;
+}) {
+  const hasAnswer = answer && (answer.selected.length > 0 || answer.text);
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="text-sm text-slate-500">
+        <MarkdownText>{question.question}</MarkdownText>
+      </div>
+      {hasAnswer && (
+        <div className="flex flex-col gap-0.5">
+          {answer.selected.map((label) => (
+            <span
+              key={label}
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-800"
+            >
+              <TbCheck size={14} className="shrink-0 text-violet-600" />
+              {label}
+            </span>
+          ))}
+          {answer.text && (
+            <span className="border-l-2 border-violet-200 pl-2 text-sm whitespace-pre-wrap text-slate-700">
+              {answer.text}
+            </span>
+          )}
         </div>
       )}
     </div>

@@ -117,7 +117,7 @@ export const listQueuedSubmissions = query({
 
 /**
  * Répond aux questions en attente du thread, depuis la carte `ask_user` : les
- * options choisies par question, ou `null` pour refuser d'y répondre.
+ * options choisies (et/ou le texte libre) par question, ou `null` pour refuser d'y répondre.
  */
 export const answerQuestion = mutation({
   args: {
@@ -125,7 +125,12 @@ export const answerQuestion = mutation({
     answer: v.union(
       v.null(),
       v.array(
-        v.object({ question: v.string(), selected: v.array(v.string()) }),
+        v.object({
+          question: v.string(),
+          selected: v.array(v.string()),
+          /** Ses propres mots pour cette question, en plus ou à la place des options. */
+          text: v.optional(v.string()),
+        }),
       ),
     ),
   },

@@ -972,7 +972,12 @@ async function askUser(
 }
 
 /** Les options choisies, question par question (carte `ask_user`). */
-export type QuestionSelection = { question: string; selected: string[] };
+export type QuestionSelection = {
+  question: string;
+  selected: string[];
+  /** Texte libre de l'utilisateur pour cette question. */
+  text?: string;
+};
 
 /**
  * Répond à la question en attente du thread, s'il y en a une : le run

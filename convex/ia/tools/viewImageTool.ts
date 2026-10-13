@@ -136,7 +136,7 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           success: false,
           message: `Failed to read node ${nodeId}: ${
             error instanceof Error ? error.message : "Unknown error"
-          }. Verify the id with list_nodes.`,
+          }. Verify the id with \`nole ls --type image\` (bash).`,
         };
       }
     },

@@ -114,7 +114,7 @@ export const TABLE_MAX_CHARS = 60_000;
 export const TABLE_HINTS = {
   notATable: "tableRows was provided for a non-table node and was ignored.",
   defaultCap: (totalRows: number, displayedCount: number) =>
-    `Showing ${displayedCount} of ${totalRows} rows (default cap: ${TABLE_DEFAULT_ROW_LIMIT}). Use search_canvas for token lookup, or call read_nodes with tableRows=[{nodeId, offset, limit}] or tableRows=[{nodeId, rowIds:[…]}] to target specific rows.`,
+    `Showing ${displayedCount} of ${totalRows} rows (default cap: ${TABLE_DEFAULT_ROW_LIMIT}). Use \`nole table\` (bash) to get every row, or call read_nodes with tableRows=[{nodeId, offset, limit}] or tableRows=[{nodeId, rowIds:[…]}] to target specific rows.`,
   hardCap: (totalRows: number, displayedCount: number) =>
     `Showing ${displayedCount} of ${totalRows} rows (capped at ${TABLE_MAX_ROW_LIMIT}). Re-call with a smaller limit or specific rowIds.`,
   charLimit: (totalRows: number, displayedCount: number) =>

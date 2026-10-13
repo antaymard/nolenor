@@ -114,7 +114,7 @@ export const canvasStepContext: NonNullable<Profile["stepContext"]> = async (
       `<node id="${node.id}" type="${node.type}" title="${escapeXmlAttribute(node.title)}"${node.frameId ? ` frameId="${node.frameId}"` : ""}/>`,
   );
   if (changes.more > 0) {
-    lines.push(`… and ${changes.more} more (use list_nodes for the rest).`);
+    lines.push(`… and ${changes.more} more (\`nole ls\` in bash lists them all).`);
   }
   return [
     {

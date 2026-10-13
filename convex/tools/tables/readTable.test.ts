@@ -244,6 +244,19 @@ describe("nole table", () => {
     expect(stdout(await bash(`nole table ${tableId} --schema | grep Tags`))).toBe(
       "c_tags\tTags\tselect (multi)\turgent; q3",
     );
+    expect(
+      JSON.parse(
+        stdout(
+          await bash(`nole table ${tableId} --schema --format jsonl | grep c_tags`),
+        ),
+      ),
+    ).toEqual({
+      id: "c_tags",
+      name: "Tags",
+      type: "select",
+      isMulti: true,
+      options: ["urgent", "q3"],
+    });
     const notTable = await bash(`nole table ${linkId}`);
     expect(notTable).toContain("is a link, not a table");
     expect(notTable).toContain("<exitCode>1</exitCode>");

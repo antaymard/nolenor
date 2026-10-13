@@ -196,7 +196,7 @@ function normalizeNodeValue({
     return {
       ok: false,
       error: toolError(
-        `Node "${nodeId}" not found on the current canvas (column "${column.name}"). Use list_nodes to find a valid id.`,
+        `Node "${nodeId}" not found on the current canvas (column "${column.name}"). Use \`nole ls\` (bash) to find a valid id.`,
       ),
     };
   }

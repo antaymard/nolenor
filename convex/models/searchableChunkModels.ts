@@ -462,7 +462,7 @@ export async function resolveNodeIds(
         .first();
       // Un node à la corbeille est traité comme un orphelin : ses chunks
       // vivent jusqu'à la purge (30 j), mais il ne doit plus remonter en
-      // recherche — ni dans la modale, ni dans le tool `search_canvas`.
+      // recherche — ni dans la modale, ni dans `nole search`.
       if (node && node.status !== "trashed") {
         resolved.set(nodeDataId, node.id);
       } else {

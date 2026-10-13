@@ -189,7 +189,7 @@ export default function createNodeTool({
         .string()
         .optional()
         .describe(
-          "Optional frame node id: create the node INSIDE that frame, as one of its children. The frame must already exist — see the canvas structure map, list_nodes, or create one with group_nodes. Placement then happens inside the frame's box, and the frame grows if the node does not fit. What enters a frame stays there: you cannot take it out afterwards, and deleting the frame deletes it. Only use this when the node belongs to that group.",
+          "Optional frame node id: create the node INSIDE that frame, as one of its children. The frame must already exist — see the canvas structure map, `nole ls --type frame` (bash), or create one with group_nodes. Placement then happens inside the frame's box, and the frame grows if the node does not fit. What enters a frame stays there: you cannot take it out afterwards, and deleting the frame deletes it. Only use this when the node belongs to that group.",
         ),
       anchorNodeId: z
         .string()
@@ -664,7 +664,7 @@ export default function createNodeTool({
           nodeId,
           nodeType: input.nodeType,
           titleApplied,
-          // Position MONDE, comme `list_nodes` et `read_nodes` la rendent — y
+          // Position MONDE, comme `nole ls` et `read_nodes` la rendent — y
           // compris pour un node posé dans une frame, dont la position écrite
           // en base est pourtant relative.
           position: finalPosition,

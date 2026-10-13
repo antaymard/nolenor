@@ -27,6 +27,13 @@ export type SourceNode = {
   level?: string;
   // pdf
   files?: { url: string; filename: string; mimeType?: string }[];
+  // video / audio (url is shared with image/link)
+  filename?: string;
+  mimeType?: string;
+  /** In seconds. */
+  duration?: number;
+  width?: number;
+  height?: number;
 };
 
 export function resolveSourceNode(
@@ -89,6 +96,48 @@ export function resolveSourceNode(
         | Array<{ url: string; filename: string; mimeType?: string }>
         | undefined;
       return { ...base, files };
+    }
+    case "video": {
+      const video = nodeData.values?.video as
+        | {
+            url?: string;
+            filename?: string;
+            mimeType?: string;
+            duration?: number;
+            width?: number;
+            height?: number;
+          }
+        | null
+        | undefined;
+      if (!video) return base;
+      return {
+        ...base,
+        url: video.url,
+        filename: video.filename,
+        mimeType: video.mimeType,
+        duration: video.duration,
+        width: video.width,
+        height: video.height,
+      };
+    }
+    case "audio": {
+      const audio = nodeData.values?.audio as
+        | {
+            url?: string;
+            filename?: string;
+            mimeType?: string;
+            duration?: number;
+          }
+        | null
+        | undefined;
+      if (!audio) return base;
+      return {
+        ...base,
+        url: audio.url,
+        filename: audio.filename,
+        mimeType: audio.mimeType,
+        duration: audio.duration,
+      };
     }
     default:
       return base;

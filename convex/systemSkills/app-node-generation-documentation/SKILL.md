@@ -43,7 +43,7 @@ Returns all data from nodes connected via edges. No arguments needed.
 ```typescript
 async getData(): Promise<Record<string, {
   id: string;
-  type: "table" | "blocknote" | "value" | "image" | "link" | "title" | "pdf";
+  type: "table" | "blocknote" | "value" | "image" | "link" | "title" | "pdf" | "video" | "audio";
   name: string;
   // --- table ---
   columns?: { id: string; name: string; type: string }[];
@@ -65,6 +65,12 @@ async getData(): Promise<Record<string, {
   level?: string;
   // --- pdf ---
   files?: { url: string; filename: string; mimeType?: string }[];
+  // --- video / audio --- (url is the file URL, playable in <video>/<audio>)
+  filename?: string;
+  mimeType?: string;
+  duration?: number;         // seconds
+  width?: number;            // video only
+  height?: number;           // video only
 }>>
 ```
 

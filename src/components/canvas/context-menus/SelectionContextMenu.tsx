@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -13,6 +14,7 @@ import type { Node } from "@xyflow/react";
 
 import { HiOutlineTrash } from "react-icons/hi";
 import {
+  TbArrowLeftFromArc,
   TbBookmark,
   TbBookmarkOff,
   TbCopyPlus,
@@ -54,6 +56,7 @@ import { useRemoveFromFrame } from "@/hooks/useRemoveFromFrame";
 import CopyNodeIdsSubMenu from "./CopyNodeIdsSubMenu";
 import AppearanceMenu from "./AppearanceMenu";
 import ArrangeMenu from "./ArrangeMenu";
+import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
 
 export default function SelectionContextMenu({
   closeMenu,
@@ -62,6 +65,7 @@ export default function SelectionContextMenu({
   closeMenu: () => void;
   elements: Node[] | object | null;
 }) {
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const { deleteCanvasElements } = useDeleteCanvasElements();
   const canvasId = useCanvasStore((state) => state.canvas?._id);
   // Écriture seule : ce menu se remonte à chaque clic droit, inutile d'ouvrir
@@ -394,6 +398,21 @@ export default function SelectionContextMenu({
         closeMenu={closeMenu}
       />
 
+      {/* Vers un autre canvas : la sélection part entière, connexions
+          internes comprises (cf. `moveNodes`). */}
+      <DropdownMenuItem
+        className="whitespace-nowrap"
+        onClick={(e) => {
+          // Le menu reste monté : c'est lui qui porte la modale.
+          e.preventDefault();
+          e.stopPropagation();
+          setIsMoveModalOpen(true);
+        }}
+      >
+        <TbArrowLeftFromArc />
+        Move to another canvas
+      </DropdownMenuItem>
+
       {/* Suppression */}
       <DropdownMenuItem
         onClick={() => {
@@ -407,6 +426,19 @@ export default function SelectionContextMenu({
         <HiOutlineTrash />
         Delete
       </DropdownMenuItem>
+
+      {createPortal(
+        <MoveNodeToCanvasModal
+          open={isMoveModalOpen}
+          onOpenChange={setIsMoveModalOpen}
+          nodeIds={elementsArray.map((node) => node.id)}
+          onSuccess={() => {
+            setIsMoveModalOpen(false);
+            closeMenu();
+          }}
+        />,
+        document.body,
+      )}
     </>
   );
 }

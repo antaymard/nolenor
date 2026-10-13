@@ -344,7 +344,7 @@ export default function NodeContextMenu({
         <MoveNodeToCanvasModal
           open={isMoveModalOpen}
           onOpenChange={setIsMoveModalOpen}
-          nodeCanvasId={xyNode.id}
+          nodeIds={[xyNode.id]}
           onSuccess={() => {
             setIsMoveModalOpen(false);
             closeMenu();

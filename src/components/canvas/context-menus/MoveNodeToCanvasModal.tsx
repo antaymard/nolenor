@@ -19,14 +19,14 @@ import { useCanvasHistoryStore } from "@/stores/canvasHistoryStore";
 type MoveNodeToCanvasModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  nodeCanvasId: string | null;
+  nodeIds: string[];
   onSuccess?: () => void;
 };
 
 export default function MoveNodeToCanvasModal({
   open,
   onOpenChange,
-  nodeCanvasId,
+  nodeIds,
   onSuccess,
 }: MoveNodeToCanvasModalProps) {
   const { canvasId }: { canvasId: Id<"canvases"> } = useParams({
@@ -53,15 +53,16 @@ export default function MoveNodeToCanvasModal({
   }, [open]);
 
   async function handleConfirm() {
-    if (!nodeCanvasId || !selectedCanvasId) return;
+    if (nodeIds.length === 0 || !selectedCanvasId) return;
 
     setIsSubmitting(true);
     try {
       await moveToCanvas({
-        nodeIds: [nodeCanvasId],
+        nodeIds,
         targetCanvasId: selectedCanvasId,
       });
-      // `moveNodes` supprime pour de bon les connexions incidentes : aucune
+      // `moveNodes` supprime pour de bon les connexions qui sortent de la
+      // sélection, et l'arrivée sur l'autre canvas n'a pas d'inverse : aucune
       // opération inverse ne les rendrait. Plutôt que de laisser la pile
       // promettre une annulation qu'elle ne tiendrait qu'à moitié, on la vide.
       useCanvasHistoryStore.getState().reset();
@@ -76,7 +77,11 @@ export default function MoveNodeToCanvasModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-2xl border-surface/40 shadow-[0_6px_20px_rgba(15,23,42,0.12)] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Move node to another canvas</DialogTitle>
+          <DialogTitle>
+            {nodeIds.length > 1
+              ? `Move ${nodeIds.length} nodes to another canvas`
+              : "Move node to another canvas"}
+          </DialogTitle>
           <DialogDescription>
             Select a destination canvas, then confirm.
           </DialogDescription>
@@ -128,7 +133,7 @@ export default function MoveNodeToCanvasModal({
             onClick={handleConfirm}
             disabled={
               isSubmitting ||
-              !nodeCanvasId ||
+              nodeIds.length === 0 ||
               !selectedCanvasId ||
               targetCanvases.length === 0
             }

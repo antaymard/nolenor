@@ -1,6 +1,5 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
-import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
 import { toolAgentNames, type ThreadCtx } from "../../ia/agentConfig";
 import { buildNodeDataSchemaXml } from "../../ia/helpers/nodeDataSchemaXml";
@@ -11,7 +10,11 @@ import {
 } from "../../ia/tools/toolHelpers";
 import { escapeXmlAttribute } from "../../lib/xml";
 import { canvasScope } from "../scope";
-import type { ListNodesFilters, NodeSummary } from "./listNodes";
+import {
+  listNodes,
+  type ListNodesFilters,
+  type NodeSummary,
+} from "./listNodes";
 
 /**
  * Adaptateur agent de `listNodes` : le tool `list_nodes` de Nolë, du worker
@@ -158,10 +161,11 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
     inputSchema,
     execute: async (ctx, input): Promise<string> => {
       try {
-        const result = await ctx.runQuery(internal.tools.nodes.listNodes.list, {
+        const result = await listNodes(
+          ctx,
           scope,
-          filters: filtersFromModelInput(input),
-        });
+          filtersFromModelInput(input),
+        );
         if (!result.ok) return toolError(result.error);
         return renderListNodes(result.nodes, result.templates);
       } catch (error) {

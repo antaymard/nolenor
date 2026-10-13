@@ -14,17 +14,24 @@ Remplace progressivement `ia/tools/`. Un tool y est découpé en **un noyau** et
 
 ```
 tools/
-  scope.ts              qui peut lire / écrire quoi — appliqué par le noyau
+  scope.ts               qui peut lire / écrire quoi — appliqué par le noyau
+  runtime.ts             le ctx d'un noyau, la taille des lots de lecture
   nodes/
-    listNodes.ts        noyau : internalQuery + fonction, données typées
-    listNodes.agent.ts  adaptateur : schéma zod, rendu XML, plafonds
-    listNodes.test.ts
+    canvasGraph.ts       la structure d'un canvas (nodes, edges), sans contenu
+    nodeContents.ts      les contenus (nodeData, template, titre), par lots
+    listNodes.ts         noyau de list_nodes : filtrage, données typées
+    listNodes.agent.ts   adaptateur : schéma zod, rendu XML, plafond à 20
+    readNodes.ts         noyau de read_nodes : contenus, connexions, médias
+    readNodes.agent.ts   adaptateur : arguments du modèle, plafonds, hints
+    readNodes.xml.ts     rendu XML de read_nodes (fonctions pures)
+    readNodes.md         spécification de la sortie de read_nodes
 ```
 
-Un domaine par dossier (`nodes/`, puis `documents/`, `tables/`, `edges/`,
-`search/`…). Les adaptateurs portent un double suffixe (`.agent.ts`,
-`.cli.ts`) : Convex ne les enregistre pas comme modules de fonctions, ils
-ne sont que bundlés par qui les importe.
+Un domaine par dossier (`nodes/`, puis `tables/`, `search/`…). Les
+adaptateurs et leurs rendus portent un double suffixe (`.agent.ts`,
+`.xml.ts`, plus tard `.cli.ts`) : Convex ignore les fichiers à plusieurs
+points comme modules de fonctions, ils ne sont que bundlés par qui les
+importe.
 
 ## Les règles
 
@@ -39,10 +46,13 @@ reçoit un `ToolScope`. Un node hors du scope de lecture est introuvable (ni
 listé, ni lu, ni utilisable comme référence). La porte se ferme à un seul
 endroit pour toutes les interfaces.
 
-**Une lecture = une transaction.** Le noyau d'une lecture est une
-`internalQuery` qui lit tout ce dont elle a besoin ensemble — résultat
-cohérent, et un seul aller-retour depuis l'action qui exécute le tool (l'ancien
-`list_nodes` faisait une requête par node listé).
+**Des transactions bornées.** Un noyau est une fonction appelée depuis
+l'action qui exécute le tool (`ToolRunCtx`), et qui enchaîne des
+transactions dont la taille ne dépend pas du canvas : la structure (nodes,
+edges : petits documents) d'un bloc, les contenus par lots de 10 au plus
+(un document pèse jusqu'à 1 Mio, une transaction en lit au plus 16), les
+médias node par node. Jamais « tous les contenus du canvas » dans une même
+requête.
 
 **L'adaptateur ne fait que traduire.** Entrée de son interface → arguments du
 noyau (y compris les manies du modèle : un filtre vide veut dire « pas de
@@ -51,8 +61,14 @@ fonction pure, testable sans base.
 
 **Migrer sans changer le comportement.** Un tool migré depuis `ia/tools/` rend
 exactement la même sortie que l'ancien, vérifié en comparant les deux sur un
-même canvas avant de supprimer l'ancien. Les améliorations viennent après, dans
-leur propre commit.
+même canvas avant de supprimer l'ancien. Un écart n'est admis que s'il corrige
+un bug, et il est nommé dans le commit.
+
+Pour comparer un tool qui lit des blocknotes en test : enregistrer les
+composants `prosemirrorSync` et `debouncer` (cf. `readNodes.test.ts`), et
+rendre `require` disponible (`globalThis.require = createRequire(...)`) pour
+que jsdom se charge — sans ça, les deux versions échouent pareil et la
+comparaison ne prouve rien.
 
 ## Contrat avec la harness
 

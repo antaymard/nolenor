@@ -23,7 +23,9 @@ import loadSkillTool, { loadSkillToolConfig } from "./loadSkillTool";
 import memoryToolFactory, { memoryToolConfig } from "./memoryTool";
 import { openWebPageTool, openWebPageToolConfig } from "./openWebPageTool";
 import viewImageTool, { viewImageToolConfig } from "./viewImageTool";
-import readNodesTool, { readNodesToolConfig } from "./readNodesTool";
+import readNodesTool, {
+  readNodesToolConfig,
+} from "../../tools/nodes/readNodes.agent";
 import setNodeDataTool, { setNodeDataToolConfig } from "./setNodeDataTool";
 import tableDeleteRowsTool, {
   tableDeleteRowsToolConfig,

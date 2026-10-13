@@ -71,7 +71,7 @@ export const BLOCKNOTE_XML_VERSION = "1";
 // id, and mapping between the two needs the canvas document. The codec stays
 // pure — the caller passes the correspondence in (`mentions` on both the
 // serialize and the parse side) and gets the snapshot-title fallback when it
-// doesn't. `read_nodes` builds the read-side map (readNodesTool.ts), and the
+// doesn't. `read_nodes` builds the read-side map (tools/nodes/readNodes.ts), and the
 // write-side tools resolve the ids the agent wrote (resolveNodeMentionTokens.ts).
 
 /**

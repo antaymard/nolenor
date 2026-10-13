@@ -4,7 +4,9 @@ import { describe, expect, test } from "vitest";
 import { internal } from "../../_generated/api";
 import schema from "../../schema";
 import { modules } from "../../test.setup";
+import type { ToolRunCtx } from "../runtime";
 import { canvasScope, type ToolScope } from "../scope";
+import { listNodes, type ListNodesFilters } from "./listNodes";
 
 const heading = (text: string) =>
   JSON.stringify([
@@ -71,8 +73,12 @@ async function setup() {
     ],
   });
 
-  const list = (scope: ToolScope, filters = {}) =>
-    t.query(internal.tools.nodes.listNodes.list, { scope, filters });
+  const runCtx = {
+    runQuery: t.query,
+    runMutation: t.mutation,
+  } as unknown as ToolRunCtx;
+  const list = (scope: ToolScope, filters: ListNodesFilters = {}) =>
+    listNodes(runCtx, scope, filters);
 
   return {
     list,

@@ -1,0 +1,141 @@
+import {
+  fail,
+  idsFromStdin,
+  ok,
+  option,
+  parseArgs,
+  type CliCommand,
+} from "../shell/cli";
+import { readNodes } from "./readNodes";
+import { renderReadNodes, type TableRowSliceInput } from "./readNodes.xml";
+
+/**
+ * Adaptateur CLI de `readNodes` : `nole read`. Même XML que le tool
+ * `read_nodes` — un format que le modèle connaît déjà, et dont il peut
+ * renvoyer les blocs aux tools d'écriture —, mais avec des ids qui peuvent
+ * venir d'un pipe, et une sortie que le shell filtre.
+ */
+
+/** Au-delà, la sortie déborde de toute façon : mieux vaut filtrer avant. */
+const MAX_NODES_PER_CALL = 50;
+
+const HELP = `Usage: nole read [options] <id>...
+       <ids on stdin> | nole read [options] -
+
+Read nodes: the same XML as the read_nodes tool (documents as BlockNote XML,
+tables as Markdown, connections, frame contents, PDF tables of contents,
+image descriptions, transcripts). With "-", ids are read from stdin: the first
+field of each line, so the output of "nole ls" can be piped directly.
+
+Options:
+  --pages <n,n…>        PDF nodes: read these 1-based pages instead of the
+                        table of contents
+  --rows <offset:limit> Table nodes: this slice of rows (default 0:50, max 200)
+  --row-ids <id,id…>    Table nodes: these rows only
+  --range <start:end>   Audio/video nodes: the transcript of this time range,
+                        in seconds
+  --no-position         Leave out x, y, width and height
+
+At most ${MAX_NODES_PER_CALL} nodes per call: filter first (nole ls … | grep … | nole read -).
+
+Examples:
+  nole read N12ab Q34cd
+  nole ls --type blocknote | nole read - | grep -n "deadline"
+  nole read --pages 3,4 P56ef`;
+
+/** `a:b` → [a, b], deux nombres finis ≥ 0, ou null. */
+function parsePair(value: string): [number, number] | null {
+  const parts = value.split(":");
+  if (parts.length !== 2) return null;
+  const [a, b] = parts.map(Number);
+  return Number.isFinite(a) && Number.isFinite(b) && a >= 0 && b >= 0
+    ? [a, b]
+    : null;
+}
+
+export const nodeReadCommand: CliCommand = {
+  name: "read",
+  summary: "read nodes, same XML as read_nodes (ids as arguments or on stdin)",
+  help: HELP,
+  async run(args, { run, scope, stdin }) {
+    const parsed = parseArgs(args, {
+      options: ["pages", "rows", "row-ids", "range"],
+      flags: ["no-position"],
+    });
+    if ("error" in parsed) return fail(`nole read: ${parsed.error}`, 2);
+    if (parsed.flags.has("help")) return ok(HELP);
+
+    const nodeIds = parsed.positionals.flatMap((arg) =>
+      arg === "-" ? idsFromStdin(stdin) : [arg],
+    );
+    if (nodeIds.length === 0) {
+      return fail(
+        `nole read: no node id (pass ids, or "-" to read them from stdin)`,
+        2,
+      );
+    }
+    if (nodeIds.length > MAX_NODES_PER_CALL) {
+      return fail(
+        `nole read: ${nodeIds.length} nodes, at most ${MAX_NODES_PER_CALL} per call. Narrow the list first (grep, head).`,
+        2,
+      );
+    }
+
+    // Une option vaut pour tous les nodes du bon type : le modèle lit
+    // rarement deux PDF à des pages différentes dans le même appel.
+    let pages: number[] | undefined;
+    const pagesOption = option(parsed, "pages");
+    if (pagesOption) {
+      pages = pagesOption.split(",").map(Number);
+      if (pages.some((page) => !Number.isInteger(page) || page < 1)) {
+        return fail(`nole read: --pages must be 1-based page numbers`, 2);
+      }
+    }
+
+    let rowSlice: Omit<TableRowSliceInput, "nodeId"> | undefined;
+    const rows = option(parsed, "rows");
+    const rowIds = option(parsed, "row-ids");
+    if (rowIds) {
+      rowSlice = { rowIds: rowIds.split(",").filter(Boolean) };
+    } else if (rows) {
+      const pair = parsePair(rows);
+      if (!pair || !Number.isInteger(pair[0]) || !Number.isInteger(pair[1])) {
+        return fail(`nole read: --rows must be offset:limit`, 2);
+      }
+      rowSlice = { offset: pair[0], limit: pair[1] };
+    }
+
+    let range: { startSec: number; endSec: number } | undefined;
+    const rangeOption = option(parsed, "range");
+    if (rangeOption) {
+      const pair = parsePair(rangeOption);
+      if (!pair || pair[1] <= pair[0]) {
+        return fail(`nole read: --range must be start:end, in seconds`, 2);
+      }
+      range = { startSec: pair[0], endSec: pair[1] };
+    }
+
+    const result = await readNodes(run, scope, nodeIds);
+    const byType = (type: string) =>
+      [...new Set(result.nodes.filter((node) => node.type === type).map((node) => node.id))];
+
+    const { text } = await renderReadNodes(result, {
+      withPosition: !parsed.flags.has("no-position"),
+      // Le shell ne rend que du texte : pas d'image jointe.
+      isMultimodal: false,
+      ...(pages && {
+        pdfPages: byType("pdf").map((nodeId) => ({ nodeId, pages: pages! })),
+      }),
+      ...(rowSlice && {
+        tableRows: byType("table").map((nodeId) => ({ nodeId, ...rowSlice })),
+      }),
+      ...(range && {
+        mediaRanges: [...byType("audio"), ...byType("video")].map((nodeId) => ({
+          nodeId,
+          ...range!,
+        })),
+      }),
+    });
+    return ok(text);
+  },
+};

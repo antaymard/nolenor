@@ -41,6 +41,7 @@ import tableUpdateSchemaTool, {
 } from "./tableUpdateSchemaTool";
 import { type ToolConfig } from "./toolHelpers";
 import { websearchTool, websearchToolConfig } from "./websearchTool";
+import bashTool, { bashToolConfig } from "../../tools/shell/bash.agent";
 import listUserCanvasesTool, {
   listUserCanvasesToolConfig,
 } from "./listUserCanvasesTool";
@@ -79,6 +80,10 @@ const toolRegistry: ToolRegistration[] = [
   {
     config: memoryToolConfig,
     factory: ({ threadCtx }) => memoryToolFactory({ threadCtx }),
+  },
+  {
+    config: bashToolConfig,
+    factory: ({ threadCtx }) => bashTool({ threadCtx }),
   },
   {
     config: readNodesToolConfig,

@@ -20,7 +20,8 @@ import type { Id } from "../_generated/dataModel";
  * ── ÉTAT ACTUEL : la brique existe, rien ne l'alimente encore ──────────────
  *
  * Personne ne peut aujourd'hui fournir un scope autre que `canvasScope` (tout
- * le canvas) :
+ * le canvas), à une exception près : le tool `bash` le restreint lui-même à
+ * la lecture (`write: "none"`, cf. `shell/bash.agent.ts`). Pour le reste :
  * - la harness ne transporte pas de scope : `RunInfo` n'en a pas, et
  *   `Profile.tools(run)` n'en passe pas aux factories ;
  * - les adaptateurs fabriquent donc eux-mêmes `canvasScope` depuis le

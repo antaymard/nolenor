@@ -25,6 +25,13 @@ tools/
     readNodes.agent.ts   adaptateur : arguments du modèle, plafonds, hints
     readNodes.xml.ts     rendu XML de read_nodes (fonctions pures)
     readNodes.md         spécification de la sortie de read_nodes
+    listNodes.cli.ts     adaptateur CLI : `nole ls`
+    readNodes.cli.ts     adaptateur CLI : `nole read` (même XML que read_nodes)
+  shell/
+    cli.ts               le contrat d'une commande `nole …`, sans just-bash
+    nole.ts              la commande `nole` et ses sous-commandes
+    shell.ts             le shell virtuel (just-bash, chargé à l'exécution)
+    bash.agent.ts        le tool `bash`
 ```
 
 Un domaine par dossier (`nodes/`, puis `tables/`, `search/`…). Les
@@ -70,6 +77,28 @@ rendre `require` disponible (`globalThis.require = createRequire(...)`) pour
 que jsdom se charge — sans ça, les deux versions échouent pareil et la
 comparaison ne prouve rien.
 
+## Le shell (`shell/`)
+
+Le tool `bash` exécute un script dans just-bash : un bash écrit en
+TypeScript, interpréteur et système de fichiers en mémoire, sans processus
+ni disque. S'y ajoute `nole`, dont chaque sous-commande est l'adaptateur CLI
+d'un noyau (`nole ls` → `listNodes`, `nole read` → `readNodes`).
+
+- **Lecture seule.** Le scope du tool n'a aucun droit d'écriture, et `nole`
+  n'a aucune commande qui écrive.
+- **Un shell neuf par appel.** Rien ne survit d'un appel à l'autre ; `/tmp`
+  ne sert qu'à l'intérieur d'un script.
+- **Ni réseau, ni Python, ni JavaScript.** Désactivés par défaut dans
+  just-bash, et laissés ainsi. Profil de limites `hardened`, 2 min au plus.
+- **Sortie coupée à 30 000 caractères**, avec un message qui dit de filtrer.
+- **Jamais importé statiquement** : le registre des tools est aussi bundlé
+  pour le runtime V8 (MCP). just-bash est chargé par `globalThis.require`
+  dans l'action Node, déclaré dans `convex.json` et `ia/helpers/_externalDeps.ts`
+  comme jsdom.
+- **Une commande `nole` ne dépend pas de just-bash** (`shell/cli.ts`) : elle
+  reçoit ses arguments et son stdin, rend stdout, stderr et un code. Le même
+  code pourrait servir un vrai binaire `nole`, ou un tool MCP `nole_shell`.
+
 ## Contrat avec la harness
 
 Un adaptateur agent s'inscrit dans le registre `ia/tools/index.ts` comme
@@ -91,8 +120,9 @@ ce découpage. Ce qu'elle attend d'un tool :
 - **Scope** : aujourd'hui Nolë a `canvasScope` (tout le canvas). Une étape
   d'automation recevra un scope réduit (`write: [nodeId]`), décidé par son
   profil et porté par le run ; le noyau des écritures vérifiera `canWriteNode`.
-- **CLI** : des commandes `nole ls/read/table/edges/search` sur les mêmes
-  noyaux, en lecture seule, dans un shell virtuel (just-bash).
+- **CLI** : `nole ls` et `nole read` existent. À venir : `nole search`,
+  `nole table` (lignes en JSONL), et le canvas monté en fichiers
+  (`/canvas/<frame>/<titre>.md`) pour que `grep -r` suffise.
 - **Écritures** (plus tard) : préconditions de version (refuser d'écraser un
   node modifié depuis sa lecture), clé d'idempotence = id du tool call (ce qui
   rendrait des écritures `replay: safe`), attribution (qui a écrit, quel run).

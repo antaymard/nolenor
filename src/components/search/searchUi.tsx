@@ -10,6 +10,18 @@ import {
 } from "@/components/shadcn/empty";
 import { formatTime } from "@/hooks/useMediaPlayback";
 import type { SearchSnippet as SearchSnippetType } from "./useSearch";
+import { TbChevronRight } from "react-icons/tb";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/shadcn/tooltip";
+import type { Id } from "@/../convex/_generated/dataModel";
+import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
+import { useNodeDataTitle } from "@/hooks/useNodeTitle";
+import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { formatRelative } from "./searchUtils";
+import { useSearchBreadcrumb, type BreadcrumbCrumb } from "./searchBreadcrumb";
 
 /**
  * Highlights (case-insensitively) the terms in `text`.
@@ -28,7 +40,9 @@ export function HighlightedText({
 }) {
   const parts = useMemo(() => {
     const usable = Array.from(
-      new Set(terms.map((term) => term.trim()).filter((term) => term.length >= 2)),
+      new Set(
+        terms.map((term) => term.trim()).filter((term) => term.length >= 2),
+      ),
     );
     if (usable.length === 0) return [text];
     const escaped = usable.map((term) =>
@@ -176,7 +190,9 @@ export function SearchEmpty({
       <EmptyHeader>
         <EmptyMedia variant="icon">{icon}</EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
-        {description ? <EmptyDescription>{description}</EmptyDescription> : null}
+        {description ? (
+          <EmptyDescription>{description}</EmptyDescription>
+        ) : null}
       </EmptyHeader>
     </Empty>
   );
@@ -187,6 +203,128 @@ export function SearchError({ message }: { message?: string }) {
   return (
     <div className="p-6 text-center text-sm text-destructive">
       An error occurred{message ? ` : ${message}` : ""}.
+    </div>
+  );
+}
+
+/** « Frame › H1 › H2 » : où se trouve le node sur le canvas. */
+export function SearchBreadcrumb({
+  crumbs,
+  className,
+}: {
+  crumbs: BreadcrumbCrumb[];
+  className?: string;
+}) {
+  if (crumbs.length === 0) return null;
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-1 text-xs text-muted-foreground",
+        className,
+      )}
+      title={crumbs.map((crumb) => crumb.label).join(" › ")}
+    >
+      {crumbs.map((crumb, index) => {
+        const Icon = getNodeIcon(crumb.kind);
+        const isLast = index === crumbs.length - 1;
+        return (
+          <Fragment key={crumb.nodeId}>
+            {index > 0 ? (
+              <TbChevronRight
+                size={11}
+                className="shrink-0 text-muted-foreground/60"
+              />
+            ) : null}
+            <span
+              className={cn(
+                "flex min-w-0 items-center gap-1",
+                // Le dernier crumb, le plus proche du node, garde la place.
+                isLast ? "shrink" : "max-w-40 shrink-[2]",
+              )}
+            >
+              {Icon ? <Icon size={11} className="shrink-0" /> : null}
+              <span className="truncate">{crumb.label}</span>
+            </span>
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * L'en-tête commun à toutes les lignes de recherche, récents comme résultats :
+ * icône, titre, fil d'Ariane, type et date de modification. Ce qui varie d'un
+ * cas à l'autre (extraits, aperçus) vient en `children`, sous le titre.
+ */
+export function SearchRowHeader({
+  nodeId,
+  nodeDataId,
+  nodeType,
+  title,
+  compact = false,
+}: {
+  nodeId: string;
+  nodeDataId: Id<"nodeDatas">;
+  nodeType: string;
+  /** Titre fourni par le serveur ; à défaut, celui du nodeData local. */
+  title?: string;
+  compact?: boolean;
+}) {
+  const localTitle = useNodeDataTitle(nodeDataId);
+  const updatedAt = useNodeDataStore(
+    (state) => state.nodeDatas.get(nodeDataId)?.updatedAt,
+  );
+  const crumbs = useSearchBreadcrumb(nodeId);
+  const Icon = getNodeIcon(nodeType);
+  const displayTitle = title || localTitle || nodeType;
+
+  return (
+    <div className="flex min-w-0 items-start gap-2.5">
+      {/* Le type ne s'affiche plus en pastille : l'icône le porte. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground",
+              compact ? "size-6" : "size-7",
+            )}
+            aria-label={nodeType}
+          >
+            {Icon ? <Icon size={compact ? 13 : 15} /> : null}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="capitalize">
+          {nodeType}
+        </TooltipContent>
+      </Tooltip>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate font-medium",
+              compact ? "text-sm" : "text-[14px] leading-tight",
+            )}
+          >
+            {displayTitle}
+          </span>
+          {updatedAt ? (
+            <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+              {formatRelative(updatedAt)}
+            </span>
+          ) : null}
+        </div>
+        <SearchBreadcrumb crumbs={crumbs} />
+      </div>
+    </div>
+  );
+}
+
+/** Titre de section de la liste (« Recent », « 12 results »). */
+export function SearchSectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="px-3 pt-1 pb-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+      {children}
     </div>
   );
 }

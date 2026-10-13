@@ -31,7 +31,8 @@ Options:
   --columns <a,b…>   Only these columns (names or ids), in this order
   --format <fmt>     tsv (default) or jsonl
   --schema           Print the columns instead of the rows:
-                     id  name  type  options (select labels joined by "; ")
+                     id  name  type  options (select labels joined by "; ");
+                     with --format jsonl, {id, name, type, isMulti, options}
 
 Row and column ids are the ones table_update_rows and table_delete_rows take.
 Exit code 1 when the node does not exist or is not a table.
@@ -95,6 +96,21 @@ export const tableCommand: CliCommand = {
     const { table } = result;
 
     if (parsed.flags.has("schema")) {
+      if (format === "jsonl") {
+        return ok(
+          table.columns
+            .map((column) =>
+              JSON.stringify({
+                id: column.id,
+                name: column.name,
+                type: column.type,
+                isMulti: column.isMulti,
+                options: column.options.map((option) => option.label),
+              }),
+            )
+            .join("\n"),
+        );
+      }
       return ok(
         table.columns
           .map((column) =>

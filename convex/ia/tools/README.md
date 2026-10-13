@@ -4,7 +4,7 @@ Ce dossier contient les tools serveur utilisés par les agents IA.
 
 ## Briques principales
 
-- `*.ts` : un fichier par tool métier (`listNodesTool`, `readNodesTool`, `tableUpdateRowsTool`, etc.).
+- `*.ts` : un fichier par tool métier (`setNodeDataTool`, `tableUpdateRowsTool`, etc.). Les tools migrés vivent dans `convex/tools/` (cf. son README).
 - `toolHelpers.ts` : types communs et helpers transverses, notamment `ToolConfig`, `ToolAgentName`, `toolError` et la logique de compaction.
 - `index.ts` : registre central des tools. C'est lui qui décide quels tools sont exposés à chaque agent.
 - `_toolTemplate.ts` : base de départ si un nouveau tool doit être créé.

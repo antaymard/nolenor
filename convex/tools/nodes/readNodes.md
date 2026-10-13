@@ -1,4 +1,4 @@
-# Specs — `read_nodes` tool (`readNodesTool.ts`)
+# Specs — `read_nodes` tool (`readNodes.ts` + `readNodes.agent.ts`)
 
 ## Vue d'ensemble
 
@@ -24,8 +24,10 @@ Outil exposé au modèle pour lire un ou plusieurs nœuds du canvas courant et r
 
 ## Flux d'exécution
 
-1. **Résolution du canvas** : `getCanvasNodesAndEdges` → liste des nœuds + arêtes du canvas courant.
-2. **Lecture en parallèle** de chaque `nodeId` via `getNodeWithNodeData`.
+Le noyau (`readNodes.ts`) lit, l'adaptateur (`readNodes.agent.ts`) rend le XML.
+
+1. **Structure du canvas** : `tools/nodes/canvasGraph.load` → nœuds et arêtes dans le scope, positions monde, sans contenu.
+2. **Lecture des contenus** par lots de 10 (`tools/nodes/nodeContents.contents`), après la recopie des docs vivants des blocknotes demandés.
 3. Pour chaque nœud :
    - Si `type === "image"` → branche image (description indexée, et pixels si `viewImages`).
    - Si `type === "pdf"` → branche PDF.

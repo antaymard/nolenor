@@ -1,21 +1,19 @@
 import { v, type Infer } from "convex/values";
+import { internal } from "../../_generated/api";
 import type { Doc, Id } from "../../_generated/dataModel";
-import { internalQuery, type QueryCtx } from "../../_generated/server";
 import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
-import { getEdgeLabel } from "../../ia/tools/toolHelpers";
-import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
-import { absolutePositionsById } from "../../lib/nodeGeometry";
-import * as EdgeModels from "../../models/edgeModels";
-import * as NodeModels from "../../models/nodeModels";
-import { canReadNode, vToolScope, type ToolScope } from "../scope";
+import type { ToolRunCtx } from "../runtime";
+import type { ToolScope } from "../scope";
+import type { CanvasGraph } from "./canvasGraph";
+import { readNodeTitles } from "./nodeContents";
 
 /**
  * Noyau : les nodes d'un canvas, filtrés, dans le scope de l'appelant.
  *
  * Rend des données, jamais du texte : la mise en forme (XML pour le modèle,
  * lignes pour le CLI…) et les plafonds d'affichage sont l'affaire des
- * adaptateurs. Une seule transaction : nodes, edges, nodeDatas et templates
- * sont lus ensemble, donc cohérents entre eux.
+ * adaptateurs. Pas de limite non plus : un adaptateur tronque, le noyau rend
+ * tout.
  */
 
 /** Rayon du filtre `near`, en unités du canvas. */
@@ -67,39 +65,28 @@ export type ListNodesResult =
     }
   | { ok: false; error: string };
 
-export async function listNodes(
-  ctx: QueryCtx,
-  scope: ToolScope,
-  filters: ListNodesFilters,
-): Promise<ListNodesResult> {
-  const allNodes = (
-    await NodeModels.listFromCanvas(ctx, { canvasId: scope.canvasId })
-  ).map(NodeModels.toCanvasNode);
-  // Positions MONDE : un node qui vit dans une frame porte une position
-  // relative à elle, et tout ce qui suit raisonne en monde. Calculées avant
-  // le filtre de scope : une frame invisible décale quand même ses enfants.
-  const positionById = absolutePositionsById(allNodes);
-  const canvasNodes = allNodes.filter((node) => canReadNode(scope, node.id));
+type Match = Omit<NodeSummary, "title">;
 
+/** Le filtrage, sur la seule structure : pur, sans lecture. */
+export function filterGraph(
+  graph: CanvasGraph,
+  filters: ListNodesFilters,
+): { ok: true; nodes: Match[] } | { ok: false; error: string } {
   let linked: Map<string, string[]> | null = null;
   if (filters.linkedTo) {
     const { nodeId, direction } = filters.linkedTo;
     linked = new Map();
-    const edges = await EdgeModels.listFromCanvas(ctx, {
-      canvasId: scope.canvasId,
-    });
     const add = (connectedId: string, label: string | null) => {
       const labels = linked!.get(connectedId) ?? [];
       if (label) labels.push(label);
       linked!.set(connectedId, labels);
     };
-    for (const edge of edges.map(EdgeModels.toCanvasEdge)) {
-      const label = getEdgeLabel(edge);
+    for (const edge of graph.edges) {
       if (direction !== "input" && edge.source === nodeId) {
-        add(edge.target, label);
+        add(edge.target, edge.label);
       }
       if (direction !== "output" && edge.target === nodeId) {
-        add(edge.source, label);
+        add(edge.source, edge.label);
       }
     }
   }
@@ -107,9 +94,7 @@ export async function listNodes(
   let nearCenter: { x: number; y: number } | null = null;
   if (filters.near) {
     const { nodeId } = filters.near;
-    const center = canReadNode(scope, nodeId)
-      ? positionById.get(nodeId)
-      : undefined;
+    const center = graph.nodes.find((node) => node.id === nodeId);
     if (!center) {
       return { ok: false, error: `Reference node "${nodeId}" not found on canvas` };
     }
@@ -117,75 +102,80 @@ export async function listNodes(
   }
 
   const { types, area, frameId } = filters;
-  const matching = canvasNodes.filter((node) => {
-    // Types invisibles pour l'agent : jamais listés, quels que soient les
-    // filtres.
-    if (!isNodeTypeReadableByAgent(node.type)) return false;
-    if (types && types.length > 0 && !types.includes(node.type)) return false;
-    if (linked && !linked.has(node.id)) return false;
-    if (frameId && node.parentId !== frameId) return false;
-
-    const position = positionById.get(node.id) ?? node.position;
-    if (area) {
-      if (
-        position.x < area.x1 ||
-        position.x > area.x2 ||
-        position.y < area.y1 ||
-        position.y > area.y2
-      ) {
-        return false;
+  const nodes = graph.nodes
+    .filter((node) => {
+      // Types invisibles pour l'agent : jamais listés, quels que soient les
+      // filtres.
+      if (!isNodeTypeReadableByAgent(node.type)) return false;
+      if (types && types.length > 0 && !types.includes(node.type)) return false;
+      if (linked && !linked.has(node.id)) return false;
+      if (frameId && node.frameId !== frameId) return false;
+      if (area) {
+        if (
+          node.x < area.x1 ||
+          node.x > area.x2 ||
+          node.y < area.y1 ||
+          node.y > area.y2
+        ) {
+          return false;
+        }
       }
-    }
-    if (nearCenter) {
-      const dx = position.x - nearCenter.x;
-      const dy = position.y - nearCenter.y;
-      if (Math.sqrt(dx * dx + dy * dy) > NEAR_RADIUS) return false;
-    }
-    return true;
-  });
-
-  const templates = new Map<Id<"nodeTemplates">, Doc<"nodeTemplates"> | null>();
-  const getTemplate = async (templateId: Id<"nodeTemplates">) => {
-    if (!templates.has(templateId)) {
-      templates.set(templateId, await ctx.db.get("nodeTemplates", templateId));
-    }
-    return templates.get(templateId) ?? null;
-  };
-
-  const nodes: NodeSummary[] = [];
-  for (const node of matching) {
-    let title = "Untitled";
-    const nodeData = node.nodeDataId
-      ? await ctx.db.get("nodeDatas", node.nodeDataId)
-      : null;
-    if (nodeData) {
-      const template = nodeData.templateId
-        ? await getTemplate(nodeData.templateId)
-        : null;
-      title = getNodeDataTitle(nodeData, template);
-    }
-    const position = positionById.get(node.id) ?? node.position;
-    nodes.push({
+      if (nearCenter) {
+        const dx = node.x - nearCenter.x;
+        const dy = node.y - nearCenter.y;
+        if (Math.sqrt(dx * dx + dy * dy) > NEAR_RADIUS) return false;
+      }
+      return true;
+    })
+    .map((node) => ({
       id: node.id,
       type: node.type,
-      title,
-      x: position.x,
-      y: position.y,
-      frameId: node.parentId ?? null,
+      x: node.x,
+      y: node.y,
+      frameId: node.frameId,
       edgeLabels: linked?.get(node.id) ?? [],
-    });
+    }));
+  return { ok: true, nodes };
+}
+
+export async function listNodes(
+  ctx: ToolRunCtx,
+  scope: ToolScope,
+  filters: ListNodesFilters,
+): Promise<ListNodesResult> {
+  const graph = await ctx.runQuery(internal.tools.nodes.canvasGraph.load, {
+    scope,
+  });
+  const matched = filterGraph(graph, filters);
+  if (!matched.ok) return matched;
+
+  const titles = await readNodeTitles(
+    ctx,
+    scope,
+    matched.nodes.map((node) => node.id),
+  );
+
+  // Dans l'ordre des nodes listés : c'est l'ordre des schémas rendus.
+  const templateIds: Id<"nodeTemplates">[] = [];
+  for (const node of matched.nodes) {
+    const templateId = titles.get(node.id)?.templateId;
+    if (templateId && !templateIds.includes(templateId)) {
+      templateIds.push(templateId);
+    }
   }
+  const templates =
+    templateIds.length > 0
+      ? await ctx.runQuery(internal.wrappers.nodeTemplateWrappers.getTemplates, {
+          templateIds,
+        })
+      : [];
 
   return {
     ok: true,
-    nodes,
-    templates: [...templates.values()].filter(
-      (template): template is Doc<"nodeTemplates"> => template !== null,
-    ),
+    nodes: matched.nodes.map((node) => ({
+      ...node,
+      title: titles.get(node.id)?.title ?? "Untitled",
+    })),
+    templates,
   };
 }
-
-export const list = internalQuery({
-  args: { scope: vToolScope, filters: vListNodesFilters },
-  handler: (ctx, { scope, filters }) => listNodes(ctx, scope, filters),
-});

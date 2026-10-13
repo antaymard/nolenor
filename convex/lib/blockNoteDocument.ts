@@ -741,7 +741,7 @@ export function extractInlineText(content: unknown): string {
  * lookup is left to the caller and this only reports WHICH nodes are pointed at.
  *
  * Used by `read_nodes` to resolve mentions to a live `nodeId | type | title`
- * before handing the document to the agent (see convex/ia/tools/readNodesTool.ts).
+ * before handing the document to the agent (see convex/tools/nodes/readNodes.ts).
  */
 export function collectMentionedNodeDataIds(blocks: readonly unknown[]): string[] {
   const ids = new Set<string>();

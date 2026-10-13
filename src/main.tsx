@@ -13,6 +13,7 @@ import { Toaster } from "react-hot-toast";
 import { TooltipProvider } from "./components/shadcn/tooltip";
 import { TOAST_STYLE } from "./components/ui/ActionToast";
 import { AppErrorBoundary } from "./components/ui/AppErrorBoundary";
+import BootLoader from "./components/loading/BootLoader";
 import { initAnalytics } from "./lib/analytics";
 import { installGlobalErrorHandlers } from "./lib/globalErrorHandlers";
 import { installAppUpdateHandlers } from "./lib/appUpdate";
@@ -64,6 +65,9 @@ if (!rootElement.innerHTML) {
           <Toaster toastOptions={{ style: TOAST_STYLE }} />
           <ConvexAuthProvider client={convex}>
             <RouterProvider router={router} />
+            {/* Prend le relais du splash d'index.html, jusqu'à l'auth ou
+                jusqu'au canvas (cf. le composant). */}
+            <BootLoader />
           </ConvexAuthProvider>
         </TooltipProvider>
       </AppErrorBoundary>

@@ -28,7 +28,14 @@ import { useNodeDataStore } from "@/stores/nodeDataStore";
  */
 export function useNodeDataSubscriptions(
   tableNodes: readonly Doc<"nodes">[] | undefined,
-): { isLoading: boolean; isError: boolean; error: Error | undefined } {
+): {
+  isLoading: boolean;
+  /** Queries ayant répondu, sur le total : la barre de chargement du canvas. */
+  loadedCount: number;
+  totalCount: number;
+  isError: boolean;
+  error: Error | undefined;
+} {
   const setNodeDatas = useNodeDataStore((state) => state.setNodeDatas);
   const removePendingNodeData = useNodeDataStore(
     (state) => state.removePendingNodeData,
@@ -75,12 +82,14 @@ export function useNodeDataSubscriptions(
 
   // Chargement initial : la liste des nodes ou au moins une query encore en
   // vol. Une query en erreur compte comme répondue, `error` la porte.
-  const isLoading = useMemo(
-    () =>
-      idsKey === undefined ||
-      Object.values(results).some((result) => result === undefined),
-    [idsKey, results],
-  );
+  const { loadedCount, totalCount } = useMemo(() => {
+    const values = Object.values(results);
+    return {
+      loadedCount: values.filter((result) => result !== undefined).length,
+      totalCount: values.length,
+    };
+  }, [results]);
+  const isLoading = idsKey === undefined || loadedCount < totalCount;
 
   useEffect(() => {
     if (tableNodes === undefined) return;
@@ -117,5 +126,11 @@ export function useNodeDataSubscriptions(
     for (const nodeId of resolvedPending) removePendingNodeData(nodeId);
   }, [tableNodes, results, pendingNodeDatas, setNodeDatas, removePendingNodeData]);
 
-  return { isLoading, isError: error !== undefined, error };
+  return {
+    isLoading,
+    loadedCount,
+    totalCount,
+    isError: error !== undefined,
+    error,
+  };
 }

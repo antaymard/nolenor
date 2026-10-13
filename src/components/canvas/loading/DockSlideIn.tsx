@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 /**
- * Un dock du bas du canvas, qui monte depuis le bord de l'écran quand le
- * chargement se termine.
+ * Un dock du bas du canvas, qui monte depuis le bord de l'écran pendant le
+ * chargement, par-dessus son écran.
  *
  * Monté dès le départ mais invisible (et inerte) : ses propres queries
  * chargent en même temps que le canvas, et il arrive prêt. `delay` décale les

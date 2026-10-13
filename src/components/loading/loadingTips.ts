@@ -1,5 +1,5 @@
 /**
- * Les astuces de l'écran de chargement du canvas : des gestes qui existent
+ * Les astuces de l'écran de chargement : des gestes qui existent
  * mais ne se voient pas dans l'interface. Télégraphiques, à lire d'un coup
  * d'œil — geste → effet. Chacune doit rester vraie : elles recopient le
  * manuel (`convex/systemSkills/manual-shortcuts` et voisins), à tenir à jour
@@ -10,7 +10,7 @@
  *   plateforme (⌘ / ⌥ sur Mac) ;
  * - `{click}` un geste de souris, parmi `GESTURES`, rendu avec son icône.
  */
-export const CANVAS_LOADING_TIPS: readonly string[] = [
+export const LOADING_TIPS: readonly string[] = [
   "[Alt] + {click} a block → attach to Nolë",
   "[Alt] + {click} empty canvas → point Nolë there",
   "[Shift] + {drag} → alignment guides",
@@ -77,16 +77,9 @@ export function parseTip(tip: string): TipPart[] {
 let lastTipIndex = -1;
 
 /** Une astuce au hasard, jamais la même deux chargements de suite. */
-export function pickCanvasLoadingTip(): string {
-  let index = Math.floor(Math.random() * CANVAS_LOADING_TIPS.length);
-  if (index === lastTipIndex) index = (index + 1) % CANVAS_LOADING_TIPS.length;
+export function pickLoadingTip(): string {
+  let index = Math.floor(Math.random() * LOADING_TIPS.length);
+  if (index === lastTipIndex) index = (index + 1) % LOADING_TIPS.length;
   lastTipIndex = index;
-  return CANVAS_LOADING_TIPS[index];
-}
-
-/** Une séance de chargement : son départ et son astuce, tirés une fois. */
-export type CanvasLoadingSession = { startedAt: number; tip: string };
-
-export function createCanvasLoadingSession(): CanvasLoadingSession {
-  return { startedAt: performance.now(), tip: pickCanvasLoadingTip() };
+  return LOADING_TIPS[index];
 }

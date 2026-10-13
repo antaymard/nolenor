@@ -31,6 +31,7 @@ import { HiDotsVertical } from "react-icons/hi";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useUserCanvases } from "@/hooks/useUserCanvases";
+import { useCanvasStore } from "@/stores/canvasStore";
 import CanvasHistoryControls from "@/components/canvas/on-canvas-ui/CanvasHistoryControls";
 import AppSidebar from "@/components/app-shell/AppSidebar";
 import {
@@ -58,6 +59,7 @@ export default function CanvasSidebar({
     useUserCanvases();
 
   const currentCanvas = userCanvases?.find((c) => c._id === canvasId);
+  const hasCanvas = useCanvasStore((state) => state.canvas !== null);
   const isOwnCanvas = ownCanvases.some((c) => c._id === canvasId);
 
   const [canvasToDelete, setCanvasToDelete] = useState<{
@@ -103,7 +105,14 @@ export default function CanvasSidebar({
       </Sidebar>
 
       <SidebarInset className="flex-1">
-        <div className="absolute top-3 left-4 z-10 animate-appear canvas-ui-container h-8 pr-2 max-w-72">
+        {/* Comme le coin droit : n'apparaît qu'avec le doc canvas, pendant
+            le chargement (cf. `LoadingScreen`). */}
+        <div
+          className={cn(
+            "absolute top-3 left-4 z-10 canvas-ui-container h-8 pr-2 max-w-72",
+            hasCanvas ? "animate-appear-down" : "invisible",
+          )}
+        >
           <SidebarTrigger />
           {currentCanvas?.icon && (
             <span

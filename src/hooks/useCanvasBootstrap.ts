@@ -110,6 +110,8 @@ export function useCanvasBootstrap(
   // Une query par nodeData des nodes vivants (cf. useNodeDataSubscriptions).
   const {
     isLoading: isNodeDatasLoading,
+    loadedCount: loadedNodeDatas,
+    totalCount: totalNodeDatas,
     isError: isNodeDatasError,
     error: nodeDatasError,
   } = useNodeDataSubscriptions(tableNodes);
@@ -130,6 +132,17 @@ export function useCanvasBootstrap(
   useEffect(() => {
     if (!isContentLoading) setLoadedCanvasId(canvasId);
   }, [canvasId, isContentLoading]);
+
+  // Les étapes du chargement, pour la barre : le doc canvas, puis nodes et
+  // edges, puis le contenu des nodes, au prorata des queries qui ont répondu
+  // — la plus longue étape, et la seule qui avance par petits pas.
+  const loadProgress = isContentReady
+    ? 1
+    : canvas === undefined
+      ? 0.3
+      : tableNodes === undefined || tableEdges === undefined
+        ? 0.45
+        : 0.6 + 0.4 * (totalNodeDatas ? loadedNodeDatas / totalNodeDatas : 1);
 
   // Custom node templates : ceux référencés par le canvas (viewers de
   // canvases partagés inclus) + ceux du user (menu d'ajout, nouveaux nodes).
@@ -214,6 +227,7 @@ export function useCanvasBootstrap(
     flowNodes,
     flowEdges,
     isContentReady,
+    loadProgress,
     isCanvasError,
     canvasError,
     isNodeDatasError,

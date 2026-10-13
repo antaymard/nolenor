@@ -17,6 +17,7 @@ import { Button } from "@/components/shadcn/button";
 import { api } from "@/../convex/_generated/api";
 import { identifyUser, reportError } from "@/lib/analytics";
 import CommandCenter from "@/components/command-center/CommandCenter";
+import { useLoadingScreenStore } from "@/stores/loadingScreenStore";
 
 export interface RouterContext {
   convex: ConvexReactClient;
@@ -47,6 +48,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
   useEffect(() => {
     reportError(error, { source: "router.errorComponent" });
   }, [error]);
+  useReleaseBootLoader();
 
   // `autoReload` : la route entière est déjà démontée, recharger ne fait rien
   // perdre. Si un déploiement explique l'erreur, la page se met à jour seule.
@@ -79,6 +81,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 function RootNotFoundComponent() {
+  useReleaseBootLoader();
   return (
     <div className="h-screen w-screen">
       <ErrorDisplay
@@ -92,6 +95,16 @@ function RootNotFoundComponent() {
       />
     </div>
   );
+}
+
+/**
+ * Une erreur de route remplace le canvas attendu : `BootLoader` ne doit pas
+ * l'attendre plus longtemps.
+ */
+function useReleaseBootLoader() {
+  useEffect(() => {
+    useLoadingScreenStore.getState().finishBoot();
+  }, []);
 }
 
 function RootComponent() {
@@ -117,13 +130,8 @@ function RootComponent() {
     });
   }, [me]);
 
-  if (isLoading) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center">
-        <div>Loading...</div>
-      </div>
-    );
-  }
+  // Rien à peindre : `BootLoader` couvre l'écran tant que l'auth charge.
+  if (isLoading) return null;
 
   return (
     // `overflow-hidden` + `overscroll-x-none` : le shell ne scrolle jamais

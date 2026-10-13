@@ -40,6 +40,25 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Splash avant le JS : même markup que l'écran de chargement de l'app,
+         qui le remplace à l'identique (cf. src/components/loading/BootLoader).
+         Hors de #root, que main.tsx veut vide. -->
+    <div
+      id="boot-splash"
+      class="loading-screen"
+      style="position: fixed; z-index: 60"
+      aria-hidden="true"
+    >
+      <div class="loading-screen__center">
+        <img src="/favicon.svg" alt="" class="loading-screen__logo" />
+        <div class="loading-screen__track">
+          <div
+            class="loading-screen__fill loading-screen__fill--crawl"
+            style="--progress: 0.08"
+          ></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

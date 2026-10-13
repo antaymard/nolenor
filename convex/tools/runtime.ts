@@ -2,10 +2,11 @@ import type { ActionCtx } from "../_generated/server";
 
 /**
  * Ce dont un noyau a besoin : enchaîner des transactions depuis l'action qui
- * exécute le tool (Nolë, MCP, plus tard le CLI). Pas d'`ActionCtx` entier :
- * un noyau ne lance ni action, ni planification.
+ * exécute le tool (Nolë, MCP, le shell). `runAction` pour ce qui n'existe
+ * qu'en action (la recherche vectorielle). Pas d'`ActionCtx` entier : un
+ * noyau ne planifie rien.
  */
-export type ToolRunCtx = Pick<ActionCtx, "runQuery" | "runMutation">;
+export type ToolRunCtx = Pick<ActionCtx, "runQuery" | "runMutation" | "runAction">;
 
 /**
  * Le nombre de documents lourds (nodeDatas) lus par transaction.

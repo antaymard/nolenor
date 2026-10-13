@@ -1,12 +1,22 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../_generated/api";
-import { type Id } from "../../_generated/dataModel";
-import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
+import { type ThreadCtx, toolAgentNames } from "../../ia/agentConfig";
+import { EXPLANATION_FIELD, type ToolConfig } from "../../ia/tools/toolHelpers";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
-import type { FusedHit } from "../../schemas/searchableChunksSchema";
-import { type ThreadCtx, toolAgentNames } from "../agentConfig";
-import { EXPLANATION_FIELD, type ToolConfig } from "./toolHelpers";
+import { readNodeTitles } from "../nodes/nodeContents";
+import { canvasScope } from "../scope";
+import {
+  bestSnippets,
+  groupByNode as groupHitsByNode,
+  searchCanvas,
+} from "./searchCanvas";
+
+/**
+ * Adaptateur agent de `searchCanvas` : le tool `search_canvas` de Nolë, du
+ * worker et du MCP. Vues plate, groupée ou compacte, plafonds, statut et
+ * consigne pour le modèle — en JSON.
+ */
 
 export const searchToolConfig: ToolConfig = {
   name: "search_canvas",
@@ -30,7 +40,6 @@ type SearchStatus =
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 const MAX_HITS_PER_NODE = 5;
-const SNIPPET_RADIUS = 50;
 const GROUPED_SCAN_MULTIPLIER = 20;
 const GROUPED_MIN_SCAN_LIMIT = 100;
 const GROUPED_MAX_SCAN_LIMIT = 250;
@@ -81,40 +90,6 @@ function hintForStatus(status: SearchStatus, mode?: string): string {
     default:
       return "Use read_nodes on relevant nodeIds for full context.";
   }
-}
-
-/** Extrait centré sur les mots POSITIFS de la requête (jamais sur `-exclu`). */
-function buildSnippet(text: string, terms: string[]): string {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
-  if (!normalizedText) return "";
-
-  const lowerText = normalizedText.toLowerCase();
-
-  let matchStart = -1;
-  let matchLength = 0;
-  for (const term of terms) {
-    const lowerTerm = term.toLowerCase();
-    const idx = lowerText.indexOf(lowerTerm);
-    if (idx !== -1) {
-      matchStart = idx;
-      matchLength = lowerTerm.length;
-      break;
-    }
-  }
-
-  if (matchStart === -1) {
-    const fallback = normalizedText.slice(0, SNIPPET_RADIUS * 2);
-    return fallback.length < normalizedText.length
-      ? `${fallback}...`
-      : fallback;
-  }
-
-  const matchEnd = Math.min(matchStart + matchLength, normalizedText.length);
-  const snippetStart = Math.max(0, matchStart - SNIPPET_RADIUS);
-  const snippetEnd = Math.min(normalizedText.length, matchEnd + SNIPPET_RADIUS);
-  const core = normalizedText.slice(snippetStart, snippetEnd);
-
-  return `${snippetStart > 0 ? "..." : ""}${core}${snippetEnd < normalizedText.length ? "..." : ""}`;
 }
 
 function toJsonString(value: unknown): string {
@@ -184,7 +159,10 @@ const searchInputSchema = z
   });
 
 export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
-  const { canvasId } = threadCtx;
+  const scope = canvasScope({
+    userId: threadCtx.authUserId,
+    canvasId: threadCtx.canvasId,
+  });
 
   return createTool({
     description: DESCRIPTION_PARTS.join(" "),
@@ -204,16 +182,6 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         : "semantic";
       const requestedView: SearchView = groupByNode ? "grouped" : "flat";
 
-      type BridgeResult = {
-        hits: FusedHit[];
-        scanned: number;
-        truncated: boolean;
-        relaxed: boolean;
-        terms: string[];
-        mode: string;
-        degraded: boolean;
-      };
-
       if (
         (useKeyword && keywordQuery.length < 2) ||
         (useSemantic && semanticQuery.length < 2)
@@ -227,8 +195,6 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         });
       }
 
-      console.log(`🔎 Running search_canvas on canvas ${canvasId}`);
-
       try {
         const searchLimit = groupByNode
           ? Math.min(
@@ -240,55 +206,20 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             )
           : limit;
 
-        // Chaque branche reçoit sa propre formulation. La branche
-        // sémantique (vectorSearch en action uniquement) ne doit jamais
-        // faire échouer la recherche : repli keyword seul sinon.
-        const result: BridgeResult = await ctx
-          .runAction(internal.semanticSearch.runHybridSearch, {
-            canvasId: canvasId as Id<"canvases">,
-            keywordQuery: useKeyword ? keywordQuery : undefined,
-            semanticQuery: useSemantic ? semanticQuery : undefined,
-            nodeIds: input.nodeIds,
-            nodeTypes: input.nodeTypes,
-            limit: searchLimit,
-            useKeyword,
-            useSemantic,
-            agentReadableOnly: true,
-          })
-          .then((hybrid) => ({
-            hits: hybrid.hits,
-            scanned: hybrid.scanned,
-            truncated: hybrid.truncated,
-            relaxed: hybrid.relaxed,
-            terms: hybrid.terms,
-            mode: hybrid.mode,
-            degraded: hybrid.degraded ?? false,
-          }));
-
-        // Centre les snippets sur les termes keyword ; en sémantique pure,
-        // retombe sur les mots porteurs de la requête sémantique.
-        const snippetTerms =
-          result.terms.length > 0
-            ? result.terms
-            : semanticQuery.split(/\s+/).filter((word) => word.length >= 2);
-        const hits = result.hits.map((hit) => ({
-          ...hit,
-          snippet: buildSnippet(hit.text, snippetTerms),
-        }));
-
-        // De-duplicate same snippet per node to reduce repetitive noise.
-        const dedupedByNodeSnippet = Array.from(
-          new Map(
-            hits.map((hit) => [`${hit.nodeId}::${hit.snippet}`, hit] as const),
-          ).values(),
-        );
+        const result = await searchCanvas(ctx, scope, {
+          keyword: useKeyword ? keywordQuery : undefined,
+          semantic: useSemantic ? semanticQuery : undefined,
+          nodeIds: input.nodeIds,
+          nodeTypes: input.nodeTypes,
+          limit: searchLimit,
+        });
 
         if (!groupByNode) {
           const isHybrid = result.mode === "hybrid";
           // Tri par pertinence (le score RRF/vectoriel), pas par ordre des
           // chunks : l'ordre documentaire ne départage qu'à score égal
           // (cas keyword pur, tout à 0).
-          const rankedFlat = dedupedByNodeSnippet
+          const rankedFlat = [...result.hits]
             .sort((a, b) => b.score - a.score || a.order - b.order)
             .slice(0, limit)
             .map((hit) => ({
@@ -305,8 +236,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               ...(isHybrid && hit.sources ? { sources: hit.sources } : {}),
             }));
 
-          const truncated =
-            result.truncated || dedupedByNodeSnippet.length > limit;
+          const truncated = result.truncated || result.hits.length > limit;
           const status: SearchStatus =
             rankedFlat.length === 0
               ? "no_results"
@@ -326,92 +256,22 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           });
         }
 
-        const grouped = new Map<
-          string,
-          {
-            nodeId: string;
-            nodeType: string;
-            title?: string;
-            hitCount: number;
-            bestScore: number;
-            candidates: Array<{
-              snippet: string;
-              order: number;
-              page?: number;
-              sectionTitle?: string;
-              startSec?: number;
-              endSec?: number;
-            }>;
-          }
-        >();
+        const groupedEntries = groupHitsByNode(result.hits);
 
-        for (const hit of dedupedByNodeSnippet) {
-          const entry = grouped.get(hit.nodeId);
-          if (entry) {
-            entry.hitCount += 1;
-            if (hit.score > entry.bestScore) entry.bestScore = hit.score;
-            if (!entry.title && hit.title) entry.title = hit.title;
-            entry.candidates.push({
-              snippet: hit.snippet,
-              order: hit.order,
-              page: hit.page,
-              sectionTitle: hit.sectionTitle,
-              startSec: hit.startSec,
-              endSec: hit.endSec,
-            });
-          } else {
-            grouped.set(hit.nodeId, {
-              nodeId: hit.nodeId,
-              nodeType: hit.nodeType,
-              title: hit.title,
-              hitCount: 1,
-              bestScore: hit.score,
-              candidates: [
-                {
-                  snippet: hit.snippet,
-                  order: hit.order,
-                  page: hit.page,
-                  sectionTitle: hit.sectionTitle,
-                  startSec: hit.startSec,
-                  endSec: hit.endSec,
-                },
-              ],
-            });
-          }
-        }
-
-        // Tri par pertinence (meilleur score du node), quantité en
-        // tie-break : beaucoup de hits faibles ne doivent pas passer devant
-        // un hit fort unique.
-        const groupedEntries = Array.from(grouped.values()).sort((a, b) => {
-          return b.bestScore - a.bestScore || b.hitCount - a.hitCount;
-        });
-
-        // Fallback: fetch titles only for pre-existing chunks that don't carry one yet.
+        // Titres manquants (chunks anciens qui n'en portent pas).
         const fetchMissingTitles = async (
           groups: Array<{ nodeId: string; title?: string }>,
         ): Promise<Map<string, string>> => {
-          const titlesByNodeId = new Map<string, string>();
-          const missing = groups.filter((group) => !group.title);
-          if (missing.length > 0) {
-            await Promise.all(
-              missing.map(async (group) => {
-                try {
-                  const { nodeData } = await ctx.runQuery(
-                    internal.wrappers.canvasNodeWrappers.getNodeWithNodeData,
-                    {
-                      canvasId: canvasId as Id<"canvases">,
-                      nodeId: group.nodeId,
-                    },
-                  );
-                  titlesByNodeId.set(group.nodeId, getNodeDataTitle(nodeData));
-                } catch {
-                  titlesByNodeId.set(group.nodeId, "Untitled");
-                }
-              }),
-            );
-          }
-          return titlesByNodeId;
+          const missing = groups
+            .filter((group) => !group.title)
+            .map((group) => group.nodeId);
+          const titles = await readNodeTitles(ctx, scope, missing);
+          return new Map(
+            missing.map((nodeId) => [
+              nodeId,
+              titles.get(nodeId)?.title ?? "Untitled",
+            ]),
+          );
         };
 
         // L'appartenance à une frame, pour chaque node touché : c'est le seul
@@ -421,12 +281,12 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         // recherche ne lit pas le canvas autrement.
         const frameIdByNodeId = new Map<string, string>();
         if (groupedEntries.length > 0) {
-          const { nodes: canvasNodes } = await ctx.runQuery(
-            internal.wrappers.canvasNodeWrappers.getCanvasNodesAndEdges,
-            { canvasId: canvasId as Id<"canvases"> },
+          const graph = await ctx.runQuery(
+            internal.tools.nodes.canvasGraph.load,
+            { scope },
           );
-          for (const node of canvasNodes) {
-            if (node.parentId) frameIdByNodeId.set(node.id, node.parentId);
+          for (const node of graph.nodes) {
+            if (node.frameId) frameIdByNodeId.set(node.id, node.frameId);
           }
         }
 
@@ -467,14 +327,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         const titlesByNodeId = await fetchMissingTitles(selectedGroups);
 
         const groupedHits = selectedGroups.map((group) => {
-          const uniqueBestCandidates = Array.from(
-            new Map(
-              group.candidates
-                .sort((a, b) => a.order - b.order)
-                .map((candidate) => [candidate.snippet, candidate] as const),
-            ).values(),
-          ).slice(0, hitsPerNode);
-
+          const uniqueBestCandidates = bestSnippets(group, hitsPerNode);
           const best = uniqueBestCandidates[0];
 
           return {

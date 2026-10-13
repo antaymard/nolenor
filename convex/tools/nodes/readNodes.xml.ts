@@ -511,6 +511,8 @@ export type ReadNodesRenderOptions = {
   mediaRanges?: Array<{ nodeId: string; startSec: number; endSec: number }>;
   tableRows?: TableRowSliceInput[];
   viewImages?: string[];
+  /** Le bloc `<nodeDataSchemas>` (comment écrire chaque type). Défaut : oui. */
+  schemas?: boolean;
 };
 
 /**
@@ -521,7 +523,12 @@ export type ReadNodesRenderOptions = {
 export async function renderReadNodes(
   result: ReadNodesResult,
   options: ReadNodesRenderOptions,
-): Promise<{ text: string; images: string[] }> {
+): Promise<{
+  text: string;
+  images: string[];
+  /** Le `<node>` de chaque node lu, seul : pour une sortie node par node. */
+  nodes: Array<{ id: string; xml: string }>;
+}> {
   const { withPosition, isMultimodal } = options;
 
     const pdfPagesByNodeId = new Map<string, number[]>();
@@ -570,6 +577,7 @@ export async function renderReadNodes(
         width: null as number | null,
         height: null as number | null,
         frameId: null as string | null,
+        color: null as string | null,
         frameBody: null as string | null,
         title: "Untitled",
         content: "",
@@ -681,6 +689,7 @@ export async function renderReadNodes(
       tag.width = node.width !== null ? Math.trunc(node.width) : null;
       tag.height = node.height !== null ? Math.trunc(node.height) : null;
       tag.frameId = node.frameId;
+      tag.color = node.color;
       tag.frameBody = node.children
         ? buildFrameNodeBody(node.children, withPosition)
         : null;
@@ -713,6 +722,7 @@ export async function renderReadNodes(
         width,
         height,
         frameId,
+        color,
         frameBody,
         title,
         content,
@@ -733,10 +743,13 @@ export async function renderReadNodes(
         withPosition && positionX !== null && positionY !== null
           ? `${` x="${String(positionX)}" y="${String(positionY)}"`}${width !== null ? ` width="${String(width)}"` : ""}${height !== null ? ` height="${String(height)}"` : ""}`
           : "";
-      const frameAttribute = frameId ? ` frameId="${frameId}"` : "";
+      // La couleur se pose avec move_and_style_nodes ; elle doit se relire.
+      const frameAttribute = `${frameId ? ` frameId="${frameId}"` : ""}${
+        color ? ` color="${escapeXmlAttribute(color)}"` : ""
+      }`;
 
       if (nodeType === "frame" && frameBody !== null) {
-        return `<node id="${nodeId}" type="frame" sourceNodes="${escapeXmlAttribute(sourceNodes)}" targetNodes="${escapeXmlAttribute(targetNodes)}"${positionAttributes} title="${escapeXmlAttribute(title)}">
+        return `<node id="${nodeId}" type="frame" sourceNodes="${escapeXmlAttribute(sourceNodes)}" targetNodes="${escapeXmlAttribute(targetNodes)}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}">
 ${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${frameBody}
 </node>`;
       }
@@ -773,19 +786,27 @@ ${content}
     const uniqueNodeTypes = [
       ...new Set(rendered.map(({ tag }) => tag.nodeType)),
     ];
+    const nodeXmls = rendered.map((entry) => ({
+      id: entry.node.id,
+      xml: nodeXml(entry),
+    }));
     const xml = [
       "<nodes>",
-      ...rendered.map(nodeXml),
+      ...nodeXmls.map(({ xml }) => xml),
       "</nodes>",
-      "<nodeDataSchemas>",
-      // Filtre les vides : un custom node dont le template n'est plus
-      // résoluble n'a pas de schéma à publier.
-      ...uniqueNodeTypes
-        .map((nodeType) =>
-          buildNodeDataSchemaXml(nodeType, result.templates),
-        )
-        .filter((entry) => entry.length > 0),
-      "</nodeDataSchemas>",
+      ...(options.schemas === false
+        ? []
+        : [
+            "<nodeDataSchemas>",
+            // Filtre les vides : un custom node dont le template n'est plus
+            // résoluble n'a pas de schéma à publier.
+            ...uniqueNodeTypes
+              .map((nodeType) =>
+                buildNodeDataSchemaXml(nodeType, result.templates),
+              )
+              .filter((entry) => entry.length > 0),
+            "</nodeDataSchemas>",
+          ]),
     ].join("\n");
 
     // Les images, dans l'ordre demandé par le modèle : c'est sa priorité,
@@ -873,5 +894,6 @@ ${content}
     return {
       text: trailer.length > 0 ? `${xml}\n${trailer.join("\n")}` : xml,
       images: attachments.map(({ url }) => toModelImageUrl(url)),
+      nodes: nodeXmls,
     };
 }

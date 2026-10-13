@@ -15,7 +15,9 @@ import patchAppNodeCodeTool, {
   patchAppNodeCodeToolConfig,
 } from "./patchAppNodeCodeTool";
 import { blockNoteToolDefinitions } from "./blockNoteTools";
-import searchTool, { searchToolConfig } from "./searchTool";
+import searchTool, {
+  searchToolConfig,
+} from "../../tools/search/searchCanvas.agent";
 import listNodesTool, {
   listNodesToolConfig,
 } from "../../tools/nodes/listNodes.agent";

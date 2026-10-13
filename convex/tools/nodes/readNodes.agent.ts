@@ -165,7 +165,7 @@ export default function readNodesTool({
     execute: async (ctx, input): Promise<ReadNodesOutput> => {
       try {
         const result = await readNodes(ctx, scope, input.nodeIds);
-        return await renderReadNodes(result, {
+        const { text, images } = await renderReadNodes(result, {
           withPosition: input.withPosition ?? true,
           isMultimodal,
           pdfPages: input.pdfPages,
@@ -173,6 +173,7 @@ export default function readNodesTool({
           tableRows: input.tableRows,
           viewImages: input.viewImages,
         });
+        return { text, images };
       } catch (error) {
         console.error("Read nodes error:", error);
         return {

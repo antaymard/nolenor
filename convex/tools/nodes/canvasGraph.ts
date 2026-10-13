@@ -25,6 +25,8 @@ export type GraphNode = {
   height: number | null;
   /** La frame qui le contient. */
   frameId: string | null;
+  /** Couleur posée par l'utilisateur ou l'agent (cf. NODE_COLORS). */
+  color: string | null;
   nodeDataId: Id<"nodeDatas"> | null;
 };
 
@@ -59,6 +61,7 @@ export const load = internalQuery({
           width: typeof node.width === "number" ? node.width : null,
           height: typeof node.height === "number" ? node.height : null,
           frameId: node.parentId ?? null,
+          color: node.color ?? null,
           nodeDataId: node.nodeDataId ?? null,
         };
       });

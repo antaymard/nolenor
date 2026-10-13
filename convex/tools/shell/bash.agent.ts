@@ -28,9 +28,10 @@ export const bashToolConfig: ToolConfig = {
 const DESCRIPTION = `Run a bash script in a sandboxed virtual shell, to explore and process the canvas in bulk. Read-only: nothing you do here changes the canvas — use the other tools to write.
 
 The \`nole\` command reads the current canvas:
-- \`nole ls [--type T] [--frame ID] [--linked-to ID] [--near ID] [--format tsv|jsonl|ids]\`: every matching node, one line each (id, type, title, x, y, frameId), no limit.
-- \`nole read <id>…\` or \`… | nole read -\`: the same XML as read_nodes, ids from arguments or from the first field of each stdin line (at most 50 nodes per call).
-- \`nole --help\`, \`nole <command> --help\`: all options.
+- \`nole ls [--type T] [--frame ID] [--linked-to ID] [--near ID] [--format tsv|jsonl|ids]\`: every matching node in canvas order, one line each (id, type, title, x, y, frameId, color), no limit.
+- \`nole read <id>…\` or \`… | nole read -\`: the same XML as read_nodes (without the write schemas unless --schemas), ids from arguments or from the first field of each stdin line (at most 200 nodes per call); \`--format jsonl\` gives one JSON object per node for jq.
+- \`nole search <keywords> [--semantic TEXT] [--type T] [--in IDS|-] [--by-node] [--format tsv|jsonl|ids]\`: ranked hits in the content (documents, tables, PDF pages, transcripts), one line each (nodeId, type, score, where, title, snippet); same engine and query syntax as search_canvas. Exit code 1 when nothing matches.
+- \`nole --help\`, \`nole <command> --help\`: all options. A command exits non-zero when it fails (unknown id, unknown frame, no match for search), so \`&&\` and \`||\` work.
 
 Standard tools are available: grep, sed, awk, jq, sort, uniq, head, tail, wc, cut, tr, xargs, diff… Pipes, redirections, loops, variables and files under /tmp all work within one call. Each call starts a fresh shell: files and variables do not survive to the next call, so do the whole job in one script. No network, no Python.
 
@@ -39,6 +40,7 @@ Use it when list_nodes / read_nodes would take many calls or flood your context:
 Examples:
 - \`nole ls --type blocknote --format ids | nole read - | grep -n -i "budget"\`
 - \`nole ls --format jsonl | jq -r 'select(.title | test("Q3"; "i")) | .id'\`
+- \`nole search budget --format ids | nole read - | grep -n "40k"\`
 - \`nole ls | cut -f2 | sort | uniq -c\``;
 
 /**

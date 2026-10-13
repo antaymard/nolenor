@@ -105,6 +105,7 @@ async function setup() {
   const runCtx = {
     runQuery: t.query,
     runMutation: t.mutation,
+    runAction: t.action,
   } as never;
   const tool = attachToolCtx(
     bashTool({ threadCtx: { authUserId: userId, canvasId } }),
@@ -136,6 +137,7 @@ describe("bash", () => {
       "0",
       "0",
       "",
+      "",
     ]);
     expect(lines[4].split("\t").slice(0, 3)).toEqual([
       linkId,
@@ -166,7 +168,35 @@ describe("bash", () => {
     const output = stdout(await bash(`nole read ${ids[2]}`));
     expect(output).toContain(`<node id="${ids[2]}" type="blocknote"`);
     expect(output).toContain("Five people, no budget line.");
-    expect(output).toContain("<nodeDataSchemas>");
+    // Le schéma d'écriture n'est rendu que sur demande.
+    expect(output).not.toContain("<nodeDataSchemas>");
+    expect(stdout(await bash(`nole read --schemas ${ids[2]}`))).toContain(
+      "<nodeDataSchemas>",
+    );
+  });
+
+  test("nole read --format jsonl, pour jq", async () => {
+    const { bash, ids } = await setup();
+    const output = stdout(
+      await bash(
+        `nole ls --format ids | nole read --format jsonl - | jq -r 'select(.xml | test("Five people")) | .title'`,
+      ),
+    );
+    expect(output).toBe("Team");
+    const line = JSON.parse(stdout(await bash(`nole read --format jsonl ${ids[0]}`)));
+    expect(line).toMatchObject({ id: ids[0], type: "blocknote", title: "Budget Q3", ok: true, error: null });
+  });
+
+  test("un échec se voit dans le code de sortie", async () => {
+    const { bash, ids } = await setup();
+    const read = await bash(`nole read ${ids[0]} missing`);
+    expect(read).toContain("Budget Q3");
+    expect(read).toContain("nole read: missing: not found");
+    expect(read).toContain("<exitCode>1</exitCode>");
+    expect(await bash("nole ls --frame nope")).toContain(
+      'nole ls: Frame "nope" not found on canvas',
+    );
+    expect(await bash("nole read missing || echo fallback")).toContain("fallback");
   });
 
   test("un shell neuf par appel", async () => {

@@ -16,8 +16,12 @@ import { renderReadNodes, type TableRowSliceInput } from "./readNodes.xml";
  * venir d'un pipe, et une sortie que le shell filtre.
  */
 
-/** Au-delà, la sortie déborde de toute façon : mieux vaut filtrer avant. */
-const MAX_NODES_PER_CALL = 50;
+/**
+ * Le plafond d'un appel. Haut parce qu'avec `--format jsonl | jq` le filtre passe
+ * avant la troncature de sortie ; borné parce que chaque node coûte une
+ * conversion de document.
+ */
+const MAX_NODES_PER_CALL = 200;
 
 const HELP = `Usage: nole read [options] <id>...
        <ids on stdin> | nole read [options] -
@@ -35,13 +39,21 @@ Options:
   --range <start:end>   Audio/video nodes: the transcript of this time range,
                         in seconds
   --no-position         Leave out x, y, width and height
+  --format <fmt>        xml (default), or jsonl: one JSON object per node,
+                        {id, type, title, ok, error, xml}, for jq
+  --schemas             Also print <nodeDataSchemas> (how to write each type
+                        with the other tools; read_nodes always includes it)
+
+Exit code 1 when a node cannot be read (unknown id): the others are still
+printed, the failures are listed on stderr.
 
 At most ${MAX_NODES_PER_CALL} nodes per call: filter first (nole ls … | grep … | nole read -).
 
 Examples:
   nole read N12ab Q34cd
   nole ls --type blocknote | nole read - | grep -n "deadline"
-  nole read --pages 3,4 P56ef`;
+  nole read --pages 3,4 P56ef
+  nole ls --format ids | nole read --format jsonl - | jq -r 'select(.xml | test("TODO")) | .id'`;
 
 /** `a:b` → [a, b], deux nombres finis ≥ 0, ou null. */
 function parsePair(value: string): [number, number] | null {
@@ -59,8 +71,8 @@ export const nodeReadCommand: CliCommand = {
   help: HELP,
   async run(args, { run, scope, stdin }) {
     const parsed = parseArgs(args, {
-      options: ["pages", "rows", "row-ids", "range"],
-      flags: ["no-position"],
+      options: ["pages", "rows", "row-ids", "range", "format"],
+      flags: ["no-position", "schemas"],
     });
     if ("error" in parsed) return fail(`nole read: ${parsed.error}`, 2);
     if (parsed.flags.has("help")) return ok(HELP);
@@ -115,12 +127,20 @@ export const nodeReadCommand: CliCommand = {
       range = { startSec: pair[0], endSec: pair[1] };
     }
 
+    const format = option(parsed, "format") ?? "xml";
+    if (format !== "xml" && format !== "jsonl") {
+      return fail(`nole read: --format must be xml or jsonl`, 2);
+    }
+
     const result = await readNodes(run, scope, nodeIds);
     const byType = (type: string) =>
       [...new Set(result.nodes.filter((node) => node.type === type).map((node) => node.id))];
 
-    const { text } = await renderReadNodes(result, {
+    const rendered = await renderReadNodes(result, {
       withPosition: !parsed.flags.has("no-position"),
+      // Le schéma d'écriture d'un blocknote pèse ~2 Ko et revient à chaque
+      // lecture : dans le shell, on le demande.
+      schemas: parsed.flags.has("schemas"),
       // Le shell ne rend que du texte : pas d'image jointe.
       isMultimodal: false,
       ...(pages && {
@@ -136,6 +156,31 @@ export const nodeReadCommand: CliCommand = {
         })),
       }),
     });
-    return ok(text);
+
+    const failures = result.nodes.filter((node) => !node.ok);
+    const stdout =
+      format === "jsonl"
+        ? result.nodes
+            .map((node, index) =>
+              JSON.stringify({
+                id: node.id,
+                type: node.type,
+                title: node.ok ? node.title : null,
+                ok: node.ok,
+                error: node.ok ? null : node.error,
+                xml: rendered.nodes[index].xml,
+              }),
+            )
+            .join("\n")
+        : rendered.text;
+    return {
+      ...ok(stdout),
+      ...(failures.length > 0 && {
+        stderr: failures
+          .map((node) => `nole read: ${node.id}: not found\n`)
+          .join(""),
+        exitCode: 1,
+      }),
+    };
   },
 };

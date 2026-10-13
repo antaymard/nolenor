@@ -127,13 +127,14 @@ export function renderListNodes(
 
   return [
     `<nodes count="${displayed.length}"${truncated ? ` truncated="true" total="${nodes.length}"` : ""}>`,
-    ...displayed.map(({ id, type, title, x, y, frameId, edgeLabels }) => {
+    ...displayed.map(({ id, type, title, x, y, frameId, color, edgeLabels }) => {
       const frameAttr = frameId ? ` frameId="${frameId}"` : "";
+      const colorAttr = color ? ` color="${escapeXmlAttribute(color)}"` : "";
       const edgeLabelAttr =
         edgeLabels.length > 0
           ? ` edgeLabel="${escapeXmlAttribute(edgeLabels.join(" ; "))}"`
           : "";
-      return `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${Math.trunc(x)}" y="${Math.trunc(y)}"${frameAttr}${edgeLabelAttr} />`;
+      return `  <node id="${id}" type="${type}" title="${escapeXmlAttribute(title)}" x="${Math.trunc(x)}" y="${Math.trunc(y)}"${frameAttr}${colorAttr}${edgeLabelAttr} />`;
     }),
     "</nodes>",
     "<nodeDataSchemas>",

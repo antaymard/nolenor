@@ -17,8 +17,11 @@ const HELP = `Usage: nole ls [options]
 
 List the nodes of the canvas. One line per node, no limit.
 
-Output (default, tab-separated): id  type  title  x  y  frameId
-  With --linked-to, a 7th column holds the labels of the edges followed.
+Output (default, tab-separated): id  type  title  x  y  frameId  color
+  Empty field when there is none. With --linked-to, an 8th column holds the
+  labels of the edges followed.
+Order: canvas order (oldest first). To sort, pipe into sort, e.g. by title:
+  nole ls | sort -t "$(printf '\\t')" -k3
 
 Options:
   --type <type>         Only this node type (repeatable, or comma-separated):
@@ -27,11 +30,14 @@ Options:
   --linked-to <id>      Only the nodes connected to this one by an edge
   --direction <dir>     With --linked-to: in (sources), out (targets), both
                         (default)
-  --near <id>           Only the nodes within 500 units of this one
-  --area <x1,y1,x2,y2>  Only the nodes whose position is in this box
+  --near <id>           Only the nodes within 500 units of this one (the
+                        reference node itself included)
+  --area <x1,y1,x2,y2>  Only the nodes whose position (top-left corner) is
+                        in this box
   --format <fmt>        tsv (default), jsonl, or ids (one id per line)
 
-Filters combine with AND. Positions are world coordinates.
+Filters combine with AND. Positions are world coordinates. An unknown
+--frame or --linked-to id is an error (exit 1), not an empty list.
 
 Examples:
   nole ls --type table
@@ -120,6 +126,7 @@ export const nodeLsCommand: CliCommand = {
           x,
           y,
           frameId: node.frameId,
+          color: node.color,
           ...(linkedTo && { edgeLabels: node.edgeLabels }),
         });
       }
@@ -130,6 +137,7 @@ export const nodeLsCommand: CliCommand = {
         x,
         y,
         node.frameId,
+        node.color,
         ...(linkedTo ? [node.edgeLabels.join("; ")] : []),
       ]
         .map(tsvField)

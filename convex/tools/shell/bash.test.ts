@@ -105,6 +105,7 @@ async function setup() {
   const runCtx = {
     runQuery: t.query,
     runMutation: t.mutation,
+    runAction: t.action,
   } as never;
   const tool = attachToolCtx(
     bashTool({ threadCtx: { authUserId: userId, canvasId } }),

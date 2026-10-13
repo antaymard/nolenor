@@ -4,7 +4,6 @@ import { internal } from "../../_generated/api";
 import { type ThreadCtx, toolAgentNames } from "../../ia/agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig } from "../../ia/tools/toolHelpers";
 import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
-import { readNodeTitles } from "../nodes/nodeContents";
 import { canvasScope } from "../scope";
 import {
   bestSnippets,
@@ -236,7 +235,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
               ...(isHybrid && hit.sources ? { sources: hit.sources } : {}),
             }));
 
-          const truncated = result.truncated || result.hits.length > limit;
+          const truncated = result.more;
           const status: SearchStatus =
             rankedFlat.length === 0
               ? "no_results"
@@ -257,22 +256,6 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         }
 
         const groupedEntries = groupHitsByNode(result.hits);
-
-        // Titres manquants (chunks anciens qui n'en portent pas).
-        const fetchMissingTitles = async (
-          groups: Array<{ nodeId: string; title?: string }>,
-        ): Promise<Map<string, string>> => {
-          const missing = groups
-            .filter((group) => !group.title)
-            .map((group) => group.nodeId);
-          const titles = await readNodeTitles(ctx, scope, missing);
-          return new Map(
-            missing.map((nodeId) => [
-              nodeId,
-              titles.get(nodeId)?.title ?? "Untitled",
-            ]),
-          );
-        };
 
         // L'appartenance à une frame, pour chaque node touché : c'est le seul
         // groupement explicite du canvas, et un résultat de recherche qui ne le
@@ -295,7 +278,6 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         if (groupedEntries.length > limit) {
           const totalMatches = groupedEntries.length;
           const compactEntries = groupedEntries.slice(0, COMPACT_MAX);
-          const compactTitles = await fetchMissingTitles(compactEntries);
           const truncated = totalMatches > COMPACT_MAX;
           const status: SearchStatus = truncated
             ? "truncated"
@@ -314,8 +296,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
             hits: compactEntries.map((group) => ({
               nodeId: group.nodeId,
               nodeType: group.nodeType,
-              title:
-                group.title ?? compactTitles.get(group.nodeId) ?? "Untitled",
+              title: group.title ?? "Untitled",
               bestScore: roundScore(group.bestScore),
               frameId: frameIdByNodeId.get(group.nodeId) ?? null,
               hitCount: group.hitCount,
@@ -324,7 +305,6 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         }
 
         const selectedGroups = groupedEntries.slice(0, limit);
-        const titlesByNodeId = await fetchMissingTitles(selectedGroups);
 
         const groupedHits = selectedGroups.map((group) => {
           const uniqueBestCandidates = bestSnippets(group, hitsPerNode);
@@ -333,8 +313,7 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           return {
             nodeId: group.nodeId,
             nodeType: group.nodeType,
-            title:
-              group.title ?? titlesByNodeId.get(group.nodeId) ?? "Untitled",
+            title: group.title ?? "Untitled",
             bestScore: roundScore(group.bestScore),
             frameId: frameIdByNodeId.get(group.nodeId) ?? null,
             hitCount: group.hitCount,
@@ -357,8 +336,8 @@ export default function searchTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         });
 
         // Le débordement ne peut plus venir d'ici (bascule compacte
-        // ci-dessus) : seul `result.truncated` compte.
-        const truncated = result.truncated;
+        // ci-dessus) : seul `result.more` compte.
+        const truncated = result.more;
         const status: SearchStatus =
           groupedHits.length === 0
             ? "no_results"

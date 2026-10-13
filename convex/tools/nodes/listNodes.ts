@@ -52,6 +52,7 @@ export type NodeSummary = {
   x: number;
   y: number;
   frameId: string | null;
+  color: string | null;
   /** Avec `linkedTo` : les labels des edges suivies jusqu'à ce node. */
   edgeLabels: string[];
 };
@@ -72,6 +73,20 @@ export function filterGraph(
   graph: CanvasGraph,
   filters: ListNodesFilters,
 ): { ok: true; nodes: Match[] } | { ok: false; error: string } {
+  // Un id de référence introuvable est une erreur, pas une liste vide : sans
+  // ça, une frame mal recopiée ressemble à une frame vide.
+  const exists = (nodeId: string) =>
+    graph.nodes.some((node) => node.id === nodeId);
+  if (filters.frameId && !exists(filters.frameId)) {
+    return { ok: false, error: `Frame "${filters.frameId}" not found on canvas` };
+  }
+  if (filters.linkedTo && !exists(filters.linkedTo.nodeId)) {
+    return {
+      ok: false,
+      error: `Node "${filters.linkedTo.nodeId}" not found on canvas`,
+    };
+  }
+
   let linked: Map<string, string[]> | null = null;
   if (filters.linkedTo) {
     const { nodeId, direction } = filters.linkedTo;
@@ -133,6 +148,7 @@ export function filterGraph(
       x: node.x,
       y: node.y,
       frameId: node.frameId,
+      color: node.color,
       edgeLabels: linked?.get(node.id) ?? [],
     }));
   return { ok: true, nodes };

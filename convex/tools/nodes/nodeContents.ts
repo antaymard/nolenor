@@ -64,7 +64,9 @@ async function readContent(
     type: node.type,
     nodeData,
     template,
-    title: getNodeDataTitle(nodeData, template),
+    // Un titre fait d'espaces ou suivi d'un retour à la ligne (une valeur
+    // tapée telle quelle) ne doit pas casser une ligne de sortie.
+    title: getNodeDataTitle(nodeData, template).trim() || "Untitled",
   };
 }
 

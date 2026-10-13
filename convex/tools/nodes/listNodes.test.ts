@@ -85,6 +85,8 @@ async function setup() {
     list,
     scope: canvasScope({ userId, canvasId }),
     ids: { frame, child, a, b, c },
+    t,
+    canvasId,
   };
 }
 
@@ -111,6 +113,46 @@ describe("listNodes", () => {
     ).toEqual([
       { id: ids.a, edgeLabels: ["feeds"] },
       { id: ids.c, edgeLabels: [] },
+    ]);
+  });
+
+  test("une frame ou une référence inconnue est une erreur", async () => {
+    const { list, scope } = await setup();
+    expect(await list(scope, { frameId: "nope" })).toEqual({
+      ok: false,
+      error: 'Frame "nope" not found on canvas',
+    });
+    expect(
+      await list(scope, { linkedTo: { nodeId: "nope", direction: "both" } }),
+    ).toEqual({ ok: false, error: 'Node "nope" not found on canvas' });
+  });
+
+  test("titres trimés, couleur relisible", async () => {
+    const { list, scope, t, canvasId } = await setup();
+    const [link] = await t.mutation(
+      internal.wrappers.nodeWrappers.createWithNodeData,
+      {
+        nodes: [
+          {
+            node: {
+              canvasId,
+              type: "link",
+              position: { x: 0, y: 900 },
+              width: 100,
+              height: 100,
+              color: "blue",
+            },
+            nodeDataValues: {
+              link: { href: "https://x.test", pageTitle: "Connecté au node bleu\n" },
+            },
+          },
+        ],
+      },
+    );
+    const result = await list(scope, { types: ["link"] });
+    if (!result.ok) throw new Error(result.error);
+    expect(result.nodes).toMatchObject([
+      { id: link.nodeId, title: "Connecté au node bleu", color: "blue" },
     ]);
   });
 

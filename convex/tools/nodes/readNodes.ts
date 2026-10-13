@@ -58,6 +58,7 @@ export type ReadNode = {
       width: number | null;
       height: number | null;
       frameId: string | null;
+      color: string | null;
       nodeData: Doc<"nodeDatas">;
       template: Doc<"nodeTemplates"> | null;
       /** Frame : ses enfants lisibles, dans l'ordre de lecture (y puis x). */
@@ -256,6 +257,7 @@ export async function readNodes(
         width: graphNode.width,
         height: graphNode.height,
         frameId: graphNode.frameId,
+        color: graphNode.color,
         nodeData,
         template: content.template,
         ...connections,

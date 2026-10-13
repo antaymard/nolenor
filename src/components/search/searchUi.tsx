@@ -11,6 +11,11 @@ import {
 import { formatTime } from "@/hooks/useMediaPlayback";
 import type { SearchSnippet as SearchSnippetType } from "./useSearch";
 import { TbChevronRight } from "react-icons/tb";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/shadcn/tooltip";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { useNodeDataTitle } from "@/hooks/useNodeTitle";
@@ -276,17 +281,23 @@ export function SearchRowHeader({
 
   return (
     <div className="flex min-w-0 items-start gap-2.5">
-      <span
-        className={cn(
-          "flex shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground",
-          compact ? "size-6" : "size-7",
-        )}
-        // Le type ne s'affiche plus en pastille : l'icône le porte.
-        title={nodeType}
-        aria-label={nodeType}
-      >
-        {Icon ? <Icon size={compact ? 13 : 15} /> : null}
-      </span>
+      {/* Le type ne s'affiche plus en pastille : l'icône le porte. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground",
+              compact ? "size-6" : "size-7",
+            )}
+            aria-label={nodeType}
+          >
+            {Icon ? <Icon size={compact ? 13 : 15} /> : null}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="capitalize">
+          {nodeType}
+        </TooltipContent>
+      </Tooltip>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-2">
           <span

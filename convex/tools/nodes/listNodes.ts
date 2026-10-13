@@ -13,7 +13,7 @@ import { readNodeTitles } from "./nodeContents";
  * Rend des données, jamais du texte : la mise en forme (XML pour le modèle,
  * lignes pour le CLI…) et les plafonds d'affichage sont l'affaire des
  * adaptateurs. Pas de limite non plus : un adaptateur tronque, le noyau rend
- * tout.
+ * tout — du contenu modifié le plus récemment au plus ancien.
  */
 
 /** Rayon du filtre `near`, en unités du canvas. */
@@ -53,6 +53,8 @@ export type NodeSummary = {
   y: number;
   frameId: string | null;
   color: string | null;
+  /** Dernière modification du contenu, en ms ; `null` sans contenu lisible. */
+  updatedAt: number | null;
   /** Avec `linkedTo` : les labels des edges suivies jusqu'à ce node. */
   edgeLabels: string[];
 };
@@ -66,7 +68,7 @@ export type ListNodesResult =
     }
   | { ok: false; error: string };
 
-type Match = Omit<NodeSummary, "title">;
+type Match = Omit<NodeSummary, "title" | "updatedAt">;
 
 /** Le filtrage, sur la seule structure : pur, sans lecture. */
 export function filterGraph(
@@ -186,12 +188,16 @@ export async function listNodes(
         })
       : [];
 
-  return {
-    ok: true,
-    nodes: matched.nodes.map((node) => ({
+  // Le plus récemment modifié d'abord : c'est en général ce sur quoi
+  // l'utilisateur travaille, et ce qu'un plafond doit garder. À égalité,
+  // l'ordre du canvas (création) ; le tri est stable.
+  const nodes = matched.nodes
+    .map((node) => ({
       ...node,
       title: titles.get(node.id)?.title ?? "Untitled",
-    })),
-    templates,
-  };
+      updatedAt: titles.get(node.id)?.updatedAt ?? null,
+    }))
+    .sort((a, b) => (b.updatedAt ?? -1) - (a.updatedAt ?? -1));
+
+  return { ok: true, nodes, templates };
 }

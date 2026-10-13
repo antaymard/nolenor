@@ -110,9 +110,40 @@ describe("listNodes", () => {
     if (!result.ok) throw new Error(result.error);
     expect(
       result.nodes.map(({ id, edgeLabels }) => ({ id, edgeLabels })),
+    ).toEqual(
+      expect.arrayContaining([
+        { id: ids.a, edgeLabels: ["feeds"] },
+        { id: ids.c, edgeLabels: [] },
+      ]),
+    );
+    expect(result.nodes).toHaveLength(2);
+  });
+
+  test("le contenu modifié le plus récemment d'abord", async () => {
+    const { list, scope, ids, t } = await setup();
+    // Dates explicites : des nodes créés dans la même milliseconde seraient
+    // à égalité.
+    const stamp = async (nodeId: string, updatedAt: number) =>
+      t.run(async (ctx) => {
+        const node = await ctx.db
+          .query("nodes")
+          .withIndex("by_llmid", (q) => q.eq("id", nodeId))
+          .unique();
+        await ctx.db.patch(node!.nodeDataId, { updatedAt });
+      });
+    await stamp(ids.a, 1000);
+    await stamp(ids.b, 3000);
+    await stamp(ids.c, 2000);
+    const result = await list(scope, { types: ["blocknote"] });
+    if (!result.ok) throw new Error(result.error);
+    expect(
+      result.nodes
+        .filter((node) => [ids.a, ids.b, ids.c].includes(node.id))
+        .map((node) => [node.id, node.updatedAt]),
     ).toEqual([
-      { id: ids.a, edgeLabels: ["feeds"] },
-      { id: ids.c, edgeLabels: [] },
+      [ids.b, 3000],
+      [ids.c, 2000],
+      [ids.a, 1000],
     ]);
   });
 
@@ -161,7 +192,9 @@ describe("listNodes", () => {
       const { list, scope, ids } = await setup();
       const result = await list({ ...scope, read: [ids.a, ids.b] });
       if (!result.ok) throw new Error(result.error);
-      expect(result.nodes.map((node) => node.id)).toEqual([ids.a, ids.b]);
+      expect(result.nodes.map((node) => node.id).sort()).toEqual(
+        [ids.a, ids.b].sort(),
+      );
     });
 
     test("ni suivi par une edge", async () => {

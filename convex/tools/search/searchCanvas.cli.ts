@@ -1,5 +1,4 @@
 import { nodeTypeValues, type NodeType } from "../../schemas/nodeTypeSchema";
-import { readNodeTitles } from "../nodes/nodeContents";
 import {
   fail,
   idsFromStdin,
@@ -13,6 +12,7 @@ import {
 import {
   bestSnippets,
   groupByNode,
+  SEARCH_MAX_LIMIT,
   searchCanvas,
   type SearchSnippet,
 } from "./searchCanvas";
@@ -23,7 +23,8 @@ import {
  * code de sortie de grep : 1 quand rien ne correspond.
  */
 
-const MAX_LIMIT = 50;
+const MAX_LIMIT = SEARCH_MAX_LIMIT;
+const MAX_SNIPPETS = 5;
 
 const HELP = `Usage: nole search [options] <keywords…>
 
@@ -34,9 +35,14 @@ Keywords use operators: bare words are all required in the same node,
 '"exact phrase"', -excluded, a OR b. Quote the whole query for the shell:
   nole search '"launch plan" -draft'
 
-Output (default, tab-separated): nodeId  type  score  where  title  snippet
-  where: p<page> for a PDF page, <m:ss> for a transcript, else empty.
-With --by-node: nodeId  type  hits  bestScore  title  bestSnippet
+Output (default, tab-separated):
+  nodeId  type  chunkType  score  where  title  snippet
+  chunkType: node (the node's own content), page (a PDF page), annotation
+  (a PDF annotation), transcript (audio/video). where: p<page> for a PDF,
+  <m:ss> for a transcript, else empty. Keyword-only scores are all 0: the
+  order is then the document order. --format jsonl adds sources (which
+  branch matched: keyword, semantic, or both).
+With --by-node: nodeId  type  hits  bestScore  title  snippets
 
 Options:
   --semantic <text>   Conceptual search: short affirmative statements, never a
@@ -45,10 +51,12 @@ Options:
   --in <id,id…|->     Only within these nodes; "-" reads them from stdin
   --limit <n>         Number of hits (default 20, max ${MAX_LIMIT})
   --by-node           One line per node instead of one per hit
+  --snippets <n>      With --by-node: up to n distinct snippets per node
+                      (default 1, max ${MAX_SNIPPETS}), joined by " … "
   --format <fmt>      tsv (default), jsonl, or ids (unique node ids, ranked)
 
-Notes on stderr: results widened, cut at the limit, or semantic search down.
-Exit code 1 when nothing matches.
+Notes on stderr: results widened, more results beyond --limit, semantic
+search down. Exit code 1 when nothing matches, with a hint on stderr.
 
 Examples:
   nole search budget --type pdf
@@ -75,7 +83,7 @@ export const searchCommand: CliCommand = {
   help: HELP,
   async run(args, { run, scope, stdin }): Promise<CliResult> {
     const parsed = parseArgs(args, {
-      options: ["semantic", "type", "in", "limit", "format"],
+      options: ["semantic", "type", "in", "limit", "format", "snippets"],
       flags: ["by-node"],
     });
     if ("error" in parsed) return fail(`nole search: ${parsed.error}`, 2);
@@ -128,13 +136,27 @@ export const searchCommand: CliCommand = {
     }
     const byNode = parsed.flags.has("by-node");
 
+    const snippetsOption = option(parsed, "snippets");
+    const snippetCount = snippetsOption === undefined ? 1 : Number(snippetsOption);
+    if (
+      !Number.isInteger(snippetCount) ||
+      snippetCount < 1 ||
+      snippetCount > MAX_SNIPPETS
+    ) {
+      return fail(`nole search: --snippets must be 1 to ${MAX_SNIPPETS}`, 2);
+    }
+    if (snippetsOption !== undefined && !byNode) {
+      return fail(`nole search: --snippets goes with --by-node`, 2);
+    }
+
     const result = await searchCanvas(run, scope, {
       keyword: keyword || undefined,
       semantic: semantic || undefined,
       nodeIds,
       nodeTypes: types.length > 0 ? (types as NodeType[]) : undefined,
-      // Par node : autant de chunks que possible, pour compter les hits.
-      limit: byNode ? MAX_LIMIT : limit,
+      // Par node : autant de chunks que possible (moins un, pour la sonde
+      // de `more`), pour compter les hits.
+      limit: byNode ? MAX_LIMIT - 1 : limit,
     });
 
     const notes: string[] = [];
@@ -143,7 +165,9 @@ export const searchCommand: CliCommand = {
     }
     if (result.relaxed) {
       notes.push(
-        "note: nothing matched every constraint, results are approximate",
+        result.mode === "semantic"
+          ? "note: low-confidence semantic matches only; rephrase the concept, or add keywords to anchor it"
+          : "note: nothing matched every constraint, results are approximate; drop a term or an operator to tighten",
       );
     }
 
@@ -151,17 +175,10 @@ export const searchCommand: CliCommand = {
     let more: boolean;
     if (byNode) {
       const groups = groupByNode(result.hits);
-      more = result.truncated || groups.length > limit;
-      const shown = groups.slice(0, limit);
-      const titles = await readNodeTitles(
-        run,
-        scope,
-        shown.filter((group) => !group.title).map((group) => group.nodeId),
-      );
-      lines = shown.map((group) => {
-        const title =
-          group.title ?? titles.get(group.nodeId)?.title ?? "Untitled";
-        const [best] = bestSnippets(group, 1);
+      more = result.more || groups.length > limit;
+      lines = groups.slice(0, limit).map((group) => {
+        const title = group.title ?? "Untitled";
+        const snippets = bestSnippets(group, snippetCount);
         if (format === "ids") return group.nodeId;
         if (format === "jsonl") {
           return JSON.stringify({
@@ -170,9 +187,13 @@ export const searchCommand: CliCommand = {
             hits: group.hitCount,
             bestScore: roundScore(group.bestScore),
             title,
-            snippet: best?.snippet ?? "",
-            page: best?.page,
-            startSec: best?.startSec,
+            snippets: snippets.map((snippet) => ({
+              snippet: snippet.snippet,
+              page: snippet.page,
+              sectionTitle: snippet.sectionTitle,
+              startSec: snippet.startSec,
+              endSec: snippet.endSec,
+            })),
           });
         }
         return [
@@ -181,7 +202,11 @@ export const searchCommand: CliCommand = {
           group.hitCount,
           roundScore(group.bestScore),
           title,
-          best?.snippet ?? "",
+          snippets
+            .map((snippet) =>
+              where(snippet) ? `[${where(snippet)}] ${snippet.snippet}` : snippet.snippet,
+            )
+            .join(" … "),
         ]
           .map(tsvField)
           .join("\t");
@@ -191,7 +216,7 @@ export const searchCommand: CliCommand = {
       const ranked = [...result.hits].sort(
         (a, b) => b.score - a.score || a.order - b.order,
       );
-      more = result.truncated || ranked.length > limit;
+      more = result.more;
       const shown = ranked.slice(0, limit);
       lines =
         format === "ids"
@@ -203,6 +228,8 @@ export const searchCommand: CliCommand = {
                     type: hit.nodeType,
                     chunkType: hit.chunkType,
                     score: roundScore(hit.score),
+                    // keyword, semantic, ou les deux en hybride.
+                    sources: hit.sources,
                     title: hit.title ?? null,
                     snippet: hit.snippet,
                     page: hit.page,
@@ -213,6 +240,7 @@ export const searchCommand: CliCommand = {
                 : [
                     hit.nodeId,
                     hit.nodeType,
+                    hit.chunkType,
                     roundScore(hit.score),
                     where(hit),
                     hit.title ?? "",
@@ -223,7 +251,11 @@ export const searchCommand: CliCommand = {
             );
     }
 
-    if (more && lines.length > 0) {
+    if (lines.length === 0) {
+      notes.push(
+        "nole search: no match; try spelling variants, a shorter keyword, fewer operators, or --semantic with a rephrased statement",
+      );
+    } else if (more) {
       notes.push(
         `note: more results exist; raise --limit (max ${MAX_LIMIT}) or narrow with --type / --in`,
       );

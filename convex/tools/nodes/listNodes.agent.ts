@@ -158,7 +158,7 @@ export default function listNodesTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   });
 
   return createTool({
-    description: `A tool to list and filter nodes from the current canvas. Returns a compact list of nodes (id, type, title, position) without their full content. Use read_nodes to get the full content of specific nodes after identifying them with this tool. Every filter is optional: omit the ones you don't need rather than passing empty values. All filters are combined with AND logic — call the tool multiple times to simulate OR. Results are capped at ${DISPLAY_LIMIT} nodes; if truncated, refine your filters to narrow down.`,
+    description: `A tool to list and filter nodes from the current canvas. Returns a compact list of nodes (id, type, title, position) without their full content. Use read_nodes to get the full content of specific nodes after identifying them with this tool. Every filter is optional: omit the ones you don't need rather than passing empty values. All filters are combined with AND logic — call the tool multiple times to simulate OR. Nodes come most recently modified first (content edits). Results are capped at ${DISPLAY_LIMIT} nodes; if truncated, refine your filters to narrow down.`,
     inputSchema,
     execute: async (ctx, input): Promise<string> => {
       try {

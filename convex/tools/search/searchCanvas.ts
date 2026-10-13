@@ -1,6 +1,7 @@
 import { internal } from "../../_generated/api";
 import type { NodeType } from "../../schemas/nodeTypeSchema";
 import type { FusedHit } from "../../schemas/searchableChunksSchema";
+import { readNodeTitles } from "../nodes/nodeContents";
 import type { ToolRunCtx } from "../runtime";
 import { canReadNode, type ToolScope } from "../scope";
 
@@ -17,6 +18,9 @@ import { canReadNode, type ToolScope } from "../scope";
 /** Rayon d'un extrait autour du premier terme trouvé, en caractères. */
 const SNIPPET_RADIUS = 50;
 
+/** Ce que la recherche rend au plus (cf. semanticSearch.ts, `MAX_LIMIT`). */
+export const SEARCH_MAX_LIMIT = 50;
+
 export type SearchRequest = {
   /** Opérateurs : mots requis, "phrase exacte", -exclu, a OR b. */
   keyword?: string;
@@ -25,19 +29,23 @@ export type SearchRequest = {
   /** Restreindre à ces nodes (en plus du scope). */
   nodeIds?: string[];
   nodeTypes?: NodeType[];
-  /** Le nombre de chunks demandé à la recherche (elle plafonne à 50). */
+  /** Le nombre de chunks voulus (la recherche plafonne à 50). */
   limit: number;
 };
 
+/** `title` est celui du node quand le chunk n'en porte pas (anciens chunks). */
 export type SearchHit = FusedHit & { snippet: string };
 
 export type SearchResult = {
-  /** Classés par la recherche ; un seul extrait identique par node. */
+  /**
+   * Classés par la recherche ; un seul extrait identique par node. Peut en
+   * compter un de plus que `limit` : c'est la sonde de `more`.
+   */
   hits: SearchHit[];
   /** `keyword`, `semantic` ou `hybrid` : ce qui a réellement tourné. */
   mode: string;
-  /** Il restait des résultats au-delà de la limite. */
-  truncated: boolean;
+  /** Il reste des extraits au-delà de `limit`. */
+  more: boolean;
   /** Aucun node ne satisfaisait tout : résultats approchés. */
   relaxed: boolean;
   /** La branche sémantique a échoué : mots-clés seuls. */
@@ -66,7 +74,7 @@ export async function searchCanvas(
       return {
         hits: [],
         mode: useKeyword ? (useSemantic ? "hybrid" : "keyword") : "semantic",
-        truncated: false,
+        more: false,
         relaxed: false,
         degraded: false,
       };
@@ -79,7 +87,11 @@ export async function searchCanvas(
     semanticQuery: useSemantic ? semantic : undefined,
     nodeIds,
     nodeTypes: request.nodeTypes,
-    limit: request.limit,
+    // Un de plus que voulu : s'il revient, il en reste. Le `truncated` de la
+    // recherche ne le dit pas — il signale un scan saturé (5× la limite en
+    // mots-clés) ou, en hybride, plus de candidats sémantiques que la
+    // limite, même quand la fusion et le dédoublonnage en laissent moins.
+    limit: Math.min(request.limit + 1, SEARCH_MAX_LIMIT),
     useKeyword,
     useSemantic,
     agentReadableOnly: true,
@@ -103,10 +115,25 @@ export async function searchCanvas(
     ).values(),
   );
 
+  // Les anciens chunks ne portent pas de titre : celui du node, alors.
+  const untitled = deduped
+    .filter((hit) => !hit.title)
+    .map((hit) => hit.nodeId);
+  if (untitled.length > 0) {
+    const titles = await readNodeTitles(ctx, scope, untitled);
+    for (const hit of deduped) {
+      hit.title ||= titles.get(hit.nodeId)?.title ?? undefined;
+    }
+  }
+
   return {
     hits: deduped,
     mode: result.mode,
-    truncated: result.truncated,
+    // Au plafond de la recherche, on ne peut pas sonder : son drapeau, alors.
+    more:
+      request.limit < SEARCH_MAX_LIMIT
+        ? deduped.length > request.limit
+        : result.truncated,
     relaxed: result.relaxed,
     degraded: result.degraded ?? false,
   };

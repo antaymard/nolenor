@@ -36,6 +36,7 @@ async function setup() {
       ["N1", "blocknote", "Budget Q3", ["The marketing budget is 40k.", "Budget cuts and hiring."]],
       ["N2", "blocknote", "Roadmap", ["Ship the CLI before the budget review."]],
       ["N3", "pdf", "Report.pdf", ["Annual budget overview.", "Risks and mitigation."]],
+      ["N5", "pdf", "Attention.pdf", ["Attention is all you need.", "We use scaled dot-product\nattention here.", "Attention heads, scaled up."]],
       ["N4", "blocknote", "Ideas", ["A canvas as a filesystem."]],
     ] as const;
     for (const [id, type, title, chunks] of nodes) {
@@ -122,14 +123,53 @@ describe("nole search", () => {
     const { bash } = await setup();
     const lines = stdout(await bash("nole search budget --type pdf")).split("\n");
     expect(lines).toHaveLength(1);
-    const [nodeId, type, , where, title, snippet] = lines[0].split("\t");
-    expect([nodeId, type, where, title, snippet]).toEqual([
+    const [nodeId, type, chunkType, , where, title, snippet] =
+      lines[0].split("\t");
+    expect([nodeId, type, chunkType, where, title, snippet]).toEqual([
       "N3",
       "pdf",
+      "page",
       "p1",
       "Report.pdf",
       "Annual budget overview.",
     ]);
+  });
+
+  test("une phrase exacte ne rend que les pages qui la portent", async () => {
+    const { bash } = await setup();
+    const output = stdout(
+      await bash(`nole search '"scaled dot-product attention"' --type pdf`),
+    );
+    expect(output.split("\n").map((line) => line.split("\t")[4])).toEqual([
+      "p2",
+    ]);
+  });
+
+  test("la note de troncature dit vrai", async () => {
+    const { bash } = await setup();
+    // 4 extraits contiennent « budget » : coupé à 2, il en reste.
+    expect(await bash("nole search budget --limit 2")).toContain(
+      "note: more results exist",
+    );
+    // Juste assez : pas de note.
+    expect(await bash("nole search budget --limit 4")).not.toContain(
+      "more results exist",
+    );
+  });
+
+  test("jsonl : sources ; --by-node --snippets", async () => {
+    const { bash } = await setup();
+    const hit = JSON.parse(
+      stdout(await bash("nole search budget --format jsonl --limit 1")),
+    );
+    expect(hit.sources).toEqual(["keyword"]);
+    const byNode = stdout(
+      await bash("nole search budget --by-node --snippets 2 | grep '^N1'"),
+    );
+    expect(byNode).toContain("The marketing budget is 40k. … Budget cuts and hiring.");
+    expect(await bash("nole search budget --snippets 2")).toContain(
+      "--snippets goes with --by-node",
+    );
   });
 
   test("--by-node, --format ids, --in depuis stdin", async () => {
@@ -149,9 +189,9 @@ describe("nole search", () => {
 
   test("code 1 sans résultat, 2 sur une erreur d'usage", async () => {
     const { bash } = await setup();
-    expect(await bash("nole search zzzunknown")).toContain(
-      "<exitCode>1</exitCode>",
-    );
+    const none = await bash("nole search zzzunknown");
+    expect(none).toContain("<exitCode>1</exitCode>");
+    expect(none).toContain("nole search: no match; try spelling variants");
     const badType = await bash("nole search budget --type nope");
     expect(badType).toContain('unknown type "nope"');
     expect(badType).toContain("<exitCode>2</exitCode>");

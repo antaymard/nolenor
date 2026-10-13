@@ -9,10 +9,7 @@ import {
 import { api } from "@/../convex/_generated/api";
 import { MarkdownText } from "@/components/ai/MarkdownText";
 import { cn } from "@/lib/utils";
-import type {
-  AskedQuestion,
-  QuestionResult,
-} from "./activity/activityModel";
+import type { AskedQuestion, QuestionResult } from "./activity/activityModel";
 
 type Draft = { selected: string[]; text: string };
 const EMPTY_DRAFT: Draft = { selected: [], text: "" };
@@ -31,14 +28,16 @@ const isAnswered = (draft: Draft) =>
  * de répondre. L'utilisateur peut aussi répondre dans le champ du chat (le
  * serveur y route son message).
  *
- * Une fois répondu, la carte garde la trace : réponses par question, texte
- * libre, ou refus.
+ * Pendant que Nolë écrit la question (`pending`), la carte la montre sans
+ * qu'on puisse y répondre encore. Une fois répondu, elle garde la trace :
+ * réponses par question, texte libre, ou refus.
  */
 export function QuestionCard({
   threadId,
   questions,
   result,
   canAnswer,
+  pending = false,
   variant = "card",
 }: {
   threadId?: string;
@@ -46,6 +45,8 @@ export function QuestionCard({
   result: QuestionResult | null;
   /** Le run attend bien cette réponse (thread `waiting`, dernier message). */
   canAnswer: boolean;
+  /** Le tour est encore en cours : la question est peut-être en train de s'écrire. */
+  pending?: boolean;
   /**
    * `inline` : sans cadre, pour vivre dans une autre carte (la carte de tâche
    * sous l'omnibar).
@@ -61,6 +62,8 @@ export function QuestionCard({
 
   const inline = variant === "inline";
   const open = result === null && canAnswer;
+  // Pas encore répondable, mais pas périmée non plus : on la montre telle quelle.
+  const asking = result === null && (canAnswer || pending);
   const draftAt = (i: number) => drafts[i] ?? EMPTY_DRAFT;
   const last = questions.length - 1;
   const current = Math.min(page, Math.max(last, 0));
@@ -69,7 +72,8 @@ export function QuestionCard({
     questions.length === 1 &&
     !questions[0].multiSelect &&
     questions[0].options.length > 0;
-  const complete = questions.every((_, i) => isAnswered(draftAt(i)));
+  const firstMissing = questions.findIndex((_, i) => !isAnswered(draftAt(i)));
+  const complete = firstMissing === -1;
 
   const patchDraft = (i: number, patch: Partial<Draft>) =>
     setDrafts((all) =>
@@ -137,7 +141,7 @@ export function QuestionCard({
   };
 
   // Réponse donnée, refusée ou périmée : un résumé, sans pagination.
-  if (!open) {
+  if (!asking) {
     return (
       <div
         className={cn(
@@ -173,7 +177,7 @@ export function QuestionCard({
 
   if (!question) return null;
   const draft = draftAt(current);
-  const interactive = !sending;
+  const interactive = open && !sending;
   const isLast = current === last;
 
   return (
@@ -185,7 +189,10 @@ export function QuestionCard({
       )}
     >
       <div
-        className={cn("flex flex-col gap-3", inline ? "py-1" : "px-4 pt-3 pb-2")}
+        className={cn(
+          "flex flex-col gap-3",
+          inline ? "py-1" : "px-4 pt-3 pb-2",
+        )}
       >
         <div className="flex items-start gap-3">
           <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -199,11 +206,7 @@ export function QuestionCard({
             </div>
           </div>
           {questions.length > 1 && (
-            <Pager
-              page={current}
-              total={questions.length}
-              onChange={setPage}
-            />
+            <Pager page={current} total={questions.length} onChange={setPage} />
           )}
         </div>
 
@@ -223,8 +226,10 @@ export function QuestionCard({
                 disabled={!interactive}
                 onClick={() => pick(option.label)}
                 className={cn(
-                  "flex items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-slate-50",
+                  "flex items-start gap-2.5 px-3 py-2 text-left transition-colors",
+                  interactive && "hover:bg-slate-50",
                   chosen && "bg-violet-50 hover:bg-violet-50",
+                  !interactive && "cursor-default",
                 )}
               >
                 <OptionMarker
@@ -261,7 +266,9 @@ export function QuestionCard({
               type="text"
               value={draft.text}
               disabled={!interactive}
-              placeholder="Something else"
+              placeholder={
+                question.options.length > 0 ? "Something else" : "Your answer"
+              }
               onChange={(event) => type(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -275,34 +282,47 @@ export function QuestionCard({
         </div>
       </div>
 
-      <div
-        className={cn(
-          "flex items-center gap-2",
-          inline ? "pt-1" : "px-4 pt-1 pb-3",
-        )}
-      >
-        <span className="min-w-0 flex-1 text-[11px] leading-snug text-slate-400">
-          Or reply in the chat box below.
-        </span>
-        <button
-          type="button"
-          disabled={sending}
-          onClick={() => void send(null)}
-          className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+      {open && (
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            inline ? "pt-1" : "px-4 pt-1 pb-3",
+          )}
         >
-          Skip
-        </button>
-        {!(oneClick && !draft.text.trim()) && (
+          <span className="min-w-0 flex-1 text-[11px] leading-snug text-slate-400">
+            {isLast && !complete && firstMissing !== current ? (
+              <button
+                type="button"
+                onClick={() => setPage(firstMissing)}
+                className="text-left text-violet-600 hover:underline"
+              >
+                Question {firstMissing + 1} has no answer yet.
+              </button>
+            ) : (
+              // Sous l'omnibar (inline), pas de champ de chat en dessous.
+              !inline && "Or reply in the chat box below."
+            )}
+          </span>
           <button
             type="button"
-            disabled={sending || !isAnswered(draft) || (isLast && !complete)}
-            onClick={advance}
-            className="rounded-md bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40"
+            disabled={sending}
+            onClick={() => void send(null)}
+            className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
           >
-            {isLast ? "Submit" : "Next"}
+            Skip
           </button>
-        )}
-      </div>
+          {!(oneClick && !draft.text.trim()) && (
+            <button
+              type="button"
+              disabled={sending || !isAnswered(draft) || (isLast && !complete)}
+              onClick={advance}
+              className="rounded-md bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40"
+            >
+              {isLast ? "Submit" : "Next"}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

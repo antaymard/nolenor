@@ -69,6 +69,7 @@ export function AssistantMessage({
               questions={block.questions}
               result={block.result}
               canAnswer={isAwaitingAnswer}
+              pending={isProcessing}
             />
           ) : (
             <ActivityGroup

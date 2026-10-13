@@ -21,7 +21,7 @@ export function UserMessage({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <div className="text-text max-w-4/5 min-w-0 rounded-2xl rounded-br-sm border border-slate-200 bg-slate-100 px-3 py-2 break-words [overflow-wrap:anywhere] whitespace-pre-wrap">
+      <div className="text-text max-w-4/5 min-w-0 rounded-2xl rounded-br-sm border border-slate-200 bg-slate-100 px-3 py-2 [overflow-wrap:anywhere] whitespace-pre-wrap">
         <MarkdownText>{extractUserMessageForDisplay(text)}</MarkdownText>
       </div>
       {metadata?.attachments ? (

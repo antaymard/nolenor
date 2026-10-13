@@ -1,4 +1,5 @@
 import { tool, type ToolSet } from "ai";
+import { v, type Infer } from "convex/values";
 import { z } from "zod";
 import { LOAD_TOOLS, modelTools } from "./deferredTools";
 import type { Profile, RunInfo } from "./types";
@@ -50,6 +51,19 @@ The worker cannot ask the user anything and cannot start workers itself. Its rep
     background: z.boolean().optional(),
   }),
 });
+
+/**
+ * La réponse de l'utilisateur à une question d'`ask_user`, depuis la carte :
+ * les options choisies et/ou ce qu'il a tapé lui-même. C'est aussi ce que le
+ * modèle reçoit, dans `{ answers }`.
+ */
+export const questionSelectionValidator = v.object({
+  question: v.string(),
+  selected: v.array(v.string()),
+  /** Texte libre tapé par l'utilisateur, en plus ou à la place des options. */
+  text: v.optional(v.string()),
+});
+export type QuestionSelection = Infer<typeof questionSelectionValidator>;
 
 const askUserTool = tool({
   description: `Ask the user one or more questions and wait for the answers before going on. Use it only when you cannot proceed well without their input — a real ambiguity, choices that are theirs, a confirmation before something hard to undo. Not for small talk, nor for what you can find out yourself with your tools.

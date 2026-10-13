@@ -40,7 +40,7 @@ function QueuedBubble({
 }) {
   return (
     <div className="group flex max-w-4/5 min-w-0 flex-col items-end gap-1">
-      <div className="relative rounded-2xl rounded-br-sm border border-dashed border-slate-300 bg-slate-50 px-3 py-2 break-words [overflow-wrap:anywhere] whitespace-pre-wrap text-slate-500">
+      <div className="relative rounded-2xl rounded-br-sm border border-dashed border-slate-300 bg-slate-50 px-3 py-2 [overflow-wrap:anywhere] whitespace-pre-wrap text-slate-500">
         {prompt}
         <button
           type="button"

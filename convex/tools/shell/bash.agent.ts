@@ -31,6 +31,7 @@ The \`nole\` command reads the current canvas:
 - \`nole ls [--type T] [--frame ID] [--linked-to ID] [--near ID] [--format tsv|jsonl|ids]\`: every matching node, most recently edited first, one line each (id, type, title, x, y, frameId, color, updatedAt), no limit.
 - \`nole read <id>…\` or \`… | nole read -\`: the same XML as read_nodes (without the write schemas unless --schemas), ids from arguments or from the first field of each stdin line (at most 200 nodes per call); \`--format jsonl\` gives one JSON object per node for jq.
 - \`nole search <keywords> [--semantic TEXT] [--type T] [--in IDS|-] [--by-node] [--format tsv|jsonl|ids]\`: ranked hits in the content (documents, tables, PDF pages, transcripts), one line each (nodeId, type, chunkType, score, where, title, snippet), or one per node with --by-node [--snippets N]; same engine and query syntax as search_canvas. Exit code 1 when nothing matches.
+- \`nole table <id> [--format tsv|jsonl] [--columns A,B] [--schema]\`: every row of a table, no limit, with readable values (option labels, node titles, rich text as text); TSV with a header, first column rowId. Use it to count, sum, group or compare rows instead of reading them.
 - \`nole --help\`, \`nole <command> --help\`: all options. A command exits non-zero when it fails (unknown id, unknown frame, no match for search), so \`&&\` and \`||\` work.
 
 Standard tools are available: grep, sed, awk, jq, sort, uniq, head, tail, wc, cut, tr, xargs, diff… Pipes, redirections, loops, variables and files under /tmp all work within one call. Each call starts a fresh shell: files and variables do not survive to the next call, so do the whole job in one script. No network, no Python.
@@ -41,6 +42,7 @@ Examples:
 - \`nole ls --type blocknote --format ids | nole read - | grep -n -i "budget"\`
 - \`nole ls --format jsonl | jq -r 'select(.title | test("Q3"; "i")) | .id'\`
 - \`nole search budget --format ids | nole read - | grep -n "40k"\`
+- \`nole table T12ab --format jsonl | jq -s 'group_by(.Status) | map({(.[0].Status): length}) | add'\`
 - \`nole ls | cut -f2 | sort | uniq -c\``;
 
 /**

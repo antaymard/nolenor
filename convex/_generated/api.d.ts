@@ -254,6 +254,7 @@ import type * as tools_search_searchCanvas from "../tools/search/searchCanvas.js
 import type * as tools_shell_cli from "../tools/shell/cli.js";
 import type * as tools_shell_nole from "../tools/shell/nole.js";
 import type * as tools_shell_shell from "../tools/shell/shell.js";
+import type * as tools_tables_readTable from "../tools/tables/readTable.js";
 import type * as uploads from "../uploads.js";
 import type * as users from "../users.js";
 import type * as voice from "../voice.js";
@@ -525,6 +526,7 @@ declare const fullApi: ApiFromModules<{
   "tools/shell/cli": typeof tools_shell_cli;
   "tools/shell/nole": typeof tools_shell_nole;
   "tools/shell/shell": typeof tools_shell_shell;
+  "tools/tables/readTable": typeof tools_tables_readTable;
   uploads: typeof uploads;
   users: typeof users;
   voice: typeof voice;

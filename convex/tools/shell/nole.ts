@@ -1,6 +1,7 @@
 import { nodeLsCommand } from "../nodes/listNodes.cli";
 import { nodeReadCommand } from "../nodes/readNodes.cli";
 import { searchCommand } from "../search/searchCanvas.cli";
+import { tableCommand } from "../tables/readTable.cli";
 import { fail, ok, type CliCommand, type CliContext, type CliResult } from "./cli";
 
 /**
@@ -8,7 +9,12 @@ import { fail, ok, type CliCommand, type CliContext, type CliResult } from "./cl
  * sous-commande est l'adaptateur CLI d'un noyau de `tools/` (`*.cli.ts`).
  */
 
-const COMMANDS: CliCommand[] = [nodeLsCommand, nodeReadCommand, searchCommand];
+const COMMANDS: CliCommand[] = [
+  nodeLsCommand,
+  nodeReadCommand,
+  searchCommand,
+  tableCommand,
+];
 
 export const NOLE_HELP = `Usage: nole <command> [options]
 

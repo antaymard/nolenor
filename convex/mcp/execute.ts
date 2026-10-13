@@ -30,7 +30,7 @@ async function resolveToolOutput(raw: unknown): Promise<unknown> {
  *
  * `toModelOutput` n'est jamais consulté ici (cf. `returns: v.string()`) : un
  * tool qui rend autre chose qu'une chaîne verrait sa sortie partir en
- * `JSON.stringify` — pour `read_nodes`, tout le XML ré-échappé dans du JSON.
+ * `JSON.stringify` — pour une sortie XML, tout le XML ré-échappé dans du JSON.
  * Les tools qui portent des médias rendent `{ text, images }` : seul `text`
  * traverse, et la sortie MCP reste identique à ce qu'elle a toujours été. Les
  * URLs des images sont de toute façon déjà dans le XML.

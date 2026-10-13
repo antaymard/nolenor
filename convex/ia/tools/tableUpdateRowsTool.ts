@@ -65,7 +65,7 @@ export default function tableUpdateRowsTool({
       'For node columns, value can be a nodeId string or { "nodeId": "..." } object. ' +
       "For richtext columns, value is Markdown (headings, lists, bold, links…) with the same tokens as blocknote documents: " +
       "`[[node:<nodeId>]]` to mention a canvas node, `[[date:YYYY-MM-DD]]`, `[[pill:COLOR|Text]]`. " +
-      "It replaces the whole cell; read_nodes returns the current content in that form, with line breaks shown as <br>.",
+      "It replaces the whole cell; nole read returns the current content in that form, with line breaks shown as <br>.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),

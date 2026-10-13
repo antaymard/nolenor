@@ -106,7 +106,7 @@ export default function moveAndStyleNodesTool({
               .object({ x: z.number(), y: z.number() })
               .optional()
               .describe(
-                "Exact top-left position in world coordinates (the ones list_nodes and the canvas map show, even for a node inside a frame), used as given even if it overlaps. Use only when the user gave a position or for a precise layout; not together with anchorNodeId.",
+                "Exact top-left position in world coordinates (the ones nole ls, nole read and the canvas map show, even for a node inside a frame), used as given even if it overlaps. Use only when the user gave a position or for a precise layout; not together with anchorNodeId.",
               ),
             color: z.enum(NODE_COLORS).optional().describe("New color."),
             variant: z

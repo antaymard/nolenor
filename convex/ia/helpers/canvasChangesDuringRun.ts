@@ -4,7 +4,7 @@ import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
 import * as NodeModels from "../../models/nodeModels";
 import { runWrites } from "../../harness/runHistory";
 
-/** Au-delà, on compte sans lister : le modèle a `list_nodes` pour le détail. */
+/** Au-delà, on compte sans lister : le modèle a `nole ls` pour le détail. */
 const MAX_LISTED = 20;
 const MAX_SCANNED = 200;
 

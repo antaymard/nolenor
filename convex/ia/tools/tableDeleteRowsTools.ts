@@ -51,7 +51,7 @@ export default function tableDeleteRowsTool({
         .array(z.string().min(1))
         .min(1)
         .describe(
-          'List of table row IDs to delete (from _rowId in read_nodes). Example: `["row_001","row_003"]`.',
+          'List of table row IDs to delete (the rowId column of nole table, or _rowId in nole read). Example: `["row_001","row_003"]`.',
         ),
     }),
     execute: async (ctx, input): Promise<string> => {

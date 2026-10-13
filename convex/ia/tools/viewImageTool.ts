@@ -18,7 +18,7 @@ export const viewImageToolConfig: ToolConfig = {
   requireMultiModal: true,
 };
 
-/** Même plafond que `read_nodes` : une image coûte ~800 tokens par step restant. */
+/** Plafond par appel : une image coûte ~800 tokens par step restant. */
 const MAX_VIEW_IMAGES = 4;
 
 type ViewImageOutput =
@@ -103,7 +103,7 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
         if (nodeData.type !== "image") {
           return {
             success: false,
-            message: `Node ${nodeId} is a "${nodeData.type}" node, not an image node. Use read_nodes to read it.`,
+            message: `Node ${nodeId} is a "${nodeData.type}" node, not an image node. Read it with nole read (bash).`,
           };
         }
 
@@ -136,7 +136,7 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           success: false,
           message: `Failed to read node ${nodeId}: ${
             error instanceof Error ? error.message : "Unknown error"
-          }. Verify the id with list_nodes.`,
+          }. Verify the id with \`nole ls --type image\` (bash).`,
         };
       }
     },

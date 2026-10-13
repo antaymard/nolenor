@@ -46,7 +46,7 @@ export type TableFormatOptions = {
   includeColumnLegend?: boolean;
   /**
    * Rendu déjà calculé d'une cellule `richtext` (Markdown, cf.
-   * `renderRichTextCellsAsMarkdown` côté read_nodes). `undefined` → repli sur
+   * `renderRichTextCellsAsMarkdown` côté nole read). `undefined` → repli sur
    * le texte brut, ce que gardent l'index de recherche et les appelants
    * synchrones.
    */
@@ -462,7 +462,7 @@ export async function makeNodeDataLLMFriendly(
 
     case "frame": {
       // Le corps d'une frame, c'est ce qu'elle groupe — et ça ne se lit pas
-      // dans son `nodeData`, qui ne porte que son titre. `read_nodes` rend la
+      // dans son `nodeData`, qui ne porte que son titre. `nole read` rend la
       // liste de ses enfants lui-même (`buildFrameNodeBody`), là où il a la
       // liste du canvas sous la main ; ce `case` reste le filet, sans lequel
       // le `default` lâcherait le JSON de `values` dans le rendu.
@@ -499,7 +499,7 @@ export async function makeNodeDataLLMFriendly(
       if (!audio?.url) return "(no audio file)";
 
       // Never JSON.stringify the raw values here: they carry a `peaks` array
-      // that would flood every read_nodes call with kilobytes of noise.
+      // that would flood every nole read call with kilobytes of noise.
       const name =
         audio.label ??
         (audio.title

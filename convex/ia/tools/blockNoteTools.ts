@@ -45,19 +45,19 @@ const NODE_ID_FIELD = z
   .describe("The blocknote node id in the current canvas.");
 
 const BLOCK_ID_FIELD = (what: string) =>
-  z.string().describe(`The id of the block ${what} (as seen in read_nodes output).`);
+  z.string().describe(`The id of the block ${what} (as seen in nole read output).`);
 
 /**
  * The `blocks` / `block` argument description, shared by insert_blocks and
  * replace_block. It spells the wire format out rather than naming it: this
- * string and the `<schema type="blocknote">` card from read_nodes are the
+ * string and the `<schema type="blocknote">` card from nole read --schemas are the
  * model's only documentation of a format it hand-writes on every edit, and the
  * failures seen in production were format failures — blocks left unclosed, and
  * a table nobody knew how to spell. Each tool states its own id rule, which
  * differs between insert and replace.
  */
 const XML_PAYLOAD_HINT = (shape: string) =>
-  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from read_nodes output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Pills round-trip as tokens inside that Markdown: [[date:YYYY-MM-DD]] (exactly that spelling — any other shape is refused, not kept as text), [[node:<nodeId>]] for a live reference to another node of this canvas (read back as [[node:<nodeId>|type|title]] — keep tokens intact when rewriting a block), and [[pill:COLOR|Text]] / [[pill:COLOR:solid|Text]] for a colored status pill. Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Name | Role |\n| --- | --- |\n| Alice | Dev |</block>`;
+  `BlockNote XML v1: ${shape}, each closed by </block>. The <blocknote> wrapper from nole read output is accepted but not required; omit empty <children/>. A block's text is plain Markdown — write & and < literally, no XML escaping needed. One <block> per block (a blank line inside one is an error); nest with <children>. Props carry type-specific settings, colors and alignment. Pills round-trip as tokens inside that Markdown: [[date:YYYY-MM-DD]] (exactly that spelling — any other shape is refused, not kept as text), [[node:<nodeId>]] for a live reference to another node of this canvas (read back as [[node:<nodeId>|type|title]] — keep tokens intact when rewriting a block), and [[pill:COLOR|Text]] / [[pill:COLOR:solid|Text]] for a colored status pill. Example: <block type="heading" props='{"level":2}'>Some **markdown**</block>. For a table, write a Markdown pipe table as the block text: <block type="table">| Name | Role |\n| --- | --- |\n| Alice | Dev |</block>`;
 
 // ── Shared execution path ───────────────────────────────────────────────────
 //
@@ -214,7 +214,7 @@ const insertBlocksSchema = z
 function blocknoteInsertBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
-      'Insert new block(s) into a blocknote node. `blocks` is one or more BlockNote XML v1 <block> elements — the <blocknote> wrapper is optional, so you can either copy blocks straight from read_nodes output or write bare <block> elements. Use position "start"/"end" or "before"/"after" a reference block id. Do not write id attributes: every inserted block gets a fresh server-assigned id, returned by this tool (top-level blocks, in order) and usable right away.',
+      'Insert new block(s) into a blocknote node. `blocks` is one or more BlockNote XML v1 <block> elements — the <blocknote> wrapper is optional, so you can either copy blocks straight from nole read output or write bare <block> elements. Use position "start"/"end" or "before"/"after" a reference block id. Do not write id attributes: every inserted block gets a fresh server-assigned id, returned by this tool (top-level blocks, in order) and usable right away.',
     inputSchema: insertBlocksSchema,
     execute: (ctx, input): Promise<string> =>
       runBlockNoteEdit({
@@ -292,7 +292,7 @@ export const blocknoteDeleteBlocksToolConfig: ToolConfig = {
 function blocknoteDeleteBlocksTool({ threadCtx }: { threadCtx: ThreadCtx }) {
   return createTool({
     description:
-      "Delete one or more blocks (by id) from a blocknote node. Provide the block ids as seen in read_nodes output. Deleting a parent block deletes its subtree. If any id is missing, no deletion is performed.",
+      "Delete one or more blocks (by id) from a blocknote node. Provide the block ids as seen in nole read output. Deleting a parent block deletes its subtree. If any id is missing, no deletion is performed.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeId: NODE_ID_FIELD,

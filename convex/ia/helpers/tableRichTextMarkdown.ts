@@ -43,10 +43,10 @@ export type RichTextCellFromMarkdownResult =
  * un Markdown vide). L'erreur est un message brut, à passer à `toolError`.
  *
  * `<br>` redevient un saut de ligne avant le parsing : c'est ainsi que
- * `read_nodes` rend les sauts de ligne d'une cellule (une ligne de tableau
+ * `nole read` rend les sauts de ligne d'une cellule (une ligne de tableau
  * Markdown ne peut pas en contenir), et le parser de BlockNote jette les
  * balises HTML — une cellule recopiée telle quelle perdait ses sauts. Pour la
- * même raison, `read_nodes` échappe les `|` en `\|`, jusque dans les jetons
+ * même raison, `nole read` échappe les `|` en `\|`, jusque dans les jetons
  * (`[[node:id\|type\|titre]]`) : sans les rétablir, l'id lu serait `id\` et
  * la mention ne se résoudrait pas.
  */

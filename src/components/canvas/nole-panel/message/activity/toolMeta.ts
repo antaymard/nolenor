@@ -8,9 +8,7 @@ import {
   TbCode,
   TbColumns,
   TbCursorText,
-  TbFileText,
   TbLayoutGrid,
-  TbListSearch,
   TbNotebook,
   TbPencil,
   TbPhoto,
@@ -18,10 +16,10 @@ import {
   TbRobot,
   TbRowInsertBottom,
   TbRowRemove,
-  TbSearch,
   TbSparkles,
   TbSquarePlus,
   TbTable,
+  TbTerminal2,
   TbTextPlus,
   TbTool,
   TbTrash,
@@ -61,15 +59,13 @@ type ToolMeta = {
  * retombe sur `getToolMeta`'s défaut générique.
  */
 const TOOL_META: Record<string, ToolMeta> = {
-  read_nodes: { icon: TbFileText, category: "read", label: "Read nodes" },
-  list_nodes: { icon: TbListSearch, category: "read", label: "List nodes" },
   view_image: { icon: TbPhoto, category: "read", label: "View image" },
   list_user_canvases: {
     icon: TbLayoutGrid,
     category: "read",
     label: "List canvases",
   },
-  search_canvas: { icon: TbSearch, category: "search", label: "Search canvas" },
+  bash: { icon: TbTerminal2, category: "search", label: "Explore canvas" },
   websearch: { icon: TbWorldSearch, category: "web-search", label: "Web search" },
   open_webpage: { icon: TbWorld, category: "web-open", label: "Open web page" },
   create_node: { icon: TbSquarePlus, category: "create", label: "Create node" },

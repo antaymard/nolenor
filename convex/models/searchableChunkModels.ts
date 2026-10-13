@@ -4,6 +4,7 @@ import {
   type ExcludedNeedle,
   haystacksContainToken,
   matchesParsedQuery,
+  narrowToPhraseChunks,
   normalizeHaystacks,
   parseSearchQuery,
 } from "../lib/searchQuery";
@@ -461,7 +462,7 @@ export async function resolveNodeIds(
         .first();
       // Un node à la corbeille est traité comme un orphelin : ses chunks
       // vivent jusqu'à la purge (30 j), mais il ne doit plus remonter en
-      // recherche — ni dans la modale, ni dans le tool `search_canvas`.
+      // recherche — ni dans la modale, ni dans `nole search`.
       if (node && node.status !== "trashed") {
         resolved.set(nodeDataId, node.id);
       } else {
@@ -836,7 +837,10 @@ export async function keywordSearch(
       .map(([nodeKey]) => nodeKey),
   );
 
-  const strict = kept.filter((chunk) => strictNodeKeys.has(chunk.nodeDataId));
+  const strict = narrowToPhraseChunks(
+    kept.filter((chunk) => strictNodeKeys.has(chunk.nodeDataId)),
+    parsed.phrases,
+  );
 
   // Le filtrage strict travaille sur une fenêtre bornée : plutôt que de rendre
   // le vide, on élargit en le signalant. Les exclusions restent appliquées.

@@ -89,7 +89,7 @@ export default function groupNodesTool({
         }
 
         // Les types que l'agent n'est pas censé voir sont traités comme
-        // inconnus, sans nommer leur type : `list_nodes` les filtre
+        // inconnus, sans nommer leur type : `nole ls` les filtre
         // entièrement, les révéler ici lui apprendrait leur existence. Le
         // contrôle est ici et pas dans le modèle — l'utilisateur, lui, a le
         // droit d'encadrer n'importe quel node de son canvas.

@@ -352,7 +352,7 @@ export function computeBlockNoteEdit(
 ): unknown {
   // Full replacement: nothing to address, the ids are all fresh.
   // Targeted edits: the agent addresses blocks by the short aliases
-  // read_nodes shows (see lib/blockIdAliases.ts), so the operation runs in
+  // nole read shows (see lib/blockIdAliases.ts), so the operation runs in
   // alias space — "block not found" hints list aliases too — and the real
   // ids are restored before storage.
   return edit.kind === "replaceDocument"

@@ -22,7 +22,7 @@ function dimensionsOf(node: Node | InternalNode): XY {
  * La position d'un node en coordonnées MONDE.
  *
  * La règle vit dans `convex/lib/nodeGeometry`, partagée avec le backend qui en
- * a besoin pour la minimap, `list_nodes` et le placement des nodes de l'agent.
+ * a besoin pour la minimap, `nole ls` et le placement des nodes de l'agent.
  * Ici, elle ne fait que s'appliquer à la forme `Node` de React Flow.
  */
 export function absolutePositionOf(node: Node, byId: Map<string, Node>): XY {

@@ -61,7 +61,7 @@ export default function tableInsertRowsTool({
   return createTool({
     description:
       "Insert one or multiple rows in a table node. " +
-      "richtext cells take Markdown (headings, lists, bold, links…) and the same tokens as blocknote documents: `[[node:<nodeId>]]` to mention a canvas node, `[[date:YYYY-MM-DD]]`, `[[pill:COLOR|Text]]`. read_nodes returns them in that form, with line breaks shown as <br>.",
+      "richtext cells take Markdown (headings, lists, bold, links…) and the same tokens as blocknote documents: `[[node:<nodeId>]]` to mention a canvas node, `[[date:YYYY-MM-DD]]`, `[[pill:COLOR|Text]]`. nole read returns them in that form, with line breaks shown as <br>.",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeId: z.string().describe("The node ID in the current canvas."),

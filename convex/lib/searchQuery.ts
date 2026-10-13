@@ -258,14 +258,19 @@ export function parseSearchQuery(input: string): ParsedSearchQuery {
 // Les textes sont normalisés UNE fois par node (`normalizeHaystacks`) puis
 // réutilisés par tous les prédicats : la recherche est débouncée mais chaude.
 
-/** Normalise titre + contenus d'un node en une liste de bottes de foin. */
+/**
+ * Normalise titre + contenus d'un node en une liste de bottes de foin.
+ * Espaces compactés comme ceux des phrases (`normalizeNeedle`) : sans ça, une
+ * phrase coupée par un retour à la ligne (fréquent dans l'OCR d'un PDF) ne
+ * matchait jamais.
+ */
 export function normalizeHaystacks(
   values: Array<string | undefined | null>,
 ): string[] {
   const normalized: string[] = [];
   for (const value of values) {
     if (!value) continue;
-    const text = normalizeForSearch(value);
+    const text = normalizeForSearch(value).replace(/\s+/g, " ").trim();
     if (text) normalized.push(text);
   }
   return normalized;
@@ -317,6 +322,34 @@ export function matchesParsedQuery(
     }
   }
   return true;
+}
+
+/**
+ * Les chunks qui portent eux-mêmes une phrase demandée.
+ *
+ * Les contraintes se jugent par node (les mots d'un AND peuvent être dans
+ * des chunks différents), et tous les chunks remontés d'un node qui matche
+ * sont rendus. Pour une phrase, c'est trop large : un PDF est un seul node,
+ * et une phrase présente en page 4 faisait remonter toutes les pages qui
+ * contenaient l'un de ses mots. Un chunk n'est donc gardé que s'il contient
+ * l'une des phrases ; un node dont aucun chunk ne la contient seul (phrase
+ * dans le titre, ou à cheval sur deux chunks) garde tous les siens.
+ */
+export function narrowToPhraseChunks<
+  T extends { nodeDataId: string; text: string },
+>(chunks: T[], phrases: string[]): T[] {
+  if (phrases.length === 0) return chunks;
+  const containsPhrase = (chunk: T) =>
+    phrases.some((phrase) =>
+      haystacksContainText(normalizeHaystacks([chunk.text]), phrase),
+    );
+  const nodesWithPhraseChunk = new Set(
+    chunks.filter(containsPhrase).map((chunk) => chunk.nodeDataId),
+  );
+  return chunks.filter(
+    (chunk) =>
+      !nodesWithPhraseChunk.has(chunk.nodeDataId) || containsPhrase(chunk),
+  );
 }
 
 /** Le node porte-t-il l'un des mots exclus ? */

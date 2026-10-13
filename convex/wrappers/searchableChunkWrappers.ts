@@ -81,7 +81,7 @@ export const listTranscriptChunksForRebuild = internalQuery({
 
 /**
  * Le transcript du fichier courant d'un node (clé relue ici), pour
- * `read_nodes`. `null` sans fichier ou sans transcript.
+ * `nole read`. `null` sans fichier ou sans transcript.
  */
 export const getCurrentTranscript = internalQuery({
   args: {

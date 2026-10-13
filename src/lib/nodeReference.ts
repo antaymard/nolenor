@@ -1,6 +1,6 @@
 // Référence textuelle à un ou plusieurs nodes, à coller à un agent extérieur
 // qui lira le canvas via le serveur MCP. Les clés reprennent le nom des
-// arguments des tools MCP (`canvasId`, `nodeIds` de `read_nodes`) pour que
+// arguments des tools MCP (`canvasId`, `nodeIds` de `nole read`) pour que
 // l'agent les passe tels quels, sans avoir à deviner la correspondance.
 //
 //   nodeId:abc

@@ -177,7 +177,7 @@ export default function CanvasFlow({
       }
 
       // Seuls les types lisibles par l'agent s'attachent (`readable`). La
-      // frame est lisible (`Frame: titre` + `list_nodes(frameId)`), donc elle
+      // frame est lisible (`Frame: titre` + `nole ls --frame`), donc elle
       // s'attache comme tout node — et elle est aussi mentionnable par `@`.
       if (node.type && !getNodeCapabilities(node.type).agent.readable) {
         return;

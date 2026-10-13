@@ -15,13 +15,10 @@ import patchAppNodeCodeTool, {
   patchAppNodeCodeToolConfig,
 } from "./patchAppNodeCodeTool";
 import { blockNoteToolDefinitions } from "./blockNoteTools";
-import searchTool, { searchToolConfig } from "./searchTool";
-import listNodesTool, { listNodesToolConfig } from "./listNodesTool";
 import loadSkillTool, { loadSkillToolConfig } from "./loadSkillTool";
 import memoryToolFactory, { memoryToolConfig } from "./memoryTool";
 import { openWebPageTool, openWebPageToolConfig } from "./openWebPageTool";
 import viewImageTool, { viewImageToolConfig } from "./viewImageTool";
-import readNodesTool, { readNodesToolConfig } from "./readNodesTool";
 import setNodeDataTool, { setNodeDataToolConfig } from "./setNodeDataTool";
 import tableDeleteRowsTool, {
   tableDeleteRowsToolConfig,
@@ -37,6 +34,7 @@ import tableUpdateSchemaTool, {
 } from "./tableUpdateSchemaTool";
 import { type ToolConfig } from "./toolHelpers";
 import { websearchTool, websearchToolConfig } from "./websearchTool";
+import bashTool, { bashToolConfig } from "../../tools/shell/bash.agent";
 import listUserCanvasesTool, {
   listUserCanvasesToolConfig,
 } from "./listUserCanvasesTool";
@@ -49,7 +47,8 @@ type ToolFactoryContext = {
   /**
    * Le modèle de CE run sait-il lire une image. Distinct de
    * `ToolConfig.requireMultiModal`, qui décide si un tool existe : ici un tool
-   * existant adapte ce qu'il rend (cf. `read_nodes` et son `viewImages`).
+   * existant adapte ce qu'il rend (cf. `bash` : `nole read` ne renvoie à
+   * view_image que si le modèle sait lire une image).
    */
   isMultimodal: boolean;
 };
@@ -61,25 +60,17 @@ type ToolRegistration = {
 
 const toolRegistry: ToolRegistration[] = [
   {
-    config: listNodesToolConfig,
-    factory: ({ threadCtx }) => listNodesTool({ threadCtx }),
-  },
-  {
     config: patchAppNodeCodeToolConfig,
     factory: ({ threadCtx }) => patchAppNodeCodeTool({ threadCtx }),
-  },
-  {
-    config: searchToolConfig,
-    factory: ({ threadCtx }) => searchTool({ threadCtx }),
   },
   {
     config: memoryToolConfig,
     factory: ({ threadCtx }) => memoryToolFactory({ threadCtx }),
   },
   {
-    config: readNodesToolConfig,
+    config: bashToolConfig,
     factory: ({ threadCtx, isMultimodal }) =>
-      readNodesTool({ threadCtx, isMultimodal }),
+      bashTool({ threadCtx, isMultimodal }),
   },
   {
     config: viewImageToolConfig,

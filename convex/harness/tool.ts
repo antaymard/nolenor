@@ -47,7 +47,7 @@ async function resolveToolOutput(raw: unknown): Promise<unknown> {
 
 /**
  * La sortie telle que le modèle la verra, selon la règle de l'AI SDK : le
- * `toModelOutput` du tool s'il en a un (parts image de read_nodes et
+ * `toModelOutput` du tool s'il en a un (parts image de
  * view_image), sinon `text` pour une chaîne et `json` pour le reste.
  */
 async function toModelOutput(

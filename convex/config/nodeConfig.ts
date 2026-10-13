@@ -44,7 +44,7 @@ type NodeCapabilities = {
      * `<available_node_types>` du system prompt.
      *
      * Distinct de `creatable` : un conteneur comme `frame` doit être compris
-     * — l'agent va en croiser dans `list_nodes` et dans la minimap — sans
+     * — l'agent va en croiser dans `nole ls` et dans la minimap — sans
      * pour autant être créable. Les deux étaient un seul flag jusqu'à
      * l'arrivée des frames, ce qui ne laissait le choix qu'entre « créable »
      * et « inconnu ».
@@ -53,7 +53,7 @@ type NodeCapabilities = {
     /** Le TYPE figure dans l'enum des types que `create_node` accepte. */
     creatable: boolean;
     /**
-     * Les INSTANCES lui sont visibles : `list_nodes`, `read_nodes`, recherche
+     * Les INSTANCES lui sont visibles : `nole ls`, `nole read`, recherche
      * plein texte agent, minimap du canvas, contexte de message.
      */
     readable: boolean;
@@ -308,9 +308,8 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
               url: z
                 .string()
                 .describe(
-                  "The URL of the image. read_nodes returns its indexed text description; " +
-                    "to look at the image itself, re-call read_nodes with viewImages=[nodeId], " +
-                    "or use the view_image tool.",
+                  "The URL of the image. nole read returns its indexed text description; " +
+                    "to look at the image itself, use the view_image tool.",
                 ),
             }),
           )
@@ -367,7 +366,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Node for storing a rich text document (BlockNote editor).",
     llmDescription:
-      "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, colors, alignment, tables, etc.). Read via read_nodes: content is returned as BlockNote XML v1 where each block is `<block id=\"…\" type=\"…\" props='{…}'>markdown content<children>…</children></block>`. The block's inline content is plain Markdown (bold, italic, strike, code, links). Block-level props (colors, alignment, level) are in the `props` attribute. Tables use a structured `<table>` element with `<row>`/`<cell>` (cell props, widths, spans preserved). Custom types: `callout` blocks (props `color`: default|red|orange|yellow|lime|green|teal|sky|blue|purple|pink, `icon`: emoji) round-trip losslessly via XML — you may create and edit them; inline `date` pills appear in the Markdown as the token `[[date:YYYY-MM-DD]]` and round-trip losslessly — write that exact token (ISO calendar date) anywhere in a block's inline content to create a date pill, and keep existing tokens intact when rewriting a block (wrap it in a code span to write the literal text instead of a pill). Inline `mention` pills are live references to another node of the same canvas: they appear as `[[node:<nodeId>|<type>|<title>]]` and round-trip losslessly — write `[[node:<nodeId>]]` (a nodeId from read_nodes/list_nodes; only the id is read, anything after the first `|` is a label) to create one, and keep existing tokens intact when rewriting a block. A nodeId that is not on the current canvas is rejected. Inline colored `pill`s (a short status/tag label) appear as `[[pill:<color>|<text>]]` (pastel) or `[[pill:<color>:solid|<text>]]` (solid, white text), color one of default|red|orange|yellow|lime|green|teal|sky|blue|purple|pink; write that token to create one, and keep existing tokens intact when rewriting a block. set_node_data accepts plain Markdown for a full (lossy) replace — block ids are regenerated and props are reset, so re-read before any targeted edit. insert_blocks and replace_block accept the same BlockNote XML v1 as read_nodes output (you can copy blocks from read_nodes and send them back), but the `<blocknote>` wrapper is optional there — bare `<block>` elements are enough. For insert_blocks, omit the `id` attribute: fresh ids are assigned server-side. patch_block_text replaces an exact literal substring inside a block's visible text. Edit using the block-id-addressed tools (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text) — never hand-edit the raw JSON.",
+      "For storing/displaying rich text content using the BlockNote editor. Use this node for any text content that requires rich formatting (bold, headings, lists, links, colors, alignment, tables, etc.). Read via nole read (bash): content is returned as BlockNote XML v1 where each block is `<block id=\"…\" type=\"…\" props='{…}'>markdown content<children>…</children></block>`. The block's inline content is plain Markdown (bold, italic, strike, code, links). Block-level props (colors, alignment, level) are in the `props` attribute. Tables use a structured `<table>` element with `<row>`/`<cell>` (cell props, widths, spans preserved). Custom types: `callout` blocks (props `color`: default|red|orange|yellow|lime|green|teal|sky|blue|purple|pink, `icon`: emoji) round-trip losslessly via XML — you may create and edit them; inline `date` pills appear in the Markdown as the token `[[date:YYYY-MM-DD]]` and round-trip losslessly — write that exact token (ISO calendar date) anywhere in a block's inline content to create a date pill, and keep existing tokens intact when rewriting a block (wrap it in a code span to write the literal text instead of a pill). Inline `mention` pills are live references to another node of the same canvas: they appear as `[[node:<nodeId>|<type>|<title>]]` and round-trip losslessly — write `[[node:<nodeId>]]` (a nodeId from `nole ls` or `nole read`; only the id is read, anything after the first `|` is a label) to create one, and keep existing tokens intact when rewriting a block. A nodeId that is not on the current canvas is rejected. Inline colored `pill`s (a short status/tag label) appear as `[[pill:<color>|<text>]]` (pastel) or `[[pill:<color>:solid|<text>]]` (solid, white text), color one of default|red|orange|yellow|lime|green|teal|sky|blue|purple|pink; write that token to create one, and keep existing tokens intact when rewriting a block. set_node_data accepts plain Markdown for a full (lossy) replace — block ids are regenerated and props are reset, so re-read before any targeted edit. insert_blocks and replace_block accept the same BlockNote XML v1 as nole read output (you can copy blocks from it and send them back), but the `<blocknote>` wrapper is optional there — bare `<block>` elements are enough. For insert_blocks, omit the `id` attribute: fresh ids are assigned server-side. patch_block_text replaces an exact literal substring inside a block's visible text. Edit using the block-id-addressed tools (insert_blocks, replace_block, delete_blocks, update_block_props, patch_block_text) — never hand-edit the raw JSON.",
     defaultDimensions: { width: bigWidth, height: squareHeight, resizable: true },
     variants: {
       default: {
@@ -615,7 +614,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Node for playing an uploaded audio file, with a saved loop region.",
     llmDescription:
-      "For storing/playing an audio file (music, recording, interview, voice memo). The user can play it on the canvas and save a loop region to replay a specific passage over and over. \nThe data value 'audio' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), and, when the file carried tags, 'title' and 'artist'. 'label' is a name set by the user. The node is titled by the first of 'label', 'artist — title', 'title', 'filename'. The data value 'loop' is an object with 'start' and 'end' (both in seconds from the beginning of the file) and 'enabled' (whether looping is active); a loop region only counts as set when 'end' is greater than 'start'. 'playbackRate' is the playback speed (1 = normal). \nUse set_node_data with 'loop' to place a loop on a passage the user describes — express the bounds in seconds. \nWhen the user has transcribed the audio (on demand, from the node toolbar — you cannot start it), its spoken content is indexed with timestamps: search_canvas finds passages (startSec/endSec), and read_nodes returns the transcript (mediaRanges to read a time range).",
+      "For storing/playing an audio file (music, recording, interview, voice memo). The user can play it on the canvas and save a loop region to replay a specific passage over and over. \nThe data value 'audio' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), and, when the file carried tags, 'title' and 'artist'. 'label' is a name set by the user. The node is titled by the first of 'label', 'artist — title', 'title', 'filename'. The data value 'loop' is an object with 'start' and 'end' (both in seconds from the beginning of the file) and 'enabled' (whether looping is active); a loop region only counts as set when 'end' is greater than 'start'. 'playbackRate' is the playback speed (1 = normal). \nUse set_node_data with 'loop' to place a loop on a passage the user describes — express the bounds in seconds. \nWhen the user has transcribed the audio (on demand, from the node toolbar — you cannot start it), its spoken content is indexed with timestamps: `nole search` (bash) finds passages with their timestamp, and `nole read` returns the transcript (`--range start:end` for a time range, in seconds).",
     defaultDimensions: { width: bigWidth, height: audioPlayerHeight, resizable: true },
     variants: {
       player: {
@@ -866,7 +865,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Container that groups nodes. Nodes inside a frame move with it and are addressable as a set.",
     llmDescription:
-      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `list_nodes` with `frameId`, or `read_nodes` on the frame itself, to list its contents. \nYou create one with `group_nodes`, which draws a frame around nodes that already exist — `create_node` cannot make one, since an empty frame groups nothing. To put a NEW node into an existing frame, pass `frameId` to `create_node`. What enters a frame stays there: you cannot take a node out, move it to another frame, or rename a frame, and deleting a frame deletes everything in it. \nIts data values are 'title' (the label shown above the frame) and 'level' (the size that label is drawn at, 'h1', 'h2' or 'h3').",
+      "A container that groups nodes on the canvas. The nodes it contains declare it as their parent, and moving the frame moves them all. Frames are the canvas's explicit structure: prefer them over spatial guesses when you need to know what belongs with what. Use `nole ls --frame <id>` or `nole read` on the frame itself (bash) to list its contents. \nYou create one with `group_nodes`, which draws a frame around nodes that already exist — `create_node` cannot make one, since an empty frame groups nothing. To put a NEW node into an existing frame, pass `frameId` to `create_node`. What enters a frame stays there: you cannot take a node out, move it to another frame, or rename a frame, and deleting a frame deletes everything in it. \nIts data values are 'title' (the label shown above the frame) and 'level' (the size that label is drawn at, 'h1', 'h2' or 'h3').",
     // Grand gabarit : une frame est tracée autour de nodes existants, elle
     // part donc d'une taille qui en contient plusieurs. Ces dimensions ne
     // servent qu'aux frames créées sans tracé (aucune aujourd'hui) — l'outil
@@ -912,7 +911,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         writable: false,
       },
       // Mentionnable : la pill se résout en `[[node:id|frame|Titre]]` et
-      // l'agent suit avec `list_nodes(frameId)` pour lire le contenu groupé
+      // l'agent suit avec `nole ls --frame` ou `nole read` pour lire le contenu groupé
       // (même contrat que l'attach Nolë, cf. `llmDescription` ci-dessus).
       // Défaut `true`, donc pas de ligne `mentionable` ici.
       // Un titre de conteneur n'a pas d'historique à remonter.

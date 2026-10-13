@@ -76,7 +76,7 @@ export const threadNodeDigest = internalQuery({
     const sections = [
       ["created_nodes", await describe(created)],
       ["modified_nodes", await describe(modified)],
-      ["read_nodes", await describe(read)],
+      ["consulted_nodes", await describe(read)],
     ].filter(([, body]) => body);
     if (sections.length === 0) return "";
     return [

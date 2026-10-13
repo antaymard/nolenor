@@ -190,7 +190,7 @@ const App = () => {
 
 The iframe automatically reports runtime errors back to the canvas. **You do NOT write any error-capture code.** The bridge installs `window.onerror`, `unhandledrejection`, a `console.error` patch, and a React ErrorBoundary.
 
-Errors are stored on the AppNode under `values.errors` and exposed when you `read_nodes` it. Each error has the shape:
+Errors are stored on the AppNode under `values.errors` and exposed when you read it (`nole read <nodeId>` in bash). Each error has the shape:
 
 ```typescript
 {
@@ -210,7 +210,7 @@ Errors are stored on the AppNode under `values.errors` and exposed when you `rea
 **Mandatory debug loop after writing or patching code:**
 
 1. Write or patch the code.
-2. Wait briefly, then `read_nodes` on the AppNode.
+2. Wait briefly, then `nole read <nodeId>` (bash) on the AppNode.
 3. Inspect `values.errors`. If non-empty, diagnose from `type` + `message` + `stack` + `line`/`col` and patch again.
 4. Repeat until `values.errors` stays empty across reads.
 
@@ -226,7 +226,7 @@ Use `set_node_data` with `{ code }` only for the **initial generation** or a **f
 
 ### Workflow
 
-1. `read_nodes` on the AppNode to get the current `values.code` exactly (whitespace matters).
+1. `nole read <nodeId>` (bash) on the AppNode to get the current `values.code` exactly (whitespace matters; for long code, read it in parts with `| sed -n 'A,Bp'`).
 2. Build a single-block patch with one or more `@@` hunks.
 3. Call `patch_app_node_code` with `{ nodeId, patch, explanation }` (3-5 words for `explanation`).
 4. Run the debug loop above.
@@ -256,6 +256,6 @@ Use `set_node_data` with `{ code }` only for the **initial generation** or a **f
 
 ### When patching fails
 
-- Re-`read_nodes` to get fresh code (a previous patch may have shifted things).
+- Re-read the node (`nole read`) to get fresh code (a previous patch may have shifted things).
 - Increase the context window around your change.
 - If the change spans many disjoint regions or rewrites a large block, fall back to `set_node_data` with the full `{ code }`.

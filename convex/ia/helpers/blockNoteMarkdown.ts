@@ -1,7 +1,7 @@
 // BlockNote XML v1 codec + Markdown → blocks converter.
 //
 // Two surfaces for the agent:
-//  • `read_nodes` emits BlockNote XML v1 (lossless structural read: ids,
+//  • `nole read` emits BlockNote XML v1 (lossless structural read: ids,
 //    types, props, structured tables). `insert_blocks` / `replace_block`
 //    accept that same XML back for precise block-level edits.
 //  • `set_node_data` (full document replace) accepts plain Markdown via
@@ -71,7 +71,7 @@ export const BLOCKNOTE_XML_VERSION = "1";
 // id, and mapping between the two needs the canvas document. The codec stays
 // pure — the caller passes the correspondence in (`mentions` on both the
 // serialize and the parse side) and gets the snapshot-title fallback when it
-// doesn't. `read_nodes` builds the read-side map (readNodesTool.ts), and the
+// doesn't. `nole read` builds the read-side map (tools/nodes/readNodes.ts), and the
 // write-side tools resolve the ids the agent wrote (resolveNodeMentionTokens.ts).
 
 /**
@@ -653,7 +653,7 @@ export async function blocksToMarkdown(blocks: BlockNoteBlock[]): Promise<string
   );
 }
 
-// ── Table rich text cells (read_nodes) ──────────────────────────────────────
+// ── Table rich text cells (nole read) ──────────────────────────────────────
 //
 // A table `richtext` cell holds a full BlockNote document. The agent reads it
 // as Markdown, with the same round-trip tokens as the XML codec (`[[node:…]]`,
@@ -782,10 +782,10 @@ export async function markdownToBlockNoteBlocks(
  * Every table the codec produces used to hit that. BlockNote's own Markdown
  * parser emits `columnWidths: [undefined, undefined]` and `headerCols:
  * undefined` for a pipe table, and a `<column/>` with no `width` — which is
- * exactly what the serializer writes for a table read back from `read_nodes` —
+ * exactly what the serializer writes for a table read back from `nole read` —
  * produces the same. So `set_node_data` with a Markdown table, `insert_blocks`
  * with a Markdown table, and `insert_blocks` with a table copied verbatim out
- * of `read_nodes` output all failed at the wire, after parsing successfully.
+ * of `nole read` output all failed at the wire, after parsing successfully.
  *
  * Normalizing to the shape a STORED document already has fixes all of them at
  * once: a stored doc has been through `JSON.stringify`, so an absent object
@@ -1038,7 +1038,7 @@ function tableToXml(
 //     A Markdown pipe table there becomes table content and retypes the block
 //     to `table` — writing one is by far the most natural way to ask for a
 //     table, and the structured <table> element is unreachable to a model that
-//     has never seen one in read_nodes output.
+//     has never seen one in nole read output.
 
 /**
  * Appended to every parse failure. A tool error is the only feedback the model
@@ -1333,7 +1333,7 @@ function parseMarkdownToInline(
 }
 
 // The serializer emits `<row>`/`<cell>`, but a model that has never seen a
-// table in read_nodes output writes the HTML it knows. Accepting both spellings
+// table in nole read output writes the HTML it knows. Accepting both spellings
 // costs two lookups and removes a whole class of rejected payloads.
 const ROW_TAGS: ReadonlySet<string> = new Set(["row", "tr"]);
 const CELL_TAGS: ReadonlySet<string> = new Set(["cell", "td", "th"]);

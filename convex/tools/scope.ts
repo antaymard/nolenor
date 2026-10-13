@@ -16,6 +16,34 @@ import type { Id } from "../_generated/dataModel";
  *
  * Sérialisable (cf. `vToolScope`) : un run pourra porter le sien, et
  * `Profile.tools(run)` reconstruire les mêmes tools à chaque step.
+ *
+ * ── ÉTAT ACTUEL : la brique existe, rien ne l'alimente encore ──────────────
+ *
+ * Personne ne peut aujourd'hui fournir un scope autre que `canvasScope` (tout
+ * le canvas) :
+ * - la harness ne transporte pas de scope : `RunInfo` n'en a pas, et
+ *   `Profile.tools(run)` n'en passe pas aux factories ;
+ * - les adaptateurs fabriquent donc eux-mêmes `canvasScope` depuis le
+ *   `threadCtx` (cf. `nodes/listNodes.agent.ts`) ;
+ * - le MCP ne traduit pas encore la permission de son token (`read`) en
+ *   `write: "none"` : il s'appuie toujours sur son propre filtrage des tools ;
+ * - seuls les noyaux de `tools/` appliquent le scope. Les tools encore dans
+ *   `ia/tools/` (dont toutes les écritures) l'ignorent.
+ *
+ * Pour qu'il serve : un `scope` optionnel sur le run (absent = tout le
+ * canvas), fixé à sa création et passé par `Profile.tools(run)` aux
+ * factories ; la harness le transporte sans l'interpréter.
+ *
+ * ── Cas d'usage attendus ───────────────────────────────────────────────────
+ *
+ * - Nolë dans le panel : tout le canvas, lecture et écriture (`canvasScope`).
+ * - Étape d'automation guidée : le modèle reçoit un tool d'édition lié à un
+ *   node précis et ne peut écrire nulle part ailleurs (`write: [nodeId]`),
+ *   en lisant éventuellement le reste du canvas comme contexte
+ *   (`read: "all"`) ou seulement ses entrées (`read: [ids…]`).
+ * - Token MCP `read` et CLI `nole` en lecture seule : `write: "none"`.
+ * - Worker lancé sur une sous-tâche : le scope de son parent, ou plus étroit,
+ *   jamais plus large.
  */
 export const vNodeSelection = v.union(v.literal("all"), v.array(v.string()));
 

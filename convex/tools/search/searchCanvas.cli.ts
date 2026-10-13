@@ -212,7 +212,7 @@ export const searchCommand: CliCommand = {
           .join("\t");
       });
     } else {
-      // Même classement que search_canvas : score, puis ordre du document.
+      // Classement par score, puis ordre du document.
       const ranked = [...result.hits].sort(
         (a, b) => b.score - a.score || a.order - b.order,
       );

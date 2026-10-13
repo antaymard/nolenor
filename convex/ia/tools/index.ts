@@ -15,12 +15,6 @@ import patchAppNodeCodeTool, {
   patchAppNodeCodeToolConfig,
 } from "./patchAppNodeCodeTool";
 import { blockNoteToolDefinitions } from "./blockNoteTools";
-import searchTool, {
-  searchToolConfig,
-} from "../../tools/search/searchCanvas.agent";
-import listNodesTool, {
-  listNodesToolConfig,
-} from "../../tools/nodes/listNodes.agent";
 import loadSkillTool, { loadSkillToolConfig } from "./loadSkillTool";
 import memoryToolFactory, { memoryToolConfig } from "./memoryTool";
 import { openWebPageTool, openWebPageToolConfig } from "./openWebPageTool";
@@ -68,16 +62,8 @@ type ToolRegistration = {
 
 const toolRegistry: ToolRegistration[] = [
   {
-    config: listNodesToolConfig,
-    factory: ({ threadCtx }) => listNodesTool({ threadCtx }),
-  },
-  {
     config: patchAppNodeCodeToolConfig,
     factory: ({ threadCtx }) => patchAppNodeCodeTool({ threadCtx }),
-  },
-  {
-    config: searchToolConfig,
-    factory: ({ threadCtx }) => searchTool({ threadCtx }),
   },
   {
     config: memoryToolConfig,

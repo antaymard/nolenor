@@ -23,6 +23,9 @@ export const bashToolConfig: ToolConfig = {
   // Lecture seule, et rien ne survit à l'appel : le rejouer ne duplique rien.
   replay: "safe",
   authorized_agents: [toolAgentNames.nole, toolAgentNames.worker],
+  // Lister et chercher passent par lui (il n'y a plus de list_nodes ni de
+  // search_canvas) : un agent MCP sans shell à lui en a besoin aussi.
+  mcp: { access: "read" },
 };
 
 const DESCRIPTION = `Run a bash script in a sandboxed virtual shell, to explore and process the canvas in bulk. Read-only: nothing you do here changes the canvas — use the other tools to write.
@@ -30,13 +33,13 @@ const DESCRIPTION = `Run a bash script in a sandboxed virtual shell, to explore 
 The \`nole\` command reads the current canvas:
 - \`nole ls [--type T] [--frame ID] [--linked-to ID] [--near ID] [--format tsv|jsonl|ids]\`: every matching node, most recently edited first, one line each (id, type, title, x, y, frameId, color, updatedAt), no limit.
 - \`nole read <id>…\` or \`… | nole read -\`: the same XML as read_nodes (without the write schemas unless --schemas), ids from arguments or from the first field of each stdin line (at most 200 nodes per call); \`--format jsonl\` gives one JSON object per node for jq.
-- \`nole search <keywords> [--semantic TEXT] [--type T] [--in IDS|-] [--by-node] [--format tsv|jsonl|ids]\`: ranked hits in the content (documents, tables, PDF pages, transcripts), one line each (nodeId, type, chunkType, score, where, title, snippet), or one per node with --by-node [--snippets N]; same engine and query syntax as search_canvas. Exit code 1 when nothing matches.
+- \`nole search <keywords> [--semantic TEXT] [--type T] [--in IDS|-] [--by-node] [--format tsv|jsonl|ids]\`: ranked hits in the content (documents, tables, PDF pages, transcripts), one line each (nodeId, type, chunkType, score, where, title, snippet), or one per node with --by-node [--snippets N]; keywords take operators: bare words all required, "exact phrase", -excluded, a OR b. Exit code 1 when nothing matches.
 - \`nole table <id> [--format tsv|jsonl] [--columns A,B] [--schema]\`: every row of a table, no limit, with readable values (option labels, node titles, rich text as text); TSV with a header, first column rowId. Use it to count, sum, group or compare rows instead of reading them.
 - \`nole --help\`, \`nole <command> --help\`: all options. A command exits non-zero when it fails (unknown id, unknown frame, no match for search), so \`&&\` and \`||\` work.
 
 Standard tools are available: grep, sed, awk, jq, sort, uniq, head, tail, wc, cut, tr, xargs, diff… Pipes, redirections, loops, variables and files under /tmp all work within one call. Each call starts a fresh shell: files and variables do not survive to the next call, so do the whole job in one script. No network, no Python.
 
-Use it when list_nodes / read_nodes would take many calls or flood your context: searching text across many nodes, counting, comparing, extracting a few lines from long documents. Output is cut at ${MAX_OUTPUT_CHARS} characters: filter (grep, head) rather than printing everything.
+This is how you list and search the canvas. Use read_nodes to read a few nodes in full (it attaches images and includes the write schemas); use the shell to find nodes, search their content, read many at once, count, compare, or extract a few lines from long documents. Output is cut at ${MAX_OUTPUT_CHARS} characters: filter (grep, head) rather than printing everything.
 
 Examples:
 - \`nole ls --type blocknote --format ids | nole read - | grep -n -i "budget"\`

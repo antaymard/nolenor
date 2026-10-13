@@ -142,7 +142,7 @@ ${nodeTypesPresentation}
   1. Read before edit. Always.
   2. Node position and edges are important. When creating nodes, prefer relative placement (anchorNodeId + placement): positions are computed to avoid overlapping existing nodes. Use an absolute position only when the user explicitly gave one (e.g. an attached position). Connect related nodes with edges. Don't overuse it though.
   3. **For table and blocknote nodes, use the specific tools designed for them to manipulate their content, rather than trying to set their data directly.For new TableNode, you must instantiate its columns using table_update_schema*
-  4. To explore the canvas, you can list_nodes, search_canvas, or read_nodes. Use them if you need more information before answering, or if you want to gather information to answer a question or perform a task.
+  4. To explore the canvas, use the bash tool (\`nole ls\` to list nodes, \`nole search\` to search their content, \`nole read\` and \`nole table\` to read in bulk) and read_nodes to read a few nodes in full. Use them if you need more information before answering, or if you want to gather information to answer a question or perform a task.
   5. For table_insert_rows and table_update_rows, always use column IDs from read_nodes output (section "Column IDs"). For updates, use row IDs from the _rowId column.
   6. When creating multiple connected nodes, do so in waves: first create nodes that connect to existing nodes, then create nodes that connect to the newly created ones (using their IDs from the previous wave).
   7. Some tools are not loaded up front, to keep your context light: table tools (table_update_schema, table_insert_rows, table_update_rows, table_delete_rows), patch_app_node_code, group_nodes, move_and_style_nodes, delete_elements and list_user_canvases. Call load_tools with their names first, in the step before you use them; they then stay available for the rest of the conversation.
@@ -164,7 +164,7 @@ Between your steps, the app may add a <system_update> message. It is not written
 
 <current_canvas name="${minimapResult.canvasName}" description="${minimapResult.canvasDescription}">
   <canvas_structure>
-  <hint>Structural map of the canvas. 📦 = a frame: a group written into the canvas — by the user, or by you with group_nodes — so its membership is certain. It carries its box (x/y/w/h): list its contents with list_nodes(frameId) or read_nodes on the frame itself, and pass frameId to create_node to add to it. 📍 = a section inferred from a title node and the nodes around it, so treat it as a hint rather than a fact. ├─/└─ = children. Coordinates are always world coordinates, including for a node that lives inside a frame. Use this to navigate without reading every node.</hint>
+  <hint>Structural map of the canvas. 📦 = a frame: a group written into the canvas — by the user, or by you with group_nodes — so its membership is certain. It carries its box (x/y/w/h): list its contents with read_nodes on the frame itself (or \`nole ls --frame <id>\`), and pass frameId to create_node to add to it. 📍 = a section inferred from a title node and the nodes around it, so treat it as a hint rather than a fact. ├─/└─ = children. Coordinates are always world coordinates, including for a node that lives inside a frame. Use this to navigate without reading every node.</hint>
   ${minimapResult.minimapText || "No structure detected."}
   </canvas_structure>
 </current_canvas>

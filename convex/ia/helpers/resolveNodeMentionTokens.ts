@@ -82,7 +82,7 @@ export function unresolvedMentionTokensError(nodeIds: string[]): string {
   const names = nodeIds.map((id) => `"${id}"`).join(", ");
   return (
     `Mention token${nodeIds.length > 1 ? "s" : ""} ${names} could not be resolved: ` +
-    `no such node on the current canvas. Use list_nodes to find a valid nodeId, ` +
+    `no such node on the current canvas. Use \`nole ls\` (bash) to find a valid nodeId, ` +
     `or write the text plainly instead of a [[node:…]] token ` +
     "(wrap it in a code span to show the literal syntax)."
   );

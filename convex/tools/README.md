@@ -7,8 +7,13 @@ Remplace progressivement `ia/tools/`. Un tool y est découpé en **un noyau** et
 | Interface | Pour qui | Adaptateur |
 |---|---|---|
 | Tool JSON (AI SDK) | Nolë, worker, et le MCP qui le réexpose | `*.agent.ts` |
-| CLI `nole …` (à venir) | le tool `bash` de Nolë, le MCP `nole_shell` | `*.cli.ts` |
+| CLI `nole …` | le tool `bash` (Nolë, worker, MCP) | `*.cli.ts` |
 | Tool scopé (à venir) | une étape d'automation guidée | même `*.agent.ts`, autre scope |
+
+Une capacité n'a pas forcément les deux. Lister et chercher n'existent plus
+qu'en CLI (`list_nodes` et `search_canvas` ont été retirés : Nolë passait
+déjà par le shell, et le MCP expose `bash`) ; lire garde `read_nodes`, dont
+la sortie (images jointes, schémas d'écriture) sert aux écritures.
 
 ## Organisation
 
@@ -19,8 +24,7 @@ tools/
   nodes/
     canvasGraph.ts       la structure d'un canvas (nodes, edges), sans contenu
     nodeContents.ts      les contenus (nodeData, template, titre), par lots
-    listNodes.ts         noyau de list_nodes : filtrage, données typées
-    listNodes.agent.ts   adaptateur : schéma zod, rendu XML, plafond à 20
+    listNodes.ts         noyau de `nole ls` : filtrage, données typées
     readNodes.ts         noyau de read_nodes : contenus, connexions, médias
     readNodes.agent.ts   adaptateur : arguments du modèle, plafonds, hints
     readNodes.xml.ts     rendu XML de read_nodes (fonctions pures)
@@ -28,8 +32,7 @@ tools/
     listNodes.cli.ts     adaptateur CLI : `nole ls`
     readNodes.cli.ts     adaptateur CLI : `nole read` (même XML que read_nodes)
   search/
-    searchCanvas.ts      noyau de search_canvas : extraits classés, regroupement
-    searchCanvas.agent.ts adaptateur : vues plate / groupée / compacte, en JSON
+    searchCanvas.ts      noyau de `nole search` : extraits classés, regroupement
     searchCanvas.cli.ts  adaptateur CLI : `nole search`
   tables/
     readTable.ts         noyau : toutes les lignes d'une table, valeurs lisibles

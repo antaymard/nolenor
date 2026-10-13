@@ -28,7 +28,7 @@ import { buildChunkSnippets } from "./searchableChunks";
 // ── Recherche sémantique & hybride ─────────────────────────────────────────
 // `ctx.vectorSearch` n'existe qu'en action : toute la partie vectorielle vit
 // ici. Le mode keyword pur reste servi par la query réactive
-// `api.searchableChunks.search` (front) et le tool `search_canvas` (agent).
+// `api.searchableChunks.search` (front) et `nole search` (agent).
 // Le filtre vectoriel est `canvasId` uniquement (pas de AND inter-champs
 // côté Convex) : `nodeTypes` / `nodeIds` se filtrent en TS après hydratation
 // (cf. `hydrateVectorHits` dans les models).

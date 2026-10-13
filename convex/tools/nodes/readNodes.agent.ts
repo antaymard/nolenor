@@ -71,9 +71,9 @@ export default function readNodesTool({
       "Pass `pdfPages=[{nodeId, pages:[…]}]` to read the full OCR markdown of specific 1-based pages instead. " +
       "PDF chunks come from cached Mistral OCR; nodes not yet indexed are flagged. " +
       "For audio and video nodes, returns the timestamped transcript ('[m:ss] text' lines) when the user has transcribed the file, preceded by an overview of the recording and split into topic chapters titled '## [m:ss] title' when they exist: in full when short, otherwise an outline with one '[start–end] title — summary' line per chapter. " +
-      "Pass `mediaRanges=[{nodeId, startSec, endSec}]` to read the transcript of a time range (e.g. around a search_canvas hit's startSec). " +
+      "Pass `mediaRanges=[{nodeId, startSec, endSec}]` to read the transcript of a time range (e.g. around a `nole search` hit's timestamp). " +
       `For table nodes, by default returns the first ${TABLE_DEFAULT_ROW_LIMIT} rows along with column definitions (incl. select options and node references). ` +
-      "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after search_canvas to read matched rows).",
+      "Pass `tableRows=[{nodeId, offset, limit}]` to paginate or `tableRows=[{nodeId, rowIds:[…]}]` to target specific rows (use after `nole search` to read matched rows; `nole table` prints every row).",
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       nodeIds: z

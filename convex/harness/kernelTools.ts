@@ -1,4 +1,5 @@
 import { tool, type ToolSet } from "ai";
+import { v, type Infer } from "convex/values";
 import { z } from "zod";
 import { LOAD_TOOLS, modelTools } from "./deferredTools";
 import type { Profile, RunInfo } from "./types";
@@ -51,13 +52,26 @@ The worker cannot ask the user anything and cannot start workers itself. Its rep
   }),
 });
 
+/**
+ * La réponse de l'utilisateur à une question d'`ask_user`, depuis la carte :
+ * les options choisies et/ou ce qu'il a tapé lui-même. C'est aussi ce que le
+ * modèle reçoit, dans `{ answers }`.
+ */
+export const questionSelectionValidator = v.object({
+  question: v.string(),
+  selected: v.array(v.string()),
+  /** Texte libre tapé par l'utilisateur, en plus ou à la place des options. */
+  text: v.optional(v.string()),
+});
+export type QuestionSelection = Infer<typeof questionSelectionValidator>;
+
 const askUserTool = tool({
   description: `Ask the user one or more questions and wait for the answers before going on. Use it only when you cannot proceed well without their input — a real ambiguity, choices that are theirs, a confirmation before something hard to undo. Not for small talk, nor for what you can find out yourself with your tools.
 
 Group related questions in one call (up to 4) rather than asking them one by one. For each question that is a choice, offer 2 to 6 options: a short label, and a one-line description when the trade-off is not obvious. If you recommend one, put it first and add " (Recommended)" to its label. Set multiSelect when several options can be picked together.
 
 The result is one of:
-- { answers: [{ question, selected: [labels] }] } — the options they picked;
+- { answers: [{ question, selected: [labels], text? }] } — per question, the options they picked and/or "text", what they typed in their own words (it may replace the options: selected is then empty);
 - { answer } — their own words, typed instead of picking (it may cover several questions);
 - { declined: true } — they refused to answer: do not ask again; go on with your best judgment, or stop and say what you need.`,
   inputSchema: z.object({

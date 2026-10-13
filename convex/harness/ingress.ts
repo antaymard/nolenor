@@ -7,6 +7,7 @@ import { requireAuth } from "../lib/auth";
 import * as MessageMetadataModels from "../models/messageMetadataModels";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
 import { submissionStatuses } from "../schemas/submissionsSchema";
+import { questionSelectionValidator } from "./kernelTools";
 import { answerPendingQuestion } from "./tasks";
 
 /**
@@ -116,18 +117,13 @@ export const listQueuedSubmissions = query({
 });
 
 /**
- * Répond aux questions en attente du thread, depuis la carte `ask_user` : les
- * options choisies par question, ou `null` pour refuser d'y répondre.
+ * Répond aux questions en attente du thread, depuis la carte `ask_user` : une
+ * réponse par question, ou `null` pour refuser d'y répondre.
  */
 export const answerQuestion = mutation({
   args: {
     threadId: v.string(),
-    answer: v.union(
-      v.null(),
-      v.array(
-        v.object({ question: v.string(), selected: v.array(v.string()) }),
-      ),
-    ),
+    answer: v.union(v.null(), v.array(questionSelectionValidator)),
   },
   handler: async (ctx, { threadId, answer }) => {
     const userId = await requireAuth(ctx);

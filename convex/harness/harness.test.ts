@@ -1715,6 +1715,26 @@ describe("phase 5b — ask_user", () => {
     expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
   });
 
+  test("texte libre par question : answerQuestion le transmet au modèle", async () => {
+    const t = setup();
+    const seed = await seedThread(t);
+    setModel([[question()], [text("Noted")]]);
+    await send(t, seed, "Pick for me");
+    await drain(t);
+
+    const asUser = t.withIdentity({ subject: `${seed.userId}|session` });
+    expect(
+      await asUser.mutation(api.harness.ingress.answerQuestion, {
+        threadId: seed.threadId,
+        answer: [{ question: "Which one?", selected: [], text: "Neither, C" }],
+      }),
+    ).toEqual({ answered: true });
+    await drain(t);
+    expect(promptText(1)).toContain(
+      '"answers":[{"question":"Which one?","selected":[],"text":"Neither, C"}]',
+    );
+  });
+
   test("refus : le modèle reçoit { declined: true } et le run reprend", async () => {
     const t = setup();
     const seed = await seedThread(t);

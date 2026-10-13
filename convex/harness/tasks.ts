@@ -25,7 +25,12 @@ import {
   withdrawQueued,
 } from "./ingress";
 import { LOAD_TOOLS, loadTools } from "./deferredTools";
-import { ASK_USER, KERNEL_TOOL_NAMES, RUN_SUBAGENT } from "./kernelTools";
+import {
+  ASK_USER,
+  KERNEL_TOOL_NAMES,
+  RUN_SUBAGENT,
+  type QuestionSelection,
+} from "./kernelTools";
 import { onSubagentRunEnded, spawnSubagent } from "./subagents";
 import { getProfile } from "./profiles";
 import { lastResponse, runGenerations } from "./runHistory";
@@ -971,15 +976,13 @@ async function askUser(
   return { wait: true };
 }
 
-/** Les options choisies, question par question (carte `ask_user`). */
-export type QuestionSelection = { question: string; selected: string[] };
-
 /**
  * Répond à la question en attente du thread, s'il y en a une : le run
- * reprend, la réponse devient le résultat d'`ask_user` — `{ answers }` pour
- * des options choisies, `{ answer }` pour un texte libre, `{ declined: true }`
- * quand `answer` est `null` (l'utilisateur refuse de répondre). Rend `false`
- * s'il n'y avait pas de question.
+ * reprend, la réponse devient le résultat d'`ask_user` — `{ answers }` depuis
+ * la carte (options et/ou texte libre, par question), `{ answer }` pour un
+ * message tapé dans le chat, `{ declined: true }` quand `answer` est `null`
+ * (l'utilisateur refuse de répondre). Rend `false` s'il n'y avait pas de
+ * question.
  */
 export async function answerPendingQuestion(
   ctx: MutationCtx,

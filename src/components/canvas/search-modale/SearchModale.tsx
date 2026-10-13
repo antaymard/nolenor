@@ -29,22 +29,24 @@ import {
   useMemo,
   useRef,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import { TbSearch, TbX } from "react-icons/tb";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useIsNodeAttached, useNoleStore } from "@/stores/noleStore";
-import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import { useSearch, type SearchResult } from "@/components/search/useSearch";
 import {
   PreviewImages,
   SearchEmpty,
   SearchError,
+  SearchRowHeader,
+  SearchSectionLabel,
   SearchSkeleton,
   SearchSnippet,
 } from "@/components/search/searchUi";
-import { formatRelative, sortSnippets } from "@/components/search/searchUtils";
+import { sortSnippets } from "@/components/search/searchUtils";
+import { SearchBreadcrumbsProvider } from "@/components/search/SearchBreadcrumbsProvider";
 import { SearchTypeFilter } from "@/components/search/SearchTypeFilter";
 
 export default function SearchModale() {
@@ -278,77 +280,70 @@ export default function SearchModale() {
             isStale && "opacity-60",
           )}
         >
-          {isInitialLoading ? (
-            <SearchSkeleton />
-          ) : error ? (
-            <SearchError message={error.message} />
-          ) : hasQuery ? (
-            results.length === 0 ? (
-              <SearchEmpty
-                icon={<TbSearch />}
-                title="No results"
-                description={`No matches for "${debouncedQuery}".`}
-              />
+          <SearchBreadcrumbsProvider>
+            {isInitialLoading ? (
+              <SearchSkeleton />
+            ) : error ? (
+              <SearchError message={error.message} />
+            ) : hasQuery ? (
+              results.length === 0 ? (
+                <SearchEmpty
+                  icon={<TbSearch />}
+                  title="No results"
+                  description={`No matches for "${debouncedQuery}".`}
+                />
+              ) : (
+                <>
+                  {relaxed ? (
+                    <div className="mx-1 mt-1 mb-2 rounded-lg border border-amber-500/40 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                      No exact results — showing close matches.
+                    </div>
+                  ) : null}
+                  {degraded ? (
+                    <SearchDegradedNotice className="mx-1 mt-1 mb-2" />
+                  ) : null}
+                  <SearchSectionLabel>
+                    {resultCount} result{resultCount > 1 ? "s" : ""}
+                  </SearchSectionLabel>
+                  {results.map((result, idx) => (
+                    <SearchRow
+                      key={result.nodeId}
+                      optionId={optionId(idx)}
+                      nodeId={result.nodeId}
+                      nodeDataId={result.nodeDataId}
+                      nodeType={result.type}
+                      title={result.title}
+                      active={idx === activeIndex}
+                      onSelect={() => setActiveIndex(idx)}
+                      onActivate={handleActivate}
+                      onToggleAttachment={handleToggleAttachment}
+                    >
+                      <ResultDetails result={result} terms={terms} />
+                    </SearchRow>
+                  ))}
+                </>
+              )
+            ) : !recents || recents.length === 0 ? (
+              <SearchEmpty icon={<TbSearch />} title="No nodes yet" />
             ) : (
               <>
-                {relaxed ? (
-                  <div className="mx-1 mt-1 mb-2 rounded-lg border border-amber-500/40 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-                    No exact results — showing close matches.
-                  </div>
-                ) : null}
-                {degraded ? (
-                  <SearchDegradedNotice className="mx-1 mt-1 mb-2" />
-                ) : null}
-                <div className="px-3 pt-1 pb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  {resultCount} result{resultCount > 1 ? "s" : ""}
-                </div>
-                {results.map((result, idx) => (
-                  <ResultCard
-                    key={result.nodeId}
+                <SearchSectionLabel>Recent</SearchSectionLabel>
+                {recents.map((entry, idx) => (
+                  <SearchRow
+                    key={entry.nodeData._id}
                     optionId={optionId(idx)}
-                    result={result}
-                    terms={terms}
+                    nodeId={entry.xyNodeId}
+                    nodeDataId={entry.nodeData._id}
+                    nodeType={entry.nodeData.type}
                     active={idx === activeIndex}
                     onSelect={() => setActiveIndex(idx)}
-                    onActivate={(open) =>
-                      handleActivate(
-                        {
-                          nodeId: result.nodeId,
-                          nodeDataId: result.nodeDataId,
-                          nodeType: result.type,
-                        },
-                        open,
-                      )
-                    }
-                    onToggleAttachment={() =>
-                      handleToggleAttachment(result.nodeId)
-                    }
+                    onActivate={handleActivate}
+                    onToggleAttachment={handleToggleAttachment}
                   />
                 ))}
               </>
-            )
-          ) : !recents || recents.length === 0 ? (
-            <SearchEmpty icon={<TbSearch />} title="No nodes yet" />
-          ) : (
-            <>
-              <h4 className="px-3 pt-1 pb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                Recent
-              </h4>
-              {recents.map((entry, idx) => (
-                <RecentRow
-                  key={entry.nodeData._id}
-                  optionId={optionId(idx)}
-                  nodeId={entry.xyNodeId}
-                  nodeDataId={entry.nodeData._id}
-                  nodeType={entry.nodeData.type}
-                  updatedAt={entry.nodeData.updatedAt}
-                  active={idx === activeIndex}
-                  onSelect={() => setActiveIndex(idx)}
-                  onActivate={handleActivate}
-                />
-              ))}
-            </>
-          )}
+            )}
+          </SearchBreadcrumbsProvider>
         </div>
 
         {/* Shortcuts footer */}
@@ -381,30 +376,37 @@ export default function SearchModale() {
   );
 }
 
-function ResultCard({
+type ActivateParams = {
+  nodeId: string;
+  nodeDataId: Id<"nodeDatas">;
+  nodeType: string;
+};
+
+/**
+ * Une ligne de la liste, identique qu'on cherche ou qu'on parcoure les
+ * récents : seuls les détails (extraits, aperçus) s'ajoutent en `children`.
+ */
+function SearchRow({
   optionId,
-  result,
-  terms,
+  nodeId,
+  nodeDataId,
+  nodeType,
+  title,
   active,
   onSelect,
   onActivate,
   onToggleAttachment,
-}: {
+  children,
+}: ActivateParams & {
   optionId: string;
-  result: SearchResult;
-  terms: string[];
+  title?: string;
   active: boolean;
   onSelect: () => void;
-  onActivate: (open: boolean) => void;
-  onToggleAttachment: () => void;
+  onActivate: (params: ActivateParams, open: boolean) => void;
+  onToggleAttachment: (nodeId: string) => void;
+  children?: ReactNode;
 }) {
-  const fallbackTitle = useNodeDataTitle(result.nodeDataId);
-  const nodeTitle = result.title ?? fallbackTitle;
-  const isAttachedToNole = useIsNodeAttached(result.nodeId);
-  const sortedSnippets = useMemo(
-    () => sortSnippets(result.snippets),
-    [result.snippets],
-  );
+  const isAttachedToNole = useIsNodeAttached(nodeId);
 
   return (
     <div
@@ -413,19 +415,19 @@ function ResultCard({
       aria-selected={active}
       data-active={active ? "true" : undefined}
       className={cn(
-        "relative flex cursor-pointer flex-col rounded-xl p-3 transition-colors",
+        "relative flex cursor-pointer flex-col gap-2 rounded-xl px-3 py-2.5 transition-colors",
         active ? "bg-accent" : "hover:bg-accent/50",
         isAttachedToNole &&
-          "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[18px] after:border-2 after:border-dashed after:border-violet-500/90",
+          "after:pointer-events-none after:absolute after:inset-0 after:rounded-xl after:border-2 after:border-dashed after:border-violet-500/90",
       )}
       onMouseEnter={onSelect}
       onClick={(event) => {
         if (event.altKey) {
           event.preventDefault();
-          onToggleAttachment();
+          onToggleAttachment(nodeId);
           return;
         }
-        onActivate(isOpenModifier(event));
+        onActivate({ nodeId, nodeDataId, nodeType }, isOpenModifier(event));
       }}
       title={
         isAttachedToNole
@@ -433,92 +435,41 @@ function ResultCard({
           : "Alt+click to attach to Nole"
       }
     >
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[15px] font-bold tracking-tight">{nodeTitle}</p>
-        <span className="rounded-lg bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-          {result.type}
-        </span>
-      </div>
-
-      <div className="mt-2 flex flex-col gap-2">
-        {sortedSnippets.length === 0 ? (
-          <span className="text-sm text-muted-foreground">No excerpt</span>
-        ) : (
-          sortedSnippets.map((snippet, index) => (
-            <SearchSnippet
-              key={`${result.nodeId}-${snippet.order}-${index}`}
-              snippet={snippet}
-              terms={terms}
-            />
-          ))
-        )}
-      </div>
-
-      <div className="mt-2">
-        <PreviewImages images={result.images} size="h-28 w-28" />
-      </div>
+      <SearchRowHeader
+        nodeId={nodeId}
+        nodeDataId={nodeDataId}
+        nodeType={nodeType}
+        title={title}
+      />
+      {children}
     </div>
   );
 }
 
-function RecentRow({
-  optionId,
-  nodeId,
-  nodeDataId,
-  nodeType,
-  updatedAt,
-  active,
-  onSelect,
-  onActivate,
+/** Extraits et aperçus d'un résultat, alignés sous le titre. */
+function ResultDetails({
+  result,
+  terms,
 }: {
-  optionId: string;
-  nodeId: string;
-  nodeDataId: Id<"nodeDatas">;
-  nodeType: string;
-  updatedAt?: number;
-  active: boolean;
-  onSelect: () => void;
-  onActivate: (
-    params: {
-      nodeId: string;
-      nodeDataId: Id<"nodeDatas">;
-      nodeType: string;
-    },
-    open: boolean,
-  ) => void;
+  result: SearchResult;
+  terms: string[];
 }) {
-  const title = useNodeDataTitle(nodeDataId);
-  const Icon = getNodeIcon(nodeType);
+  const sortedSnippets = useMemo(
+    () => sortSnippets(result.snippets),
+    [result.snippets],
+  );
+  if (sortedSnippets.length === 0 && result.images.length === 0) return null;
 
   return (
-    <div
-      id={optionId}
-      role="option"
-      aria-selected={active}
-      data-active={active ? "true" : undefined}
-      onMouseEnter={onSelect}
-      onClick={(event) =>
-        onActivate({ nodeId, nodeDataId, nodeType }, isOpenModifier(event))
-      }
-      className={cn(
-        "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors",
-        active ? "bg-accent" : "hover:bg-accent/50",
-      )}
-    >
-      {Icon ? (
-        <Icon size={14} className="shrink-0 text-muted-foreground" />
-      ) : null}
-      <span className="min-w-0 flex-1 truncate text-sm">
-        {title || nodeType}
-      </span>
-      <span className="shrink-0 rounded bg-muted px-1.5 text-xs text-muted-foreground">
-        {nodeType}
-      </span>
-      {updatedAt ? (
-        <span className="shrink-0 text-[10px] text-muted-foreground">
-          {formatRelative(updatedAt)}
-        </span>
-      ) : null}
+    <div className="flex flex-col gap-1.5 pl-[38px]">
+      {sortedSnippets.map((snippet, index) => (
+        <SearchSnippet
+          key={`${result.nodeId}-${snippet.order}-${index}`}
+          snippet={snippet}
+          terms={terms}
+        />
+      ))}
+      <PreviewImages images={result.images} size="h-24 w-24" />
     </div>
   );
 }

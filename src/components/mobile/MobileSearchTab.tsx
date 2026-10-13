@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Input } from "@/components/shadcn/input";
 import { Button } from "@/components/shadcn/button";
@@ -12,18 +12,19 @@ import { TbSearch, TbX } from "react-icons/tb";
 import { cn } from "@/lib/utils";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { canNodeTypeBeOpenedInWindow } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
-import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
-import { useNodeDataTitle } from "@/hooks/useNodeTitle";
 import type { NodeType } from "@/types/domain";
 import { useSearch, type SearchResult } from "@/components/search/useSearch";
 import {
   PreviewImages,
   SearchEmpty,
   SearchError,
+  SearchRowHeader,
+  SearchSectionLabel,
   SearchSkeleton,
   SearchSnippet,
 } from "@/components/search/searchUi";
-import { formatRelative, sortSnippets } from "@/components/search/searchUtils";
+import { sortSnippets } from "@/components/search/searchUtils";
+import { SearchBreadcrumbsProvider } from "@/components/search/SearchBreadcrumbsProvider";
 import { SearchTypeFilter } from "@/components/search/SearchTypeFilter";
 
 interface MobileSearchTabProps {
@@ -114,11 +115,7 @@ export default function MobileSearchTab({
           onClear={clearNodeTypes}
           className="min-w-0 flex-1"
         />
-        <SearchModeToggle
-          compact
-          value={searchMode}
-          onChange={setSearchMode}
-        />
+        <SearchModeToggle compact value={searchMode} onChange={setSearchMode} />
         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
           <Switch
             checked={titleOnly}
@@ -130,133 +127,78 @@ export default function MobileSearchTab({
         </label>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {isInitialLoading ? (
-          <SearchSkeleton compact />
-        ) : error ? (
-          <SearchError message={error.message} />
-        ) : hasQuery ? (
-          results.length === 0 ? (
-            <SearchEmpty icon={<TbSearch />} title="No results" />
+        <SearchBreadcrumbsProvider enabled={active}>
+          {isInitialLoading ? (
+            <SearchSkeleton compact />
+          ) : error ? (
+            <SearchError message={error.message} />
+          ) : hasQuery ? (
+            results.length === 0 ? (
+              <SearchEmpty icon={<TbSearch />} title="No results" />
+            ) : (
+              <div
+                className={cn(
+                  "flex flex-col gap-1 p-2 transition-opacity",
+                  isStale && "opacity-60",
+                )}
+              >
+                {relaxed ? (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                    No exact results — showing close matches.
+                  </div>
+                ) : null}
+                {degraded ? <SearchDegradedNotice /> : null}
+                <SearchSectionLabel>
+                  {results.length} result{results.length > 1 ? "s" : ""}
+                </SearchSectionLabel>
+                {results.map((result) => (
+                  <MobileRow
+                    key={result.nodeId}
+                    nodeId={result.nodeId}
+                    nodeDataId={result.nodeDataId}
+                    nodeType={result.type}
+                    title={result.title}
+                    onOpen={handleOpenNode}
+                  >
+                    <MobileResultDetails result={result} terms={terms} />
+                  </MobileRow>
+                ))}
+              </div>
+            )
+          ) : !recents || recents.length === 0 ? (
+            <SearchEmpty icon={<TbSearch />} title="No nodes yet" />
           ) : (
-            <div
-              className={cn(
-                "flex flex-col gap-1 p-2 transition-opacity",
-                isStale && "opacity-60",
-              )}
-            >
-              {relaxed ? (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-                  No exact results — showing close matches.
-                </div>
-              ) : null}
-              {degraded ? <SearchDegradedNotice /> : null}
-              {results.map((result) => (
-                <MobileResultRow
-                  key={result.nodeId}
-                  result={result}
-                  terms={terms}
-                  onOpen={() =>
-                    handleOpenNode({
-                      nodeId: result.nodeId,
-                      nodeDataId: result.nodeDataId,
-                      nodeType: result.type,
-                    })
-                  }
+            <div className="flex flex-col p-2">
+              <SearchSectionLabel>Recent</SearchSectionLabel>
+              {recents.map((entry) => (
+                <MobileRow
+                  key={entry.nodeData._id}
+                  nodeId={entry.xyNodeId}
+                  nodeDataId={entry.nodeData._id}
+                  nodeType={entry.nodeData.type}
+                  onOpen={handleOpenNode}
                 />
               ))}
             </div>
-          )
-        ) : !recents || recents.length === 0 ? (
-          <SearchEmpty icon={<TbSearch />} title="No nodes yet" />
-        ) : (
-          <div className="flex flex-col p-2">
-            <h4 className="px-2 py-1 text-xs uppercase tracking-wider text-muted-foreground">
-              Recent
-            </h4>
-            {recents.map((entry) => (
-              <MobileRecentRow
-                key={entry.nodeData._id}
-                nodeId={entry.xyNodeId}
-                nodeDataId={entry.nodeData._id}
-                nodeType={entry.nodeData.type}
-                updatedAt={entry.nodeData.updatedAt}
-                onOpen={handleOpenNode}
-              />
-            ))}
-          </div>
-        )}
+          )}
+        </SearchBreadcrumbsProvider>
       </div>
     </div>
   );
 }
 
-function MobileResultRow({
-  result,
-  terms,
-  onOpen,
-}: {
-  result: SearchResult;
-  terms: string[];
-  onOpen: () => void;
-}) {
-  const fallbackTitle = useNodeDataTitle(result.nodeDataId);
-  const title = result.title ?? fallbackTitle;
-  const Icon = getNodeIcon(result.type);
-  const canOpen = canNodeTypeBeOpenedInWindow(result.type);
-  const sortedSnippets = useMemo(
-    () => sortSnippets(result.snippets),
-    [result.snippets],
-  );
-
-  return (
-    <button
-      type="button"
-      disabled={!canOpen}
-      onClick={onOpen}
-      className={cn(
-        "flex flex-col gap-1 rounded-lg p-2 text-left",
-        canOpen ? "hover:bg-accent/50" : "opacity-60",
-      )}
-    >
-      <div className="flex w-full min-w-0 items-center gap-2">
-        {Icon ? (
-          <Icon size={14} className="shrink-0 text-muted-foreground" />
-        ) : null}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {title || result.type}
-        </span>
-        <span className="shrink-0 rounded-lg bg-muted px-1.5 text-xs text-muted-foreground">
-          {result.type}
-        </span>
-      </div>
-      <PreviewImages images={result.images} size="h-20 w-20" />
-      {sortedSnippets.slice(0, 2).map((snippet, index) => (
-        <SearchSnippet
-          key={`${result.nodeId}-${index}`}
-          snippet={snippet}
-          terms={terms}
-          compact
-        />
-      ))}
-    </button>
-  );
-}
-
-function MobileRecentRow({
+function MobileRow({
   nodeId,
   nodeDataId,
   nodeType,
-  updatedAt,
+  title,
   onOpen,
-}: {
-  nodeId: string;
-  nodeDataId: Id<"nodeDatas">;
-  nodeType: string;
-  updatedAt?: number;
+  children,
+}: OpenNodeParams & {
+  title?: string;
   onOpen: (params: OpenNodeParams) => void;
+  children?: ReactNode;
 }) {
-  const title = useNodeDataTitle(nodeDataId);
-  const Icon = getNodeIcon(nodeType);
   const canOpen = canNodeTypeBeOpenedInWindow(nodeType);
 
   return (
@@ -265,21 +207,46 @@ function MobileRecentRow({
       disabled={!canOpen}
       onClick={() => onOpen({ nodeId, nodeDataId, nodeType })}
       className={cn(
-        "flex items-center gap-2 rounded-lg px-2 py-3 text-left",
-        canOpen ? "hover:bg-accent/50" : "opacity-50",
+        "flex flex-col gap-1.5 rounded-lg px-2 py-2.5 text-left",
+        canOpen ? "hover:bg-accent/50" : "opacity-60",
       )}
     >
-      {Icon ? (
-        <Icon size={14} className="shrink-0 text-muted-foreground" />
-      ) : null}
-      <span className="min-w-0 flex-1 truncate text-sm">
-        {title || nodeType}
-      </span>
-      {updatedAt ? (
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {formatRelative(updatedAt)}
-        </span>
-      ) : null}
+      <SearchRowHeader
+        nodeId={nodeId}
+        nodeDataId={nodeDataId}
+        nodeType={nodeType}
+        title={title}
+        compact
+      />
+      {children}
     </button>
+  );
+}
+
+function MobileResultDetails({
+  result,
+  terms,
+}: {
+  result: SearchResult;
+  terms: string[];
+}) {
+  const sortedSnippets = useMemo(
+    () => sortSnippets(result.snippets),
+    [result.snippets],
+  );
+  if (sortedSnippets.length === 0 && result.images.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-1 pl-[34px]">
+      {sortedSnippets.slice(0, 2).map((snippet, index) => (
+        <SearchSnippet
+          key={`${result.nodeId}-${index}`}
+          snippet={snippet}
+          terms={terms}
+          compact
+        />
+      ))}
+      <PreviewImages images={result.images} size="h-20 w-20" />
+    </div>
   );
 }

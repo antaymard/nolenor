@@ -281,6 +281,9 @@ export function SearchRowHeader({
           "flex shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground",
           compact ? "size-6" : "size-7",
         )}
+        // Le type ne s'affiche plus en pastille : l'icône le porte.
+        title={nodeType}
+        aria-label={nodeType}
       >
         {Icon ? <Icon size={compact ? 13 : 15} /> : null}
       </span>
@@ -293,9 +296,6 @@ export function SearchRowHeader({
             )}
           >
             {displayTitle}
-          </span>
-          <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">
-            {nodeType}
           </span>
           {updatedAt ? (
             <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">

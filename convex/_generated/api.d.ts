@@ -98,7 +98,6 @@ import type * as ia_tools_createNodeTool from "../ia/tools/createNodeTool.js";
 import type * as ia_tools_deleteElementsTool from "../ia/tools/deleteElementsTool.js";
 import type * as ia_tools_groupNodesTool from "../ia/tools/groupNodesTool.js";
 import type * as ia_tools_index from "../ia/tools/index.js";
-import type * as ia_tools_listNodesTool from "../ia/tools/listNodesTool.js";
 import type * as ia_tools_listUserCanvasesTool from "../ia/tools/listUserCanvasesTool.js";
 import type * as ia_tools_loadSkillTool from "../ia/tools/loadSkillTool.js";
 import type * as ia_tools_memoryTool from "../ia/tools/memoryTool.js";
@@ -364,7 +363,6 @@ declare const fullApi: ApiFromModules<{
   "ia/tools/deleteElementsTool": typeof ia_tools_deleteElementsTool;
   "ia/tools/groupNodesTool": typeof ia_tools_groupNodesTool;
   "ia/tools/index": typeof ia_tools_index;
-  "ia/tools/listNodesTool": typeof ia_tools_listNodesTool;
   "ia/tools/listUserCanvasesTool": typeof ia_tools_listUserCanvasesTool;
   "ia/tools/loadSkillTool": typeof ia_tools_loadSkillTool;
   "ia/tools/memoryTool": typeof ia_tools_memoryTool;

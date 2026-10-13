@@ -247,6 +247,8 @@ import type * as skills from "../skills.js";
 import type * as speech from "../speech.js";
 import type * as tableOps from "../tableOps.js";
 import type * as threads from "../threads.js";
+import type * as tools_nodes_listNodes from "../tools/nodes/listNodes.js";
+import type * as tools_scope from "../tools/scope.js";
 import type * as uploads from "../uploads.js";
 import type * as users from "../users.js";
 import type * as voice from "../voice.js";
@@ -511,6 +513,8 @@ declare const fullApi: ApiFromModules<{
   speech: typeof speech;
   tableOps: typeof tableOps;
   threads: typeof threads;
+  "tools/nodes/listNodes": typeof tools_nodes_listNodes;
+  "tools/scope": typeof tools_scope;
   uploads: typeof uploads;
   users: typeof users;
   voice: typeof voice;

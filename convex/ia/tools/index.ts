@@ -16,7 +16,9 @@ import patchAppNodeCodeTool, {
 } from "./patchAppNodeCodeTool";
 import { blockNoteToolDefinitions } from "./blockNoteTools";
 import searchTool, { searchToolConfig } from "./searchTool";
-import listNodesTool, { listNodesToolConfig } from "./listNodesTool";
+import listNodesTool, {
+  listNodesToolConfig,
+} from "../../tools/nodes/listNodes.agent";
 import loadSkillTool, { loadSkillToolConfig } from "./loadSkillTool";
 import memoryToolFactory, { memoryToolConfig } from "./memoryTool";
 import { openWebPageTool, openWebPageToolConfig } from "./openWebPageTool";

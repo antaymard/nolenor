@@ -36,6 +36,7 @@ async function setup() {
       ["N1", "blocknote", "Budget Q3", ["The marketing budget is 40k.", "Budget cuts and hiring."]],
       ["N2", "blocknote", "Roadmap", ["Ship the CLI before the budget review."]],
       ["N3", "pdf", "Report.pdf", ["Annual budget overview.", "Risks and mitigation."]],
+      ["N5", "pdf", "Attention.pdf", ["Attention is all you need.", "We use scaled dot-product\nattention here.", "Attention heads, scaled up."]],
       ["N4", "blocknote", "Ideas", ["A canvas as a filesystem."]],
     ] as const;
     for (const [id, type, title, chunks] of nodes) {
@@ -131,6 +132,16 @@ describe("nole search", () => {
       "p1",
       "Report.pdf",
       "Annual budget overview.",
+    ]);
+  });
+
+  test("une phrase exacte ne rend que les pages qui la portent", async () => {
+    const { bash } = await setup();
+    const output = stdout(
+      await bash(`nole search '"scaled dot-product attention"' --type pdf`),
+    );
+    expect(output.split("\n").map((line) => line.split("\t")[4])).toEqual([
+      "p2",
     ]);
   });
 

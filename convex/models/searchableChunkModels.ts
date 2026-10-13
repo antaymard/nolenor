@@ -4,6 +4,7 @@ import {
   type ExcludedNeedle,
   haystacksContainToken,
   matchesParsedQuery,
+  narrowToPhraseChunks,
   normalizeHaystacks,
   parseSearchQuery,
 } from "../lib/searchQuery";
@@ -836,7 +837,10 @@ export async function keywordSearch(
       .map(([nodeKey]) => nodeKey),
   );
 
-  const strict = kept.filter((chunk) => strictNodeKeys.has(chunk.nodeDataId));
+  const strict = narrowToPhraseChunks(
+    kept.filter((chunk) => strictNodeKeys.has(chunk.nodeDataId)),
+    parsed.phrases,
+  );
 
   // Le filtrage strict travaille sur une fenêtre bornée : plutôt que de rendre
   // le vide, on élargit en le signalant. Les exclusions restent appliquées.

@@ -31,6 +31,9 @@ tools/
     searchCanvas.ts      noyau de search_canvas : extraits classés, regroupement
     searchCanvas.agent.ts adaptateur : vues plate / groupée / compacte, en JSON
     searchCanvas.cli.ts  adaptateur CLI : `nole search`
+  tables/
+    readTable.ts         noyau : toutes les lignes d'une table, valeurs lisibles
+    readTable.cli.ts     adaptateur CLI : `nole table`
   shell/
     cli.ts               le contrat d'une commande `nole …`, sans just-bash
     nole.ts              la commande `nole` et ses sous-commandes
@@ -87,7 +90,7 @@ Le tool `bash` exécute un script dans just-bash : un bash écrit en
 TypeScript, interpréteur et système de fichiers en mémoire, sans processus
 ni disque. S'y ajoute `nole`, dont chaque sous-commande est l'adaptateur CLI
 d'un noyau (`nole ls` → `listNodes`, `nole read` → `readNodes`,
-`nole search` → `searchCanvas`).
+`nole search` → `searchCanvas`, `nole table` → `readTable`).
 
 - **Lecture seule.** Le scope du tool n'a aucun droit d'écriture, et `nole`
   n'a aucune commande qui écrive.
@@ -125,8 +128,8 @@ ce découpage. Ce qu'elle attend d'un tool :
 - **Scope** : aujourd'hui Nolë a `canvasScope` (tout le canvas). Une étape
   d'automation recevra un scope réduit (`write: [nodeId]`), décidé par son
   profil et porté par le run ; le noyau des écritures vérifiera `canWriteNode`.
-- **CLI** : `nole ls`, `nole read` et `nole search` existent. À venir :
-  `nole table` (lignes en JSONL), et le canvas monté en fichiers
+- **CLI** : `nole ls`, `nole read`, `nole search` et `nole table` existent.
+  À venir : le canvas monté en fichiers
   (`/canvas/<frame>/<titre>.md`) pour que `grep -r` suffise.
 - **Écritures** (plus tard) : préconditions de version (refuser d'écraser un
   node modifié depuis sa lecture), clé d'idempotence = id du tool call (ce qui

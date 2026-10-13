@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
@@ -108,8 +108,41 @@ export function useCanvasBootstrap(
   }, [tableEdges]);
 
   // Une query par nodeData des nodes vivants (cf. useNodeDataSubscriptions).
-  const { isError: isNodeDatasError, error: nodeDatasError } =
-    useNodeDataSubscriptions(tableNodes);
+  const {
+    isLoading: isNodeDatasLoading,
+    loadedCount: loadedNodeDatas,
+    totalCount: totalNodeDatas,
+    isError: isNodeDatasError,
+    error: nodeDatasError,
+  } = useNodeDataSubscriptions(tableNodes);
+
+  // Le contenu est prêt quand le canvas, ses nodes, ses edges et le nodeData
+  // de chaque node ont répondu une première fois : l'écran de chargement le
+  // cache jusque-là, plutôt que de laisser les nodes se remplir un par un.
+  // Verrouillé par canvas : un node ajouté ensuite ouvre une query de plus,
+  // en vol le temps d'un aller-retour, et ne doit pas ramener l'écran.
+  const isContentLoading =
+    canvas === undefined ||
+    tableNodes === undefined ||
+    tableEdges === undefined ||
+    isNodeDatasLoading;
+  const [loadedCanvasId, setLoadedCanvasId] =
+    useState<Id<"canvases"> | null>(null);
+  const isContentReady = loadedCanvasId === canvasId || !isContentLoading;
+  useEffect(() => {
+    if (!isContentLoading) setLoadedCanvasId(canvasId);
+  }, [canvasId, isContentLoading]);
+
+  // Les étapes du chargement, pour la barre : le doc canvas, puis nodes et
+  // edges, puis le contenu des nodes, au prorata des queries qui ont répondu
+  // — la plus longue étape, et la seule qui avance par petits pas.
+  const loadProgress = isContentReady
+    ? 1
+    : canvas === undefined
+      ? 0.3
+      : tableNodes === undefined || tableEdges === undefined
+        ? 0.45
+        : 0.6 + 0.4 * (totalNodeDatas ? loadedNodeDatas / totalNodeDatas : 1);
 
   // Custom node templates : ceux référencés par le canvas (viewers de
   // canvases partagés inclus) + ceux du user (menu d'ajout, nouveaux nodes).
@@ -193,6 +226,8 @@ export function useCanvasBootstrap(
     canvas,
     flowNodes,
     flowEdges,
+    isContentReady,
+    loadProgress,
     isCanvasError,
     canvasError,
     isNodeDatasError,

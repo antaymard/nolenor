@@ -25,6 +25,9 @@ import CanvasWelcomeModal from "@/components/canvas/welcome/CanvasWelcomeModal";
 import { useOpenThreadFromUrl } from "@/hooks/useOpenThreadFromUrl";
 import { useEmptyCanvasOnboarding } from "@/hooks/useEmptyCanvasOnboarding";
 import EmptyCanvasWithNole from "@/components/canvas/onboarding/EmptyCanvasWithNole";
+import LoadingScreen from "@/components/loading/LoadingScreen";
+import DockSlideIn from "@/components/canvas/loading/DockSlideIn";
+import { useCanvasLoadingSession } from "@/hooks/useCanvasLoadingSession";
 // Mobile-only surface: don't ship it to desktop sessions.
 const MobileCanvas = lazy(() => import("@/components/mobile/MobileCanvas"));
 
@@ -120,11 +123,17 @@ function CanvasContent({
     canvas,
     flowNodes,
     flowEdges,
+    isContentReady,
+    loadProgress,
     isCanvasError,
     canvasError,
     isNodeDatasError,
     nodeDatasError,
   } = useCanvasBootstrap(canvasId, { isAuthenticated });
+
+  // Avant tout retour anticipé : l'écran de chargement de l'app passe la main
+  // à celui du canvas dès ce montage, écran d'erreur compris.
+  useCanvasLoadingSession(loadProgress);
 
   // Après `useCanvasBootstrap`, dont le nettoyage remet la conversation active
   // à zéro : ses effets passent avant ceux de ce hook.
@@ -141,6 +150,12 @@ function CanvasContent({
       Boolean(canvas) &&
       canvas?._permission !== "viewer",
   });
+
+  // L'UI arrive au fil du chargement, par-dessus son écran : les coins du
+  // haut avec le doc canvas, les docks du bas avec la structure (nodes et
+  // edges), le contenu en dernier.
+  const areDocksRevealed =
+    isContentReady || (flowNodes !== undefined && flowEdges !== undefined);
 
   if (isCanvasError && canvasError) {
     return (
@@ -162,21 +177,13 @@ function CanvasContent({
   }
 
   if (!canvas) {
-    return (
-      <div className="flex items-center justify-center h-full animate-appear">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
+    return <StandaloneLoadingScreen />;
   }
 
   // Canvas vide en cours de bascule vers `?onboarding=true` : ne pas peindre
   // un React Flow vide une frame — le param arrive par `replace` juste après.
   if (isRedirectPending) {
-    return (
-      <div className="flex items-center justify-center h-full animate-appear">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
+    return <StandaloneLoadingScreen />;
   }
 
   // Onboarding : pas de canvas, pas de toolbars — juste Nolë. Reste sous le
@@ -192,9 +199,9 @@ function CanvasContent({
 
   return (
     <div className="flex-1 w-full h-full overflow-hidden overscroll-none">
-      {/* Après le garde `!canvas` ci-dessus : on accueille sur un canvas
-          affiché, pas sur un spinner. */}
-      <CanvasWelcomeModal />
+      {/* Une fois le contenu chargé : on accueille sur un canvas affiché, pas
+          sur un écran de chargement. */}
+      {isContentReady ? <CanvasWelcomeModal /> : null}
       <SearchModale />
       <WindowsContainer />
       <CanvasFlow
@@ -205,13 +212,23 @@ function CanvasContent({
         canEdit={canvas._permission !== "viewer"}
         variant="desktop"
       >
+        {/* Au-dessus du renderer de React Flow (z 4, peint avant les
+            `children`), sous ses `<Panel>` (z 5) : l'écran cache le contenu
+            jusqu'à ce qu'il soit chargé, l'UI du haut apparaît par-dessus dès
+            que le doc canvas est là. Les docks du bas attendent la fin. */}
+        <LoadingScreen visible={!isContentReady} className="z-[4]" />
         {isAuthenticated ? (
           <Panel position="top-right">
             <TopRightToolbar />
           </Panel>
         ) : null}
         <Panel position="bottom-center">
-          <CanvasToolbar />
+          <DockSlideIn
+            revealed={areDocksRevealed}
+            delay={DOCK_DELAYS_MS.center}
+          >
+            <CanvasToolbar />
+          </DockSlideIn>
         </Panel>
         {isAuthenticated ? (
           <>
@@ -220,18 +237,28 @@ function CanvasContent({
                   tâches de Nolë empilées au-dessus) tient le coin. La
                   conversation étendue est un `absolute` ancré dans
                   `NoleCanvasPanel` : elle flotte au-dessus de l'island. */}
-              <NoleCanvasPanel>
-                <Omnibar canvasId={canvasId} />
-              </NoleCanvasPanel>
+              <DockSlideIn
+                revealed={areDocksRevealed}
+                delay={DOCK_DELAYS_MS.left}
+              >
+                <NoleCanvasPanel>
+                  <Omnibar canvasId={canvasId} />
+                </NoleCanvasPanel>
+              </DockSlideIn>
             </Panel>
             {/* Le miroir du coin gauche : le bouton des repères reste à
                 l'extrême droite, les windows minimisées le prolongent vers le
                 centre. */}
             <Panel position="bottom-right">
-              <div className="flex items-center gap-2">
-                <MinimizedDock />
-                <CanvasDock />
-              </div>
+              <DockSlideIn
+                revealed={areDocksRevealed}
+                delay={DOCK_DELAYS_MS.right}
+              >
+                <div className="flex items-center gap-2">
+                  <MinimizedDock />
+                  <CanvasDock />
+                </div>
+              </DockSlideIn>
             </Panel>
           </>
         ) : (
@@ -240,6 +267,22 @@ function CanvasContent({
           </Panel>
         )}
       </CanvasFlow>
+    </div>
+  );
+}
+
+/** Les docks du bas montent de gauche à droite. */
+const DOCK_DELAYS_MS = { left: 80, center: 140, right: 200 } as const;
+
+/**
+ * L'écran de chargement avant le React Flow (doc canvas pas encore là, ou
+ * bascule vers l'onboarding). Même écran que celui du React Flow, qui le
+ * remplace sans que rien ne bouge.
+ */
+function StandaloneLoadingScreen() {
+  return (
+    <div className="relative h-full w-full">
+      <LoadingScreen visible />
     </div>
   );
 }

@@ -11,10 +11,14 @@ import {
 import { readStoredImages, type StoredImage } from "../../lib/storedImages";
 import { getTranscribableSourceKey } from "../../lib/transcriptChunks";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
-import type { ToolRunCtx } from "../runtime";
+import { mapConcurrently, type ToolRunCtx } from "../runtime";
 import type { ToolScope } from "../scope";
 import type { GraphNode } from "./canvasGraph";
-import { readNodeContents, readNodeTitles } from "./nodeContents";
+import {
+  readNodeContents,
+  readNodeTitles,
+  type NodeContent,
+} from "./nodeContents";
 
 /**
  * Noyau : lire des nodes — leur contenu brut et tout ce qu'il faut pour le
@@ -233,66 +237,75 @@ export async function readNodes(
     return { sources, targets };
   };
 
-  const nodes = await Promise.all(
-    contents.map(async (content): Promise<ReadNode> => {
-      const connections = connectionsOf(content.id);
-      if (!content.ok) {
-        return {
-          id: content.id,
-          ok: false,
-          type: graphNodeById.get(content.id)?.type ?? "unknown",
-          error: content.error,
-          ...connections,
-        };
-      }
-      const graphNode = graphNodeById.get(content.id)!;
-      const { nodeData } = content;
+  // Un id demandé deux fois n'est lu qu'une fois (médias compris) ; les
+  // lectures de médias, une requête par node, sont bornées en concurrence.
+  const uniqueContents = [
+    ...new Map(contents.map((content) => [content.id, content])).values(),
+  ];
+  const readById = new Map<string, ReadNode>();
+  await mapConcurrently(uniqueContents, async (content) => {
+    readById.set(content.id, await readOne(content));
+  });
+  const nodes = contents.map((content) => readById.get(content.id)!);
+
+  async function readOne(content: NodeContent): Promise<ReadNode> {
+    const connections = connectionsOf(content.id);
+    if (!content.ok) {
       return {
         id: content.id,
-        ok: true,
-        type: content.type,
-        title: content.title,
-        x: graphNode.x,
-        y: graphNode.y,
-        width: graphNode.width,
-        height: graphNode.height,
-        frameId: graphNode.frameId,
-        color: graphNode.color,
-        nodeData,
-        template: content.template,
+        ok: false,
+        type: graphNodeById.get(content.id)?.type ?? "unknown",
+        error: content.error,
         ...connections,
-        ...(content.type === "frame" && {
-          children: [...(childrenByFrameId.get(content.id) ?? [])]
-            .sort((a, b) => a.y - b.y || a.x - b.x)
-            .map((child) => ({ ...refOf(child.id)!, x: child.x, y: child.y })),
-        }),
-        ...(content.type === "image" && {
-          image: {
-            stored: readStoredImages(nodeData.values),
-            chunks: (
-              await ctx.runQuery(
-                internal.wrappers.searchableChunkWrappers.listByNodeDataId,
-                { nodeDataId: nodeData._id },
-              )
-            ).filter((chunk) => chunk.chunkType === "node"),
-          },
-        }),
-        ...(content.type === "pdf" && {
-          pdf: {
-            files:
-              (nodeData.values.files as
-                | Array<{ url?: string; filename?: string; mimeType?: string }>
-                | undefined) ?? [],
-            pageChunks: await ctx.runQuery(
-              internal.wrappers.searchableChunkWrappers.listPdfPagesByNodeDataId,
-              { nodeDataId: nodeData._id },
-            ),
-          },
-        }),
-        ...(await readTranscript(ctx, nodeData)),
       };
-    }),
-  );
+    }
+    const graphNode = graphNodeById.get(content.id)!;
+    const { nodeData } = content;
+    return {
+      id: content.id,
+      ok: true,
+      type: content.type,
+      title: content.title,
+      x: graphNode.x,
+      y: graphNode.y,
+      width: graphNode.width,
+      height: graphNode.height,
+      frameId: graphNode.frameId,
+      color: graphNode.color,
+      nodeData,
+      template: content.template,
+      ...connections,
+      ...(content.type === "frame" && {
+        children: [...(childrenByFrameId.get(content.id) ?? [])]
+          .sort((a, b) => a.y - b.y || a.x - b.x)
+          .map((child) => ({ ...refOf(child.id)!, x: child.x, y: child.y })),
+      }),
+      ...(content.type === "image" && {
+        image: {
+          stored: readStoredImages(nodeData.values),
+          chunks: (
+            await ctx.runQuery(
+              internal.wrappers.searchableChunkWrappers.listByNodeDataId,
+              { nodeDataId: nodeData._id },
+            )
+          ).filter((chunk) => chunk.chunkType === "node"),
+        },
+      }),
+      ...(content.type === "pdf" && {
+        pdf: {
+          files:
+            (nodeData.values.files as
+              | Array<{ url?: string; filename?: string; mimeType?: string }>
+              | undefined) ?? [],
+          pageChunks: await ctx.runQuery(
+            internal.wrappers.searchableChunkWrappers.listPdfPagesByNodeDataId,
+            { nodeDataId: nodeData._id },
+          ),
+        },
+      }),
+      ...(await readTranscript(ctx, nodeData)),
+    };
+  }
 
   const templates: Doc<"nodeTemplates">[] = [];
   for (const content of contents) {

@@ -78,9 +78,15 @@ export const nodeReadCommand: CliCommand = {
     if ("error" in parsed) return fail(`nole read: ${parsed.error}`, 2);
     if (parsed.flags.has("help")) return ok(HELP);
 
-    const nodeIds = parsed.positionals.flatMap((arg) =>
-      arg === "-" ? idsFromStdin(stdin) : [arg],
-    );
+    // Dédoublonnés : `nole search … | nole read -` donne un même node une
+    // fois par extrait trouvé.
+    const nodeIds = [
+      ...new Set(
+        parsed.positionals.flatMap((arg) =>
+          arg === "-" ? idsFromStdin(stdin) : [arg],
+        ),
+      ),
+    ];
     if (nodeIds.length === 0) {
       return fail(
         `nole read: no node id (pass ids, or "-" to read them from stdin)`,

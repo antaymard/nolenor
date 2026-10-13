@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import type { Doc, Id } from "../../_generated/dataModel";
+import type { Doc } from "../../_generated/dataModel";
 import { internalQuery, type QueryCtx } from "../../_generated/server";
 import errors from "../../config/errorsConfig";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
@@ -7,6 +7,7 @@ import * as NodeModels from "../../models/nodeModels";
 import {
   CONTENT_BATCH_SIZE,
   inBatches,
+  mapConcurrently,
   type ToolRunCtx,
 } from "../runtime";
 import { canReadNode, vToolScope, type ToolScope } from "../scope";
@@ -94,25 +95,15 @@ export const titles = internalQuery({
     ctx,
     { scope, nodeIds },
   ): Promise<
-    Array<{
-      id: string;
-      title: string | null;
-      templateId: Id<"nodeTemplates"> | null;
-      updatedAt: number | null;
-    }>
+    Array<{ id: string; title: string | null; updatedAt: number | null }>
   > => {
     assertBatch(nodeIds);
     return Promise.all(
       nodeIds.map(async (id) => {
         const content = await readContent(ctx, scope, id);
         return content.ok
-          ? {
-              id,
-              title: content.title,
-              templateId: content.template?._id ?? null,
-              updatedAt: content.nodeData.updatedAt,
-            }
-          : { id, title: null, templateId: null, updatedAt: null };
+          ? { id, title: content.title, updatedAt: content.nodeData.updatedAt }
+          : { id, title: null, updatedAt: null };
       }),
     );
   },
@@ -124,50 +115,41 @@ export async function readNodeContents(
   scope: ToolScope,
   nodeIds: readonly string[],
 ): Promise<NodeContent[]> {
-  const unique = [...new Set(nodeIds)];
   const byId = new Map<string, NodeContent>();
-  await Promise.all(
-    inBatches(unique).map(async (batch) => {
-      for (const content of await ctx.runQuery(
-        internal.tools.nodes.nodeContents.contents,
-        { scope, nodeIds: batch },
-      )) {
-        byId.set(content.id, content);
-      }
-    }),
-  );
+  await mapConcurrently(inBatches([...new Set(nodeIds)]), async (batch) => {
+    for (const content of await ctx.runQuery(
+      internal.tools.nodes.nodeContents.contents,
+      { scope, nodeIds: batch },
+    )) {
+      byId.set(content.id, content);
+    }
+  });
   return nodeIds.map((id) => byId.get(id)!);
 }
 
 export type NodeTitle = {
   title: string | null;
-  templateId: Id<"nodeTemplates"> | null;
   /** Dernière modification du contenu (pas d'un déplacement ni d'une couleur). */
   updatedAt: number | null;
 };
 
 /**
- * Le titre de ces nodes (`null` : introuvable dans le scope), l'id du
- * template de ceux qui en ont un, et la date de dernière modification de
- * leur contenu.
+ * Le titre de ces nodes (`null` : introuvable dans le scope) et la date de
+ * dernière modification de leur contenu.
  */
 export async function readNodeTitles(
   ctx: ToolRunCtx,
   scope: ToolScope,
   nodeIds: Iterable<string>,
-): Promise<
-  Map<string, NodeTitle>
-> {
+): Promise<Map<string, NodeTitle>> {
   const result = new Map<string, NodeTitle>();
-  await Promise.all(
-    inBatches([...new Set(nodeIds)]).map(async (batch) => {
-      for (const { id, ...title } of await ctx.runQuery(
-        internal.tools.nodes.nodeContents.titles,
-        { scope, nodeIds: batch },
-      )) {
-        result.set(id, title);
-      }
-    }),
-  );
+  await mapConcurrently(inBatches([...new Set(nodeIds)]), async (batch) => {
+    for (const { id, ...title } of await ctx.runQuery(
+      internal.tools.nodes.nodeContents.titles,
+      { scope, nodeIds: batch },
+    )) {
+      result.set(id, title);
+    }
+  });
   return result;
 }

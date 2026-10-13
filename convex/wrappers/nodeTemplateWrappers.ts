@@ -11,16 +11,6 @@ export const getTemplate = internalQuery({
   },
 });
 
-export const getTemplates = internalQuery({
-  args: { templateIds: v.array(v.id("nodeTemplates")) },
-  handler: async (ctx, args) => {
-    const docs = await Promise.all(
-      args.templateIds.map((id) => ctx.db.get(id)),
-    );
-    return docs.filter((d) => d !== null);
-  },
-});
-
 // Catalogue des templates d'un user (system prompt de l'agent).
 export const listByCreator = internalQuery({
   args: {

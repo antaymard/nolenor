@@ -1,24 +1,12 @@
-/// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
-import schema from "../../schema";
-import { modules } from "../../test.setup";
-import type { ToolRunCtx } from "../runtime";
-import { canvasScope } from "../scope";
+import { setupTools } from "../testing.helpers";
 import { readNodes } from "./readNodes";
 import { renderReadNodes } from "./readNodes.xml";
 
 /** Un PDF indexé et une image indexée, insérés directement. */
 async function setup() {
-  const t = convexTest(schema, modules);
-  const { userId, canvasId } = await t.run(async (ctx) => {
-    const userId = await ctx.db.insert("users", {});
-    const canvasId = await ctx.db.insert("canvases", {
-      creatorId: userId,
-      name: "Canvas",
-      updatedAt: Date.now(),
-      isPublic: false,
-    });
+  const { t, canvasId, scope, run } = await setupTools();
+  await t.run(async (ctx) => {
     const add = async (
       id: string,
       type: "pdf" | "image",
@@ -69,15 +57,9 @@ async function setup() {
       { images: [{ url: "https://img.test/a.png", filename: "a.png" }] },
       { chunkType: "node", text: "A cat" },
     );
-    return { userId, canvasId };
   });
-  const runCtx = {
-    runQuery: t.query,
-    runMutation: t.mutation,
-    runAction: t.action,
-  } as unknown as ToolRunCtx;
   return (nodeIds: string[], isMultimodal: boolean) =>
-    readNodes(runCtx, canvasScope({ userId, canvasId }), nodeIds).then(
+    readNodes(run, scope, nodeIds).then(
       (result) => renderReadNodes(result, { withPosition: true, isMultimodal }),
     );
 }

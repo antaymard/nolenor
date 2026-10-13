@@ -1,6 +1,4 @@
-import { v, type Infer } from "convex/values";
 import { internal } from "../../_generated/api";
-import type { Doc, Id } from "../../_generated/dataModel";
 import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
 import type { ToolRunCtx } from "../runtime";
 import type { ToolScope } from "../scope";
@@ -19,30 +17,17 @@ import { readNodeTitles } from "./nodeContents";
 /** Rayon du filtre `near`, en unités du canvas. */
 export const NEAR_RADIUS = 500;
 
-export const vListNodesFilters = v.object({
-  types: v.optional(v.array(v.string())),
+export type ListNodesFilters = {
+  types?: string[];
   /** Les nodes reliés à celui-ci par une edge, dans ce sens. */
-  linkedTo: v.optional(
-    v.object({
-      nodeId: v.string(),
-      direction: v.union(
-        v.literal("input"),
-        v.literal("output"),
-        v.literal("both"),
-      ),
-    }),
-  ),
+  linkedTo?: { nodeId: string; direction: "input" | "output" | "both" };
   /** Position monde dans ce rectangle (coin haut-gauche, coin bas-droit). */
-  area: v.optional(
-    v.object({ x1: v.number(), y1: v.number(), x2: v.number(), y2: v.number() }),
-  ),
+  area?: { x1: number; y1: number; x2: number; y2: number };
   /** Position monde à moins de `NEAR_RADIUS` de ce node. */
-  near: v.optional(v.object({ nodeId: v.string() })),
+  near?: { nodeId: string };
   /** Les enfants directs de cette frame. */
-  frameId: v.optional(v.string()),
-});
-
-export type ListNodesFilters = Infer<typeof vListNodesFilters>;
+  frameId?: string;
+};
 
 export type NodeSummary = {
   id: string;
@@ -60,12 +45,7 @@ export type NodeSummary = {
 };
 
 export type ListNodesResult =
-  | {
-      ok: true;
-      nodes: NodeSummary[];
-      /** Les templates des custom nodes listés (titres, schémas). */
-      templates: Doc<"nodeTemplates">[];
-    }
+  | { ok: true; nodes: NodeSummary[] }
   | { ok: false; error: string };
 
 type Match = Omit<NodeSummary, "title" | "updatedAt">;
@@ -173,21 +153,6 @@ export async function listNodes(
     matched.nodes.map((node) => node.id),
   );
 
-  // Dans l'ordre des nodes listés : c'est l'ordre des schémas rendus.
-  const templateIds: Id<"nodeTemplates">[] = [];
-  for (const node of matched.nodes) {
-    const templateId = titles.get(node.id)?.templateId;
-    if (templateId && !templateIds.includes(templateId)) {
-      templateIds.push(templateId);
-    }
-  }
-  const templates =
-    templateIds.length > 0
-      ? await ctx.runQuery(internal.wrappers.nodeTemplateWrappers.getTemplates, {
-          templateIds,
-        })
-      : [];
-
   // Le plus récemment modifié d'abord : c'est en général ce sur quoi
   // l'utilisateur travaille, et ce qu'un plafond doit garder. À égalité,
   // l'ordre du canvas (création) ; le tri est stable.
@@ -199,5 +164,5 @@ export async function listNodes(
     }))
     .sort((a, b) => (b.updatedAt ?? -1) - (a.updatedAt ?? -1));
 
-  return { ok: true, nodes, templates };
+  return { ok: true, nodes };
 }

@@ -6,6 +6,7 @@ import {
   tsvField,
   type CliCommand,
 } from "../shell/cli";
+import { nodeTypeValues } from "../../schemas/nodeTypeSchema";
 import { listNodes, type ListNodesFilters } from "./listNodes";
 
 /**
@@ -77,6 +78,15 @@ export const nodeLsCommand: CliCommand = {
       .flatMap((value) => value.split(","))
       .map((type) => type.trim())
       .filter(Boolean);
+    const unknownType = types.find(
+      (type) => !(nodeTypeValues as readonly string[]).includes(type),
+    );
+    if (unknownType) {
+      return fail(
+        `nole ls: unknown type "${unknownType}" (${nodeTypeValues.join(", ")})`,
+        2,
+      );
+    }
     if (types.length > 0) filters.types = types;
 
     const frame = option(parsed, "frame");

@@ -1,21 +1,9 @@
-/// <reference types="vite/client" />
-import { createRequire } from "node:module";
-import { convexTest } from "convex-test";
 import { beforeAll, describe, expect, test } from "vitest";
-import { attachToolCtx } from "../../ia/tools/toolHelpers";
-import schema from "../../schema";
-import { modules } from "../../test.setup";
-import type { ToolRunCtx } from "../runtime";
-import { canvasScope, type ToolScope } from "../scope";
-import bashTool from "../shell/bash.agent";
+import type { ToolScope } from "../scope";
+import { enableRequire, setupTools, stdout } from "../testing.helpers";
 import { groupByNode, searchCanvas } from "./searchCanvas";
 
-// just-bash est chargé par `globalThis.require` (cf. shell/shell.ts).
-beforeAll(() => {
-  (globalThis as { require?: unknown }).require = createRequire(
-    import.meta.url,
-  );
-});
+beforeAll(enableRequire);
 
 /**
  * Des nodes et leurs chunks, insérés directement : l'indexation réelle tourne
@@ -23,15 +11,8 @@ beforeAll(() => {
  * sur chaque chunk.
  */
 async function setup() {
-  const t = convexTest(schema, modules);
-  const { userId, canvasId } = await t.run(async (ctx) => {
-    const userId = await ctx.db.insert("users", {});
-    const canvasId = await ctx.db.insert("canvases", {
-      creatorId: userId,
-      name: "Canvas",
-      updatedAt: Date.now(),
-      isPublic: false,
-    });
+  const { t, canvasId, scope, run, bash } = await setupTools();
+  await t.run(async (ctx) => {
     const nodes = [
       ["N1", "blocknote", "Budget Q3", ["The marketing budget is 40k.", "Budget cuts and hiring."]],
       ["N2", "blocknote", "Roadmap", ["Ship the CLI before the budget review."]],
@@ -70,32 +51,14 @@ async function setup() {
         });
       }
     }
-    return { userId, canvasId };
   });
-
-  const runCtx = {
-    runQuery: t.query,
-    runMutation: t.mutation,
-    runAction: t.action,
-  } as unknown as ToolRunCtx;
-  const tool = attachToolCtx(
-    bashTool({ threadCtx: { authUserId: userId, canvasId } }),
-    runCtx as never,
-  );
   return {
-    scope: canvasScope({ userId, canvasId }),
+    scope,
     search: (scope: ToolScope, keyword: string) =>
-      searchCanvas(runCtx, scope, { keyword, limit: 20 }),
-    bash: async (script: string) =>
-      (await tool.execute!({ explanation: "test", script } as never, {
-        toolCallId: "call",
-        messages: [],
-      })) as string,
+      searchCanvas(run, scope, { keyword, limit: 20 }),
+    bash,
   };
 }
-
-const stdout = (output: string) =>
-  /<stdout>\n([\s\S]*?)\n<\/stdout>/.exec(output)?.[1] ?? "";
 
 describe("searchCanvas", () => {
   test("extraits centrés sur le terme, regroupés par node", async () => {

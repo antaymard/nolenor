@@ -36,7 +36,7 @@ import type {
  * et non `<node>` : imbriquer deux `<node>` rendrait la sortie ambiguë à
  * parser.
  */
-export function buildFrameNodeBody(
+function buildFrameNodeBody(
   children: Array<NodeRef & { x: number; y: number }>,
   withPosition: boolean,
 ): string {
@@ -60,7 +60,7 @@ export function buildFrameNodeBody(
 
 // Les hints nomment les options de `nole read` : c'est le seul chemin de
 // lecture (cf. readNodes.cli.ts).
-export const PDF_HINTS = {
+const PDF_HINTS = {
   toc: "Read the full markdown of specific pages with: nole read --pages 3,4 <nodeId>.",
   notIndexed:
     "PDF content not yet indexed (Mistral OCR pending or failed). Files are listed above; retry later.",
@@ -70,7 +70,7 @@ export const PDF_HINTS = {
     "Output truncated: too many pages or characters requested. Ask for fewer pages.",
 } as const;
 
-export const IMAGE_HINTS = {
+const IMAGE_HINTS = {
   notIndexed:
     "Image content not yet indexed. Raw image URLs are listed below; use view_image if needed.",
   // Une fois en trailer, pas par node : le texte est le même pour tous.
@@ -85,11 +85,11 @@ export const IMAGE_HINTS = {
     `. Call view_image to see the pixels (~800 tokens/step each).`,
 } as const;
 
-export const TABLE_DEFAULT_ROW_LIMIT = 50;
-export const TABLE_MAX_ROW_LIMIT = 200;
-export const TABLE_MAX_CHARS = 60_000;
+const TABLE_DEFAULT_ROW_LIMIT = 50;
+const TABLE_MAX_ROW_LIMIT = 200;
+const TABLE_MAX_CHARS = 60_000;
 
-export const TABLE_HINTS = {
+const TABLE_HINTS = {
   defaultCap: (totalRows: number, displayedCount: number) =>
     `Showing ${displayedCount} of ${totalRows} rows (default cap: ${TABLE_DEFAULT_ROW_LIMIT}). Every row, for jq/awk: nole table <nodeId>. A slice: nole read --rows <offset>:<limit> <nodeId>, or --row-ids <id,id…>.`,
   hardCap: (totalRows: number, displayedCount: number) =>
@@ -186,7 +186,7 @@ function renderPdfPagesBlock(
   return `${pagesXml}${truncatedHint}`;
 }
 
-export function buildPdfNodeBody(opts: {
+function buildPdfNodeBody(opts: {
   files: PdfFile[];
   pageChunks: PdfPageChunk[];
   requestedPages: number[] | undefined;
@@ -204,7 +204,7 @@ export function buildPdfNodeBody(opts: {
   return `${filesXml}\n${renderPdfPagesBlock(opts.pageChunks, opts.requestedPages)}`;
 }
 
-export function getPdfTotalPages(pageChunks: PdfPageChunk[]): number | undefined {
+function getPdfTotalPages(pageChunks: PdfPageChunk[]): number | undefined {
   for (const chunk of pageChunks) {
     if (typeof chunk.totalPages === "number") return chunk.totalPages;
   }
@@ -249,7 +249,7 @@ function renderTableColumnsBlock(columns: TableColumnLite[]): string {
   return `<tableColumns>\n${columnXml.join("\n")}\n</tableColumns>`;
 }
 
-export async function buildTableNodeBody(opts: {
+async function buildTableNodeBody(opts: {
   tableValue: unknown;
   rowSlice: TableRowSliceInput | undefined;
   nodeInfoById: Map<string, { type: string; title: string }>;
@@ -394,40 +394,27 @@ function parseStructuredImageMetadata(
 }
 
 /**
- * Le bloc d'une image, avec ou sans ses pixels joints.
- *
- * `attached` ne garde que `VISIBLE_TEXT` : le modèle voit l'image, donc
- * `SUMMARY`, `KEY_FACTS` et `SEARCH_TERMS` ne lui apprennent plus rien — ils
- * décrivent ce qu'il a sous les yeux. `VISIBLE_TEXT`, lui, reste : c'est une
- * transcription verbatim produite par une passe mono-image dédiée, et un modèle
- * qui regarde une vignette parmi quatre lit moins bien un graphe, un tableau ou
- * une UI dense. C'est aussi ce qui autorise de réduire les pixels envoyés
- * (cf. `lib/imageTransform.ts`).
+ * Le bloc d'une image : sa description indexée (les pixels passent par
+ * view_image).
  */
-function formatStructuredImageBlock(
-  image: StructuredImageMetadata,
-  { attached = false }: { attached?: boolean } = {},
-): string {
+function formatStructuredImageBlock(image: StructuredImageMetadata): string {
   const attrs = [
     `url="${escapeXmlAttribute(image.url)}"`,
     `filename="${escapeXmlAttribute(image.filename)}"`,
     `order="${String(image.order)}"`,
-    ...(attached ? [`attached="true"`] : []),
   ].join(" ");
 
   const searchTerms =
     image.searchTerms.length > 0 ? image.searchTerms.join(", ") : "NONE";
 
-  const body = attached
-    ? `VISIBLE_TEXT: ${escapeXmlText(image.visibleText)}`
-    : [
-        `TITLE: ${escapeXmlText(image.title)}`,
-        `IMAGE_TYPE: ${escapeXmlText(image.imageType)}`,
-        `SUMMARY: ${escapeXmlText(image.summary)}`,
-        `VISIBLE_TEXT: ${escapeXmlText(image.visibleText)}`,
-        `KEY_FACTS: ${escapeXmlText(image.keyFacts)}`,
-        `SEARCH_TERMS: ${escapeXmlText(searchTerms)}`,
-      ].join("\n");
+  const body = [
+    `TITLE: ${escapeXmlText(image.title)}`,
+    `IMAGE_TYPE: ${escapeXmlText(image.imageType)}`,
+    `SUMMARY: ${escapeXmlText(image.summary)}`,
+    `VISIBLE_TEXT: ${escapeXmlText(image.visibleText)}`,
+    `KEY_FACTS: ${escapeXmlText(image.keyFacts)}`,
+    `SEARCH_TERMS: ${escapeXmlText(searchTerms)}`,
+  ].join("\n");
 
   return `<image ${attrs}>\n${body}\n</image>`;
 }
@@ -440,7 +427,7 @@ function formatStructuredImageBlock(
  * `imageIncludeReferences` n'est rendu que s'il vaut `false` : l'inclusion est
  * le défaut, et le silence suffit pour le cas nominal.
  */
-export function renderImageGenerationValues(values: Record<string, unknown>): string {
+function renderImageGenerationValues(values: Record<string, unknown>): string {
   const parts: string[] = [];
 
   const prompt = values.imagePrompt;
@@ -456,20 +443,19 @@ export function renderImageGenerationValues(values: Record<string, unknown>): st
   return parts.join("\n");
 }
 
-export function buildImageNodeBody(
+function buildImageNodeBody(
   chunks: Array<{
     order: number;
     text: string;
     metadata?: Record<string, unknown>;
   }>,
-  { attached = false }: { attached?: boolean } = {},
 ): string | null {
   const parts = chunks
     .sort((a, b) => a.order - b.order)
     .map((chunk) => {
       const image = parseStructuredImageMetadata(chunk.metadata);
       if (image) {
-        return formatStructuredImageBlock(image, { attached });
+        return formatStructuredImageBlock(image);
       }
 
       const trimmedText = chunk.text.trim();

@@ -28,7 +28,11 @@ export const bashToolConfig: ToolConfig = {
   mcp: { access: "read" },
 };
 
-const DESCRIPTION = `Run a bash script in a sandboxed virtual shell: this is how you list, search and read the canvas, one node or hundreds. Read-only: nothing you do here changes the canvas — use the other tools to write.
+const description = (multimodal: boolean) => {
+  const images = multimodal
+    ? "To see an image's pixels, use view_image: the shell only gives its indexed description. "
+    : "";
+  return `Run a bash script in a sandboxed virtual shell: this is how you list, search and read the canvas, one node or hundreds. Read-only: nothing you do here changes the canvas — use the other tools to write.
 
 The \`nole\` command reads the current canvas:
 - \`nole ls [--type T] [--frame ID] [--linked-to ID] [--near ID] [--format tsv|jsonl|ids]\`: every matching node, most recently edited first, one line each (id, type, title, x, y, frameId, color, updatedAt), no limit.
@@ -39,7 +43,7 @@ The \`nole\` command reads the current canvas:
 
 Standard tools are available: grep, sed, awk, jq, sort, uniq, head, tail, wc, cut, tr, xargs, diff… Pipes, redirections, loops, variables and files under /tmp all work within one call. Each call starts a fresh shell: files and variables do not survive to the next call, so do the whole job in one script. No network, no Python.
 
-To see an image's pixels, use view_image: the shell only gives its indexed description. Output is cut at ${MAX_OUTPUT_CHARS} characters: filter (grep, head) rather than printing everything, and read a long document in parts (e.g. \`nole read ID | sed -n '1,300p'\`, then the next lines).
+${images}Output is cut at ${MAX_OUTPUT_CHARS} characters: filter (grep, head) rather than printing everything, and read a long document in parts (e.g. \`nole read ID | sed -n '1,300p'\`, then the next lines).
 
 Examples:
 - \`nole ls --type blocknote --format ids | nole read - | grep -n -i "budget"\`
@@ -47,6 +51,7 @@ Examples:
 - \`nole search budget --format ids | nole read - | grep -n "40k"\`
 - \`nole table T12ab --format jsonl | jq -s 'group_by(.Status) | map({(.[0].Status): length}) | add'\`
 - \`nole ls | cut -f2 | sort | uniq -c\``;
+};
 
 /**
  * Le texte que lit le modèle : stdout, stderr s'il y en a, le code s'il est
@@ -93,7 +98,7 @@ export default function bashTool({
   };
 
   return createTool({
-    description: DESCRIPTION,
+    description: description(isMultimodal),
     inputSchema: z.object({
       explanation: EXPLANATION_FIELD,
       script: z.string().min(1).describe("The bash script to run."),

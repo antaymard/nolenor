@@ -6,25 +6,26 @@ Remplace progressivement `ia/tools/`. Un tool y est découpé en **un noyau** et
 
 | Interface | Pour qui | Adaptateur |
 |---|---|---|
-| Tool JSON (AI SDK) | Nolë, worker, et le MCP qui le réexpose | `*.agent.ts` |
 | CLI `nole …` | le tool `bash` (Nolë, worker, MCP) | `*.cli.ts` |
-| Tool scopé (à venir) | une étape d'automation guidée | même `*.agent.ts`, autre scope |
+| Tool JSON (AI SDK) | Nolë, worker, et le MCP qui le réexpose | `*.agent.ts` |
+| Tool scopé (à venir) | une étape d'automation guidée | un `*.agent.ts`, autre scope |
 
-Une capacité n'a pas forcément les deux. Lister, chercher et lire n'existent
-plus qu'en CLI : `list_nodes`, `search_canvas` puis `read_nodes` ont été
-retirés, Nolë passant déjà par le shell (le MCP expose `bash`). Reste en JSON
-ce que le shell ne sait pas faire : `view_image` (les pixels d'une image) et
-les écritures.
+Aujourd'hui, toute la lecture passe par le CLI : lister, chercher, lire, les
+tables (`list_nodes`, `search_canvas` et `read_nodes` ont été retirés, le MCP
+expose `bash`). Le seul tool JSON de `tools/` est `bash` lui-même. Restent dans
+`ia/tools/` ce que le shell ne sait pas faire : `view_image` (les pixels d'une
+image) et les écritures, à migrer ici quand on y touchera.
 
 ## Organisation
 
 ```
 tools/
   scope.ts               qui peut lire / écrire quoi — appliqué par le noyau
-  runtime.ts             le ctx d'un noyau, la taille des lots de lecture
+  runtime.ts             le ctx d'un noyau, lots et concurrence des lectures
+  testing.helpers.ts     setup commun des tests (canvas, ctx, shell, nodes)
   nodes/
     canvasGraph.ts       la structure d'un canvas (nodes, edges), sans contenu
-    nodeContents.ts      les contenus (nodeData, template, titre), par lots
+    nodeContents.ts      les contenus (nodeData, template), les titres, par lots
     listNodes.ts         noyau de `nole ls` : filtrage, données typées
     readNodes.ts         noyau de `nole read` : contenus, connexions, médias
     readNodes.xml.ts     rendu XML de `nole read` (plafonds, hints)
@@ -44,11 +45,11 @@ tools/
     bash.agent.ts        le tool `bash`
 ```
 
-Un domaine par dossier (`nodes/`, puis `tables/`, `search/`…). Les
-adaptateurs et leurs rendus portent un double suffixe (`.agent.ts`,
-`.xml.ts`, plus tard `.cli.ts`) : Convex ignore les fichiers à plusieurs
-points comme modules de fonctions, ils ne sont que bundlés par qui les
-importe.
+Un domaine par dossier (`nodes/`, `search/`, `tables/`, `shell/`). Les
+adaptateurs, leurs rendus et les helpers de test portent un double suffixe
+(`.cli.ts`, `.agent.ts`, `.xml.ts`, `.helpers.ts`) : Convex ignore les fichiers
+à plusieurs points comme modules de fonctions, ils ne sont que bundlés par qui
+les importe.
 
 ## Les règles
 
@@ -69,7 +70,9 @@ transactions dont la taille ne dépend pas du canvas : la structure (nodes,
 edges : petits documents) d'un bloc, les contenus par lots de 10 au plus
 (un document pèse jusqu'à 1 Mio, une transaction en lit au plus 16), les
 médias node par node. Jamais « tous les contenus du canvas » dans une même
-requête.
+requête, et jamais plus de `MAX_CONCURRENT_READS` requêtes à la fois
+(`mapConcurrently`) : la taille du canvas ne doit changer ni la taille ni le
+nombre des transactions en vol.
 
 **L'adaptateur ne fait que traduire.** Entrée de son interface → arguments du
 noyau (y compris les manies du modèle : un filtre vide veut dire « pas de
@@ -81,11 +84,12 @@ exactement la même sortie que l'ancien, vérifié en comparant les deux sur un
 même canvas avant de supprimer l'ancien. Un écart n'est admis que s'il corrige
 un bug, et il est nommé dans le commit.
 
-Pour comparer un tool qui lit des blocknotes en test : enregistrer les
-composants `prosemirrorSync` et `debouncer` (cf. `readNodes.test.ts`), et
-rendre `require` disponible (`globalThis.require = createRequire(...)`) pour
-que jsdom se charge — sans ça, les deux versions échouent pareil et la
-comparaison ne prouve rien.
+**Tests.** `testing.helpers.ts` monte un canvas avec les composants que
+demande la lecture d'un blocknote (`prosemirrorSync`, `debouncer`), le ctx
+d'un noyau et le tool `bash` ; `enableRequire` rend `require` disponible pour
+que just-bash et jsdom se chargent. Sans ça, deux versions comparées échouent
+pareil et la comparaison ne prouve rien : vérifier que la sortie contient
+bien le contenu attendu.
 
 ## Le shell (`shell/`)
 
@@ -112,7 +116,7 @@ d'un noyau (`nole ls` → `listNodes`, `nole read` → `readNodes`,
 
 ## Contrat avec la harness
 
-Un adaptateur agent s'inscrit dans le registre `ia/tools/index.ts` comme
+Un adaptateur agent (aujourd'hui `bash`) s'inscrit dans le registre `ia/tools/index.ts` comme
 n'importe quel tool (`config` + `factory`), donc la harness n'a rien à savoir de
 ce découpage. Ce qu'elle attend d'un tool :
 

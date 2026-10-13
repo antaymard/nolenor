@@ -1,22 +1,13 @@
-/// <reference types="vite/client" />
-import { createRequire } from "node:module";
-import { convexTest } from "convex-test";
 import { beforeAll, describe, expect, test } from "vitest";
-import { internal } from "../../_generated/api";
-import { attachToolCtx } from "../../ia/tools/toolHelpers";
-import schema from "../../schema";
-import { modules } from "../../test.setup";
-import type { ToolRunCtx } from "../runtime";
-import { canvasScope } from "../scope";
-import bashTool from "../shell/bash.agent";
+import {
+  createNode,
+  enableRequire,
+  setupTools,
+  stdout,
+} from "../testing.helpers";
 import { readTable } from "./readTable";
 
-// just-bash est chargé par `globalThis.require` (cf. shell/shell.ts).
-beforeAll(() => {
-  (globalThis as { require?: unknown }).require = createRequire(
-    import.meta.url,
-  );
-});
+beforeAll(enableRequire);
 
 const richText = (text: string) => [
   {
@@ -30,32 +21,11 @@ const richText = (text: string) => [
 
 /** Une table avec les 8 types de colonnes, et un lien qui n'est pas une table. */
 async function setup() {
-  const t = convexTest(schema, modules);
-  const { userId, canvasId } = await t.run(async (ctx) => {
-    const userId = await ctx.db.insert("users", {});
-    const canvasId = await ctx.db.insert("canvases", {
-      creatorId: userId,
-      name: "Canvas",
-      updatedAt: Date.now(),
-      isPublic: false,
-    });
-    return { userId, canvasId };
-  });
-
-  const create = async (type: "table" | "link", values: Record<string, unknown>) => {
-    const [created] = await t.mutation(
-      internal.wrappers.nodeWrappers.createWithNodeData,
-      {
-        nodes: [
-          {
-            node: { canvasId, type, position: { x: 0, y: 0 }, width: 100, height: 100 },
-            nodeDataValues: values,
-          },
-        ],
-      },
-    );
-    return created.nodeId;
-  };
+  const tools = await setupTools();
+  const create = async (
+    type: "table" | "link",
+    values: Record<string, unknown>,
+  ) => (await createNode(tools, { type, values })).id;
 
   const linkId = await create("link", {
     link: { href: "https://doc.test", pageTitle: "Spec doc" },
@@ -113,30 +83,13 @@ async function setup() {
     },
   });
 
-  const runCtx = {
-    runQuery: t.query,
-    runMutation: t.mutation,
-    runAction: t.action,
-  } as unknown as ToolRunCtx;
-  const tool = attachToolCtx(
-    bashTool({ threadCtx: { authUserId: userId, canvasId } }),
-    runCtx as never,
-  );
   return {
     tableId,
     linkId,
-    read: (nodeId: string) =>
-      readTable(runCtx, canvasScope({ userId, canvasId }), nodeId),
-    bash: async (script: string) =>
-      (await tool.execute!({ explanation: "test", script } as never, {
-        toolCallId: "call",
-        messages: [],
-      })) as string,
+    read: (nodeId: string) => readTable(tools.run, tools.scope, nodeId),
+    bash: tools.bash,
   };
 }
-
-const stdout = (output: string) =>
-  /<stdout>\n([\s\S]*?)\n<\/stdout>/.exec(output)?.[1] ?? "";
 
 describe("readTable", () => {
   test("des valeurs lisibles pour chaque type de colonne", async () => {

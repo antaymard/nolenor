@@ -25,3 +25,29 @@ export function inBatches<T>(items: readonly T[], size = CONTENT_BATCH_SIZE): T[
   }
   return batches;
 }
+
+/**
+ * Combien de transactions un noyau lance à la fois. Sans borne, un `nole ls`
+ * sur 2 000 nodes partait en 200 requêtes simultanées.
+ */
+export const MAX_CONCURRENT_READS = 8;
+
+/** `Promise.all(items.map(fn))`, au plus `limit` à la fois, ordre préservé. */
+export async function mapConcurrently<T, R>(
+  items: readonly T[],
+  fn: (item: T) => Promise<R>,
+  limit = MAX_CONCURRENT_READS,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
+  return results;
+}

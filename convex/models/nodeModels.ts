@@ -1417,8 +1417,14 @@ export async function moveNodes(
     .query("edges")
     .withIndex("by_canvas", (q) => q.eq("canvasId", sourceCanvasId))
     .collect();
+  // Une connexion dont les deux bouts partent suit la sélection ; celle qui
+  // ne garde qu'un bout ici relierait deux canvas, elle est supprimée.
   for (const edge of edges) {
-    if (movedIds.has(edge.source) || movedIds.has(edge.target)) {
+    const sourceMoved = movedIds.has(edge.source);
+    const targetMoved = movedIds.has(edge.target);
+    if (sourceMoved && targetMoved) {
+      await ctx.db.patch(edge._id, { canvasId: targetCanvasId });
+    } else if (sourceMoved || targetMoved) {
       await ctx.db.delete(edge._id);
     }
   }

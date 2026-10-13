@@ -1,9 +1,20 @@
-// Le rendu XML de `read_nodes` : des fonctions pures (sauf les cellules rich
-// text des tables, converties par le BlockNote headless), sur les données que
+// Le rendu XML de `read_nodes` : des fonctions (pures, sauf la conversion des
+// documents et des cellules rich text par le BlockNote headless) sur les données que
 // rend le noyau (`readNodes.ts`). Reprises telles quelles de l'ancien
 // `ia/tools/readNodesTool.ts` ; spécification de la sortie : `readNodes.md`.
 import type { MentionInfoByNodeDataId } from "../../ia/helpers/blockNoteMarkdown";
-import { formatTableMarkdown } from "../../ia/helpers/makeNodeDataLLMFriendly";
+import { makeCustomNodeDataLLMFriendly } from "../../ia/helpers/customTemplateHelpers";
+import {
+  formatTableMarkdown,
+  makeNodeDataLLMFriendly,
+} from "../../ia/helpers/makeNodeDataLLMFriendly";
+import { buildNodeDataSchemaXml } from "../../ia/helpers/nodeDataSchemaXml";
+import {
+  TRANSCRIPT_HINTS,
+  buildTranscriptBody,
+  type TranscriptReadStatus,
+} from "../../ia/helpers/transcriptFormatters";
+import { toModelImageUrl } from "../../lib/imageTransform";
 import {
   buildPdfPagesMarkdown,
   buildPdfTocMarkdown,
@@ -14,7 +25,12 @@ import {
 } from "../../ia/helpers/tableRichTextMarkdown";
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
-import type { NodeRef } from "./readNodes";
+import type {
+  Connection,
+  NodeRef,
+  ReadNode,
+  ReadNodesResult,
+} from "./readNodes";
 
 /**
  * Le corps d'une frame : la liste des nodes qu'elle contient, déjà dans
@@ -485,4 +501,377 @@ export function buildImageNodeBody(
     .filter((part): part is string => part !== null);
 
   return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
+export type ReadNodesRenderOptions = {
+  withPosition: boolean;
+  /** Le modèle sait-il lire une image : sinon `viewImages` n'est pas honoré. */
+  isMultimodal: boolean;
+  pdfPages?: Array<{ nodeId: string; pages: number[] }>;
+  mediaRanges?: Array<{ nodeId: string; startSec: number; endSec: number }>;
+  tableRows?: TableRowSliceInput[];
+  viewImages?: string[];
+};
+
+/**
+ * Le XML de `read_nodes` (et les URLs des images à joindre), à partir de ce
+ * que rend le noyau. Partagé par le tool JSON et par `nole read` : un modèle
+ * lit le même format, et peut renvoyer les mêmes blocs aux tools d'écriture.
+ */
+export async function renderReadNodes(
+  result: ReadNodesResult,
+  options: ReadNodesRenderOptions,
+): Promise<{ text: string; images: string[] }> {
+  const { withPosition, isMultimodal } = options;
+
+    const pdfPagesByNodeId = new Map<string, number[]>();
+    for (const entry of options.pdfPages ?? []) {
+      pdfPagesByNodeId.set(entry.nodeId, entry.pages);
+    }
+    const mediaRangeByNodeId = new Map<
+      string,
+      { startSec: number; endSec: number }
+    >();
+    for (const entry of options.mediaRanges ?? []) {
+      mediaRangeByNodeId.set(entry.nodeId, {
+        startSec: entry.startSec,
+        endSec: entry.endSec,
+      });
+    }
+    const tableRowsByNodeId = new Map<string, TableRowSliceInput>();
+    for (const entry of options.tableRows ?? []) {
+      tableRowsByNodeId.set(entry.nodeId, entry);
+    }
+
+    // Ce que le modèle a demandé, et ce qu'on lui accorde vraiment. Les deux
+    // sont distincts : `viewImagesSet` sert à signaler un node non-image
+    // (comme `pdfPages` sur un node qui n'est pas un pdf), `attachImagesFor`
+    // porte le cap. L'ordre donné par le modèle est sa priorité, on le suit.
+    const requestedViewImages = (options.viewImages ?? []).filter(
+      (nodeId, index, all) => all.indexOf(nodeId) === index,
+    );
+    const viewImagesSet = new Set(requestedViewImages);
+    const attachImagesFor = isMultimodal
+      ? new Set(requestedViewImages)
+      : new Set<string>();
+
+    const mentions: MentionInfoByNodeDataId = new Map(
+      [...result.mentions].map(([nodeDataId, ref]) => [
+        nodeDataId,
+        { nodeId: ref.id, type: ref.type, title: ref.title },
+      ]),
+    );
+
+    const renderNode = async (node: ReadNode) => {
+      const tag = {
+        nodeType: node.type,
+        positionX: null as number | null,
+        positionY: null as number | null,
+        width: null as number | null,
+        height: null as number | null,
+        frameId: null as string | null,
+        frameBody: null as string | null,
+        title: "Untitled",
+        content: "",
+        pdfBody: null as string | null,
+        pdfTotalPages: null as number | null,
+        transcriptState: null as TranscriptReadStatus["kind"] | null,
+        tableBody: null as string | null,
+        tableTotalRows: null as number | null,
+        tableDisplayedRows: null as number | null,
+        error: null as string | null,
+      };
+      let images: Array<{ url: string; name: string | null }> = [];
+      let storedImageCount = 0;
+
+      if (!node.ok) {
+        tag.error = node.error;
+        return { node, tag, images, storedImageCount };
+      }
+
+      const { nodeData } = node;
+      // A malformed blocknote document or a jsdom conversion failure must
+      // surface as a per-node readError, not fail the whole read_nodes call.
+      let content: string;
+      try {
+        content =
+          nodeData.type === "custom"
+            ? await makeCustomNodeDataLLMFriendly(nodeData, node.template)
+            : await makeNodeDataLLMFriendly(nodeData, { mentions });
+      } catch (renderError) {
+        content = "";
+        tag.error = `Failed to render node content: ${
+          renderError instanceof Error
+            ? renderError.message
+            : "Unknown error"
+        }`;
+      }
+
+      if (node.image) {
+        // Les URLs vivantes, pas celles des metadata du chunk : celles-ci
+        // datent de l'indexation, et pointent dans le vide si l'image a
+        // été remplacée depuis.
+        const attach = attachImagesFor.has(node.id);
+        storedImageCount = node.image.stored.length;
+        const imageBody = buildImageNodeBody(node.image.chunks, {
+          attached: attach,
+        });
+        // Les valeurs de génération (prompt, références) sont re-rendues
+        // à côté des descriptions : l'agent doit voir l'ancien prompt
+        // pour itérer dessus plutôt que l'écraser.
+        content = imageBody
+          ? [imageBody, renderImageGenerationValues(nodeData.values)]
+              .filter(Boolean)
+              .join("\n")
+          : `<imageStatus>${escapeXmlText(IMAGE_HINTS.notIndexed)}</imageStatus>\n${content}`;
+
+        if (attach) {
+          images = node.image.stored.map((image) => ({
+            url: image.url,
+            name:
+              typeof image.filename === "string" &&
+              image.filename.length > 0
+                ? image.filename
+                : null,
+          }));
+          if (images.length === 0) {
+            content = `<warning>${escapeXmlText(IMAGE_HINTS.noImages)}</warning>\n${content}`;
+          }
+        }
+        // Pas de hint `canView` ici : il part une seule fois en trailer,
+        // consolidé sur tous les nodes image non-attachés.
+      } else if (viewImagesSet.has(node.id)) {
+        content = `<warning>${escapeXmlText(IMAGE_HINTS.notAnImage)}</warning>\n${content}`;
+      }
+
+      if (node.pdf) {
+        tag.pdfBody = buildPdfNodeBody({
+          files: node.pdf.files,
+          pageChunks: node.pdf.pageChunks,
+          requestedPages: pdfPagesByNodeId.get(node.id),
+        });
+        tag.pdfTotalPages = getPdfTotalPages(node.pdf.pageChunks) ?? null;
+      } else if (pdfPagesByNodeId.has(node.id)) {
+        content = `<warning>${escapeXmlText(PDF_HINTS.notAPdf)}</warning>\n${content}`;
+      }
+
+      if (node.transcript) {
+        tag.transcriptState = node.transcript.kind;
+        content = `${content}\n${buildTranscriptBody(node.transcript, mediaRangeByNodeId.get(node.id))}`;
+      } else if (mediaRangeByNodeId.has(node.id)) {
+        content = `<warning>${escapeXmlText(TRANSCRIPT_HINTS.notAnAudio)}</warning>\n${content}`;
+      }
+
+      if (node.type === "table") {
+        const table = await buildTableNodeBody({
+          tableValue: nodeData.values.table,
+          rowSlice: tableRowsByNodeId.get(node.id),
+          nodeInfoById: result.references,
+          mentions,
+        });
+        tag.tableBody = table.body;
+        tag.tableTotalRows = table.totalRows;
+        tag.tableDisplayedRows = table.displayedCount;
+      } else if (tableRowsByNodeId.has(node.id)) {
+        content = `<warning>${escapeXmlText(TABLE_HINTS.notATable)}</warning>\n${content}`;
+      }
+
+      tag.positionX = Math.trunc(node.x);
+      tag.positionY = Math.trunc(node.y);
+      tag.width = node.width !== null ? Math.trunc(node.width) : null;
+      tag.height = node.height !== null ? Math.trunc(node.height) : null;
+      tag.frameId = node.frameId;
+      tag.frameBody = node.children
+        ? buildFrameNodeBody(node.children, withPosition)
+        : null;
+      tag.title = node.title;
+      tag.content = content;
+      return { node, tag, images, storedImageCount };
+    };
+
+    const rendered = await Promise.all(result.nodes.map(renderNode));
+
+    // Le label de l'edge en 4ᵉ segment, seulement quand il existe : c'est
+    // lui qui dit la relation. `;` et `|` sont les séparateurs de
+    // l'attribut — on les neutralise pour ne pas casser le découpage.
+    const formatConnections = (connections: Connection[]) =>
+      connections
+        .map(({ id, type, title, label }) => {
+          const labelSegment = label
+            ? ` | label: "${label.replace(/[;|]/g, ",")}"`
+            : "";
+          return `${id} | ${type} | ${title}${labelSegment}`;
+        })
+        .join(" ; ");
+
+    const nodeXml = ({
+      node,
+      tag: {
+        nodeType,
+        positionX,
+        positionY,
+        width,
+        height,
+        frameId,
+        frameBody,
+        title,
+        content,
+        pdfBody,
+        pdfTotalPages,
+        transcriptState,
+        tableBody,
+        tableTotalRows,
+        tableDisplayedRows,
+        error,
+      },
+    }: (typeof rendered)[number]) => {
+      const nodeId = node.id;
+      const sourceNodes = formatConnections(node.sources);
+      const targetNodes = formatConnections(node.targets);
+
+      const positionAttributes =
+        withPosition && positionX !== null && positionY !== null
+          ? `${` x="${String(positionX)}" y="${String(positionY)}"`}${width !== null ? ` width="${String(width)}"` : ""}${height !== null ? ` height="${String(height)}"` : ""}`
+          : "";
+      const frameAttribute = frameId ? ` frameId="${frameId}"` : "";
+
+      if (nodeType === "frame" && frameBody !== null) {
+        return `<node id="${nodeId}" type="frame" sourceNodes="${escapeXmlAttribute(sourceNodes)}" targetNodes="${escapeXmlAttribute(targetNodes)}"${positionAttributes} title="${escapeXmlAttribute(title)}">
+${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${frameBody}
+</node>`;
+      }
+
+      if (nodeType === "pdf" && pdfBody !== null) {
+        const totalPagesAttr =
+          pdfTotalPages !== null ? ` totalPages="${pdfTotalPages}"` : "";
+        return `<node id="${nodeId}" type="pdf" sourceNodes="${escapeXmlAttribute(sourceNodes)}" targetNodes="${escapeXmlAttribute(targetNodes)}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}"${totalPagesAttr}>
+${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${pdfBody}
+</node>`;
+      }
+
+      if (nodeType === "table" && tableBody !== null) {
+        const totalRowsAttr =
+          tableTotalRows !== null ? ` totalRows="${tableTotalRows}"` : "";
+        const displayedRowsAttr =
+          tableDisplayedRows !== null
+            ? ` displayedRows="${tableDisplayedRows}"`
+            : "";
+        return `<node id="${nodeId}" type="table" sourceNodes="${escapeXmlAttribute(sourceNodes)}" targetNodes="${escapeXmlAttribute(targetNodes)}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}"${totalRowsAttr}${displayedRowsAttr}>
+${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${tableBody}
+</node>`;
+      }
+
+      const transcriptAttr =
+        transcriptState !== null ? ` transcript="${transcriptState}"` : "";
+      return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${escapeXmlAttribute(sourceNodes)}" targetNodes="${escapeXmlAttribute(targetNodes)}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}"${transcriptAttr}>
+${error ? `<readError>${escapeXmlText(error)}</readError>` : ""}
+${content}
+</node>`;
+    };
+
+    // Un schéma par type de node lu, une seule fois par type.
+    const uniqueNodeTypes = [
+      ...new Set(rendered.map(({ tag }) => tag.nodeType)),
+    ];
+    const xml = [
+      "<nodes>",
+      ...rendered.map(nodeXml),
+      "</nodes>",
+      "<nodeDataSchemas>",
+      // Filtre les vides : un custom node dont le template n'est plus
+      // résoluble n'a pas de schéma à publier.
+      ...uniqueNodeTypes
+        .map((nodeType) =>
+          buildNodeDataSchemaXml(nodeType, result.templates),
+        )
+        .filter((entry) => entry.length > 0),
+      "</nodeDataSchemas>",
+    ].join("\n");
+
+    // Les images, dans l'ordre demandé par le modèle : c'est sa priorité,
+    // et si le cap tranche, il tranche dans la queue de SA liste.
+    const imagesByNodeId = new Map(
+      rendered.map(({ node, images }) => [node.id, images]),
+    );
+    const attachments: Array<{
+      nodeId: string;
+      url: string;
+      name: string | null;
+    }> = [];
+    let requestedCount = 0;
+    for (const nodeId of requestedViewImages) {
+      for (const image of imagesByNodeId.get(nodeId) ?? []) {
+        requestedCount += 1;
+        if (attachments.length < MAX_ATTACHED_IMAGES_PER_CALL) {
+          attachments.push({ nodeId, url: image.url, name: image.name });
+        }
+      }
+    }
+
+    const trailer: string[] = [];
+    if (requestedViewImages.length > 0 && !isMultimodal) {
+      trailer.push(
+        `<warning>${escapeXmlText(IMAGE_HINTS.notMultimodal)}</warning>`,
+      );
+    }
+    // Un nodeId demandé en `viewImages` mais absent de `nodeIds` ne produit
+    // rien du tout : sans ça, le modèle attend des pixels qui n'arrivent
+    // jamais et n'a aucun moyen de comprendre pourquoi.
+    const notRead = requestedViewImages.filter(
+      (nodeId) => !imagesByNodeId.has(nodeId),
+    );
+    if (notRead.length > 0) {
+      trailer.push(
+        `<warning>${escapeXmlText(IMAGE_HINTS.notRead(notRead))}</warning>`,
+      );
+    }
+    if (attachments.length > 0) {
+      // Le modèle reçoit N parts image sans étiquette : sans ce manifeste il
+      // ne sait pas laquelle vient de quel node. Index + nodeId + filename
+      // (~15 tokens par image) — pas l'URL, déjà portée par la part image
+      // et le bloc `<image>` du node.
+      trailer.push(
+        `<attachedImages count="${attachments.length}" cap="${MAX_ATTACHED_IMAGES_PER_CALL}">`,
+        ...attachments.map(
+          ({ nodeId, name }, index) =>
+            `${index + 1} | ${nodeId} | ${name ?? "image"}`,
+        ),
+        "</attachedImages>",
+      );
+    }
+    if (requestedCount > attachments.length) {
+      trailer.push(
+        `<imageHint>${escapeXmlText(
+          IMAGE_HINTS.capped(attachments.length, requestedCount),
+        )}</imageHint>`,
+      );
+    }
+    // Un seul hint `canView` pour tous les nodes image lus sans leurs
+    // pixels — le texte est identique, le payer une fois suffit. Seulement
+    // si le modèle sait lire une image.
+    if (isMultimodal) {
+      const descriptionOnly = rendered.filter(
+        ({ node, storedImageCount }) =>
+          node.type === "image" &&
+          storedImageCount > 0 &&
+          !attachImagesFor.has(node.id),
+      );
+      if (descriptionOnly.length > 0) {
+        trailer.push(
+          `<imageHint>${escapeXmlText(
+            IMAGE_HINTS.canView(
+              descriptionOnly.map(({ node, storedImageCount }) => ({
+                nodeId: node.id,
+                count: storedImageCount,
+              })),
+            ),
+          )}</imageHint>`,
+        );
+      }
+    }
+
+    return {
+      text: trailer.length > 0 ? `${xml}\n${trailer.join("\n")}` : xml,
+      images: attachments.map(({ url }) => toModelImageUrl(url)),
+    };
 }

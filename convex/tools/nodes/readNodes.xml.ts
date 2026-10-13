@@ -1,4 +1,4 @@
-// Le rendu XML de `read_nodes` : des fonctions (pures, sauf la conversion des
+// Le rendu XML de `nole read` : des fonctions (pures, sauf la conversion des
 // documents et des cellules rich text par le BlockNote headless) sur les données que
 // rend le noyau (`readNodes.ts`). Reprises telles quelles de l'ancien
 // `ia/tools/readNodesTool.ts` ; spécification de la sortie : `readNodes.md`.
@@ -10,11 +10,9 @@ import {
 } from "../../ia/helpers/makeNodeDataLLMFriendly";
 import { buildNodeDataSchemaXml } from "../../ia/helpers/nodeDataSchemaXml";
 import {
-  TRANSCRIPT_HINTS,
   buildTranscriptBody,
   type TranscriptReadStatus,
 } from "../../ia/helpers/transcriptFormatters";
-import { toModelImageUrl } from "../../lib/imageTransform";
 import {
   buildPdfPagesMarkdown,
   buildPdfTocMarkdown,
@@ -60,31 +58,22 @@ export function buildFrameNodeBody(
   ].join("\n");
 }
 
+// Les hints nomment les options de `nole read` : c'est le seul chemin de
+// lecture (cf. readNodes.cli.ts).
 export const PDF_HINTS = {
-  toc: "Call read_nodes with pdfPages=[{nodeId, pages:[…]}] to read full markdown of specific pages.",
+  toc: "Read the full markdown of specific pages with: nole read --pages 3,4 <nodeId>.",
   notIndexed:
     "PDF content not yet indexed (Mistral OCR pending or failed). Files are listed above; retry later.",
   noHeadings:
-    "No headings detected in OCR output. Use pdfPages to read pages directly by 1-based page number.",
+    "No headings detected in OCR output. Read pages directly by 1-based number: nole read --pages 1,2 <nodeId>.",
   truncated:
-    "Output truncated: too many pages or characters requested. Re-call with fewer pages.",
-  notAPdf: "pdfPages was provided for a non-pdf node and was ignored.",
+    "Output truncated: too many pages or characters requested. Ask for fewer pages.",
 } as const;
-
-/**
- * Une image attachée coûte ~800 tokens, et un résultat de tool est renvoyé en
- * entrée à CHAQUE step restant du run (`stopWhen: stepCountIs(25)`). Quatre
- * images lues au step 2 se repaient donc une vingtaine de fois. Le cap est la
- * seule borne qui tienne : la transcription, elle, coûte quelques centaines de
- * tokens une fois pour toutes.
- */
-export const MAX_ATTACHED_IMAGES_PER_CALL = 4;
 
 export const IMAGE_HINTS = {
   notIndexed:
     "Image content not yet indexed. Raw image URLs are listed below; use view_image if needed.",
-  // Émis UNE fois en trailer, jamais par node : le texte était identique à
-  // ~60 tokens près par node image lu sans `viewImages`.
+  // Une fois en trailer, pas par node : le texte est le même pour tous.
   canView: (entries: Array<{ nodeId: string; count: number }>) =>
     `Indexed descriptions only (written by an indexing pass, not seen by you) for ` +
     entries
@@ -93,18 +82,7 @@ export const IMAGE_HINTS = {
           `${nodeId} (${count} image${count > 1 ? "s" : ""})`,
       )
       .join(", ") +
-    `. Re-call with viewImages=[${entries.map(({ nodeId }) => `"${nodeId}"`).join(", ")}] ` +
-    `or call view_image for pixels (~800 tokens/step each).`,
-  notAnImage: "viewImages was provided for a non-image node and was ignored.",
-  notMultimodal:
-    "viewImages was requested but the current model cannot read images; only the text description is returned.",
-  noImages: "viewImages was requested for a node that holds no image.",
-  notRead: (nodeIds: string[]) =>
-    `viewImages named ${nodeIds.join(", ")}, which ${nodeIds.length > 1 ? "are" : "is"} not in nodeIds and ` +
-    `${nodeIds.length > 1 ? "were" : "was"} not read. Add ${nodeIds.length > 1 ? "them" : "it"} to nodeIds to see the image(s).`,
-  capped: (attached: number, requested: number) =>
-    `Attached ${attached} of ${requested} images (cap ${MAX_ATTACHED_IMAGES_PER_CALL} per call). ` +
-    `Call view_image with a nodeId and offset to see the rest.`,
+    `. Call view_image to see the pixels (~800 tokens/step each).`,
 } as const;
 
 export const TABLE_DEFAULT_ROW_LIMIT = 50;
@@ -112,15 +90,14 @@ export const TABLE_MAX_ROW_LIMIT = 200;
 export const TABLE_MAX_CHARS = 60_000;
 
 export const TABLE_HINTS = {
-  notATable: "tableRows was provided for a non-table node and was ignored.",
   defaultCap: (totalRows: number, displayedCount: number) =>
-    `Showing ${displayedCount} of ${totalRows} rows (default cap: ${TABLE_DEFAULT_ROW_LIMIT}). Use \`nole table\` (bash) to get every row, or call read_nodes with tableRows=[{nodeId, offset, limit}] or tableRows=[{nodeId, rowIds:[…]}] to target specific rows.`,
+    `Showing ${displayedCount} of ${totalRows} rows (default cap: ${TABLE_DEFAULT_ROW_LIMIT}). Every row, for jq/awk: nole table <nodeId>. A slice: nole read --rows <offset>:<limit> <nodeId>, or --row-ids <id,id…>.`,
   hardCap: (totalRows: number, displayedCount: number) =>
-    `Showing ${displayedCount} of ${totalRows} rows (capped at ${TABLE_MAX_ROW_LIMIT}). Re-call with a smaller limit or specific rowIds.`,
+    `Showing ${displayedCount} of ${totalRows} rows (capped at ${TABLE_MAX_ROW_LIMIT}). Ask for a smaller --rows limit or specific --row-ids, or use nole table <nodeId>.`,
   charLimit: (totalRows: number, displayedCount: number) =>
-    `Showing ${displayedCount} of ${totalRows} rows (output truncated at ${TABLE_MAX_CHARS} chars). Re-call with a smaller limit or specific rowIds.`,
+    `Showing ${displayedCount} of ${totalRows} rows (output truncated at ${TABLE_MAX_CHARS} chars). Ask for a smaller --rows limit or specific --row-ids, or use nole table <nodeId>.`,
   rowIdsNotFound: (missing: string[]) =>
-    `Some rowIds were not found and were skipped: ${missing.join(", ")}.`,
+    `Some row ids were not found and were skipped: ${missing.join(", ")}.`,
 } as const;
 
 type PdfFile = { url?: string; filename?: string; mimeType?: string };
@@ -309,14 +286,14 @@ export async function buildTableNodeBody(opts: {
   // moins (troncature au nombre de caractères).
   let result = formatTableMarkdown(opts.tableValue, formatOptions);
   if (columns.some((col) => col.type === "richtext")) {
-    // Un échec de jsdom ne doit pas faire échouer tout read_nodes : la table
+    // Un échec de jsdom ne doit pas faire échouer tout nole read : la table
     // reste lisible, en texte brut.
     const renderedCells = await renderRichTextCellsAsMarkdown(
       opts.tableValue,
       result.displayedRowIds,
       opts.mentions,
     ).catch((error: unknown) => {
-      console.error("[read_nodes] rich text cells rendering failed:", error);
+      console.error("[nole read] rich text cells rendering failed:", error);
       return new Map<string, string>();
     });
     if (renderedCells.size > 0) {
@@ -505,27 +482,25 @@ export function buildImageNodeBody(
 
 export type ReadNodesRenderOptions = {
   withPosition: boolean;
-  /** Le modèle sait-il lire une image : sinon `viewImages` n'est pas honoré. */
+  /** Le modèle sait-il lire une image : il a alors view_image, et le hint le dit. */
   isMultimodal: boolean;
   pdfPages?: Array<{ nodeId: string; pages: number[] }>;
   mediaRanges?: Array<{ nodeId: string; startSec: number; endSec: number }>;
   tableRows?: TableRowSliceInput[];
-  viewImages?: string[];
   /** Le bloc `<nodeDataSchemas>` (comment écrire chaque type). Défaut : oui. */
   schemas?: boolean;
 };
 
 /**
- * Le XML de `read_nodes` (et les URLs des images à joindre), à partir de ce
- * que rend le noyau. Partagé par le tool JSON et par `nole read` : un modèle
- * lit le même format, et peut renvoyer les mêmes blocs aux tools d'écriture.
+ * Le XML de `nole read`, à partir de ce que rend le noyau. Les blocs d'un
+ * document y sont au format que prennent les tools d'écriture (insert_blocks,
+ * replace_block…) : le modèle peut les recopier tels quels.
  */
 export async function renderReadNodes(
   result: ReadNodesResult,
   options: ReadNodesRenderOptions,
 ): Promise<{
   text: string;
-  images: string[];
   /** Le `<node>` de chaque node lu, seul : pour une sortie node par node. */
   nodes: Array<{ id: string; xml: string }>;
 }> {
@@ -549,18 +524,6 @@ export async function renderReadNodes(
     for (const entry of options.tableRows ?? []) {
       tableRowsByNodeId.set(entry.nodeId, entry);
     }
-
-    // Ce que le modèle a demandé, et ce qu'on lui accorde vraiment. Les deux
-    // sont distincts : `viewImagesSet` sert à signaler un node non-image
-    // (comme `pdfPages` sur un node qui n'est pas un pdf), `attachImagesFor`
-    // porte le cap. L'ordre donné par le modèle est sa priorité, on le suit.
-    const requestedViewImages = (options.viewImages ?? []).filter(
-      (nodeId, index, all) => all.indexOf(nodeId) === index,
-    );
-    const viewImagesSet = new Set(requestedViewImages);
-    const attachImagesFor = isMultimodal
-      ? new Set(requestedViewImages)
-      : new Set<string>();
 
     const mentions: MentionInfoByNodeDataId = new Map(
       [...result.mentions].map(([nodeDataId, ref]) => [
@@ -589,17 +552,16 @@ export async function renderReadNodes(
         tableDisplayedRows: null as number | null,
         error: null as string | null,
       };
-      let images: Array<{ url: string; name: string | null }> = [];
       let storedImageCount = 0;
 
       if (!node.ok) {
         tag.error = node.error;
-        return { node, tag, images, storedImageCount };
+        return { node, tag, storedImageCount };
       }
 
       const { nodeData } = node;
       // A malformed blocknote document or a jsdom conversion failure must
-      // surface as a per-node readError, not fail the whole read_nodes call.
+      // surface as a per-node readError, not fail the whole nole read call.
       let content: string;
       try {
         content =
@@ -619,11 +581,8 @@ export async function renderReadNodes(
         // Les URLs vivantes, pas celles des metadata du chunk : celles-ci
         // datent de l'indexation, et pointent dans le vide si l'image a
         // été remplacée depuis.
-        const attach = attachImagesFor.has(node.id);
         storedImageCount = node.image.stored.length;
-        const imageBody = buildImageNodeBody(node.image.chunks, {
-          attached: attach,
-        });
+        const imageBody = buildImageNodeBody(node.image.chunks);
         // Les valeurs de génération (prompt, références) sont re-rendues
         // à côté des descriptions : l'agent doit voir l'ancien prompt
         // pour itérer dessus plutôt que l'écraser.
@@ -632,24 +591,7 @@ export async function renderReadNodes(
               .filter(Boolean)
               .join("\n")
           : `<imageStatus>${escapeXmlText(IMAGE_HINTS.notIndexed)}</imageStatus>\n${content}`;
-
-        if (attach) {
-          images = node.image.stored.map((image) => ({
-            url: image.url,
-            name:
-              typeof image.filename === "string" &&
-              image.filename.length > 0
-                ? image.filename
-                : null,
-          }));
-          if (images.length === 0) {
-            content = `<warning>${escapeXmlText(IMAGE_HINTS.noImages)}</warning>\n${content}`;
-          }
-        }
-        // Pas de hint `canView` ici : il part une seule fois en trailer,
-        // consolidé sur tous les nodes image non-attachés.
-      } else if (viewImagesSet.has(node.id)) {
-        content = `<warning>${escapeXmlText(IMAGE_HINTS.notAnImage)}</warning>\n${content}`;
+        // Pas de hint `canView` ici : il part une seule fois en trailer.
       }
 
       if (node.pdf) {
@@ -659,15 +601,11 @@ export async function renderReadNodes(
           requestedPages: pdfPagesByNodeId.get(node.id),
         });
         tag.pdfTotalPages = getPdfTotalPages(node.pdf.pageChunks) ?? null;
-      } else if (pdfPagesByNodeId.has(node.id)) {
-        content = `<warning>${escapeXmlText(PDF_HINTS.notAPdf)}</warning>\n${content}`;
       }
 
       if (node.transcript) {
         tag.transcriptState = node.transcript.kind;
         content = `${content}\n${buildTranscriptBody(node.transcript, mediaRangeByNodeId.get(node.id))}`;
-      } else if (mediaRangeByNodeId.has(node.id)) {
-        content = `<warning>${escapeXmlText(TRANSCRIPT_HINTS.notAnAudio)}</warning>\n${content}`;
       }
 
       if (node.type === "table") {
@@ -680,8 +618,6 @@ export async function renderReadNodes(
         tag.tableBody = table.body;
         tag.tableTotalRows = table.totalRows;
         tag.tableDisplayedRows = table.displayedCount;
-      } else if (tableRowsByNodeId.has(node.id)) {
-        content = `<warning>${escapeXmlText(TABLE_HINTS.notATable)}</warning>\n${content}`;
       }
 
       tag.positionX = Math.trunc(node.x);
@@ -695,7 +631,7 @@ export async function renderReadNodes(
         : null;
       tag.title = node.title;
       tag.content = content;
-      return { node, tag, images, storedImageCount };
+      return { node, tag, storedImageCount };
     };
 
     const rendered = await Promise.all(result.nodes.map(renderNode));
@@ -809,73 +745,14 @@ ${content}
           ]),
     ].join("\n");
 
-    // Les images, dans l'ordre demandé par le modèle : c'est sa priorité,
-    // et si le cap tranche, il tranche dans la queue de SA liste.
-    const imagesByNodeId = new Map(
-      rendered.map(({ node, images }) => [node.id, images]),
-    );
-    const attachments: Array<{
-      nodeId: string;
-      url: string;
-      name: string | null;
-    }> = [];
-    let requestedCount = 0;
-    for (const nodeId of requestedViewImages) {
-      for (const image of imagesByNodeId.get(nodeId) ?? []) {
-        requestedCount += 1;
-        if (attachments.length < MAX_ATTACHED_IMAGES_PER_CALL) {
-          attachments.push({ nodeId, url: image.url, name: image.name });
-        }
-      }
-    }
-
     const trailer: string[] = [];
-    if (requestedViewImages.length > 0 && !isMultimodal) {
-      trailer.push(
-        `<warning>${escapeXmlText(IMAGE_HINTS.notMultimodal)}</warning>`,
-      );
-    }
-    // Un nodeId demandé en `viewImages` mais absent de `nodeIds` ne produit
-    // rien du tout : sans ça, le modèle attend des pixels qui n'arrivent
-    // jamais et n'a aucun moyen de comprendre pourquoi.
-    const notRead = requestedViewImages.filter(
-      (nodeId) => !imagesByNodeId.has(nodeId),
-    );
-    if (notRead.length > 0) {
-      trailer.push(
-        `<warning>${escapeXmlText(IMAGE_HINTS.notRead(notRead))}</warning>`,
-      );
-    }
-    if (attachments.length > 0) {
-      // Le modèle reçoit N parts image sans étiquette : sans ce manifeste il
-      // ne sait pas laquelle vient de quel node. Index + nodeId + filename
-      // (~15 tokens par image) — pas l'URL, déjà portée par la part image
-      // et le bloc `<image>` du node.
-      trailer.push(
-        `<attachedImages count="${attachments.length}" cap="${MAX_ATTACHED_IMAGES_PER_CALL}">`,
-        ...attachments.map(
-          ({ nodeId, name }, index) =>
-            `${index + 1} | ${nodeId} | ${name ?? "image"}`,
-        ),
-        "</attachedImages>",
-      );
-    }
-    if (requestedCount > attachments.length) {
-      trailer.push(
-        `<imageHint>${escapeXmlText(
-          IMAGE_HINTS.capped(attachments.length, requestedCount),
-        )}</imageHint>`,
-      );
-    }
-    // Un seul hint `canView` pour tous les nodes image lus sans leurs
-    // pixels — le texte est identique, le payer une fois suffit. Seulement
-    // si le modèle sait lire une image.
+    // Un seul hint `canView` pour tous les nodes image lus — le texte est
+    // identique, le payer une fois suffit. Seulement si le modèle sait lire
+    // une image (sinon il n'a pas view_image).
     if (isMultimodal) {
       const descriptionOnly = rendered.filter(
         ({ node, storedImageCount }) =>
-          node.type === "image" &&
-          storedImageCount > 0 &&
-          !attachImagesFor.has(node.id),
+          node.type === "image" && storedImageCount > 0,
       );
       if (descriptionOnly.length > 0) {
         trailer.push(
@@ -893,7 +770,6 @@ ${content}
 
     return {
       text: trailer.length > 0 ? `${xml}\n${trailer.join("\n")}` : xml,
-      images: attachments.map(({ url }) => toModelImageUrl(url)),
       nodes: nodeXmls,
     };
 }

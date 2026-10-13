@@ -55,7 +55,7 @@ export function nodeMentionTokensToLinks(
       if (nodeId === undefined || !LINKABLE_NODE_ID_RE.test(nodeId)) {
         return match;
       }
-      // Label is `<type>|<title>` as read_nodes writes it; tolerate a bare title.
+      // Label is `<type>|<title>` as nole read writes it; tolerate a bare title.
       const parts = (label ?? "").split("|");
       const title = (parts.length > 1 ? parts.slice(1).join("|") : parts[0])
         .replace(/\s+/g, " ")

@@ -29,7 +29,7 @@
  * c'est souvent pour ça qu'on attache une image plutôt que de lire sa
  * description. Monter la valeur est un arbitrage légitime.
  *
- * Module sans dépendance, et il doit le rester : `read_nodes`
+ * Module sans dépendance, et il doit le rester : `nole read`
  * (tools/nodes/readNodes.agent.ts) est importé par `convex/http.ts` via le
  * registre MCP, donc ce fichier finit dans le bundle V8
  * du routeur HTTP. C'est aussi la raison pour laquelle il ne vit pas dans

@@ -14,7 +14,7 @@ type Tab = "input" | "output";
  * Tiroir de debug d'un tool call : nom technique, état SDK, erreur,
  * nodes cités, et la charge brute (args / résultat) copiable.
  *
- * Monté seulement une fois déplié : sérialiser la sortie d'un `read_nodes`
+ * Monté seulement une fois déplié : sérialiser la sortie d'un `nole read`
  * n'a rien de gratuit, et on ne le paie que quand quelqu'un regarde.
  */
 export const ToolStepDetails = memo(function ToolStepDetails({

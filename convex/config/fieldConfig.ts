@@ -54,7 +54,7 @@ type FieldTypeConfigItem = {
   getSearchableText?: (value: unknown, field: TemplateField) => string | null;
   // Clés R2 à purger à la suppression du node (champs image/file, à venir).
   collectR2Keys?: (value: unknown) => string[];
-  // Rendu compact pour read_nodes (ex : ids de select → labels).
+  // Rendu compact pour nole read (ex : ids de select → labels).
   toLLMDisplay?: (value: unknown, field: TemplateField) => string;
 };
 

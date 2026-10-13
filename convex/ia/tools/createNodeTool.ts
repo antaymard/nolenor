@@ -664,7 +664,7 @@ export default function createNodeTool({
           nodeId,
           nodeType: input.nodeType,
           titleApplied,
-          // Position MONDE, comme `nole ls` et `read_nodes` la rendent — y
+          // Position MONDE, comme `nole ls` et `nole read` la rendent — y
           // compris pour un node posé dans une frame, dont la position écrite
           // en base est pourtant relative.
           position: finalPosition,

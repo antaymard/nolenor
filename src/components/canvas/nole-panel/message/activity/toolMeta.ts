@@ -8,7 +8,6 @@ import {
   TbCode,
   TbColumns,
   TbCursorText,
-  TbFileText,
   TbLayoutGrid,
   TbNotebook,
   TbPencil,
@@ -60,7 +59,6 @@ type ToolMeta = {
  * retombe sur `getToolMeta`'s défaut générique.
  */
 const TOOL_META: Record<string, ToolMeta> = {
-  read_nodes: { icon: TbFileText, category: "read", label: "Read nodes" },
   view_image: { icon: TbPhoto, category: "read", label: "View image" },
   list_user_canvases: {
     icon: TbLayoutGrid,

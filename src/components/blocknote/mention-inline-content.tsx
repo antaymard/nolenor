@@ -28,7 +28,7 @@ import { mentionInlineContentConfig } from "@/../convex/lib/blockNoteCustomSchem
  * The agent sees the pill as the `[[node:<canvasNodeId>|<type>|<title>]]` token
  * and can author one back as `[[node:<canvasNodeId>]]`. The Convex codec is
  * pure and cannot map `nodeDataId` to a canvas node id on its own, so
- * `read_nodes` hands it the correspondence and the write-side tools resolve the
+ * `nole read` hands it the correspondence and the write-side tools resolve the
  * ids the agent wrote (convex/ia/helpers/blockNoteMarkdown.ts,
  * convex/ia/helpers/resolveNodeMentionTokens.ts). The snapshot `title` is what
  * the codec falls back to when a mentioned node has left the canvas, and the

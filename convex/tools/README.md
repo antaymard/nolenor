@@ -10,10 +10,11 @@ Remplace progressivement `ia/tools/`. Un tool y est découpé en **un noyau** et
 | CLI `nole …` | le tool `bash` (Nolë, worker, MCP) | `*.cli.ts` |
 | Tool scopé (à venir) | une étape d'automation guidée | même `*.agent.ts`, autre scope |
 
-Une capacité n'a pas forcément les deux. Lister et chercher n'existent plus
-qu'en CLI (`list_nodes` et `search_canvas` ont été retirés : Nolë passait
-déjà par le shell, et le MCP expose `bash`) ; lire garde `read_nodes`, dont
-la sortie (images jointes, schémas d'écriture) sert aux écritures.
+Une capacité n'a pas forcément les deux. Lister, chercher et lire n'existent
+plus qu'en CLI : `list_nodes`, `search_canvas` puis `read_nodes` ont été
+retirés, Nolë passant déjà par le shell (le MCP expose `bash`). Reste en JSON
+ce que le shell ne sait pas faire : `view_image` (les pixels d'une image) et
+les écritures.
 
 ## Organisation
 
@@ -25,12 +26,11 @@ tools/
     canvasGraph.ts       la structure d'un canvas (nodes, edges), sans contenu
     nodeContents.ts      les contenus (nodeData, template, titre), par lots
     listNodes.ts         noyau de `nole ls` : filtrage, données typées
-    readNodes.ts         noyau de read_nodes : contenus, connexions, médias
-    readNodes.agent.ts   adaptateur : arguments du modèle, plafonds, hints
-    readNodes.xml.ts     rendu XML de read_nodes (fonctions pures)
-    readNodes.md         spécification de la sortie de read_nodes
+    readNodes.ts         noyau de `nole read` : contenus, connexions, médias
+    readNodes.xml.ts     rendu XML de `nole read` (plafonds, hints)
+    readNodes.md         spécification de `nole read`
     listNodes.cli.ts     adaptateur CLI : `nole ls`
-    readNodes.cli.ts     adaptateur CLI : `nole read` (même XML que read_nodes)
+    readNodes.cli.ts     adaptateur CLI : `nole read`
   search/
     searchCanvas.ts      noyau de `nole search` : extraits classés, regroupement
     searchCanvas.cli.ts  adaptateur CLI : `nole search`

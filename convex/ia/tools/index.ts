@@ -19,9 +19,6 @@ import loadSkillTool, { loadSkillToolConfig } from "./loadSkillTool";
 import memoryToolFactory, { memoryToolConfig } from "./memoryTool";
 import { openWebPageTool, openWebPageToolConfig } from "./openWebPageTool";
 import viewImageTool, { viewImageToolConfig } from "./viewImageTool";
-import readNodesTool, {
-  readNodesToolConfig,
-} from "../../tools/nodes/readNodes.agent";
 import setNodeDataTool, { setNodeDataToolConfig } from "./setNodeDataTool";
 import tableDeleteRowsTool, {
   tableDeleteRowsToolConfig,
@@ -50,7 +47,8 @@ type ToolFactoryContext = {
   /**
    * Le modèle de CE run sait-il lire une image. Distinct de
    * `ToolConfig.requireMultiModal`, qui décide si un tool existe : ici un tool
-   * existant adapte ce qu'il rend (cf. `read_nodes` et son `viewImages`).
+   * existant adapte ce qu'il rend (cf. `bash` : `nole read` ne renvoie à
+   * view_image que si le modèle sait lire une image).
    */
   isMultimodal: boolean;
 };
@@ -71,12 +69,8 @@ const toolRegistry: ToolRegistration[] = [
   },
   {
     config: bashToolConfig,
-    factory: ({ threadCtx }) => bashTool({ threadCtx }),
-  },
-  {
-    config: readNodesToolConfig,
     factory: ({ threadCtx, isMultimodal }) =>
-      readNodesTool({ threadCtx, isMultimodal }),
+      bashTool({ threadCtx, isMultimodal }),
   },
   {
     config: viewImageToolConfig,

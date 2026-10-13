@@ -31,7 +31,7 @@
 
 /**
  * The BlockNote XML v1 vocabulary, plus the HTML table spellings a model
- * reaches for when it has never seen a `<table>` in `read_nodes` output.
+ * reaches for when it has never seen a `<table>` in `nole read` output.
  * A `<` followed by anything else is prose, not markup.
  */
 const KNOWN_ELEMENTS: ReadonlySet<string> = new Set([

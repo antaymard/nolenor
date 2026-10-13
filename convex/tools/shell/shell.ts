@@ -37,12 +37,21 @@ export type ShellResult = { stdout: string; stderr: string; exitCode: number };
 
 export async function runShell(
   script: string,
-  { run, scope }: { run: ToolRunCtx; scope: ToolScope },
+  {
+    run,
+    scope,
+    multimodal,
+  }: { run: ToolRunCtx; scope: ToolScope; multimodal: boolean },
 ): Promise<ShellResult> {
   const { Bash, defineCommand, decodeBytesToUtf8 } = loadJustBash();
 
   const nole = defineCommand("nole", async (args, ctx) =>
-    runNole(args, { run, scope, stdin: decodeBytesToUtf8(ctx.stdin) }),
+    runNole(args, {
+      run,
+      scope,
+      multimodal,
+      stdin: decodeBytesToUtf8(ctx.stdin),
+    }),
   );
 
   const bash = new Bash({

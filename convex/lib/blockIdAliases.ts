@@ -6,7 +6,7 @@
 // le même bloc a toujours le même alias, sans table de correspondance à
 // stocker, et les documents existants en profitent sans migration.
 //
-// Les deux sens vivent ici : `aliasBlockIds` à la lecture (read_nodes), et
+// Les deux sens vivent ici : `aliasBlockIds` à la lecture (nole read), et
 // `withBlockIdAliases` autour des éditions (editBlockNoteDocument), qui fait
 // travailler l'opération dans l'espace des alias puis restaure les ids réels.
 //

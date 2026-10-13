@@ -137,7 +137,7 @@ export const catchUp = internalMutation({
 });
 
 /**
- * Rattrapage avant une lecture de l'agent (read_nodes) : les nodes d'un
+ * Rattrapage avant une lecture de l'agent (nole read) : les nodes d'un
  * canvas, par leur id de canvas. Ignore ce qui n'est pas un blocknote.
  */
 export const catchUpCanvasNodes = internalMutation({

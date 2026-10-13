@@ -25,7 +25,7 @@ export const deleteElementsToolConfig: ToolConfig = {
  * écritures n'entrent dans aucune pile d'annulation.
  *
  * Les connexions se désignent par leurs deux extrémités et pas par un id :
- * l'agent ne voit jamais d'id d'edge (`read_nodes` liste des nodes voisins), et
+ * l'agent ne voit jamais d'id d'edge (`nole read` liste des nodes voisins), et
  * deux nodes ne sont reliés qu'une fois, dans un seul sens — la paire suffit.
  *
  * Tout-ou-rien, comme `group_nodes` : un id inconnu fait échouer l'appel sans

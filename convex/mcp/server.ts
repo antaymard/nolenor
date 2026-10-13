@@ -24,11 +24,11 @@ const SERVER_INFO = { name: "nolenor", version: "0.1.0" };
 
 const INSTRUCTIONS = `Nolênor is a visual canvas workspace. Each canvas holds nodes (blocknote documents, tables, images, apps…) optionally linked by connections (edges).
 
-Typical workflow: call list_canvases to get canvas IDs, then bash (nole ls, nole search, nole read, nole table in a sandboxed read-only shell) and read_nodes to explore a canvas, then the write tools (create_node, create_connection, set_node_data, block / table tools) to edit it.
+Typical workflow: call list_canvases to get canvas IDs, then bash (nole ls, nole search, nole read, nole table in a sandboxed read-only shell) to explore a canvas, then the write tools (create_node, create_connection, set_node_data, block / table tools) to edit it.
 
 Every tool except list_canvases requires a canvasId argument. Write tools require an API token with "write" permission and editor access to the canvas.
 
-The user may paste node references copied from the app, such as "canvasId:abc|nodeIds:n1,n2", "canvasId:abc|nodeId:n1" or "nodeId:n1" (fields separated by "|", ids by ","). Pass these values as the canvasId and nodeIds arguments (e.g. to read_nodes). When no canvasId is given, ask the user which canvas (list_canvases lists them).`;
+The user may paste node references copied from the app, such as "canvasId:abc|nodeIds:n1,n2", "canvasId:abc|nodeId:n1" or "nodeId:n1" (fields separated by "|", ids by ","). Pass the canvasId as the tool argument, and the node ids where the tool takes them (e.g. bash with the script "nole read n1 n2"). When no canvasId is given, ask the user which canvas (list_canvases lists them).`;
 
 const CANVAS_ID_FIELD = z
   .string()

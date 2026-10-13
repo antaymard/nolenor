@@ -1,7 +1,7 @@
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import { findChapterIndexAt } from "../../lib/transcriptChunks";
 
-// Rendu du transcript d'un node audio ou vidéo pour `read_nodes`, sur le modèle de
+// Rendu du transcript d'un node audio ou vidéo pour `nole read`, sur le modèle de
 // `pdfChunkFormatters.ts` : pur, sans `ctx`. Trois vues :
 //  - full    : tout le transcript, ligne par ligne `[m:ss] texte`, tant qu'il
 //              tient sous `MAX_TRANSCRIPT_FULL_CHARS` ;
@@ -55,20 +55,17 @@ export const TRANSCRIPT_HINTS = {
   error: (error: string) =>
     `The last transcription failed: ${error}. The user can retry from the node toolbar.`,
   outline: (count: number, unit: "chapters" | "passages") =>
-    `Transcript too long to show in full: outline of ${count} ${unit === "chapters" ? "chapters" : "passages (~2 min each)"}. Read a ${unit === "chapters" ? "chapter" : "passage"} with read_nodes mediaRanges=[{nodeId, startSec, endSec}] (up to ${MAX_TRANSCRIPT_CHARS_PER_CALL} characters per call).`,
+    `Transcript too long to show in full: outline of ${count} ${unit === "chapters" ? "chapters" : "passages (~2 min each)"}. Read a ${unit === "chapters" ? "chapter" : "passage"} with: nole read --range <startSec>:<endSec> <nodeId> (up to ${MAX_TRANSCRIPT_CHARS_PER_CALL} characters per call).`,
   truncated: (nextStartSec: number) =>
-    `Output truncated: call read_nodes again with mediaRanges startSec=${nextStartSec} to continue.`,
+    `Output truncated: continue with nole read --range ${nextStartSec}:<endSec> <nodeId>.`,
   emptyRange: (durationSec: number | undefined) =>
     `No transcript segment in this range${
       durationSec !== undefined
         ? ` (the recording lasts ${formatTimestamp(durationSec)})`
         : ""
     }.`,
-  invalidRange: "mediaRanges endSec must be greater than startSec.",
-  notAnAudio:
-    "mediaRanges was provided for a node that is neither an audio nor a video, and was ignored.",
-  notTranscribed:
-    "mediaRanges was provided but this file has no transcript yet.",
+  invalidRange: "--range end must be greater than start.",
+  notTranscribed: "--range was given but this file has no transcript yet.",
 } as const;
 
 /** `m:ss`, ou `h:mm:ss` à partir d'une heure. */

@@ -13,6 +13,8 @@ export type CliContext = {
   scope: ToolScope;
   /** Le stdin de la commande, décodé (vide hors d'un pipe). */
   stdin: string;
+  /** Le modèle sait-il lire une image (il a alors view_image). */
+  multimodal: boolean;
 };
 
 export type CliResult = { stdout: string; stderr: string; exitCode: number };

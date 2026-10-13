@@ -11,7 +11,7 @@ import { renderReadNodes, type TableRowSliceInput } from "./readNodes.xml";
 
 /**
  * Adaptateur CLI de `readNodes` : `nole read`. Même XML que le tool
- * `read_nodes` — un format que le modèle connaît déjà, et dont il peut
+ * `read_nodes` (retiré depuis) — un format que le modèle connaît, et dont il peut
  * renvoyer les blocs aux tools d'écriture —, mais avec des ids qui peuvent
  * venir d'un pipe, et une sortie que le shell filtre.
  */
@@ -26,10 +26,11 @@ const MAX_NODES_PER_CALL = 200;
 const HELP = `Usage: nole read [options] <id>...
        <ids on stdin> | nole read [options] -
 
-Read nodes: the same XML as the read_nodes tool (documents as BlockNote XML,
-tables as Markdown, connections, frame contents, PDF tables of contents,
-image descriptions, transcripts). With "-", ids are read from stdin: the first
-field of each line, so the output of "nole ls" can be piped directly.
+Read nodes as XML: documents as BlockNote XML (the write tools take its
+blocks as-is), tables as Markdown, connections, frame contents, PDF tables of
+contents, image descriptions (view_image shows the pixels), transcripts.
+With "-", ids are read from stdin: the first field of each line, so the
+output of "nole ls" can be piped directly.
 
 Options:
   --pages <n,n…>        PDF nodes: read these 1-based pages instead of the
@@ -42,7 +43,7 @@ Options:
   --format <fmt>        xml (default), or jsonl: one JSON object per node,
                         {id, type, title, ok, error, xml}, for jq
   --schemas             Also print <nodeDataSchemas> (how to write each type
-                        with the other tools; read_nodes always includes it)
+                        with the other tools)
 
 Exit code 1 when a node cannot be read (unknown id): the others are still
 printed, the failures are listed on stderr.
@@ -67,9 +68,9 @@ function parsePair(value: string): [number, number] | null {
 
 export const nodeReadCommand: CliCommand = {
   name: "read",
-  summary: "read nodes, same XML as read_nodes (ids as arguments or on stdin)",
+  summary: "read nodes as XML (ids as arguments or on stdin)",
   help: HELP,
-  async run(args, { run, scope, stdin }) {
+  async run(args, { run, scope, stdin, multimodal }) {
     const parsed = parseArgs(args, {
       options: ["pages", "rows", "row-ids", "range", "format"],
       flags: ["no-position", "schemas"],
@@ -141,8 +142,8 @@ export const nodeReadCommand: CliCommand = {
       // Le schéma d'écriture d'un blocknote pèse ~2 Ko et revient à chaque
       // lecture : dans le shell, on le demande.
       schemas: parsed.flags.has("schemas"),
-      // Le shell ne rend que du texte : pas d'image jointe.
-      isMultimodal: false,
+      // Pas de pixels ici : le hint renvoie à view_image quand il existe.
+      isMultimodal: multimodal,
       ...(pages && {
         pdfPages: byType("pdf").map((nodeId) => ({ nodeId, pages: pages! })),
       }),

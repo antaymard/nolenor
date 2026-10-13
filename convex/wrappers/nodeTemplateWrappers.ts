@@ -3,7 +3,7 @@ import { internalQuery } from "../_generated/server";
 import * as NodeTemplateModels from "../models/nodeTemplateModels";
 
 // Lecture d'un template par id (tools agents : create_node, set_node_data,
-// read_nodes). L'appelant décide quoi faire d'un null.
+// nole read). L'appelant décide quoi faire d'un null.
 export const getTemplate = internalQuery({
   args: { templateId: v.id("nodeTemplates") },
   handler: async (ctx, args) => {

@@ -11,7 +11,7 @@ import { getCustomFieldLLMCodec } from "./customFieldLLMCodecs";
 type NodeTemplate = Doc<"nodeTemplates">;
 
 // Catalogue compact pour le system prompt : nom + one-liner uniquement,
-// les schémas complets arrivent via read_nodes et les erreurs
+// les schémas complets arrivent via nole read et les erreurs
 // de validation (anti prompt-bloat).
 export function formatTemplatesForPrompt(templates: NodeTemplate[]): string {
   const active = templates.filter((t) => t.archivedAt === undefined);

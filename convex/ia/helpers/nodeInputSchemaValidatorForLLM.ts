@@ -33,7 +33,7 @@ export function validateNodeInputSchemaForLLM({
       return [
         "Input validation failed.",
         "This custom node has no resolvable template (missing or deleted).",
-        "Read the node with read_nodes to inspect its raw values.",
+        "Read the node with nole read (bash) to inspect its raw values.",
       ].join("\n");
     }
     schema = buildTemplateToolSchema(template);

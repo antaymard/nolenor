@@ -43,9 +43,10 @@ export function QuestionCard({
   variant?: "card" | "inline";
 }) {
   const answerQuestion = useMutation(api.harness.ingress.answerQuestion);
-  const [selected, setSelected] = useState<string[][]>(() =>
-    questions.map(() => []),
-  );
+  // Pendant le stream, `questions` grandit après le montage : l'état peut donc
+  // avoir moins d'entrées que de questions. On le lit toujours via `selectedAt`.
+  const [selected, setSelected] = useState<string[][]>([]);
+  const selectedAt = (i: number) => selected[i] ?? [];
   const [sending, setSending] = useState(false);
 
   const open = result === null && canAnswer;
@@ -54,7 +55,7 @@ export function QuestionCard({
     !questions[0].multiSelect &&
     questions[0].options.length > 0;
   const answerable = questions.every((q) => q.options.length > 0);
-  const complete = selected.every((labels) => labels.length > 0);
+  const complete = questions.every((_, i) => selectedAt(i).length > 0);
 
   const send = async (answer: { question: string; selected: string[] }[] | null) => {
     if (!threadId || sending) return;
@@ -73,7 +74,8 @@ export function QuestionCard({
       return;
     }
     setSelected((current) =>
-      current.map((labels, i) => {
+      questions.map((_, i) => {
+        const labels = current[i] ?? [];
         if (i !== questionIndex) return labels;
         if (!question.multiSelect) return [label];
         return labels.includes(label)
@@ -85,7 +87,7 @@ export function QuestionCard({
 
   const submit = () =>
     void send(
-      questions.map((q, i) => ({ question: q.question, selected: selected[i] })),
+      questions.map((q, i) => ({ question: q.question, selected: selectedAt(i) })),
     );
 
   const inline = variant === "inline";
@@ -111,7 +113,7 @@ export function QuestionCard({
           <QuestionSection
             key={questionIndex}
             question={question}
-            selected={selected[questionIndex]}
+            selected={selectedAt(questionIndex)}
             answered={answeredFor(result, question.question)}
             interactive={open && !sending}
             onPick={(label) => toggle(questionIndex, label)}

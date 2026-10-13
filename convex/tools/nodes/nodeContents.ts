@@ -98,6 +98,7 @@ export const titles = internalQuery({
       id: string;
       title: string | null;
       templateId: Id<"nodeTemplates"> | null;
+      updatedAt: number | null;
     }>
   > => {
     assertBatch(nodeIds);
@@ -109,8 +110,9 @@ export const titles = internalQuery({
               id,
               title: content.title,
               templateId: content.template?._id ?? null,
+              updatedAt: content.nodeData.updatedAt,
             }
-          : { id, title: null, templateId: null };
+          : { id, title: null, templateId: null, updatedAt: null };
       }),
     );
   },
@@ -137,28 +139,33 @@ export async function readNodeContents(
   return nodeIds.map((id) => byId.get(id)!);
 }
 
+export type NodeTitle = {
+  title: string | null;
+  templateId: Id<"nodeTemplates"> | null;
+  /** Dernière modification du contenu (pas d'un déplacement ni d'une couleur). */
+  updatedAt: number | null;
+};
+
 /**
- * Le titre de ces nodes (`null` : introuvable dans le scope), et l'id du
- * template de ceux qui en ont un.
+ * Le titre de ces nodes (`null` : introuvable dans le scope), l'id du
+ * template de ceux qui en ont un, et la date de dernière modification de
+ * leur contenu.
  */
 export async function readNodeTitles(
   ctx: ToolRunCtx,
   scope: ToolScope,
   nodeIds: Iterable<string>,
 ): Promise<
-  Map<string, { title: string | null; templateId: Id<"nodeTemplates"> | null }>
+  Map<string, NodeTitle>
 > {
-  const result = new Map<
-    string,
-    { title: string | null; templateId: Id<"nodeTemplates"> | null }
-  >();
+  const result = new Map<string, NodeTitle>();
   await Promise.all(
     inBatches([...new Set(nodeIds)]).map(async (batch) => {
-      for (const { id, title, templateId } of await ctx.runQuery(
+      for (const { id, ...title } of await ctx.runQuery(
         internal.tools.nodes.nodeContents.titles,
         { scope, nodeIds: batch },
       )) {
-        result.set(id, { title, templateId });
+        result.set(id, title);
       }
     }),
   );

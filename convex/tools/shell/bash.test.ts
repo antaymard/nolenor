@@ -130,7 +130,10 @@ describe("bash", () => {
     const { bash, ids, linkId } = await setup();
     const lines = stdout(await bash("nole ls")).split("\n");
     expect(lines).toHaveLength(5);
-    expect(lines[0].split("\t")).toEqual([
+    const fields = lines
+      .map((line) => line.split("\t"))
+      .find(([id]) => id === ids[0])!;
+    expect(fields.slice(0, 7)).toEqual([
       ids[0],
       "blocknote",
       "Budget Q3",
@@ -139,11 +142,11 @@ describe("bash", () => {
       "",
       "",
     ]);
-    expect(lines[4].split("\t").slice(0, 3)).toEqual([
-      linkId,
-      "link",
-      "https://example.com",
-    ]);
+    // updatedAt : date ISO du dernier changement de contenu.
+    expect(fields[7]).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/);
+    expect(lines.some((line) => line.startsWith(`${linkId}\tlink\t`))).toBe(
+      true,
+    );
   });
 
   test("pipes : ls | read - | grep, avec les outils Unix", async () => {

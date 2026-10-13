@@ -17,10 +17,13 @@ const HELP = `Usage: nole ls [options]
 
 List the nodes of the canvas. One line per node, no limit.
 
-Output (default, tab-separated): id  type  title  x  y  frameId  color
-  Empty field when there is none. With --linked-to, an 8th column holds the
-  labels of the edges followed.
-Order: canvas order (oldest first). To sort, pipe into sort, e.g. by title:
+Output (default, tab-separated):
+  id  type  title  x  y  frameId  color  updatedAt
+  Empty field when there is none. updatedAt is the last edit of the content
+  (ISO 8601, UTC); moving or recoloring a node does not change it. With
+  --linked-to, a 9th column holds the labels of the edges followed.
+Order: most recently edited first. To sort otherwise, pipe into sort, e.g.
+by title:
   nole ls | sort -t "$(printf '\\t')" -k3
 
 Options:
@@ -42,7 +45,8 @@ Filters combine with AND. Positions are world coordinates. An unknown
 Examples:
   nole ls --type table
   nole ls --frame F12ab --format ids | nole read -
-  nole ls | grep -i budget`;
+  nole ls | grep -i budget
+  nole ls | awk -F'\\t' '$8 >= "2026-10-01"'      # edited since October 1`;
 
 const DIRECTIONS = { in: "input", out: "output", both: "both" } as const;
 
@@ -117,6 +121,8 @@ export const nodeLsCommand: CliCommand = {
     const lines = result.nodes.map((node) => {
       const x = Math.trunc(node.x);
       const y = Math.trunc(node.y);
+      const updatedAt =
+        node.updatedAt === null ? null : new Date(node.updatedAt).toISOString();
       if (format === "ids") return node.id;
       if (format === "jsonl") {
         return JSON.stringify({
@@ -127,6 +133,7 @@ export const nodeLsCommand: CliCommand = {
           y,
           frameId: node.frameId,
           color: node.color,
+          updatedAt,
           ...(linkedTo && { edgeLabels: node.edgeLabels }),
         });
       }
@@ -138,6 +145,7 @@ export const nodeLsCommand: CliCommand = {
         y,
         node.frameId,
         node.color,
+        updatedAt,
         ...(linkedTo ? [node.edgeLabels.join("; ")] : []),
       ]
         .map(tsvField)

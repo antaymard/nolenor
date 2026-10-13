@@ -39,7 +39,7 @@ type UseSplitImageNodeReturn = {
 };
 
 /**
- * Opération inverse du merge (`SelectionContextMenu.mergeImageNodes`) :
+ * Opération inverse du merge (`NodesContextMenu.mergeImageNodes`) :
  * sort une ou toutes les images d'un node multi-images vers de nouveaux
  * nodes image, en mode déplacement (retirées de la source).
  *

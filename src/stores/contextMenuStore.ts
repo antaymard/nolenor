@@ -9,7 +9,7 @@ interface ContextMenuStore {
 /**
  * Le menu contextuel est ouvert depuis le canvas (clic droit React Flow) comme
  * depuis le header d'une window (`WindowFrame`) : un seul état partagé, posé
- * ici, pour que les deux surfaces ouvrent le même menu (`NodeContextMenu`) et
+ * ici, pour que les deux surfaces ouvrent le même menu (`NodesContextMenu`) et
  * qu'une seule instance soit rendue (`CanvasFlow`).
  */
 export const useContextMenuStore = create<ContextMenuStore>()((set) => ({

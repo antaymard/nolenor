@@ -2,12 +2,11 @@ import type { Edge, Node } from "@xyflow/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import CanvasContextMenu from "./CanvasContextMenu";
 import EdgeContextMenu from "./EdgeContextMenu";
-import NodeContextMenu from "./NodeContextMenu";
+import NodesContextMenu from "./NodesContextMenu";
 import {
   DropdownMenu,
   DropdownMenuContent,
 } from "@/components/shadcn/dropdown-menu";
-import SelectionContextMenu from "./SelectionContextMenu";
 
 import {
   isPendingCanvasConnectionElement,
@@ -95,11 +94,7 @@ export default function ContextMenuWrapper({
         );
       case "node":
         return (
-          <NodeContextMenu
-            closeMenu={handleClose}
-            position={position}
-            xyNode={element as Node}
-          />
+          <NodesContextMenu closeMenu={handleClose} nodes={[element as Node]} />
         );
       case "edge":
         return (
@@ -112,9 +107,9 @@ export default function ContextMenuWrapper({
         );
       case "selection":
         return (
-          <SelectionContextMenu
+          <NodesContextMenu
             closeMenu={handleClose}
-            elements={element as Node[] | null}
+            nodes={Array.isArray(element) ? (element as Node[]) : []}
           />
         );
       default:

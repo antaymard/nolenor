@@ -53,7 +53,7 @@ const MAX_BOOKMARK_LABEL_LENGTH = 80;
  * le canvas ne repère plus rien. La borne protège aussi le document : c'est le
  * seul champ de la table dont la taille dépend de ce que fait l'utilisateur.
  * Vit ici — et non dans le models — pour rester importable côté client, qui en
- * a besoin pour rogner la sélection AVANT de l'annoncer (cf. `SelectionContextMenu`).
+ * a besoin pour rogner la sélection AVANT de l'annoncer (cf. `NodesContextMenu`).
  */
 const MAX_SELECTION_NODE_IDS = 100;
 

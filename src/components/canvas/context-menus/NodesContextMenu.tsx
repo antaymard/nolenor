@@ -17,8 +17,10 @@ import {
   TbArrowLeftFromArc,
   TbBookmark,
   TbBookmarkOff,
+  TbCheck,
   TbCopyPlus,
   TbFrameOff,
+  TbLayoutBoardSplit,
   TbPalette,
   TbPaperclip,
   TbPhoto,
@@ -29,6 +31,7 @@ import {
   getNodeCapabilities,
   nodeDataConfig,
 } from "@/../convex/config/nodeConfig";
+import { canNodeTypeBeCreated } from "@/components/nodes/prebuilt-nodes/prebuiltNodesConfig";
 import {
   Tooltip,
   TooltipContent,
@@ -43,11 +46,14 @@ import { LAYER_COMMANDS } from "@/lib/nodeLayering";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
-import { colors, colorSwatchStyle } from "@/components/ui/styles";
+import { colors, colorSwatchStyle, resolveColor } from "@/components/ui/styles";
 import type { colorsEnum } from "@/types/domain";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { getNodeDataId } from "@/lib/nodeIdentity";
+import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
+import { useOwnsTemplate } from "@/stores/templatesStore";
+import { useTemplateEditor } from "@/hooks/useTemplateEditor";
 import { useDeleteCanvasElements } from "@/hooks/useDeleteCanvasElements";
 import { useCanvasBookmarks } from "@/hooks/useCanvasBookmarks";
 import { useAreNodesBookmarked } from "@/stores/bookmarkedNodesStore";
@@ -58,13 +64,25 @@ import AppearanceMenu from "./AppearanceMenu";
 import ArrangeMenu from "./ArrangeMenu";
 import MoveNodeToCanvasModal from "./MoveNodeToCanvasModal";
 
-export default function SelectionContextMenu({
+/**
+ * Menu contextuel des nodes : un clic droit sur un node seul l'ouvre avec ce
+ * seul node, un clic droit sur une sélection avec tout le groupe (cf.
+ * `useContextMenu`). Un node seul n'est qu'une sélection de taille 1 : toutes
+ * les actions agissent sur la liste, et seules quelques-unes dépendent du
+ * nombre — l'alignement et la fusion d'images en demandent au moins deux,
+ * l'édition de template n'a de sens que pour un node.
+ */
+export default function NodesContextMenu({
   closeMenu,
-  elements,
+  nodes,
 }: {
   closeMenu: () => void;
-  elements: Node[] | object | null;
+  nodes: Node[];
 }) {
+  const isSingle = nodes.length === 1;
+  const singleNode = isSingle ? nodes[0] : undefined;
+  const nodeIds = nodes.map((node) => node.id);
+
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const { deleteCanvasElements } = useDeleteCanvasElements();
   const canvasId = useCanvasStore((state) => state.canvas?._id);
@@ -98,20 +116,45 @@ export default function SelectionContextMenu({
     [attachedNodeIds],
   );
 
-  const imageNodes = Array.isArray(elements)
-    ? elements.filter((n) => n.type === "image" && n.data?.nodeDataId)
-    : [];
+  // Custom nodes : édition du template depuis le canvas, sans passer par les
+  // settings. Masquée si le template n'est pas le mien — seul son
+  // propriétaire peut le sauvegarder (requireOwnedTemplate), l'afficher
+  // mènerait un viewer de canvas partagé droit à une erreur de permission.
+  // Masquée aussi hors dev : l'éditeur de template qu'elle ouvre est la même
+  // surface que la page settings mise de côté (cf. lib/featureFlags.ts).
+  const templateId = singleNode?.data?.templateId as string | undefined;
+  const ownsTemplate = useOwnsTemplate(templateId);
+  const { openTemplateEditor } = useTemplateEditor();
+  const canEditTemplate =
+    !!templateId && ownsTemplate && SHOW_DEV_ONLY_SETTINGS;
+
+  // La pastille cochée n'a de sens que si tous les nodes partagent la même
+  // couleur.
+  const nodeColors = new Set(
+    nodes.map((node) =>
+      resolveColor(
+        node.data.color as string | undefined,
+        node.type === "frame",
+      ),
+    ),
+  );
+  const currentColor = nodeColors.size === 1 ? [...nodeColors][0] : undefined;
+
+  const imageNodes = nodes.filter(
+    (n) => n.type === "image" && n.data?.nodeDataId,
+  );
   const canMergeImages = imageNodes.length >= 2;
 
-  const elementsArray = Array.isArray(elements) ? elements : [];
-  const framedNodeIds = elementsArray
+  const framedNodeIds = nodes
     .filter((node) => node.parentId)
     .map((node) => node.id);
+
+  const canDuplicate = nodes.some((node) => canNodeTypeBeCreated(node.type));
 
   // Détail de la sélection par type, du plus nombreux au moins nombreux,
   // pour la pastille de compte de l'en-tête.
   const countsByType = Object.entries(
-    elementsArray.reduce<Record<string, number>>((acc, node) => {
+    nodes.reduce<Record<string, number>>((acc, node) => {
       const type = node.type ?? "unknown";
       acc[type] = (acc[type] ?? 0) + 1;
       return acc;
@@ -123,9 +166,7 @@ export default function SelectionContextMenu({
   // celui qui sera réellement repéré, pas un compte que le serveur rognerait
   // en silence. Le même tableau sert à la bascule, pour que « tout repéré »
   // parle bien de ce sur quoi le clic agira.
-  const bookmarkNodeIds = elementsArray
-    .slice(0, MAX_SELECTION_NODE_IDS)
-    .map((node) => node.id);
+  const bookmarkNodeIds = nodeIds.slice(0, MAX_SELECTION_NODE_IDS);
   // Sémantique « gras » : une sélection partiellement repérée achève de tout
   // repérer au premier clic, et seul le clic suivant — sur un état devenu
   // homogène — dé-repère tout.
@@ -133,7 +174,7 @@ export default function SelectionContextMenu({
 
   // Sémantique « bold » : partiel → attache les manquants ; tout
   // attaché → détache tout.
-  const attachTargets = elementsArray.filter(
+  const attachTargets = nodes.filter(
     (node) => node.type && getNodeCapabilities(node.type).agent.readable,
   );
   const allAttachTargetsAttached =
@@ -154,6 +195,24 @@ export default function SelectionContextMenu({
         },
         false,
       );
+    }
+  }
+
+  // Le repère suit le ou les nodes, frame comprise. Un node seul pose un
+  // repère `node`, plusieurs un repère `selection` — sans nom, le panneau
+  // affiche « N nodes » et on renomme depuis lui.
+  //
+  // Le dé-repérage passe par les llmid et pas par un `bookmarkId` parce qu'un
+  // node peut être repéré par un repère `selection` qui en vise d'autres — il
+  // en sort alors sans emporter ses voisins (cf. `removeForNodes` côté
+  // serveur).
+  function handleToggleBookmark() {
+    if (allNodesBookmarked) {
+      void removeBookmarksForNodes(bookmarkNodeIds);
+    } else if (singleNode) {
+      void createBookmark({ kind: "node", nodeId: singleNode.id });
+    } else {
+      void createBookmark({ kind: "selection", nodeIds: bookmarkNodeIds });
     }
   }
 
@@ -210,35 +269,37 @@ export default function SelectionContextMenu({
   return (
     <>
       <DropdownMenuLabel className="flex items-center justify-between gap-3 whitespace-nowrap">
-        Selection actions
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground cursor-default">
-              {elementsArray.length}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <ul className="flex flex-col gap-0.5">
-              {countsByType.map(([type, count]) => (
-                <li key={type} className="flex justify-between gap-4">
-                  <span>
-                    {nodeDataConfig.find((config) => config.type === type)
-                      ?.label ?? type}
-                  </span>
-                  <span className="tabular-nums">{count}</span>
-                </li>
-              ))}
-            </ul>
-          </TooltipContent>
-        </Tooltip>
+        {isSingle ? "Block actions" : "Selection actions"}
+        {!isSingle && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground cursor-default">
+                {nodes.length}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <ul className="flex flex-col gap-0.5">
+                {countsByType.map(([type, count]) => (
+                  <li key={type} className="flex justify-between gap-4">
+                    <span>
+                      {nodeDataConfig.find((config) => config.type === type)
+                        ?.label ?? type}
+                    </span>
+                    <span className="tabular-nums">{count}</span>
+                  </li>
+                ))}
+              </ul>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
 
       {/* Alignement et distribution, suggérés selon la forme de la
-          sélection. */}
-      <ArrangeMenu nodes={elementsArray} closeMenu={closeMenu} />
+          sélection. Rien sous deux nodes. */}
+      <ArrangeMenu nodes={nodes} closeMenu={closeMenu} />
 
-      <AppearanceMenu nodes={elementsArray} closeMenu={closeMenu} />
+      <AppearanceMenu nodes={nodes} closeMenu={closeMenu} />
 
       {/* Couleur */}
       <DropdownMenuSub>
@@ -252,8 +313,7 @@ export default function SelectionContextMenu({
                 key={key}
                 type="button"
                 onClick={() => {
-                  if (!Array.isArray(elements)) return;
-                  elements.forEach((node) => {
+                  nodes.forEach((node) => {
                     updateCanvasNode({
                       nodeId: node.id,
                       props: { color: key as colorsEnum },
@@ -264,11 +324,22 @@ export default function SelectionContextMenu({
                 className={cn(
                   "relative w-10 h-10 rounded-full border-2 transition-all hover:scale-110",
                   value.nodeBg,
-                  "border-border hover:border-primary/50",
+                  currentColor === key
+                    ? "border-primary shadow-md"
+                    : "border-border hover:border-primary/50",
                 )}
                 title={value.label}
                 style={colorSwatchStyle(key)}
-              />
+              >
+                {currentColor === key && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <TbCheck
+                      className="w-5 h-5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                      strokeWidth={3}
+                    />
+                  </div>
+                )}
+              </button>
             ))}
           </div>
         </DropdownMenuSubContent>
@@ -285,11 +356,7 @@ export default function SelectionContextMenu({
               className="whitespace-nowrap"
               key={command}
               onClick={() => {
-                if (!Array.isArray(elements)) return;
-                applyLayerCommand(
-                  command,
-                  elements.map((node) => node.id),
-                );
+                applyLayerCommand(command, nodeIds);
                 closeMenu();
               }}
             >
@@ -298,6 +365,19 @@ export default function SelectionContextMenu({
           ))}
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+
+      {canEditTemplate && (
+        <DropdownMenuItem
+          className="whitespace-nowrap"
+          onClick={() => {
+            if (templateId) openTemplateEditor(templateId);
+            closeMenu();
+          }}
+        >
+          <TbLayoutBoardSplit />
+          Edit template
+        </DropdownMenuItem>
+      )}
 
       {canMergeImages && (
         <DropdownMenuItem
@@ -330,32 +410,23 @@ export default function SelectionContextMenu({
 
       {/* Repère de navigation. Sur des nodes et pas sur le cadrage courant :
           le repère suit alors le groupe quand on le déplace, là où une
-          position serait restée sur le vide laissé derrière.
-
-          Bascule à la manière du gras sur une sélection de texte : tant que
-          tous les nodes ne sont pas repérés, le clic les repère tous — sans
-          nom, le panneau affiche « N nodes » et on renomme depuis lui ; une
-          fois l'état homogène, le clic suivant les dé-repère tous — y compris
-          ceux qui l'étaient par un autre repère, qu'il soit `node` ou
-          `selection` (cf. `removeForNodes`). */}
+          position serait restée sur le vide laissé derrière. Pas de
+          raccourci : un bookmark se pose rarement, et les raccourcis du
+          canvas sont déjà denses. */}
       {canBookmark && bookmarkNodeIds.length > 0 && (
         <DropdownMenuItem
           className="whitespace-nowrap"
           onClick={() => {
-            if (allNodesBookmarked) {
-              void removeBookmarksForNodes(bookmarkNodeIds);
-            } else {
-              void createBookmark({
-                kind: "selection",
-                nodeIds: bookmarkNodeIds,
-              });
-            }
+            handleToggleBookmark();
             closeMenu();
           }}
         >
           {allNodesBookmarked ? <TbBookmarkOff /> : <TbBookmark />}
-          {allNodesBookmarked ? "Remove bookmarks" : "Bookmark selection"} (
-          {bookmarkNodeIds.length})
+          {isSingle
+            ? allNodesBookmarked
+              ? "Remove bookmark"
+              : "Bookmark"
+            : `${allNodesBookmarked ? "Remove bookmarks" : "Bookmark selection"} (${bookmarkNodeIds.length})`}
         </DropdownMenuItem>
       )}
 
@@ -371,32 +442,29 @@ export default function SelectionContextMenu({
         >
           <TbFrameOff />
           Remove from frame
-          {framedNodeIds.length !== elementsArray.length &&
+          {framedNodeIds.length !== nodes.length &&
             ` (${framedNodeIds.length})`}
         </DropdownMenuItem>
       )}
 
       {/* Duplication */}
-      <DropdownMenuItem
-        onClick={() => {
-          if (Array.isArray(elements)) {
-            void duplicateNodes(elements);
-          }
-          closeMenu();
-        }}
-      >
-        <TbCopyPlus />
-        Duplicate
-        <DropdownMenuShortcut className="flex items-center gap-1">
-          <Kbd>Ctrl + D</Kbd>
-        </DropdownMenuShortcut>
-      </DropdownMenuItem>
+      {canDuplicate && (
+        <DropdownMenuItem
+          onClick={() => {
+            void duplicateNodes(nodes);
+            closeMenu();
+          }}
+        >
+          <TbCopyPlus />
+          Duplicate
+          <DropdownMenuShortcut className="flex items-center gap-1">
+            <Kbd>Ctrl + D</Kbd>
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+      )}
 
       {/* Ids pour un agent extérieur (MCP) */}
-      <CopyNodeIdsSubMenu
-        nodeIds={elementsArray.map((node) => node.id)}
-        closeMenu={closeMenu}
-      />
+      <CopyNodeIdsSubMenu nodeIds={nodeIds} closeMenu={closeMenu} />
 
       {/* Vers un autre canvas : la sélection part entière, connexions
           internes comprises (cf. `moveNodes`). */}
@@ -417,8 +485,8 @@ export default function SelectionContextMenu({
       <DropdownMenuItem
         onClick={() => {
           void deleteCanvasElements(
-            { nodes: elements as Node[] },
-            { label: "Delete selection" },
+            { nodes },
+            { label: isSingle ? "Delete node" : "Delete selection" },
           );
           closeMenu();
         }}
@@ -431,7 +499,7 @@ export default function SelectionContextMenu({
         <MoveNodeToCanvasModal
           open={isMoveModalOpen}
           onOpenChange={setIsMoveModalOpen}
-          nodeIds={elementsArray.map((node) => node.id)}
+          nodeIds={nodeIds}
           onSuccess={() => {
             setIsMoveModalOpen(false);
             closeMenu();

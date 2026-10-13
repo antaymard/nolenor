@@ -19,7 +19,7 @@ export function QueuedMessages({ threadId }: { threadId: string }) {
   if (!queued || queued.length === 0) return null;
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex min-w-0 flex-col items-end gap-2">
       {queued.map((submission) => (
         <QueuedBubble
           key={submission._id}
@@ -39,8 +39,8 @@ function QueuedBubble({
   onWithdraw: () => void;
 }) {
   return (
-    <div className="group flex max-w-4/5 flex-col items-end gap-1">
-      <div className="relative rounded-2xl rounded-br-sm border border-dashed border-slate-300 bg-slate-50 px-3 py-2 whitespace-pre-wrap text-slate-500">
+    <div className="group flex max-w-4/5 min-w-0 flex-col items-end gap-1">
+      <div className="relative rounded-2xl rounded-br-sm border border-dashed border-slate-300 bg-slate-50 px-3 py-2 break-words [overflow-wrap:anywhere] whitespace-pre-wrap text-slate-500">
         {prompt}
         <button
           type="button"

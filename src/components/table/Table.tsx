@@ -5,6 +5,7 @@ import {
   getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
+  type Cell,
   type ColumnDef,
   type FilterFn,
   type SortingState,
@@ -148,6 +149,26 @@ const COLUMN_MODIFIERS = [restrictToHorizontalAxis];
 
 /** Ce qu'on déplace. Posé par le `data` des sortables, dans `sortableParts`. */
 type DragKind = "row" | "column";
+
+/**
+ * Rend une cellule de données en APPELANT son renderer, là où `flexRender` le
+ * monterait comme composant (`<Cell />`). Le memo `columns` se reconstruit à
+ * chaque changement de la table (`tableColumns` est un tableau neuf à chaque
+ * lecture du doc) : chaque `cell` est alors une fonction neuve, donc un type
+ * de composant neuf pour React, qui démontait et remontait tout l'éditeur. En
+ * multi-sélection, le popover reste ouvert pendant qu'on coche : chaque option
+ * choisie le refermait puis le rouvrait (optimiste, puis réponse du serveur)
+ * — le « blink ». Appelé comme fonction, le renderer ne fait que produire du
+ * JSX ; `CellEditor` et son état survivent. Le renderer ne doit donc pas
+ * appeler de hook.
+ */
+function renderDataCell(
+  columnDef: ColumnDef<TableRowData>,
+  cell: Cell<TableRowData, unknown>,
+) {
+  const render = columnDef.cell;
+  return typeof render === "function" ? render(cell.getContext()) : render;
+}
 
 /** Défauts stables : ces tableaux entrent dans des `useMemo`. */
 const NO_FILTERS: TableFilter[] = [];
@@ -917,10 +938,7 @@ export function Table({
                                       openCell(row.original.id, cell.column.id)
                               }
                             >
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext(),
-                              )}
+                              {renderDataCell(cell.column.columnDef, cell)}
                             </DraggableCell>
                           );
                         })}

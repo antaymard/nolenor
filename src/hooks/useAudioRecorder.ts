@@ -108,11 +108,14 @@ export function useAudioRecorder(): AudioRecorderResult {
   }, []);
 
   const reset = useCallback(() => {
-    // Stop any ongoing recording
+    // Stop any ongoing recording. `onstop` is detached first: it fires
+    // asynchronously and would otherwise publish the discarded recording as
+    // `audioBlob` after the reset.
     if (
       mediaRecorderRef.current &&
       mediaRecorderRef.current.state === "recording"
     ) {
+      mediaRecorderRef.current.onstop = null;
       mediaRecorderRef.current.stop();
     }
     streamRef.current?.getTracks().forEach((track) => track.stop());

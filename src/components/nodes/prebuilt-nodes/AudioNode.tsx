@@ -3,6 +3,7 @@ import {
   TbDownload,
   TbFlag,
   TbMaximize,
+  TbMicrophone,
   TbMusic,
   TbPencil,
   TbPlayerPause,
@@ -44,6 +45,7 @@ import { useWindowsStore } from "@/stores/windowsStore";
 import type { XyNodeProps } from "@/types/domain";
 import { TranscribeButton } from "./media/TranscribeButton";
 import { displayNameOf } from "./audio/audioDisplayName";
+import VoiceMemoRecorder from "./audio/VoiceMemoRecorder";
 
 export type AudioValue = {
   url: string;
@@ -68,6 +70,7 @@ function AudioNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
   const variant = (xyNode.data?.variant as string | undefined) ?? "player";
   const isCompact = variant === "compact";
+  const isMemo = variant === "memo";
 
   // Field-level selectors: changing the loop must not invalidate the audio
   // object, and vice versa.
@@ -400,6 +403,11 @@ function AudioNode(xyNode: XyNodeProps) {
                 className="pointer-events-none size-14 shrink-0 rounded object-cover"
               />
             )}
+            {isMemo && !audio.cover && (
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-600">
+                <TbMicrophone size={20} />
+              </span>
+            )}
 
             <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
             {isCompact ? (
@@ -666,6 +674,8 @@ function AudioNode(xyNode: XyNodeProps) {
             )}
             </div>
           </div>
+        ) : isMemo ? (
+          <VoiceMemoRecorder nodeDataId={nodeDataId} />
         ) : (
           <NodeEmptyState
             icon={<TbMusic size={18} />}

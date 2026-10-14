@@ -8,9 +8,9 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Kbd } from "@/components/shadcn/kbd";
 import { useCreateNode } from "@/hooks/useCreateNode";
-import prebuiltNodesConfig, {
-  canNodeTypeBeCreated,
-  type PrebuiltNodeConfig,
+import {
+  creationEntries,
+  type CreationEntry,
 } from "../../nodes/prebuilt-nodes/prebuiltNodesConfig";
 import { useMyTemplates } from "@/stores/templatesStore";
 import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
@@ -69,10 +69,8 @@ export default function AddBlockMenuContent({
   const insideFrame = parentFrame !== null;
   const creatableNodes = useMemo(
     () =>
-      prebuiltNodesConfig.filter(
-        (nodeConfig) =>
-          canNodeTypeBeCreated(nodeConfig.node.type) &&
-          !(insideFrame && nodeConfig.node.type === "frame"),
+      creationEntries.filter(
+        (entry) => !(insideFrame && entry.type === "frame"),
       ),
     [insideFrame],
   );
@@ -113,13 +111,13 @@ export default function AddBlockMenuContent({
   // Liste unifiée pour la navigation clavier : nodes prébuilt, templates,
   // puis l'entrée « Manage templates » quand elle est affichée.
   type AddMenuItem =
-    | { key: string; kind: "node"; config: PrebuiltNodeConfig }
+    | { key: string; kind: "node"; config: CreationEntry }
     | { key: string; kind: "template"; template: Doc<"nodeTemplates"> }
     | { key: string; kind: "manage" };
 
   const items: AddMenuItem[] = [
     ...filteredNodes.map(
-      (config): AddMenuItem => ({ key: config.type, kind: "node", config }),
+      (config): AddMenuItem => ({ key: config.key, kind: "node", config }),
     ),
     ...filteredTemplates.map(
       (template): AddMenuItem => ({
@@ -180,12 +178,9 @@ export default function AddBlockMenuContent({
     onConnectionNodeCreated({ pendingConnection, nodeId, nodeSettled });
   }
 
-  function handleCreateNode(nodeConfig: PrebuiltNodeConfig) {
+  function handleCreateNode(nodeConfig: CreationEntry) {
+    // Dimensions et variante déjà résolues dans `creationEntries`.
     const nodeToCreate = { ...nodeConfig.node };
-    if (nodeConfig.variants?.default) {
-      nodeToCreate.height = nodeConfig.variants.default.defaultHeight;
-      nodeToCreate.width = nodeConfig.variants.default.defaultWidth;
-    }
 
     // Fermer AVANT de créer : Radix rend le focus à son trigger
     // en se fermant, ce qui volerait le curseur au titre qui
@@ -327,10 +322,10 @@ export default function AddBlockMenuContent({
         {filteredNodes.length > 0 ? (
           <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
             {filteredNodes.map((nodeConfig, i) => {
-              const Icon = nodeConfig.nodeIcon;
+              const Icon = nodeConfig.icon;
               return (
                 <DropdownMenuItem
-                  key={nodeConfig.type}
+                  key={nodeConfig.key}
                   data-add-menu-item={i}
                   onSelect={() => {
                     void handleCreateNode(nodeConfig);

@@ -1,4 +1,5 @@
 import type { IconType } from "react-icons";
+import { TbMicrophone } from "react-icons/tb";
 import type { LetterKey } from "@tanstack/react-hotkeys";
 import type { NodeType, XyNode, XyNodeProps } from "@/types/domain";
 import { nodeDataConfig } from "@/../convex/config/nodeConfig";
@@ -34,6 +35,21 @@ type NodeUiConfigItem = {
    * créables à la souris.
    */
   creationShortcut?: LetterKey;
+  /**
+   * Entrées supplémentaires du menu « Add a block » qui créent ce même type
+   * dans une variante donnée. Pour un usage qui mérite sa propre porte
+   * d'entrée sans dupliquer le type (le mémo vocal est un node `audio` :
+   * transcription, recherche, export et outils de l'agent le traitent déjà).
+   */
+  creationPresets?: CreationPreset[];
+};
+
+type CreationPreset = {
+  label: string;
+  description: string;
+  icon: IconType;
+  /** Clé dans les `variants` du type (cf. `convex/config/nodeConfig.ts`). */
+  variant: string;
 };
 
 type PrebuiltNodeConfig = NodeDataConfigItem &
@@ -115,6 +131,15 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.audio,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("audio"),
     creatable: true,
+    creationPresets: [
+      {
+        label: "Voice memo",
+        description:
+          "Record a voice note from your microphone, transcribed automatically.",
+        icon: TbMicrophone,
+        variant: "memo",
+      },
+    ],
   },
   video: {
     nodeComponent: VideoNode,
@@ -164,6 +189,68 @@ const prebuiltNodesConfig: Array<PrebuiltNodeConfig> = nodeDataConfig
     };
   });
 
+/**
+ * Une ligne du menu « Add a block » : un type, ou un preset d'un type.
+ * `node` est le gabarit prêt à créer (dimensions et variante comprises).
+ */
+type CreationEntry = {
+  key: string;
+  type: NodeType;
+  label: string;
+  description: string;
+  icon: IconType;
+  creationShortcut?: LetterKey;
+  node: XyNode;
+};
+
+const creationEntries: CreationEntry[] = prebuiltNodesConfig
+  .filter((config) => config.creatable)
+  .flatMap((config) => {
+    const node = { ...config.node };
+    // Un type qui déclare une variante nommée « default » naît à ses
+    // dimensions plutôt qu'à `defaultDimensions`.
+    if (config.variants?.default) {
+      node.height = config.variants.default.defaultHeight;
+      node.width = config.variants.default.defaultWidth;
+    }
+    const base: CreationEntry = {
+      key: config.type,
+      type: config.type,
+      label: config.label,
+      description: config.description,
+      icon: config.nodeIcon,
+      creationShortcut: config.creationShortcut,
+      node,
+    };
+    const presets = (config.creationPresets ?? []).flatMap(
+      (preset): CreationEntry[] => {
+        const variant = config.variants?.[preset.variant];
+        if (!variant) {
+          console.warn(
+            `[prebuiltNodesConfig] preset "${preset.label}" : la variante "${preset.variant}" n'existe pas sur "${config.type}".`,
+          );
+          return [];
+        }
+        return [
+          {
+            key: `${config.type}:${preset.variant}`,
+            type: config.type,
+            label: preset.label,
+            description: preset.description,
+            icon: preset.icon,
+            node: {
+              ...config.node,
+              width: variant.defaultWidth,
+              height: variant.defaultHeight,
+              data: { ...config.node.data, variant: preset.variant },
+            } as XyNode,
+          },
+        ];
+      },
+    );
+    return [base, ...presets];
+  });
+
 const openableNodeTypes = new Set<NodeType>(
   prebuiltNodesConfig
     .filter((config) => config.canBeOpenInWindow)
@@ -206,10 +293,11 @@ const shortcutCreatableNodes = prebuiltNodesConfig.filter(
 
 export default prebuiltNodesConfig;
 export {
+  creationEntries,
   openableNodeTypes,
   canNodeTypeBeOpenedInWindow,
   creatableNodeTypes,
   canNodeTypeBeCreated,
   shortcutCreatableNodes,
 };
-export type { PrebuiltNodeConfig };
+export type { PrebuiltNodeConfig, CreationEntry };

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { cn } from "@/lib/utils";
 
@@ -105,7 +105,7 @@ export default function DockRow({
   actions: Array<DockRowAction>;
   /** Remplace le corps pendant un renommage. */
   editor?: ReactNode;
-  onClick?: () => void;
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <div className="group relative flex items-center rounded-lg hover:bg-accent">

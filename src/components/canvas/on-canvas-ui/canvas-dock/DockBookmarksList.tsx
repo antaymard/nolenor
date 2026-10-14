@@ -20,7 +20,7 @@ import {
   TbBookmarkOff,
   TbFocusCentered,
   TbGripVertical,
-  TbLocation,
+  TbMaximize,
   TbPencil,
   TbSquare,
   TbSquares,
@@ -35,6 +35,7 @@ import {
   type ResolvedBookmark,
 } from "@/hooks/useCanvasBookmarks";
 import { useGoToBookmark } from "@/hooks/useGoToBookmark";
+import { isOpenModifier, OPEN_MODIFIER_LABEL } from "@/hooks/useActivateNode";
 import type { DeltaTarget } from "@/lib/canvasViewportFraming";
 import TargetDeltaIndicator from "@/components/canvas/navigation/TargetDeltaIndicator";
 import { useCanvasStore } from "@/stores/canvasStore";
@@ -140,7 +141,9 @@ function SortableBookmarkRow({
         title={
           bookmark.isDangling
             ? "This target is no longer on the canvas"
-            : bookmark.displayLabel
+            : bookmark.target.kind === "node"
+              ? `${bookmark.displayLabel} — click to go to, ${OPEN_MODIFIER_LABEL}+click to open`
+              : bookmark.displayLabel
         }
         muted={bookmark.isDangling}
         disabled={bookmark.isDangling}
@@ -156,7 +159,9 @@ function SortableBookmarkRow({
           </button>
         }
         trailing={<TargetDeltaIndicator target={deltaTarget} />}
-        onClick={() => onOpen(bookmark)}
+        onClick={(event) =>
+          isOpenModifier(event) ? onOpen(bookmark) : onGoTo(bookmark)
+        }
         editor={
           draft === null ? undefined : (
             <input
@@ -176,10 +181,13 @@ function SortableBookmarkRow({
         }
         actions={[
           {
-            icon: TbLocation,
-            label: "Go to",
-            disabled: bookmark.isDangling,
-            onClick: () => onGoTo(bookmark),
+            // Le clic sur la ligne va déjà au repère : l'action révélée au
+            // survol est donc l'autre geste, celui du Ctrl/⌘+clic. Inerte
+            // hors repère de node, faute de window à ouvrir.
+            icon: TbMaximize,
+            label: "Open",
+            disabled: bookmark.isDangling || bookmark.target.kind !== "node",
+            onClick: () => onOpen(bookmark),
           },
           {
             // Reste actif sur un repère mort : renommer est, avec retirer le
@@ -276,12 +284,14 @@ export default function DockBookmarksList({
   }
 
   /**
-   * Le clic sur une ligne ouvre le node en window, et retombe sur la
-   * navigation canvas quand il n'y a pas de window à ouvrir : `openWindow`
-   * tranche lui-même (il rend `false` pour un type sans window) et les repères
-   * `framing`/`selection` ne visent de toute façon aucun node unique.
+   * Ouvre le node en window (Ctrl/⌘+clic sur la ligne, ou l'action « Open »),
+   * et retombe sur la navigation canvas quand il n'y a pas de window à ouvrir :
+   * `openWindow` tranche lui-même (il rend `false` pour un type sans window) et
+   * les repères `framing`/`selection` ne visent de toute façon aucun node
+   * unique. Le clic simple, lui, va au repère.
    *
-   * Même repli que les pastilles de mention et les liens du side panel.
+   * Mêmes gestes et même repli que les pastilles de mention
+   * (`useActivateNode`).
    */
   function handleOpen(bookmark: ResolvedBookmark) {
     const { target } = bookmark;

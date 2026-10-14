@@ -14,6 +14,10 @@ import NodeCollaboratorsPill from "@/components/canvas/presence/NodeCollaborator
 import { NodeTitleHeader } from "./NodeHeader";
 import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
 import { zoomCompensationScaleSelector } from "@/lib/zoomCompensation";
+import {
+  setNodeResizable,
+  useIsSelectionResizeActive,
+} from "@/stores/selectionResizeStore";
 
 /**
  * Option `scaleWithZoom` : la boîte visuelle du node (cadre, ring de
@@ -117,6 +121,15 @@ function NodeFrame({
   const handleResizeStart = useCallback(() => setIsResizing(true), []);
   const handleResizeEnd = useCallback(() => setIsResizing(false), []);
   const canDrag = true;
+  // Déclarée pour le cadre de la multi-sélection (`SelectionResizer`), qui
+  // laisse sa taille à un node que l'utilisateur ne redimensionne pas.
+  useEffect(() => {
+    setNodeResizable(xyNode.id, resizable);
+    return () => setNodeResizable(xyNode.id, false);
+  }, [xyNode.id, resizable]);
+  // Plusieurs nodes sélectionnés : le cadre de la sélection remplace les
+  // poignées de chacun.
+  const isSelectionResizeActive = useIsSelectionResizeActive();
   const openWindow = useWindowsStore((state) => state.openWindow);
   const isAttachedToNole = useIsNodeAttached(xyNode.id);
   const isBookmarked = useIsNodeBookmarked(xyNode.id);
@@ -266,7 +279,9 @@ function NodeFrame({
         <NodeHandles showSourceHandles={xyNode?.selected} nodeId={xyNode.id} />
       )}
       <NodeResizer
-        isVisible={resizable && xyNode?.selected}
+        isVisible={
+          resizable && xyNode?.selected && !isSelectionResizeActive
+        }
         minWidth={minWidth}
         minHeight={minHeight}
         onResizeStart={handleResizeStart}

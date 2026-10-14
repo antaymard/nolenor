@@ -28,6 +28,7 @@ import { useTitleNodeSizing } from "./useTitleNodeSizing";
 import { TITLE_HEADING_CLASSNAMES } from "./titleLevelStyles";
 import { parseTitleHeading } from "@/../convex/lib/titleHeading";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
+import { useIsSelectionResizeActive } from "@/stores/selectionResizeStore";
 
 type SizingMode = "auto" | "manual";
 
@@ -89,6 +90,9 @@ function TitleNode(xyNode: XyNodeProps) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  // Plusieurs nodes sélectionnés : le cadre de la sélection remplace les
+  // poignées du titre (cf. `SelectionResizer`).
+  const isSelectionResizeActive = useIsSelectionResizeActive();
   // Live text drives the ghost measurer (and therefore the node size) while
   // the user types. The contentEditable element itself is NOT controlled by
   // React (writes happen via ref) to avoid caret jumps.
@@ -377,7 +381,7 @@ function TitleNode(xyNode: XyNodeProps) {
           React Flow only mutates width — height stays under our hook's
           control, so releasing the handle no longer snaps height to one
           line. */}
-      {xyNode.selected ? (
+      {xyNode.selected && !isSelectionResizeActive ? (
         <>
           <NodeResizeControl
             variant={ResizeControlVariant.Line}

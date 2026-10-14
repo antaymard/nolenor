@@ -28,6 +28,7 @@ import { useNodeDataValues } from "@/hooks/useNodeData";
 import { useUpdateNodeDataValues } from "@/hooks/useUpdateNodeDataValues";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import { useIsFrameHovered } from "@/stores/frameHoverStore";
+import { useIsSelectionResizeActive } from "@/stores/selectionResizeStore";
 import { useIsNodeAttached } from "@/stores/noleStore";
 import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
@@ -335,6 +336,9 @@ function FrameNode(xyNode: XyNodeProps) {
   }, [getNodes, xyNode.id]);
 
   const isSelected = xyNode.selected;
+  // Plusieurs nodes sélectionnés : le cadre de la sélection remplace les
+  // poignées de la frame (cf. `SelectionResizer`).
+  const isSelectionResizeActive = useIsSelectionResizeActive();
   useEffect(() => {
     // Compacte : pas de poignées, donc pas de bornes à mesurer.
     if (isSelected && !isCompact) measureContent();
@@ -441,7 +445,7 @@ function FrameNode(xyNode: XyNodeProps) {
 
       <NodeHandles showSourceHandles={xyNode.selected} nodeId={xyNode.id} />
 
-      {xyNode.selected
+      {xyNode.selected && !isSelectionResizeActive
         ? RESIZE_CONTROLS.map(({ position, variant }) => (
             <NodeResizeControl
               key={position}

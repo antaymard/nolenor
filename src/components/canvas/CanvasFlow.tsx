@@ -30,6 +30,7 @@ import { useFrameDrawTool } from "@/hooks/useFrameDrawTool";
 import CanvasDropOverlay from "./CanvasDropOverlay";
 import FrameDrawOverlay from "./FrameDrawOverlay";
 import SnapGuidesOverlay from "./SnapGuidesOverlay";
+import SelectionResizer from "./SelectionResizer";
 import CompactFrameDeleteDialog from "./CompactFrameDeleteDialog";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
@@ -837,6 +838,11 @@ export default function CanvasFlow({
         {/* Guides d'alignement du drag en cours : sur les nodes, sous les
             panneaux (cf. le composant). */}
         <SnapGuidesOverlay />
+        {/* Le cadre de redimensionnement d'une multi-sélection. Hors outil
+            main et tracé de frame : là, plus rien ne se déplace. */}
+        {canEdit && !isFrameTool && !isHandTool && (
+          <SelectionResizer canvasId={canvasId} />
+        )}
         {children}
         {contextMenu.type && (
           <ContextMenu

@@ -20,6 +20,8 @@ export interface AudioRecorderResult {
   reset: () => void;
   /** Error that occurred during recording */
   error: string | null;
+  /** The microphone stream while recording (e.g. for a level meter) */
+  stream: MediaStream | null;
 }
 
 // audio/webm n'est pas supporté partout (Safari iOS => audio/mp4) : on prend
@@ -35,6 +37,7 @@ export function useAudioRecorder(): AudioRecorderResult {
   const [status, setStatus] = useState<RecordingStatus>("idle");
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -54,6 +57,7 @@ export function useAudioRecorder(): AudioRecorderResult {
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+      setStream(stream);
 
       const mimeType = pickSupportedMimeType();
       const mediaRecorder = new MediaRecorder(
@@ -78,6 +82,7 @@ export function useAudioRecorder(): AudioRecorderResult {
         // Release the microphone
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
+        setStream(null);
       };
 
       mediaRecorder.start();
@@ -87,6 +92,7 @@ export function useAudioRecorder(): AudioRecorderResult {
       // qui throw) pour ne pas laisser l'indicateur micro du navigateur allumé.
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      setStream(null);
 
       const message =
         err instanceof Error && !(err instanceof DOMException)
@@ -108,15 +114,19 @@ export function useAudioRecorder(): AudioRecorderResult {
   }, []);
 
   const reset = useCallback(() => {
-    // Stop any ongoing recording
+    // Stop any ongoing recording. `onstop` is detached first: it fires
+    // asynchronously and would otherwise publish the discarded recording as
+    // `audioBlob` after the reset.
     if (
       mediaRecorderRef.current &&
       mediaRecorderRef.current.state === "recording"
     ) {
+      mediaRecorderRef.current.onstop = null;
       mediaRecorderRef.current.stop();
     }
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    setStream(null);
     mediaRecorderRef.current = null;
     chunksRef.current = [];
 
@@ -132,5 +142,6 @@ export function useAudioRecorder(): AudioRecorderResult {
     audioBlob,
     reset,
     error,
+    stream,
   };
 }

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Id } from "@/../convex/_generated/dataModel";
 import {
   isVoiceMemoUnsaved,
@@ -10,36 +10,22 @@ import {
 
 const CANVAS = "canvas_a" as Id<"canvases">;
 
-class FakeTrack {
-  stopped = false;
-  onended: (() => void) | null = null;
-  stop() {
-    this.stopped = true;
-  }
-}
-
-let track: FakeTrack;
-
-class FakeMediaRecorder {
-  static isTypeSupported = (mime: string) => mime === "audio/webm";
-  mimeType = "audio/webm;codecs=opus";
-  state: "inactive" | "recording" = "inactive";
-  ondataavailable: ((e: { data: Blob }) => void) | null = null;
-  onstop: (() => void) | null = null;
-  start() {
-    this.state = "recording";
-  }
-  stop() {
-    this.state = "inactive";
-    this.ondataavailable?.({ data: new Blob(["sound"]) });
-    queueMicrotask(() => this.onstop?.());
-  }
-}
-
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** The recorder delivers its file on stop, as the controller does. */
 function makeDeps(overrides: Partial<VoiceMemoDeps> = {}) {
   const deps: VoiceMemoDeps = {
+    recorder: {
+      start: vi.fn(async () => {}),
+      stop: vi.fn(() =>
+        queueMicrotask(() =>
+          useVoiceMemoStore
+            .getState()
+            .onRecorded(new Blob(["sound"], { type: "audio/webm;codecs=opus" })),
+        ),
+      ),
+      reset: vi.fn(),
+    },
     uploadFile: vi.fn(async (file: File) => ({
       url: "https://files/x",
       filename: file.name,
@@ -53,38 +39,22 @@ function makeDeps(overrides: Partial<VoiceMemoDeps> = {}) {
     onSavedElsewhere: vi.fn(),
     ...overrides,
   };
+  cleanups.push(registerVoiceMemoDeps(deps));
   return deps;
 }
 
 let cleanups: Array<() => void> = [];
 
-beforeEach(() => {
-  track = new FakeTrack();
-  vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
-  // No AudioContext in this environment: the level meter is skipped.
-  vi.stubGlobal("AudioContext", undefined);
-  vi.stubGlobal("navigator", {
-    mediaDevices: {
-      getUserMedia: vi.fn(async () => ({
-        getTracks: () => [track],
-        getAudioTracks: () => [track],
-      })),
-    },
-  });
-});
-
 afterEach(() => {
   useVoiceMemoStore.getState().discard();
   cleanups.forEach((fn) => fn());
   cleanups = [];
-  vi.unstubAllGlobals();
 });
 
 describe("voiceMemoStore", () => {
   test("stop creates the node on the canvas still open, at the stop-time target", async () => {
     const deps = makeDeps();
     const create = vi.fn(async () => {});
-    cleanups.push(registerVoiceMemoDeps(deps));
     cleanups.push(
       registerVoiceMemoBinding(CANVAS, {
         getTarget: () => ({ center: { x: 10, y: 20 }, zIndex: 7 }),
@@ -99,7 +69,6 @@ describe("voiceMemoStore", () => {
     useVoiceMemoStore.getState().stop();
     await flush();
 
-    expect(track.stopped).toBe(true);
     const file = vi.mocked(deps.uploadFile).mock.calls[0][0];
     expect(file.type).toBe("audio/webm");
     expect(file.name).toMatch(/^voice-memo-.*\.webm$/);
@@ -115,7 +84,6 @@ describe("voiceMemoStore", () => {
 
   test("leaving the canvas: target read before unbinding, node created on the server", async () => {
     const deps = makeDeps();
-    cleanups.push(registerVoiceMemoDeps(deps));
     const unbind = registerVoiceMemoBinding(CANVAS, {
       getTarget: () => ({ center: { x: 1, y: 2 }, zIndex: 3 }),
       create: vi.fn(async () => {}),
@@ -144,7 +112,6 @@ describe("voiceMemoStore", () => {
       if (fail) throw new Error("network");
       return upload(file, onProgress);
     });
-    cleanups.push(registerVoiceMemoDeps(deps));
 
     await useVoiceMemoStore.getState().start(CANVAS);
     useVoiceMemoStore.getState().stop();
@@ -167,30 +134,31 @@ describe("voiceMemoStore", () => {
   });
 
   test("a refused microphone shows the message and records nothing", async () => {
-    vi.stubGlobal("navigator", {
-      mediaDevices: {
-        getUserMedia: vi.fn(async () => {
-          throw new DOMException("denied", "NotAllowedError");
-        }),
-      },
-    });
+    const deps = makeDeps();
+    vi.mocked(deps.recorder.start).mockRejectedValueOnce(
+      new Error("Microphone access denied."),
+    );
 
     await useVoiceMemoStore.getState().start(CANVAS);
     const state = useVoiceMemoStore.getState();
     expect(state.phase).toBe("error");
-    expect(state.error).toMatch(/Microphone access denied/);
+    expect(state.error).toBe("Microphone access denied.");
     expect(state.hasPendingSave).toBe(false);
   });
 
-  test("discard drops the recording without saving", async () => {
+  test("discard while waiting for the microphone stops the recorder once it starts", async () => {
     const deps = makeDeps();
-    cleanups.push(registerVoiceMemoDeps(deps));
+    let grant!: () => void;
+    vi.mocked(deps.recorder.start).mockReturnValueOnce(
+      new Promise<void>((resolve) => (grant = resolve)),
+    );
 
-    await useVoiceMemoStore.getState().start(CANVAS);
+    const starting = useVoiceMemoStore.getState().start(CANVAS);
     useVoiceMemoStore.getState().discard();
-    await flush();
+    grant();
+    await starting;
 
-    expect(track.stopped).toBe(true);
+    expect(deps.recorder.reset).toHaveBeenCalledTimes(2);
     expect(deps.uploadFile).not.toHaveBeenCalled();
     expect(useVoiceMemoStore.getState().phase).toBe("idle");
   });

@@ -4,6 +4,7 @@ import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { useNodeData, useNodeDataValuesField } from "@/hooks/useNodeData";
 import { toastError } from "@/components/utils/errorUtils";
+import { isPendingDocId } from "@/lib/pendingDocIds";
 
 export type MediaTranscriptionState =
   | "noFile"
@@ -44,7 +45,10 @@ export function useMediaTranscription(
 ) {
   const file = useNodeDataValuesField<StoredMediaFile>(nodeDataId, nodeType);
   const nodeData = useNodeData(nodeDataId);
-  const sourceKey = file?.key;
+  // A node created local-first already carrying its file (voice memo) is
+  // shown before the server answers: its `pending_…` id is unknown there,
+  // so it counts as having no file until the real id lands.
+  const sourceKey = isPendingDocId(nodeDataId) ? undefined : file?.key;
 
   const hasTranscript = useQuery(
     api.ia.transcription.hasTranscript,

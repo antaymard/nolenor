@@ -10,7 +10,7 @@ hidden: true
 - **Allowed and maximum size**: images 25 MB · audio 200 MB · video 500 MB · PDF 100 MB · Word / Excel / PowerPoint 100 MB · text, CSV, Markdown, JSON, XML 25 MB · zip / rar / 7z 200 MB. Up to 20 files per upload.
 - **Refused**: SVG images, HTML files and unknown types ("This file type is not allowed."). Too big: "This file is too large." Too many: "Too many files in a single upload."
 - **Canvas cover image**: PNG, JPEG, WebP, GIF or AVIF, 5 MB max.
-- **Transcription**: only audio and video blocks, on demand (a voice memo starts its own after recording). Files above the allowed size give a greyed **Transcribe** button with the maximum in its tooltip ("This recording is too long to be transcribed." / "This file is too large to be transcribed."); on some deployments transcription is unavailable and the button is absent.
+- **Transcription**: only audio and video blocks, on demand. Files above the allowed size give a greyed **Transcribe** button with the maximum in its tooltip ("This recording is too long to be transcribed." / "This file is too large to be transcribed."); on some deployments transcription is unavailable and the button is absent.
 - What each file becomes when dropped: `manual-canvas-blocks`.
 
 ## Other limits

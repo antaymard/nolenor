@@ -141,7 +141,7 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
       {
         label: "Voice memo",
         description:
-          "Record a voice note from your microphone, transcribed automatically.",
+          "Record a voice note from your microphone.",
         icon: TbMicrophone,
         initialValues: { source: "recording" },
       },

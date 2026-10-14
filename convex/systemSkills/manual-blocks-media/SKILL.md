@@ -26,9 +26,9 @@ How files become blocks: drop or paste them on the canvas (routing rules and siz
 - **Loop a passage**: while playing, press the flag "Début de la boucle ici" at the start and "Fin de la boucle ici" at the end, then the repeat button ("Activer la boucle"). **Clear loop** removes it. Nolë can set a loop if you describe the passage.
 
 ## Voice memo
-- Add it from the menu: **Voice memo** ("Record a voice note from your microphone, transcribed automatically."). It is an Audio block that starts with a red microphone button, "Record a voice memo", instead of a file (in **Player** or **Compact** appearance alike).
+- Add it from the menu: **Voice memo** ("Record a voice note from your microphone."). It is an Audio block that starts with a red microphone button, "Record a voice memo", instead of a file (in **Player** or **Compact** appearance alike).
 - Click the button (the browser asks for the microphone the first time). While recording: a red dot, the elapsed time, **Stop** to save, the cross to discard.
-- On **Stop** the recording is saved ("Saving…") and the block becomes a normal audio player named "Voice memo — " with the date and time (rename it with **Edit**). Uploading a file over it with **Edit** turns it into a plain Audio block. The **transcription starts on its own**; if it cannot start (rate limit), use **Transcribe** as usual.
+- On **Stop** the recording is saved ("Saving…") and the block becomes a normal audio player named "Voice memo — " with the date and time (rename it with **Edit**). Uploading a file over it with **Edit** turns it into a plain Audio block. Transcribe it with **Transcribe**, like any audio block.
 - If the microphone is refused or missing, the message shows under the button (e.g. "Microphone access denied. Allow the microphone in your browser settings."). If saving fails, the button becomes "Retry saving the memo".
 - Recording happens in the block: keep the canvas open until you press **Stop**. Nolë cannot record.
 
@@ -47,6 +47,6 @@ How files become blocks: drop or paste them on the canvas (routing rules and siz
 2. When done the button becomes **Transcript**: it opens the window with the timestamped text (click a line to play from there), and **Panel → Plan** gives an **Overview** and **Chapters** (they appear shortly after).
 3. **Re-transcribe** (window) replaces the current transcript.
 - Once transcribed the content is **searchable** (Ctrl+K) and **Nolë can read it**.
-- Only you can start it (a voice memo starts its own). If the file is too big the button is greyed and its tooltip says "File too large to transcribe (max … MB)"; if it fails, **Retry**. If the button is missing, transcription is not available for that file on this deployment. Transcriptions are rate-limited (a few per minute).
+- Only you can start it. If the file is too big the button is greyed and its tooltip says "File too large to transcribe (max … MB)"; if it fails, **Retry**. If the button is missing, transcription is not available for that file on this deployment. Transcriptions are rate-limited (a few per minute).
 
 See also: `manual-windows`, `manual-troubleshooting-and-limits`.

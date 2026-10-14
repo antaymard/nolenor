@@ -1,12 +1,10 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { useMutation } from "convex/react";
 import {
   TbMicrophone,
   TbPlayerStopFilled,
   TbRefresh,
   TbX,
 } from "react-icons/tb";
-import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Spinner } from "@/components/shadcn/spinner";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
@@ -40,12 +38,9 @@ function memoNames(recordedAt: Date, mimeType: string) {
 
 /**
  * Empty state of a voice memo (an audio node whose `source` is
- * "recording"): records from the
- * microphone, then fills the node exactly like an upload would, so the player,
- * the window and the transcript take over with no memo-specific code.
- *
- * The transcription starts on its own once the file is saved: a voice memo is
- * mostly read back, not listened to.
+ * "recording"): records from the microphone, then fills the node exactly
+ * like an upload would, so the player, the window and the on-demand
+ * transcription take over with no memo-specific code.
  */
 function VoiceMemoRecorder({
   nodeDataId,
@@ -59,7 +54,6 @@ function VoiceMemoRecorder({
     useAudioRecorder();
   const { uploadFile } = useFileUpload();
   const { updateNodeDataValues } = useUpdateNodeDataValues();
-  const transcribeAudio = useMutation(api.ia.transcription.transcribeAudio);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -107,19 +101,13 @@ function VoiceMemoRecorder({
           values: { audio },
         });
         if (!saved) throw new Error("The voice memo could not be saved.");
-
-        // Best effort: on a rate limit or an unavailable STT the toolbar's
-        // Transcribe button stays there to retry.
-        transcribeAudio({ nodeDataId }).catch((err: unknown) => {
-          console.warn("[VoiceMemoRecorder] auto-transcription failed", err);
-        });
       } catch (err) {
         toastError(err, "The voice memo could not be saved.");
         setError("The voice memo could not be saved.");
         setPhase("error");
       }
     },
-    [nodeDataId, transcribeAudio, updateNodeDataValues, uploadFile],
+    [nodeDataId, updateNodeDataValues, uploadFile],
   );
 
   // The blob only exists once MediaRecorder has flushed its last chunk.
@@ -250,7 +238,7 @@ function VoiceMemoRecorder({
           <span className="line-clamp-2 text-xs text-destructive">{error}</span>
         ) : (
           <span className="truncate text-xs text-muted-foreground">
-            Transcribed automatically
+            Click to start, stop to save
           </span>
         )}
       </div>

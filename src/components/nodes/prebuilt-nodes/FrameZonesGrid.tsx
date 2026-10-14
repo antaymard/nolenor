@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 import {
+  TbCalendarMonth,
   TbLayoutGrid,
   TbLayoutKanban,
   TbPlus,
@@ -11,6 +12,9 @@ import InlineEditableText from "@/components/form-ui/InlineEditableText";
 import {
   FRAME_ZONE_PRESETS,
   ZONE_HEADER_HEIGHT,
+  isTimeline,
+  nextColumnLabel,
+  timelineColumns,
   ZONE_ROW_HEADER_WIDTH,
   type FrameZones,
   type Zone,
@@ -28,13 +32,14 @@ function shiftAfter(index: number, removed: number) {
       : index;
 }
 
-type Layout = "free" | "columns" | "matrix";
+type Layout = "free" | "columns" | "matrix" | "timeline";
 
 const LAYOUT_OPTIONS: Array<{ value: Layout; label: string; icon: ReactNode }> =
   [
     { value: "free", label: "Free layout", icon: <TbSquare /> },
     { value: "columns", label: "Columns (Kanban)", icon: <TbLayoutKanban /> },
     { value: "matrix", label: "Matrix", icon: <TbLayoutGrid /> },
+    { value: "timeline", label: "Timeline", icon: <TbCalendarMonth /> },
   ];
 
 /**
@@ -42,8 +47,9 @@ const LAYOUT_OPTIONS: Array<{ value: Layout; label: string; icon: ReactNode }> =
  * titre et sous la même forme.
  *
  * Passer de colonnes à matrice garde les colonnes et ajoute des lignes ;
- * l'inverse retire les lignes. On ne repart d'un modèle que depuis une frame
- * libre.
+ * l'inverse retire les lignes. Une timeline pose six mois à partir du mois
+ * courant et garde les lignes : avec des lignes, c'est une roadmap. On ne
+ * repart d'un modèle que depuis une frame libre ou une timeline.
  */
 export function FrameLayoutToggle({
   zones,
@@ -54,17 +60,25 @@ export function FrameLayoutToggle({
 }) {
   const layout: Layout = !zones
     ? "free"
-    : zones.rows.length > 0
-      ? "matrix"
-      : "columns";
+    : isTimeline(zones)
+      ? "timeline"
+      : zones.rows.length > 0
+        ? "matrix"
+        : "columns";
 
   const choose = (next: string) => {
     // `single` rend "" quand on re-clique l'option active : rien à faire.
     if (!next || next === layout) return;
     if (next === "free") return setZones(null);
+    if (next === "timeline") {
+      return setZones({
+        columns: timelineColumns(new Date()),
+        rows: zones?.rows ?? [],
+      });
+    }
     const preset = FRAME_ZONE_PRESETS[next as "columns" | "matrix"];
     setZones({
-      columns: zones?.columns ?? preset.columns,
+      columns: zones && layout !== "timeline" ? zones.columns : preset.columns,
       rows: preset.rows,
     });
   };
@@ -127,10 +141,7 @@ function FrameZonesGrid({
     });
 
   const addColumn = () =>
-    setZones({
-      ...zones,
-      columns: [...columns, `Column ${columns.length + 1}`],
-    });
+    setZones({ ...zones, columns: [...columns, nextColumnLabel(zones)] });
   // Une frame sans lignes en a implicitement une : la première ajoutée en
   // fait deux, nommées.
   const addRow = () =>
@@ -245,7 +256,8 @@ function FrameZonesGrid({
       ))}
 
       {/* Hors de la frame, contre la bande qu'ils prolongent : dedans, ils
-          couvriraient le titre de la dernière colonne. */}
+          couvriraient le titre de la dernière colonne. Le + de ligne est là
+          même sans lignes : c'est lui qui fait d'une timeline une roadmap. */}
       {isSelected && (
         <div
           className="absolute left-full ml-1.5 flex items-center"
@@ -256,7 +268,7 @@ function FrameZonesGrid({
           </ZoneButton>
         </div>
       )}
-      {isSelected && hasRows && (
+      {isSelected && (
         <div
           className="absolute top-full mt-1.5 flex justify-center"
           style={{ width: ZONE_ROW_HEADER_WIDTH }}

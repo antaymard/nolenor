@@ -35,6 +35,63 @@ export const FRAME_ZONE_PRESETS = {
   },
 } satisfies Record<string, FrameZones>;
 
+/**
+ * Une timeline, c'est une frame en colonnes dont les colonnes sont des mois
+ * qui se suivent. Rien ne la distingue dans les values : elle se reconnaît à
+ * ses titres. En renommer un en fait de nouveau de simples colonnes — et c'est
+ * juste, ce n'est plus une suite de mois.
+ *
+ * Titres toujours en anglais (« Oct 2026 ») : ils sont stockés, donc lus par
+ * tous les collaborateurs et par Nolë, quelle que soit leur langue.
+ */
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+const TIMELINE_LENGTH = 6;
+
+/** Un mois en index absolu (année × 12 + mois), et retour. */
+const monthLabel = (index: number) =>
+  `${MONTHS[index % 12]} ${Math.floor(index / 12)}`;
+function monthIndex(label: string): number | null {
+  const match = /^([A-Z][a-z]{2}) (\d{4})$/.exec(label);
+  const month = match ? MONTHS.indexOf(match[1]) : -1;
+  return match && month >= 0 ? Number(match[2]) * 12 + month : null;
+}
+
+/** Six mois glissants à partir de celui de `from`. */
+export function timelineColumns(from: Date): string[] {
+  const start = from.getFullYear() * 12 + from.getMonth();
+  return Array.from({ length: TIMELINE_LENGTH }, (_, i) =>
+    monthLabel(start + i),
+  );
+}
+
+export function isTimeline(zones: FrameZones): boolean {
+  const indices = zones.columns.map(monthIndex);
+  return indices.every(
+    (index, i) => index !== null && (i === 0 || index === indices[i - 1]! + 1),
+  );
+}
+
+/** Le titre d'une colonne ajoutée : le mois suivant sur une timeline. */
+export function nextColumnLabel(zones: FrameZones): string {
+  if (isTimeline(zones)) {
+    return monthLabel(monthIndex(zones.columns[zones.columns.length - 1])! + 1);
+  }
+  return `Column ${zones.columns.length + 1}`;
+}
+
 /** La bande des titres de colonne, en haut de la frame. */
 export const ZONE_HEADER_HEIGHT = 44;
 /** La bande des titres de ligne, à gauche — seulement quand il y a des lignes. */

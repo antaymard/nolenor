@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ZONE_HEADER_HEIGHT,
+  isTimeline,
+  nextColumnLabel,
+  timelineColumns,
   ZONE_ROW_HEADER_WIDTH,
   arrangeInZones,
   readFrameZones,
@@ -142,5 +145,30 @@ describe("arrangeInZones", () => {
       ],
     });
     expect(positions.get("a")).toEqual({ x: 16, y: ZONE_HEADER_HEIGHT + 16 });
+  });
+});
+
+describe("timeline", () => {
+  it("lays six months from the current one, across years", () => {
+    const columns = timelineColumns(new Date(2026, 9, 14));
+    expect(columns).toEqual([
+      "Oct 2026",
+      "Nov 2026",
+      "Dec 2026",
+      "Jan 2027",
+      "Feb 2027",
+      "Mar 2027",
+    ]);
+    expect(isTimeline({ columns, rows: [] })).toBe(true);
+    expect(nextColumnLabel({ columns, rows: [] })).toBe("Apr 2027");
+  });
+
+  it("is plain columns once a title breaks the sequence", () => {
+    const zones = { columns: ["Oct 2026", "Q1", "Dec 2026"], rows: [] };
+    expect(isTimeline(zones)).toBe(false);
+    expect(isTimeline({ columns: ["Oct 2026", "Dec 2026"], rows: [] })).toBe(
+      false,
+    );
+    expect(nextColumnLabel(zones)).toBe("Column 4");
   });
 });

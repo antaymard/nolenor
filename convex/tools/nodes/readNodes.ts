@@ -362,7 +362,7 @@ async function readTranscript(
   if (!sourceKey) return {};
   const transcript = await ctx.runQuery(
     internal.wrappers.searchableChunkWrappers.getCurrentTranscript,
-    { nodeDataId: nodeData._id },
+    { nodeDataId: nodeData._id, sourceKey },
   );
   const pending =
     nodeData.transcription?.sourceKey === sourceKey

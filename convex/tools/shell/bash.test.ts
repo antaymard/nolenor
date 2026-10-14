@@ -94,7 +94,7 @@ describe("bash", () => {
     const { bash, ids } = await setup();
     const output = stdout(
       await bash(
-        `nole ls --format ids | nole read --format jsonl - | jq -r 'select(.xml | test("Five people")) | .title'`,
+        `nole ls --format ids | nole read --format jsonl - | jq -r 'select(.content | test("Five people")) | .title'`,
       ),
     );
     expect(output).toBe("Team");

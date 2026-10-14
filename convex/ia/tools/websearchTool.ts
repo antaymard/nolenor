@@ -3,6 +3,7 @@ import { z } from "zod";
 import Parallel from "parallel-web";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames } from "../agentConfig";
+import { reportToolError } from "../../lib/observability";
 
 export const websearchToolConfig: ToolConfig = {
   name: "websearch",
@@ -41,7 +42,7 @@ export const websearchTool = createTool({
       ),
   }),
   execute: async (
-    _ctx,
+    ctx,
     { objective, search_queries = [], search_effort = "low" },
   ) => {
     console.log(`🔍 Web search: ${objective} with effort ${search_effort}`);
@@ -94,7 +95,7 @@ export const websearchTool = createTool({
 
       return search.results;
     } catch (error) {
-      console.error("❌ Search error:", error);
+      await reportToolError(ctx, websearchToolConfig.name, error);
       const message = error instanceof Error ? error.message : String(error);
       return toolError(
         `Search failed: ${message}. Please try rephrasing your query.`,

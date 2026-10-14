@@ -12,6 +12,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import agentTest from "@convex-dev/agent/test";
 import rateLimiterTest from "@convex-dev/rate-limiter/test";
+import posthogTest from "@posthog/convex/test";
 import {
   Agent,
   createThread,
@@ -2671,5 +2672,176 @@ describe("suppression et accès", () => {
         }),
     ).rejects.toThrow("Thread not found or access denied.");
     expect(roles(await transcript(t, seed.threadId))).toEqual([]);
+  });
+});
+
+describe("observabilité — erreurs vers PostHog", () => {
+  type Sent = {
+    event: string;
+    distinct_id?: string;
+    properties: Record<string, unknown>;
+  };
+  let sent: Sent[];
+
+  /** Le corps tel que posthog-node l'envoie : JSON, gzippé quand il peut. */
+  async function decodeBody(body: BodyInit | null | undefined): Promise<unknown> {
+    if (typeof body === "string") return JSON.parse(body);
+    const bytes = new Uint8Array(await new Response(body).arrayBuffer());
+    const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b;
+    const text = gzipped
+      ? await new Response(
+          new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip")),
+        ).text()
+      : new TextDecoder().decode(bytes);
+    return JSON.parse(text);
+  }
+
+  function setupWithPostHog() {
+    const t = setup();
+    posthogTest.register(t, "posthog");
+    return t;
+  }
+
+  const exceptions = () => sent.filter((event) => event.event === "$exception");
+  const exceptionMessage = (event: Sent) =>
+    (event.properties.$exception_list as { value: string }[])[0].value;
+
+  beforeEach(() => {
+    sent = [];
+    vi.stubEnv("POSTHOG_ENABLED", "true");
+    // convex-test ne transmet pas au composant les env que lui passe
+    // `app.use(posthog, { env })` : le runtime Convex, si.
+    vi.stubEnv("POSTHOG_PROJECT_TOKEN", "phc_test");
+    vi.stubEnv("POSTHOG_HOST", "https://posthog.test");
+    vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+      const payload = (await decodeBody(init?.body)) as {
+        batch?: Sent[];
+      } & Sent;
+      sent.push(...(payload.batch ?? [payload]));
+      return new Response(JSON.stringify({ status: 1 }), { status: 200 });
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  test("échec définitif d'une génération : une exception, avec user et thread", async () => {
+    const t = setupWithPostHog();
+    const seed = await seedThread(t);
+    setModel([[text("Never")]], { 0: "Invalid model id" });
+    await send(t, seed, "Hello");
+    await drain(t);
+
+    const [exception] = exceptions();
+    expect(exceptions()).toHaveLength(1);
+    expect(exceptionMessage(exception)).toContain("Invalid model id");
+    expect(exception.distinct_id).toBe(seed.userId);
+    expect(exception.properties).toMatchObject({
+      source: "harness.generation",
+      thread_id: seed.threadId,
+      attempt: 1,
+      retryable: false,
+      runtime: "convex",
+    });
+  });
+
+  test("erreur passagère rejouée : un événement, pas d'issue", async () => {
+    const t = setupWithPostHog();
+    const seed = await seedThread(t);
+    setModel([[text("All done")]], { 0: "Provider returned 502 Bad Gateway" });
+    await send(t, seed, "Hello");
+    await runOneLayer(t);
+    vi.advanceTimersByTime(2000);
+    await drain(t);
+
+    expect(exceptions()).toHaveLength(0);
+    const retried = sent.filter((event) => event.event === "harness_generation_retried");
+    expect(retried).toHaveLength(1);
+    expect(retried[0].distinct_id).toBe(seed.userId);
+    expect(retried[0].properties.error_message).toContain("502");
+  });
+
+  test("tentatives épuisées : l'action ne relance pas, l'exception part quand même", async () => {
+    const t = setupWithPostHog();
+    const seed = await seedThread(t);
+    setModel([[text("Never")]], {
+      0: "429 rate limit",
+      1: "429 rate limit",
+      2: "429 rate limit",
+    });
+    await send(t, seed, "Hello");
+    await runOneLayer(t);
+    vi.advanceTimersByTime(2000);
+    await runOneLayer(t);
+    vi.advanceTimersByTime(8000);
+    await drain(t);
+
+    expect(
+      sent.filter((event) => event.event === "harness_generation_retried"),
+    ).toHaveLength(2);
+    expect(exceptions()).toHaveLength(1);
+    expect(exceptions()[0].properties).toMatchObject({ attempt: 3, retryable: true });
+  });
+
+  test("un tool qui lève : exception côté tool, le run continue", async () => {
+    const t = setupWithPostHog();
+    const seed = await seedThread(t);
+    setModel([[call("boom")], [text("Recovered")]]);
+    await send(t, seed, "Break");
+    await drain(t);
+
+    expect(exceptions()).toHaveLength(1);
+    expect(exceptionMessage(exceptions()[0])).toBe("Kaboom");
+    expect(exceptions()[0].properties).toMatchObject({
+      source: "tool",
+      tool_name: "boom",
+      surface: "agent",
+      thread_id: seed.threadId,
+    });
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("action morte : le lease expiré remonte, la reprise suit son cours", async () => {
+    const t = setupWithPostHog();
+    const seed = await seedThread(t);
+    setModel([[text("Answer")]]);
+    const runMessageId = await send(t, seed, "Hello");
+    const generation = (await tasksOf(t, runMessageId))[0];
+    await t.mutation(internal.harness.tasks.claimGeneration, {
+      taskId: generation._id,
+    });
+    await drain(t);
+
+    vi.setSystemTime(Date.now() + 11 * 60 * 1000);
+    await t.mutation(internal.harness.tasks.recoverExpired, {});
+    await drain(t);
+
+    expect(exceptions()).toHaveLength(1);
+    expect(exceptionMessage(exceptions()[0])).toBe(
+      "Harness generation task lost: lease expired",
+    );
+    expect(exceptions()[0].properties).toMatchObject({
+      source: "harness.recovery",
+      outcome: "rescheduled",
+      task_kind: "generation",
+      task_status: "running",
+    });
+    expect((await threadRow(t, seed.threadId))?.runStatus).toBe("idle");
+  });
+
+  test("hors prod, sans forçage : rien n'est planifié ni envoyé", async () => {
+    vi.stubEnv("POSTHOG_ENABLED", "");
+    const t = setupWithPostHog();
+    const seed = await seedThread(t);
+    setModel([[call("boom")], [text("Recovered")]]);
+    await send(t, seed, "Break");
+    await drain(t);
+
+    expect(sent).toHaveLength(0);
+    const jobs = await t.run((ctx) =>
+      ctx.db.system.query("_scheduled_functions").collect(),
+    );
+    expect(jobs.some((job) => job.name.includes("captureException"))).toBe(false);
   });
 });

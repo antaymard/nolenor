@@ -15,6 +15,7 @@ import {
   type QueryCtx,
 } from "../_generated/server";
 import { requireAuth } from "../lib/auth";
+import { reportError } from "../lib/observability";
 import { submissionStatuses } from "../schemas/submissionsSchema";
 import * as NodeModels from "../models/nodeModels";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
@@ -524,9 +525,14 @@ export const route = internalAction({
       }
       return finalize(decision.threadId, "router", decision.confidence);
     } catch (error) {
-      console.error("[dispatch] router failed", {
-        dispatchId,
-        detail: error instanceof Error ? error.message : String(error),
+      // Repli silencieux côté utilisateur (nouveau thread) : seul ce report
+      // dit que le routeur est tombé.
+      await reportError(ctx, error, {
+        source: "harness.router",
+        userId: loaded.userId,
+        dispatch_id: dispatchId,
+        profile: loaded.profile,
+        candidates: loaded.candidates.length,
       });
       return finalize(null, "router_error");
     }

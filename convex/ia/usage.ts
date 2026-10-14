@@ -1,6 +1,7 @@
 import type { UsageHandler } from "@convex-dev/agent";
 import { internal } from "../_generated/api";
 import type { AiUsageSource } from "../schemas/aiUsageSourceSchema";
+import { reportError } from "../lib/observability";
 
 /**
  * Lit un champ numérique dans une valeur JSON de provenance inconnue
@@ -74,11 +75,13 @@ export function createUsageHandler(source: AiUsageSource): UsageHandler {
         // toujours que l'usage accounting OpenRouter (`usage: { include: true }`
         // sur les settings du modèle, cf. ia/agents.ts) n'a pas été appliqué
         // sur ce chemin.
-        console.error("[aiUsage] provider returned no cost", {
-          source,
+        await reportError(ctx, new Error("Provider returned no cost"), {
+          source: "ai_usage",
+          ...(args.userId ? { userId: args.userId } : {}),
+          usage_source: source,
           model: args.model,
           provider: args.provider,
-          threadId: args.threadId,
+          thread_id: args.threadId,
         });
       }
 
@@ -106,11 +109,13 @@ export function createUsageHandler(source: AiUsageSource): UsageHandler {
         },
       });
     } catch (error) {
-      console.error("[aiUsage] failed to record usage", {
-        source,
+      // Une dépense perdue ne se rattrape pas : à voir passer.
+      await reportError(ctx, error, {
+        source: "ai_usage",
+        ...(args.userId ? { userId: args.userId } : {}),
+        usage_source: source,
         model: args.model,
-        threadId: args.threadId,
-        detail: error instanceof Error ? error.message : String(error),
+        thread_id: args.threadId,
       });
     }
   };

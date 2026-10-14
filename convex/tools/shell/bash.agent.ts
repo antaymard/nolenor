@@ -8,6 +8,7 @@ import {
 } from "../../ia/tools/toolHelpers";
 import { canvasScope } from "../scope";
 import { runShell, type ShellResult } from "./shell";
+import { reportToolError } from "../../lib/observability";
 
 /**
  * Le tool `bash` : un shell virtuel où `nole` lit le canvas. Ne fait que
@@ -113,7 +114,7 @@ export default function bashTool({
           }),
         );
       } catch (error) {
-        console.error("Bash tool error:", error);
+        await reportToolError(ctx, bashToolConfig.name, error);
         return toolError(
           `The shell failed to run: ${error instanceof Error ? error.message : "Unknown error"}.`,
         );

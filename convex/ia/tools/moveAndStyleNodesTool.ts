@@ -16,6 +16,7 @@ import {
   type ToolConfig,
   toolError,
 } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 const MAX_UPDATES = 30;
 
@@ -300,6 +301,7 @@ export default function moveAndStyleNodesTool({
           })),
         };
       } catch (error) {
+        await reportToolError(ctx, moveAndStyleNodesToolConfig.name, error);
         return toolError(
           `Error while updating nodes: ${error instanceof Error ? error.message : String(error)}. Nothing was changed.`,
         );

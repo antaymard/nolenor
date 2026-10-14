@@ -34,6 +34,7 @@ import {
   normalizeTitleLevel,
 } from "../../lib/titleNodeSizing";
 import { parseTitleHeading } from "../../lib/titleHeading";
+import { reportToolError } from "../../lib/observability";
 
 // Tool compaction config
 export const createNodeToolConfig: ToolConfig = {
@@ -640,6 +641,7 @@ export default function createNodeTool({
                 edgeId,
               });
             } catch (error) {
+              await reportToolError(ctx, createNodeToolConfig.name, error);
               skippedSources.push({
                 sourceNodeId,
                 reason:
@@ -694,6 +696,7 @@ export default function createNodeTool({
           }),
         };
       } catch (error) {
+        await reportToolError(ctx, createNodeToolConfig.name, error);
         return toolError(
           `Error while creating node: ${error instanceof Error ? error.message : String(error)}`,
         );

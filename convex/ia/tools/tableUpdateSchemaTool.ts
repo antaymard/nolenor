@@ -9,6 +9,7 @@ import {
   listColumnTypesForPrompt,
   type TableColumnType,
 } from "../../lib/tableColumnTypes";
+import { reportToolError } from "../../lib/observability";
 
 // Tool compaction config
 export const tableUpdateSchemaToolConfig: ToolConfig = {
@@ -590,7 +591,7 @@ export default function tableUpdateSchemaTool({
 
         return `Successfully deleted ${resolvedColumns.length} column(s).`;
       } catch (error) {
-        console.error("Table update schema tool error:", error);
+        await reportToolError(ctx, tableUpdateSchemaToolConfig.name, error);
         return toolError(
           error instanceof Error ? error.message : String(error),
         );

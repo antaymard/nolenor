@@ -8,6 +8,7 @@ import {
 } from "../../config/nodeConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { NODE_COLORS } from "../../config/colorsConfig";
+import { reportToolError } from "../../lib/observability";
 
 
 /**
@@ -153,6 +154,7 @@ export default function groupNodesTool({
           }),
         };
       } catch (error) {
+        await reportToolError(ctx, groupNodesToolConfig.name, error);
         return toolError(
           `Error while grouping nodes: ${error instanceof Error ? error.message : String(error)}. Nothing was created.`,
         );

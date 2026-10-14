@@ -3,6 +3,7 @@ import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 // Tool compaction config
 export const tableDeleteRowsToolConfig: ToolConfig = {
@@ -144,7 +145,7 @@ export default function tableDeleteRowsTool({
 
         return `Successfully deleted ${normalizedRowIds.length} row.`;
       } catch (error) {
-        console.error("Table delete rows tool error:", error);
+        await reportToolError(ctx, tableDeleteRowsToolConfig.name, error);
         return toolError(
           error instanceof Error ? error.message : String(error),
         );

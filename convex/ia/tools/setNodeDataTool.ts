@@ -20,6 +20,7 @@ import {
 import { decodeLLMValuesForTemplate } from "../helpers/customFieldLLMCodecs";
 import z from "zod";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 // Tool compaction config
 export const setNodeDataToolConfig: ToolConfig = {
@@ -225,6 +226,7 @@ export default function setNodeDataTool({
 
         return `Node data updated for nodeId ${input.nodeId}.`;
       } catch (error) {
+        await reportToolError(ctx, setNodeDataToolConfig.name, error);
         return toolError(
           `Error while setting node data for nodeId ${input.nodeId}: ${error instanceof Error ? error.message : String(error)}`,
         );

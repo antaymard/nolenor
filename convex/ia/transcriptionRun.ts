@@ -32,6 +32,7 @@ import {
   embedDocuments,
 } from "../lib/voyage";
 import { transcribeLongAudio } from "./helpers/longTranscription";
+import { reportError } from "../lib/observability";
 
 type ChunkInput = Omit<Doc<"searchableChunks">, "_id" | "_creationTime">;
 
@@ -262,7 +263,12 @@ export const runTranscription = internalAction({
     } catch (error) {
       const detail =
         error instanceof Error ? error.message : "Transcription failed.";
-      console.error("[transcription] run failed", { nodeDataId, detail });
+      await reportError(ctx, error, {
+        source: "ia.transcription",
+        userId: authUserId,
+        node_data_id: nodeDataId,
+        model,
+      });
 
       await ctx.runMutation(internal.ia.transcription.failTranscription, {
         nodeDataId,

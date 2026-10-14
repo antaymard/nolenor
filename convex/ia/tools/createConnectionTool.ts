@@ -3,6 +3,7 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 // Tool compaction config
 export const createConnectionToolConfig: ToolConfig = {
@@ -103,6 +104,7 @@ export default function createConnectionTool({
           targetNodeId,
         };
       } catch (error) {
+        await reportToolError(ctx, createConnectionToolConfig.name, error);
         return toolError(
           `Error while creating connection: ${error instanceof Error ? error.message : String(error)}`,
         );

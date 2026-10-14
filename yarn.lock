@@ -2538,12 +2538,27 @@
   dependencies:
     detect-libc "^2.1.2"
 
+"@posthog/convex@^2.1.5":
+  version "2.1.5"
+  resolved "https://registry.yarnpkg.com/@posthog/convex/-/convex-2.1.5.tgz#0ffe5846a0dd67d3e9341bb00163105df865b776"
+  integrity sha512-QMInlI2/tZm4jExbvXpN3DfZMrlOXOz2OIso1rrd8gv6Bn4r2riUJpAP58Jx72Pe4Hx8sMz5meEfER0/CGK0Hw==
+  dependencies:
+    "@posthog/core" "^1.55.1"
+    posthog-node "^5.52.5"
+
 "@posthog/core@^1.46.8", "@posthog/core@^1.46.9":
   version "1.46.9"
   resolved "https://registry.yarnpkg.com/@posthog/core/-/core-1.46.9.tgz#c76ee98638ce263efec83e1dc974552a02b9674e"
   integrity sha512-EXO6y5ih+jBkTCpUCuYgQmajuDZuvy6vMvflkub6pLQyi0GPlCPWVSvZZkOeQw9e2MxoD5GteeGCt9R8+UJ/yQ==
   dependencies:
     "@posthog/types" "^1.402.2"
+
+"@posthog/core@^1.55.1", "@posthog/core@^1.59.0":
+  version "1.59.0"
+  resolved "https://registry.yarnpkg.com/@posthog/core/-/core-1.59.0.tgz#a14798d245a662de9c0728695036d281dda92277"
+  integrity sha512-KRq26v5fXYnwV5wqTAXzPyQLCrBzzhK78QRl7UyEaPFZ4RPmVo1pBObRDbK350ah+8hTfQPanu5mM8c4CaSn5g==
+  dependencies:
+    "@posthog/types" "^1.416.0"
 
 "@posthog/plugin-utils@^1.2.0":
   version "1.2.0"
@@ -2565,6 +2580,11 @@
   version "1.402.2"
   resolved "https://registry.yarnpkg.com/@posthog/types/-/types-1.402.2.tgz#13a82f000a76b2ca9265d2e880f16cf9376a1b16"
   integrity sha512-ZZTiS4dLwF4/D0YTzS3gGSLFnhuNOY5yu4d9VGS9trGe5GW6FjIXo20p18K5BPW2RZSYSld8sdnSAY3AUXleUQ==
+
+"@posthog/types@^1.416.0":
+  version "1.416.0"
+  resolved "https://registry.yarnpkg.com/@posthog/types/-/types-1.416.0.tgz#596e31d0b35457b139b9e28f348f244c57dc564f"
+  integrity sha512-0/9+02s/0uDyrH4G/qUg1yyl6gXUg8Uuxw/PlDad3KLzo9FFS9zS/kAQaEshx/saVGupj1aAy/4EUBxWisBogw==
 
 "@radix-ui/number@1.1.1":
   version "1.1.1"
@@ -8603,6 +8623,13 @@ posthog-js@^1.414.0:
     query-selector-shadow-dom "^1.0.1"
     web-vitals "^5.3.0"
     web-vitals-soft-navs "npm:web-vitals@6.0.0"
+
+posthog-node@^5.52.5:
+  version "5.56.0"
+  resolved "https://registry.yarnpkg.com/posthog-node/-/posthog-node-5.56.0.tgz#f3ec6492cd53a60e28489a24a094dadfcc9f9fae"
+  integrity sha512-BOCNJfM+ZTivY+qvNpxyUsG2rV4dyGjiz1+j5OcEqSy7YoSKabTZvLyl8h8X+pADgq5TlqpN0UdT+bXQJjs3mQ==
+  dependencies:
+    "@posthog/core" "^1.59.0"
 
 preact-render-to-string@5.2.3:
   version "5.2.3"

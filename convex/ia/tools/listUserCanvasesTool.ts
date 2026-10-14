@@ -3,6 +3,7 @@ import { z } from "zod";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { internal } from "../../_generated/api";
+import { reportToolError } from "../../lib/observability";
 
 export const listUserCanvasesToolConfig: ToolConfig = {
   name: "list_user_canvases",
@@ -33,7 +34,7 @@ export default function listUserCanvasesTool({
         );
         return canvases;
       } catch (error) {
-        console.error("🔧 ListUserCanvases error:", error);
+        await reportToolError(ctx, listUserCanvasesToolConfig.name, error);
         const message = error instanceof Error ? error.message : String(error);
         return toolError(
           `Error listing user canvases: ${message}. Please try again.`,

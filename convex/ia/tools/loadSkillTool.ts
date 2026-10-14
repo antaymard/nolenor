@@ -4,6 +4,7 @@ import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 export const loadSkillToolConfig: ToolConfig = {
   name: "load_skill",
@@ -75,6 +76,7 @@ export default function loadSkillTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           `No skill or attachment named '${input.name}' is available.`,
         );
       } catch (error) {
+        await reportToolError(ctx, loadSkillToolConfig.name, error);
         return toolError(
           `Error while loading skill: ${error instanceof Error ? error.message : String(error)}`,
         );

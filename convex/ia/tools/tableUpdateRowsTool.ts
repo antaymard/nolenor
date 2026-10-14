@@ -12,6 +12,7 @@ import {
 import { parseRichTextCell } from "../../lib/tableRichTextCell";
 import { richTextCellFromMarkdown } from "../helpers/tableRichTextMarkdown";
 import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 // Tool compaction config
 export const tableUpdateRowsToolConfig: ToolConfig = {
@@ -278,7 +279,7 @@ export default function tableUpdateRowsTool({
 
         return `Successfully updated ${requestedEntries.length} rows and ${updatedCellsCount} cells.`;
       } catch (error) {
-        console.error("Table update rows tool error:", error);
+        await reportToolError(ctx, tableUpdateRowsToolConfig.name, error);
         return toolError(
           error instanceof Error ? error.message : String(error),
         );

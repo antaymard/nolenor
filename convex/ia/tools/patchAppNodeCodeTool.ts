@@ -8,6 +8,7 @@ import {
   countExactMatches,
   type ToolConfig,
 } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 export const patchAppNodeCodeToolConfig: ToolConfig = {
   name: "patch_app_node_code",
@@ -306,7 +307,7 @@ export default function patchAppNodeCodeTool({
 
         return `Successfully applied ${parsed.hunks.length} hunk(s) to the app node code.`;
       } catch (error) {
-        console.error("App node patch tool error:", error);
+        await reportToolError(ctx, patchAppNodeCodeToolConfig.name, error);
         return toolError(
           error instanceof Error ? error.message : String(error),
         );

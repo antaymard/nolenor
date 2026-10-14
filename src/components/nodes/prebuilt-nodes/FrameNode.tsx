@@ -48,6 +48,8 @@ import {
 } from "@/../convex/config/nodeConfig";
 import type { XyNodeProps } from "@/types/domain";
 import { TITLE_HEADING_CLASSNAMES } from "./titleLevelStyles";
+import { useFrameZones } from "@/hooks/useFrameZones";
+import FrameZonesGrid, { FrameLayoutToggle } from "./FrameZonesGrid";
 
 /** Plancher d'une frame vide : en dessous, la barre de titre ne tient plus. */
 const EMPTY_MIN_WIDTH = 160;
@@ -172,6 +174,7 @@ function FrameNode(xyNode: XyNodeProps) {
   const openWindow = useWindowsStore((state) => state.openWindow);
 
   const title = typeof values?.title === "string" ? values.title : "";
+  const { zones, setZones } = useFrameZones(xyNode.id, nodeDataId);
   const nodeColor =
     colors[resolveColor(xyNode.data?.color as string | undefined, true)];
 
@@ -441,6 +444,8 @@ function FrameNode(xyNode: XyNodeProps) {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        <NodeToolbarLabel>Layout</NodeToolbarLabel>
+        <FrameLayoutToggle zones={zones} setZones={setZones} />
       </CanvasNodeToolbar>
 
       <NodeHandles showSourceHandles={xyNode.selected} nodeId={xyNode.id} />
@@ -544,6 +549,16 @@ function FrameNode(xyNode: XyNodeProps) {
             "after:pointer-events-none after:absolute after:-inset-1 after:rounded-[8px] after:border-2 after:border-dashed after:border-violet-500/90",
         )}
       >
+        {/* Peinte sous le contenu : les enfants sont des nodes à part, posés
+            au-dessus de la frame. */}
+        {zones && (
+          <FrameZonesGrid
+            zones={zones}
+            setZones={setZones}
+            isSelected={!!xyNode.selected}
+            labelClassName={nodeColor.textColor}
+          />
+        )}
         {/* Même pastille que `NodeFrame` (cf. `BookmarkedBadge`). */}
         {isBookmarked && <BookmarkedBadge />}
         {/* Même pill que `NodeFrame` : qui d'autre est sur la frame. */}

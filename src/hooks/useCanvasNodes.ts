@@ -43,6 +43,13 @@ import {
 import { FRAME_FIT_PADDING } from "@/lib/frameFit";
 import { FRAME_CONTENT_PADDING } from "@/../convex/config/nodeConfig";
 import { useNodeSnapping } from "@/hooks/useNodeSnapping";
+import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { readFrameZones } from "@/../convex/lib/frameZones";
+import {
+  mergeLayoutUpdates,
+  zoneArrangementsFor,
+  type LayoutUpdate,
+} from "@/lib/frameZoneLayout";
 
 /**
  * Écriture serveur d'un changement de nœud.
@@ -64,21 +71,36 @@ function persistNodeChange(
     });
 }
 
+/** Les zones d'une frame, lues dans ses values (cf. `frameZones`). */
+function frameZonesOf(frame: CanvasNode) {
+  if (!frame.nodeDataId) return null;
+  const values = useNodeDataStore.getState().getNodeData(frame.nodeDataId)
+    ?.values;
+  return readFrameZones(values?.zones);
+}
+
 /**
- * Une écriture de mise en page : où le node est, quelle taille il fait, et à
- * quelle frame il appartient. La forme que `nodes.patch` attend pour tout ce
- * que produisent un drag et un redimensionnement.
+ * Ajoute à un geste le rangement des frames à zones qu'il touche (cf.
+ * `zoneArrangementsFor`) : écritures fusionnées node par node, inverses
+ * aussi — l'origine capturée avant le geste gardant le dernier mot.
  */
-type LayoutUpdate = {
-  nodeId: string;
-  props: {
-    position?: { x: number; y: number };
-    width?: number;
-    height?: number;
-    /** `null` = sortie de frame. Voyage avec `position` : cf. le flush. */
-    parentId?: string | null;
+function withZoneArrangements(
+  updates: LayoutUpdate[],
+  undoUpdates: LayoutUpdate[],
+  canvasNodes: CanvasNode[] | undefined,
+) {
+  if (!canvasNodes) return { updates, undoUpdates };
+  const { after, before } = zoneArrangementsFor(
+    updates,
+    canvasNodes,
+    frameZonesOf,
+  );
+  if (after.length === 0) return { updates, undoUpdates };
+  return {
+    updates: mergeLayoutUpdates(updates, after),
+    undoUpdates: mergeLayoutUpdates(undoUpdates, before, { keepBase: true }),
   };
-};
+}
 
 /** Ce qu'on lit de l'événement d'un drag : le point du curseur (ou du doigt). */
 type DragPointerEvent = {
@@ -155,7 +177,6 @@ function placeInCompactFramesWith(
   canvasNodes: CanvasNode[] | undefined,
 ): Array<{
   nodeId: string;
-  memberIds: string[];
   before: { width: number; height: number };
   after: { width: number; height: number };
 }> {
@@ -178,7 +199,8 @@ function placeInCompactFramesWith(
 
   return [...byFrame].flatMap(([frameId, group]) => {
     const stored = canvasNodes?.find((node) => node.id === frameId);
-    if (!stored) return [];
+    // Une frame à zones range elle-même ce qu'on y dépose, compacte ou non.
+    if (!stored || frameZonesOf(stored)) return [];
     const memberIds = new Set(group.map((update) => update.nodeId));
     const existing = [...nodesById.values()]
       .filter((node) => node.parentId === frameId && !memberIds.has(node.id))
@@ -200,9 +222,7 @@ function placeInCompactFramesWith(
       const position = positions.get(update.nodeId);
       if (position) update.props.position = position;
     }
-    return [
-      { nodeId: frameId, memberIds: [...memberIds], before, after: size },
-    ];
+    return [{ nodeId: frameId, before, after: size }];
   });
 }
 
@@ -487,7 +507,7 @@ export function useCanvasNodes(
       const frameResizes = nodesById
         ? placeInCompactFramesWith(moves, nodesById, canvasNodesRef.current)
         : [];
-      const updates: LayoutUpdate[] = [
+      const gestureUpdates: LayoutUpdate[] = [
         ...moves,
         ...frameResizes.map(({ nodeId, after }) => ({ nodeId, props: after })),
       ];
@@ -512,10 +532,19 @@ export function useCanvasNodes(
           },
         ];
       });
-      const undoUpdates: LayoutUpdate[] = [
-        ...undoMoves,
-        ...frameResizes.map(({ nodeId, before }) => ({ nodeId, props: before })),
-      ];
+      // Déposés dans (ou sortis d') une frame à zones : elle se range, dans la
+      // même écriture et la même entrée d'historique.
+      const { updates, undoUpdates } = withZoneArrangements(
+        gestureUpdates,
+        [
+          ...undoMoves,
+          ...frameResizes.map(({ nodeId, before }) => ({
+            nodeId,
+            props: before,
+          })),
+        ],
+        canvasNodesRef.current,
+      );
       if (undoUpdates.length > 0) {
         recordUndo(
           { kind: "patchNodes", updates: undoUpdates },
@@ -529,7 +558,12 @@ export function useCanvasNodes(
       // Un node rangé dans une frame compacte disparaît du canvas : resté
       // sélectionné, Suppr ou Ctrl+D l'emporteraient sans qu'on le voie.
       const tucked = new Set(
-        frameResizes.flatMap((resize) => resize.memberIds),
+        nodesById
+          ? moves.flatMap(({ nodeId, props }) => {
+              const frame = props.parentId && nodesById.get(props.parentId);
+              return frame && isCompactXyFrame(frame) ? [nodeId] : [];
+            })
+          : [],
       );
       if (tucked.size > 0) {
         setNodes((current) =>
@@ -1014,7 +1048,7 @@ export function useCanvasNodes(
               : [],
           );
 
-          const resizeUpdates: LayoutUpdate[] = [
+          const gestureUpdates: LayoutUpdate[] = [
             ...mergedChanges.map((change) => ({
               nodeId: change.id,
               props: {
@@ -1032,7 +1066,7 @@ export function useCanvasNodes(
           // haut/gauche) sont déjà fusionnés dans `mergedChanges` : une seule
           // entrée, donc un seul Ctrl+Z pour un seul coup de souris. L'état
           // d'avant est `canvasNodes`, le dernier persisté.
-          const undoResize = resizeUpdates.flatMap((update) => {
+          const undoGesture = gestureUpdates.flatMap((update) => {
             const before = canvasNodes?.find((n) => n.id === update.nodeId);
             if (!before) return [];
             return [
@@ -1048,6 +1082,11 @@ export function useCanvasNodes(
               },
             ];
           });
+          // Une frame à zones redimensionnée — ou dont un enfant change de
+          // taille — se range de nouveau : ses colonnes ont changé de largeur,
+          // ou une pile de hauteur.
+          const { updates: resizeUpdates, undoUpdates: undoResize } =
+            withZoneArrangements(gestureUpdates, undoGesture, canvasNodes);
           if (undoResize.length > 0) {
             recordUndo(
               { kind: "patchNodes", updates: undoResize },

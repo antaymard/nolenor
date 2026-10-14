@@ -8,6 +8,14 @@ import {
   collectMentionedNodeDataIds,
   parseStoredBlockNoteDocument,
 } from "../../lib/blockNoteDocument";
+import {
+  readFrameZones,
+  zoneGrid,
+  zoneLabel,
+  zoneOf,
+  type FrameZones,
+  type Zone,
+} from "../../lib/frameZones";
 import { readStoredImages, type StoredImage } from "../../lib/storedImages";
 import { getTranscribableSourceKey } from "../../lib/transcriptChunks";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
@@ -41,6 +49,14 @@ type ImageChunk = FunctionReturnType<
   typeof internal.wrappers.searchableChunkWrappers.listByNodeDataId
 >[number];
 
+export type FrameZoneBox = {
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type ReadNode = {
   id: string;
   /** Les edges qui arrivent à ce node, puis celles qui en partent. */
@@ -65,8 +81,13 @@ export type ReadNode = {
       color: string | null;
       nodeData: Doc<"nodeDatas">;
       template: Doc<"nodeTemplates"> | null;
-      /** Frame : ses enfants lisibles, dans l'ordre de lecture (y puis x). */
-      children?: Array<NodeRef & { x: number; y: number }>;
+      /**
+       * Frame : ses enfants lisibles, dans l'ordre de lecture (y puis x) — zone
+       * par zone pour une frame à zones, chacun avec le nom de la sienne.
+       */
+      children?: Array<NodeRef & { x: number; y: number; zone?: string }>;
+      /** Frame à zones : chaque zone et son rectangle MONDE, dans l'ordre de la grille. */
+      zones?: FrameZoneBox[];
       /** Image : les images stockées, et leurs descriptions indexées. */
       image?: { stored: StoredImage[]; chunks: ImageChunk[] };
       /** PDF : les fichiers, et leurs pages OCR indexées. */
@@ -275,11 +296,13 @@ export async function readNodes(
       nodeData,
       template: content.template,
       ...connections,
-      ...(content.type === "frame" && {
-        children: [...(childrenByFrameId.get(content.id) ?? [])]
-          .sort((a, b) => a.y - b.y || a.x - b.x)
-          .map((child) => ({ ...refOf(child.id)!, x: child.x, y: child.y })),
-      }),
+      ...(content.type === "frame" &&
+        readFrameChildren(
+          graphNode,
+          readFrameZones(nodeData.values.zones),
+          childrenByFrameId.get(content.id) ?? [],
+          refOf,
+        )),
       ...(content.type === "image" && {
         image: {
           stored: readStoredImages(nodeData.values),
@@ -376,5 +399,69 @@ async function readTranscript(
         : pending?.status === "error"
           ? { kind: "error", error: pending.error ?? "Unknown error." }
           : { kind: "none" },
+  };
+}
+
+/**
+ * Les enfants d'une frame, dans l'ordre de lecture. Pour une frame à zones
+ * (cf. `convex/lib/frameZones.ts`), la zone de chacun se lit sur sa position,
+ * comme le canvas la range : zone après zone, de haut en bas dans chacune.
+ */
+function readFrameChildren(
+  frame: GraphNode,
+  zones: FrameZones | null,
+  children: GraphNode[],
+  refOf: (nodeId: string) => NodeRef | undefined,
+): {
+  children: Array<NodeRef & { x: number; y: number; zone?: string }>;
+  zones?: FrameZoneBox[];
+} {
+  const byReadingOrder = (a: GraphNode, b: GraphNode) => a.y - b.y || a.x - b.x;
+  if (!zones) {
+    return {
+      children: [...children]
+        .sort(byReadingOrder)
+        .map((child) => ({ ...refOf(child.id)!, x: child.x, y: child.y })),
+    };
+  }
+
+  const size = { width: frame.width ?? 0, height: frame.height ?? 0 };
+  const grid = zoneGrid(zones, size);
+  const { rowCount } = grid;
+  const zoneIndex = (zone: Zone) => zone.column * rowCount + zone.row;
+  const placed = children.map((child) => ({
+    child,
+    zone: zoneOf(zones, size, {
+      x: child.x - frame.x,
+      y: child.y - frame.y,
+      width: child.width ?? 0,
+      height: child.height ?? 0,
+    }),
+  }));
+  placed.sort(
+    (a, b) =>
+      zoneIndex(a.zone) - zoneIndex(b.zone) || byReadingOrder(a.child, b.child),
+  );
+
+  const boxes: FrameZoneBox[] = [];
+  for (let column = 0; column < zones.columns.length; column++) {
+    for (let row = 0; row < rowCount; row++) {
+      boxes.push({
+        name: zoneLabel(zones, { column, row }),
+        x: frame.x + grid.left + column * grid.columnWidth,
+        y: frame.y + grid.top + row * grid.rowHeight,
+        width: grid.columnWidth,
+        height: grid.rowHeight,
+      });
+    }
+  }
+  return {
+    zones: boxes,
+    children: placed.map(({ child, zone }) => ({
+      ...refOf(child.id)!,
+      x: child.x,
+      y: child.y,
+      zone: zoneLabel(zones, zone),
+    })),
   };
 }

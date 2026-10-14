@@ -25,6 +25,7 @@ import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import type {
   Connection,
+  FrameZoneBox,
   NodeRef,
   ReadNode,
   ReadNodesResult,
@@ -37,23 +38,38 @@ import type {
  * parser.
  */
 function buildFrameNodeBody(
-  children: Array<NodeRef & { x: number; y: number }>,
+  children: Array<NodeRef & { x: number; y: number; zone?: string }>,
+  zones: FrameZoneBox[] | undefined,
   withPosition: boolean,
 ): string {
-  if (children.length === 0) {
-    return '<contents count="0" />';
-  }
-
-  const lines = children.map((child) => {
-    const positionAttributes = withPosition
-      ? ` x="${Math.trunc(child.x)}" y="${Math.trunc(child.y)}"`
+  const box = (rect: { x: number; y: number; width?: number; height?: number }) =>
+    withPosition
+      ? ` x="${Math.trunc(rect.x)}" y="${Math.trunc(rect.y)}"${
+          rect.width !== undefined ? ` width="${Math.trunc(rect.width)}"` : ""
+        }${rect.height !== undefined ? ` height="${Math.trunc(rect.height)}"` : ""}`
       : "";
-    return `  <child id="${child.id}" type="${child.type}" title="${escapeXmlAttribute(child.title)}"${positionAttributes} />`;
+
+  // Une frame à zones les liste toutes, vides comprises : une colonne
+  // « Done » sans rien dedans est une information. Leurs rectangles disent où
+  // poser un node pour l'y mettre.
+  const zoneLines = (zones ?? []).map(
+    (zone) => `  <zone name="${escapeXmlAttribute(zone.name)}"${box(zone)} />`,
+  );
+  const childLines = children.map((child) => {
+    const zoneAttribute =
+      child.zone !== undefined
+        ? ` zone="${escapeXmlAttribute(child.zone)}"`
+        : "";
+    return `  <child id="${child.id}" type="${child.type}" title="${escapeXmlAttribute(child.title)}"${zoneAttribute}${box({ x: child.x, y: child.y })} />`;
   });
 
+  if (zoneLines.length === 0 && childLines.length === 0) {
+    return '<contents count="0" />';
+  }
   return [
     `<contents count="${children.length}">`,
-    ...lines,
+    ...zoneLines,
+    ...childLines,
     "</contents>",
   ].join("\n");
 }
@@ -613,7 +629,7 @@ export async function renderReadNodes(
       tag.frameId = node.frameId;
       tag.color = node.color;
       tag.frameBody = node.children
-        ? buildFrameNodeBody(node.children, withPosition)
+        ? buildFrameNodeBody(node.children, node.zones, withPosition)
         : null;
       tag.title = node.title;
       tag.content = content;

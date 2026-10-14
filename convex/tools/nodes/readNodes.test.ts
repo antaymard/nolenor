@@ -135,6 +135,38 @@ describe("readNodes", () => {
     });
   });
 
+  test("frame à zones : la zone de chaque enfant, zone par zone", async () => {
+    const tools = await setupTools();
+    // 100 de large (cf. `createNode`) : deux colonnes de 50.
+    const board = await createNode(tools, {
+      type: "frame",
+      values: { title: "Board", zones: { columns: ["To do", "Done"], rows: [] } },
+    });
+    const card = (title: string, x: number, y: number) =>
+      createNode(tools, {
+        type: "blocknote",
+        values: { doc: blocknoteDoc(title) },
+        x,
+        y,
+        parentId: board.id,
+      });
+    const done = await card("Shipped", 60, 50);
+    const todo = await card("Write", -60, 200);
+
+    const [frame] = (await readNodes(tools.run, tools.scope, [board.id])).nodes;
+    expect(frame).toMatchObject({
+      zones: [
+        { name: "To do", x: 0, width: 50 },
+        { name: "Done", x: 50, width: 50 },
+      ],
+      // « To do » d'abord, même plus bas.
+      children: [
+        { id: todo.id, zone: "To do" },
+        { id: done.id, zone: "Done" },
+      ],
+    });
+  });
+
   test("un custom node porte le titre de son template", async () => {
     const { read, scope, ids } = await setup();
     const { nodes } = await read(scope, [ids.custom]);

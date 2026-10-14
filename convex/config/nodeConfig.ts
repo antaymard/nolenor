@@ -614,7 +614,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Node for playing an uploaded audio file, with a saved loop region.",
     llmDescription:
-      "For storing/playing an audio file (music, recording, interview, voice memo). The user can play it on the canvas and save a loop region to replay a specific passage over and over. \nThe data value 'audio' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), and, when the file carried tags, 'title' and 'artist'. 'label' is a name set by the user. The node is titled by the first of 'label', 'artist — title', 'title', 'filename'. The data value 'loop' is an object with 'start' and 'end' (both in seconds from the beginning of the file) and 'enabled' (whether looping is active); a loop region only counts as set when 'end' is greater than 'start'. 'playbackRate' is the playback speed (1 = normal). The 'memo' variant is a voice memo recorded by the user from the canvas: same data, it only starts empty with a record button (you cannot record). \nUse set_node_data with 'loop' to place a loop on a passage the user describes — express the bounds in seconds. \nWhen the user has transcribed the audio (on demand, from the node toolbar — you cannot start it), its spoken content is indexed with timestamps: `nole search` (bash) finds passages with their timestamp, and `nole read` returns the transcript (`--range start:end` for a time range, in seconds).",
+      "For storing/playing an audio file (music, recording, interview, voice memo). The user can play it on the canvas and save a loop region to replay a specific passage over and over. \nThe data value 'audio' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), and, when the file carried tags, 'title' and 'artist'. 'label' is a name set by the user. The node is titled by the first of 'label', 'artist — title', 'title', 'filename'. The data value 'loop' is an object with 'start' and 'end' (both in seconds from the beginning of the file) and 'enabled' (whether looping is active); a loop region only counts as set when 'end' is greater than 'start'. 'playbackRate' is the playback speed (1 = normal). 'source' is 'recording' for a voice memo the user recorded from the canvas (it starts empty with a record button; you cannot record), 'upload' otherwise. \nUse set_node_data with 'loop' to place a loop on a passage the user describes — express the bounds in seconds. \nWhen the user has transcribed the audio (on demand, from the node toolbar — you cannot start it), its spoken content is indexed with timestamps: `nole search` (bash) finds passages with their timestamp, and `nole read` returns the transcript (`--range start:end` for a time range, in seconds).",
     defaultDimensions: { width: bigWidth, height: audioPlayerHeight, resizable: true },
     variants: {
       player: {
@@ -629,15 +629,6 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
         defaultWidth: baseWidth,
         defaultHeight: titleVariantHeight,
         resizable: false,
-      },
-      // Même node, même données : seul l'état vide change (un bouton
-      // d'enregistrement au lieu de l'upload). Créé depuis l'entrée
-      // « Voice memo » du menu, cf. `creationPresets` côté front.
-      memo: {
-        label: "Voice memo",
-        defaultWidth: bigWidth,
-        defaultHeight: audioPlayerHeight,
-        resizable: true,
       },
     },
     // Pas de `search.embed: false` : la transcription à la demande (chunks
@@ -708,11 +699,24 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .max(4)
           .describe("Playback speed, 1 being normal.")
           .default(1),
+        // Ce qu'est le contenu, pas comment il s'affiche : vit donc dans
+        // `values` (recopié à la duplication, lu par l'agent et l'export) et
+        // pas dans la variante du node. Hors du `audio`, qui vaut `null` tant
+        // que le mémo n'est pas enregistré — précisément quand ça compte.
+        // Posé par l'entrée « Voice memo » du menu (`creationPresets`),
+        // remis à "upload" quand un fichier remplace l'enregistrement.
+        source: z
+          .enum(["upload", "recording"])
+          .describe(
+            "'recording' for a voice memo recorded from the canvas, 'upload' otherwise.",
+          )
+          .default("upload"),
       })
       .default({
         audio: null,
         loop: { start: 0, end: 0, enabled: false },
         playbackRate: 1,
+        source: "upload",
       }),
     // `key` and `peaks` are deliberately absent: the storage key is owned by the
     // upload path, and peaks are derived data.
@@ -765,7 +769,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     label: "Video",
     description: "Node for playing an uploaded video file.",
     llmDescription:
-      "For storing/playing a video file (screen recording, clip, filmed talk, footage). The user can play it inline on the canvas and double-click the node to open it in a window with full controls. \nThe data value 'video' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), 'width' and 'height' (the frame size in pixels), 'label' (a name set by the user, which overrides the filename), and 'poster' (a still frame captured at upload time, as an object with 'url' and 'key', or null). The node is titled by 'label' when set, otherwise by 'filename'. 'playbackRate' is the playback speed (1 = normal). The 'memo' variant is a voice memo recorded by the user from the canvas: same data, it only starts empty with a record button (you cannot record). \nYou cannot watch the video: you can reference it, rename it, move it and link it, but never describe what it shows. Do not invent its content.",
+      "For storing/playing a video file (screen recording, clip, filmed talk, footage). The user can play it inline on the canvas and double-click the node to open it in a window with full controls. \nThe data value 'video' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), 'width' and 'height' (the frame size in pixels), 'label' (a name set by the user, which overrides the filename), and 'poster' (a still frame captured at upload time, as an object with 'url' and 'key', or null). The node is titled by 'label' when set, otherwise by 'filename'. 'playbackRate' is the playback speed (1 = normal). \nYou cannot watch the video: you can reference it, rename it, move it and link it, but never describe what it shows. Do not invent its content.",
     // 16/9 (225px de haut pour 400 de large, cf. `videoPlayerHeight`) plus
     // la ligne de titre. Les contrôles sont en surimpression sur l'image,
     // ils ne prennent pas de hauteur propre.

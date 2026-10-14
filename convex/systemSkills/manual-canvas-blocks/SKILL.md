@@ -31,7 +31,7 @@ Everything here needs edit rights (owner or Editor). A Viewer can look, open and
 - Dragging a block onto a frame puts it inside; dragging it out takes it out (see `manual-connections-and-frames`).
 
 ## Right-click a block: "Block actions"
-- **Appearance**: switches the display style of that type (Link: Default / Preview / Embed; Image: Carousel / Grid; Document and Table and App: Preview / Title; Audio: Player / Compact / Voice memo; Video: Player / Title). It also resets the block to that style's standard size.
+- **Appearance**: switches the display style of that type (Link: Default / Preview / Embed; Image: Carousel / Grid; Document and Table and App: Preview / Title; Audio and Voice memo: Player / Compact; Video: Player / Title). It also resets the block to that style's standard size.
 - **Color**: Default, Transparent, Red, Orange, Yellow, Lime, Green, Teal, Sky, Blue, Purple, Pink (names appear on hover).
 - **Layer** (above).
 - **Attach to Nolë / Detach from Nolë** (**Alt+click** on the block does the same): marks the block with a violet dashed outline and adds it to the next message as context (see `manual-nole-chat`).

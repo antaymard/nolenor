@@ -39,7 +39,8 @@ function memoNames(recordedAt: Date, mimeType: string) {
 }
 
 /**
- * Empty state of an audio node in the `memo` variant: records from the
+ * Empty state of a voice memo (an audio node whose `source` is
+ * "recording"): records from the
  * microphone, then fills the node exactly like an upload would, so the player,
  * the window and the transcript take over with no memo-specific code.
  *
@@ -48,8 +49,11 @@ function memoNames(recordedAt: Date, mimeType: string) {
  */
 function VoiceMemoRecorder({
   nodeDataId,
+  compact = false,
 }: {
   nodeDataId: Id<"nodeDatas"> | undefined;
+  /** One-line layout for the Compact appearance (~33px high). */
+  compact?: boolean;
 }) {
   const { status, startRecording, stopRecording, audioBlob, reset } =
     useAudioRecorder();
@@ -202,6 +206,29 @@ function VoiceMemoRecorder({
   }
 
   const canRetrySave = phase === "error" && lastBlobRef.current !== null;
+  const idleLabel = canRetrySave ? "Retry saving the memo" : "Record a voice memo";
+
+  if (compact) {
+    return (
+      <div className="flex h-full w-full min-w-0 items-center gap-2 px-2">
+        <button
+          type="button"
+          className="nodrag flex size-6 shrink-0 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 disabled:opacity-50"
+          onMouseDown={stopMouseDown}
+          onClick={canRetrySave ? handleRetrySave : handleStart}
+          disabled={!nodeDataId}
+          title={error ?? (canRetrySave ? "Retry saving" : "Start recording")}
+        >
+          {canRetrySave ? <TbRefresh size={13} /> : <TbMicrophone size={14} />}
+        </button>
+        <span
+          className={`min-w-0 flex-1 truncate text-xs ${error ? "text-destructive" : ""}`}
+        >
+          {error ?? idleLabel}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full w-full min-w-0 items-center justify-center gap-3 px-3">
@@ -217,7 +244,7 @@ function VoiceMemoRecorder({
       </button>
       <div className="flex min-w-0 flex-col">
         <span className="truncate text-sm">
-          {canRetrySave ? "Retry saving the memo" : "Record a voice memo"}
+          {idleLabel}
         </span>
         {error ? (
           <span className="line-clamp-2 text-xs text-destructive">{error}</span>

@@ -70,7 +70,6 @@ function AudioNode(xyNode: XyNodeProps) {
   const { nodeDataId } = xyNode.data;
   const variant = (xyNode.data?.variant as string | undefined) ?? "player";
   const isCompact = variant === "compact";
-  const isMemo = variant === "memo";
 
   // Field-level selectors: changing the loop must not invalidate the audio
   // object, and vice versa.
@@ -79,6 +78,8 @@ function AudioNode(xyNode: XyNodeProps) {
   const storedLoop = useNodeDataValuesField<MediaLoop>(nodeDataId, "loop");
   const playbackRate =
     useNodeDataValuesField<number>(nodeDataId, "playbackRate") ?? 1;
+  const isMemo =
+    useNodeDataValuesField<string>(nodeDataId, "source") === "recording";
 
   const loop = storedLoop ?? DEFAULT_LOOP;
 
@@ -225,6 +226,8 @@ function AudioNode(xyNode: XyNodeProps) {
           },
           // Loop bounds are timestamps into the old file — meaningless now.
           loop: DEFAULT_LOOP,
+          // A file put in place of a voice memo is no longer a recording.
+          source: "upload",
         },
       });
     },
@@ -403,7 +406,7 @@ function AudioNode(xyNode: XyNodeProps) {
                 className="pointer-events-none size-14 shrink-0 rounded object-cover"
               />
             )}
-            {isMemo && !audio.cover && (
+            {isMemo && !isCompact && !audio.cover && (
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-600">
                 <TbMicrophone size={20} />
               </span>
@@ -675,7 +678,7 @@ function AudioNode(xyNode: XyNodeProps) {
             </div>
           </div>
         ) : isMemo ? (
-          <VoiceMemoRecorder nodeDataId={nodeDataId} />
+          <VoiceMemoRecorder nodeDataId={nodeDataId} compact={isCompact} />
         ) : (
           <NodeEmptyState
             icon={<TbMusic size={18} />}

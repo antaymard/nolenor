@@ -2,7 +2,10 @@ import type { IconType } from "react-icons";
 import { TbMicrophone } from "react-icons/tb";
 import type { LetterKey } from "@tanstack/react-hotkeys";
 import type { NodeType, XyNode, XyNodeProps } from "@/types/domain";
-import { nodeDataConfig } from "@/../convex/config/nodeConfig";
+import {
+  getDefaultNodeDataValues,
+  nodeDataConfig,
+} from "@/../convex/config/nodeConfig";
 import type { NodeDataConfigItem } from "@/../convex/config/nodeConfig";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 import { OPENABLE_PREBUILT_NODE_TYPES } from "./nodeOpenability";
@@ -37,7 +40,7 @@ type NodeUiConfigItem = {
   creationShortcut?: LetterKey;
   /**
    * Entrées supplémentaires du menu « Add a block » qui créent ce même type
-   * dans une variante donnée. Pour un usage qui mérite sa propre porte
+   * avec des valeurs de départ données. Pour un usage qui mérite sa propre porte
    * d'entrée sans dupliquer le type (le mémo vocal est un node `audio` :
    * transcription, recherche, export et outils de l'agent le traitent déjà).
    */
@@ -48,8 +51,11 @@ type CreationPreset = {
   label: string;
   description: string;
   icon: IconType;
-  /** Clé dans les `variants` du type (cf. `convex/config/nodeConfig.ts`). */
-  variant: string;
+  /**
+   * Fusionnées dans les valeurs par défaut du type à la création. Doivent
+   * respecter son `dataValuesSchema` (cf. `convex/config/nodeConfig.ts`).
+   */
+  initialValues: Record<string, unknown>;
 };
 
 type PrebuiltNodeConfig = NodeDataConfigItem &
@@ -137,7 +143,7 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
         description:
           "Record a voice note from your microphone, transcribed automatically.",
         icon: TbMicrophone,
-        variant: "memo",
+        initialValues: { source: "recording" },
       },
     ],
   },
@@ -191,7 +197,7 @@ const prebuiltNodesConfig: Array<PrebuiltNodeConfig> = nodeDataConfig
 
 /**
  * Une ligne du menu « Add a block » : un type, ou un preset d'un type.
- * `node` est le gabarit prêt à créer (dimensions et variante comprises).
+ * `node` est le gabarit prêt à créer (dimensions comprises).
  */
 type CreationEntry = {
   key: string;
@@ -201,6 +207,8 @@ type CreationEntry = {
   icon: IconType;
   creationShortcut?: LetterKey;
   node: XyNode;
+  /** Absent pour un type nu : `useCreateNode` prend alors ses défauts. */
+  initialValues?: Record<string, unknown>;
 };
 
 const creationEntries: CreationEntry[] = prebuiltNodesConfig
@@ -222,31 +230,22 @@ const creationEntries: CreationEntry[] = prebuiltNodesConfig
       creationShortcut: config.creationShortcut,
       node,
     };
-    const presets = (config.creationPresets ?? []).flatMap(
-      (preset): CreationEntry[] => {
-        const variant = config.variants?.[preset.variant];
-        if (!variant) {
-          console.warn(
-            `[prebuiltNodesConfig] preset "${preset.label}" : la variante "${preset.variant}" n'existe pas sur "${config.type}".`,
-          );
-          return [];
-        }
-        return [
-          {
-            key: `${config.type}:${preset.variant}`,
-            type: config.type,
-            label: preset.label,
-            description: preset.description,
-            icon: preset.icon,
-            node: {
-              ...config.node,
-              width: variant.defaultWidth,
-              height: variant.defaultHeight,
-              data: { ...config.node.data, variant: preset.variant },
-            } as XyNode,
-          },
-        ];
-      },
+    const presets = (config.creationPresets ?? []).map(
+      (preset): CreationEntry => ({
+        key: `${config.type}:${preset.label}`,
+        type: config.type,
+        label: preset.label,
+        description: preset.description,
+        icon: preset.icon,
+        node,
+        initialValues: {
+          ...(getDefaultNodeDataValues(config.type) as Record<
+            string,
+            unknown
+          > | null),
+          ...preset.initialValues,
+        },
+      }),
     );
     return [base, ...presets];
   });

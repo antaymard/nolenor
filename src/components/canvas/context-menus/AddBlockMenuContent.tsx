@@ -179,7 +179,7 @@ export default function AddBlockMenuContent({
   }
 
   function handleCreateNode(nodeConfig: CreationEntry) {
-    // Dimensions et variante déjà résolues dans `creationEntries`.
+    // Dimensions et valeurs de départ déjà résolues dans `creationEntries`.
     const nodeToCreate = { ...nodeConfig.node };
 
     // Fermer AVANT de créer : Radix rend le focus à son trigger
@@ -192,6 +192,7 @@ export default function AddBlockMenuContent({
     const { nodeId, settled } = createNode({
       node: inParentFrame(nodeToCreate),
       position,
+      initialValues: nodeConfig.initialValues,
       autoEdit: true,
     });
     chainPendingConnection(nodeId, settled);

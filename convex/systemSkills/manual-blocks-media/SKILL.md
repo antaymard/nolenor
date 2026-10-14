@@ -1,6 +1,6 @@
 ---
 name: manual-blocks-media
-description: Nolënor manual section - media and file blocks - Image (carousel or grid, managing images, AI image generation with references), Audio (player, loop, transcription), Video (player, formats, transcription), PDF/file block (reader, other file types), and the transcription feature. Load through nolenor-user-manual only.
+description: Nolënor manual section - media and file blocks - Image (carousel or grid, managing images, AI image generation with references), Audio (player, loop, transcription), Voice memo (record from the microphone), Video (player, formats, transcription), PDF/file block (reader, other file types), and the transcription feature. Load through nolenor-user-manual only.
 hidden: true
 ---
 
@@ -25,6 +25,13 @@ How files become blocks: drop or paste them on the canvas (routing rules and siz
 - **Player**: play / pause, seek bar, volume, playback speed ("Vitesse de lecture"), back to start ("Revenir au début").
 - **Loop a passage**: while playing, press the flag "Début de la boucle ici" at the start and "Fin de la boucle ici" at the end, then the repeat button ("Activer la boucle"). **Clear loop** removes it. Nolë can set a loop if you describe the passage.
 
+## Voice memo
+- Add it from the menu: **Voice memo** ("Record a voice note from your microphone, transcribed automatically."). It is an Audio block that starts with a red microphone button, "Record a voice memo", instead of a file.
+- Click the button (the browser asks for the microphone the first time). While recording: a red dot, the elapsed time, **Stop** to save, the cross to discard.
+- On **Stop** the recording is saved ("Saving…") and the block becomes a normal audio player named "Voice memo — " with the date and time (rename it with **Edit**). The **transcription starts on its own**; if it cannot start (rate limit), use **Transcribe** as usual.
+- If the microphone is refused or missing, the message shows under the button (e.g. "Microphone access denied. Allow the microphone in your browser settings."). If saving fails, the button becomes "Retry saving the memo".
+- Recording happens in the block: keep the canvas open until you press **Stop**. Nolë cannot record.
+
 ## Video block
 - Formats: mp4, m4v, mov, webm, ogv, mkv, avi, wmv, flv, mpg/mpeg, 3gp. If your browser cannot play one (typically mkv, avi, wmv): "This browser cannot play this format." with **Download the file**.
 - **Appearance**: **Player** or **Title** (a band with the name). **Toolbar**: **Open** (window with full controls: speed, volume, back to start, chapters), **Download**, **Edit** (upload/replace, rename), **Transcribe**.
@@ -40,6 +47,6 @@ How files become blocks: drop or paste them on the canvas (routing rules and siz
 2. When done the button becomes **Transcript**: it opens the window with the timestamped text (click a line to play from there), and **Panel → Plan** gives an **Overview** and **Chapters** (they appear shortly after).
 3. **Re-transcribe** (window) replaces the current transcript.
 - Once transcribed the content is **searchable** (Ctrl+K) and **Nolë can read it**.
-- Only you can start it. If the file is too big the button is greyed and its tooltip says "File too large to transcribe (max … MB)"; if it fails, **Retry**. If the button is missing, transcription is not available for that file on this deployment. Transcriptions are rate-limited (a few per minute).
+- Only you can start it (a voice memo starts its own). If the file is too big the button is greyed and its tooltip says "File too large to transcribe (max … MB)"; if it fails, **Retry**. If the button is missing, transcription is not available for that file on this deployment. Transcriptions are rate-limited (a few per minute).
 
 See also: `manual-windows`, `manual-troubleshooting-and-limits`.

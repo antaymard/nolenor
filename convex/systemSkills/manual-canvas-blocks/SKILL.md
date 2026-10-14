@@ -12,7 +12,7 @@ Everything here needs edit rights (owner or Editor). A Viewer can look, open and
 - **+ "Add a block"** (bottom toolbar) opens the menu **Add a node**: a search field ("Search a node") and the block types, each with a one-line description and its shortcut. Arrow keys / Tab / Enter work in the menu. The block lands in the middle of the view.
 - **Right-click the empty canvas**: same menu, the block lands where you clicked (the menu also offers **Bookmark here**).
 - **Letter shortcuts**, pointer over the canvas, no modifier, pressed alone: **T** Title, **D** Document (Blocknote), **I** Image, **A** Table, **L** Link. The block appears with its top-left corner at the pointer. Typing a sentence while the canvas has focus does not create blocks, and nothing happens while a text field has focus.
-- Block types in the menu: **Title, Link, Image, Blocknote (document), Value, PDF, Table, App, Audio, Video**. Frames are drawn (see `manual-connections-and-frames`), not added from the menu.
+- Block types in the menu: **Title, Link, Image, Blocknote (document), Value, PDF, Table, App, Audio, Voice memo, Video**. **Voice memo** creates an Audio block that records from your microphone (see `manual-blocks-media`). Frames are drawn (see `manual-connections-and-frames`), not added from the menu.
 - From a connection: drag a connection from a block and release on empty space to get the same menu, with the new block already connected.
 - **Ask Nolë**: it can create and fill blocks for you (see `manual-nole-capabilities`).
 
@@ -31,7 +31,7 @@ Everything here needs edit rights (owner or Editor). A Viewer can look, open and
 - Dragging a block onto a frame puts it inside; dragging it out takes it out (see `manual-connections-and-frames`).
 
 ## Right-click a block: "Block actions"
-- **Appearance**: switches the display style of that type (Link: Default / Preview / Embed; Image: Carousel / Grid; Document and Table and App: Preview / Title; Audio: Player / Compact; Video: Player / Title). It also resets the block to that style's standard size.
+- **Appearance**: switches the display style of that type (Link: Default / Preview / Embed; Image: Carousel / Grid; Document and Table and App: Preview / Title; Audio: Player / Compact / Voice memo; Video: Player / Title). It also resets the block to that style's standard size.
 - **Color**: Default, Transparent, Red, Orange, Yellow, Lime, Green, Teal, Sky, Blue, Purple, Pink (names appear on hover).
 - **Layer** (above).
 - **Attach to Nolë / Detach from Nolë** (**Alt+click** on the block does the same): marks the block with a violet dashed outline and adds it to the next message as context (see `manual-nole-chat`).

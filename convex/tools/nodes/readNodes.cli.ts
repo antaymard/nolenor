@@ -41,7 +41,9 @@ Options:
                         in seconds
   --no-position         Leave out x, y, width and height
   --format <fmt>        xml (default), or jsonl: one JSON object per node,
-                        {id, type, title, ok, error, xml}, for jq
+                        {id, type, title, ok, error, content}, for jq.
+                        "content" holds the node's XML (document,
+                        transcript, table…), as the default format prints it
   --schemas             Also print <nodeDataSchemas> (how to write each type
                         with the other tools)
 
@@ -54,7 +56,7 @@ Examples:
   nole read N12ab Q34cd
   nole ls --type blocknote | nole read - | grep -n "deadline"
   nole read --pages 3,4 P56ef
-  nole ls --format ids | nole read --format jsonl - | jq -r 'select(.xml | test("TODO")) | .id'`;
+  nole ls --format ids | nole read --format jsonl - | jq -r 'select(.content | test("TODO")) | .id'`;
 
 /** `a:b` → [a, b], deux nombres finis ≥ 0, ou null. */
 function parsePair(value: string): [number, number] | null {
@@ -175,7 +177,9 @@ export const nodeReadCommand: CliCommand = {
                 title: node.ok ? node.title : null,
                 ok: node.ok,
                 error: node.ok ? null : node.error,
-                xml: rendered.nodes[index].xml,
+                // `content`, pas `xml` : le nom que le modèle devine quand
+                // il écrit son filtre jq sans avoir lu --help.
+                content: rendered.nodes[index].xml,
               }),
             )
             .join("\n")

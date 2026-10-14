@@ -227,7 +227,12 @@ function CanvasContent({
             revealed={areDocksRevealed}
             delay={DOCK_DELAYS_MS.center}
           >
-            <CanvasToolbar />
+            <CanvasToolbar
+              canvasId={canvasId}
+              canRecordVoiceMemo={
+                isAuthenticated && canvas._permission !== "viewer"
+              }
+            />
           </DockSlideIn>
         </Panel>
         {isAuthenticated ? (

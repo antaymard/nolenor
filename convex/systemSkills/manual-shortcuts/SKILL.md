@@ -16,6 +16,7 @@ hidden: true
 | **N** | Open / close the Nolë panel |
 | **B** | Open / close the Bookmarks list |
 | **F** | Draw-a-frame tool on / off (**Esc** leaves it) |
+| **R** | Start / stop a voice memo (saved as an Audio block) |
 
 ## Create a block at the pointer (single key, no modifier)
 **T** Title · **D** Document · **I** Image · **A** Table · **L** Link. Press once, alone: typing a sentence does not create blocks. Other types: the **+** menu.

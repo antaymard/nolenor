@@ -28,7 +28,7 @@ hidden: true
 | "This canvas is private or unavailable" / "You are not authenticated or do not have access." | Log in with the right account; ask the owner to share the canvas (`manual-sharing-and-permissions`). |
 | I can look but not change anything | You are a **Viewer** (or on a public link). Ask the owner for Editor rights. |
 | **Share** button missing | Only the owner sees it. |
-| A letter shortcut (T, D, I, A, L, F, N, B) does nothing | Pointer must be over the canvas, focus not in a text field, no modifier key, pressed once on its own, edit rights, desktop layout. |
+| A letter shortcut (T, D, I, A, L, F, N, B, R) does nothing | Pointer must be over the canvas, focus not in a text field, no modifier key, pressed once on its own, edit rights, desktop layout. |
 | Delete key does nothing | Something other than the canvas has focus (a field, an editor), or nothing is selected, or you are a Viewer. |
 | Cannot send to Nolë: "Please save or close the modified windows…" | Save (Ctrl/⌘+S) or close the windows with unsaved changes. |
 | Nolë says to wait | Rate limit: wait the indicated time. |
@@ -46,7 +46,7 @@ hidden: true
 | "This window could not be opened" / "Something went wrong" | **Reload the page**; **Back to my canvases** if needed. |
 | "This canvas could not be loaded" | Reload; check your access. |
 | Document says "This document couldn't be loaded" | Reload first. Do not press "Continue (delete corrupted content)" unless you accept losing it. |
-| Dictation does nothing | Allow microphone access in the browser; hold Ctrl+Alt (desktop) or the mic button (phone) while speaking. |
+| Dictation does nothing | Allow microphone access in the browser; hold Ctrl+Alt (desktop) or the mic button (phone) while speaking. Stop any voice memo being recorded first. |
 | I cannot find a block | Ctrl/⌘+K search, the **Trash**, then a block's **Versions** / `manual-undo-history-trash`. |
 
 ## Not available

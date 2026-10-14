@@ -15,6 +15,7 @@ hidden: true
 - **Select tool** ("Select, move and lasso"): default. Drag a block to move it; drag on empty space to draw a selection rectangle (a block is selected as soon as the rectangle touches it).
 - **Hand tool** ("Hand: drag to pan the canvas"): left-drag pans instead; blocks cannot be dragged while it is on. Double-click still opens a block.
 - **Draw a frame** (F): see `manual-connections-and-frames`. The tool switches back to Select after the drawing, or with Esc.
+- **Microphone** (R), next to **+**: records a voice memo that becomes an Audio block (see `manual-blocks-media`).
 
 ## Selecting
 - Click a block. **Ctrl/⌘+click** adds or removes a block from the selection. A rectangle with **Ctrl/⌘ held** selects blocks but skips frames.

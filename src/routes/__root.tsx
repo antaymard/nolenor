@@ -17,6 +17,7 @@ import { Button } from "@/components/shadcn/button";
 import { api } from "@/../convex/_generated/api";
 import { identifyUser, reportError } from "@/lib/analytics";
 import CommandCenter from "@/components/command-center/CommandCenter";
+import VoiceMemoController from "@/components/voice-memo/VoiceMemoController";
 import { useLoadingScreenStore } from "@/stores/loadingScreenStore";
 
 export interface RouterContext {
@@ -148,6 +149,9 @@ function RootComponent() {
       {/* Idem : le command center (Ctrl/Cmd + P) doit répondre depuis
           n'importe quelle route, pas seulement depuis un canvas. */}
       <CommandCenter />
+      {/* Un mémo vocal arrêté en quittant son canvas s'upload et se crée
+          encore une fois le canvas démonté : son contrôleur vit ici. */}
+      <VoiceMemoController />
       {/* <TanStackRouterDevtools position="bottom-right" /> */}
     </div>
   );

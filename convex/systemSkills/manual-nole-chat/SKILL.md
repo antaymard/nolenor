@@ -34,7 +34,7 @@ hidden: true
 - **Files**: there is no upload button in the chat. Drop the file on the canvas (it becomes a block), then attach it.
 
 ## Voice dictation
-- **Desktop**: hold **Ctrl+Alt** (the box shows "Alt + Ctrl"), speak, release: the text appears in the box ("Listening…", then "Transcription…"). Review and press Enter.
+- **Desktop**: hold **Ctrl+Alt** (the box shows "Alt + Ctrl"), speak, release: the text appears in the box ("Listening…", then "Transcription…"). Review and press Enter. Paused while a voice memo is recording.
 - **Phone**: hold the microphone button while speaking.
 - Click the mic area to choose the **Dictation engine**: **Gladia** (custom vocabulary, French/English) or **Mistral** (Voxtral, automatic language).
 

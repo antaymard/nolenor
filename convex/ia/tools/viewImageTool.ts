@@ -6,6 +6,7 @@ import { readStoredImages } from "../../lib/storedImages";
 import { toModelImageUrl } from "../../lib/imageTransform";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 export const viewImageToolConfig: ToolConfig = {
   name: "view_image",
@@ -132,6 +133,7 @@ export default function viewImageTool({ threadCtx }: { threadCtx: ThreadCtx }) {
           total: images.length,
         };
       } catch (error) {
+        await reportToolError(ctx, viewImageToolConfig.name, error);
         return {
           success: false,
           message: `Failed to read node ${nodeId}: ${

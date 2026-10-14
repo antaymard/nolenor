@@ -13,6 +13,7 @@ import {
 import { parseRichTextCell } from "../../lib/tableRichTextCell";
 import { richTextCellFromMarkdown } from "../helpers/tableRichTextMarkdown";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 // Tool compaction config
 export const tableInsertRowsToolConfig: ToolConfig = {
@@ -266,7 +267,7 @@ export default function tableInsertRowsTool({
 
         return `Successfully added ${rowsToInsert.length} rows.`;
       } catch (error) {
-        console.error("Table insert rows tool error:", error);
+        await reportToolError(ctx, tableInsertRowsToolConfig.name, error);
         return toolError(
           error instanceof Error ? error.message : String(error),
         );

@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
+import { reportError } from "../lib/observability";
 import * as MessageMetadataModels from "../models/messageMetadataModels";
 import * as RunModels from "../models/runModels";
 import * as ThreadMetadataModels from "../models/threadMetadataModels";
@@ -67,6 +68,20 @@ export type CurrentRun = {
   row: ThreadRow;
   run: NonNullable<ThreadRow["run"]>;
 };
+
+/**
+ * Ce qu'est devenu l'échec qu'une action vient de rapporter. C'est elle qui
+ * détient l'erreur d'origine (pile, code HTTP du provider) : elle la remonte
+ * selon l'issue (cf. lib/observability.ts), que seule la mutation connaît.
+ * `stale` : la tâche ne lui appartient plus (reprise par le cron, run
+ * abandonné), l'erreur ne décide de rien.
+ */
+export type FailureOutcome =
+  | "stale"
+  | "aborted"
+  | "compacting"
+  | "retrying"
+  | "failed";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -170,9 +185,12 @@ async function endRun(
     try {
       await recordRunUsage(ctx, current, generations);
     } catch (error) {
-      console.error("[harness] failed to record run usage", {
-        threadId: current.row.threadId,
-        detail: error instanceof Error ? error.message : String(error),
+      // Rattrapée : la mutation commit, la capture planifiée part avec elle.
+      await reportError(ctx, error, {
+        source: "harness.usage",
+        userId: current.row.userId,
+        thread_id: current.row.threadId,
+        profile: current.run.profile,
       });
     }
     await maybeCompactAfterRun(ctx, current, generations);
@@ -1081,29 +1099,30 @@ export const failGeneration = internalMutation({
     overflow: v.optional(v.boolean()),
     error: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<FailureOutcome> => {
     const task = await ctx.db.get("agentTasks", args.taskId);
     if (
       !task ||
       task.status !== agentTaskStatuses.running ||
       task.attempt !== args.attempt
     ) {
-      return;
+      return "stale";
     }
     if (args.overflow && !args.aborted && (await compactOnOverflow(ctx, task))) {
-      return;
+      return "compacting";
     }
     if (args.retryable && !args.aborted && task.attempt < MAX_ATTEMPTS) {
       const current = await currentRun(ctx, task);
       if (current && current.run.generationTaskId === task._id) {
         await retryGeneration(ctx, task, args.error);
-        return;
+        return "retrying";
       }
     }
     await failGenerationTask(ctx, task, {
       status: args.aborted ? agentTaskStatuses.aborted : agentTaskStatuses.failed,
       error: args.error,
     });
+    return args.aborted ? "aborted" : "failed";
   },
 });
 
@@ -1323,14 +1342,14 @@ export const failCompaction = internalMutation({
     retryable: v.boolean(),
     error: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<FailureOutcome> => {
     const task = await ctx.db.get("agentTasks", args.taskId);
     if (
       !task ||
       task.status !== agentTaskStatuses.running ||
       task.attempt !== args.attempt
     ) {
-      return;
+      return "stale";
     }
     if (args.retryable && task.attempt < MAX_ATTEMPTS) {
       const delay = RETRY_BASE_MS * 4 ** (task.attempt - 1);
@@ -1342,9 +1361,10 @@ export const failCompaction = internalMutation({
       await ctx.scheduler.runAfter(delay, internal.harness.compaction.run, {
         taskId: task._id,
       });
-      return;
+      return "retrying";
     }
     await failCompactionTask(ctx, task, args.error);
+    return "failed";
   },
 });
 
@@ -1573,6 +1593,11 @@ export const recoverExpired = internalMutation({
         .take(RECOVERY_BATCH);
       for (const task of expired) {
         if (task.leaseExpiresAt === undefined) continue;
+        // Une action morte (timeout à 10 min, crash du conteneur) ou jamais
+        // démarrée ne lève rien nulle part : ce cron est le seul à le voir.
+        await reportLostTask(ctx, task, {
+          outcome: task.attempt >= MAX_ATTEMPTS ? "gave_up" : "rescheduled",
+        });
         if (task.attempt >= MAX_ATTEMPTS) {
           await giveUp(ctx, task);
           continue;
@@ -1594,6 +1619,34 @@ export const recoverExpired = internalMutation({
     }
   },
 });
+
+async function reportLostTask(
+  ctx: MutationCtx,
+  task: Task,
+  { outcome }: { outcome: "rescheduled" | "gave_up" },
+) {
+  // Message fixe par kind : PostHog regroupe les issues sur le message, un id
+  // dedans en ferait une par tâche.
+  await reportError(ctx, new Error(`Harness ${task.kind} task lost: lease expired`), {
+    source: "harness.recovery",
+    userId: task.userId,
+    outcome,
+    task_kind: task.kind,
+    task_status: task.status,
+    attempt: task.attempt,
+    profile: task.profile,
+    thread_id: task.threadId,
+    task_id: task._id,
+    // Absent : l'action n'a jamais démarré. Sinon, depuis le PREMIER
+    // démarrage (pas celui de cette tentative) : ~10 min à l'attempt 1 signe
+    // un timeout.
+    ...(task.startedAt !== undefined
+      ? { ms_since_first_start: Date.now() - task.startedAt }
+      : {}),
+    ...(task.toolName ? { tool_name: task.toolName } : {}),
+    ...(task.model ? { model: task.model } : {}),
+  });
+}
 
 async function giveUp(ctx: MutationCtx, task: Task) {
   const error = "Interrupted too many times.";

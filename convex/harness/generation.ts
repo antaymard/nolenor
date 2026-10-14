@@ -1,15 +1,18 @@
 import { v } from "convex/values";
 import { stepCountIs } from "ai";
 import { internal } from "../_generated/api";
-import { internalAction } from "../_generated/server";
+import { internalAction, type ActionCtx } from "../_generated/server";
 import { runModelTools } from "./kernelTools";
+import { reportError, trackEvent } from "../lib/observability";
 import {
   errorText,
+  generationErrorDetails,
   isContextOverflowError,
   isRetryableGenerationError,
 } from "./errors";
 import { getProfile, historyBudget } from "./profiles";
 import { resolveSystemUpdate } from "./systemUpdate";
+import type { FailureOutcome } from "./tasks";
 import { assembleRunContext } from "./transcript";
 
 /**
@@ -39,6 +42,43 @@ function plainUsage(usage: unknown): Record<string, unknown> {
   if (typeof usage !== "object" || usage === null) return {};
   const { raw: _raw, ...counters } = usage as Record<string, unknown>;
   return JSON.parse(JSON.stringify(counters)) as Record<string, unknown>;
+}
+
+/**
+ * Un échec de génération vers PostHog, selon ce qu'il est devenu :
+ *
+ * - `failed` : le run s'arrête en erreur sous les yeux de l'utilisateur →
+ *   exception. Y compris un 429 dont les tentatives sont épuisées : l'action
+ *   ne relance pas dans ce cas, l'intégration Convex ne le verrait jamais ;
+ * - `retrying` / `compacting` : la harness s'en charge → événement, à suivre
+ *   en courbe (un provider qui flanche) sans ouvrir d'issue ;
+ * - `aborted` (stop demandé) et `stale` (tâche reprise ailleurs) : rien.
+ */
+async function reportGenerationFailure(
+  ctx: ActionCtx,
+  error: unknown,
+  outcome: FailureOutcome,
+  context: Record<string, unknown> & { userId: string },
+) {
+  if (outcome === "aborted" || outcome === "stale") return;
+  const details = { ...context, ...generationErrorDetails(error) };
+  if (outcome === "failed") {
+    // Une erreur venue DANS le stream n'est pas toujours une `Error`.
+    const captured = error instanceof Error ? error : new Error(errorText(error));
+    await reportError(ctx, captured, { source: "harness.generation", ...details });
+    return;
+  }
+  await trackEvent(
+    ctx,
+    outcome === "retrying"
+      ? "harness_generation_retried"
+      : "harness_context_overflow",
+    {
+      source: "harness.generation",
+      error_message: errorText(error).slice(0, 1000),
+      ...details,
+    },
+  );
 }
 
 export const run = internalAction({
@@ -169,13 +209,27 @@ export const run = internalAction({
       const overflow = !aborted && isContextOverflowError(error);
       const retryable =
         !aborted && !overflow && isRetryableGenerationError(error);
-      await ctx.runMutation(internal.harness.tasks.failGeneration, {
-        taskId,
+      const outcome: FailureOutcome = await ctx.runMutation(
+        internal.harness.tasks.failGeneration,
+        {
+          taskId,
+          attempt,
+          aborted,
+          retryable,
+          overflow,
+          error: aborted ? undefined : errorText(error),
+        },
+      );
+      await reportGenerationFailure(ctx, error, outcome, {
+        userId: run.userId,
+        thread_id: run.threadId,
+        canvas_id: run.canvasId,
+        task_id: taskId,
         attempt,
-        aborted,
+        profile: claim.profile,
+        ...(run.model ? { model: run.model } : {}),
         retryable,
         overflow,
-        error: aborted ? undefined : errorText(error),
       });
       // Rejouée ou compactée : la tâche suit son cours, l'action n'a pas
       // échoué.

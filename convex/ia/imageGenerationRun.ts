@@ -7,6 +7,7 @@ import { requestOpenRouterImages, vImageModelValues } from "./agents";
 import { uploadBuffer } from "../lib/r2";
 import { aiUsageSources } from "../schemas/aiUsageSourceSchema";
 import type { StoredImage } from "../models/nodeDataModels";
+import { reportError } from "../lib/observability";
 
 /**
  * Devine le type MIME à partir des octets de tête. OpenRouter ne le déclare
@@ -163,7 +164,13 @@ export const runImageGeneration = internalAction({
     } catch (error) {
       const detail =
         error instanceof Error ? error.message : "Image generation failed.";
-      console.error("[imageGeneration] run failed", { nodeDataId, detail });
+      await reportError(ctx, error, {
+        source: "ia.image_generation",
+        userId: authUserId,
+        node_data_id: nodeDataId,
+        model,
+        count,
+      });
 
       await ctx.runMutation(
         internal.wrappers.nodeDataWrappers.setImageGeneration,

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { formatUsage, maxCharsFor } from "../../lib/memoryLimits";
+import { reportToolError } from "../../lib/observability";
 
 export const memoryToolConfig: ToolConfig = {
   name: "memory",
@@ -155,6 +156,7 @@ export default function memoryToolFactory({
 
         return await saveEntries(nextEntries);
       } catch (error) {
+        await reportToolError(ctx, memoryToolConfig.name, error);
         return toolError(
           `Error while using memory tool: ${error instanceof Error ? error.message : String(error)}`,
         );

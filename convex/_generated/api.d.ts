@@ -140,6 +140,7 @@ import type * as lib_memoryLimits from "../lib/memoryLimits.js";
 import type * as lib_nodeGeometry from "../lib/nodeGeometry.js";
 import type * as lib_nodeLayering from "../lib/nodeLayering.js";
 import type * as lib_nodeMentionToken from "../lib/nodeMentionToken.js";
+import type * as lib_observability from "../lib/observability.js";
 import type * as lib_parseModelPrice from "../lib/parseModelPrice.js";
 import type * as lib_parseSkillFrontmatter from "../lib/parseSkillFrontmatter.js";
 import type * as lib_presenceData from "../lib/presenceData.js";
@@ -412,6 +413,7 @@ declare const fullApi: ApiFromModules<{
   "lib/nodeGeometry": typeof lib_nodeGeometry;
   "lib/nodeLayering": typeof lib_nodeLayering;
   "lib/nodeMentionToken": typeof lib_nodeMentionToken;
+  "lib/observability": typeof lib_observability;
   "lib/parseModelPrice": typeof lib_parseModelPrice;
   "lib/parseSkillFrontmatter": typeof lib_parseSkillFrontmatter;
   "lib/presenceData": typeof lib_presenceData;
@@ -578,4 +580,5 @@ export declare const components: {
   debouncer: import("../components/debouncer/_generated/component.js").ComponentApi<"debouncer">;
   presence: import("@convex-dev/presence/_generated/component.js").ComponentApi<"presence">;
   prosemirrorSync: import("@convex-dev/prosemirror-sync/_generated/component.js").ComponentApi<"prosemirrorSync">;
+  posthog: import("@posthog/convex/_generated/component.js").ComponentApi<"posthog">;
 };

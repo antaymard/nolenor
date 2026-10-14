@@ -291,6 +291,7 @@ Set with `npx convex env set NAME value`, or through the Convex dashboard.
 | `VOICE_SERVER_TOKEN` | — | Shared token for that server. Its origin allowlist is the real security boundary — see the comment in `convex/voice.ts`. | idem |
 | `NEWSLETTER_SEGMENT_ID` | — | Resend segment new accounts are added to, once their email address is verified — immediately for Google, after the OTP for a password sign-up, never for an address that is never confirmed. Only accounts created after this shipped are eligible, and each is pushed to Resend at most once, so a password reset never re-subscribes someone who opted out. Needs `NEWSLETTER_TOPIC_ID` set too — either one missing and the subscription is skipped. Only runs on a production `SITE_URL`, so dev sign-ups never touch your contact list. Deleting an account deletes the contact. | Resend → Audiences → Segments |
 | `NEWSLETTER_TOPIC_ID` | — | Resend topic those accounts are opted into (the product newsletter). Resend puts the unsubscribe link in every email sent to a topic. | Resend → Audiences → Topics |
+| `POSTHOG_ENABLED` | — | Backend error reporting to PostHog (`convex/lib/observability.ts`): harness failures, tool errors, lost tasks. On by default only on a production `SITE_URL`, like the frontend's analytics. `true` turns it on from another deployment (to test it from dev), `false` turns it off in prod without a redeploy. **See the fork note below.** | — |
 
 ⚠️ = the app runs without it, but any upload (image, PDF, audio, video, chat
 attachment) will fail.
@@ -328,13 +329,17 @@ The code is open, and it runs anywhere Convex runs. But a few values in it point
    `app.nolenor.fr`. Replace them with your own origins. This list is the only guard
    against an open redirect on the OAuth flow, so don't widen it casually. Loopback
    origins are already accepted, but only when the deployment itself is local.
-3. **`convex/http.ts`** — `ALLOWED_WISHLIST_HOSTNAMES` restricts the unauthenticated
+3. **`convex/convex.config.ts`** — the PostHog component is mounted with Nolënor's
+   project token and host. The backend only sends on Nolënor's production origins,
+   so a fork sends nothing — until it sets `POSTHOG_ENABLED=true`. Put your own
+   token and host there first.
+4. **`convex/http.ts`** — `ALLOWED_WISHLIST_HOSTNAMES` restricts the unauthenticated
    `/wishlist/subscribe` endpoint to the nolenor.fr / nolenor.com landing pages. If you
    have no landing page, drop the route.
-4. **`convex/ia/agents.ts`** — `chatModelOptions` and `imageModelOptions` are a curated
+5. **`convex/ia/agents.ts`** — `chatModelOptions` and `imageModelOptions` are a curated
    list of OpenRouter model ids with their prices, used for the model picker and for
    cost accounting. Model ids and prices move; yours will differ.
-5. **Branding** — `index.html`, the PWA manifest in `vite.config.ts`, `public/icons/`,
+6. **Branding** — `index.html`, the PWA manifest in `vite.config.ts`, `public/icons/`,
    and the agent's own name and persona in `convex/ia/systemPrompts/`.
 
 ## Scripts

@@ -4,6 +4,7 @@ import Parallel from "parallel-web";
 
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
 import { toolAgentNames } from "../agentConfig";
+import { reportToolError } from "../../lib/observability";
 
 export const openWebPageToolConfig: ToolConfig = {
   name: "open_webpage",
@@ -41,7 +42,7 @@ export const openWebPageTool = createTool({
       )
       .optional(),
   }),
-  execute: async (_ctx, { urls, objective, search_queries = [] }) => {
+  execute: async (ctx, { urls, objective, search_queries = [] }) => {
     console.log(`🔍 Web extract: ${objective}, ${urls.join(", ")}`);
 
     try {
@@ -58,7 +59,7 @@ export const openWebPageTool = createTool({
 
       return search.results;
     } catch (error) {
-      console.error("❌ Extract error:", error);
+      await reportToolError(ctx, openWebPageToolConfig.name, error);
       const message = error instanceof Error ? error.message : String(error);
       return toolError(
         `Extraction failed: ${message}. Please try rephrasing your query.`,

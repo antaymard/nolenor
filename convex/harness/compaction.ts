@@ -1,9 +1,15 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { reportError, trackEvent } from "../lib/observability";
 import { runModelTools } from "./kernelTools";
-import { errorText, isRetryableGenerationError } from "./errors";
+import {
+  errorText,
+  generationErrorDetails,
+  isRetryableGenerationError,
+} from "./errors";
 import { getProfile, historyBudget } from "./profiles";
+import type { FailureOutcome } from "./tasks";
 import {
   assembleRunContext,
   findCut,
@@ -217,12 +223,41 @@ export const run = internalAction({
         },
       });
     } catch (error) {
-      await ctx.runMutation(internal.harness.tasks.failCompaction, {
-        taskId,
+      const retryable = isRetryableGenerationError(error);
+      const outcome: FailureOutcome = await ctx.runMutation(
+        internal.harness.tasks.failCompaction,
+        {
+          taskId,
+          attempt,
+          retryable,
+          error: errorText(error),
+        },
+      );
+      // Rattrapée et jamais relancée : sans ça, une compaction ratée (et la
+      // génération qu'elle bloquait) n'apparaîtrait que dans les logs.
+      const details = {
+        source: "harness.compaction",
+        userId: claim.run.userId,
+        thread_id: claim.run.threadId,
+        task_id: taskId,
         attempt,
-        retryable: isRetryableGenerationError(error),
-        error: errorText(error),
-      });
+        mode: claim.mode,
+        profile: claim.profile,
+        ...(claim.run.model ? { model: claim.run.model } : {}),
+        ...generationErrorDetails(error),
+      };
+      if (outcome === "failed") {
+        await reportError(
+          ctx,
+          error instanceof Error ? error : new Error(errorText(error)),
+          details,
+        );
+      } else if (outcome === "retrying") {
+        await trackEvent(ctx, "harness_compaction_retried", {
+          ...details,
+          error_message: errorText(error).slice(0, 1000),
+        });
+      }
     }
     return null;
   },

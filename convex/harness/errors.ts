@@ -59,3 +59,31 @@ export function errorText(error: unknown): string {
     return String(error);
   }
 }
+
+/** Assez pour le message d'OpenRouter et le nom du provider amont. */
+const MAX_RESPONSE_BODY_CHARS = 1000;
+
+/**
+ * Le diagnostic d'une erreur de génération, en propriétés plates pour
+ * PostHog : code HTTP, provider amont, corps de la réponse d'erreur. Jamais
+ * `requestBodyValues` : c'est le prompt complet de l'utilisateur.
+ */
+export function generationErrorDetails(error: unknown): Record<string, unknown> {
+  if (RetryError.isInstance(error)) {
+    return {
+      ...generationErrorDetails(error.lastError),
+      retry_reason: error.reason,
+      sdk_attempts: error.errors.length,
+    };
+  }
+  if (APICallError.isInstance(error)) {
+    return {
+      ...(error.statusCode !== undefined ? { status_code: error.statusCode } : {}),
+      api_retryable: error.isRetryable,
+      ...(error.responseBody
+        ? { response_body: error.responseBody.slice(0, MAX_RESPONSE_BODY_CHARS) }
+        : {}),
+    };
+  }
+  return {};
+}

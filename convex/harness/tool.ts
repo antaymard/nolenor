@@ -7,6 +7,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction, type ActionCtx } from "../_generated/server";
+import { reportError, reportToolError } from "../lib/observability";
 import {
   attachToolCtx,
   compactErrorMessage,
@@ -107,6 +108,15 @@ async function runTask(ctx: ActionCtx, taskId: Id<"agentTasks">) {
   const profile = getProfile(claim.profile);
   const tool = profile.tools(run)[toolName];
   if (!tool || typeof tool.execute !== "function") {
+    // L'AI SDK refuse déjà un tool inconnu du modèle : arriver ici veut dire
+    // que le profil ne rend plus le tool qu'il a exposé à la génération.
+    await reportError(ctx, new Error(`Unknown tool "${toolName}"`), {
+      source: "harness.tool",
+      userId: run.userId,
+      tool_name: toolName,
+      profile: claim.profile,
+      thread_id: run.threadId,
+    });
     await complete(
       "failed",
       { type: "error-text", value: toolError(`Unknown tool "${toolName}".`) },
@@ -131,6 +141,9 @@ async function runTask(ctx: ActionCtx, taskId: Id<"agentTasks">) {
       wrapped.execute!(input, { toolCallId, messages: [] }),
     );
   } catch (error) {
+    // Le tool a levé au lieu de rendre son erreur : le modèle la lit, mais
+    // sans ça personne d'autre ne la verrait.
+    await reportToolError(toolCtx, toolName, error);
     const message = error instanceof Error ? error.message : String(error);
     // Même forme que l'AI SDK pour un tool qui throw, message compacté.
     await complete(
@@ -165,10 +178,18 @@ export const runRound = internalAction({
     const outcomes = await Promise.allSettled(
       taskIds.map((taskId) => runTask(ctx, taskId)),
     );
-    const failure = outcomes.find(
+    const failures = outcomes.filter(
       (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
     );
-    if (failure) throw failure.reason;
+    // Toutes, pas seulement celle qui fait échouer l'action : chacune est une
+    // tâche qui attendra l'expiration de son lease.
+    for (const failure of failures) {
+      await reportError(ctx, failure.reason, {
+        source: "harness.tool_round",
+        round_size: taskIds.length,
+      });
+    }
+    if (failures[0]) throw failures[0].reason;
     return null;
   },
 });

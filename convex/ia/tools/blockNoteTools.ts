@@ -32,6 +32,7 @@ import {
   unresolvedMentionTokensError,
 } from "../helpers/resolveNodeMentionTokens";
 import { EXPLANATION_FIELD, toolError, type ToolConfig } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 type AgentTool = ToolSet[string];
 
@@ -128,7 +129,7 @@ async function runBlockNoteEdit({
     console.log(`✅ ${toolName} complete for node ${nodeId}`);
     return describeResult(result);
   } catch (error) {
-    console.error(`${toolName} tool error:`, error);
+    await reportToolError(ctx, toolName, error);
     return toolError(error instanceof Error ? error.message : String(error));
   }
 }

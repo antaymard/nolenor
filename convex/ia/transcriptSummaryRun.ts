@@ -31,6 +31,7 @@ import {
   type ResolvedChapter,
   type TranscriptLine,
 } from "./helpers/transcriptSummaryPrompt";
+import { reportError } from "../lib/observability";
 
 type UsageTotals = {
   costUsd: number | undefined;
@@ -198,10 +199,11 @@ export const summarizeTranscript = internalAction({
         calls: usage.calls,
       });
     } catch (error) {
-      console.error("[transcriptSummary] failed", {
-        nodeDataId,
+      await reportError(ctx, error, {
+        source: "ia.transcript_summary",
+        userId: authUserId,
+        node_data_id: nodeDataId,
         model: modelId,
-        detail: error instanceof Error ? error.message : String(error),
       });
     } finally {
       // Compté même en cas d'échec partiel : les appels passés sont payés.

@@ -4,6 +4,7 @@ import { internal } from "../../_generated/api";
 import { toolAgentNames, type ThreadCtx } from "../agentConfig";
 import { getNodeCapabilities } from "../../config/nodeConfig";
 import { EXPLANATION_FIELD, type ToolConfig, toolError } from "./toolHelpers";
+import { reportToolError } from "../../lib/observability";
 
 /** Un appel supprime peu : au-delà, c'est un ménage à proposer à l'utilisateur. */
 const MAX_DELETED_NODES = 30;
@@ -158,6 +159,7 @@ export default function deleteElementsTool({
             "Everything deleted is in the canvas Trash (top-right) for 30 days; the user can restore it from there.",
         };
       } catch (error) {
+        await reportToolError(ctx, deleteElementsToolConfig.name, error);
         return toolError(
           `Error while deleting: ${error instanceof Error ? error.message : String(error)}. Nothing was deleted.`,
         );

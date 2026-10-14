@@ -1,6 +1,7 @@
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
+import { reportError } from "../lib/observability";
 import type { ContextSection, Profile, RunInfo, StepWindow } from "./types";
 
 /**
@@ -29,7 +30,11 @@ export async function resolveSystemUpdate(
     try {
       sections.push(...(await profile.stepContext(ctx, run, claim.window)));
     } catch (error) {
-      console.error("[harness] stepContext failed", describe(error));
+      await reportError(ctx, error, {
+        source: "harness.system_update",
+        section: "step_context",
+        ...runContext(run),
+      });
     }
   }
 
@@ -41,7 +46,11 @@ export async function resolveSystemUpdate(
         (memory) => !seen.has(memory.id),
       );
     } catch (error) {
-      console.error("[harness] memory recall failed", describe(error));
+      await reportError(ctx, error, {
+        source: "harness.system_update",
+        section: "memory_recall",
+        ...runContext(run),
+      });
     }
   }
   if (memories.length > 0) {
@@ -75,6 +84,11 @@ export async function resolveSystemUpdate(
   return saved ?? content;
 }
 
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/** Une section omise ne se voit pas dans la conversation : seul ce report la signale. */
+function runContext(run: RunInfo) {
+  return {
+    userId: run.userId,
+    thread_id: run.threadId,
+    canvas_id: run.canvasId,
+  };
 }

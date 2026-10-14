@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  TbMicrophone,
+  TbMicrophone2,
   TbPlayerStopFilled,
   TbTrash,
   TbX,
@@ -17,6 +17,7 @@ import ConfirmableButton from "@/components/ui/ConfirmableButton";
 import { formatTime } from "@/hooks/useMediaPlayback";
 import { cn } from "@/lib/utils";
 import { useVoiceMemoStore } from "@/stores/voiceMemoStore";
+import { Kbd } from "../shadcn/kbd";
 
 /** Secondes écoulées depuis `since`, rafraîchies deux fois par seconde. */
 function useElapsed(since: number | null) {
@@ -123,15 +124,24 @@ export default function VoiceMemoButton({
               "bg-red-500 text-white hover:bg-red-600 hover:text-white",
           )}
           aria-label="Record a voice memo"
-          title={isRecording ? "Recording — click to show" : "Record a voice memo (R)"}
+          title={
+            isRecording
+              ? "Recording — click to show"
+              : "Record a voice memo (R)"
+          }
         >
           {phase === "saving" ? (
             <Spinner />
           ) : (
-            <TbMicrophone size={19} className={cn(isRecording && "animate-pulse")} />
+            <TbMicrophone2
+              size={19}
+              className={cn(isRecording && "animate-pulse")}
+            />
           )}
-          {isRecording && (
+          {isRecording ? (
             <span className="text-xs tabular-nums">{formatTime(elapsed)}</span>
+          ) : (
+            <Kbd>R</Kbd>
           )}
           {phase === "error" && (
             <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-amber-500" />
@@ -191,7 +201,11 @@ export default function VoiceMemoButton({
           </div>
         )}
         {phase === "error" && !hasPendingSave && (
-          <Button size="sm" className="self-end" onClick={() => void start(canvasId)}>
+          <Button
+            size="sm"
+            className="self-end"
+            onClick={() => void start(canvasId)}
+          >
             Try again
           </Button>
         )}

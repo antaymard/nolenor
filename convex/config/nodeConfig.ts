@@ -614,7 +614,7 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
     description:
       "Node for playing an uploaded audio file, with a saved loop region.",
     llmDescription:
-      "For storing/playing an audio file (music, recording, interview, voice memo). The user can play it on the canvas and save a loop region to replay a specific passage over and over. \nThe data value 'audio' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), and, when the file carried tags, 'title' and 'artist'. 'label' is a name set by the user. The node is titled by the first of 'label', 'artist — title', 'title', 'filename'. The data value 'loop' is an object with 'start' and 'end' (both in seconds from the beginning of the file) and 'enabled' (whether looping is active); a loop region only counts as set when 'end' is greater than 'start'. 'playbackRate' is the playback speed (1 = normal). 'source' is 'recording' for a voice memo the user recorded from the canvas (it starts empty with a record button; you cannot record), 'upload' otherwise. \nUse set_node_data with 'loop' to place a loop on a passage the user describes — express the bounds in seconds. \nWhen the user has transcribed the audio (on demand, from the node toolbar — you cannot start it), its spoken content is indexed with timestamps: `nole search` (bash) finds passages with their timestamp, and `nole read` returns the transcript (`--range start:end` for a time range, in seconds).",
+      "For storing/playing an audio file (music, recording, interview, voice memo). The user can play it on the canvas and save a loop region to replay a specific passage over and over. \nThe data value 'audio' is an object with 'url' (the public URL of the file), 'filename' (the original filename, used when downloading), 'mimeType', 'size' (bytes), 'uploadedAt' (epoch ms), 'key' (the storage key), 'duration' (length in seconds), and, when the file carried tags, 'title' and 'artist'. 'label' is a name set by the user. The node is titled by the first of 'label', 'artist — title', 'title', 'filename'. The data value 'loop' is an object with 'start' and 'end' (both in seconds from the beginning of the file) and 'enabled' (whether looping is active); a loop region only counts as set when 'end' is greater than 'start'. 'playbackRate' is the playback speed (1 = normal). \nUse set_node_data with 'loop' to place a loop on a passage the user describes — express the bounds in seconds. \nWhen the user has transcribed the audio (on demand, from the node toolbar — you cannot start it), its spoken content is indexed with timestamps: `nole search` (bash) finds passages with their timestamp, and `nole read` returns the transcript (`--range start:end` for a time range, in seconds).",
     defaultDimensions: { width: bigWidth, height: audioPlayerHeight, resizable: true },
     variants: {
       player: {
@@ -699,24 +699,11 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
           .max(4)
           .describe("Playback speed, 1 being normal.")
           .default(1),
-        // Ce qu'est le contenu, pas comment il s'affiche : vit donc dans
-        // `values` (recopié à la duplication, lu par l'agent et l'export) et
-        // pas dans la variante du node. Hors du `audio`, qui vaut `null` tant
-        // que le mémo n'est pas enregistré — précisément quand ça compte.
-        // Posé par l'entrée « Voice memo » du menu (`creationPresets`),
-        // remis à "upload" quand un fichier remplace l'enregistrement.
-        source: z
-          .enum(["upload", "recording"])
-          .describe(
-            "'recording' for a voice memo recorded from the canvas, 'upload' otherwise.",
-          )
-          .default("upload"),
       })
       .default({
         audio: null,
         loop: { start: 0, end: 0, enabled: false },
         playbackRate: 1,
-        source: "upload",
       }),
     // `key` and `peaks` are deliberately absent: the storage key is owned by the
     // upload path, and peaks are derived data.

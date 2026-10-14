@@ -30,13 +30,13 @@ This manual lets you answer questions about **using Nolënor as a user**: the in
 
 - **Top-left**: sidebar toggle, canvas icon and name, ⋮ "Canvas options" (owner: Edit / Delete), Undo / Redo.
 - **Top-right**: sync cloud (Synced / Saving… / Sync error), Trash, **Share** (owner only), Settings (gear).
-- **Bottom-centre toolbar**: Select tool, Hand tool, Draw a frame (F), Add a block (+), Search (Ctrl+K), Command center (Ctrl+P).
+- **Bottom-centre toolbar**: Select tool, Hand tool, Draw a frame (F), Add a block (+), Voice memo (microphone, R), Search (Ctrl+K), Command center (Ctrl+P).
 - **Bottom-left**: the **Nolë** button (N) with the activity dock of Nolë's tasks next to it.
 - **Bottom-right**: minimized windows, then **Bookmarks** (B).
 - **Sidebar** (home and canvas): New canvas, Search (Ctrl/⌘+P), Home, Inbox, Tutorials, canvas list, AI usage, account menu (Settings, Sign out).
 
 ## Block types at a glance
-**Title** (heading or label) · **Document** (rich text, "Blocknote") · **Value** (one figure) · **Table** (typed columns and rows) · **Image** (one or several pictures, can be generated) · **Audio** (also **Voice memo**, recorded from the microphone) · **Video** · **PDF** (PDF reader, or any other file) · **Link** (band, card or embedded page) · **App** (small interactive app written by Nolë) · **Frame** (box grouping blocks, drawn with the F tool).
+**Title** (heading or label) · **Document** (rich text, "Blocknote") · **Value** (one figure) · **Table** (typed columns and rows) · **Image** (one or several pictures, can be generated) · **Audio** · **Video** · **PDF** (PDF reader, or any other file) · **Link** (band, card or embedded page) · **App** (small interactive app written by Nolë) · **Frame** (box grouping blocks, drawn with the F tool).
 
 ## Visual cues
 Blue ring = selected block. **Violet dashed outline** = attached to Nolë (it will read it first). Small bookmark badge on a corner = bookmarked. Dashed grey chips above the Nolë message box = selected blocks you can attach with **+**. Violet number on **Inbox** or "N tasks" pill = Nolë work to review. Cloud icon top-right: green synced, yellow saving, red sync error.
@@ -74,7 +74,7 @@ Blue ring = selected block. **Violet dashed outline** = attached to Nolë (it wi
 | `manual-connections-and-frames` | Connections (create, label, style, delete), frames (draw, title, contents) |
 | `manual-blocks-text` | Title, Document (Blocknote: slash menu, @ mentions, callouts, dates) and Value blocks |
 | `manual-block-table` | Table block: columns, rows, filters, sort, summaries, CSV import/export |
-| `manual-blocks-media` | Image (carousel/grid, generation), Audio, Voice memo, Video, PDF / file blocks, transcription |
+| `manual-blocks-media` | Image (carousel/grid, generation), Audio, voice memos, Video, PDF / file blocks, transcription |
 | `manual-blocks-link-and-app` | Link block (band, preview, embed) and App block (interactive mini-apps) |
 | `manual-windows` | Block windows: header buttons, save, minimize, fullscreen, side panel (Plan, Links, Versions) |
 | `manual-undo-history-trash` | Undo/redo limits, Trash, version history and restore, "Nolë changed/deleted something, how do I go back?" |

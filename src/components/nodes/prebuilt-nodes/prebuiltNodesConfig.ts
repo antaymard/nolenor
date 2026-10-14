@@ -1,11 +1,7 @@
 import type { IconType } from "react-icons";
-import { TbMicrophone } from "react-icons/tb";
 import type { LetterKey } from "@tanstack/react-hotkeys";
 import type { NodeType, XyNode, XyNodeProps } from "@/types/domain";
-import {
-  getDefaultNodeDataValues,
-  nodeDataConfig,
-} from "@/../convex/config/nodeConfig";
+import { nodeDataConfig } from "@/../convex/config/nodeConfig";
 import type { NodeDataConfigItem } from "@/../convex/config/nodeConfig";
 import { NODE_TYPE_ICON_MAP } from "./nodeIconMap";
 import { OPENABLE_PREBUILT_NODE_TYPES } from "./nodeOpenability";
@@ -38,24 +34,6 @@ type NodeUiConfigItem = {
    * créables à la souris.
    */
   creationShortcut?: LetterKey;
-  /**
-   * Entrées supplémentaires du menu « Add a block » qui créent ce même type
-   * avec des valeurs de départ données. Pour un usage qui mérite sa propre porte
-   * d'entrée sans dupliquer le type (le mémo vocal est un node `audio` :
-   * transcription, recherche, export et outils de l'agent le traitent déjà).
-   */
-  creationPresets?: CreationPreset[];
-};
-
-type CreationPreset = {
-  label: string;
-  description: string;
-  icon: IconType;
-  /**
-   * Fusionnées dans les valeurs par défaut du type à la création. Doivent
-   * respecter son `dataValuesSchema` (cf. `convex/config/nodeConfig.ts`).
-   */
-  initialValues: Record<string, unknown>;
 };
 
 type PrebuiltNodeConfig = NodeDataConfigItem &
@@ -137,15 +115,6 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     nodeIcon: NODE_TYPE_ICON_MAP.audio,
     canBeOpenInWindow: OPENABLE_PREBUILT_NODE_TYPES.has("audio"),
     creatable: true,
-    creationPresets: [
-      {
-        label: "Voice memo",
-        description:
-          "Record a voice note from your microphone.",
-        icon: TbMicrophone,
-        initialValues: { source: "recording" },
-      },
-    ],
   },
   video: {
     nodeComponent: VideoNode,
@@ -195,61 +164,6 @@ const prebuiltNodesConfig: Array<PrebuiltNodeConfig> = nodeDataConfig
     };
   });
 
-/**
- * Une ligne du menu « Add a block » : un type, ou un preset d'un type.
- * `node` est le gabarit prêt à créer (dimensions comprises).
- */
-type CreationEntry = {
-  key: string;
-  type: NodeType;
-  label: string;
-  description: string;
-  icon: IconType;
-  creationShortcut?: LetterKey;
-  node: XyNode;
-  /** Absent pour un type nu : `useCreateNode` prend alors ses défauts. */
-  initialValues?: Record<string, unknown>;
-};
-
-const creationEntries: CreationEntry[] = prebuiltNodesConfig
-  .filter((config) => config.creatable)
-  .flatMap((config) => {
-    const node = { ...config.node };
-    // Un type qui déclare une variante nommée « default » naît à ses
-    // dimensions plutôt qu'à `defaultDimensions`.
-    if (config.variants?.default) {
-      node.height = config.variants.default.defaultHeight;
-      node.width = config.variants.default.defaultWidth;
-    }
-    const base: CreationEntry = {
-      key: config.type,
-      type: config.type,
-      label: config.label,
-      description: config.description,
-      icon: config.nodeIcon,
-      creationShortcut: config.creationShortcut,
-      node,
-    };
-    const presets = (config.creationPresets ?? []).map(
-      (preset): CreationEntry => ({
-        key: `${config.type}:${preset.label}`,
-        type: config.type,
-        label: preset.label,
-        description: preset.description,
-        icon: preset.icon,
-        node,
-        initialValues: {
-          ...(getDefaultNodeDataValues(config.type) as Record<
-            string,
-            unknown
-          > | null),
-          ...preset.initialValues,
-        },
-      }),
-    );
-    return [base, ...presets];
-  });
-
 const openableNodeTypes = new Set<NodeType>(
   prebuiltNodesConfig
     .filter((config) => config.canBeOpenInWindow)
@@ -292,11 +206,10 @@ const shortcutCreatableNodes = prebuiltNodesConfig.filter(
 
 export default prebuiltNodesConfig;
 export {
-  creationEntries,
   openableNodeTypes,
   canNodeTypeBeOpenedInWindow,
   creatableNodeTypes,
   canNodeTypeBeCreated,
   shortcutCreatableNodes,
 };
-export type { PrebuiltNodeConfig, CreationEntry };
+export type { PrebuiltNodeConfig };

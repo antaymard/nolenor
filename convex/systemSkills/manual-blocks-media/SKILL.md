@@ -1,6 +1,6 @@
 ---
 name: manual-blocks-media
-description: Nolënor manual section - media and file blocks - Image (carousel or grid, managing images, AI image generation with references), Audio (player, loop, transcription), Voice memo (record from the microphone), Video (player, formats, transcription), PDF/file block (reader, other file types), and the transcription feature. Load through nolenor-user-manual only.
+description: Nolënor manual section - media and file blocks - Image (carousel or grid, managing images, AI image generation with references), Audio (player, loop, transcription), voice memos (recording from the toolbar), Video (player, formats, transcription), PDF/file block (reader, other file types), and the transcription feature. Load through nolenor-user-manual only.
 hidden: true
 ---
 
@@ -25,12 +25,14 @@ How files become blocks: drop or paste them on the canvas (routing rules and siz
 - **Player**: play / pause, seek bar, volume, playback speed ("Vitesse de lecture"), back to start ("Revenir au début").
 - **Loop a passage**: while playing, press the flag "Début de la boucle ici" at the start and "Fin de la boucle ici" at the end, then the repeat button ("Activer la boucle"). **Clear loop** removes it. Nolë can set a loop if you describe the passage.
 
-## Voice memo
-- Add it from the menu: **Voice memo** ("Record a voice note from your microphone."). It is an Audio block that starts with a red microphone button, "Record a voice memo", instead of a file (in **Player** or **Compact** appearance alike).
-- Click the button (the browser asks for the microphone the first time). While recording: a red dot, the elapsed time, **Stop** to save, the cross to discard.
-- On **Stop** the recording is saved ("Saving…") and the block becomes a normal audio player named "Voice memo — " with the date and time (rename it with **Edit**). Uploading a file over it with **Edit** turns it into a plain Audio block. Transcribe it with **Transcribe**, like any audio block.
-- If the microphone is refused or missing, the message shows under the button (e.g. "Microphone access denied. Allow the microphone in your browser settings."). If saving fails, the button becomes "Retry saving the memo".
-- Recording happens in the block: keep the canvas open until you press **Stop**. Nolë cannot record.
+## Voice memo (record from the toolbar)
+- Click the **microphone** in the bottom toolbar ("Record a voice memo (R)"), or press **R** on the canvas. Recording starts (the browser asks for the microphone the first time) and a small **Voice memo** panel opens above: red dot, elapsed time, a level bar, **Discard** and **Stop**.
+- **Close the panel** (cross, Esc or click elsewhere): the recording continues. The button stays red with the elapsed time; click it to reopen the panel.
+- **Stop** (or **R** again): the memo is saved ("Saving…") and becomes an **Audio** block named "Voice memo — " with the date and time, placed at the centre of the view and selected. It is a normal Audio block: rename it with **Edit**, **Transcribe** it on demand.
+- **Discard** drops the recording (asks first after 10 seconds).
+- **Leaving the canvas** while recording (another canvas, Home) stops and saves the memo on the canvas where it started, at the view you left; a message confirms it. **Closing or reloading the tab** asks for confirmation first.
+- If saving fails, the button shows an orange dot and the panel offers **Retry** or **Discard**; no new recording until then. Microphone refused or missing: the message appears in the panel with **Try again**.
+- While recording, Ctrl+Alt dictation to Nolë is paused. Desktop only (the phone layout has no bottom toolbar), and only with edit rights. Nolë cannot record.
 
 ## Video block
 - Formats: mp4, m4v, mov, webm, ogv, mkv, avi, wmv, flv, mpg/mpeg, 3gp. If your browser cannot play one (typically mkv, avi, wmv): "This browser cannot play this format." with **Download the file**.

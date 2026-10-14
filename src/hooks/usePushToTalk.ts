@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useVoiceMemoStore } from "@/stores/voiceMemoStore";
 
 type UsePushToTalkOptions = {
   /** Start recording (speech-to-text) when the chord goes down. */
@@ -40,6 +41,9 @@ export function usePushToTalk({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       heldKeys.current.add(e.key);
+      // Le micro est pris par un mémo vocal : la dictée attendra.
+      const memoPhase = useVoiceMemoStore.getState().phase;
+      if (memoPhase === "starting" || memoPhase === "recording") return;
       if (isChordHeld() && !isActive.current) {
         isActive.current = true;
         onStart();

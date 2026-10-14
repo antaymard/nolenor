@@ -34,6 +34,7 @@ import CompactFrameDeleteDialog from "./CompactFrameDeleteDialog";
 import { useDuplicateNode } from "@/hooks/useDuplicateNode";
 import { copyNodesToClipboard } from "@/stores/nodeClipboardStore";
 import { useCreateNodeHotkeys } from "@/hooks/useCreateNodeHotkeys";
+import { useVoiceMemoCanvasBinding } from "@/hooks/useVoiceMemoCanvasBinding";
 import { useOpenSelectionHotkey } from "@/hooks/useOpenSelectionHotkey";
 import { isEditableTarget, hasTextSelection } from "@/lib/editableTarget";
 import { hadQuietBefore } from "@/lib/isolatedKeystroke";
@@ -336,6 +337,9 @@ export default function CanvasFlow({
 
   // Création d'un node au curseur (T titre, D doc, I image, A table, L lien)
   useCreateNodeHotkeys({ canEdit, isTouch });
+
+  // Mémo vocal : création du node ici, R, et arrêt + sauvegarde en quittant.
+  useVoiceMemoCanvasBinding({ canvasId, canEdit, isTouch });
 
   // Entrée : ouvrir la sélection en window(s), ou éditer un titre.
   useOpenSelectionHotkey({ canEdit, isTouch });

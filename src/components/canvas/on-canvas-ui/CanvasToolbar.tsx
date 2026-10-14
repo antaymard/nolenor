@@ -20,8 +20,17 @@ import {
 import { useState } from "react";
 import { useFlowPosition } from "@/hooks/useCanvasPointerPosition";
 import AddBlockMenuContent from "../context-menus/AddBlockMenuContent";
+import VoiceMemoButton from "@/components/voice-memo/VoiceMemoButton";
+import type { Id } from "@/../convex/_generated/dataModel";
 
-export default function CanvasToolbar() {
+export default function CanvasToolbar({
+  canvasId,
+  canRecordVoiceMemo,
+}: {
+  canvasId: Id<"canvases">;
+  /** Éditeur connecté : un mémo vocal crée un node sur ce canvas. */
+  canRecordVoiceMemo: boolean;
+}) {
   const isSearchModalOpen = useCanvasStore((state) => state.isSearchModalOpen);
   const toggleSearchModal = useCanvasStore((state) => state.toggleSearchModal);
   const tool = useCanvasStore((state) => state.tool);
@@ -109,6 +118,7 @@ export default function CanvasToolbar() {
             />
           </DropdownMenuContent>
         </DropdownMenu>
+        {canRecordVoiceMemo && <VoiceMemoButton canvasId={canvasId} />}
         {/* Les repères ont quitté la toolbar : ils vivent dans `BookmarksDock`,
             un îlot à eux posé à droite, qui reste déplié d'un canvas à l'autre
             (cf. la rangée du bas dans `routes/canvas/$canvasId.tsx`). */}

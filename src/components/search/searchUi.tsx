@@ -207,7 +207,7 @@ export function SearchError({ message }: { message?: string }) {
   );
 }
 
-/** « Frame › H1 › H2 » : où se trouve le node sur le canvas. */
+/** « H1 › Frame › H2 » : où se trouve le node sur le canvas, du plus large au plus précis. */
 export function SearchBreadcrumb({
   crumbs,
   className,

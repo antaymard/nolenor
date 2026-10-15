@@ -12,8 +12,9 @@ import { getNodeDataTitle } from "@/components/utils/nodeDataDisplayUtils";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 
 /**
- * Le fil d'Ariane d'un résultat de recherche : la frame qui le contient, puis
- * les titres sous lesquels il se range — « Frame › H1 › H2 ».
+ * Le fil d'Ariane d'un résultat de recherche : les titres et frames sous
+ * lesquels il se range, du plus large au plus précis — « Frame › H1 › H2 »,
+ * ou « H1 › H2 › Frame » quand ce sont les titres qui rangent la frame.
  *
  * Les titres se rattachent comme dans la minimap de l'agent
  * (`generateCanvasMinimap`) : une edge titre → node d'abord, sinon le titre le
@@ -31,7 +32,7 @@ export type BreadcrumbCrumb = {
 // Mêmes seuils que la minimap : un titre « possède » ce qui est juste sous lui.
 const VERTICAL_THRESHOLD = 300;
 const HORIZONTAL_MARGIN = 100;
-const MAX_TITLE_DEPTH = 4;
+const MAX_DEPTH = 6;
 
 const LEVEL_RANK: Record<string, number> = { h1: 3, h2: 2, h3: 1, p: 0 };
 
@@ -135,16 +136,43 @@ function findTitleAbove(
   return best;
 }
 
-function findParentTitle(index: BreadcrumbIndex, node: Node): Node | null {
-  const linked = index.titleSources.get(node.id)?.[0];
-  if (linked) return index.byId.get(linked) ?? null;
+function scopeOf(node: Node): string | null {
+  return node.parentId ?? null;
+}
+
+/**
+ * Le titre qui range le node dans sa propre frame. Un titre relié par une
+ * edge mais posé hors de la frame du node est renvoyé à part (`outer`) : il
+ * range la frame entière, pas le node à l'intérieur.
+ */
+function findParentTitle(
+  index: BreadcrumbIndex,
+  node: Node,
+): { inner: Node | null; outer: Node | null } {
+  let outer: Node | null = null;
+  for (const sourceId of index.titleSources.get(node.id) ?? []) {
+    const source = index.byId.get(sourceId);
+    if (!source) continue;
+    if (scopeOf(source) === scopeOf(node)) return { inner: source, outer };
+    outer ??= source;
+  }
   // Entre titres, seul un niveau supérieur fait un parent : deux H2 empilés
   // sont frères, pas parent et enfant.
   const minRank =
     node.type === "title" ? rankOf(nodeDataOf(index, node)) + 1 : 0;
-  return findTitleAbove(index, node, minRank);
+  return { inner: findTitleAbove(index, node, minRank), outer };
 }
 
+function labelOf(index: BreadcrumbIndex, node: Node): string {
+  const nodeData = nodeDataOf(index, node);
+  return nodeData ? getNodeDataTitle(nodeData).trim() : "";
+}
+
+/**
+ * Remonte du node vers la racine : les titres de sa frame, puis la frame,
+ * puis les titres qui rangent la frame, et ainsi de suite. Le résultat se lit
+ * du plus large au plus précis.
+ */
 export function computeBreadcrumb(
   index: BreadcrumbIndex,
   nodeId: string,
@@ -152,28 +180,48 @@ export function computeBreadcrumb(
   const node = index.byId.get(nodeId);
   if (!node) return [];
 
-  const titles: BreadcrumbCrumb[] = [];
-  const seen = new Set([node.id]);
-  let current = findParentTitle(index, node);
-  while (current && !seen.has(current.id) && titles.length < MAX_TITLE_DEPTH) {
-    seen.add(current.id);
-    const nodeData = nodeDataOf(index, current);
-    const label = nodeData ? getNodeDataTitle(nodeData).trim() : "";
-    if (label) titles.unshift({ nodeId: current.id, kind: "title", label });
-    current = findParentTitle(index, current);
-  }
-
   const crumbs: BreadcrumbCrumb[] = [];
-  const frame = node.parentId ? index.byId.get(node.parentId) : undefined;
-  if (frame?.type === "frame") {
-    const nodeData = nodeDataOf(index, frame);
+  const seen = new Set([node.id]);
+  // Titre hors frame relié à un node de la frame : il range la frame.
+  let outerCandidate: Node | null = null;
+  let current: Node = node;
+
+  while (crumbs.length < MAX_DEPTH) {
+    const { inner, outer } = findParentTitle(index, current);
+    if (outer && !outerCandidate) outerCandidate = outer;
+    let next = inner;
+    if (
+      !next &&
+      outerCandidate &&
+      scopeOf(outerCandidate) === scopeOf(current)
+    ) {
+      next = outerCandidate;
+      outerCandidate = null;
+    }
+
+    if (next) {
+      if (seen.has(next.id)) break;
+      seen.add(next.id);
+      const label = labelOf(index, next);
+      if (label) crumbs.push({ nodeId: next.id, kind: "title", label });
+      current = next;
+      continue;
+    }
+
+    const frame = current.parentId
+      ? index.byId.get(current.parentId)
+      : undefined;
+    if (frame?.type !== "frame" || seen.has(frame.id)) break;
+    seen.add(frame.id);
     crumbs.push({
       nodeId: frame.id,
       kind: "frame",
-      label: nodeData ? getNodeDataTitle(nodeData) : "Frame",
+      label: labelOf(index, frame) || "Frame",
     });
+    current = frame;
   }
-  return [...crumbs, ...titles];
+
+  return crumbs.reverse();
 }
 
 const selectGraph = (state: ReactFlowState) => ({

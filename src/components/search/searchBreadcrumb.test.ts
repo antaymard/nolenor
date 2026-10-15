@@ -76,6 +76,53 @@ describe("computeBreadcrumb", () => {
     expect(crumbs("n")).toEqual(["Projet", "Intro", "Contexte"]);
   });
 
+  it("puts titles that frame a frame before it", () => {
+    const specs = [
+      {
+        id: "pipeline",
+        type: "title",
+        x: 600,
+        y: 300,
+        values: { text: "Pipeline des offres", level: "h1" },
+      },
+      {
+        id: "analyser",
+        type: "title",
+        x: 200,
+        y: 400,
+        values: { text: "Analyser", level: "h2" },
+      },
+      {
+        id: "f",
+        type: "frame",
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 100,
+        values: { title: "Analysés" },
+      },
+      { id: "n", type: "blocknote", x: 10, y: 10, parentId: "f" },
+    ];
+    const toFrame = setup(specs, [
+      ["pipeline", "analyser"],
+      ["analyser", "f"],
+    ]);
+    expect(toFrame("n")).toEqual([
+      "Pipeline des offres",
+      "Analyser",
+      "Analysés",
+    ]);
+    const toChild = setup(specs, [
+      ["pipeline", "analyser"],
+      ["analyser", "n"],
+    ]);
+    expect(toChild("n")).toEqual([
+      "Pipeline des offres",
+      "Analyser",
+      "Analysés",
+    ]);
+  });
+
   it("prefers an explicit edge from a title over proximity", () => {
     const crumbs = setup(
       [
@@ -120,7 +167,7 @@ describe("computeBreadcrumb", () => {
     expect(crumbs("b")).toEqual([]);
   });
 
-  it("ignores titles outside the node's frame", () => {
+  it("ranks a title outside the node's frame above the frame", () => {
     const crumbs = setup([
       { id: "t", type: "title", x: 0, y: 0, values: { text: "Outside" } },
       {
@@ -134,7 +181,7 @@ describe("computeBreadcrumb", () => {
       },
       { id: "n", type: "table", x: 0, y: 10, parentId: "f" },
     ]);
-    expect(crumbs("n")).toEqual(["Frame"]);
+    expect(crumbs("n")).toEqual(["Outside", "Frame"]);
   });
 
   it("survives a cycle of title edges", () => {

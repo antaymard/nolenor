@@ -31,8 +31,16 @@ import {
   type ScaledLayout,
   type SelectionResizeHandle,
 } from "@/lib/selectionResize";
+import { computeResizeSnap } from "@/lib/snapGuides";
 import { toastError } from "@/components/utils/errorUtils";
+import {
+  collectSnapCandidates,
+  snapThreshold,
+  visibleSnapRects,
+  type SnapCandidate,
+} from "@/hooks/useNodeSnapping";
 import { recordUndo } from "@/stores/canvasHistoryStore";
+import { useSnapGuidesStore } from "@/stores/snapGuidesStore";
 import {
   isNodeResizable,
   useSelectionResizeStore,
@@ -106,6 +114,8 @@ type Gesture = {
   before: Map<string, BeforeLayout>;
   /** Origine monde des frames NON emportées, parents de nodes emportés. */
   parentAbsolutes: Map<string, { x: number; y: number }>;
+  /** Ce qui peut aimanter le cadre (Shift) : tout sauf ce qu'il emporte. */
+  snapCandidates: SnapCandidate[];
   last: Map<string, ScaledLayout> | null;
 };
 
@@ -116,7 +126,8 @@ type Gesture = {
  * (`NodeFrame`). Au-delà, elles s'effacent (`selectionResizeStore`) au profit
  * d'un cadre unique autour de la sélection, comme dans Figma ou tldraw : tirer
  * une poignée met TOUTE la sélection à l'échelle depuis le bord opposé —
- * positions et tailles. Shift garde les proportions.
+ * positions et tailles. Shift aimante le bord tiré sur les autres nodes, comme
+ * pour un node seul (cf. `useNodeSnapping`).
  *
  * - Une frame sélectionnée emporte son contenu, même non sélectionné : sinon
  *   la frame rétrécirait sous ses nodes.
@@ -160,6 +171,14 @@ function SelectionResizeFrame({
   const store = useStoreApi();
   const { getNodes, getInternalNode, setNodes } = useReactFlow();
   const gestureRef = useRef<Gesture | null>(null);
+  // Démonté en plein geste (sélection vidée à distance…) : les guides ne
+  // doivent pas rester à l'écran.
+  useEffect(
+    () => () => {
+      if (gestureRef.current) useSnapGuidesStore.getState().setGuides(null);
+    },
+    [],
+  );
 
   const patchNodes = useMutation(api.nodes.patch);
   const patchNodesInConvex = useMemo(
@@ -262,6 +281,7 @@ function SelectionResizeFrame({
     );
     if (!rect) return;
 
+    const carriedIds = new Set(nodes.map((node) => node.id));
     event.currentTarget.setPointerCapture(event.pointerId);
     gestureRef.current = {
       pointerId: event.pointerId,
@@ -272,6 +292,10 @@ function SelectionResizeFrame({
       minScale: minimumScales(nodes),
       before,
       parentAbsolutes,
+      snapCandidates: collectSnapCandidates(
+        store.getState().nodeLookup,
+        (node) => carriedIds.has(node.id),
+      ),
       last: null,
     };
   };
@@ -281,15 +305,37 @@ function SelectionResizeFrame({
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     event.stopPropagation();
 
-    const currentZoom = store.getState().transform[2];
+    const state = store.getState();
+    const currentZoom = state.transform[2];
     const delta = {
       x: (event.clientX - gesture.start.clientX) / currentZoom,
       y: (event.clientY - gesture.start.clientY) / currentZoom,
     };
-    const { rect } = resizeSelectionRect(gesture.rect, gesture.handle, delta, {
-      keepAspectRatio: event.shiftKey,
+    let { rect } = resizeSelectionRect(gesture.rect, gesture.handle, delta, {
       minScale: gesture.minScale,
     });
+    if (event.shiftKey) {
+      const { handle, minScale } = gesture;
+      const snapped = computeResizeSnap(
+        rect,
+        {
+          left: handle.includes("left"),
+          right: handle.includes("right"),
+          top: handle.includes("top"),
+          bottom: handle.includes("bottom"),
+        },
+        visibleSnapRects(gesture.snapCandidates, state),
+        snapThreshold(currentZoom),
+        {
+          width: gesture.rect.width * minScale.x,
+          height: gesture.rect.height * minScale.y,
+        },
+      );
+      rect = snapped.rect;
+      useSnapGuidesStore.getState().setGuides(snapped.guides);
+    } else {
+      useSnapGuidesStore.getState().setGuides(null);
+    }
     const layouts = scaleSelection(gesture.nodes, gesture.rect, rect, (id) =>
       gesture.parentAbsolutes.get(id),
     );
@@ -302,6 +348,7 @@ function SelectionResizeFrame({
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     event.stopPropagation();
     gestureRef.current = null;
+    useSnapGuidesStore.getState().setGuides(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }

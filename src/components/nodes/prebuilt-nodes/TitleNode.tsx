@@ -29,6 +29,7 @@ import { TITLE_HEADING_CLASSNAMES } from "./titleLevelStyles";
 import { parseTitleHeading } from "@/../convex/lib/titleHeading";
 import { useNodeEditorStore } from "@/stores/nodeEditorStore";
 import { useIsSelectionResizeActive } from "@/stores/selectionResizeStore";
+import { setResizeMinSize } from "@/lib/resizeMinSize";
 
 type SizingMode = "auto" | "manual";
 
@@ -47,6 +48,9 @@ const LEVELS: Array<{
 
 const PLACEHOLDER = "Click to edit...";
 const RESIZE_THRESHOLD_PX = 2;
+
+/** Largeur minimale du titre sous ses poignées. */
+const TITLE_MIN_WIDTH = 50;
 
 // Match the lineStyle used by NodeFrame's default NodeResizer for visual
 // consistency with other nodes' resize handles.
@@ -302,6 +306,18 @@ function TitleNode(xyNode: XyNodeProps) {
     [sizingMode, updateCanvasNode, xyNode.id],
   );
 
+  // La borne des poignées, pour l'aimantation du resize (Shift). La hauteur
+  // n'est pas tirée : elle suit le texte.
+  useEffect(() => {
+    setResizeMinSize(xyNode.id, {
+      widthFromLeft: TITLE_MIN_WIDTH,
+      widthFromRight: TITLE_MIN_WIDTH,
+      heightFromTop: 0,
+      heightFromBottom: 0,
+    });
+    return () => setResizeMinSize(xyNode.id, null);
+  }, [xyNode.id]);
+
   // xyflow's onResizeEnd only fires if at least one onResize was emitted
   // (resizeDetected guard). If the user clicks the handle and releases
   // without moving, neither fires — so we always reset isResizing on the
@@ -387,7 +403,7 @@ function TitleNode(xyNode: XyNodeProps) {
             variant={ResizeControlVariant.Line}
             position="left"
             resizeDirection="horizontal"
-            minWidth={50}
+            minWidth={TITLE_MIN_WIDTH}
             style={RESIZE_LINE_STYLE}
             onResizeStart={handleResizeStart}
             onResizeEnd={handleResizeEnd}
@@ -396,7 +412,7 @@ function TitleNode(xyNode: XyNodeProps) {
             variant={ResizeControlVariant.Line}
             position="right"
             resizeDirection="horizontal"
-            minWidth={50}
+            minWidth={TITLE_MIN_WIDTH}
             style={RESIZE_LINE_STYLE}
             onResizeStart={handleResizeStart}
             onResizeEnd={handleResizeEnd}

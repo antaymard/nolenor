@@ -8,7 +8,7 @@ import {
 } from "./selectionResize";
 
 const box = { x: 0, y: 0, width: 400, height: 200 };
-const free = { keepAspectRatio: false, minScale: { x: 0.1, y: 0.1 } };
+const free = { minScale: { x: 0.1, y: 0.1 } };
 
 const node = (
   id: string,
@@ -55,26 +55,12 @@ describe("resizeSelectionRect", () => {
     });
   });
 
-  it("garde les proportions sous Shift, depuis le centre de l'autre axe", () => {
-    expect(
-      resizeSelectionRect(
-        box,
-        "right",
-        { x: 400, y: 0 },
-        { ...free, keepAspectRatio: true },
-      ),
-    ).toEqual({
-      rect: { x: 0, y: -100, width: 800, height: 400 },
-      scale: { x: 2, y: 2 },
-    });
-  });
-
   it("ne retourne jamais le cadre", () => {
     const { scale } = resizeSelectionRect(
       box,
       "top-left",
       { x: 1000, y: 1000 },
-      { keepAspectRatio: false, minScale: { x: 0.25, y: 0.5 } },
+      { minScale: { x: 0.25, y: 0.5 } },
     );
     expect(scale).toEqual({ x: 0.25, y: 0.5 });
   });

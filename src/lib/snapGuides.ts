@@ -254,9 +254,9 @@ function collectAlignments(
   moving: AxisSpan,
   others: AxisSpan[],
   axis: SnapAxis,
+  own: readonly number[] = anchors(moving),
 ): AlignmentGuide[] {
   const byPos = new Map<number, AlignmentGuide>();
-  const own = anchors(moving);
   for (const other of others) {
     const theirs = anchors(other);
     for (const anchor of own) {
@@ -349,6 +349,94 @@ export function computeSnap(
   }
 
   return { dx: x.delta, dy: y.delta, guides: { alignments, spacings } };
+}
+
+/**
+ * Les bords qu'un redimensionnement déplace. Au plus un par axe : une poignée
+ * de bord en tire un, une poignée de coin deux.
+ */
+export type ResizeEdges = {
+  left: boolean;
+  right: boolean;
+  top: boolean;
+  bottom: boolean;
+};
+
+export type ResizeSnapResult = {
+  rect: SnapRect;
+  guides: SnapGuides;
+};
+
+/**
+ * Aimante les bords tirés d'un rectangle en cours de redimensionnement sur les
+ * bords et centres des `others`. Le bord opposé ne bouge pas : seuls la
+ * taille, et la position quand c'est le bord gauche ou haut qui est tiré,
+ * changent.
+ *
+ * Pas d'espacement égal ici, seulement l'alignement : c'est le bord qu'on
+ * place, pas le rectangle entier. Les traits ne sont tracés que pour les bords
+ * tirés — un bord immobile déjà aligné n'a rien à dire du geste.
+ *
+ * `minSize` : un aimant qui ferait passer le rectangle sous cette taille est
+ * ignoré (les bornes du resize, que l'aimant ne doit pas franchir).
+ */
+export function computeResizeSnap(
+  moving: SnapRect,
+  edges: ResizeEdges,
+  others: SnapRect[],
+  threshold: number,
+  minSize: { width: number; height: number } = { width: 0, height: 0 },
+): ResizeSnapResult {
+  const rect = { ...moving };
+  const alignments: AlignmentGuide[] = [];
+  if (others.length === 0) {
+    return { rect, guides: { alignments, spacings: [] } };
+  }
+
+  for (const axis of ["x", "y"] as const) {
+    const fromStart = axis === "x" ? edges.left : edges.top;
+    const fromEnd = axis === "x" ? edges.right : edges.bottom;
+    if (!fromStart && !fromEnd) continue;
+
+    const movingSpan = span(rect, axis);
+    const otherSpans = others.map((o) => span(o, axis));
+    const edge = fromStart ? movingSpan.start : movingSpan.end;
+    const min = axis === "x" ? minSize.width : minSize.height;
+
+    let best: number | null = null;
+    for (const other of otherSpans) {
+      for (const target of anchors(other)) {
+        const delta = target - edge;
+        const size = movingSpan.size + (fromStart ? -delta : delta);
+        if (
+          Math.abs(delta) <= threshold &&
+          // Grandir reste permis même sous la borne : seul le rétrécissement
+          // est en cause.
+          (size >= min || size >= movingSpan.size) &&
+          (best === null || Math.abs(delta) < Math.abs(best))
+        ) {
+          best = delta;
+        }
+      }
+    }
+
+    const delta = best ?? 0;
+    if (axis === "x") {
+      if (fromStart) rect.x += delta;
+      rect.width += fromStart ? -delta : delta;
+    } else {
+      if (fromStart) rect.y += delta;
+      rect.height += fromStart ? -delta : delta;
+    }
+    const placed = span(rect, axis);
+    alignments.push(
+      ...collectAlignments(placed, otherSpans, axis, [
+        fromStart ? placed.start : placed.end,
+      ]),
+    );
+  }
+
+  return { rect, guides: { alignments, spacings: [] } };
 }
 
 /** Boîte englobante de plusieurs rectangles, `null` si vide. */

@@ -14,6 +14,7 @@ import NodeCollaboratorsPill from "@/components/canvas/presence/NodeCollaborator
 import { NodeTitleHeader } from "./NodeHeader";
 import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
 import { zoomCompensationScaleSelector } from "@/lib/zoomCompensation";
+import { setResizeMinSize } from "@/lib/resizeMinSize";
 import {
   setNodeResizable,
   useIsSelectionResizeActive,
@@ -127,6 +128,20 @@ function NodeFrame({
     setNodeResizable(xyNode.id, resizable);
     return () => setNodeResizable(xyNode.id, false);
   }, [xyNode.id, resizable]);
+  // Les bornes du `NodeResizer`, pour l'aimantation du resize (Shift). Ses
+  // valeurs par défaut quand le node n'en donne pas.
+  useEffect(() => {
+    if (!resizable) return;
+    const width = minWidth ?? 10;
+    const height = minHeight ?? 10;
+    setResizeMinSize(xyNode.id, {
+      widthFromLeft: width,
+      widthFromRight: width,
+      heightFromTop: height,
+      heightFromBottom: height,
+    });
+    return () => setResizeMinSize(xyNode.id, null);
+  }, [xyNode.id, resizable, minWidth, minHeight]);
   // Plusieurs nodes sélectionnés : le cadre de la sélection remplace les
   // poignées de chacun.
   const isSelectionResizeActive = useIsSelectionResizeActive();

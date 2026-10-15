@@ -102,63 +102,34 @@ export function minimumScales(nodes: ScalableNode[]): Point {
  * Le cadre de la sélection après un déplacement `delta` (monde) de la poignée.
  *
  * Le bord opposé à la poignée reste fixe. Une poignée de bord ne touche qu'un
- * axe ; avec `keepAspectRatio` (Shift), les deux axes prennent la même échelle
- * et l'autre axe grandit depuis son centre.
+ * axe. Pas de proportions gardées : Shift sert à l'aimantation, comme pour
+ * le resize d'un node seul.
  */
 export function resizeSelectionRect(
   start: Rect,
   handle: SelectionResizeHandle,
   delta: Point,
-  {
-    keepAspectRatio,
-    minScale,
-  }: { keepAspectRatio: boolean; minScale: Point },
+  { minScale }: { minScale: Point },
 ): { rect: Rect; scale: Point } {
   const dir = directionOf(handle);
-  let scaleX =
+  const scaleX = Math.max(
     dir.x !== 0 && start.width > 0
       ? (start.width + dir.x * delta.x) / start.width
-      : 1;
-  let scaleY =
+      : 1,
+    minScale.x,
+  );
+  const scaleY = Math.max(
     dir.y !== 0 && start.height > 0
       ? (start.height + dir.y * delta.y) / start.height
-      : 1;
-
-  if (keepAspectRatio) {
-    // L'axe que la poignée tire le plus l'emporte ; sur un bord, c'est le
-    // seul qu'elle tire.
-    const uniform =
-      dir.x === 0
-        ? scaleY
-        : dir.y === 0
-          ? scaleX
-          : Math.abs(scaleX - 1) >= Math.abs(scaleY - 1)
-            ? scaleX
-            : scaleY;
-    const clamped = Math.max(uniform, minScale.x, minScale.y);
-    scaleX = clamped;
-    scaleY = clamped;
-  } else {
-    scaleX = Math.max(scaleX, minScale.x);
-    scaleY = Math.max(scaleY, minScale.y);
-  }
+      : 1,
+    minScale.y,
+  );
 
   const width = start.width * scaleX;
   const height = start.height * scaleY;
-  // Bord fixe : l'opposé de la poignée, ou le centre pour l'axe qu'elle ne
-  // tire pas (il ne bouge que sous Shift).
-  const x =
-    dir.x === -1
-      ? start.x + start.width - width
-      : dir.x === 1
-        ? start.x
-        : start.x + (start.width - width) / 2;
-  const y =
-    dir.y === -1
-      ? start.y + start.height - height
-      : dir.y === 1
-        ? start.y
-        : start.y + (start.height - height) / 2;
+  // Bord fixe : l'opposé de la poignée.
+  const x = dir.x === -1 ? start.x + start.width - width : start.x;
+  const y = dir.y === -1 ? start.y + start.height - height : start.y;
 
   return { rect: { x, y, width, height }, scale: { x: scaleX, y: scaleY } };
 }

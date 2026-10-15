@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeSnap, unionRect } from "./snapGuides";
+import { computeResizeSnap, computeSnap, unionRect } from "./snapGuides";
 
 const rect = (x: number, y: number, width = 100, height = 50) => ({
   x,
@@ -121,5 +121,60 @@ describe("unionRect", () => {
       height: 150,
     });
     expect(unionRect([])).toBeNull();
+  });
+});
+
+describe("computeResizeSnap", () => {
+  const right = { left: false, right: true, top: false, bottom: false };
+  const topLeft = { left: true, right: false, top: true, bottom: false };
+
+  it("aimante le bord droit tiré sur un bord voisin, sans bouger le reste", () => {
+    const result = computeResizeSnap(
+      rect(0, 300, 196, 50),
+      right,
+      [rect(100, 0)],
+      6,
+    );
+    expect(result.rect).toEqual({ x: 0, y: 300, width: 200, height: 50 });
+    expect(result.guides.alignments).toEqual([
+      { axis: "x", pos: 200, from: 0, to: 350, marks: [300, 350, 0, 50] },
+    ]);
+  });
+
+  it("déplace le coin quand c'est le bord gauche ou haut qui est tiré", () => {
+    const result = computeResizeSnap(
+      rect(103, 54, 97, 96),
+      topLeft,
+      [rect(100, 0, 100, 50)],
+      6,
+    );
+    // Gauche sur la gauche du voisin, haut sur son bas : bords droit et bas
+    // inchangés.
+    expect(result.rect).toEqual({ x: 100, y: 50, width: 100, height: 100 });
+  });
+
+  it("n'aimante ni les bords immobiles ni hors de portée", () => {
+    const result = computeResizeSnap(
+      rect(2, 300, 150, 50),
+      right,
+      [rect(0, 0, 100, 50)],
+      6,
+    );
+    expect(result.rect).toEqual(rect(2, 300, 150, 50));
+    expect(result.guides.alignments).toEqual([]);
+  });
+
+  it("ne rétrécit pas sous la taille minimale", () => {
+    const moving = rect(0, 300, 52, 50);
+    expect(
+      computeResizeSnap(moving, right, [rect(49, 0, 14, 50)], 6, {
+        width: 50,
+        height: 0,
+      }).rect.width,
+    ).toBe(56);
+    // Sans borne, le bord le plus proche (49) l'emportait.
+    expect(
+      computeResizeSnap(moving, right, [rect(49, 0, 14, 50)], 6).rect.width,
+    ).toBe(49);
   });
 });

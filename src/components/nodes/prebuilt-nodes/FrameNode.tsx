@@ -34,6 +34,7 @@ import { useIsNodeBookmarked } from "@/stores/bookmarkedNodesStore";
 import { useWindowsStore } from "@/stores/windowsStore";
 import { useNodeDisplayOptions } from "@/hooks/useNodeDisplayOptions";
 import { isCompactFrame } from "@/lib/frameVariant";
+import { setResizeMinSize } from "@/lib/resizeMinSize";
 import { getNodeIcon } from "@/components/utils/nodeDataDisplayUtils";
 import BookmarkedBadge from "@/components/nodes/BookmarkedBadge";
 import NodeCollaboratorsPill from "@/components/canvas/presence/NodeCollaboratorsPill";
@@ -343,6 +344,12 @@ function FrameNode(xyNode: XyNodeProps) {
     // Compacte : pas de poignées, donc pas de bornes à mesurer.
     if (isSelected && !isCompact) measureContent();
   }, [isSelected, isCompact, measureContent]);
+  // Les mêmes bornes pour l'aimantation du resize (Shift), qui ne doit pas
+  // pousser un bord dans le contenu.
+  useEffect(() => {
+    setResizeMinSize(xyNode.id, minSize);
+    return () => setResizeMinSize(xyNode.id, null);
+  }, [xyNode.id, minSize]);
 
   const renameButton = (
     <NodeToolbarButton label="Rename" onClick={requestRename}>

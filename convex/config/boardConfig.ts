@@ -58,18 +58,42 @@ const container = (
   children,
 });
 
+/** Bornes d'une grille construite d'un coup (cf. `buildBoardGrid`). */
+export const MAX_BOARD_COLUMNS = 12;
+export const MAX_BOARD_ROWS = 8;
+
+/**
+ * Une grille de `columns` × `rows` espaces : une ligne d'espaces pour une
+ * seule rangée (un Kanban), une colonne de lignes sinon (une matrice). Les
+ * espaces se lisent ligne par ligne.
+ */
+export function buildBoardGrid(columns: number, rows: number): BoardLayout {
+  const row = () =>
+    container(
+      "row",
+      Array.from({ length: columns }, () => space()),
+    );
+  const root =
+    rows <= 1
+      ? row()
+      : container(
+          "column",
+          Array.from({ length: rows }, () => row()),
+        );
+  return { ...root, padding: BOARD_GAP };
+}
+
+/** La taille d'une grille vide, pour qu'un board neuf ne naisse pas à zéro. */
+export function boardGridSize(columns: number, rows: number) {
+  return {
+    width: columns * (SPACE_MIN_WIDTH + BOARD_GAP) + BOARD_GAP,
+    height: rows * (SPACE_MIN_HEIGHT + BOARD_GAP) + BOARD_GAP,
+  };
+}
+
 export const BOARD_PRESETS = {
-  kanban: () => ({
-    ...container("row", [space(), space(), space()]),
-    padding: BOARD_GAP,
-  }),
-  matrix: () => ({
-    ...container("column", [
-      container("row", [space(), space()]),
-      container("row", [space(), space()]),
-    ]),
-    padding: BOARD_GAP,
-  }),
+  kanban: () => buildBoardGrid(3, 1),
+  matrix: () => buildBoardGrid(2, 2),
 } satisfies Record<string, () => BoardLayout>;
 
 export type BoardPreset = keyof typeof BOARD_PRESETS;
@@ -122,4 +146,43 @@ export function reuseSpaceIds(
     return node;
   };
   return walk(next) as BoardLayout;
+}
+
+/** Un enfant de board, vu par son rangement. */
+type PlacedChild = {
+  id: string;
+  placement?: { spaceId: string; order: string } | null;
+};
+
+/**
+ * Les enfants d'un board, espace par espace, dans l'ordre de leur clé : la
+ * même lecture pour le canvas qui les pose et pour Nolë qui les lit.
+ *
+ * Un enfant sans clé (rangé par un autre chemin qu'un drag) va en fin
+ * d'espace ; à clés égales, l'id départage. Un espace disparu renvoie au
+ * premier (cf. `resolveSpaceId`). Chaque espace de l'arbre a son entrée,
+ * vide comprise.
+ */
+export function groupBoardChildren<Child extends PlacedChild>(
+  layout: BoardLayout,
+  children: Child[],
+): Map<string, Child[]> {
+  const bySpace = new Map<string, Child[]>(
+    listBoardSpaces(layout).map((space) => [space.id, []]),
+  );
+  for (const child of children) {
+    const spaceId = resolveSpaceId(layout, child.placement?.spaceId);
+    if (spaceId) bySpace.get(spaceId)!.push(child);
+  }
+  const orderOf = (child: Child) => child.placement?.order ?? "~";
+  for (const group of bySpace.values()) {
+    group.sort((a, b) =>
+      orderOf(a) === orderOf(b)
+        ? a.id.localeCompare(b.id)
+        : orderOf(a) < orderOf(b)
+          ? -1
+          : 1,
+    );
+  }
+  return bySpace;
 }

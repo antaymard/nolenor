@@ -5,6 +5,12 @@ import createConnectionTool, {
 } from "./createConnectionTool";
 import createNodeTool, { createNodeToolConfig } from "./createNodeTool";
 import groupNodesTool, { groupNodesToolConfig } from "./groupNodesTool";
+import {
+  createBoardTool,
+  createBoardToolConfig,
+  editBoardTool,
+  editBoardToolConfig,
+} from "./boardTools";
 import deleteElementsTool, {
   deleteElementsToolConfig,
 } from "./deleteElementsTool";
@@ -108,6 +114,14 @@ const toolRegistry: ToolRegistration[] = [
   {
     config: groupNodesToolConfig,
     factory: ({ threadCtx }) => groupNodesTool({ threadCtx }),
+  },
+  {
+    config: createBoardToolConfig,
+    factory: ({ threadCtx }) => createBoardTool({ threadCtx }),
+  },
+  {
+    config: editBoardToolConfig,
+    factory: ({ threadCtx }) => editBoardTool({ threadCtx }),
   },
   {
     config: moveAndStyleNodesToolConfig,

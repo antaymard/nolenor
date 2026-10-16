@@ -44,12 +44,15 @@ import { FRAME_FIT_PADDING } from "@/lib/frameFit";
 import { FRAME_CONTENT_PADDING } from "@/../convex/config/nodeConfig";
 import { useNodeSnapping } from "@/hooks/useNodeSnapping";
 import { isContainerNodeType } from "@/../convex/config/nodeConfig";
-import { readBoardLayout, resolveSpaceId } from "@/../convex/config/boardConfig";
+import {
+  groupBoardChildren,
+  readBoardLayout,
+} from "@/../convex/config/boardConfig";
 import type { NodePlacement } from "@/../convex/schemas/nodesSchema";
 import { useNodeDataStore } from "@/stores/nodeDataStore";
 import { useBoardDropStore, type BoardDropTarget } from "@/stores/boardDropStore";
 import { findBoardDropTarget } from "@/lib/boardDom";
-import { orderKeysAt } from "@/lib/boardPlacement";
+import { orderKeysAt } from "@/../convex/lib/orderKeys";
 
 /**
  * Écriture serveur d'un changement de nœud.
@@ -249,21 +252,14 @@ function placeInBoardWith(
       : null;
     if (layout) {
       const movedIds = new Set(entering.map((move) => move.nodeId));
-      const orderOf = (node: CanvasNode) => node.placement?.order ?? "~";
-      const siblings = canvasNodes
-        .filter(
-          (node) =>
-            node.parentId === target.boardId &&
-            !movedIds.has(node.id) &&
-            resolveSpaceId(layout, node.placement?.spaceId) === target.spaceId,
-        )
-        .sort((a, b) =>
-          orderOf(a) === orderOf(b)
-            ? a.id.localeCompare(b.id)
-            : orderOf(a) < orderOf(b)
-              ? -1
-              : 1,
-        );
+      const siblings =
+        groupBoardChildren(
+          layout,
+          canvasNodes.filter(
+            (node) =>
+              node.parentId === target.boardId && !movedIds.has(node.id),
+          ),
+        ).get(target.spaceId) ?? [];
       // Entre eux, les nodes déposés gardent l'ordre vertical qu'ils avaient.
       const ordered = [...entering].sort(
         (a, b) => (a.props.position?.y ?? 0) - (b.props.position?.y ?? 0),

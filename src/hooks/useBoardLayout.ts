@@ -3,8 +3,7 @@ import { useReactFlow, useStore, type ReactFlowState } from "@xyflow/react";
 import { useMutation } from "convex/react";
 import { api } from "@/../convex/_generated/api";
 import {
-  listBoardSpaces,
-  resolveSpaceId,
+  groupBoardChildren,
   type BoardLayout,
 } from "@/../convex/config/boardConfig";
 import type { NodePlacement } from "@/../convex/schemas/nodesSchema";
@@ -48,29 +47,16 @@ export function useBoardChildren(
   );
 
   return useMemo(() => {
-    const bySpace = new Map<string, Array<BoardChild & { order: string }>>(
-      (layout ? listBoardSpaces(layout) : []).map((space) => [space.id, []]),
-    );
-    if (!layout || !key) return bySpace;
-    for (const entry of key.split("\u0002")) {
+    if (!layout) return new Map();
+    const children = (key ? key.split("\u0002") : []).map((entry) => {
       const [id, height, spaceId, order] = entry.split("\u0001");
-      const resolved = resolveSpaceId(layout, spaceId || undefined);
-      if (!resolved) continue;
-      // Sans clé (rangé par un autre chemin que le drag) : en fin d'espace.
-      bySpace
-        .get(resolved)!
-        .push({ id, height: Number(height), order: order || "~" });
-    }
-    for (const children of bySpace.values()) {
-      children.sort((a, b) =>
-        a.order === b.order
-          ? a.id.localeCompare(b.id)
-          : a.order < b.order
-            ? -1
-            : 1,
-      );
-    }
-    return bySpace;
+      return {
+        id,
+        height: Number(height),
+        ...(spaceId && { placement: { spaceId, order } }),
+      };
+    });
+    return groupBoardChildren(layout, children);
   }, [layout, key]);
 }
 

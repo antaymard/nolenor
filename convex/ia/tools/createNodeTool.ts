@@ -368,6 +368,11 @@ export default function createNodeTool({
                 `Unknown frameId "${input.frameId}": no node with this id on this canvas.`,
               );
             }
+            if (frameNode.type === "board") {
+              return toolError(
+                `Node ${input.frameId} is a board: create the node without frameId, then place it in one of the board's spaces with edit_board.`,
+              );
+            }
             if (frameNode.type !== "frame") {
               return toolError(
                 `Node ${input.frameId} is a ${frameNode.type}, not a frame. Only a frame can contain nodes.`,

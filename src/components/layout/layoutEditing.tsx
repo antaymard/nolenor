@@ -7,9 +7,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { LayoutContainer } from "@/../convex/config/templateConfig";
+import type { LayoutContainer } from "@/../convex/lib/layoutTree";
 
-// Couche d'édition de LayoutRenderer : sélection, survol et dnd posés sur le
+// Couche d'édition de LayoutTreeRenderer : sélection, survol et dnd posés sur le
 // rendu RÉEL du layout. Compagnon du renderer, pas un second renderer — les
 // styles flex (containerStyle / placementStyle) restent sa propriété exclusive
 // et sont passés ici tels quels. Toute duplication de ces styles ferait

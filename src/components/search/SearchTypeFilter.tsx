@@ -17,6 +17,7 @@ const NODE_TYPE_LABELS: Record<NodeType, string> = {
   audio: "Audio",
   video: "Videos",
   frame: "Frames",
+  board: "Boards",
   custom: "Custom",
 };
 

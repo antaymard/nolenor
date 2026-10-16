@@ -435,6 +435,10 @@ async function buildChunks(
       return [{ ...base, chunkType: "node", order: 0, text: title }];
     }
 
+    // Rien de cherchable en propre : ce qu'il range s'indexe pour soi.
+    case "board":
+      return [];
+
     case "app": {
       // Même forme que `frame` : le titre est tout ce que l'app
       // porte de cherchable. Indexer le code JSX serait du bruit (et un coût

@@ -20,11 +20,12 @@ function shallowEqualData(
 
   for (const key of keysA) {
     if (a[key] === b[key]) continue;
-    // Seul objet imbriqué de `data` : Convex le recrée à chaque sync, comme
-    // `data` lui-même. Comparé par référence, il re-rendrait à chaque sync
-    // tous les nodes qui portent une option d'affichage.
+    // Les objets imbriqués de `data` : Convex les recrée à chaque sync, comme
+    // `data` lui-même. Comparés par référence, ils re-rendraient à chaque
+    // sync tous les nodes qui portent une option d'affichage, ou qui sont
+    // rangés dans un board.
     if (
-      key === "displayOptions" &&
+      (key === "displayOptions" || key === "placement") &&
       shallowEqualData(
         (a[key] ?? EMPTY) as Record<string, unknown>,
         (b[key] ?? EMPTY) as Record<string, unknown>,

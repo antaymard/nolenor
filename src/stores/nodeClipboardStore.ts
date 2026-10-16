@@ -64,10 +64,12 @@ export function snapshotNodesToItems(
       }
     }
 
-    const { nodeDataId: _omitted, ...data } = (node.data ?? {}) as Record<
-      string,
-      unknown
-    >;
+    // Le rangement dans un board suit l'appartenance : il ne se recopie pas.
+    const {
+      nodeDataId: _omitted,
+      placement: _placementOmitted,
+      ...data
+    } = (node.data ?? {}) as Record<string, unknown>;
 
     // L'appartenance à une frame ne se recopie pas : la copie serait rattachée
     // à la frame de l'ORIGINAL, y compris collée sur un autre canvas où cette

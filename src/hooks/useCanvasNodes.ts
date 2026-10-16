@@ -43,6 +43,13 @@ import {
 import { FRAME_FIT_PADDING } from "@/lib/frameFit";
 import { FRAME_CONTENT_PADDING } from "@/../convex/config/nodeConfig";
 import { useNodeSnapping } from "@/hooks/useNodeSnapping";
+import { isContainerNodeType } from "@/../convex/config/nodeConfig";
+import { readBoardLayout, resolveSpaceId } from "@/../convex/config/boardConfig";
+import type { NodePlacement } from "@/../convex/schemas/nodesSchema";
+import { useNodeDataStore } from "@/stores/nodeDataStore";
+import { useBoardDropStore, type BoardDropTarget } from "@/stores/boardDropStore";
+import { findBoardDropTarget } from "@/lib/boardDom";
+import { orderKeysAt } from "@/lib/boardPlacement";
 
 /**
  * Écriture serveur d'un changement de nœud.
@@ -77,6 +84,8 @@ type LayoutUpdate = {
     height?: number;
     /** `null` = sortie de frame. Voyage avec `position` : cf. le flush. */
     parentId?: string | null;
+    /** `null` = n'est plus rangé dans un board. */
+    placement?: NodePlacement | null;
   };
 };
 
@@ -204,6 +213,81 @@ function placeInCompactFramesWith(
       { nodeId: frameId, memberIds: [...memberIds], before, after: size },
     ];
   });
+}
+
+/**
+ * Range dans un board les nodes que le geste y dépose (cf. `boardDropStore`) :
+ * chacun reçoit son espace et une clé d'ordre au point d'insertion. Ceux qui
+ * en sortent perdent leur rangement. `moves` est modifié sur place ; rend
+ * l'ancien rangement de chaque node touché, pour l'annulation.
+ *
+ * Tout se lit sur l'état STOCKÉ : c'est lui qui porte les clés des voisins.
+ */
+function placeInBoardWith(
+  moves: LayoutUpdate[],
+  target: BoardDropTarget | null,
+  canvasNodes: CanvasNode[] | undefined,
+): Map<string, NodePlacement | null> {
+  const previous = new Map<string, NodePlacement | null>();
+  if (!canvasNodes) return previous;
+  const stored = new Map(canvasNodes.map((node) => [node.id, node]));
+  const finalParentOf = (move: LayoutUpdate) =>
+    move.props.parentId !== undefined
+      ? move.props.parentId
+      : (stored.get(move.nodeId)?.parentId ?? null);
+
+  const entering = target
+    ? moves.filter((move) => finalParentOf(move) === target.boardId)
+    : [];
+  if (target && entering.length > 0) {
+    const board = stored.get(target.boardId);
+    const layout = board?.nodeDataId
+      ? readBoardLayout(
+          useNodeDataStore.getState().getNodeData(board.nodeDataId)?.values
+            ?.layout,
+        )
+      : null;
+    if (layout) {
+      const movedIds = new Set(entering.map((move) => move.nodeId));
+      const orderOf = (node: CanvasNode) => node.placement?.order ?? "~";
+      const siblings = canvasNodes
+        .filter(
+          (node) =>
+            node.parentId === target.boardId &&
+            !movedIds.has(node.id) &&
+            resolveSpaceId(layout, node.placement?.spaceId) === target.spaceId,
+        )
+        .sort((a, b) =>
+          orderOf(a) === orderOf(b)
+            ? a.id.localeCompare(b.id)
+            : orderOf(a) < orderOf(b)
+              ? -1
+              : 1,
+        );
+      // Entre eux, les nodes déposés gardent l'ordre vertical qu'ils avaient.
+      const ordered = [...entering].sort(
+        (a, b) => (a.props.position?.y ?? 0) - (b.props.position?.y ?? 0),
+      );
+      const keys = orderKeysAt(
+        siblings.map((node) => ({ order: node.placement?.order })),
+        target.index,
+        ordered.length,
+      );
+      ordered.forEach((move, i) => {
+        previous.set(move.nodeId, stored.get(move.nodeId)?.placement ?? null);
+        move.props.placement = { spaceId: target.spaceId, order: keys[i] };
+      });
+    }
+  }
+
+  for (const move of moves) {
+    if (previous.has(move.nodeId) || move.props.parentId === undefined) continue;
+    const placement = stored.get(move.nodeId)?.placement;
+    if (!placement) continue;
+    previous.set(move.nodeId, placement);
+    move.props.placement = null;
+  }
+  return previous;
 }
 
 export function useCanvasNodes(
@@ -482,6 +566,14 @@ export function useCanvasNodes(
         };
       });
 
+      // Déposés dans un board : rangés à leur point d'insertion. Sortis d'un
+      // board : plus rangés nulle part.
+      const previousPlacements = placeInBoardWith(
+        moves,
+        useBoardDropStore.getState().target,
+        canvasNodesRef.current,
+      );
+
       // Déposés sur une frame compacte : rangés sous son contenu, et la
       // frame (dépliée) agrandie pour eux, dans la même écriture.
       const frameResizes = nodesById
@@ -508,6 +600,9 @@ export function useCanvasNodes(
             props: {
               position: origin,
               ...(reparent && { parentId: reparent.previousParentId }),
+              ...(previousPlacements.has(update.nodeId) && {
+                placement: previousPlacements.get(update.nodeId),
+              }),
             },
           },
         ];
@@ -573,6 +668,7 @@ export function useCanvasNodes(
     dragOriginsRef.current.clear();
     pendingReparentRef.current.clear();
     useFrameHoverStore.getState().setHoveredFrameId(null);
+    useBoardDropStore.getState().setTarget(null);
     endSnapSession();
   }, [canvasId, endSnapSession]);
 
@@ -690,7 +786,7 @@ export function useCanvasNodes(
       if (isLassoActiveRef.current && isCtrlHeld) {
         const frameIds = new Set(
           getNodes()
-            .filter((node) => node.type === "frame")
+            .filter((node) => isContainerNodeType(node.type))
             .map((node) => node.id),
         );
         if (frameIds.size > 0) {
@@ -1168,7 +1264,7 @@ export function useCanvasNodes(
       // `placeInCompactFramesWith`. Une frame portée par le geste n'accueille
       // pas : elle est toujours sous le curseur.
       const frames = current.filter(
-        (node) => node.type === "frame" && !draggedIds.has(node.id),
+        (node) => isContainerNodeType(node.type) && !draggedIds.has(node.id),
       );
       if (frames.length === 0) return;
 
@@ -1211,6 +1307,22 @@ export function useCanvasNodes(
       useFrameHoverStore
         .getState()
         .setHoveredFrameId(hovered ? nextParentId : null);
+
+      // Un board dit en plus OÙ : l'espace sous le curseur, et le rang
+      // d'insertion — que le relâcher écrira (cf. `placeInBoardWith`).
+      const boardTarget =
+        hovered && frame?.type === "board"
+          ? findBoardDropTarget(
+              frame.id,
+              { x: clientX, y: clientY },
+              draggedIds,
+            )
+          : null;
+      useBoardDropStore
+        .getState()
+        .setTarget(
+          boardTarget && frame ? { boardId: frame.id, ...boardTarget } : null,
+        );
     },
     [getNodes, screenToFlowPosition],
   );
@@ -1236,6 +1348,7 @@ export function useCanvasNodes(
    */
   const onNodeDragStop = useCallback(() => {
     useFrameHoverStore.getState().setHoveredFrameId(null);
+    useBoardDropStore.getState().setTarget(null);
     endSnapSession();
   }, [endSnapSession]);
 

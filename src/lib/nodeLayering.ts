@@ -1,6 +1,9 @@
 import type { Node } from "@xyflow/react";
 import { frameZIndexBelow } from "@/../convex/lib/nodeLayering";
-import { FRAME_COMPACT_VARIANT } from "@/../convex/config/nodeConfig";
+import {
+  FRAME_COMPACT_VARIANT,
+  isContainerNodeType,
+} from "@/../convex/config/nodeConfig";
 import { isCompactXyFrame } from "@/lib/frameVariant";
 
 /**
@@ -131,7 +134,7 @@ export function computeLayerUpdates(
  * edges.
  */
 function isBackgroundFrame(node: Node): boolean {
-  return node.type === "frame" && !isCompactXyFrame(node);
+  return isContainerNodeType(node.type) && !isCompactXyFrame(node);
 }
 
 /**

@@ -2,7 +2,10 @@ import type { CanvasNode } from "@/types/convex";
 import type { colorsEnum } from "@/types/domain";
 import type { CoordinateExtent, Node } from "@xyflow/react";
 import type { Id } from "@/../convex/_generated/dataModel";
-import type { NodeDisplayOptions } from "@/../convex/schemas/nodesSchema";
+import type {
+  NodeDisplayOptions,
+  NodePlacement,
+} from "@/../convex/schemas/nodesSchema";
 import { FRAME_COMPACT_SIZE, isCompactFrame } from "@/lib/frameVariant";
 
 export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
@@ -17,6 +20,7 @@ export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
     variant,
     displayOptions,
     hiddenByFrame,
+    placement,
     ...restData
   } = (xyNode.data ?? {}) as {
     nodeDataId?: Id<"nodeDatas">;
@@ -24,6 +28,7 @@ export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
     variant?: string;
     displayOptions?: NodeDisplayOptions;
     hiddenByFrame?: boolean;
+    placement?: NodePlacement;
     [key: string]: unknown;
   };
 
@@ -42,6 +47,7 @@ export function fromXyNodeToCanvasNode(xyNode: Node): CanvasNode {
     ...(displayOptions && { displayOptions }),
     ...(Object.keys(restData).length > 0 && { data: restData }),
     ...(xyNode.parentId && { parentId: xyNode.parentId }),
+    ...(placement && { placement }),
     ...(xyNode.extent && { extent: xyNode.extent as CanvasNode["extent"] }),
     ...(xyNode.expandParent && { extendParent: xyNode.expandParent }),
   };
@@ -82,6 +88,9 @@ export function fromCanvasNodeToXyNode(canvasNode: CanvasNode): Node {
       ...(canvasNode.displayOptions && {
         displayOptions: canvasNode.displayOptions,
       }),
+      // Dans `data` côté React Flow, qui n'a pas de champ pour ça : c'est là
+      // que le board lit où ranger chacun de ses enfants.
+      ...(canvasNode.placement && { placement: canvasNode.placement }),
       ...restData,
     },
     ...(canvasNode.parentId && { parentId: canvasNode.parentId }),

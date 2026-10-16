@@ -17,6 +17,7 @@ import { getTemplateIcon } from "@/components/fields/registry/templateIcons";
 import { SHOW_DEV_ONLY_SETTINGS } from "@/lib/featureFlags";
 import { useSettingsModalStore } from "@/stores/settingsModalStore";
 import { cn } from "@/lib/utils";
+import { isContainerNodeType } from "@/../convex/config/nodeConfig";
 import type {
   ConnectedNodeCreatedInfo,
   FrameScope,
@@ -72,7 +73,7 @@ export default function AddBlockMenuContent({
       prebuiltNodesConfig.filter(
         (nodeConfig) =>
           canNodeTypeBeCreated(nodeConfig.node.type) &&
-          !(insideFrame && nodeConfig.node.type === "frame"),
+          !(insideFrame && isContainerNodeType(nodeConfig.node.type)),
       ),
     [insideFrame],
   );

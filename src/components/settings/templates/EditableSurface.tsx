@@ -8,7 +8,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import LayoutRenderer from "@/components/fields/layout/LayoutRenderer";
-import { INTO_PREFIX } from "@/components/fields/layout/layoutEditing";
+import { INTO_PREFIX } from "@/components/layout/layoutEditing";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
 import type { LayoutContainer } from "@/../convex/config/templateConfig";
 import {

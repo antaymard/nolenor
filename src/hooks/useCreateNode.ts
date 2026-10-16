@@ -5,7 +5,10 @@ import type { Doc, Id } from "@/../convex/_generated/dataModel";
 import { generateLlmId } from "@/../convex/lib/llmId";
 import type { Node } from "@xyflow/react";
 import type { colorsEnum, NodeType } from "@/types/domain";
-import { getDefaultNodeDataValues } from "@/../convex/config/nodeConfig";
+import {
+  getDefaultNodeDataValues,
+  isContainerNodeType,
+} from "@/../convex/config/nodeConfig";
 import { getDefaultValuesForTemplate } from "@/../convex/config/fieldConfig";
 import { useParams } from "@tanstack/react-router";
 import { useTemplatesStore } from "@/stores/templatesStore";
@@ -112,7 +115,7 @@ export function useCreateNode() {
     // existants, la poser au-dessus les masquerait tous à l'instant du tracé.
     // Décidé ici et pas par l'appelant : c'est une propriété du type.
     const zIndex =
-      node.type === "frame"
+      isContainerNodeType(node.type)
         ? nextFrameZIndex(getNodes())
         : nextTopZIndex(getNodes());
 

@@ -6,6 +6,7 @@ import errors from "../config/errorsConfig";
 import {
   FRAME_COMPACT_VARIANT,
   FRAME_CONTENT_PADDING,
+  isContainerNodeType,
   nodeDataConfig,
 } from "../config/nodeConfig";
 import {
@@ -51,6 +52,7 @@ export function toCanvasNode(doc: NodeDoc): CanvasNode {
       displayOptions: doc.displayOptions,
     }),
     ...(doc.parentId !== undefined && { parentId: doc.parentId }),
+    ...(doc.placement !== undefined && { placement: doc.placement }),
     ...(doc.extent !== undefined && { extent: doc.extent }),
     ...(doc.extendParent !== undefined && { extendParent: doc.extendParent }),
     ...(doc.data !== undefined && { data: doc.data }),
@@ -418,7 +420,7 @@ export async function createFrameAroundNodes(
     );
   }
 
-  const nested = members.filter((node) => node.type === "frame");
+  const nested = members.filter((node) => isContainerNodeType(node.type));
   if (nested.length > 0) {
     throw new ConvexError(
       `${errors.FRAME_CANNOT_BE_NESTED} Offending: ${nested
@@ -451,7 +453,7 @@ export async function createFrameAroundNodes(
     .filter(
       (node) =>
         !memberIds.has(node.id) &&
-        node.type !== "frame" &&
+        !isContainerNodeType(node.type) &&
         node.parentId === undefined &&
         node.position.x >= left &&
         node.position.y >= top &&
@@ -588,14 +590,14 @@ async function assertCanBeChildOf(
   node: { id?: string; type: NodeDoc["type"]; canvasId: Id<"canvases"> },
   parentId: string,
 ): Promise<void> {
-  if (node.type === "frame") {
+  if (isContainerNodeType(node.type)) {
     throw new ConvexError(errors.FRAME_CANNOT_BE_NESTED);
   }
   if (parentId === node.id) {
     throw new ConvexError(errors.NODE_PARENT_MUST_BE_A_FRAME);
   }
   const parent = await getNodeByLlmId(ctx, { nodeId: parentId });
-  if (!parent || parent.type !== "frame") {
+  if (!parent || !isContainerNodeType(parent.type)) {
     throw new ConvexError(errors.NODE_PARENT_MUST_BE_A_FRAME);
   }
   if (parent.canvasId !== node.canvasId) {
@@ -646,6 +648,14 @@ export async function patchNode(
   // par « retirer le champ ». `undefined` en entrée ne passe pas ce test : ne
   // rien dire sur `parentId` laisse l'appartenance intacte.
   if (props.parentId !== undefined) patch.parentId = props.parentId ?? undefined;
+  if (props.placement !== undefined) {
+    patch.placement = props.placement ?? undefined;
+  } else if (props.parentId !== undefined && props.parentId !== node.parentId) {
+    // Changer de conteneur sans dire où le ranger : l'ancien rangement ne
+    // vaut plus rien (il désignait un espace de l'ancien board). Le nouveau
+    // board, s'il y en a un, range le node dans son premier espace.
+    patch.placement = undefined;
+  }
   if (props.extent !== undefined) patch.extent = props.extent;
   if (props.extendParent !== undefined)
     patch.extendParent = props.extendParent;
@@ -851,7 +861,7 @@ export async function trashNodes(
   const children = await listChildren(ctx, {
     canvasId,
     parentIds: named
-      .filter((node) => node.type === "frame")
+      .filter((node) => isContainerNodeType(node.type))
       .map((node) => node.id),
   });
   const nodes = [
@@ -938,7 +948,7 @@ export async function untrashNodes(
         await listChildren(ctx, {
           canvasId,
           parentIds: named
-            .filter((node) => node.type === "frame")
+            .filter((node) => isContainerNodeType(node.type))
             .map((node) => node.id),
         })
       ).filter(
@@ -973,8 +983,8 @@ export async function untrashNodes(
   // frame y vienne en premier. Sans ce tri, annuler la suppression d'une frame
   // en ressortirait le contenu.
   const parentsFirst = [
-    ...nodes.filter((node) => node.type === "frame"),
-    ...nodes.filter((node) => node.type !== "frame"),
+    ...nodes.filter((node) => isContainerNodeType(node.type)),
+    ...nodes.filter((node) => !isContainerNodeType(node.type)),
   ];
 
   const untrashedNodeIds: string[] = [];
@@ -1373,7 +1383,7 @@ export async function moveNodes(
   const children = await listChildren(ctx, {
     canvasId: sourceCanvasId,
     parentIds: named
-      .filter((node) => node.type === "frame")
+      .filter((node) => isContainerNodeType(node.type))
       .map((node) => node.id),
   });
   const nodes = [

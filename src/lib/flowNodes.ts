@@ -85,6 +85,9 @@ export function applyNodePatchesToListQuery(
         ...(props.parentId !== undefined && {
           parentId: props.parentId ?? undefined,
         }),
+        ...(props.placement !== undefined && {
+          placement: props.placement ?? undefined,
+        }),
         ...(props.extent !== undefined && { extent: props.extent }),
         ...(props.extendParent !== undefined && {
           extendParent: props.extendParent,

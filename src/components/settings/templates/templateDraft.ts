@@ -5,7 +5,6 @@ import {
 } from "@/../convex/config/fieldConfig";
 import type { FieldType } from "@/../convex/schemas/fieldTypeSchema";
 import {
-  getLayoutDepth,
   MAX_LAYOUT_DEPTH,
   type LayoutContainer,
   type LayoutDivider,
@@ -13,6 +12,21 @@ import {
   type LayoutNode,
   type LayoutStaticText,
 } from "@/../convex/config/templateConfig";
+import {
+  findLayoutNode,
+  findLayoutParentId as findParentId,
+  genLayoutId as genId,
+  getLayoutAncestorPath as getAncestorPath,
+  getLayoutDepth,
+  insertLayoutNode,
+  moveLayoutNode,
+  newLayoutContainer,
+  removeLayoutLeaves,
+  removeLayoutNode,
+  resolveLayoutInsertionPoint as resolveInsertionPoint,
+  updateLayoutNode,
+  wrapLayoutNode,
+} from "@/../convex/lib/layoutTree";
 
 // État local du builder : le draft complet d'un template, sauvegardé
 // explicitement (bouton Save) via nodeTemplates.create/update qui refont la
@@ -37,12 +51,6 @@ type TemplateDraft = {
 // sélection, donc déterminée par l'aperçu dans lequel on a cliqué.
 type LayoutSurface = "node" | "window";
 type LayoutSelection = { surface: LayoutSurface; nodeId: string } | null;
-
-// Ids stables (fields, placements, containers) : jamais réutilisés ni
-// modifiés après création.
-function genId(prefix: string): string {
-  return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
-}
 
 // Nom par défaut d'un NOUVEAU champ. Concept distinct du libellé du type
 // (« un champ de type Texte » vs « ce champ s'appelle Texte »), mais qui
@@ -73,7 +81,7 @@ function newPlacement(fieldId: string): LayoutFieldPlacement {
 }
 
 function newContainer(direction: "row" | "column"): LayoutContainer {
-  return { kind: "container", id: genId("c"), direction, gap: 8, children: [] };
+  return newLayoutContainer(direction);
 }
 
 function newDivider(): LayoutDivider {
@@ -171,174 +179,6 @@ function draftFromTemplate(template: Doc<"nodeTemplates">): TemplateDraft {
   };
 }
 
-// ── Opérations immuables sur l'arbre ────────────────────────────────────
-
-function findLayoutNode(
-  tree: LayoutContainer,
-  nodeId: string,
-): LayoutNode | null {
-  if (tree.id === nodeId) return tree;
-  for (const child of tree.children) {
-    if (child.id === nodeId) return child;
-    if (child.kind === "container") {
-      const found = findLayoutNode(child, nodeId);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function findParentId(tree: LayoutContainer, nodeId: string): string | null {
-  for (const child of tree.children) {
-    if (child.id === nodeId) return tree.id;
-    if (child.kind === "container") {
-      const found = findParentId(child, nodeId);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function updateLayoutNode(
-  tree: LayoutContainer,
-  nodeId: string,
-  // Partial<LayoutNode> et non une union de Partial : l'appelant connaît le
-  // kind du nœud qu'il patche, cette fonction n'a pas à le redémontrer. Le
-  // `as LayoutNode` ci-dessous reste nécessaire pour la même raison.
-  patch: Partial<LayoutNode>,
-): LayoutContainer {
-  const mapNode = (node: LayoutNode): LayoutNode => {
-    if (node.id === nodeId) {
-      return { ...node, ...patch } as LayoutNode;
-    }
-    if (node.kind === "container") {
-      return { ...node, children: node.children.map(mapNode) };
-    }
-    return node;
-  };
-  return mapNode(tree) as LayoutContainer;
-}
-
-function removeLayoutNode(
-  tree: LayoutContainer,
-  nodeId: string,
-): { tree: LayoutContainer; removed: LayoutNode | null } {
-  let removed: LayoutNode | null = null;
-
-  const mapContainer = (container: LayoutContainer): LayoutContainer => {
-    const children: LayoutNode[] = [];
-    for (const child of container.children) {
-      if (child.id === nodeId) {
-        removed = child;
-        continue;
-      }
-      children.push(child.kind === "container" ? mapContainer(child) : child);
-    }
-    return { ...container, children };
-  };
-
-  return { tree: mapContainer(tree), removed };
-}
-
-function insertLayoutNode(
-  tree: LayoutContainer,
-  containerId: string,
-  index: number | undefined,
-  node: LayoutNode,
-): LayoutContainer {
-  const mapContainer = (container: LayoutContainer): LayoutContainer => {
-    if (container.id === containerId) {
-      const children = [...container.children];
-      const at =
-        index === undefined
-          ? children.length
-          : Math.max(0, Math.min(index, children.length));
-      children.splice(at, 0, node);
-      return { ...container, children };
-    }
-    return {
-      ...container,
-      children: container.children.map((child) =>
-        child.kind === "container" ? mapContainer(child) : child,
-      ),
-    };
-  };
-  return mapContainer(tree);
-}
-
-// Déplace un node vers (containerId, index). Refuse de déplacer un
-// container dans lui-même ou un de ses descendants.
-function moveLayoutNode(
-  tree: LayoutContainer,
-  nodeId: string,
-  targetContainerId: string,
-  targetIndex: number | undefined,
-): LayoutContainer {
-  const node = findLayoutNode(tree, nodeId);
-  if (!node || node.id === tree.id) return tree;
-
-  if (node.kind === "container") {
-    if (
-      node.id === targetContainerId ||
-      findLayoutNode(node, targetContainerId)
-    ) {
-      return tree;
-    }
-  }
-
-  const { tree: without, removed } = removeLayoutNode(tree, nodeId);
-  if (!removed) return tree;
-  if (!findLayoutNode(without, targetContainerId)) return tree;
-
-  return insertLayoutNode(without, targetContainerId, targetIndex, removed);
-}
-
-// Chemin racine → node, ids inclus, le node lui-même en dernier. Alimente le
-// fil d'ariane, qui a remplacé la lecture de l'arbre : les containers n'ayant
-// aucune existence visuelle propre dans l'aperçu, sans lui rien n'indique dans
-// quel container on se trouve. Vide si le node est introuvable.
-function getAncestorPath(tree: LayoutContainer, nodeId: string): string[] {
-  const path: string[] = [];
-
-  const walk = (node: LayoutNode, trail: string[]): boolean => {
-    const next = [...trail, node.id];
-    if (node.id === nodeId) {
-      path.push(...next);
-      return true;
-    }
-    return (
-      node.kind === "container" &&
-      node.children.some((child) => walk(child, next))
-    );
-  };
-
-  walk(tree, []);
-  return path;
-}
-
-// Où atterrit un nouveau champ. C'est la sélection qui porte le point
-// d'insertion — ce qui remplace le toggle de surface : on ne désigne plus une
-// cible à l'avance dans une autre colonne, on l'a déjà désignée en cliquant.
-function resolveInsertionPoint(
-  tree: LayoutContainer,
-  selectedId: string | null,
-): { containerId: string; index: number | undefined } {
-  const selected = selectedId ? findLayoutNode(tree, selectedId) : null;
-  if (!selected) return { containerId: tree.id, index: undefined };
-  if (selected.kind === "container") {
-    return { containerId: selected.id, index: undefined };
-  }
-
-  const parentId = findParentId(tree, selected.id);
-  if (!parentId) return { containerId: tree.id, index: undefined };
-  const parent = findLayoutNode(tree, parentId) as LayoutContainer;
-  const index = parent.children.findIndex((c) => c.id === selected.id);
-
-  // Juste APRÈS le placement sélectionné : ajouter un champ en ayant
-  // sélectionné son voisin doit le poser à côté, pas en fin de container.
-  return { containerId: parentId, index: index < 0 ? undefined : index + 1 };
-}
-
 // Groupe un node dans un nouveau container, à sa place exacte. Remplace le
 // bouton « + Container » de l'arbre, qui créait un container vide sans aucun
 // rapport avec la sélection — inutilisable sans vue structurelle.
@@ -352,42 +192,18 @@ function wrapInContainer(
   nodeId: string,
   direction: "row" | "column",
 ): { tree: LayoutContainer; containerId: string | null } {
-  const parentId = findParentId(tree, nodeId);
-  if (!parentId) return { tree, containerId: null };
-  const parent = findLayoutNode(tree, parentId) as LayoutContainer;
-  const index = parent.children.findIndex((c) => c.id === nodeId);
-  if (index < 0) return { tree, containerId: null };
-
-  const { tree: without, removed } = removeLayoutNode(tree, nodeId);
-  if (!removed) return { tree, containerId: null };
-
-  const container: LayoutContainer = {
-    ...newContainer(direction),
-    children: [removed],
-  };
-  // Réinséré à `index` : le node retiré a décalé ses suivants d'un cran vers
-  // la gauche, donc réinsérer à la même position le remet exactement où il
-  // était.
-  const next = insertLayoutNode(without, parentId, index, container);
-
-  if (getLayoutDepth(next) > MAX_LAYOUT_DEPTH) {
-    return { tree, containerId: null };
-  }
-  return { tree: next, containerId: container.id };
+  return wrapLayoutNode(tree, nodeId, direction, MAX_LAYOUT_DEPTH);
 }
 
-// Retire toutes les placements d'un champ (suppression du champ).
+// Retire tous les placements d'un champ (suppression du champ).
 function removeFieldPlacements(
   tree: LayoutContainer,
   fieldId: string,
 ): LayoutContainer {
-  const mapContainer = (container: LayoutContainer): LayoutContainer => ({
-    ...container,
-    children: container.children
-      .filter((child) => !(child.kind === "field" && child.fieldId === fieldId))
-      .map((child) => (child.kind === "container" ? mapContainer(child) : child)),
-  });
-  return mapContainer(tree);
+  return removeLayoutLeaves(
+    tree,
+    (leaf) => leaf.kind === "field" && leaf.fieldId === fieldId,
+  );
 }
 
 export {

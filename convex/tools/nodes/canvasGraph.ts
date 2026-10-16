@@ -4,6 +4,7 @@ import { getEdgeLabel } from "../../ia/tools/toolHelpers";
 import { absolutePositionsById } from "../../lib/nodeGeometry";
 import * as EdgeModels from "../../models/edgeModels";
 import * as NodeModels from "../../models/nodeModels";
+import type { NodePlacement } from "../../schemas/nodesSchema";
 import { canReadNode, vToolScope } from "../scope";
 
 /**
@@ -23,8 +24,10 @@ export type GraphNode = {
   y: number;
   width: number | null;
   height: number | null;
-  /** La frame qui le contient. */
+  /** La frame (ou le board) qui le contient. */
   frameId: string | null;
+  /** Dans un board : son espace et son rang (cf. `boardConfig`). */
+  placement: NodePlacement | null;
   /** Couleur posée par l'utilisateur ou l'agent (cf. NODE_COLORS). */
   color: string | null;
   nodeDataId: Id<"nodeDatas"> | null;
@@ -61,6 +64,7 @@ export const load = internalQuery({
           width: typeof node.width === "number" ? node.width : null,
           height: typeof node.height === "number" ? node.height : null,
           frameId: node.parentId ?? null,
+          placement: node.placement ?? null,
           color: node.color ?? null,
           nodeDataId: node.nodeDataId ?? null,
         };

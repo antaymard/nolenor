@@ -27,7 +27,7 @@ const HELP = `Usage: nole read [options] <id>...
        <ids on stdin> | nole read [options] -
 
 Read nodes as XML: documents as BlockNote XML (the write tools take its
-blocks as-is), tables as Markdown, connections, frame contents, PDF tables of
+blocks as-is), tables as Markdown, connections, frame and board contents (a board by space), PDF tables of
 contents, image descriptions (view_image shows the pixels), transcripts.
 With "-", ids are read from stdin: the first field of each line, so the
 output of "nole ls" can be piped directly.

@@ -21,6 +21,7 @@ import {
   renderRichTextCellsAsMarkdown,
   richTextCellKey,
 } from "../../ia/helpers/tableRichTextMarkdown";
+import { isContainerNodeType } from "../../config/nodeConfig";
 import { escapeXmlAttribute, escapeXmlText } from "../../lib/xml";
 import type { PdfPageChunk } from "../../models/searchableChunkModels";
 import type {
@@ -39,21 +40,45 @@ import type {
 function buildFrameNodeBody(
   children: Array<NodeRef & { x: number; y: number }>,
   withPosition: boolean,
+  spaces?: Array<{ id: string; nodeIds: string[] }>,
 ): string {
-  if (children.length === 0) {
-    return '<contents count="0" />';
-  }
-
-  const lines = children.map((child) => {
+  const childLine = (
+    child: NodeRef & { x: number; y: number },
+    indent: string,
+  ) => {
     const positionAttributes = withPosition
       ? ` x="${Math.trunc(child.x)}" y="${Math.trunc(child.y)}"`
       : "";
-    return `  <child id="${child.id}" type="${child.type}" title="${escapeXmlAttribute(child.title)}"${positionAttributes} />`;
-  });
+    return `${indent}<child id="${child.id}" type="${child.type}" title="${escapeXmlAttribute(child.title)}"${positionAttributes} />`;
+  };
 
+  // Board : ses espaces, vides compris — une colonne « Done » sans rien
+  // dedans est une information —, et dans chacun ses nodes dans l'ordre.
+  if (spaces) {
+    const byId = new Map(children.map((child) => [child.id, child]));
+    const lines = spaces.flatMap((space, i) => {
+      const inSpace = space.nodeIds.flatMap((id) => {
+        const child = byId.get(id);
+        return child ? [childLine(child, "    ")] : [];
+      });
+      const open = `  <space id="${space.id}" index="${i + 1}" count="${inSpace.length}"`;
+      return inSpace.length === 0
+        ? [`${open} />`]
+        : [`${open}>`, ...inSpace, "  </space>"];
+    });
+    return [
+      `<contents count="${children.length}" spaces="${spaces.length}">`,
+      ...lines,
+      "</contents>",
+    ].join("\n");
+  }
+
+  if (children.length === 0) {
+    return '<contents count="0" />';
+  }
   return [
     `<contents count="${children.length}">`,
-    ...lines,
+    ...children.map((child) => childLine(child, "  ")),
     "</contents>",
   ].join("\n");
 }
@@ -613,7 +638,7 @@ export async function renderReadNodes(
       tag.frameId = node.frameId;
       tag.color = node.color;
       tag.frameBody = node.children
-        ? buildFrameNodeBody(node.children, withPosition)
+        ? buildFrameNodeBody(node.children, withPosition, node.spaces)
         : null;
       tag.title = node.title;
       tag.content = content;
@@ -670,8 +695,8 @@ export async function renderReadNodes(
         color ? ` color="${escapeXmlAttribute(color)}"` : ""
       }`;
 
-      if (nodeType === "frame" && frameBody !== null) {
-        return `<node id="${nodeId}" type="frame" sourceNodes="${escapeXmlAttribute(sourceNodes)}" targetNodes="${escapeXmlAttribute(targetNodes)}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}">
+      if (isContainerNodeType(nodeType) && frameBody !== null) {
+        return `<node id="${nodeId}" type="${nodeType}" sourceNodes="${escapeXmlAttribute(sourceNodes)}" targetNodes="${escapeXmlAttribute(targetNodes)}"${positionAttributes}${frameAttribute} title="${escapeXmlAttribute(title)}">
 ${error ? `<readError>${escapeXmlText(error)}</readError>\n` : ""}${frameBody}
 </node>`;
       }

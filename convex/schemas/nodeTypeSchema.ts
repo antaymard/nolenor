@@ -16,6 +16,9 @@ const nodeTypeValues = [
   // rend le groupement explicite, là où la minimap devait jusqu'ici le
   // deviner à la proximité. Ne se crée qu'à la souris (`creatable: false`).
   "frame",
+  // Conteneur à espaces : ses enfants sont rangés dans les espaces de son
+  // arbre de layout (cf. `convex/config/boardConfig.ts`), pas posés librement.
+  "board",
   // Node défini par l'utilisateur : la forme des values est portée par un
   // document nodeTemplates (cf. nodeDatas.templateId), pas par nodeConfig.
   "custom",

@@ -8,6 +8,16 @@ import {
   type FieldSurface,
 } from "./fieldVariants";
 import { getResolvedOptionsSchema } from "./optionDescriptors";
+import {
+  buildLayoutContainerSchema,
+  collectLayoutLeaves,
+  collectLayoutNodeIds,
+  getLayoutDepth,
+  isLayoutContainer,
+  MAX_CHILDREN_PER_CONTAINER,
+  type LayoutContainer as GenericLayoutContainer,
+  type LayoutTreeNode,
+} from "../lib/layoutTree";
 
 // Modèle de layout des custom node templates : un arbre de containers flex
 // (row/column, gap, alignement) dont les feuilles sont des placements de
@@ -19,7 +29,6 @@ import { getResolvedOptionsSchema } from "./optionDescriptors";
 // un arbre malformé crasherait le rendu chez tous les viewers du canvas.
 
 const MAX_LAYOUT_DEPTH = 4;
-const MAX_CHILDREN_PER_CONTAINER = 20;
 const MAX_FIELDS_PER_TEMPLATE = 30;
 
 // ── Types ───────────────────────────────────────────────────────────────
@@ -40,18 +49,6 @@ type LayoutFieldPlacement = {
   // `{}` si le variant n'a pas d'optionsSchema ou si elles ne le valident
   // plus (variant changé, schéma resserré).
   variantOptions?: Record<string, unknown>;
-};
-
-type LayoutContainer = {
-  kind: "container";
-  id: string;
-  direction: "row" | "column";
-  gap?: number;
-  align?: "start" | "center" | "end" | "stretch";
-  justify?: "start" | "center" | "end" | "between";
-  padding?: number;
-  grow?: number;
-  children: LayoutNode[];
 };
 
 // Éléments de mise en page qui ne portent aucune donnée : ils structurent le
@@ -84,11 +81,15 @@ type LayoutStaticText = {
   singleLine?: boolean;
 };
 
-type LayoutNode =
-  | LayoutContainer
+// Les feuilles d'un custom node. Le container, lui, est celui du moteur
+// commun (cf. `convex/lib/layoutTree.ts`).
+type TemplateLayoutLeaf =
   | LayoutFieldPlacement
   | LayoutDivider
   | LayoutStaticText;
+
+type LayoutContainer = GenericLayoutContainer<TemplateLayoutLeaf>;
+type LayoutNode = LayoutTreeNode<TemplateLayoutLeaf>;
 
 // ── Zod ─────────────────────────────────────────────────────────────────
 
@@ -106,20 +107,6 @@ const layoutFieldPlacementSchema = z.strictObject({
   // par normalizeLayoutTree (pas à ce stade, qui ne connaît pas encore le
   // type du champ référencé par fieldId).
   variantOptions: z.record(z.string(), z.unknown()).optional(),
-});
-
-const layoutContainerSchema: z.ZodType<LayoutContainer> = z.strictObject({
-  kind: z.literal("container"),
-  id: z.string().min(1).max(64),
-  direction: z.enum(["row", "column"]),
-  gap: z.number().min(0).max(100).optional(),
-  align: z.enum(["start", "center", "end", "stretch"]).optional(),
-  justify: z.enum(["start", "center", "end", "between"]).optional(),
-  padding: z.number().min(0).max(100).optional(),
-  grow: z.number().min(0).max(12).optional(),
-  children: z
-    .array(z.lazy((): z.ZodType<LayoutNode> => layoutNodeSchema))
-    .max(MAX_CHILDREN_PER_CONTAINER),
 });
 
 const layoutDividerSchema = z.strictObject({
@@ -142,65 +129,23 @@ const layoutStaticTextSchema = z.strictObject({
   singleLine: z.boolean().optional(),
 });
 
-const layoutNodeSchema: z.ZodType<LayoutNode> = z.union([
-  layoutContainerSchema,
+const layoutLeafSchema: z.ZodType<TemplateLayoutLeaf> = z.union([
   layoutFieldPlacementSchema,
   layoutDividerSchema,
   layoutStaticTextSchema,
 ]);
 
+const layoutContainerSchema = buildLayoutContainerSchema(layoutLeafSchema);
+
+const layoutNodeSchema: z.ZodType<LayoutNode> = z.union([
+  layoutContainerSchema,
+  layoutLeafSchema,
+]);
+
 // ── Parcours ────────────────────────────────────────────────────────────
 
-// Les parcours ci-dessous switchent EXHAUSTIVEMENT sur `kind`, avec garde
-// `never`. Ils testaient auparavant `field` par exclusion et traitaient tout
-// le reste comme un container — ce qui plantait dès qu'un kind sans `children`
-// est apparu (divider, texte statique). Ces fonctions tournent côté serveur à
-// chaque validateTemplateDefinition ET côté client sur le canvas : le prochain
-// kind doit échouer à la compilation, pas à l'exécution.
-function assertNeverNode(node: never): never {
-  throw new Error(
-    `Unhandled layout node kind: ${JSON.stringify((node as LayoutNode).kind)}`,
-  );
-}
-
-function collectLayoutFieldIds(tree: LayoutContainer): string[] {
-  const ids: string[] = [];
-  const walk = (node: LayoutNode) => {
-    switch (node.kind) {
-      case "field":
-        ids.push(node.fieldId);
-        return;
-      case "container":
-        node.children.forEach(walk);
-        return;
-      case "divider":
-      case "text":
-        return;
-      default:
-        assertNeverNode(node);
-    }
-  };
-  walk(tree);
-  return ids;
-}
-
-// Profondeur d'imbrication : ne compte que les containers. Une feuille, quelle
-// qu'elle soit, vaut 0.
-function getLayoutDepth(tree: LayoutContainer): number {
-  const walk = (node: LayoutNode): number => {
-    switch (node.kind) {
-      case "container":
-        return 1 + Math.max(0, ...node.children.map(walk));
-      case "field":
-      case "divider":
-      case "text":
-        return 0;
-      default:
-        return assertNeverNode(node);
-    }
-  };
-  return walk(tree);
-}
+// Le parcours vient du moteur commun ; ne restent ici que les lectures
+// propres aux feuilles d'un custom node.
 
 // Placements de champs d'un arbre, dans l'ordre du parcours. Utile dès qu'on a
 // besoin du placement complet (et pas seulement du fieldId) : résoudre le
@@ -209,34 +154,13 @@ function getLayoutDepth(tree: LayoutContainer): number {
 function collectLayoutPlacements(
   tree: LayoutContainer,
 ): LayoutFieldPlacement[] {
-  const placements: LayoutFieldPlacement[] = [];
-  const walk = (node: LayoutNode) => {
-    switch (node.kind) {
-      case "field":
-        placements.push(node);
-        return;
-      case "container":
-        node.children.forEach(walk);
-        return;
-      case "divider":
-      case "text":
-        return;
-      default:
-        assertNeverNode(node);
-    }
-  };
-  walk(tree);
-  return placements;
+  return collectLayoutLeaves(tree).filter(
+    (leaf): leaf is LayoutFieldPlacement => leaf.kind === "field",
+  );
 }
 
-function collectLayoutNodeIds(tree: LayoutContainer): string[] {
-  const ids: string[] = [];
-  const walk = (node: LayoutNode) => {
-    ids.push(node.id);
-    if (node.kind === "container") node.children.forEach(walk);
-  };
-  walk(tree);
-  return ids;
+function collectLayoutFieldIds(tree: LayoutContainer): string[] {
+  return collectLayoutPlacements(tree).map((placement) => placement.fieldId);
 }
 
 // ── Validation complète d'une définition de template ────────────────────
@@ -304,7 +228,7 @@ function normalizeLayoutTree(
   }
 
   const normalizeNode = (node: LayoutNode): LayoutNode => {
-    if (node.kind === "container") {
+    if (isLayoutContainer(node)) {
       return { ...node, children: node.children.map(normalizeNode) };
     }
     // Seuls les placements de champ portent un variant à normaliser. Les
@@ -440,6 +364,7 @@ export {
   MAX_FIELDS_PER_TEMPLATE,
 };
 export type {
+  TemplateLayoutLeaf,
   LayoutNode,
   LayoutContainer,
   LayoutFieldPlacement,

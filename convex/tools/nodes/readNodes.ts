@@ -1,7 +1,14 @@
 import type { FunctionReturnType } from "convex/server";
 import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
-import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
+import {
+  isContainerNodeType,
+  isNodeTypeReadableByAgent,
+} from "../../config/nodeConfig";
+import {
+  groupBoardChildren,
+  readBoardLayout,
+} from "../../config/boardConfig";
 import { collectTableRichTextMentions } from "../../ia/helpers/tableRichTextMarkdown";
 import type { TranscriptReadStatus } from "../../ia/helpers/transcriptFormatters";
 import {
@@ -65,8 +72,13 @@ export type ReadNode = {
       color: string | null;
       nodeData: Doc<"nodeDatas">;
       template: Doc<"nodeTemplates"> | null;
-      /** Frame : ses enfants lisibles, dans l'ordre de lecture (y puis x). */
+      /**
+       * Frame : ses enfants lisibles, dans l'ordre de lecture (y puis x).
+       * Board : dans l'ordre de ses espaces, puis de leur rang.
+       */
       children?: Array<NodeRef & { x: number; y: number }>;
+      /** Board : ses espaces, dans l'ordre de lecture, et ce que chacun range. */
+      spaces?: Array<{ id: string; nodeIds: string[] }>;
       /** Image : les images stockées, et leurs descriptions indexées. */
       image?: { stored: StoredImage[]; chunks: ImageChunk[] };
       /** PDF : les fichiers, et leurs pages OCR indexées. */
@@ -157,7 +169,7 @@ export async function readNodes(
         mentionedNodeDataIds.add(id);
       }
     }
-    if (content.type === "frame") {
+    if (isContainerNodeType(content.type)) {
       for (const child of childrenByFrameId.get(content.id) ?? []) {
         cited.add(child.id);
       }
@@ -280,6 +292,12 @@ export async function readNodes(
           .sort((a, b) => a.y - b.y || a.x - b.x)
           .map((child) => ({ ...refOf(child.id)!, x: child.x, y: child.y })),
       }),
+      ...(content.type === "board" &&
+        readBoardSpaces(
+          nodeData.values.layout,
+          childrenByFrameId.get(content.id) ?? [],
+          refOf,
+        )),
       ...(content.type === "image" && {
         image: {
           stored: readStoredImages(nodeData.values),
@@ -376,5 +394,37 @@ async function readTranscript(
         : pending?.status === "error"
           ? { kind: "error", error: pending.error ?? "Unknown error." }
           : { kind: "none" },
+  };
+}
+
+/**
+ * Les enfants d'un board, espace par espace, dans le rang où le canvas les
+ * range (cf. `groupBoardChildren`). Un arbre illisible n'empêche pas la
+ * lecture : les enfants restent listés, sans espaces.
+ */
+function readBoardSpaces(
+  layoutValue: unknown,
+  children: GraphNode[],
+  refOf: (nodeId: string) => NodeRef | undefined,
+): {
+  children: Array<NodeRef & { x: number; y: number }>;
+  spaces?: Array<{ id: string; nodeIds: string[] }>;
+} {
+  const toChild = (child: GraphNode) => ({
+    ...refOf(child.id)!,
+    x: child.x,
+    y: child.y,
+  });
+  const layout = readBoardLayout(layoutValue);
+  if (!layout) return { children: children.map(toChild) };
+
+  const bySpace = groupBoardChildren(layout, children);
+  const spaces = [...bySpace].map(([id, group]) => ({
+    id,
+    nodeIds: group.map((child) => child.id),
+  }));
+  return {
+    children: [...bySpace.values()].flat().map(toChild),
+    spaces,
   };
 }

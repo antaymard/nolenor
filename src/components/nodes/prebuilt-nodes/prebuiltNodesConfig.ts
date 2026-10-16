@@ -21,6 +21,7 @@ import AppNode from "./AppNode";
 import AudioNode from "./AudioNode";
 import VideoNode from "./VideoNode";
 import FrameNode from "./FrameNode";
+import BoardNode from "./BoardNode";
 
 type NodeUiConfigItem = {
   nodeComponent: React.ComponentType<XyNodeProps>;
@@ -135,6 +136,15 @@ const nodeUiConfig: Record<string, NodeUiConfigItem> = {
     // dupliquer ce qu'elle contient donnerait un cadre vide posé sur le
     // contenu de l'original.
     creatable: false,
+  },
+  board: {
+    nodeComponent: BoardNode,
+    nodeIcon: NODE_TYPE_ICON_MAP.board,
+    canBeOpenInWindow: false,
+    // Posé depuis « Add a block », il naît en Kanban vide. Dupliqué ou collé
+    // sans ses enfants, il redonne le même cadre vide : rien de trompeur,
+    // contrairement à une frame qui retomberait sur le contenu de l'original.
+    creatable: true,
   },
 };
 

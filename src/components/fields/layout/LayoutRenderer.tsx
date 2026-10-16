@@ -3,19 +3,20 @@ import type {
   LayoutContainer,
   LayoutDivider,
   LayoutFieldPlacement,
-  LayoutNode,
   LayoutStaticText,
 } from "@/../convex/config/templateConfig";
 import type { TemplateField } from "@/../convex/config/fieldConfig";
 import { cn } from "@/lib/utils";
 import FieldHost from "@/components/fields/FieldHost";
+import LayoutTreeRenderer from "@/components/layout/LayoutTreeRenderer";
 import {
-  EditableContainer,
   EditablePlacement,
   type LayoutEditor,
-} from "./layoutEditing";
+} from "@/components/layout/layoutEditing";
 
-// Rendu d'un arbre de layout de custom node template. Utilisé par les trois
+// Rendu d'un arbre de layout de custom node template : le moteur commun
+// (LayoutTreeRenderer) rend les containers, ce fichier les feuilles d'un
+// custom node — champs, séparateurs, textes. Utilisé par les trois
 // surfaces : preview du builder (onCommitField absent = lecture seule),
 // node canvas et window. Les champs supprimés du template (values
 // orphelines) et les fieldIds inconnus sont ignorés silencieusement.
@@ -40,34 +41,6 @@ type LayoutRendererProps = {
   // change. Absente ailleurs → gris neutre.
   dividerClassName?: string;
 };
-
-const ALIGN_MAP: Record<string, CSSProperties["alignItems"]> = {
-  start: "flex-start",
-  center: "center",
-  end: "flex-end",
-  stretch: "stretch",
-};
-
-const JUSTIFY_MAP: Record<string, CSSProperties["justifyContent"]> = {
-  start: "flex-start",
-  center: "center",
-  end: "flex-end",
-  between: "space-between",
-};
-
-function containerStyle(container: LayoutContainer): CSSProperties {
-  return {
-    display: "flex",
-    flexDirection: container.direction,
-    gap: container.gap ?? 8,
-    alignItems: ALIGN_MAP[container.align ?? "stretch"],
-    justifyContent: JUSTIFY_MAP[container.justify ?? "start"],
-    padding: container.padding,
-    flexGrow: container.grow,
-    minWidth: 0,
-    minHeight: 0,
-  };
-}
 
 // Dimensions d'une FEUILLE de l'arbre. Prend les seules propriétés de taille et
 // non le nœud entier : placements de champ et textes statiques les partagent
@@ -253,92 +226,6 @@ function StaticTextSlot({
   );
 }
 
-function LayoutNodeRenderer({
-  node,
-  fields,
-  values,
-  surface,
-  onCommitField,
-  onEscalateField,
-  editor,
-  isRoot = false,
-  parentDirection = "column",
-  dividerClassName,
-}: {
-  node: LayoutNode;
-  fields: TemplateField[];
-  values: Record<string, unknown>;
-  surface: "node" | "window";
-  onCommitField?: (fieldId: string, value: unknown) => void;
-  onEscalateField?: (fieldId: string) => void;
-  editor?: LayoutEditor;
-  isRoot?: boolean;
-  parentDirection?: "row" | "column";
-  dividerClassName?: string;
-}) {
-  if (node.kind === "field") {
-    return (
-      <FieldSlot
-        placement={node}
-        fields={fields}
-        values={values}
-        surface={surface}
-        onCommitField={onCommitField}
-        onEscalateField={onEscalateField}
-        editor={editor}
-      />
-    );
-  }
-
-  if (node.kind === "divider") {
-    return (
-      <DividerSlot
-        divider={node}
-        parentDirection={parentDirection}
-        dividerClassName={dividerClassName}
-        editor={editor}
-      />
-    );
-  }
-
-  if (node.kind === "text") {
-    return <StaticTextSlot text={node} editor={editor} />;
-  }
-
-  const style = containerStyle(node);
-  const children = node.children?.map((child) => (
-    <LayoutNodeRenderer
-      key={child.id}
-      node={child}
-      fields={fields}
-      values={values}
-      surface={surface}
-      onCommitField={onCommitField}
-      onEscalateField={onEscalateField}
-      editor={editor}
-      // Un divider doit s'orienter CONTRE son parent : trait vertical dans une
-      // ligne, horizontal dans une colonne. Le nœud ne connaît pas son parent,
-      // on lui passe donc sa direction.
-      parentDirection={node.direction}
-      dividerClassName={dividerClassName}
-    />
-  ));
-
-  if (editor) {
-    return (
-      <EditableContainer
-        container={node}
-        editor={editor}
-        style={style}
-        isRoot={isRoot}
-      >
-        {children}
-      </EditableContainer>
-    );
-  }
-  return <div style={style}>{children}</div>;
-}
-
 function LayoutRenderer({
   tree,
   fields,
@@ -350,16 +237,36 @@ function LayoutRenderer({
   dividerClassName,
 }: LayoutRendererProps) {
   return (
-    <LayoutNodeRenderer
-      node={tree}
-      fields={fields}
-      values={values}
-      surface={surface}
-      onCommitField={onCommitField}
-      onEscalateField={onEscalateField}
+    <LayoutTreeRenderer
+      tree={tree}
       editor={editor}
-      dividerClassName={dividerClassName}
-      isRoot
+      renderLeaf={(leaf, { parentDirection }) => {
+        switch (leaf.kind) {
+          case "field":
+            return (
+              <FieldSlot
+                placement={leaf}
+                fields={fields}
+                values={values}
+                surface={surface}
+                onCommitField={onCommitField}
+                onEscalateField={onEscalateField}
+                editor={editor}
+              />
+            );
+          case "divider":
+            return (
+              <DividerSlot
+                divider={leaf}
+                parentDirection={parentDirection}
+                dividerClassName={dividerClassName}
+                editor={editor}
+              />
+            );
+          case "text":
+            return <StaticTextSlot text={leaf} editor={editor} />;
+        }
+      }}
     />
   );
 }

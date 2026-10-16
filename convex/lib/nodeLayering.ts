@@ -1,3 +1,5 @@
+import { isContainerNodeType } from "../config/nodeConfig";
+
 /**
  * Le `zIndex` d'une frame, quand deux portes en créent.
  *
@@ -31,7 +33,7 @@ export type LayeredNode = {
 export function frameZIndexBelow<T extends LayeredNode>(nodes: T[]): number {
   let min = 0;
   for (const node of nodes) {
-    if (node.type !== "frame") continue;
+    if (!isContainerNodeType(node.type)) continue;
     const z = node.zIndex ?? 0;
     if (z < min) min = z;
   }

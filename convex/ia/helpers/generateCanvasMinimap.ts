@@ -3,7 +3,10 @@ import type { Id } from "../../_generated/dataModel";
 import { internalQuery } from "../../_generated/server";
 import type { QueryCtx } from "../../_generated/server";
 import { getNodeDataTitle } from "../../lib/getNodeDataTitle";
-import { isNodeTypeReadableByAgent } from "../../config/nodeConfig";
+import {
+  isContainerNodeType,
+  isNodeTypeReadableByAgent,
+} from "../../config/nodeConfig";
 import * as EdgeModels from "../../models/edgeModels";
 import * as NodeModels from "../../models/nodeModels";
 
@@ -136,14 +139,15 @@ async function buildCanvasHubs(
   nodes: RawCanvasNode[],
   edges: RawCanvasEdge[],
 ): Promise<Hub[]> {
-  const frames = nodes.filter((node) => node.type === "frame");
+  // Un board se lit comme une frame : un groupe certain, avec son contenu.
+  const frames = nodes.filter((node) => isContainerNodeType(node.type));
   if (frames.length === 0) return buildHubs(ctx, nodes, edges);
 
   const childrenByFrame = new Map<string, RawCanvasNode[]>();
   for (const frame of frames) childrenByFrame.set(frame.id, []);
   const free: RawCanvasNode[] = [];
   for (const node of nodes) {
-    if (node.type === "frame") continue;
+    if (isContainerNodeType(node.type)) continue;
     const siblings = node.parentId
       ? childrenByFrame.get(node.parentId)
       : undefined;
@@ -201,6 +205,8 @@ async function readFrameTitle(
   ctx: QueryCtx,
   frame: RawCanvasNode,
 ): Promise<string> {
+  // Un board n'a pas de titre : il se nomme par son type.
+  if (frame.type === "board") return "Board";
   if (!frame.nodeDataId) return "";
   const nodeData = await ctx.db.get("nodeDatas", frame.nodeDataId);
   if (!nodeData) return "";

@@ -137,6 +137,10 @@ export function getNodeDataTitle(
         : "Frame";
     }
 
+    // Pas de titre : un board se nomme par ce qu'il range.
+    case "board":
+      return "Board";
+
     case "custom": {
       if (template?.titleFieldId) {
         const title = nodeData.values[template.titleFieldId];

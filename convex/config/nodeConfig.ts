@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { nodeTypeValues } from "../schemas/nodeTypeSchema";
+import { BOARD_PRESETS, boardLayoutSchema } from "./boardConfig";
 import {
   TABLE_COLUMN_TYPES,
   listColumnTypesForPrompt,
@@ -935,7 +936,45 @@ const nodeDataConfig: Array<NodeDataConfigItem> = [
       })
       .default({ title: "", level: DEFAULT_FRAME_TITLE_LEVEL }),
   },
+  {
+    type: "board",
+    label: "Board",
+    description:
+      "Container split into spaces (columns, cells) that arrange the nodes dropped in them: a Kanban, a matrix.",
+    llmDescription:
+      "A container whose layout is a tree of rows and columns ending in spaces; each node inside sits in one space, stacked in order. It is how the user builds a Kanban (one space per column), a 2×2 matrix or any board where a node's place means something (a card in the 'Done' space is done). Column headers are ordinary title nodes placed first in their space. Use `nole read` on the board to see its spaces and what each holds, in order. \nCreate one with `create_board` (a grid of columns × rows, with optional header titles), and move nodes into its spaces or change its grid with `edit_board`. To add a NEW node, create it with create_node, then place it with edit_board — create_node's frameId does not accept a board. Like a frame, what enters a board stays in it, and deleting it deletes what it holds. \nIts data value is 'layout' (the tree of containers and spaces).",
+    defaultDimensions: { width: 960, height: 400, resizable: false },
+    capabilities: {
+      agent: {
+        // Créé et rangé par ses tools dédiés (`create_board`, `edit_board`) :
+        // `set_node_data` remplacerait l'arbre sans rien savoir des nodes
+        // rangés dedans, et `create_node` ne sait pas poser un board.
+        exposed: true,
+        creatable: false,
+        readable: true,
+        writable: false,
+      },
+      // Comme la frame : une structure, pas un contenu.
+      versioned: false,
+      search: { embed: false },
+    },
+    dataValuesSchema: z
+      .object({ layout: boardLayoutSchema })
+      .default(() => ({ layout: BOARD_PRESETS.kanban() })),
+  },
 ];
+
+/**
+ * Les conteneurs : des nodes dont d'autres nodes se déclarent enfants
+ * (`parentId`). Ils partagent l'appartenance, sa cascade (supprimer le
+ * conteneur supprime son contenu) et la règle d'un seul niveau — un
+ * conteneur n'entre pas dans un autre.
+ */
+const CONTAINER_NODE_TYPES: readonly string[] = ["frame", "board"];
+
+function isContainerNodeType(nodeType: string | undefined): boolean {
+  return nodeType !== undefined && CONTAINER_NODE_TYPES.includes(nodeType);
+}
 
 function getDefaultNodeDataValues(
   nodeType: z.infer<typeof nodeTypeZodValidator>,
@@ -1002,6 +1041,7 @@ const agentCreatableNodeTypeZodValidator = z.enum(
 );
 
 export {
+  isContainerNodeType,
   nodeDataConfig,
   nodeTypeZodValidator,
   DEFAULT_FRAME_TITLE_LEVEL,

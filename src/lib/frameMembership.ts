@@ -1,5 +1,6 @@
 import type { InternalNode, Node } from "@xyflow/react";
 import { absolutePosition } from "@/../convex/lib/nodeGeometry";
+import { isContainerNodeType } from "@/../convex/config/nodeConfig";
 
 /**
  * L'appartenance d'un node à une frame, côté géométrie.
@@ -81,7 +82,7 @@ export function findFrameAtPoint(frames: Node[], point: XY): Node | null {
  * frame), et une frame n'est évidemment pas sa propre enfant.
  */
 export function canJoinFrame(node: Node): boolean {
-  return node.type !== "frame";
+  return !isContainerNodeType(node.type);
 }
 
 /**

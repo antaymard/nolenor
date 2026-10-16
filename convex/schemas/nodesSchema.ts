@@ -34,6 +34,21 @@ const nodeDisplayOptionsValidator = v.object({
 });
 
 type NodeDisplayOptions = Infer<typeof nodeDisplayOptionsValidator>;
+
+/**
+ * Où un enfant de board est rangé : l'espace (cf. `boardConfig`) et sa clé
+ * d'ordre fractionnaire dans cet espace (cf. `convex/lib/orderKeys.ts`).
+ *
+ * Sur la ligne `nodes` et pas dans le nodeData : c'est de la mise en page,
+ * comme `parentId` ou `position`, ni versionnée ni indexée. La position d'un
+ * enfant de board s'en déduit ; c'est elle, la vraie donnée.
+ */
+const nodePlacementValidator = v.object({
+  spaceId: v.string(),
+  order: v.string(),
+});
+
+type NodePlacement = Infer<typeof nodePlacementValidator>;
 type NodeDisplayOptionKey = keyof NodeDisplayOptions;
 
 const nodesValidator = v.object({
@@ -61,6 +76,7 @@ const nodesValidator = v.object({
   displayOptions: v.optional(nodeDisplayOptionsValidator),
 
   parentId: v.optional(v.string()),
+  placement: v.optional(nodePlacementValidator),
   extent: v.optional(
     v.union(v.literal("parent"), v.array(v.array(v.number()))),
   ),
@@ -109,6 +125,8 @@ const nodePatchPropsValidator = v.object({
    * « je l'y fais entrer ».
    */
   parentId: v.optional(v.union(v.string(), v.null())),
+  /** `null` = n'est plus rangé dans un board (même logique que `parentId`). */
+  placement: v.optional(v.union(nodePlacementValidator, v.null())),
   extent: v.optional(
     v.union(v.literal("parent"), v.array(v.array(v.number()))),
   ),
@@ -156,12 +174,14 @@ type NodePatchUpdate = Infer<typeof nodePatchUpdateValidator>;
 
 export {
   nodeDisplayOptionsValidator,
+  nodePlacementValidator,
   nodePatchPropsValidator,
   nodeCreateInputValidator,
   nodeCreateWithDataItemValidator,
   nodePatchUpdateValidator,
 };
 export type {
+  NodePlacement,
   NodeDisplayOptions,
   NodeDisplayOptionKey,
   NodePatchProps,

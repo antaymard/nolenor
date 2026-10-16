@@ -470,6 +470,11 @@ export async function makeNodeDataLLMFriendly(
       return title ? `Frame: ${title}` : "Frame (untitled)";
     }
 
+    case "board":
+      // Même filet que `frame` : son corps, ce sont les nodes rangés dans ses
+      // espaces, pas son arbre de layout brut.
+      return "Board";
+
     case "pdf": {
       const files = values.files as
         | Array<{ url: string; filename: string; mimeType?: string }>
